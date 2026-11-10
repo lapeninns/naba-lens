@@ -1,7 +1,7 @@
 import { test } from '@e2e-dev/web';
 import { expect } from 'e2e';
 
-import { db, QUESTION, readOnly, signInAs, text, uuid, world } from './fixture';
+import { db, QUESTION, readOnly, signInAs, target, text, uuid, world } from './fixture';
 
 // B02-06 recovery at 1280x800, deterministic: no agent step. Both cases run in
 // the shared recovery scope (world().scopes.recovery), each as its own person.
@@ -41,49 +41,58 @@ test('a photo whose transfer keeps dropping fails with Retry; Retry finishes the
   // Every PUT is refused until released: the transport's own five retries
   // (0, 3, 5, 10, 20 s; lib/upload/uploader.ts) then the failure. The route is
   // in place before the pick, since uploads start on pick.
+  // Only the intended signed PUTs (method PUT, at the guarded loopback storage
+  // origin) count and are refused; anything else the pattern matches goes
+  // through untouched. The route is released in finally, pass or fail.
   let refuse = true;
   let puts = 0;
+  const storage = target().api;
   await browser.route(SIGNED_PUT, async (route) => {
+    if (route.request.method !== 'PUT' || new URL(route.request.url).origin !== storage) return route.continue();
     puts++;
     if (refuse) await route.abort();
     else await route.continue();
   });
+  try {
+    await signInAs(app, browser, who);
+    await app.open('/staff/tasks');
+    await screen.getByRole('banner').getByRole('button', 'Add photos').tap();
+    const chooser = screen.getByRole('dialog', 'What are you adding?');
+    await chooser.getByRole('button', /^Just photos/).tap();
+    await expect(screen.getByRole('dialog', 'Upload photos or videos')).toBeVisible();
+    await screen.getByRole('dialog', 'Upload photos or videos').getByLabel('Choose photos or videos').setInputFiles([w.media.recover]);
 
-  await signInAs(app, browser, who);
-  await app.open('/staff/tasks');
-  await screen.getByRole('banner').getByRole('button', 'Add photos').tap();
-  const chooser = screen.getByRole('dialog', 'What are you adding?');
-  await chooser.getByRole('button', /^Just photos/).tap();
-  await expect(screen.getByRole('dialog', 'Upload photos or videos')).toBeVisible();
-  await screen.getByRole('dialog', 'Upload photos or videos').getByLabel('Choose photos or videos').setInputFiles([w.media.recover]);
+    const sheet = screen.getByRole('dialog', UPLOAD_SHEET);
+    await expect(sheet).toHaveAccessibleName('Saving 1 photo');
+    const row = sheet.getByRole('list', 'Files').getByRole('listitem').filter({ hasText: file });
+    await expect(row).toContainText('Needs attention', { timeout: 90000 });
+    await expect(row.getByText('The connection was interrupted.')).toBeVisible();
+    await expect(sheet.getByRole('status')).toHaveText('0 saved · 1 need attention');
+    await expect(sheet.getByRole('button', `Retry ${file}`)).toBeVisible();
+    expect(puts).toBe(6);
+    // Refused requests, not offline: the browser stayed online throughout.
+    expect(await browser.evaluate<boolean>('() => navigator.onLine')).toBe(true);
 
-  const sheet = screen.getByRole('dialog', UPLOAD_SHEET);
-  await expect(sheet).toHaveAccessibleName('Saving 1 photo');
-  const row = sheet.getByRole('list', 'Files').getByRole('listitem').filter({ hasText: file });
-  await expect(row).toContainText('Needs attention', { timeout: 90000 });
-  await expect(row.getByText('The connection was interrupted.')).toBeVisible();
-  await expect(sheet.getByRole('status')).toHaveText('0 saved · 1 need attention');
-  await expect(sheet.getByRole('button', `Retry ${file}`)).toBeVisible();
-  expect(puts).toBe(6);
+    // Reserved, never finished: one row, still uploading, at the recovery venue.
+    const reserved = db.assets(who.id, file);
+    expect(reserved.map(({ filename, state, venue, deleted }) => ({ filename, state, venue, deleted }))).toEqual([
+      { filename: file, state: 'uploading', venue: w.scopes.recovery.venue.id, deleted: false },
+    ]);
 
-  // Reserved, never finished: one row, still uploading, at the recovery venue.
-  const reserved = db.assets(who.id, file);
-  expect(reserved.map(({ filename, state, venue, deleted }) => ({ filename, state, venue, deleted }))).toEqual([
-    { filename: file, state: 'uploading', venue: w.scopes.recovery.venue.id, deleted: false },
-  ]);
-
-  refuse = false;
-  await sheet.getByRole('button', `Retry ${file}`).tap();
-  await expect(sheet.getByRole('status')).toHaveText('1 saved', { timeout: 60000 });
-  await expect(row).toContainText('Saved');
-  await expect(sheet.getByRole('button', `Retry ${file}`)).toHaveCount(0);
-  expect(puts).toBe(7);
-  // The same asset finished, once: no second row, nothing deleted.
-  await expect.poll(() => db.assets(who.id, file).map(({ id, state, deleted }) => ({ id, state, deleted })), { timeout: 30000 }).toEqual([
-    { id: reserved[0]!.id, state: 'ready', deleted: false },
-  ]);
-  await sheet.getByRole('button', 'Done', { exact: true }).tap();
-  await browser.unroute(SIGNED_PUT);
+    refuse = false;
+    await sheet.getByRole('button', `Retry ${file}`).tap();
+    await expect(sheet.getByRole('status')).toHaveText('1 saved', { timeout: 60000 });
+    await expect(row).toContainText('Saved');
+    await expect(sheet.getByRole('button', `Retry ${file}`)).toHaveCount(0);
+    expect(puts).toBe(7);
+    // The same asset finished, once: no second row, nothing deleted.
+    await expect.poll(() => db.assets(who.id, file).map(({ id, state, deleted }) => ({ id, state, deleted })), { timeout: 30000 }).toEqual([
+      { id: reserved[0]!.id, state: 'ready', deleted: false },
+    ]);
+    await sheet.getByRole('button', 'Done', { exact: true }).tap();
+  } finally {
+    await browser.unroute(SIGNED_PUT);
+  }
 });
 
 test('an empty reason is refused in place; Save for later keeps one account draft another device restores; the send leaves none', async ({ app, browser, screen }) => {
@@ -133,18 +142,27 @@ test('an empty reason is refused in place; Save for later keeps one account draf
   await expect(screen.getByRole('radio', 'No')).toBeChecked();
   await expect(screen.getByLabel('Reason')).toHaveValue(reason);
 
-  // One send: one finding, and the server and this device drop the draft.
+  // One send: one finding, current straight away (guest toilets needs no
+  // confirmation and nothing is assigned in this scope), with Home's scoped
+  // acknowledgement; the server and this device drop the draft.
   await screen.getByRole('button', 'Submit finding').tap();
   await expect(browser).toHaveURL(`/staff/tasks?finding_sent=${check}`, { timeout: 30000 });
-  const sent = db.contributions(check);
-  expect(sent).toHaveLength(1);
-  expect(sent[0]).toMatchObject({ by: who.id, kind: 'finding', answer: 'no' });
+  const notice = screen.getByRole('status').filter({ hasText: 'Finding sent' });
+  await expect(notice).toHaveCount(1);
+  await expect(notice).toContainText(`${question} It's now the venue's answer.`);
+  expect(db.contributions(check)).toEqual([{ by: who.id, kind: 'finding', answer: 'no', outcome: 'current' }]);
+  expect(db.submissions(check)).toEqual([{ answer: 'no', by: who.id }]);
   expect(accountDraft(who.id, check)).toEqual([]);
   expect(db.drafts(check)).toBe(0);
   expect(await browser.evaluate<string | null, string>(LOCAL_DRAFT, draftKey(who.id, check))).toBeNull();
 
-  // Reopened from Home, the sent draft does not come back.
-  await card(/[A-Z][a-z]+( [a-z]+)*/).tap();
+  // Reopened from Home through the current answer's own row action (a staff
+  // member reports a change to a complete check), the sent draft does not come back.
+  const after = card(/Report a change/);
+  await expect(after).toHaveCount(1);
+  await expect(after).toHaveAttribute('href', new RegExp(`^/staff/tasks/amenities/${check}(\\?.*)?$`));
+  await after.tap();
+  await expect(browser).toHaveURL(new RegExp(`/staff/tasks/amenities/${check}(\\?.*)?$`));
   await expect(screen.getByRole('heading', question, { level: 1 })).toBeVisible();
   await expect(screen.getByText(/^(Restored from this phone|You saved this on )/)).toHaveCount(0);
   await expect(screen.getByRole('radio', 'No')).not.toBeChecked();

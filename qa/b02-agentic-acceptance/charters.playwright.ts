@@ -14,7 +14,7 @@ import { dirname, join } from "node:path"
 import type { Browser, Page, Route } from "@playwright/test"
 
 import { candidatePlaywright, CHARTERS, charterRunId } from "./charters.config"
-import { db, QUESTION, readOnly, sessionCookies, uuid, world, type Person } from "./fixture"
+import { db, QUESTION, readOnly, sessionCookies, target, uuid, world, type Person } from "./fixture"
 
 const { test, expect } = candidatePlaywright()
 
@@ -32,6 +32,19 @@ async function signedIn(browser: Browser, who: Person) {
   const context = await browser.newContext()
   await context.addCookies(await sessionCookies(who.email))
   return context
+}
+
+/**
+ * Actual signed-upload PUTs from one page: method PUT at the guarded loopback
+ * storage origin (target().api), matching the signed-upload path only.
+ */
+function watchPuts(page: Page) {
+  const storage = target().api
+  let puts = 0
+  page.on("request", (r) => {
+    if (r.method() === "PUT" && new URL(r.url()).origin === storage && SIGNED_PUT.test(r.url())) puts++
+  })
+  return () => puts
 }
 
 /** Server Function POSTs from one page: reservations (carry the file name) and finalises (carry an assetId). */
@@ -89,10 +102,15 @@ test(CHARTERS[0], async ({ browser }) => {
   const context = await signedIn(browser, who)
   const first = await context.newPage()
   const firstActions = watchActions(first, file)
+  const firstPuts = watchPuts(first)
   // The real signed PUT is latched: received, never answered, so it is in
-  // flight when the page goes. The route is in place before the pick.
+  // flight when the page goes. The route is in place before the pick; only
+  // a PUT at the loopback storage origin is held, anything else continues.
+  const storage = target().api
   const latched: Route[] = []
   await first.route(SIGNED_PUT, (route) => {
+    const request = route.request()
+    if (request.method() !== "PUT" || new URL(request.url()).origin !== storage) return route.continue()
     latched.push(route)
   })
   await first.goto("/staff/tasks")
@@ -104,6 +122,7 @@ test(CHARTERS[0], async ({ browser }) => {
 
   // One reservation, then its bytes in flight.
   await expect.poll(() => latched.length, { timeout: 30_000 }).toBe(1)
+  expect(firstPuts()).toBe(1)
   expect(firstActions.reserves()).toBe(1)
   const reserved = db.assets(who.id, file)
   expect(reserved.map(({ filename, state, venue, deleted }) => ({ filename, state, venue, deleted }))).toEqual([
@@ -122,30 +141,47 @@ test(CHARTERS[0], async ({ browser }) => {
   // A new page in the same signed-in context, from Home to Me.
   const second = await context.newPage()
   const secondActions = watchActions(second, file)
+  const secondPuts = watchPuts(second)
   await second.goto("/staff/tasks")
   await expect(second).toHaveURL(/\/staff\/tasks$/)
   await second.getByRole("navigation", { name: "Staff" }).getByRole("link", { name: /^Me\b/ }).click()
   await expect(second).toHaveURL(/\/staff$/)
   const portfolio = second.getByRole("list", { name: "Your portfolio" })
-  const tile = portfolio.locator(`button[data-media-id="${assetId}"]`)
+  // The outer figure is scoped to the portfolio; the inner selector is
+  // page-relative, because filter({ has }) resolves it from each candidate
+  // figure (a portfolio-relative inner locator would seek a nested list).
+  const tileSelector = `button[data-media-id="${assetId}"]`
+  const figure = portfolio.locator("figure").filter({ has: second.locator(tileSelector) })
+  await expect(figure).toHaveCount(1)
+  const tile = figure.locator(tileSelector)
   await expect(tile).toHaveAccessibleName(/^Photo, uploaded [^,]+, Stopped$/)
   await expect(portfolio.getByRole("button", { name: /, Stopped$/ })).toHaveCount(1)
-  const figure = portfolio.locator("figure").filter({ has: tile })
   await expect(figure.getByText(STOPPED, { exact: true })).toBeVisible()
+  expect(secondPuts()).toBe(0)
 
   // The offered action, then the same file picked again: the same asset finishes.
   await figure.getByRole("button", { name: "Open Add", exact: true }).click()
   await second.getByRole("dialog", { name: "Upload photos or videos" }).getByLabel("Choose photos or videos", { exact: true }).setInputFiles(path)
   const again = second.getByRole("dialog", { name: "Saving 1 photo" })
   await expect(again.getByRole("status")).toHaveText("1 saved", { timeout: 60_000 })
+  // One reserve RPC on each page is expected: the second reuses the first
+  // reservation (same asset). Exactly one real PUT then carries the bytes.
   expect(secondActions.reserves()).toBe(1)
   expect(secondActions.finalises()).toBe(1)
+  expect(secondPuts()).toBe(1)
   await expect
     .poll(() => db.assets(who.id, file).map(({ id, state, deleted }) => ({ id, state, deleted })), { timeout: 30_000 })
     .toEqual([{ id: assetId, state: "ready", deleted: false }])
   await again.getByRole("button", { name: "Done", exact: true }).click()
-  await expect(tile).toHaveAccessibleName(/^Photo, uploaded [^,]+$/, { timeout: 30_000 })
+  // The same tile, now ready: Me shows label badges, so an unlabelled ready
+  // photo's name ends in "Needs labels" (media-tile.tsx describe).
+  await expect(tile).toHaveAccessibleName(/^Photo, uploaded [^,]+, Needs labels$/, { timeout: 30_000 })
+  await expect(figure.getByText(STOPPED, { exact: true })).toHaveCount(0)
   await expect(portfolio.getByRole("button", { name: /, Stopped$/ })).toHaveCount(0)
+  await expect(portfolio.locator(tileSelector)).toHaveCount(1)
+  expect(db.assets(who.id, file).map(({ id, state, deleted }) => ({ id, state, deleted }))).toEqual([{ id: assetId, state: "ready", deleted: false }])
+  expect(firstPuts() + secondPuts()).toBe(2)
+  await second.screenshot({ path: test.info().outputPath("charter-a-ready.png") })
   await context.close()
 })
 
@@ -163,6 +199,13 @@ test(CHARTERS[1], async ({ browser }) => {
   const page = await context.newPage()
   await openCheckFromHome(page, check, question)
 
+  // The capture form is interactive while online: choosing No makes the
+  // client render the Reason field, so the listeners are mounted before the
+  // browser goes offline (not the offline-at-first-mount fallback).
+  await page.getByRole("radio", { name: "No", exact: true }).check()
+  await expect(page.getByLabel("Reason", { exact: true })).toBeVisible()
+  await expect(page.getByRole("alert").filter({ hasText: "You're offline" })).toHaveCount(0)
+
   // The browser goes offline: the page knows, and says so once.
   await context.setOffline(true)
   expect(await page.evaluate(() => navigator.onLine)).toBe(false)
@@ -171,17 +214,22 @@ test(CHARTERS[1], async ({ browser }) => {
   await expect(offline.getByText(OFFLINE_BODY)).toBeVisible()
 
   // Typed and saved offline: on this device only.
-  await page.getByRole("radio", { name: "No", exact: true }).check()
+  await expect(page.getByRole("radio", { name: "No", exact: true })).toBeChecked()
   await page.getByLabel("Reason", { exact: true }).fill(reason)
   await page.getByRole("button", { name: "Save for later", exact: true }).click()
   await expect(page.getByText(SAVED_ON_PHONE, { exact: true })).toBeVisible()
   expect(await localDraft(page, key)).toMatchObject({ answer: "no", reason })
   expect(accountDraft(who.id, check)).toEqual([])
 
+  await page.screenshot({ path: test.info().outputPath("charter-b-offline.png") })
+
   // Leaving: the page closes while offline, then the browser comes back
   // online with no page of this check open. The form's deferred save lived
   // in that page, so nothing can have saved it, and nothing did.
+  expect(await page.evaluate(() => navigator.onLine)).toBe(false)
   await page.close()
+  expect(page.isClosed()).toBe(true)
+  expect(context.pages()).toHaveLength(0)
   await context.setOffline(false)
   expect(accountDraft(who.id, check)).toEqual([])
   expect(db.contributions(check)).toEqual([])
@@ -201,22 +249,37 @@ test(CHARTERS[1], async ({ browser }) => {
   await expect(back.getByText(SAVED_FOR_LATER, { exact: true })).toBeVisible()
   await expect.poll(() => accountDraft(who.id, check), { timeout: 15_000 }).toEqual([{ user: who.id, answer: "no", reason, revision: 1 }])
 
-  // One send; the draft is gone from the account and this device.
+  // One send: step-free always needs a manager's confirmation, so exactly one
+  // finding waits (awaiting_confirmation); the draft is gone from the account
+  // and this device.
   await back.getByRole("button", { name: "Submit finding", exact: true }).click()
   await expect(back).toHaveURL(`/staff/tasks?finding_sent=${check}`, { timeout: 30_000 })
-  const sent = db.contributions(check)
-  expect(sent).toHaveLength(1)
-  expect(sent[0]).toMatchObject({ by: who.id, kind: "finding", answer: "no" })
+  const notice = back.getByRole("status").filter({ hasText: "Finding sent" })
+  await expect(notice).toHaveCount(1)
+  await expect(notice).toContainText(`${question} Your manager confirms it before it's used.`)
+  expect(db.contributions(check)).toEqual([{ by: who.id, kind: "finding", answer: "no", outcome: "awaiting_confirmation" }])
+  expect(db.submissions(check)).toEqual([])
   expect(accountDraft(who.id, check)).toEqual([])
   expect(await localDraft(back, key)).toBeNull()
 
-  // Stale-draft guard: reopened, the sent draft does not come back.
-  await openCheckFromHome(back, check, question)
+  // Stale-draft guard: reopened through the row's exact post-send action
+  // (View: mine, waiting for confirmation), the sent draft does not come back.
+  await back.goto("/staff/tasks")
+  const view = back.getByRole("list", { name: "Amenity checks" }).getByRole("link", { name: `View: ${question}`, exact: true })
+  await expect(view).toHaveCount(1)
+  await view.click()
+  await expect(back).toHaveURL(new RegExp(`/staff/tasks/amenities/${check}(\\?.*)?$`))
+  await expect(back.getByRole("heading", { level: 1, name: question })).toBeVisible()
   await expect(back.getByText(RESTORED_LOCAL, { exact: true })).toHaveCount(0)
   await expect(back.getByText(/^You saved this on /)).toHaveCount(0)
-  await expect(back.getByRole("radio", { name: "No", exact: true })).not.toBeChecked()
-  expect(await localDraft(back, key)).toBeNull()
+  // A staff member's own waiting finding prefills its answer (screen.tsx
+  // prefill: "Changing my undecided finding starts from what I sent"), so No
+  // is checked; the reason typed offline must not come back from anywhere.
+  await expect(back.getByRole("radio", { name: "No", exact: true })).toBeChecked()
+  await expect(back.getByLabel("Reason", { exact: true })).toHaveValue("")
+  expect((await localDraft(back, key))?.reason ?? "").toBe("")
   expect(accountDraft(who.id, check)).toEqual([])
   expect(db.contributions(check)).toHaveLength(1)
+  await back.screenshot({ path: test.info().outputPath("charter-b-sent.png") })
   await context.close()
 })
