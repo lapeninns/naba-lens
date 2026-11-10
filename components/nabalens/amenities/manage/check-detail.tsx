@@ -41,6 +41,10 @@ import {
   answerInUseLines,
   managerSentNoticeFor,
 } from "@/components/nabalens/knowledge/copy"
+import {
+  POLICY_COPY,
+  type PolicyContext,
+} from "@/components/nabalens/knowledge/policy-detail"
 import { PolicyNeedsPanel } from "@/components/nabalens/knowledge/policy-detail-fields"
 import type { QuestionView } from "@/lib/knowledge-client/contract"
 
@@ -163,6 +167,8 @@ export function AmenityCheckDetail({
   knowledge?: {
     view: Extract<QuestionView, { inScope: true }>
     handlers: DecisionHandlers
+    /** A policy question (B03-c): State the policy, and its cards' rows. */
+    policy?: PolicyContext | null
   } | null
 }) {
   const { check, permissions } = detail
@@ -320,6 +326,8 @@ export function AmenityCheckDetail({
   // An incomplete policy is never shown as the current answer (B03 UI §4.3).
   const notConfirmed =
     knowledge?.view.slot.answerInUse.detail === "policy_incomplete"
+  // On a policy question a manager or an admin states the policy (§4.1).
+  const statesPolicy = Boolean(knowledge?.policy)
   // "Capture myself" came back here naming this check (CA-15): say what
   // happened to the finding, from this page's read, never the URL alone.
   const sentId = React.useSyncExternalStore(
@@ -386,6 +394,7 @@ export function AmenityCheckDetail({
           view={knowledge.view}
           handlers={knowledge.handlers}
           onReopen={canReopen ? () => setReopenOpen(true) : undefined}
+          policy={knowledge.policy ?? null}
         />
       ) : null}
 
@@ -463,12 +472,12 @@ export function AmenityCheckDetail({
             <Link
               href={hrefs.capture(check.id)}
               className={buttonVariants({
-                variant: canUpload ? "primary" : "secondary",
+                variant: canUpload || statesPolicy ? "primary" : "secondary",
                 size: "touch",
               })}
             >
               <CameraIcon aria-hidden />
-              {UI_TEXT.captureMyself}
+              {statesPolicy ? POLICY_COPY.statePolicy : UI_TEXT.captureMyself}
             </Link>
           ) : null}
           {canReopen ? (
@@ -524,7 +533,7 @@ export function AmenityCheckDetail({
           ) : null}
         </div>
         {stillSaving("archive", "restore")}
-        {permissions.canSubmit && active && !canUpload ? (
+        {permissions.canSubmit && active && !canUpload && !statesPolicy ? (
           <p className={muted}>
             {UI_TEXT.captureMyself} attaches photos and videos already on
             Naba-Lens. For new ones, assign this check to staff.

@@ -13,7 +13,7 @@ import type {
   ValueListItem,
 } from "@/lib/knowledge-client/contract"
 
-import { joinWords } from "./copy"
+import { joinWords, longDate } from "./copy"
 
 export type PolicyStance =
   "allowed" | "not_allowed" | "conditional" | "not_applicable" | "unknown"
@@ -139,6 +139,7 @@ export const POLICY_COPY = {
   evidenceHelp:
     "A photo can show what's there, such as a sign or a bowl. It doesn't confirm the policy.",
   needsTitle: "What this policy still needs",
+  statePolicy: "State the policy",
   nothingMissing: "Nothing is missing.",
 } as const
 
@@ -530,4 +531,67 @@ export function policySentCopy({
       tone: "positive",
     }
   return null
+}
+
+/** What a check page knows for reading a policy (§4.4). */
+export type PolicyContext = {
+  places: Place[]
+  conditionTypes: ValueListItem[]
+  exceptionTypes: ValueListItem[]
+}
+
+/**
+ * A policy finding's rows on a To confirm card (§4.4), in order; only rows
+ * with something to say. Reference is internal: these cards are for
+ * managers and admins only.
+ */
+export function policyFacts(
+  detail: unknown,
+  ctx: PolicyContext
+): { term: string; value: string }[] {
+  const policy = policyFromDetail(detail)
+  const rows: { term: string; value: string }[] = []
+  if (policy.stance)
+    rows.push({ term: "Rule", value: POLICY_COPY.stanceLabel[policy.stance] })
+  const zones = policy.zones.filter((z) => z.place && z.stance)
+  if (zones.length)
+    rows.push({
+      term: "Areas",
+      value: zones
+        .map(
+          (z) =>
+            `${zonePlaceName(z.place!, ctx.places)}: ${POLICY_COPY.stanceLabel[z.stance as ZoneStance]}`
+        )
+        .join("; "),
+    })
+  if (policy.conditions.length)
+    rows.push({
+      term: "Conditions",
+      value: policy.conditions
+        .map((c) =>
+          [listLabel(c.type, ctx.conditionTypes), c.value]
+            .filter(Boolean)
+            .join(": ")
+        )
+        .join("; "),
+    })
+  if (policy.exceptions.length)
+    rows.push({
+      term: "Exceptions",
+      value: policy.exceptions
+        .map((e) => listLabel(e.type, ctx.exceptionTypes))
+        .join("; "),
+    })
+  if (isRecord(detail) && "policyScope" in detail)
+    rows.push({
+      term: "Applies to",
+      value: POLICY_COPY.scopeLabel[policy.policyScope],
+    })
+  if (policy.statedOn)
+    rows.push({ term: "Stated on", value: longDate(policy.statedOn) })
+  if (policy.source)
+    rows.push({ term: "Where", value: POLICY_COPY.sourceLabel[policy.source] })
+  if (policy.reference.trim())
+    rows.push({ term: "Reference", value: policy.reference.trim() })
+  return rows
 }

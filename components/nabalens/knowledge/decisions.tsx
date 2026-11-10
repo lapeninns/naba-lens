@@ -58,6 +58,7 @@ import {
   policyPhotoLine,
   UNKNOWN_PRESET_LABEL,
 } from "./copy"
+import { policyFacts, type PolicyContext } from "./policy-detail"
 
 type InScope = Extract<QuestionView, { inScope: true }>
 type Decision = KnowledgeResult<DecisionResult>
@@ -363,11 +364,14 @@ export function DecisionPanel({
   view,
   handlers,
   onReopen,
+  policy = null,
 }: {
   view: InScope
   handlers: DecisionHandlers
   /** Opens the check's existing reopen dialog. */
   onReopen?: () => void
+  /** A policy question: what its cards' rows are read with (B03 UI §4.4). */
+  policy?: PolicyContext | null
 }) {
   const decision = useDecision()
   const [ask, setAsk] = React.useState<Ask | null>(null)
@@ -610,6 +614,7 @@ export function DecisionPanel({
       answer={answer}
       note={unknownNote(finding)}
       actions={actionsFor(finding)}
+      policy={policy}
     />
   )
 
@@ -914,11 +919,13 @@ function FindingCard({
   answer,
   note,
   actions,
+  policy,
 }: {
   finding: PendingFinding
   answer: AnswerInUse
   note: string | null
   actions: React.ReactNode
+  policy: PolicyContext | null
 }) {
   const titleId = cardId(finding)
   const policyBlock = policyConfirmBlock(finding.policyMissing)
@@ -997,6 +1004,13 @@ function FindingCard({
                 <Fact term="Answer" different={differs}>
                   {KNOWLEDGE_ANSWER_LABEL[finding.answer]}
                 </Fact>
+                {policy && finding.policyDetail
+                  ? policyFacts(finding.policyDetail, policy).map((row) => (
+                      <Fact key={row.term} term={row.term}>
+                        {row.value}
+                      </Fact>
+                    ))
+                  : null}
                 {finding.changeReason ? (
                   <Fact term="What changed">{finding.changeReason}</Fact>
                 ) : null}

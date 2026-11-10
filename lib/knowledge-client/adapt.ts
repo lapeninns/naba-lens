@@ -297,6 +297,10 @@ function adaptPending(
         : null,
     removedEvidence: 0,
     ...withPolicyMissing(view.policyMissing),
+    // Only policy findings carry policyMissing; their detail is a policy.
+    ...(Array.isArray(view.policyMissing) && view.detail
+      ? { policyDetail: view.detail }
+      : {}),
   }
 }
 

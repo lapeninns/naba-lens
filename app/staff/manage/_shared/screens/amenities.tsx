@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation"
 import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
+import type { PolicyContext } from "@/components/nabalens/knowledge/policy-detail"
+import { questionForm } from "@/components/nabalens/knowledge/question-form"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -152,6 +154,41 @@ export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
   )
 }
 
+/**
+ * On a policy question (registry policy@1), what the check page reads it
+ * with: the venue's places and the owner's lists, each none when it can't be
+ * read. Null on any other question, and when the registry can't be read (the
+ * page is then as before B03).
+ */
+async function policyContextFor(
+  ctx: ManageContext,
+  key: string
+): Promise<PolicyContext | null> {
+  try {
+    const question = await knowledgeServices.getQuestion(ctx.actor, { key })
+    const form = questionForm(question.ok ? question.question : null)
+    if (form.kind !== "policy") return null
+    const [places, conditions, exceptions] = await Promise.all([
+      knowledgeServices
+        .listPlaces(ctx.actor, { venueId: ctx.venueId })
+        .catch(() => null),
+      knowledgeServices
+        .getValueList(ctx.actor, { list: "policy_condition_types" })
+        .catch(() => null),
+      knowledgeServices
+        .getValueList(ctx.actor, { list: "policy_exception_types" })
+        .catch(() => null),
+    ])
+    return {
+      places: places?.ok ? (places.places ?? []) : [],
+      conditionTypes: conditions?.ok ? conditions.items : [],
+      exceptionTypes: exceptions?.ok ? exceptions.items : [],
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function AmenityCheckScreen({
   ctx,
   checkId,
@@ -171,6 +208,9 @@ export async function AmenityCheckScreen({
   // An admin URL names its venue: a check from another venue is not here.
   if (detail.check.venueId !== ctx.venueId) notFound()
   const hrefs = amenityHrefs(ctx.basePath)
+  const inScope =
+    knowledge?.ok && knowledge.view.inScope ? knowledge.view : null
+  const policy = inScope ? await policyContextFor(ctx, inScope.slot.key) : null
 
   return (
     <AmenitiesFrame
@@ -201,8 +241,9 @@ export async function AmenityCheckScreen({
         knowledge={
           // A failed knowledge read leaves the legacy screen: decisions need
           // the slot revision the server reads.
-          knowledge?.ok && knowledge.view.inScope ? knowledge.view : null
+          inScope
         }
+        policy={policy}
       />
     </AmenitiesFrame>
   )

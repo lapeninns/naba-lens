@@ -285,6 +285,8 @@ export type PendingFinding = {
   removedEvidence: number
   /** B03-c: a policy finding's gaps, as if it were adopted. Absent elsewhere. */
   policyMissing?: PolicyNeed[]
+  /** B03-c: a policy finding's stored detail, as sent (read with policyFacts). */
+  policyDetail?: unknown
 }
 
 export type KnowledgePermissions = {

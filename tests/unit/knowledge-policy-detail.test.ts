@@ -9,6 +9,7 @@ import {
   policyErrors,
   policyFieldErrors,
   policyFromDetail,
+  policyFacts,
   policyNeeds,
   policyTouched,
   stanceAnswer,
@@ -212,5 +213,65 @@ describe("policy model", () => {
   it("names a retired list item instead of dropping it", () => {
     expect(listLabel("on_lead", [LEAD])).toBe("⟨On a lead⟩")
     expect(listLabel("old_code", [LEAD])).toBe("old_code (no longer offered)")
+  })
+})
+
+describe("a policy finding's rows on a To confirm card (§4.4)", () => {
+  it("reads each row in order, naming places and list items", () => {
+    expect(
+      policyFacts(
+        {
+          stance: "conditional",
+          zones: [
+            { subjectId: BAR, stance: "allowed" },
+            { label: "⟨Garden⟩", stance: "not_allowed" },
+          ],
+          conditions: [{ type: "max_count", value: 2 }, { type: "gone_code" }],
+          exceptions: [{ type: "assist" }],
+          policyScope: "venue",
+          authority: {
+            basis: "venue_manager",
+            statedOn: "2026-11-02",
+            source: "in_person",
+            reference: "⟨Reference⟩",
+          },
+        },
+        {
+          places: [
+            { subjectId: BAR, kind: "area", label: "⟨Back bar⟩", active: true },
+          ],
+          conditionTypes: [MAX],
+          exceptionTypes: [
+            {
+              code: "assist",
+              label: "⟨Assistance dogs⟩",
+              needsValue: false,
+              valueKind: null,
+            },
+          ],
+        }
+      )
+    ).toEqual([
+      { term: "Rule", value: "Allowed with conditions" },
+      { term: "Areas", value: "⟨Back bar⟩: Allowed; ⟨Garden⟩: Not allowed" },
+      {
+        term: "Conditions",
+        value: "⟨Up to⟩: 2; gone_code (no longer offered)",
+      },
+      { term: "Exceptions", value: "⟨Assistance dogs⟩" },
+      { term: "Applies to", value: "This venue" },
+      { term: "Stated on", value: "2 Nov 2026" },
+      { term: "Where", value: "In person" },
+      { term: "Reference", value: "⟨Reference⟩" },
+    ])
+  })
+
+  it("says only what a staff observation has", () => {
+    expect(
+      policyFacts(
+        { stance: "allowed" },
+        { places: [], conditionTypes: [], exceptionTypes: [] }
+      )
+    ).toEqual([{ term: "Rule", value: "Allowed" }])
   })
 })

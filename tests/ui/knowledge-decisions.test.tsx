@@ -935,3 +935,95 @@ describe("the check page on an incomplete policy (B03 UI §4.3)", () => {
     expect(screen.queryByText(/^Current answer/)).toBeNull()
   })
 })
+
+describe("a policy question's check page and cards (B03 UI §4.1, §4.4)", () => {
+  const POLICY = {
+    places: [
+      {
+        subjectId: "5a000000-0000-4000-8000-000000000001",
+        kind: "area" as const,
+        label: "⟨Back bar⟩",
+        active: true,
+      },
+    ],
+    conditionTypes: [],
+    exceptionTypes: [],
+  }
+
+  it("reads the policy's rows on its card", () => {
+    render(
+      <DecisionPanel
+        view={view([
+          finding({
+            answer: "yes",
+            policyMissing: ["authority"],
+            policyDetail: {
+              stance: "allowed",
+              zones: [
+                {
+                  subjectId: "5a000000-0000-4000-8000-000000000001",
+                  stance: "allowed",
+                },
+              ],
+            },
+          }),
+        ])}
+        handlers={{ decide: vi.fn(), onResolveConflict: vi.fn() }}
+        policy={POLICY}
+      />
+    )
+    const article = screen.getByRole("article")
+    expect(within(article).getByText("Rule")).toBeTruthy()
+    expect(within(article).getByText("Allowed")).toBeTruthy()
+    expect(within(article).getByText("⟨Back bar⟩: Allowed")).toBeTruthy()
+  })
+
+  it("offers State the policy instead of Capture myself", async () => {
+    const { AmenityCheckDetail } =
+      await import("@/components/nabalens/amenities/manage")
+    const { detail, WIFI_CHECK } = await import("./amenities-manage-fixtures")
+    const props = {
+      detail: detail({
+        check: {
+          ...WIFI_CHECK,
+          progress: "complete" as const,
+          answer: "yes" as const,
+        },
+      }),
+      basePath: "/manager",
+      canUpload: false,
+      handlers: {
+        assign: vi.fn(),
+        setNotes: vi.fn(),
+        archive: vi.fn(),
+        restore: vi.fn(),
+        reopen: vi.fn(),
+      },
+    }
+    const { unmount } = render(
+      <AmenityCheckDetail
+        {...props}
+        knowledge={{
+          view: view([], YES),
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
+          policy: POLICY,
+        }}
+      />
+    )
+    const state = screen.getByRole("link", { name: "State the policy" })
+    expect(state.getAttribute("href")).toContain("/capture")
+    expect(screen.queryByRole("link", { name: "Capture myself" })).toBeNull()
+    expect(screen.queryByText(/attaches photos and videos already/)).toBeNull()
+    unmount()
+    render(
+      <AmenityCheckDetail
+        {...props}
+        knowledge={{
+          view: view([], YES),
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
+        }}
+      />
+    )
+    expect(screen.getByRole("link", { name: "Capture myself" })).toBeTruthy()
+  })
+})

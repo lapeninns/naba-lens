@@ -20,6 +20,7 @@ import {
   retirePlaceAction,
 } from "@/app/_knowledge/actions"
 import { PlacesManager } from "@/components/nabalens/knowledge/places-manager"
+import type { PolicyContext } from "@/components/nabalens/knowledge/policy-detail"
 import {
   AmenitiesOverview,
   AmenityCheckDetail,
@@ -71,11 +72,14 @@ export function AmenityCheckControl({
   basePath,
   canUpload,
   knowledge = null,
+  policy = null,
 }: {
   detail: CheckDetail
   basePath: string
   canUpload?: boolean
   knowledge?: Extract<QuestionView, { inScope: true }> | null
+  /** A policy question (B03-c): its places and value lists. */
+  policy?: PolicyContext | null
 }) {
   return (
     <AmenityCheckDetail
@@ -87,6 +91,7 @@ export function AmenityCheckControl({
         knowledge
           ? {
               view: knowledge,
+              policy,
               handlers: {
                 decide: decideFindingAction,
                 onResolveConflict: resolveConflictAction,

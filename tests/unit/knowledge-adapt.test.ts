@@ -609,3 +609,24 @@ describe("policyMissing (B03-c, A5)", () => {
     ).not.toHaveProperty("policyMissing")
   })
 })
+
+describe("a policy finding's detail (B03-c)", () => {
+  it("passes a policy finding's detail on, and no other finding's", () => {
+    const detail = { stance: "allowed" }
+    const view = adaptCheck(
+      check({
+        pending: [
+          pending({ detail, policyMissing: ["authority"] }),
+          pending({
+            findingRef: { type: "contribution", id: "f2" },
+            detail: { locations: [] },
+          }),
+        ],
+      }),
+      "The Old Crown"
+    )
+    if (!view.inScope) throw new Error("in scope")
+    expect(view.pending[0].policyDetail).toEqual(detail)
+    expect(view.pending[1]).not.toHaveProperty("policyDetail")
+  })
+})
