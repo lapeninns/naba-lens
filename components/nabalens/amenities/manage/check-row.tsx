@@ -6,6 +6,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr"
 
 import { formatDate } from "@/components/nabalens/format"
+import { QUALIFIER_WORD } from "@/components/nabalens/knowledge/copy"
 import { StatusChip, type ChipTone } from "@/components/nabalens/status-chip"
 import {
   ANSWER_LABEL,
@@ -31,6 +32,14 @@ const PROGRESS_ICON = {
 export function ProgressChip({ check }: { check: CheckSummary }) {
   if (check.status === "archived")
     return <StatusChip tone="closed">Archived</StatusChip>
+  // A qualified answer reads needs recheck but is an answer in use (§2.6).
+  if (check.qualification)
+    return (
+      <StatusChip tone="attention">
+        <WarningIcon aria-hidden />
+        {QUALIFIER_WORD[check.qualification]}
+      </StatusChip>
+    )
   const Icon = PROGRESS_ICON[check.progress]
   return (
     <StatusChip tone={PROGRESS_TONE[check.progress]}>
@@ -97,7 +106,12 @@ export function CheckRow({
         </p>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta-touch text-ink-muted md:text-meta">
           <ProgressChip check={check} />
-          <span>Answer: {ANSWER_LABEL[check.answer]}</span>
+          <span>
+            Answer:{" "}
+            {check.qualification
+              ? QUALIFIER_WORD[check.qualification]
+              : ANSWER_LABEL[check.answer]}
+          </span>
           {answered ? (
             <>
               <span aria-hidden>·</span>
@@ -105,7 +119,9 @@ export function CheckRow({
             </>
           ) : null}
         </p>
-        {check.progress === "needs_recheck" && check.recheckReason ? (
+        {check.progress === "needs_recheck" &&
+        check.recheckReason &&
+        !check.qualification ? (
           <p className="text-meta-touch break-words text-ink md:text-meta">
             Recheck: {check.recheckReason}
           </p>

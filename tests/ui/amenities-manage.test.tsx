@@ -324,3 +324,49 @@ describe("Catalogue picker", () => {
     )
   })
 })
+
+describe("AmenitiesOverview: qualified answers (B03 UI §2.6)", () => {
+  // Stored complete with a qualified Yes; the legacy read presents it as
+  // needs recheck with the server's reason (b03-design §3.8, A19).
+  const DOGS = {
+    ...DARTS,
+    id: "c0000000-0000-4000-8000-0000000000d1",
+    entry: { ...DARTS.entry, key: "dogs_inside", question: "⟨Dogs question⟩" },
+    progress: "needs_recheck" as const,
+    answer: "yes" as const,
+    recheckReason: "⟨Server reason⟩",
+    qualification: "conditional" as const,
+  }
+
+  it("lists a qualified answer in its own group and count, never as a recheck or a bare Yes", () => {
+    render(
+      <AmenitiesOverview
+        view={view({
+          active: [DARTS, DOGS],
+          counts: { needs_capture: 1, needs_recheck: 1, complete: 0 },
+        })}
+        catalogue={CATALOGUE}
+        basePath={BASE}
+        handlers={handlers()}
+      />
+    )
+    const own = screen.getByRole("region", {
+      name: /Answered with conditions or temporarily unavailable/,
+    })
+    expect(
+      within(own).getByRole("link", { name: "⟨Dogs question⟩" })
+    ).toBeTruthy()
+    expect(
+      within(own).getByText("Answer: Allowed with conditions")
+    ).toBeTruthy()
+    expect(within(own).queryByText(/Answer: Yes/)).toBeNull()
+    expect(within(own).queryByText(/Recheck:/)).toBeNull()
+    const recheck = screen.getByRole("region", { name: "Needs recheck" })
+    expect(within(recheck).queryByText("⟨Dogs question⟩")).toBeNull()
+    expect(within(recheck).getByText("None.")).toBeTruthy()
+    // The recheck tally no longer counts it.
+    expect(
+      screen.getByRole("link", { name: /Needs recheck/ }).textContent
+    ).toContain("0")
+  })
+})

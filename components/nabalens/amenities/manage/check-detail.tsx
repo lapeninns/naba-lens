@@ -37,6 +37,7 @@ import {
   type DecisionHandlers,
 } from "@/components/nabalens/knowledge/decisions"
 import {
+  QUALIFIER_WORD,
   answerInUseLines,
   managerSentNoticeFor,
 } from "@/components/nabalens/knowledge/copy"
@@ -330,8 +331,12 @@ export function AmenityCheckDetail({
         : check.progress === "complete"
           ? LEGACY_SENT
           : null
+  // A qualified answer reads needs recheck but is stored complete (§2.6),
+  // so it can be reopened like any answer in use.
   const canReopen =
-    permissions.canReopen && active && check.progress === "complete"
+    permissions.canReopen &&
+    active &&
+    (check.progress === "complete" || Boolean(check.qualification))
   const muted = "text-body-touch text-ink-muted md:text-body-sm"
   const stillSaving = (...keys: Write[]) =>
     still && busy && keys.includes(busy) ? (
@@ -404,7 +409,9 @@ export function AmenityCheckDetail({
                       {line}
                     </span>
                   ))
-                : ANSWER_LABEL[check.answer]}
+                : check.qualification
+                  ? QUALIFIER_WORD[check.qualification]
+                  : ANSWER_LABEL[check.answer]}
               {answered ? (
                 <span className="block text-meta-touch text-ink-muted md:text-meta">
                   {answered}
@@ -429,7 +436,9 @@ export function AmenityCheckDetail({
             </dd>
           </div>
         </dl>
-        {check.progress === "needs_recheck" && check.recheckReason ? (
+        {check.progress === "needs_recheck" &&
+        check.recheckReason &&
+        !check.qualification ? (
           <Notice tone="attention" role="note" title="Recheck reason">
             <span className="break-words">{check.recheckReason}</span>
           </Notice>
@@ -526,6 +535,13 @@ export function AmenityCheckDetail({
             ? `Assigned to ${check.assignee.displayName ?? "a former team member"}.`
             : "No one is assigned."}
         </p>
+        {check.qualification && permissions.canAssign && active ? (
+          <p className="text-body-touch text-ink-muted md:text-body-sm">
+            Assigning doesn&apos;t change the answer in use. Whoever you assign
+            is asked to look again; what they send goes through this
+            question&apos;s usual confirmation.
+          </p>
+        ) : null}
         {permissions.canAssign && active ? (
           <div className="grid max-w-md gap-3">
             <div className="grid gap-1.5">

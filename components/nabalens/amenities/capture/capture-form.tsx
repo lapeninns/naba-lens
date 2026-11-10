@@ -1714,7 +1714,12 @@ export function CaptureForm({
         <Notice
           tone="attention"
           role="note"
-          title="Your manager asked for a recheck"
+          title={
+            // A qualified answer's reason comes from the server, not a manager.
+            check.qualification
+              ? "This answer needs checking"
+              : "Your manager asked for a recheck"
+          }
         >
           <span className="break-words">{check.recheckReason}</span>
         </Notice>

@@ -286,7 +286,13 @@ export type KnowledgeEventLine = {
  */
 export type CaptureCheck = Pick<
   CheckSummary,
-  "id" | "venueId" | "status" | "progress" | "recheckReason" | "revision"
+  | "id"
+  | "venueId"
+  | "status"
+  | "progress"
+  | "recheckReason"
+  | "revision"
+  | "qualification"
 > & {
   entry: Pick<
     CheckSummary["entry"],

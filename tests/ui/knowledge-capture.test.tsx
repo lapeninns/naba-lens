@@ -1177,3 +1177,29 @@ describe("knowledge capture: facility detail and Checked on (B03-b)", () => {
     })
   })
 })
+
+describe("knowledge capture: a qualified answer's reason (B03 UI §2.6)", () => {
+  it("doesn't say a manager asked for the recheck", () => {
+    render(
+      <CaptureForm
+        check={{
+          ...check,
+          progress: "needs_recheck",
+          recheckReason: "⟨Server reason⟩",
+          qualification: "conditional",
+        }}
+        viewerId={VIEWER_ID}
+        initialAssets={{ ok: true, assets: [] }}
+        loadAssets={async () => ({ ok: true, assets: [] })}
+        submit={vi.fn()}
+        upload={null}
+        onReload={vi.fn()}
+        onDone={vi.fn()}
+        signInHref="/login"
+        newKey={keys()}
+      />
+    )
+    expect(screen.getByText("This answer needs checking")).toBeTruthy()
+    expect(screen.queryByText("Your manager asked for a recheck")).toBeNull()
+  })
+})

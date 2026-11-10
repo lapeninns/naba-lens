@@ -61,6 +61,10 @@ export type AmenitiesOverviewHandlers = {
   }) => Promise<AmenityResult<{ revision: number }>>
 }
 
+/** Answers in use that are qualified (b03-design §3.8; B03 UI design §2.6). */
+export const QUALIFIED_TITLE =
+  "Answered with conditions or temporarily unavailable"
+
 /** Work first: what needs a recheck, then what was never captured, then done. */
 export const PROGRESS_ORDER: CheckProgress[] = [
   "needs_recheck",
@@ -229,12 +233,21 @@ export function AmenitiesOverview({
     )
   }
 
+  // A qualified answer reads needs recheck but is an answer in use (§2.6):
+  // it gets its own group and count, never the recheck ones.
+  const qualified = view.active
+    .filter((check) => check.qualification)
+    .sort(byPosition)
   const groups = PROGRESS_ORDER.map((progress) => ({
     progress,
     checks: view.active
-      .filter((check) => check.progress === progress)
+      .filter((check) => check.progress === progress && !check.qualification)
       .sort(byPosition),
   }))
+  const countOf = (progress: CheckProgress) =>
+    progress === "needs_recheck"
+      ? Math.max(0, view.counts[progress] - qualified.length)
+      : view.counts[progress]
 
   // One row per question: its findings are decided together.
   const confirmGroups = new Map<string, ToConfirmRow[]>()
@@ -262,12 +275,20 @@ export function AmenitiesOverview({
           <TallyItem
             key={progress}
             label={PROGRESS_LABEL[progress]}
-            value={view.counts[progress]}
+            value={countOf(progress)}
             tone={PROGRESS_TONE[progress]}
             icon={PROGRESS_ICON[progress]}
             href={`#amenities-${progress}`}
           />
         ))}
+        {qualified.length > 0 ? (
+          <TallyItem
+            label={QUALIFIED_TITLE}
+            value={qualified.length}
+            icon={WarningIcon}
+            href="#amenities-qualified"
+          />
+        ) : null}
       </Tally>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -380,6 +401,24 @@ export function AmenitiesOverview({
           </CoverageSection>
         ))
       )}
+
+      {qualified.length > 0 ? (
+        <CoverageSection
+          id="amenities-qualified"
+          title={QUALIFIED_TITLE}
+          count={qualified.length}
+        >
+          <ul className="grid min-w-0">
+            {qualified.map((check) => (
+              <CheckRow
+                key={check.id}
+                check={check}
+                href={hrefs.check(check.id)}
+              />
+            ))}
+          </ul>
+        </CoverageSection>
+      ) : null}
 
       <CoverageSection
         id="amenities-recent"
