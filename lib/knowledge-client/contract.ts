@@ -41,6 +41,7 @@ export type {
   ObservedOnSource,
   PlaceKind,
   PlaceRef,
+  QuestionFeature,
   SubjectView as Place,
   QuestionView as RegistryQuestion,
   QuestionLifecycle,

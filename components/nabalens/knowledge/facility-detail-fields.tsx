@@ -46,6 +46,7 @@ export function FacilityDetailFields({
   venueName,
   errors,
   disabled,
+  showWhere = true,
 }: {
   id: string
   value: FacilityDraft
@@ -55,6 +56,8 @@ export function FacilityDetailFields({
   venueName: string
   errors: Partial<Record<FacilityField, string>>
   disabled?: boolean
+  /** Accessibility answers ask what was checked instead (B03 UI §3.2). */
+  showWhere?: boolean
 }) {
   const [label, setLabel] = React.useState("")
   const set = (patch: Partial<FacilityDraft>) =>
@@ -95,86 +98,88 @@ export function FacilityDetailFields({
 
   return (
     <div className="grid min-w-0 gap-5">
-      <fieldset
-        className="grid min-w-0 gap-2"
-        aria-describedby={describedBy(
-          `${id}-where-help`,
-          errors.locations && `${id}-where-error`
-        )}
-        disabled={disabled}
-      >
-        <legend className={LABEL}>{COPY.where}</legend>
-        <p id={`${id}-where-help`} className={MUTED}>
-          {places.length ? COPY.whereHelp : COPY.noPlaces(venueName)}
-        </p>
-        {places.map((place) => (
-          <label key={place.subjectId} className={ROW}>
-            <input
-              type="checkbox"
-              className="size-5 shrink-0 accent-primary"
-              checked={chosen(place.subjectId)}
-              onChange={(e) =>
-                togglePlace(place.subjectId, e.currentTarget.checked)
-              }
-            />
-            <span className="[overflow-wrap:anywhere]">{place.label}</span>
-          </label>
-        ))}
-        {typed.length ? (
-          <ul className="grid gap-1">
-            {typed.map((ref) => (
-              <li
-                key={ref.label}
-                className="flex min-w-0 items-center justify-between gap-2"
-              >
-                <span className="text-body-touch [overflow-wrap:anywhere] text-ink md:text-body">
-                  {ref.label}
-                </span>
-                <Button
-                  type="button"
-                  variant="quiet"
-                  size="icon-sm"
-                  aria-label={COPY.removePlace(ref.label)}
-                  onClick={() => removeLabel(ref.label)}
-                >
-                  <XIcon aria-hidden />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <div className="grid min-w-0 gap-1.5">
-          <label htmlFor={`${id}-label`} className={LABEL}>
-            {places.length ? COPY.somewhereElse : COPY.nameThePlace}
-          </label>
-          <div className="flex min-w-0 flex-wrap gap-2">
-            <input
-              id={`${id}-label`}
-              value={label}
-              maxLength={FACILITY_LIMITS.label}
-              className={`${INPUT} flex-1 basis-48`}
-              onChange={(e) => setLabel(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault()
-                  addLabel()
+      {showWhere ? (
+        <fieldset
+          className="grid min-w-0 gap-2"
+          aria-describedby={describedBy(
+            `${id}-where-help`,
+            errors.locations && `${id}-where-error`
+          )}
+          disabled={disabled}
+        >
+          <legend className={LABEL}>{COPY.where}</legend>
+          <p id={`${id}-where-help`} className={MUTED}>
+            {places.length ? COPY.whereHelp : COPY.noPlaces(venueName)}
+          </p>
+          {places.map((place) => (
+            <label key={place.subjectId} className={ROW}>
+              <input
+                type="checkbox"
+                className="size-5 shrink-0 accent-primary"
+                checked={chosen(place.subjectId)}
+                onChange={(e) =>
+                  togglePlace(place.subjectId, e.currentTarget.checked)
                 }
-              }}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={addLabel}
-              disabled={!label.trim()}
-            >
-              <PlusIcon aria-hidden />
-              {COPY.addPlace}
-            </Button>
+              />
+              <span className="[overflow-wrap:anywhere]">{place.label}</span>
+            </label>
+          ))}
+          {typed.length ? (
+            <ul className="grid gap-1">
+              {typed.map((ref) => (
+                <li
+                  key={ref.label}
+                  className="flex min-w-0 items-center justify-between gap-2"
+                >
+                  <span className="text-body-touch [overflow-wrap:anywhere] text-ink md:text-body">
+                    {ref.label}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="quiet"
+                    size="icon-sm"
+                    aria-label={COPY.removePlace(ref.label)}
+                    onClick={() => removeLabel(ref.label)}
+                  >
+                    <XIcon aria-hidden />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="grid min-w-0 gap-1.5">
+            <label htmlFor={`${id}-label`} className={LABEL}>
+              {places.length ? COPY.somewhereElse : COPY.nameThePlace}
+            </label>
+            <div className="flex min-w-0 flex-wrap gap-2">
+              <input
+                id={`${id}-label`}
+                value={label}
+                maxLength={FACILITY_LIMITS.label}
+                className={`${INPUT} flex-1 basis-48`}
+                onChange={(e) => setLabel(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    addLabel()
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={addLabel}
+                disabled={!label.trim()}
+              >
+                <PlusIcon aria-hidden />
+                {COPY.addPlace}
+              </Button>
+            </div>
           </div>
-        </div>
-        <FieldMessage id={`${id}-where-error`} error={errors.locations} />
-      </fieldset>
+          <FieldMessage id={`${id}-where-error`} error={errors.locations} />
+        </fieldset>
+      ) : null}
 
       <details
         open={value.availability !== null || !!errors.availability || undefined}
