@@ -137,7 +137,15 @@ type UploadDialogProps = {
    * the server still has uploading has stopped.
    */
   onHoldsChange?: (assetIds: string[]) => void
+  /**
+   * Called once per file that ends without becoming ready, and why: it
+   * failed, was cancelled, or was removed (or cleared) from the queue.
+   */
+  onUnfinished?: (file: File, reason: UploadUnfinishedReason) => void
 }
+
+/** Why a queued file never became ready. */
+export type UploadUnfinishedReason = "failed" | "cancelled" | "removed"
 
 export type UploadBusy = {
   active: number
@@ -529,6 +537,7 @@ export function UploadDialog({
   purpose = "general",
   purposeOf,
   onHoldsChange,
+  onUnfinished,
 }: UploadDialogProps) {
   const guard = useSessionGuard()
   const isSignedIn = guard?.isSignedIn
@@ -730,6 +739,22 @@ export function UploadDialog({
     })
   }, [signedOut, items, onUploaded, onReady])
 
+  // Each file that ends without becoming ready, once, and why.
+  const ended = React.useRef(new Set<string>())
+  const unfinished = React.useCallback(
+    (item: QueueItem, reason: UploadUnfinishedReason) => {
+      if (item.status === "done" || ended.current.has(item.id)) return
+      ended.current.add(item.id)
+      onUnfinished?.(item.file, reason)
+    },
+    [onUnfinished]
+  )
+  React.useEffect(() => {
+    for (const item of items)
+      if (item.status === "failed" || item.status === "cancelled")
+        unfinished(item, item.status)
+  }, [items, unfinished])
+
   const queuedInitial = React.useRef<File[] | null>(null)
   React.useEffect(() => {
     if (!open || !initialFiles?.length) return
@@ -769,6 +794,7 @@ export function UploadDialog({
   }
 
   function remove(item: QueueItem) {
+    unfinished(item, "removed")
     labels.discard(item)
     reported.current.delete(item.id)
     queue.remove(item.id)
@@ -788,6 +814,8 @@ export function UploadDialog({
   )
 
   function clearQueue() {
+    for (const item of items) unfinished(item, "removed")
+    ended.current.clear()
     queue.reset()
     labels.reset()
     reported.current.clear()
@@ -1029,6 +1057,7 @@ export function UploadDialog({
                     // otherwise it stays, with Retry in place of Cancel.
                     if (startOnPick) focusPast(item.id)
                     else focusRow.current = item.id
+                    unfinished(item, "cancelled")
                     queue.cancel(item.id)
                     if (startOnPick) remove(item)
                   }}

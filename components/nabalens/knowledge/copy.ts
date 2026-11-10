@@ -500,6 +500,42 @@ export function sentNoticeFor(
   }
 }
 
+/**
+ * A manager's or admin's own finding, named on the check page after "Capture
+ * myself" (CA-15): the same outcomes staff are told. Null without a sent
+ * finding of theirs, so the notice never rests on the URL alone.
+ */
+export function managerSentNoticeFor(
+  slot: Pick<WorkingSlot, "myLatest" | "answerInUse" | "requiresConfirmation">
+): SentCopy | null {
+  const latest = slot.myLatest
+  if (!latest?.answer) return null
+  const base = {
+    answer: latest.answer,
+    compared: "none" as const,
+    changeReport: false,
+  }
+  switch (latest.state) {
+    case "current":
+      return sentCopy({
+        ...base,
+        outcome: "current",
+        selfConfirmed:
+          slot.requiresConfirmation && slot.answerInUse.confirmation.self,
+      })
+    case "submitted":
+      return sentCopy({ ...base, outcome: "recorded" })
+    case "awaiting_confirmation":
+      return sentCopy({
+        ...base,
+        outcome: "awaiting_confirmation",
+        leftForOthers: true,
+      })
+    default:
+      return null
+  }
+}
+
 export function replacedOwnLine(sentAt: string | null): string {
   return sentAt
     ? `Your earlier finding, sent ${shortDate(sentAt)}, was replaced.`
@@ -625,6 +661,27 @@ export const UPLOAD_WAIT_COPY = {
     n === 1
       ? `Your ${uploadNoun(1, kinds)} didn't finish saving. Add it again or choose another.`
       : `Your ${n} ${uploadNoun(n, kinds)} didn't finish saving. Add them again or choose others.`,
+  // The same, when Add said why (CA-11).
+  unfinished: (
+    n: number,
+    kinds: UploadKinds,
+    reason: "failed" | "cancelled" | "removed"
+  ) => {
+    const what =
+      n === 1
+        ? `Your ${uploadNoun(1, kinds)}`
+        : `Your ${n} ${uploadNoun(n, kinds)}`
+    const was = n === 1 ? "was" : "were"
+    const how =
+      reason === "failed"
+        ? "failed to save"
+        : reason === "cancelled"
+          ? `${was} cancelled in Add`
+          : `${was} removed from Add`
+    return n === 1
+      ? `${what} ${how}. Add it again or choose another.`
+      : `${what} ${how}. Add them again or choose others.`
+  },
 } as const
 
 /**

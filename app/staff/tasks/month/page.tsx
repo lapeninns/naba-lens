@@ -38,6 +38,7 @@ import { periodKeyOf } from "@/lib/server/coverage/time"
 
 import { myTasks, staffShellStatus } from "../../_shell/shell-status"
 import { PORTFOLIO_PATH, TASKS_PATH, unwrap } from "../result"
+import { backFrom } from "../back-from"
 import { TaskSubmit } from "../task-submit"
 
 export const metadata = { title: "Monthly progress · Naba-Lens" }
@@ -156,6 +157,7 @@ export default async function MonthPage({
   searchParams: Promise<{
     period?: string | string[]
     replaces?: string | string[]
+    from?: string | string[]
   }>
 }) {
   const profile = await requireActiveStaff()
@@ -202,7 +204,7 @@ export default async function MonthPage({
     >
       <OfflineNotice className="mb-4" />
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
-        <BackToTasks href={TASKS_PATH} />
+        <BackToTasks {...backFrom(search.from, MONTH_PATH)} />
         <PageHeader
           scope={[scope.venue?.name, periodLabel(period)]}
           venueScope

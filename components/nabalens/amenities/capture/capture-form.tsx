@@ -72,7 +72,12 @@ import {
   usePhotoSource,
   type PhotoSource,
 } from "../../photo-source"
-import { useAddActive, type OpenAddOptions } from "../../shell/add-context"
+import {
+  useAddActive,
+  type OpenAddOptions,
+  type UnfinishedReason,
+} from "../../shell/add-context"
+import { yesRefusedLine } from "../../shell/entry-copy"
 import type { UploadLimits } from "../../types"
 import { UploadDialog } from "../../upload-dialog"
 import type { Uploader } from "../../upload-queue"
@@ -376,6 +381,7 @@ export function CaptureForm({
   pageHref,
   knowledge = null,
   newKey = newIdempotencyKey,
+  uploadRefused = false,
 }: {
   check: CaptureCheck
   /** The signed-in person: drafts are kept per person on a shared device. */
@@ -409,6 +415,11 @@ export function CaptureForm({
   /** Send through the knowledge path (a working-list question). */
   knowledge?: KnowledgeCapture | null
   newKey?: () => string
+  /**
+   * A manager account that can't upload (§5.3): with nothing to attach, Yes
+   * stays offered and says why it can't be sent.
+   */
+  uploadRefused?: boolean
 }) {
   const ids = React.useId()
   const { entry } = check
@@ -491,6 +502,8 @@ export function CaptureForm({
   // Uploads picked here that aren't ready yet (knowledge evidence must be
   // ready to attach), and whether the person chose to wait for them.
   const [pendingUploads, setPendingUploads] = React.useState(0)
+  // Why uploads from here ended in Add without becoming ready (CA-11).
+  const unfinishedFrom = React.useRef<UnfinishedReason[]>([])
   const [pendingKinds, setPendingKinds] = React.useState<UploadKinds | null>(
     null
   )
@@ -797,6 +810,7 @@ export function CaptureForm({
         onPicked: (files) => {
           if (!mounted.current) return
           arrivals.current = newArrivals()
+          unfinishedFrom.current = []
           setPendingUploads((n) => n + (files?.length ?? 0))
           if (files?.length)
             setPendingKinds((k) => mergeKinds(k, kindsOf(files)))
@@ -806,6 +820,9 @@ export function CaptureForm({
         // replacing it. False after unmount ("the screen is gone"): Add keeps
         // the upload saved, not attached to this check.
         onReady: (assetIds) => arrived.current(assetIds),
+        onUnfinished: (reason) => {
+          if (mounted.current) unfinishedFrom.current.push(reason)
+        },
       })
     else ownPicker.open(source)
   }
@@ -1423,10 +1440,20 @@ export function CaptureForm({
   React.useEffect(() => {
     if (addActive !== 0 || pendingUploads === 0) return
     const timer = window.setTimeout(() => {
-      const message = UPLOAD_WAIT_COPY.failed(
-        pendingUploads,
-        pendingKinds ?? "mixed"
-      )
+      // Add said why for every one of them, and the same: name it (CA-11).
+      const reasons = unfinishedFrom.current.splice(0)
+      const reason =
+        reasons.length === pendingUploads &&
+        reasons.every((r) => r === reasons[0])
+          ? reasons[0]
+          : null
+      const message = reason
+        ? UPLOAD_WAIT_COPY.unfinished(
+            pendingUploads,
+            pendingKinds ?? "mixed",
+            reason
+          )
+        : UPLOAD_WAIT_COPY.failed(pendingUploads, pendingKinds ?? "mixed")
       setPendingUploads(0)
       setUploadNote(message)
       if (waiting) {
@@ -1475,6 +1502,10 @@ export function CaptureForm({
   const unsure = lastSendUnsure && draft.attempted && !outcome && !sending
   const missing = missingEvidenceText(rule, kinds)
   const canUpload = upload !== null
+  const yesRefused =
+    uploadRefused && !canUpload && assets.length === 0 && !listError
+      ? yesRefusedLine(rule)
+      : null
   const today = londonToday()
 
   return (
@@ -1600,7 +1631,9 @@ export function CaptureForm({
                     id={`${ids}-answer-${option}-hint`}
                     className="text-meta-touch font-normal text-ink-muted md:text-meta"
                   >
-                    {ANSWER_HINT[option]}
+                    {option === "yes" && yesRefused
+                      ? yesRefused
+                      : ANSWER_HINT[option]}
                   </span>
                 </span>
               </label>
@@ -1626,6 +1659,9 @@ export function CaptureForm({
             ))}
           </div>
         )}
+        {yesRefused && !knowledge ? (
+          <p className={MUTED}>{yesRefused}</p>
+        ) : null}
         <FieldMessage id={`${ids}-answer-error`} error={errors.answer} />
       </fieldset>
 

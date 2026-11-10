@@ -131,6 +131,7 @@ export async function CaptureScreen({
   backHref,
   backLabel,
   doneHref,
+  announceSent = true,
 }: {
   actor: MediaActor
   checkId: string
@@ -147,6 +148,11 @@ export async function CaptureScreen({
   backHref: string
   backLabel: string
   doneHref: string
+  /**
+   * Name the sent check on `doneHref` (`?finding_sent=`): Home and the check
+   * pages say what happened to it. Off for other origins of `?from=`.
+   */
+  announceSent?: boolean
 }) {
   const venue = venueName ?? "your venue"
   const [knowledgeRead, checkResult, assets] =
@@ -184,6 +190,8 @@ export async function CaptureScreen({
       canUpload={canUpload}
       canAttachLegacy={permissions?.canAttachLegacy ?? false}
       doneHref={doneHref}
+      announceSent={announceSent}
+      uploadRefused={mode === "manager" && !canUpload}
       knowledge={knowledge}
     />
   )

@@ -130,3 +130,34 @@ describe("Capture myself: who may upload", () => {
     expect(screen.queryByText(NO_UPLOAD)).toBeNull()
   })
 })
+
+describe("Capture myself: Yes with nothing to attach (§5.3)", () => {
+  const REFUSED =
+    "Yes needs a photo. This account can't add new photos or videos, and none of yours can be attached."
+  const ASSET = {
+    assetId: "asset-1",
+    kind: "photo" as const,
+    createdAt: "2026-11-01T10:00:00Z",
+    source: "legacy_coverage" as const,
+    thumbUrl: null,
+  }
+
+  it("/manager keeps Yes and says why before it is chosen", async () => {
+    await show(ManagerAmenityCapturePage({ params }))
+    expect(screen.getByRole("radio", { name: "Yes" })).toBeTruthy()
+    expect(screen.getByText(REFUSED)).toBeTruthy()
+  })
+
+  it("not once something can be attached, nor for a staff account with a grant", async () => {
+    services.listSubmittableAssets.mockResolvedValue({
+      ok: true,
+      assets: [ASSET],
+    })
+    await show(ManagerAmenityCapturePage({ params }))
+    expect(screen.queryByText(REFUSED)).toBeNull()
+    cleanup()
+    services.listSubmittableAssets.mockResolvedValue({ ok: true, assets: [] })
+    await show(ManageAmenityCapturePage({ params }))
+    expect(screen.queryByText(REFUSED)).toBeNull()
+  })
+})

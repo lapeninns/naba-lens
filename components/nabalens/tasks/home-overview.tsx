@@ -89,7 +89,11 @@ export function HomeOverview({
   welcomeHref?: string | null
   reviewCount?: number
   reviewError?: boolean
-  contribute?: { prompt: string; blocked: string | null } | null
+  contribute?: {
+    prompt: string
+    blocked: string | null
+    canAnswer?: boolean
+  } | null
   ourMenu?: OurMenuProgress | null
   /** Null when they couldn't be read. */
   amenityTasks?: MyAmenityTask[] | null
@@ -162,6 +166,7 @@ export function HomeOverview({
         <ContributeCard
           prompt={contribute.prompt}
           blocked={contribute.blocked}
+          canAnswer={contribute.canAnswer}
         />
       ) : null}
 

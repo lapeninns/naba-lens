@@ -64,7 +64,22 @@ export type OpenAddOptions = {
    * community. Default "general".
    */
   purpose?: UploadPurpose
+  /**
+   * Open the shared entry ("What are you adding?") instead, where it is on
+   * for this person (B02-02): "choose" from Add, "question" from Home's
+   * "Answer a venue question". Off, "choose" opens today's Add and
+   * "question" does nothing. Waiting files still open the queue first.
+   */
+  entry?: "choose" | "question"
+  /**
+   * Hears each file picked from this call that ended without becoming ready,
+   * and why: it failed, was cancelled, or was removed from Add.
+   */
+  onUnfinished?: (reason: UnfinishedReason, file: File) => void
 }
+
+/** Why a picked file never became ready. */
+export type UnfinishedReason = "failed" | "cancelled" | "removed"
 
 export type AddReadyListener = (assetIds: string[]) => void
 
@@ -235,7 +250,7 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
       type="button"
       className={className}
       aria-label={busyName}
-      onClick={() => openAdd()}
+      onClick={() => openAdd({ entry: "choose" })}
     >
       {content}
     </button>

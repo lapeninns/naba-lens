@@ -31,6 +31,7 @@ import { getMediaActor } from "@/lib/server/media/context"
 
 import {
   myAmenityTasks,
+  myContributionEntry,
   myLabelWork,
   myRetakes,
   myTasks,
@@ -193,6 +194,7 @@ export default async function TasksPage({
     pending,
     labels,
     retakes,
+    entry,
   ] = await Promise.all([
     myTasks(actor).then(unwrap),
     recentColleaguePhotos(),
@@ -208,6 +210,9 @@ export default async function TasksPage({
     layout === "b01" ? myPending(actor) : null,
     layout === "b02" ? myLabelWork(actor) : null,
     layout === "b02" ? myRetakes(actor) : null,
+    layout === "b02" && profile.venue && !uploadBlockReason(profile)
+      ? myContributionEntry(actor, profile.venue.name)
+      : null,
   ])
   const { reviewCount } = shell
   const blockedReason = uploadBlockReason(profile)
@@ -245,6 +250,7 @@ export default async function TasksPage({
     contribute: {
       prompt: homePrompt(profile.work?.roleKey),
       blocked: blockedReason ? UPLOAD_BLOCKED[blockedReason] : null,
+      canAnswer: entry?.intents.includes("question") ?? false,
     },
     ourMenu,
     amenityTasks,

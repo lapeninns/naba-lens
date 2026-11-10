@@ -31,7 +31,11 @@ import {
   type AddLabelPreset,
   type AddReadyListener,
   type OpenAddOptions,
+  type UnfinishedReason,
 } from "@/components/nabalens/shell/add-context"
+import { ENTRY_COPY } from "@/components/nabalens/shell/entry-copy"
+import type { EntryStep } from "@/components/nabalens/shell/entry-flow"
+import { EntrySheet } from "@/components/nabalens/shell/entry-sheet"
 import { LeaveGuard } from "@/components/nabalens/shell/leave-guard"
 import {
   AddSheet,
@@ -41,6 +45,7 @@ import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
+import type { EntryMenu } from "@/lib/work-client/entry"
 import type {
   LabelCatalogue,
   MediaLabelSummary,
@@ -62,6 +67,8 @@ type PickOwner = {
   onReady: ((assetIds: string[]) => boolean | void) | null
   /** Told once files are actually picked. */
   onPicked: ((files?: File[]) => void) | null
+  /** Told of each file that ended without becoming ready, and why. */
+  onUnfinished: ((reason: UnfinishedReason, file: File) => void) | null
   preset: AddLabelPreset | null
   /** Fixed at reservation; "amenity" keeps the files out of the community. */
   purpose: UploadPurpose
@@ -96,11 +103,20 @@ export function AddHost({
   blocked,
   captchaRequired,
   captchaSiteKey,
+  entry = null,
+  venueName = null,
   children,
 }: {
   blocked: AddBlocked | null
   captchaRequired: boolean
   captchaSiteKey: string | null
+  /**
+   * The shared entry's choices (B02-02), read on the server; none keeps
+   * today's Add exactly (the entry is off for the venue).
+   */
+  entry?: Promise<EntryMenu | null> | null
+  /** The person's venue, for the Add sheet's context lines with the entry on. */
+  venueName?: string | null
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -235,7 +251,12 @@ export function AddHost({
   /** These files were picked for `owner`'s Add call. */
   const claim = React.useCallback((files: File[], owner: PickOwner | null) => {
     if (!owner || files.length === 0) return
-    if (owner.onReady || owner.preset || owner.purpose !== "general")
+    if (
+      owner.onReady ||
+      owner.onUnfinished ||
+      owner.preset ||
+      owner.purpose !== "general"
+    )
       for (const file of files) fileOwners.current.set(file, owner)
     owner.onPicked?.(files)
   }, [])
@@ -317,6 +338,36 @@ export function AddHost({
       listener(assetIds, "discarded")
   }, [])
 
+  // Today's Add without a source: the queue while files wait, the sheet on
+  // phones (and when blocked), the upload dialog from md.
+  const showAdd = React.useCallback(
+    (dialog = false) => {
+      const phone = !window.matchMedia("(min-width: 48rem)").matches
+      if (waiting > 0 && !blocked) setUploadOpen(true)
+      else if (blocked || (phone && !dialog)) setSheetOpen(true)
+      else {
+        setPickedFiles(undefined)
+        setUploadOpen(true)
+      }
+    },
+    [waiting, blocked]
+  )
+
+  // The shared entry's step, while it is open (B02-02).
+  const [entryStep, setEntryStep] = React.useState<EntryStep | null>(null)
+  const closeEntry = React.useCallback((open: boolean) => {
+    if (!open) setEntryStep(null)
+  }, [])
+  const entryPhotos = React.useCallback(() => {
+    setEntryStep(null)
+    showAdd()
+  }, [showAdd])
+  const entryUnavailable = React.useCallback(() => {
+    setEntryStep(null)
+    // Without the entry, Add is today's Add; a question has no fallback.
+    if (entryStep === "choose") showAdd()
+  }, [entryStep, showAdd])
+
   const value = React.useMemo(
     () => ({
       openAdd: (opts: OpenAddOptions = {}) => {
@@ -328,8 +379,17 @@ export function AddHost({
         const owner: PickOwner = {
           onReady: opts.onReady ?? null,
           onPicked: opts.onPicked ?? null,
+          onUnfinished: opts.onUnfinished ?? null,
           preset: opts.preset ?? null,
           purpose: opts.purpose ?? "general",
+        }
+        if (opts.entry && !opts.source) {
+          if (entry && !blocked && waiting === 0) {
+            sheetOwner.current = null
+            setEntryStep(opts.entry)
+            return
+          }
+          if (opts.entry === "question") return
         }
         const toPicker = !!opts.source && !blocked
         pickerOwner.current = toPicker ? owner : null
@@ -342,13 +402,7 @@ export function AddHost({
           openPicker(opts.source, { imagesOnly: only })
           return
         }
-        const phone = !window.matchMedia("(min-width: 48rem)").matches
-        if (waiting > 0 && !blocked) setUploadOpen(true)
-        else if (blocked || (phone && !opts.dialog)) setSheetOpen(true)
-        else {
-          setPickedFiles(undefined)
-          setUploadOpen(true)
-        }
+        showAdd(opts.dialog)
       },
       onReady,
       labelled,
@@ -361,6 +415,8 @@ export function AddHost({
     }),
     [
       blocked,
+      entry,
+      showAdd,
       waiting,
       busy.active,
       busy.failed,
@@ -528,10 +584,25 @@ export function AddHost({
         <AddProvider value={value}>
           {children}
           {picker.inputs}
+          {entry ? (
+            <EntrySheet
+              open={entryStep !== null}
+              onOpenChange={closeEntry}
+              entry={entry}
+              step={entryStep ?? "choose"}
+              onPhotos={entryPhotos}
+              onUnavailable={entryUnavailable}
+            />
+          ) : null}
           <AddSheet
             open={sheetOpen}
             onOpenChange={closeSheet}
             blocked={blocked}
+            context={
+              entry && venueName
+                ? { venueName, audience: ENTRY_COPY.photosAudience }
+                : null
+            }
             maxFiles={MEDIA_LIMITS.maxBatchFiles}
             imagesOnly={imagesOnly}
             onFiles={queueFiles}
@@ -557,6 +628,9 @@ export function AddHost({
             keepRunningWhenClosed
             onBusyChange={setBusy}
             onHoldsChange={holdsChanged}
+            onUnfinished={(file, reason) =>
+              fileOwners.current.get(file)?.onUnfinished?.(reason, file)
+            }
           />
           <p role="status" className="sr-only">
             {attentionSaid}

@@ -36,9 +36,17 @@ import {
   DecisionPanel,
   type DecisionHandlers,
 } from "@/components/nabalens/knowledge/decisions"
-import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
+import {
+  answerInUseLines,
+  managerSentNoticeFor,
+} from "@/components/nabalens/knowledge/copy"
 import type { QuestionView } from "@/lib/knowledge-client/contract"
 
+import { FINDING_SENT_PARAM } from "../capture/finding-sent"
+import {
+  FindingSentNotice,
+  type FindingSentCopy,
+} from "../capture/finding-sent-notice"
 import { EventHistory, SubmissionHistory, peopleIndex } from "./check-history"
 import { ProgressChip, answeredText } from "./check-row"
 import { ReopenDialog, type ReopenOutcome } from "./reopen-dialog"
@@ -102,6 +110,16 @@ function readNotesDraft(checkId: string): string | null {
 }
 
 const noSubscription = () => () => {}
+
+/** Where focus goes when the sent notice is dismissed. */
+const CHECK_TOP_ID = "amenity-check"
+
+/** A check off the working list, complete after the send. */
+const LEGACY_SENT: FindingSentCopy = {
+  title: "Finding sent",
+  body: "The check is complete.",
+  tone: "positive",
+}
 
 /** Null clears the draft. */
 function writeNotesDraft(checkId: string, notes: string | null) {
@@ -297,6 +315,21 @@ export function AmenityCheckDetail({
   }
 
   const answered = answeredText(check)
+  // "Capture myself" came back here naming this check (CA-15): say what
+  // happened to the finding, from this page's read, never the URL alone.
+  const sentId = React.useSyncExternalStore(
+    noSubscription,
+    () => new URLSearchParams(window.location.search).get(FINDING_SENT_PARAM),
+    () => null
+  )
+  const sent =
+    sentId !== check.id
+      ? null
+      : knowledge
+        ? managerSentNoticeFor(knowledge.view.slot)
+        : check.progress === "complete"
+          ? LEGACY_SENT
+          : null
   const canReopen =
     permissions.canReopen && active && check.progress === "complete"
   const muted = "text-body-touch text-ink-muted md:text-body-sm"
@@ -321,7 +354,18 @@ export function AmenityCheckDetail({
     )
 
   return (
-    <div className="grid min-w-0 gap-6 md:gap-8">
+    <div
+      id={CHECK_TOP_ID}
+      tabIndex={-1}
+      className="grid min-w-0 gap-6 outline-none md:gap-8"
+    >
+      {sent ? (
+        <FindingSentNotice
+          question={check.entry.question}
+          returnFocusId={CHECK_TOP_ID}
+          copy={sent}
+        />
+      ) : null}
       <CoverageNotice
         ref={noticeRef}
         notice={action.notice}

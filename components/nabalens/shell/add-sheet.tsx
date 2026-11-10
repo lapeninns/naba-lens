@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 
 import { CAMERA_LABEL, LIBRARY_LABEL, usePhotoSource } from "../photo-source"
+import { EntryContext } from "./entry-flow"
 
 export type AddBlocked =
   { reason: "no_venue" } | { reason: "venue_inactive"; venueName: string }
@@ -31,6 +32,7 @@ export function AddSheet({
   onFiles,
   maxFiles,
   imagesOnly = false,
+  context = null,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -40,6 +42,8 @@ export function AddSheet({
   maxFiles: number
   /** Photos only (task screens): the pickers offer no videos. */
   imagesOnly?: boolean
+  /** With the shared entry on: the venue and who sees the photos (§4.2). */
+  context?: { venueName: string; audience: string } | null
 }) {
   // The inputs live inside the sheet, so the click that opens a picker is on
   // the open dialog's own content.
@@ -66,6 +70,12 @@ export function AddSheet({
             <DialogHeader>
               <DialogTitle>Add photos</DialogTitle>
             </DialogHeader>
+            {context ? (
+              <EntryContext
+                venueName={context.venueName}
+                audience={context.audience}
+              />
+            ) : null}
             <div className="grid gap-3">
               <AddOption
                 icon={<ImageIcon aria-hidden className="size-7" />}

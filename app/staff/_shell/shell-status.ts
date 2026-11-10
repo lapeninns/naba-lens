@@ -8,6 +8,7 @@ import {
   type RetakeRequest,
 } from "@/components/nabalens/tasks/next-actions-model"
 import type { MyAmenityTask } from "@/lib/amenities/contract"
+import { contributionEntry } from "@/lib/config/contribution-entry"
 import { homeLayout } from "@/lib/config/home-layout"
 import type { WorkingList } from "@/lib/knowledge-client/contract"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
@@ -21,6 +22,7 @@ import {
 import { avatarUrl } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
 import type { LabelWork } from "@/lib/work-client/contract"
+import { entryMenu, type EntryMenu } from "@/lib/work-client/entry"
 import { workServices } from "@/lib/work-client/services"
 import { todoBadge } from "@/lib/work-client/todo"
 
@@ -87,6 +89,18 @@ const workingListOf = cache(
 export const myWorkingList = (actor: MediaActor) =>
   workingListOf(sharedActor(actor))
 
+const capabilitiesOf = cache(async (actor: MediaActor) => {
+  try {
+    return await workServices.getCapabilities(actor)
+  } catch {
+    return null
+  }
+})
+
+/** My capabilities read (R8), once per request; null when it threw. */
+export const myCapabilities = (actor: MediaActor) =>
+  capabilitiesOf(sharedActor(actor))
+
 /**
  * Home's labels card (B02): the counts, hidden when the account can't label
  * or the database predates B02, or failed (the card says so and the badge is
@@ -102,7 +116,7 @@ const labelWorkOf = cache(async (actor: MediaActor): Promise<HomeLabels> => {
     const [work, capabilities] = await Promise.all([
       workServices.getLabelWork(actor),
       // Only to hide the card: R1 already gives zeros to anyone who can't label.
-      workServices.getCapabilities(actor).catch(() => null),
+      myCapabilities(actor),
     ])
     if (work.status === "failed") return { status: "failed" }
     if (work.status === "missing") return { status: "hidden" }
@@ -148,6 +162,40 @@ const retakesOf = cache(
 
 /** Better photos asked of me that I can take now; null when unread. */
 export const myRetakes = (actor: MediaActor) => retakesOf(sharedActor(actor))
+
+const entryOf = cache(
+  async (actor: MediaActor, venueName: string): Promise<EntryMenu | null> => {
+    try {
+      const [capabilities, list, tasks] = await Promise.all([
+        myCapabilities(actor),
+        myWorkingList(actor),
+        myTasks(actor).catch(() => null),
+      ])
+      if (capabilities?.status !== "ok") return null
+      return entryMenu(capabilities.value, {
+        venueName,
+        slots: list?.slots ?? [],
+        tasks: tasks?.ok ? tasks.tasks.assignments : [],
+      })
+    } catch {
+      return null
+    }
+  }
+)
+
+/**
+ * The shared entry's choices for this person (B02-02), or null to keep
+ * today's Add: the entry is switched off for the venue, or the capabilities
+ * read is missing or failed. A choice whose list can't be read is left out.
+ */
+export function myContributionEntry(
+  actor: MediaActor,
+  venueName: string
+): Promise<EntryMenu | null> {
+  if (contributionEntry(actor.profile?.venueId) !== "b02")
+    return Promise.resolve(null)
+  return entryOf(sharedActor(actor), venueName)
+}
 
 /**
  * Whether the caller manages their venue and, only then, the photos waiting
