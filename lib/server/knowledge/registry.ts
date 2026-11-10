@@ -6,6 +6,7 @@ import {
   type KnowledgeResult,
   type QuestionLifecycle,
   type QuestionView,
+  type RegistryItemView,
   type ValueListName,
   type ValueListView,
 } from "@/lib/knowledge/contract"
@@ -53,11 +54,15 @@ export async function getKnowledgeQuestion(
   return { ok: true, question: data }
 }
 
-/** Admins: every question with its latest version, optionally by lifecycle. */
+/**
+ * Admins: every question with its latest version, optionally by lifecycle.
+ * Each item's effectiveFreshness (the rules in force now) is passed through
+ * as sent: null when no version is in force, absent on an older database.
+ */
 export async function listQuestionRegistry(
   actor: MediaActor,
   input: unknown
-): Promise<KnowledgeResult<{ questions: QuestionView[] }>> {
+): Promise<KnowledgeResult<{ questions: RegistryItemView[] }>> {
   const raw = isObject(input) ? (input.lifecycle ?? null) : null
   if (
     raw !== null &&

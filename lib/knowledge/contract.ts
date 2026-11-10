@@ -729,6 +729,17 @@ export type QuestionView = {
   changeNote: string | null
 }
 
+/**
+ * A registry item: the question's latest version, with the check-date rules
+ * in force now. `effectiveFreshness` is the freshness of the version in force
+ * (one takes effect at the later of when it was added and its effectiveFrom),
+ * null when none is in force yet. Absent from a database before
+ * 20261110170000, so a caller can tell "none in force" from "not sent".
+ */
+export type RegistryItemView = QuestionView & {
+  effectiveFreshness?: QuestionView["freshness"] | null
+}
+
 // ---- Places and structured detail (B03-b, b03-design §4) ----------------------
 
 export const PLACE_KINDS = [
@@ -1353,7 +1364,7 @@ export type KnowledgeRpcs = {
   }
   knowledge_registry: {
     args: { p_lifecycle: QuestionLifecycle[] | null }
-    returns: { items: QuestionView[] }
+    returns: { items: RegistryItemView[] }
   }
   knowledge_value_list: {
     args: { p_list: ValueListName }

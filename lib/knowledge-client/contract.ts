@@ -81,6 +81,7 @@ export type {
   QuestionFeature,
   SubjectView as Place,
   QuestionView as RegistryQuestion,
+  RegistryItemView as RegistryItem,
   QuestionLifecycle,
   ValueSchemaName,
 } from "@/lib/knowledge/contract"

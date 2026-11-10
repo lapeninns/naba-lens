@@ -568,6 +568,131 @@ describe("freshness policies (A42)", () => {
   })
 })
 
+describe("the registry's rules in force (check dates)", () => {
+  it("lists the latest version with version 1's rules in force under a far-future latest, to admins only", async () => {
+    const w = await world("kn-b03-registry-in-force")
+    const id = randomUUID().replace(/-/g, "").slice(0, 20)
+    // Two test questions: one with version 1 in force and a latest version
+    // 2147483647 that takes effect in ten years; one with nothing in force.
+    const key = `test_${id}`
+    const later = `test_${id}_l`
+    const claims = (who: { id: string }) =>
+      `'${JSON.stringify({ sub: who.id, role: "authenticated" })}'`
+    const refusal = (who: { id: string }, name: string) => `reset role;
+set local "request.jwt.claims" to ${claims(who)};
+set local role authenticated;
+do $$ begin
+  perform public.knowledge_registry(null);
+  perform set_config('reg.${name}', 'null', true);
+exception when others then
+  perform set_config('reg.${name}', json_build_object('message', sqlerrm, 'code', sqlstate)::text, true);
+end $$;`
+    // One transaction, rolled back: nothing reaches the shared stack.
+    const out = psql(`begin;
+insert into public.amenity_catalogue
+select (jsonb_populate_record(null::public.amenity_catalogue, to_jsonb(c) || jsonb_build_object(
+  'key', n.key, 'question', 'TEST registry rules in force',
+  'position', (select max(m.position) from public.amenity_catalogue m) + n.pos))).*
+from public.amenity_catalogue c
+cross join (values ('${key}', 1), ('${later}', 2)) n(key, pos)
+where c.key = 'guest_toilets';
+insert into public.knowledge_questions (key) values ('${key}'), ('${later}');
+insert into public.knowledge_question_versions
+select (jsonb_populate_record(null::public.knowledge_question_versions, to_jsonb(v) || jsonb_build_object(
+  'key', n.key, 'version', n.version, 'freshness', n.freshness, 'effective_from', n.effective_from,
+  'lifecycle', n.lifecycle, 'change_kind', n.change_kind, 'change_note', 'TEST registry rules in force',
+  'created_at', n.created_at, 'created_by', null))).*
+from public.knowledge_question_versions v
+cross join (values
+  ('${key}', 1, '{"internal": "test_v1_internal", "public": null}'::jsonb, null::timestamptz,
+    'supported', 'initial', now() - interval '1 day'),
+  ('${key}', 2147483647, '{"internal": "test_future_internal", "public": "test_future_public"}'::jsonb,
+    now() + interval '10 years', 'presence_only', 'rule', now()),
+  ('${later}', 1, '{"internal": "test_later_internal", "public": null}'::jsonb, now() + interval '10 years',
+    'supported', 'initial', now())
+) n(key, version, freshness, effective_from, lifecycle, change_kind, created_at)
+where v.key = 'guest_toilets' and v.version = 1;
+reset role;
+set local "request.jwt.claims" to ${claims(w.admin)};
+set local role authenticated;
+do $$ begin
+  perform set_config('reg.all', public.knowledge_registry(null)::text, true);
+  perform set_config('reg.supported', public.knowledge_registry(array['supported'])::text, true);
+  perform set_config('reg.presence_only', public.knowledge_registry(array['presence_only'])::text, true);
+end $$;
+${refusal(w.staffA, "staff")}
+${refusal(w.manager, "manager")}
+reset role;
+select jsonb_build_object(
+  'item', (select i from jsonb_array_elements(current_setting('reg.all')::jsonb -> 'items') i where i ->> 'key' = '${key}'),
+  'later', (select i from jsonb_array_elements(current_setting('reg.all')::jsonb -> 'items') i where i ->> 'key' = '${later}'),
+  'keys', (select jsonb_agg(i ->> 'key') from jsonb_array_elements(current_setting('reg.all')::jsonb -> 'items') i),
+  'order', (select jsonb_agg(c.key order by c.position, c.key) from public.amenity_catalogue c),
+  'allProjected', (select bool_and(i ? 'effectiveFreshness') from jsonb_array_elements(current_setting('reg.all')::jsonb -> 'items') i),
+  'supported', (select jsonb_agg(i ->> 'key') from jsonb_array_elements(current_setting('reg.supported')::jsonb -> 'items') i
+     where i ->> 'key' in ('${key}', '${later}')),
+  'presenceOnly', (select jsonb_agg(i ->> 'key') from jsonb_array_elements(current_setting('reg.presence_only')::jsonb -> 'items') i
+     where i ->> 'key' in ('${key}', '${later}')),
+  'staff', current_setting('reg.staff')::jsonb,
+  'manager', current_setting('reg.manager')::jsonb);
+rollback;`)
+    const got = JSON.parse(out.split("\n").pop()!) as {
+      item: Record<string, unknown>
+      later: Record<string, unknown>
+      keys: string[]
+      order: string[]
+      allProjected: boolean
+      supported: string[] | null
+      presenceOnly: string[] | null
+      staff: unknown
+      manager: unknown
+    }
+    // The latest fields stay the future version's; the rules in force are v1's.
+    expect(got.item).toMatchObject({
+      key,
+      version: 2147483647,
+      latestVersion: 2147483647,
+      freshness: {
+        internal: "test_future_internal",
+        public: "test_future_public",
+      },
+      lifecycle: "presence_only",
+      changeKind: "rule",
+      effectiveFreshness: { internal: "test_v1_internal", public: null },
+    })
+    expect(Date.parse(got.item.effectiveFrom as string)).toBeGreaterThan(
+      Date.now() + 9 * 365 * 24 * 3600 * 1000
+    )
+    // Nothing in force yet: an explicit JSON null, not an absent field.
+    expect(got.later).toHaveProperty("effectiveFreshness", null)
+    expect(got.later).toMatchObject({
+      version: 1,
+      freshness: { internal: "test_later_internal", public: null },
+    })
+    // Catalogue order, every item projected; the filter reads the latest version.
+    expect(got.keys).toEqual(got.order)
+    expect(got.allProjected).toBe(true)
+    expect(got.supported).toEqual([later])
+    expect(got.presenceOnly).toEqual([key])
+    for (const refused of [got.staff, got.manager])
+      expect(refused).toEqual({ message: "not_active_admin", code: "42501" })
+    // Rolled back, and the helper stays private.
+    expect(
+      psql(`select (select count(*) from public.amenity_catalogue where key in ('${key}', '${later}'))
+        + (select count(*) from public.knowledge_question_versions where key in ('${key}', '${later}'))`)
+    ).toBe("0")
+    expect(
+      psql(
+        `select has_function_privilege('authenticated', 'private.knowledge_version_as_of(text,timestamptz)', 'execute')`
+      )
+    ).toBe("f")
+    expect(
+      psql(`select has_function_privilege('authenticated', 'public.knowledge_registry(text[])', 'execute')
+        and not has_function_privilege('anon', 'public.knowledge_registry(text[])', 'execute')`)
+    ).toBe("t")
+  })
+})
+
 describe("WS4 asks (A29, A31)", () => {
   it("K2: no version allows public media yet, and a redaction key never does", async () => {
     const w = await world("kn-b03-k2")
