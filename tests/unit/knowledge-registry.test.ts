@@ -19,6 +19,8 @@ type Case = {
   version: number
   headline: unknown
   detail: unknown
+  /** The database receives jsonb 'null'; TypeScript receives null. */
+  jsonNull?: boolean
   expect:
     | { ok: true; detail: unknown }
     | { fields: { path: string; problem: string }[] }

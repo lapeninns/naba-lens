@@ -68,6 +68,7 @@ const PHOTO_KEYS = [
   "sentAt",
   "type",
   "uploadState",
+  "uploaderRole",
   "venueId",
   "venueName",
 ]

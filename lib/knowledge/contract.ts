@@ -69,6 +69,11 @@ export const KNOWLEDGE_LIMITS = {
   maxPageSize: 20,
   /** Bytes of the draft payload as JSON text. */
   draftPayload: 16384,
+  /** Bytes of a finding's structured detail as JSON text (B03-b). */
+  detail: 16384,
+  /** An observation date is today or up to this many days back (OD-15 default). */
+  observedOnDays: 30,
+  placeLabel: 80,
 } as const
 
 // ---- Resolver state (§5.2) ---------------------------------------------------
@@ -198,6 +203,14 @@ export type KnowledgeSlotView = {
     confirmedAt?: string | null
     /** The confirmer was also the person who sent the finding. */
     confirmedSelf?: boolean | null
+    /**
+     * B03-b: the answer's structured detail (null when none was recorded),
+     * whether a detail row exists, and the observation date. Always returned
+     * once the B03-b migration is applied.
+     */
+    detail?: KnowledgeDetail | null
+    detailRecorded?: boolean
+    observedOn?: string | null
   } | null
   previousAnswer: SubmitAnswer | null
   requiresConfirmation: boolean
@@ -217,6 +230,8 @@ export type KnowledgeSlotView = {
     answeredBy: string | null
     at: string
   } | null
+  /** A10: one entry per use; `unrated` until B03-e. Returned from B03-b. */
+  freshness?: FreshnessEntry[]
 }
 
 export type PendingFindingView = {
@@ -243,6 +258,9 @@ export type PendingFindingView = {
   } | null
   wifi: WifiMetadata | null
   evidence: { assetId: string; kind: "photo" | "video"; available: boolean }[]
+  /** B03-b: structured detail and observation date, null when none. */
+  detail?: KnowledgeDetail | null
+  observedOn?: string | null
 }
 
 export type KnowledgeCheckView = KnowledgeSlotView & {
@@ -409,6 +427,12 @@ export type FeedPhotoItem = FeedKeys & {
   venueName: string
   mediaType: "image" | "video"
   uploadState: "uploading" | "processing" | "ready" | "failed"
+  /**
+   * The role recorded at upload (null before B02-c). A manager account's feed
+   * lists only its "manager" uploads. Always returned once the
+   * 20261110095909 migration is applied.
+   */
+  uploaderRole?: "staff" | "manager" | "admin" | null
   sentAt: string
   labels: { hasLabels: boolean; needsLabels: boolean; needsAttention: boolean }
   /**
@@ -477,6 +501,8 @@ export type VenueCapabilities = {
   canDecideOwnMenuPhoto: boolean
   canReviewChecklist: boolean
   canBeAssigned: boolean
+  /** B03-b (A1): manager or admin at the venue. */
+  canManagePlaces?: boolean
 }
 
 export type DeleteImpactKind =
@@ -606,6 +632,52 @@ export type QuestionView = {
   changeNote: string | null
 }
 
+// ---- Places and structured detail (B03-b, b03-design §4) ----------------------
+
+export const PLACE_KINDS = [
+  "entrance",
+  "route",
+  "area",
+  "room",
+  "facility_point",
+] as const
+export type PlaceKind = (typeof PLACE_KINDS)[number]
+
+/**
+ * A place at a venue. Staff get active places only, without the who and
+ * when; managers and admins also get retired places, `addedBy` (a first
+ * name for managers, the full name for admins) and the dates.
+ */
+export type SubjectView = {
+  subjectId: string
+  kind: PlaceKind
+  label: string
+  active: boolean
+  addedOn?: string
+  addedBy?: string
+  retiredOn?: string | null
+}
+
+/** A place a finding names: a known place, or a label as written (A3). */
+export type PlaceRef = { subjectId: string } | { label: string }
+
+/**
+ * Structured detail as the database stored it (facility and accessibility
+ * shapes, b03-design §4.2, §4.3). Read-only to the server.
+ */
+export type KnowledgeDetail = Record<string, unknown>
+
+export const OBSERVED_ON_SOURCES = ["form_default", "chosen"] as const
+export type ObservedOnSource = (typeof OBSERVED_ON_SOURCES)[number]
+
+export type FreshnessEntry = {
+  use: "internal" | "public"
+  state: "current" | "due_soon" | "expired" | "basis_missing" | "unrated"
+  nextCheckDue: string | null
+  basis: "observed_on" | "stated_on" | "event_end" | null
+  basisDate: string | null
+}
+
 /** A refused value: the field path (b03-design §14.3) and a short problem code. */
 export type ValueFieldProblem = {
   path: string
@@ -635,6 +707,11 @@ export type SubmitKnowledgeResult = {
    * Always returned once the B02 migration is applied.
    */
   sentAt?: string
+  /** B03-b, when detail or an observation date was sent. */
+  detail?: KnowledgeDetail | null
+  observedOn?: string | null
+  /** A24: the recheck tasks this send closed; empty until B03-e. */
+  rechecksClosed?: { taskId: string; use: "internal" | "public" }[]
 }
 
 export type DecideResult = {
@@ -673,6 +750,8 @@ export type KnowledgeFailure = Omit<AmenityFailure, "code"> & {
   /** draft_already_sent: why, and the send time (the next draft base). */
   sentReason?: DraftSentReason
   sentAt?: string | null
+  /** place_exists: the active place with the same kind and label. */
+  subjectId?: string
 }
 
 export type KnowledgeResult<T> = ({ ok: true } & T) | KnowledgeFailure
@@ -688,6 +767,7 @@ export const KNOWLEDGE_SQLSTATES = {
   NLK07: "knowledge_not_adoptable",
   NLK08: "knowledge_not_current",
   NLK09: "draft_already_sent",
+  NLK13: "place_exists",
 } as const
 
 // ---- RPC signatures ------------------------------------------------------------
@@ -709,6 +789,10 @@ type SubmitArgs = {
   p_internal_metadata: WifiMetadata | null
   p_redaction_confirmed: boolean | null
   p_confirm_own: boolean
+  /** B03-b: present (all three) selects the 19-argument overload. */
+  p_detail?: KnowledgeDetail | null
+  p_observed_on?: string | null
+  p_observed_on_source?: ObservedOnSource | null
 }
 
 export type KnowledgeRpcs = {
@@ -845,6 +929,23 @@ export type KnowledgeRpcs = {
   knowledge_registry: {
     args: { p_lifecycle: QuestionLifecycle[] | null }
     returns: { items: QuestionView[] }
+  }
+  knowledge_subjects: {
+    args: { p_venue_id: string | null }
+    returns: { venueId: string; items: SubjectView[] }
+  }
+  knowledge_subject_add: {
+    args: {
+      p_venue_id: string | null
+      p_kind: PlaceKind
+      p_label: string
+      p_idempotency_key: string
+    }
+    returns: { subjectId: string; replayed: boolean }
+  }
+  knowledge_subject_retire: {
+    args: { p_subject_id: string; p_reason: string; p_idempotency_key: string }
+    returns: { subjectId: string; retired: true; replayed: boolean }
   }
 }
 export type KnowledgeRpcName = keyof KnowledgeRpcs
