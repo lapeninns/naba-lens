@@ -176,6 +176,13 @@ export function answerInUseLines(
     case "not_enabled":
     case null:
       return ["To check."]
+    default:
+      // A detail this build doesn't know yet (a newer server: qualified
+      // answers, check dates, form changes). Never blank and never "Yes".
+      return [
+        "No answer in use: needs checking.",
+        ...previous(slot.previousAnswer),
+      ]
   }
 }
 

@@ -186,6 +186,31 @@ describe("the venue's answer", () => {
     expect(lines(NONE)).toEqual(["To check."])
   })
 
+  it("reads a detail it doesn't know as needs checking, never blank or Yes", () => {
+    // A newer server's resolver details (B03 qualified answers, check dates).
+    for (const detail of [
+      "qualified_answer",
+      "basis_missing",
+      "schema_changed",
+      "policy_incomplete",
+    ]) {
+      const answer = {
+        ...YES,
+        status: "unavailable",
+        reason: "stale",
+        detail,
+      } as unknown as AnswerInUse
+      expect(lines(answer, { previousAnswer: "yes" })).toEqual([
+        "No answer in use: needs checking.",
+        "Previous answer: Yes.",
+      ])
+      expect(lines(answer)).toEqual(["No answer in use: needs checking."])
+      const row = slotRow(slot({ answerInUse: answer, previousAnswer: "yes" }))
+      expect(row.status).toContain("No answer in use: needs checking.")
+      expect(row.status).not.toMatch(/Current answer: Yes/)
+    }
+  })
+
   it("tells managers what readers get", () => {
     expect(
       readerLine({
