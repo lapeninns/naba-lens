@@ -8,7 +8,7 @@ import { join } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 import * as realStack from "../../scripts/ci/stack.mjs"
-import { bounded, candidateMigrationsDigest, parse, requireCanonicalRoot, verifyStack } from "./run.mjs"
+import { bounded, candidateMigrationsDigest, parse, requireCanonicalRoot, validatedStackEnvironment, verifyStack } from "./run.mjs"
 
 const RUNNER = fileURLToPath(new URL("./run.mjs", import.meta.url))
 const REPO = fileURLToPath(new URL("../..", import.meta.url))
@@ -119,12 +119,40 @@ test("bounded: spawn failure resolves without signalling anything", async () => 
   assert.equal(stack.hooks(), 0)
 })
 
-test("bounded: normal close returns the exit code and stops nothing", async () => {
+test("bounded: normal close returns the exit code after checking its own group", async () => {
   const stack = recordingStack()
   assert.equal(await bounded(stack, "true", "/bin/sh", ["-c", "exit 0"], { stdio: "ignore" }, 60_000), 0)
   assert.equal(await bounded(stack, "three", "/bin/sh", ["-c", "exit 3"], { stdio: "ignore" }, 60_000), 3)
-  assert.deepEqual(stack.stopped, [])
+  assert.equal(stack.stopped.length, 2)
+  assert.ok(stack.stopped.every((pid) => !groupAlive(pid)))
   assert.equal(stack.hooks(), 0)
+})
+
+test("bounded: an abnormal leader exit cleans up surviving descendants", async () => {
+  const stack = recordingStack()
+  const code = await bounded(stack, "orphan", "/bin/sh", ["-c", "sleep 30 & exit 3"], { stdio: "ignore" }, 60_000)
+  assert.equal(code, 3)
+  assert.equal(stack.stopped.length, 1)
+  assert.equal(groupAlive(stack.stopped[0]), false)
+  assert.equal(stack.hooks(), 0)
+})
+
+test("stack environment is read and validated again after a reset", () => {
+  let generation = 1
+  const stack = {
+    stackEnv: () => ({
+      NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:64621",
+      E2E_DB_URL: "postgresql://postgres@127.0.0.1:64622/postgres",
+      SUPABASE_SERVICE_ROLE_KEY: `dummy-service-${generation}`,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: `dummy-public-${generation}`,
+    }),
+  }
+  const before = validatedStackEnvironment(stack, SPEC)
+  generation++
+  const after = validatedStackEnvironment(stack, SPEC)
+  assert.notEqual(after.SUPABASE_SERVICE_ROLE_KEY, before.SUPABASE_SERVICE_ROLE_KEY)
+  assert.notEqual(after.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, before.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
+  assert.throws(() => validatedStackEnvironment({ stackEnv: () => ({ ...after, E2E_DB_URL: "postgresql://remote.invalid:64622/postgres" }) }, SPEC), /127\.0\.0\.1/)
 })
 
 test("bounded: a timeout resolves only after its own group is gone", async () => {

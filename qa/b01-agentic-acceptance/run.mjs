@@ -191,12 +191,7 @@ async function check() {
   const spec = stack.stackSpec(STACK.name)
   verifyStack(stack, spec, checkout, digest)
 
-  const stackEnv = stack.stackEnv(spec)
-  requireLoopback(stackEnv.NEXT_PUBLIC_SUPABASE_URL, STACK.apiPort, "NEXT_PUBLIC_SUPABASE_URL")
-  requireLoopback(stackEnv.E2E_DB_URL, STACK.dbPort, "E2E_DB_URL")
-  if (!stackEnv.SUPABASE_SERVICE_ROLE_KEY || !stackEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
-    fail(`${STACK.name} status has no keys.`)
-  }
+  const stackEnv = validatedStackEnvironment(stack, spec)
   const port = appPort()
   const app = `http://127.0.0.1:${port}`
   if (await portAnswers(`${app}/login`)) fail(`Something already answers on ${app}; it is not this run's app.`)
@@ -216,6 +211,16 @@ async function check() {
   return { checkout, stack, spec, env, app, port, digest }
 }
 
+export function validatedStackEnvironment(stack, spec) {
+  const stackEnv = stack.stackEnv(spec)
+  requireLoopback(stackEnv.NEXT_PUBLIC_SUPABASE_URL, STACK.apiPort, "NEXT_PUBLIC_SUPABASE_URL")
+  requireLoopback(stackEnv.E2E_DB_URL, STACK.dbPort, "E2E_DB_URL")
+  if (!stackEnv.SUPABASE_SERVICE_ROLE_KEY || !stackEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
+    fail(`${STACK.name} status has no keys.`)
+  }
+  return stackEnv
+}
+
 /** The same guards again, inside the held lock and immediately before seed. */
 async function recheck(ctx) {
   requireCanonicalRoot()
@@ -224,6 +229,7 @@ async function recheck(ctx) {
     fail("B01_CHECKOUT's supabase/migrations differ from the candidate commit's.")
   }
   verifyStack(ctx.stack, ctx.stack.stackSpec(STACK.name), ctx.checkout, candidateMigrationsDigest(ctx.checkout))
+  ctx.env = { ...ctx.env, ...validatedStackEnvironment(ctx.stack, ctx.spec), NEXT_PUBLIC_SITE_URL: ctx.app }
   if (await portAnswers(`${ctx.app}/login`)) fail(`Something already answers on ${ctx.app}; it is not this run's app.`)
   say("guards rechecked under the lock")
 }
@@ -259,7 +265,7 @@ export function bounded(stack, label, cmd, args, opts, ms) {
       settled = true
       clearTimeout(timer)
       try {
-        await stopping
+        if (child.pid) await stop()
       } finally {
         unhook()
         resolve(code)
