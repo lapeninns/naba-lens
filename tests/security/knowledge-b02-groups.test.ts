@@ -291,17 +291,38 @@ describe("contribution groups (W1)", () => {
     )
     expect(lookup).toEqual([{ asset_id: general, group_id: g }])
 
-    // Another venue's staff see nothing.
+    // Another venue's staff see what organisation Photos already shows them:
+    // the eligible general staff photo, never the amenity evidence.
+    expect([
+      ...(await communityVisible(other.staffA, [general, evidence])),
+    ]).toEqual([general])
+    const elsewhere = await view(other.staffA, g)
+    expect(elsewhere.members.map((m) => m.assetId)).toEqual([general])
+    expect(elsewhere.mine).toBe(false)
+    expect(
+      await json(other.staffA, "contribution_groups_for_assets", {
+        p_asset_ids: [general, evidence],
+      })
+    ).toEqual([{ asset_id: general, group_id: g }])
+
+    // A group of private members only: another venue's staff see nothing.
+    const loose = await amenityAsset(w.staffA.id, w.venue)
+    expect((await communityVisible(other.staffA, [loose])).size).toBe(0)
+    const hidden = await start(w.staffA, key(), "none")
+    await add(w.staffA, hidden, [loose])
+    expect(
+      (await view(w.staffA, hidden)).members.map((m) => m.assetId)
+    ).toEqual([loose])
     await refused(
       other.staffA,
       "contribution_group",
-      { p_group_id: g },
+      { p_group_id: hidden },
       "contribution_group_not_found",
       "P0002"
     )
     expect(
       await json(other.staffA, "contribution_groups_for_assets", {
-        p_asset_ids: [general, evidence],
+        p_asset_ids: [loose],
       })
     ).toEqual([])
     // An unknown group reads like a forbidden one.
@@ -312,6 +333,43 @@ describe("contribution groups (W1)", () => {
       "contribution_group_not_found",
       "P0002"
     )
+  })
+
+  it("names a task subject only to viewers who may read the task (OD-7 default)", async () => {
+    const task = await createRequirement(w.staffManager, w.venue, {
+      title: "TEST private group task",
+    })
+    const general = await photo(w.staffA.id, w.venue)
+    const g = await start(w.staffA, key(), "task", task)
+    await add(w.staffA, g, [general])
+    const named = { kind: "task", id: task, name: "TEST private group task" }
+
+    // The author, the venue's staff manager and an admin read the task.
+    for (const who of [w.staffA, w.staffManager, w.admin]) {
+      const seen = await view(who, g)
+      expect(seen.subject, who.id).toEqual(named)
+      expect(
+        seen.members.map((m) => m.assetId),
+        who.id
+      ).toEqual([general])
+    }
+
+    // Another venue's staff see the general member, as Photos shows it, but
+    // cannot read the task, so the group names no subject.
+    const { data: rows, error } = await other.staffA.client
+      .from("coverage_requirements")
+      .select("id")
+      .eq("id", task)
+    expect(error).toBeNull()
+    expect(rows).toEqual([])
+    const elsewhere = await view(other.staffA, g)
+    expect(elsewhere.members.map((m) => m.assetId)).toEqual([general])
+    expect(elsewhere.subject).toEqual({ kind: "none", id: null, name: null })
+    expect(
+      await json(other.staffA, "contribution_groups_for_assets", {
+        p_asset_ids: [general],
+      })
+    ).toEqual([{ asset_id: general, group_id: g }])
   })
 
   it("keeps each member's own state, and hides a deleted member", async () => {
