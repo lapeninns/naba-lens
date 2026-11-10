@@ -138,6 +138,50 @@ describe("one snapshot per read (T9b)", () => {
   })
 })
 
+describe("one snapshot per B02 read (T9b)", () => {
+  it("keeps every B02 read, and the reads the triage calls, STABLE and definer", () => {
+    const rows = JSON.parse(
+      psql(`select json_agg(json_build_object(
+          'name', p.oid::regprocedure::text, 'volatility', p.provolatile, 'definer', p.prosecdef)
+          order by p.oid::regprocedure::text)
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        where (n.nspname = 'public' and p.proname in (
+            'my_label_work', 'manager_triage_summary', 'my_contributions_feed',
+            'my_venue_capabilities', 'my_asset_delete_impact', 'my_menu_waiting_items',
+            'knowledge_to_confirm', 'knowledge_check', 'manager_menu_photo_overview',
+            'venue_coverage_summary'))
+          or (n.nspname = 'private' and p.proname in (
+            'manager_read_venue', 'asset_needs_labels', 'feed_photo_json',
+            'feed_task_send_json', 'feed_legacy_finding_json', 'feed_closed_assignment_json',
+            'asset_removal_effects', 'knowledge_latest_send'))`)
+    ) as { name: string; volatility: string; definer: boolean }[]
+    expect(rows.map((r) => r.name)).toEqual(
+      expect.arrayContaining([
+        "manager_triage_summary(uuid)",
+        "manager_menu_photo_overview(uuid)",
+        "venue_coverage_summary(uuid)",
+        "knowledge_to_confirm(uuid)",
+        "my_contributions_feed(text,integer)",
+        "my_asset_delete_impact(uuid)",
+        "private.asset_removal_effects(uuid,uuid)",
+      ])
+    )
+    expect(rows).toHaveLength(18)
+    for (const fn of rows) {
+      expect(fn.volatility, fn.name).toBe("s")
+      expect(fn.definer, fn.name).toBe(true)
+    }
+  })
+
+  it("leaves the credit function byte-identical", () => {
+    expect(
+      psql(`select md5(pg_get_functiondef(
+        'private.monthly_venue_completion_counts(uuid,uuid,date)'::regprocedure))`)
+    ).toBe("b78b9daeb8ede1fec0b7224d99348659")
+  })
+})
+
 describe("confirmation basis (WS5)", () => {
   it("refuses a confirmed decision with a self or rule basis, or without a person", () => {
     const def = psql(`select pg_get_constraintdef(c.oid) from pg_constraint c
