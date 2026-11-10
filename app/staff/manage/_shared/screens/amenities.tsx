@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
+import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -18,6 +19,7 @@ import {
   listCatalogue,
 } from "@/lib/server/amenities"
 import { isUuid } from "@/lib/server/coverage/validate"
+import { knowledgeServices } from "@/lib/knowledge-client/services"
 
 import { type ManageContext } from "../context"
 import { ManageFrame, NotManagerPage } from "../frame"
@@ -105,7 +107,14 @@ function amenityFailed(
 }
 
 export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
-  const result = await getVenueAmenities(ctx.actor, { venueId: ctx.venueId })
+  const [result, toConfirm] = await Promise.all([
+    getVenueAmenities(ctx.actor, { venueId: ctx.venueId }),
+    // A failed read leaves the checks usable and says the findings to
+    // confirm couldn't be loaded (MG-03), never that nothing is waiting.
+    knowledgeServices
+      .listToConfirm(ctx.actor, { venueId: ctx.venueId })
+      .catch(() => null),
+  ])
   if (!result.ok) return amenityFailed(ctx, result, UI_TEXT.navTab)
   const view = result.view
   // The picker is only offered once Amenities are on; a failed catalogue read
@@ -127,6 +136,8 @@ export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
         view={view}
         catalogue={catalogue?.ok ? catalogue.options : null}
         basePath={ctx.basePath}
+        toConfirm={toConfirm?.ok ? toConfirm.view : null}
+        toConfirmFailed={!toConfirm?.ok}
       />
     </AmenitiesFrame>
   )
@@ -140,7 +151,12 @@ export async function AmenityCheckScreen({
   checkId: string
 }) {
   if (!isUuid(checkId)) notFound()
-  const result = await getCheck(ctx.actor, { checkId })
+  const [result, knowledge] = await Promise.all([
+    getCheck(ctx.actor, { checkId }),
+    knowledgeServices
+      .getKnowledgeCheck(ctx.actor, { checkId, venueName: ctx.venue.name })
+      .catch(() => null),
+  ])
   if (!result.ok) return amenityFailed(ctx, result, "Amenity check")
   const detail = result.detail
   // An admin URL names its venue: a check from another venue is not here.
@@ -163,10 +179,21 @@ export async function AmenityCheckScreen({
           All amenities
         </Link>
       </div>
+      {knowledge?.ok ? null : (
+        // The legacy screen still works, but findings may be waiting (MG-03).
+        <Notice tone="negative" role="alert">
+          {TO_CONFIRM_COPY.failed}
+        </Notice>
+      )}
       <AmenityCheckControl
         detail={detail}
         basePath={ctx.basePath}
         canUpload={ctx.mode === "manager"}
+        knowledge={
+          // A failed knowledge read leaves the legacy screen: decisions need
+          // the slot revision the server reads.
+          knowledge?.ok && knowledge.view.inScope ? knowledge.view : null
+        }
       />
     </AmenitiesFrame>
   )

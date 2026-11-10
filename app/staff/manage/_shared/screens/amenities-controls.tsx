@@ -14,6 +14,10 @@ import {
   setCheckNotesAction,
 } from "@/app/_amenities/actions"
 import {
+  decideFindingAction,
+  resolveConflictAction,
+} from "@/app/_knowledge/actions"
+import {
   AmenitiesOverview,
   AmenityCheckDetail,
 } from "@/components/nabalens/amenities/manage"
@@ -22,15 +26,23 @@ import type {
   CheckDetail,
   VenueAmenitiesView,
 } from "@/lib/amenities/contract"
+import type {
+  QuestionView,
+  ToConfirmList,
+} from "@/lib/knowledge-client/contract"
 
 export function AmenitiesOverviewControl({
   view,
   catalogue,
   basePath,
+  toConfirm = null,
+  toConfirmFailed = false,
 }: {
   view: VenueAmenitiesView
   catalogue: CatalogueOption[] | null
   basePath: string
+  toConfirm?: ToConfirmList | null
+  toConfirmFailed?: boolean
 }) {
   const venueId = view.venue.id
   return (
@@ -38,6 +50,8 @@ export function AmenitiesOverviewControl({
       view={view}
       catalogue={catalogue}
       basePath={basePath}
+      toConfirm={toConfirm}
+      toConfirmFailed={toConfirmFailed}
       handlers={{
         enable: () => enableAmenitiesAction({ venueId }),
         addChecks: (keys) => addChecksAction({ venueId, keys }),
@@ -51,10 +65,12 @@ export function AmenityCheckControl({
   detail,
   basePath,
   canUpload,
+  knowledge = null,
 }: {
   detail: CheckDetail
   basePath: string
   canUpload?: boolean
+  knowledge?: Extract<QuestionView, { inScope: true }> | null
 }) {
   return (
     <AmenityCheckDetail
@@ -62,6 +78,17 @@ export function AmenityCheckControl({
       detail={detail}
       basePath={basePath}
       canUpload={canUpload}
+      knowledge={
+        knowledge
+          ? {
+              view: knowledge,
+              handlers: {
+                decide: decideFindingAction,
+                onResolveConflict: resolveConflictAction,
+              },
+            }
+          : null
+      }
       handlers={{
         assign: (input) => assignCheckAction(input),
         setNotes: (input) => setCheckNotesAction(input),

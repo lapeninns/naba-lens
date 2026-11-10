@@ -1,4 +1,9 @@
+import {
+  discardKnowledgeDraftAction,
+  listMyFindingsAction,
+} from "@/app/_knowledge/actions"
 import { AppShell } from "@/components/nabalens"
+import { YourFindings } from "@/components/nabalens/knowledge/findings-history"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { workRoleLabel } from "@/lib/config/work-roles"
 import { listMyMenuPhotoDecisions } from "@/lib/server/coverage"
@@ -6,8 +11,10 @@ import type { MyMenuPhotoState } from "@/lib/server/coverage/types"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listOwnMedia, listOwnMediaByIds } from "@/lib/server/media/library"
 import type { MediaActor, MediaItemView } from "@/lib/server/media/types"
+import type { FindingsPage } from "@/lib/knowledge-client/contract"
+import { knowledgeServices } from "@/lib/knowledge-client/services"
 
-import { staffShellStatus } from "./_shell/shell-status"
+import { myWorkingList, staffShellStatus } from "./_shell/shell-status"
 import { StaffPortfolio } from "./staff-portfolio"
 
 const BLOCKED_COPY = {
@@ -55,6 +62,30 @@ async function menuPhotoDecisions(
   }
 }
 
+/**
+ * The first page of "Your findings", and whether to show the section: when
+ * there is history, or my venue has questions to answer. A venue outside the
+ * knowledge pilot with nothing sent shows nothing, and a failed read is only
+ * reported where there is a list to answer.
+ */
+async function yourFindings(
+  actor: MediaActor
+): Promise<{ show: boolean; page: FindingsPage | null }> {
+  const [result, list] = await Promise.all([
+    // Me still works when this read fails or throws.
+    (async () => knowledgeServices.listMyFindings(actor, {}))().catch(
+      () => null
+    ),
+    myWorkingList(actor),
+  ])
+  const page = result?.ok ? result.page : null
+  const onList = (list?.slots.length ?? 0) > 0
+  const history =
+    page !== null &&
+    (page.items.length > 0 || page.hiddenEarlierVenues.length > 0)
+  return { show: history || onList, page }
+}
+
 /** Staff home: own profile, Upload action and newest-first own gallery. */
 export default async function StaffPage({
   searchParams,
@@ -64,11 +95,12 @@ export default async function StaffPage({
   const profile = await requireActiveStaff()
   const auth = await getMediaActor("staff")
   if (!auth.ok) throw new Error("Not authorised.")
-  const [page, shell, params, menuPhotos] = await Promise.all([
+  const [page, shell, params, menuPhotos, findings] = await Promise.all([
     listOwnMedia(auth.actor),
     staffShellStatus(auth.actor, profile),
     searchParams ?? Promise.resolve({} as SearchParams),
     menuPhotoDecisions(auth.actor),
+    yourFindings(auth.actor),
   ])
   if (!page.ok) throw new Error(page.message)
   const blocked = uploadBlockReason(profile)
@@ -107,6 +139,21 @@ export default async function StaffPage({
         initialEditOpen={params.edit === "profile"}
         menuPhotos={menuPhotos.states}
         menuPhotoItems={menuPhotos.items}
+        findings={
+          findings.show ? (
+            <YourFindings
+              initial={findings.page}
+              venue={
+                profile.venueId && profile.venue
+                  ? { id: profile.venueId, name: profile.venue.name }
+                  : null
+              }
+              loadMore={listMyFindingsAction}
+              onDiscardDraft={discardKnowledgeDraftAction}
+              viewerId={profile.id}
+            />
+          ) : null
+        }
       />
     </AppShell>
   )

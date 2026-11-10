@@ -138,8 +138,11 @@ export type Database = {
           internal_metadata: Json | null
           limitations: string | null
           reason: string | null
+          redaction_confirmed: boolean | null
           result_revision: number
+          source_contribution_id: string | null
           submitted_by: string
+          submitter_basis: string | null
           template_version: number
           venue_id: string
         }
@@ -154,8 +157,11 @@ export type Database = {
           internal_metadata?: Json | null
           limitations?: string | null
           reason?: string | null
+          redaction_confirmed?: boolean | null
           result_revision: number
+          source_contribution_id?: string | null
           submitted_by: string
+          submitter_basis?: string | null
           template_version: number
           venue_id: string
         }
@@ -170,8 +176,11 @@ export type Database = {
           internal_metadata?: Json | null
           limitations?: string | null
           reason?: string | null
+          redaction_confirmed?: boolean | null
           result_revision?: number
+          source_contribution_id?: string | null
           submitted_by?: string
+          submitter_basis?: string | null
           template_version?: number
           venue_id?: string
         }
@@ -182,6 +191,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "venue_amenity_checks"
             referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "amenity_submissions_source_contribution_id_fkey"
+            columns: ["source_contribution_id"]
+            isOneToOne: true
+            referencedRelation: "knowledge_contributions"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "amenity_submissions_submitted_by_fkey"
@@ -846,6 +862,561 @@ export type Database = {
           },
         ]
       }
+      knowledge_commands: {
+        Row: {
+          actor_id: string
+          command: string
+          created_at: string
+          idempotency_key: string
+          question_key: string
+          request_hash: string
+          result: Json
+          venue_id: string
+        }
+        Insert: {
+          actor_id: string
+          command: string
+          created_at?: string
+          idempotency_key: string
+          question_key: string
+          request_hash: string
+          result: Json
+          venue_id: string
+        }
+        Update: {
+          actor_id?: string
+          command?: string
+          created_at?: string
+          idempotency_key?: string
+          question_key?: string
+          request_hash?: string
+          result?: Json
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_commands_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_commands_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_contribution_assets: {
+        Row: {
+          asset_id: string
+          contribution_id: string
+          evidence_kind: string
+          venue_id: string
+        }
+        Insert: {
+          asset_id: string
+          contribution_id: string
+          evidence_kind: string
+          venue_id: string
+        }
+        Update: {
+          asset_id?: string
+          contribution_id?: string
+          evidence_kind?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_contribution_assets_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "knowledge_contribution_assets_contribution_fkey"
+            columns: ["contribution_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_contributions"
+            referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
+      knowledge_contributions: {
+        Row: {
+          answer: string
+          based_on_slot_revision: number
+          based_on_submission_id: string | null
+          change_reason: string | null
+          check_id: string
+          confirm_own: boolean
+          contributed_by: string
+          contributor_basis: string
+          created_at: string
+          evidence_rule: string
+          finding: string | null
+          id: string
+          idempotency_key: string
+          initial_outcome: string
+          internal_metadata: Json | null
+          kind: string
+          limitations: string | null
+          question_key: string
+          reason: string | null
+          redaction_confirmed: boolean | null
+          request_hash: string
+          responds_to_decision_id: string | null
+          rule_version: number
+          template_version: number
+          tried_text: string | null
+          unknown_preset: string | null
+          venue_id: string
+        }
+        Insert: {
+          answer: string
+          based_on_slot_revision: number
+          based_on_submission_id?: string | null
+          change_reason?: string | null
+          check_id: string
+          confirm_own?: boolean
+          contributed_by: string
+          contributor_basis: string
+          created_at?: string
+          evidence_rule: string
+          finding?: string | null
+          id?: string
+          idempotency_key: string
+          initial_outcome: string
+          internal_metadata?: Json | null
+          kind: string
+          limitations?: string | null
+          question_key: string
+          reason?: string | null
+          redaction_confirmed?: boolean | null
+          request_hash: string
+          responds_to_decision_id?: string | null
+          rule_version: number
+          template_version: number
+          tried_text?: string | null
+          unknown_preset?: string | null
+          venue_id: string
+        }
+        Update: {
+          answer?: string
+          based_on_slot_revision?: number
+          based_on_submission_id?: string | null
+          change_reason?: string | null
+          check_id?: string
+          confirm_own?: boolean
+          contributed_by?: string
+          contributor_basis?: string
+          created_at?: string
+          evidence_rule?: string
+          finding?: string | null
+          id?: string
+          idempotency_key?: string
+          initial_outcome?: string
+          internal_metadata?: Json | null
+          kind?: string
+          limitations?: string | null
+          question_key?: string
+          reason?: string | null
+          redaction_confirmed?: boolean | null
+          request_hash?: string
+          responds_to_decision_id?: string | null
+          rule_version?: number
+          template_version?: number
+          tried_text?: string | null
+          unknown_preset?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_contributions_based_on_submission_id_fkey"
+            columns: ["based_on_submission_id"]
+            isOneToOne: false
+            referencedRelation: "amenity_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_contributions_check_fkey"
+            columns: ["check_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "venue_amenity_checks"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "knowledge_contributions_contributed_by_fkey"
+            columns: ["contributed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_contributions_question_key_fkey"
+            columns: ["question_key"]
+            isOneToOne: false
+            referencedRelation: "amenity_catalogue"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "knowledge_contributions_responds_to_fkey"
+            columns: ["responds_to_decision_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_decisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_decisions: {
+        Row: {
+          check_id: string
+          contribution_id: string | null
+          created_at: string
+          decided_by: string | null
+          decider_basis: string
+          decision: string
+          id: string
+          note: string | null
+          question_key: string
+          resulting_submission_id: string | null
+          rule_version: number | null
+          self_confirmed: boolean
+          slot_revision: number | null
+          submission_id: string | null
+          venue_id: string
+        }
+        Insert: {
+          check_id: string
+          contribution_id?: string | null
+          created_at?: string
+          decided_by?: string | null
+          decider_basis: string
+          decision: string
+          id?: string
+          note?: string | null
+          question_key: string
+          resulting_submission_id?: string | null
+          rule_version?: number | null
+          self_confirmed?: boolean
+          slot_revision?: number | null
+          submission_id?: string | null
+          venue_id: string
+        }
+        Update: {
+          check_id?: string
+          contribution_id?: string | null
+          created_at?: string
+          decided_by?: string | null
+          decider_basis?: string
+          decision?: string
+          id?: string
+          note?: string | null
+          question_key?: string
+          resulting_submission_id?: string | null
+          rule_version?: number | null
+          self_confirmed?: boolean
+          slot_revision?: number | null
+          submission_id?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_decisions_check_fkey"
+            columns: ["check_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "venue_amenity_checks"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "knowledge_decisions_contribution_id_fkey"
+            columns: ["contribution_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_contributions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_decisions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_decisions_question_key_fkey"
+            columns: ["question_key"]
+            isOneToOne: false
+            referencedRelation: "amenity_catalogue"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "knowledge_decisions_resulting_submission_id_fkey"
+            columns: ["resulting_submission_id"]
+            isOneToOne: false
+            referencedRelation: "amenity_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_decisions_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "amenity_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_drafts: {
+        Row: {
+          asset_ids: string[]
+          check_id: string
+          draft_revision: number
+          idempotency_key: string | null
+          payload: Json
+          updated_at: string
+          user_id: string
+          venue_id: string
+        }
+        Insert: {
+          asset_ids?: string[]
+          check_id: string
+          draft_revision: number
+          idempotency_key?: string | null
+          payload: Json
+          updated_at?: string
+          user_id: string
+          venue_id: string
+        }
+        Update: {
+          asset_ids?: string[]
+          check_id?: string
+          draft_revision?: number
+          idempotency_key?: string | null
+          payload?: Json
+          updated_at?: string
+          user_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_drafts_check_fkey"
+            columns: ["check_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "venue_amenity_checks"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "knowledge_drafts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_events: {
+        Row: {
+          actor_id: string | null
+          check_id: string | null
+          contribution_id: string | null
+          created_at: string
+          decision_id: string | null
+          detail: Json
+          id: number
+          kind: string
+          question_key: string
+          submission_id: string | null
+          venue_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          check_id?: string | null
+          contribution_id?: string | null
+          created_at?: string
+          decision_id?: string | null
+          detail?: Json
+          id?: never
+          kind: string
+          question_key: string
+          submission_id?: string | null
+          venue_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          check_id?: string | null
+          contribution_id?: string | null
+          created_at?: string
+          decision_id?: string | null
+          detail?: Json
+          id?: never
+          kind?: string
+          question_key?: string
+          submission_id?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_events_question_key_fkey"
+            columns: ["question_key"]
+            isOneToOne: false
+            referencedRelation: "amenity_catalogue"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "knowledge_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_outcome_dismissals: {
+        Row: {
+          dismissed_at: string
+          event_id: number
+          user_id: string
+        }
+        Insert: {
+          dismissed_at?: string
+          event_id: number
+          user_id: string
+        }
+        Update: {
+          dismissed_at?: string
+          event_id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_outcome_dismissals_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_outcome_dismissals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_question_rules: {
+        Row: {
+          confirmation: string
+          created_at: string
+          question_key: string
+          redaction_required: boolean
+          rule_version: number
+          self_confirmation_allowed: boolean
+          staff_text_internal: boolean
+          unassigned_auto_complete: boolean
+        }
+        Insert: {
+          confirmation: string
+          created_at?: string
+          question_key: string
+          redaction_required?: boolean
+          rule_version: number
+          self_confirmation_allowed?: boolean
+          staff_text_internal?: boolean
+          unassigned_auto_complete?: boolean
+        }
+        Update: {
+          confirmation?: string
+          created_at?: string
+          question_key?: string
+          redaction_required?: boolean
+          rule_version?: number
+          self_confirmation_allowed?: boolean
+          staff_text_internal?: boolean
+          unassigned_auto_complete?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_question_rules_question_key_fkey"
+            columns: ["question_key"]
+            isOneToOne: false
+            referencedRelation: "amenity_catalogue"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      knowledge_working_list: {
+        Row: {
+          disabled_at: string | null
+          disabled_by: string | null
+          enabled_at: string
+          enabled_by: string | null
+          id: string
+          question_key: string
+          reason: string | null
+          venue_id: string
+        }
+        Insert: {
+          disabled_at?: string | null
+          disabled_by?: string | null
+          enabled_at?: string
+          enabled_by?: string | null
+          id?: string
+          question_key: string
+          reason?: string | null
+          venue_id: string
+        }
+        Update: {
+          disabled_at?: string | null
+          disabled_by?: string | null
+          enabled_at?: string
+          enabled_by?: string | null
+          id?: string
+          question_key?: string
+          reason?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_working_list_disabled_by_fkey"
+            columns: ["disabled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_working_list_enabled_by_fkey"
+            columns: ["enabled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_working_list_question_key_fkey"
+            columns: ["question_key"]
+            isOneToOne: false
+            referencedRelation: "amenity_catalogue"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "knowledge_working_list_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_archive_audit_runs: {
         Row: {
           bytes_verified: number
@@ -1296,7 +1867,7 @@ export type Database = {
           {
             foreignKeyName: "media_pending_labels_asset_fkey"
             columns: ["asset_id", "venue_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "media_assets"
             referencedColumns: ["id", "venue_id"]
           },
@@ -3369,6 +3940,116 @@ export type Database = {
         Args: { p_reason?: string; p_staff_id: string; p_venue_id: string }
         Returns: string
       }
+      knowledge_check: { Args: { p_check_id: string }; Returns: Json }
+      knowledge_decide: {
+        Args: {
+          p_decision: string
+          p_idempotency_key: string
+          p_note: string
+          p_slot_revision: number
+          p_target_id: string
+          p_target_type: string
+        }
+        Returns: Json
+      }
+      knowledge_discard_draft: {
+        Args: { p_check_id: string }
+        Returns: boolean
+      }
+      knowledge_dismiss_outcome: {
+        Args: { p_event_id: number }
+        Returns: boolean
+      }
+      knowledge_get_draft: { Args: { p_check_id: string }; Returns: Json }
+      knowledge_my_contributions: {
+        Args: { p_cursor: string; p_limit: number }
+        Returns: Json
+      }
+      knowledge_my_pending: { Args: { p_period: string }; Returns: Json }
+      knowledge_pilot_preview: { Args: { p_venue_id: string }; Returns: Json }
+      knowledge_reader_answers_v1: {
+        Args: { p_keys: string[]; p_venue_id: string }
+        Returns: {
+          confirmation_basis: string
+          confirmation_required: boolean
+          confirmation_saved_at: string
+          confirmation_self: boolean
+          confirmation_state: string
+          contribution_kind: string
+          current_contribution_id: string
+          current_submission_id: string
+          detail: string
+          evidence_photos: number
+          evidence_videos: number
+          finding: string
+          freshness_state: string
+          limitations: string
+          next_check_due: string
+          observed_at: string
+          question_key: string
+          question_version: number
+          reason: string
+          reason_text: string
+          redaction_proof: string
+          revision: number
+          saved_at: string
+          source_basis: string
+          status: string
+          value: string
+        }[]
+      }
+      knowledge_resolve_conflict: {
+        Args: {
+          p_check_id: string
+          p_choose: string
+          p_idempotency_key: string
+          p_reason: string
+          p_slot_revision: number
+        }
+        Returns: Json
+      }
+      knowledge_save_draft: {
+        Args: {
+          p_asset_ids: string[]
+          p_check_id: string
+          p_draft_revision: number
+          p_idempotency_key: string
+          p_payload: Json
+        }
+        Returns: Json
+      }
+      knowledge_set_working_list: {
+        Args: {
+          p_enabled: boolean
+          p_keys: string[]
+          p_reason: string
+          p_venue_id: string
+        }
+        Returns: number
+      }
+      knowledge_submit: {
+        Args: {
+          p_answer: string
+          p_asset_ids: string[]
+          p_change_reason: string
+          p_check_id: string
+          p_confirm_own: boolean
+          p_finding: string
+          p_idempotency_key: string
+          p_internal_metadata: Json
+          p_kind: string
+          p_limitations: string
+          p_reason: string
+          p_redaction_confirmed: boolean
+          p_responds_to: string
+          p_slot_revision: number
+          p_tried_text: string
+          p_unknown_preset: string
+        }
+        Returns: Json
+      }
+      knowledge_to_confirm: { Args: { p_venue_id: string }; Returns: Json }
+      knowledge_working_list: { Args: never; Returns: Json }
       library_assets: {
         Args: {
           p_category?: string

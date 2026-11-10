@@ -3,6 +3,8 @@ import { VenueAccessUnavailablePage } from "@/components/nabalens/manager/venue-
 import { SessionGuardHost } from "@/components/nabalens/session-guard-host"
 import { getLoginCaptchaConfig } from "@/lib/auth/captcha"
 import { getManagerWorkspace } from "@/lib/auth/manager"
+import { knowledgeServices } from "@/lib/knowledge-client/services"
+import { getAmenityActor } from "@/lib/server/amenities"
 
 import { loadManagerOverview } from "./load-overview"
 
@@ -16,6 +18,18 @@ import { loadManagerOverview } from "./load-overview"
  * the page shows the failure. An ended session is met in place (Sign in
  * again over the page) rather than by losing the page.
  */
+/** Amenity findings waiting for this manager; undefined when unreadable. */
+async function confirmCount(): Promise<number | undefined> {
+  try {
+    const auth = await getAmenityActor()
+    if (!auth.ok) return undefined
+    const result = await knowledgeServices.listToConfirm(auth.actor, {})
+    return result.ok ? result.view.count : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export default async function ManagerLayout({
   children,
 }: {
@@ -25,7 +39,10 @@ export default async function ManagerLayout({
   if (workspace.status !== "available") {
     return <VenueAccessUnavailablePage reason={workspace.reason} />
   }
-  const read = await loadManagerOverview().catch(() => null)
+  const [read, toConfirm] = await Promise.all([
+    loadManagerOverview().catch(() => null),
+    confirmCount(),
+  ])
   const captcha = getLoginCaptchaConfig()
   return (
     <SessionGuardHost
@@ -36,6 +53,7 @@ export default async function ManagerLayout({
         venueName={workspace.venue.name}
         userName={workspace.profile.displayName}
         reviewCount={read?.ok ? read.overview.pendingPhotos : undefined}
+        confirmCount={toConfirm}
       >
         {children}
       </ManagerShell>

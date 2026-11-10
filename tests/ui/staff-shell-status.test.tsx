@@ -75,6 +75,14 @@ const coverage = vi.hoisted(() => ({
 vi.mock("@/lib/server/coverage", () => coverage)
 const amenities = vi.hoisted(() => ({ getMyAmenityTasks: vi.fn() }))
 vi.mock("@/lib/server/amenities", () => amenities)
+// No working list at this venue unless a test gives one: the legacy counts.
+const knowledge = vi.hoisted(() => ({
+  getWorkingList: vi.fn(),
+  listMyFindings: vi.fn(),
+}))
+vi.mock("@/lib/knowledge-client/services", () => ({
+  knowledgeServices: knowledge,
+}))
 
 import {
   currentStaffShell,
@@ -101,6 +109,11 @@ beforeEach(() => {
     ok: true,
     tasks: [check("c1"), check("c2")],
   })
+  knowledge.getWorkingList.mockResolvedValue({ ok: true, view: null })
+  knowledge.listMyFindings.mockResolvedValue({
+    ok: true,
+    page: { items: [], nextCursor: null, hiddenEarlierVenues: [] },
+  })
 })
 
 afterEach(() => {
@@ -120,6 +133,42 @@ describe("staffShellStatus", () => {
     expect(coverage.getManagerReviewCount).not.toHaveBeenCalled()
   })
 
+  it("counts a finding my manager asked about in Home's To do (B01-06)", async () => {
+    knowledge.getWorkingList.mockResolvedValue({
+      ok: true,
+      view: {
+        venue: { id: "v1", name: "The Old Crown" },
+        slots: [
+          {
+            checkId: "c9",
+            myLatest: { state: "needs_attention" },
+          },
+          { checkId: "c8", myLatest: { state: "awaiting_confirmation" } },
+        ],
+      },
+    })
+    expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
+      todoCount: 3,
+    })
+  })
+
+  it.each([
+    ["refused", async () => ({ ok: false, code: "unavailable" })],
+    [
+      "throws",
+      async () => {
+        throw new Error("down")
+      },
+    ],
+  ])(
+    "gives no To do count, rather than a smaller one, when the working list read is %s",
+    async (_, impl) => {
+      knowledge.getWorkingList.mockImplementation(impl)
+      expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
+        todoCount: undefined,
+      })
+    }
+  )
   it("adds a manager's photos to review to To do and the Manage badge", async () => {
     coverage.getCoverageScope.mockResolvedValue(scope(true))
     expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
@@ -323,5 +372,49 @@ describe("currentStaffShell", () => {
       variant: "staff",
       todoCount: undefined,
     })
+  })
+})
+
+describe("Me: Your findings (B01-06)", () => {
+  it("shows the history on Me when there is some", async () => {
+    knowledge.listMyFindings.mockResolvedValue({
+      ok: true,
+      page: {
+        items: [
+          {
+            findingRef: { type: "contribution", id: "f1" },
+            checkId: "c1",
+            question: "Is there parking on site?",
+            venue: { id: "v1", name: "TEST Inn" },
+            answer: "yes",
+            kind: "finding",
+            state: "current",
+            noLongerUsed: null,
+            stateReason: null,
+            managerNote: null,
+            detailRequestId: null,
+            unknownPreset: null,
+            answeredBy: null,
+            sentAt: "2026-11-05T10:00:00.000Z",
+            savedAt: null,
+            decidedAt: null,
+            recognition: { kind: "pending" },
+          },
+        ],
+        nextCursor: null,
+        hiddenEarlierVenues: [],
+      },
+    })
+    const { getByRole } = render(await StaffPage())
+    expect(getByRole("region", { name: "Your findings" })).toBeTruthy()
+    expect(
+      getByRole("heading", { level: 3, name: "Is there parking on site?" })
+    ).toBeTruthy()
+  })
+
+  it("leaves it out at a venue with no questions and nothing sent, even when the read fails", async () => {
+    knowledge.listMyFindings.mockRejectedValue(new Error("down"))
+    const { queryByRole } = render(await StaffPage())
+    expect(queryByRole("region", { name: /Your findings/ })).toBeNull()
   })
 })

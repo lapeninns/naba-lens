@@ -8,11 +8,12 @@ import {
   staffCaptureHref,
   type MyAmenityTask,
 } from "@/lib/amenities/contract"
+import type { WorkingSlot } from "@/lib/knowledge-client/contract"
 import { cn } from "@/lib/utils"
 
 import { orderAmenityTasks } from "../amenities/capture/amenity-task-list"
 import { Notice } from "../notice"
-import { CountBadge } from "../status-chip"
+import { CountBadge, StatusChip as StateChip } from "../status-chip"
 import { EvidenceThumb } from "./evidence-thumb"
 import { replacementHref } from "./needs-another-photo-list"
 import { SetupChecklist, setupHasAction } from "./setup-checklist"
@@ -38,6 +39,8 @@ export type TodoItem =
   | { kind: "replace"; submission: SubmissionView; closed: boolean }
   | { kind: "review"; count: number }
   | { kind: "overdue" | "due-soon"; assignment: MyAssignment }
+  /** My finding a manager asked more about (design §5.2); each one counts. */
+  | { kind: "finding_attention"; slot: WorkingSlot }
   /** Amenity checks assigned to me, recheck first; each one counts. */
   | { kind: "amenity"; checks: MyAmenityTask[] }
 
@@ -47,14 +50,16 @@ function isOpenAndUnfinished(a: MyAssignment) {
 
 /**
  * What the person should do next, in order: finish setup, answer a replacement
- * request, photos waiting for a manager, tasks that are overdue, amenity
- * checks, then tasks due within a week.
+ * request or a manager's question about my finding, photos waiting for a
+ * manager, tasks that are overdue, amenity checks, then tasks due within a
+ * week. `attention` is my working-list findings marked Needs attention.
  */
 export function todoItems(
   tasks: Pick<MyTasksView, "scope" | "assignments" | "needsAnotherPhoto">,
   now: Date = new Date(),
   reviewCount = 0,
-  amenityChecks: readonly MyAmenityTask[] = []
+  amenityChecks: readonly MyAmenityTask[] = [],
+  attention: readonly WorkingSlot[] = []
 ): TodoItem[] {
   const { scope, assignments, needsAnotherPhoto } = tasks
   const openTaskIds = new Set(
@@ -74,6 +79,12 @@ export function todoItems(
         !openTaskIds.has(submission.requirement.id),
     })
   }
+  const asked = new Set<string>()
+  for (const slot of attention) {
+    if (slot.myLatest?.state !== "needs_attention") continue
+    asked.add(slot.checkId)
+    items.push({ kind: "finding_attention", slot })
+  }
   if (reviewCount > 0) items.push({ kind: "review", count: reviewCount })
   const pending = assignments.filter(
     (a) => isOpenAndUnfinished(a) && !replacing.has(a.requirement.id)
@@ -83,8 +94,18 @@ export function todoItems(
       items.push({ kind: "overdue", assignment })
     }
   }
-  if (amenityChecks.length > 0)
-    items.push({ kind: "amenity", checks: orderAmenityTasks(amenityChecks) })
+  // A check that asks me for detail is already its own card above, and one
+  // whose finding of mine awaits confirmation needs nothing more (HM-01).
+  const sent = new Set(
+    attention
+      .filter((slot) => slot.myLatest?.state === "awaiting_confirmation")
+      .map((slot) => slot.checkId)
+  )
+  const checks = amenityChecks.filter(
+    (check) => !asked.has(check.id) && !sent.has(check.id)
+  )
+  if (checks.length > 0)
+    items.push({ kind: "amenity", checks: orderAmenityTasks(checks) })
   for (const assignment of pending) {
     const { due, progress } = assignment.requirement
     if (progress.overdue || !due) continue
@@ -356,6 +377,40 @@ function AmenityCard({
   )
 }
 
+/**
+ * My finding that a manager asked more about (design §5.2): its own card,
+ * since it waits on me and nobody else.
+ */
+function AttentionCard({
+  slot,
+  primary,
+}: {
+  slot: WorkingSlot
+  primary: boolean
+}) {
+  const note = slot.myLatest?.managerNote
+  return (
+    <li className={cardClass(primary, "warn")}>
+      <TopRow
+        kicker={<>Amenity check: {slot.category}</>}
+        chip={<StateChip state="needs_attention" />}
+      />
+      <h3 className={titleClass(primary)}>{slot.question}</h3>
+      <p className="text-body [overflow-wrap:anywhere] text-ink">
+        {note
+          ? `Your manager asked: ${note}`
+          : "Your manager asked for more detail."}
+      </p>
+      <Link
+        href={staffCaptureHref(slot.checkId)}
+        aria-label={`Add detail: ${slot.question}`}
+        className={action(primary)}
+      >
+        Add detail
+      </Link>
+    </li>
+  )
+}
 /** Part of To do couldn't be read: say so, never claim there is nothing. */
 function ReadFailed({
   retryHref,
@@ -489,6 +544,14 @@ export function TodoSection({
                   <AmenityCard
                     key="amenity"
                     checks={item.checks}
+                    primary={primary}
+                  />
+                )
+              case "finding_attention":
+                return (
+                  <AttentionCard
+                    key={`attention-${item.slot.checkId}`}
+                    slot={item.slot}
                     primary={primary}
                   />
                 )

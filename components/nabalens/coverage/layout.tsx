@@ -11,6 +11,7 @@ export function CoverageSection({
   id,
   children,
   className,
+  focusableTitle = false,
 }: {
   title: React.ReactNode
   /** Quiet text after the title: a count, a month or a state. */
@@ -19,17 +20,25 @@ export function CoverageSection({
   id?: string
   children?: React.ReactNode
   className?: string
+  /** The title takes focus when an action removes the control that had it. */
+  focusableTitle?: boolean
 }) {
   const titleId = id ? `${id}-title` : undefined
   return (
     <section
+      id={id}
       aria-labelledby={titleId}
-      className={cn("grid min-w-0 gap-(--gutter)", className)}
+      className={cn("grid min-w-0 scroll-mt-4 gap-(--gutter)", className)}
     >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pt-2">
         <h2
           id={titleId}
-          className="font-display text-section-title text-balance text-ink"
+          tabIndex={focusableTitle ? -1 : undefined}
+          className={cn(
+            "font-display text-section-title text-balance text-ink",
+            focusableTitle &&
+              "rounded-control outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          )}
         >
           {title}
         </h2>

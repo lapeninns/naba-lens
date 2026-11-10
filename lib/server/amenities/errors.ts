@@ -30,6 +30,8 @@ const STATUS: Record<AmenityErrorCode, AmenityFailure["status"]> = {
   state_conflict: 409,
   asset_ineligible: 409,
   evidence_rule_unmet: 400,
+  knowledge_path_required: 409,
+  knowledge_slot_out_of_scope: 409,
   unavailable: 503,
 }
 
@@ -248,6 +250,23 @@ export function amenityRpcFailure(
       assetReason: reason,
     })
   }
+  // Knowledge refusals (SQLSTATE class NL) never become `unavailable`, which
+  // the capture form retries (docs/knowledge/b01-design.md §4.1).
+  if (message === "knowledge_path_required" || code === "NLK01")
+    return failure(
+      "knowledge_path_required",
+      "This question now uses the new answer form. Open the question again."
+    )
+  if (message === "knowledge_slot_out_of_scope" || code === "NLK02")
+    return failure(
+      "knowledge_slot_out_of_scope",
+      "This question is no longer on the working list. Reload the page."
+    )
+  if (code.startsWith("NL"))
+    return failure(
+      "state_conflict",
+      "This changed while you were looking at it. Reload the page."
+    )
   if (code === "42501") return NOT_PERMITTED
   if (code === "P0002") return NOT_FOUND
   if (code === "22023") return invalid({}, "This request is invalid.")

@@ -3,6 +3,7 @@ export { AmenityTaskList, orderAmenityTasks } from "./amenity-task-list"
 export {
   CaptureForm,
   type AssetsResult,
+  type KnowledgeCapture,
   type SubmitHandler,
 } from "./capture-form"
 export {

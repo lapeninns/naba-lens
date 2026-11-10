@@ -4,6 +4,8 @@ import { cache } from "react"
 
 import { todoCount, todoItems } from "@/components/nabalens/tasks"
 import type { MyAmenityTask } from "@/lib/amenities/contract"
+import type { WorkingList } from "@/lib/knowledge-client/contract"
+import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getMyAmenityTasks } from "@/lib/server/amenities"
 import {
   getCoverageActor,
@@ -58,6 +60,24 @@ const amenityTasksOf = cache(
 export const myAmenityTasks = (actor: MediaActor) =>
   amenityTasksOf(sharedActor(actor))
 
+const workingListOf = cache(
+  async (actor: MediaActor): Promise<WorkingList | null | undefined> => {
+    try {
+      const result = await knowledgeServices.getWorkingList(actor, {})
+      return result.ok ? result.view : undefined
+    } catch {
+      return undefined
+    }
+  }
+)
+
+/**
+ * My venue's working list (B01-06): null when the venue has none (its
+ * assigned checks keep the old list), undefined when it can't be read.
+ */
+export const myWorkingList = (actor: MediaActor) =>
+  workingListOf(sharedActor(actor))
+
 /**
  * Whether the caller manages their venue and, only then, the photos waiting
  * for their review. Runs alongside the tasks rather than after them.
@@ -91,8 +111,9 @@ const managerStatus = (actor: MediaActor) => managerStatusOf(sharedActor(actor))
 export type StaffShellStatus = {
   canManage: boolean
   /**
-   * Home's To do count; none when the tasks, the checks or (for a manager)
-   * the photos to review can't be read: unknown, never a smaller number.
+   * Home's To do count; none when the tasks, the checks, the working list or
+   * (for a manager) the photos to review can't be read: unknown, never a
+   * smaller number.
    */
   todoCount: number | undefined
   /** Only for a venue manager; none when the read fails. */
@@ -110,18 +131,28 @@ export async function staffShellStatus(
   actor: MediaActor,
   profile: { id: string; avatarPath: string | null }
 ): Promise<StaffShellStatus> {
-  const [tasks, amenityTasks, { canManage, reviewCount }] = await Promise.all([
-    myTasks(actor).catch(() => null),
-    myAmenityTasks(actor),
-    managerStatus(actor),
-  ])
+  const [tasks, amenityTasks, { canManage, reviewCount }, workingList] =
+    await Promise.all([
+      myTasks(actor).catch(() => null),
+      myAmenityTasks(actor),
+      managerStatus(actor),
+      myWorkingList(actor),
+    ])
   const view = tasks?.ok ? tasks.tasks : null
   const reviewKnown = !canManage || reviewCount !== undefined
   return {
     canManage,
     todoCount:
-      view && amenityTasks && reviewKnown
-        ? todoCount(todoItems(view, new Date(), reviewCount, amenityTasks))
+      view && amenityTasks && reviewKnown && workingList !== undefined
+        ? todoCount(
+            todoItems(
+              view,
+              new Date(),
+              reviewCount,
+              amenityTasks,
+              workingList?.slots ?? []
+            )
+          )
         : undefined,
     reviewCount,
     avatarUrl: avatarUrl(profile.id, profile.avatarPath),

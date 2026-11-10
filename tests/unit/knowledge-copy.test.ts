@@ -1,0 +1,547 @@
+import { describe, expect, it } from "vitest"
+
+import {
+  answerInUseLines,
+  captureContextLines,
+  dateAndTime,
+  dockNote,
+  findingExplanation,
+  FINDING_STATE_CHIP,
+  KNOWLEDGE_ANSWER_LABEL,
+  periodMonth,
+  readerLine,
+  recognitionLine,
+  replacedOwnLine,
+  sentCopy,
+  slotRow,
+} from "@/components/nabalens/knowledge/copy"
+import { CHIP_STATES } from "@/components/nabalens/status-chip"
+import { todoCount, todoItems } from "@/components/nabalens/tasks/todo-list"
+import {
+  FINDING_STATES,
+  findingKey,
+  isRetryable,
+  knowledgeAssetsResult,
+  type KnowledgeErrorCode,
+  type AnswerInUse,
+  type FindingSummary,
+  type WorkingSlot,
+} from "@/lib/knowledge-client/contract"
+
+import { tasksView } from "../ui/tasks-fixtures"
+
+const NONE: AnswerInUse = {
+  status: "unavailable",
+  reason: "unknown",
+  detail: "not_checked",
+  value: null,
+  savedAt: null,
+  sentAt: null,
+  confirmation: { state: "not_required", self: false, at: null, by: null },
+}
+const YES: AnswerInUse = {
+  ...NONE,
+  status: "available",
+  reason: null,
+  detail: null,
+  value: "yes",
+  savedAt: "2026-11-03T14:05:00.000Z",
+}
+
+function slot(over: Partial<WorkingSlot> = {}): WorkingSlot {
+  return {
+    checkId: "c1",
+    key: "onsite_parking",
+    question: "Is there parking on site?",
+    category: "Arrival",
+    evidenceRule: "photo",
+    progress: "needs_capture",
+    slotRevision: 4,
+    answerInUse: NONE,
+    previousAnswer: null,
+    latestAttempt: null,
+    assignee: null,
+    mode: "answer",
+    requiresConfirmation: false,
+    myLatest: null,
+    myDraft: null,
+    othersPending: 0,
+    closedAssignment: null,
+    ...over,
+  }
+}
+
+function finding(over: Partial<FindingSummary> = {}): FindingSummary {
+  return {
+    findingRef: { type: "contribution", id: "f1" },
+    checkId: "c1",
+    question: "Is there parking on site?",
+    venue: { id: "v1", name: "The Old Crown" },
+    answer: "yes",
+    kind: "finding",
+    state: "awaiting_confirmation",
+    noLongerUsed: null,
+    stateReason: null,
+    managerNote: null,
+    detailRequestId: null,
+    unknownPreset: null,
+    answeredBy: null,
+    sentAt: "2026-11-05T10:00:00.000Z",
+    savedAt: null,
+    decidedAt: null,
+    recognition: { kind: "pending" },
+    ...over,
+  }
+}
+
+describe("knowledge words", () => {
+  it("calls an unknown finding Couldn't establish, never a legacy word", () => {
+    expect(KNOWLEDGE_ANSWER_LABEL.unknown).toBe("Couldn't establish")
+    expect(Object.values(KNOWLEDGE_ANSWER_LABEL)).not.toContain(
+      "Needs verification"
+    )
+    expect(CHIP_STATES.unknown.word).toBe("Needs verification")
+    expect(CHIP_STATES.couldnt_establish.word).toBe("Couldn't establish")
+    expect(CHIP_STATES.to_check.word).toBe("To check")
+  })
+
+  it("has one chip word per finding state", () => {
+    const words = FINDING_STATES.map(
+      (state) => CHIP_STATES[FINDING_STATE_CHIP[state]].word
+    )
+    expect(words).toEqual([
+      "Saved",
+      "Submitted",
+      "Awaiting confirmation",
+      "Current answer",
+      "Needs attention",
+      "Not confirmed",
+      "No longer in use",
+      "Closed",
+    ])
+  })
+
+  it("keys findings by type and id, and retries only unavailable", () => {
+    expect(findingKey({ type: "submission", id: "s9" })).toBe("submission:s9")
+    expect(isRetryable("unavailable")).toBe(true)
+    for (const code of [
+      "knowledge_path_required",
+      "knowledge_slot_out_of_scope",
+      "already_decided",
+      "self_confirmation_not_permitted",
+      "draft_conflict",
+    ] as const)
+      expect(isRetryable(code)).toBe(false)
+    expect(isRetryable("revision_conflict")).toBe(false)
+  })
+
+  it("formats months and times in London", () => {
+    expect(periodMonth("2026-11")).toBe("November")
+    expect(dateAndTime("2026-07-01T13:05:00.000Z")).toBe("1 Jul 2026, 14:05")
+  })
+})
+
+describe("the venue's answer", () => {
+  const lines = (answer: AnswerInUse, over: Partial<WorkingSlot> = {}) =>
+    answerInUseLines(answer, slot(over))
+
+  it("shows a save date, never a checked date", () => {
+    expect(lines(YES)).toEqual(["Current answer: Yes. Recorded 3 Nov 2026."])
+    expect(lines(YES).join(" ")).not.toMatch(/checked/i)
+  })
+
+  it("words every unavailable reason", () => {
+    const at = (reason: AnswerInUse["reason"], detail: AnswerInUse["detail"]) =>
+      lines(
+        { ...YES, status: "unavailable", reason, detail },
+        { previousAnswer: "yes" }
+      )
+    expect(at("disputed", "conflict")).toEqual([
+      "Recorded answer: Yes. Being checked: a finding disagrees with it.",
+    ])
+    expect(at("not_confirmed", "pending")).toEqual([
+      "Recorded answer: Yes. Awaiting confirmation.",
+    ])
+    expect(at("stale", "recheck_requested")).toEqual([
+      "No answer in use: reopened.",
+      "Previous answer: Yes.",
+    ])
+    expect(at("withdrawn", "evidence_withdrawn")).toEqual([
+      "Recorded answer: Yes. Not in use: its evidence was removed.",
+    ])
+    expect(at("withdrawn", "confirmation_revoked")).toEqual([
+      "Recorded answer: Yes. Not in use: its confirmation was withdrawn.",
+    ])
+    expect(
+      lines(
+        { ...NONE, detail: "unable_to_establish" },
+        {
+          latestAttempt: {
+            preset: "could_not_access",
+            at: "2026-11-05T10:00:00Z",
+          },
+        }
+      )
+    ).toEqual(["To check. Last try: couldn't establish (couldn't get to it)."])
+    expect(lines(NONE)).toEqual(["To check."])
+  })
+
+  it("tells managers what readers get", () => {
+    expect(
+      readerLine({
+        ...YES,
+        status: "unavailable",
+        reason: "disputed",
+        detail: "conflict",
+      })
+    ).toBe("Readers are told the answer is being checked.")
+    expect(readerLine(YES)).toBe("Readers get the current answer.")
+  })
+})
+
+describe("a finding's state and recognition", () => {
+  it("never says Saved for a sent finding", () => {
+    for (const state of FINDING_STATES.filter((s) => s !== "saved"))
+      expect(findingExplanation(finding({ state }))).not.toMatch(
+        /^Saved|Not sent/
+      )
+    expect(findingExplanation(finding({ state: "saved" }))).toBe(
+      "Not sent yet. Only you can see it."
+    )
+  })
+
+  it("says a different answer is being checked, not that the answer stays in use", () => {
+    const text = findingExplanation(finding(), "differs")
+    expect(text).toBe(
+      "Sent. The recorded answer is marked as being checked until your manager decides."
+    )
+    expect(text).not.toMatch(/stays in use/)
+    expect(findingExplanation(finding(), "same")).toBe(
+      "Sent. It agrees with the recorded answer; your manager confirms it."
+    )
+  })
+
+  it("promises no credit", () => {
+    expect(recognitionLine({ kind: "scored", period: "2026-11" }, "yes")).toBe(
+      "Counted in your November target."
+    )
+    expect(recognitionLine({ kind: "not_scored" }, "unknown")).toBe(
+      "Couldn't-establish findings don't count toward targets."
+    )
+    expect(recognitionLine({ kind: "not_scored" }, "no")).toBeNull()
+    expect(recognitionLine({ kind: "pending" }, "yes")).toBeNull()
+    expect(recognitionLine({ kind: "none" }, "yes")).toBeNull()
+  })
+})
+
+describe("after sending", () => {
+  it("says an automatic answer is the venue's answer (D11)", () => {
+    expect(
+      sentCopy({
+        outcome: "current",
+        answer: "yes",
+        compared: "none",
+        changeReport: false,
+      }).status
+    ).toBe("Finding sent. It's now the venue's answer.")
+  })
+
+  it("words proposals by what they do to the answer in use (D1)", () => {
+    const proposal = (
+      compared: "none" | "differs" | "same",
+      changeReport = false
+    ) =>
+      sentCopy({
+        outcome: "awaiting_confirmation",
+        answer: "no",
+        compared,
+        changeReport,
+      }).status
+    expect(proposal("none")).toBe(
+      "Finding sent. Your manager confirms it before it's used."
+    )
+    expect(proposal("differs", true)).toBe(
+      "Change report sent. Until your manager decides, the recorded answer is marked as being checked."
+    )
+    expect(proposal("same")).toBe(
+      "Finding sent. It agrees with the recorded answer; your manager confirms it."
+    )
+    expect(
+      sentCopy({
+        outcome: "recorded",
+        answer: "unknown",
+        compared: "differs",
+        changeReport: true,
+      }).status
+    ).toBe("Recorded: couldn't establish. The question stays open.")
+  })
+
+  it("words a manager's self-confirmation choice (D4)", () => {
+    expect(
+      sentCopy({
+        outcome: "current",
+        answer: "yes",
+        compared: "none",
+        changeReport: false,
+        selfConfirmed: true,
+      }).status
+    ).toBe("Finding sent and confirmed by you. It's now the venue's answer.")
+    expect(
+      sentCopy({
+        outcome: "awaiting_confirmation",
+        answer: "yes",
+        compared: "none",
+        changeReport: false,
+        leftForOthers: true,
+      }).status
+    ).toBe(
+      "Finding sent. It waits for another manager or an admin to confirm it."
+    )
+  })
+})
+
+describe("capture context", () => {
+  const context = (
+    over: Partial<WorkingSlot>,
+    role: "staff" | "manager" = "staff"
+  ) =>
+    captureContextLines({ venueName: "The Old Crown", slot: slot(over), role })
+
+  it("says before sending that a confirmation-free answer is used straight away (D11)", () => {
+    expect(context({})).toEqual([
+      "You're answering for The Old Crown.",
+      "No one needs to confirm this question. What you send becomes the venue's answer straight away.",
+    ])
+    expect(dockNote(slot(), "staff")).toBe(
+      "This becomes the venue's answer when you send it."
+    )
+  })
+
+  it("names only the assignee and counts other people's findings (D3)", () => {
+    const lines = context({
+      assignee: { firstName: "Priya", isMe: false },
+      othersPending: 2,
+    })
+    expect(lines).toContain(
+      "Priya is assigned. What you send goes to your manager to confirm; it doesn't take over their check."
+    )
+    expect(lines).toContain(
+      "2 other findings are waiting. Your manager will compare them."
+    )
+    expect(context({ othersPending: 1 })).toEqual([
+      "You're answering for The Old Crown.",
+      "Someone else also sent a finding. Your manager will compare them.",
+    ])
+  })
+
+  it("explains a change report without promising the answer stays in use (D1)", () => {
+    const lines = context({ mode: "change", answerInUse: YES })
+    expect(lines[1]).toBe(
+      "Current answer: Yes, recorded 3 Nov 2026. If you send a different answer, it's marked as being checked until your manager decides. It isn't replaced unless your manager confirms your change."
+    )
+    expect(lines.join(" ")).not.toMatch(/stays in use/)
+    expect(dockNote(slot({ mode: "change", answerInUse: YES }), "staff")).toBe(
+      "Your manager confirms this before it's used."
+    )
+  })
+
+  it("says step-free answers are confirmed (D7)", () => {
+    expect(
+      context({ key: "step_free_entrance", requiresConfirmation: true })[1]
+    ).toBe(
+      "Your manager confirms answers to this question before they're used."
+    )
+  })
+})
+
+describe("Home rows", () => {
+  it("keeps the assignee informed when someone else answered", () => {
+    const row = slotRow(
+      slot({
+        assignee: { firstName: "Sam", isMe: true },
+        answerInUse: YES,
+        closedAssignment: {
+          eventId: 1,
+          answeredBy: "Priya Gurung",
+          at: "2026-11-05T10:00:00Z",
+        },
+      })
+    )
+    expect(row.status).toBe(
+      "Answered by Priya Gurung on 5 Nov. Your assignment is closed; nothing more to do."
+    )
+    expect(row).toMatchObject({
+      action: null,
+      dismissable: true,
+      chip: { state: "closed" },
+    })
+  })
+
+  it("counts only work that needs me", () => {
+    expect(
+      slotRow(slot({ assignee: { firstName: "Sam", isMe: true } }))
+    ).toMatchObject({
+      action: "Start check",
+      needsMe: true,
+    })
+    expect(slotRow(slot())).toMatchObject({
+      action: "Answer this",
+      needsMe: false,
+    })
+    expect(
+      slotRow(slot({ myDraft: { savedAt: "2026-11-05T10:00:00Z" } }))
+    ).toMatchObject({
+      chip: { state: "saved" },
+      action: "Finish",
+      needsMe: false,
+    })
+    expect(
+      slotRow(
+        slot({
+          myLatest: finding({
+            state: "needs_attention",
+            managerNote: "Show the ramp",
+          }),
+        })
+      )
+    ).toMatchObject({
+      status: "Your manager asked: Show the ramp",
+      action: "Add detail",
+      needsMe: true,
+    })
+  })
+
+  it("never names another person's pending finding to staff (D3)", () => {
+    const row = slotRow(
+      slot({ assignee: { firstName: "Sam", isMe: true }, othersPending: 1 })
+    )
+    expect(row.status).toBe(
+      "Assigned to you. Someone else also sent a finding; your manager will compare them."
+    )
+  })
+
+  it("offers a change on an answer in use, and shows a dispute", () => {
+    expect(slotRow(slot({ answerInUse: YES, mode: "change" }))).toMatchObject({
+      chip: { state: "current_answer" },
+      status: "Current answer: Yes. Recorded 3 Nov 2026.",
+      action: "Report a change",
+    })
+    expect(
+      slotRow(
+        slot({
+          mode: "change",
+          answerInUse: {
+            ...YES,
+            status: "unavailable",
+            reason: "disputed",
+            detail: "conflict",
+          },
+        })
+      ).status
+    ).toBe("Recorded answer: Yes. Being checked: a finding disagrees with it.")
+  })
+})
+
+describe("replacedOwnLine", () => {
+  it("says when the replaced finding was sent, never saved", () => {
+    expect(replacedOwnLine("2026-11-04T10:00:00.000Z")).toBe(
+      "Your earlier finding, sent 4 Nov, was replaced."
+    )
+    expect(replacedOwnLine(null)).toBe("Your earlier finding was replaced.")
+  })
+})
+
+describe("knowledgeAssetsResult (F1)", () => {
+  it("passes the own-media list through unchanged", () => {
+    const assets = [
+      {
+        assetId: "a1",
+        kind: "photo" as const,
+        createdAt: "2026-11-05T10:00:00.000Z",
+        source: "own" as const,
+        thumbUrl: "/api/media/a1/thumb",
+      },
+    ]
+    expect(knowledgeAssetsResult({ ok: true, assets })).toEqual({
+      ok: true,
+      assets,
+    })
+  })
+
+  it("keeps amenity failure codes and reads knowledge-only ones as a state conflict", () => {
+    const fail = (code: KnowledgeErrorCode) =>
+      knowledgeAssetsResult({ ok: false, code, status: 409, message: "m" })
+    expect(fail("knowledge_slot_out_of_scope")).toMatchObject({
+      ok: false,
+      code: "knowledge_slot_out_of_scope",
+      message: "m",
+    })
+    expect(fail("already_decided")).toMatchObject({ code: "state_conflict" })
+  })
+})
+
+describe("slotRow: an assignee who already sent (HM-01, HM-02)", () => {
+  const assigned = { assignee: { firstName: "Sam", isMe: true } }
+
+  it("doesn't ask an assignee to start a check whose finding awaits confirmation", () => {
+    const row = slotRow(
+      slot({
+        ...assigned,
+        myLatest: finding({ state: "awaiting_confirmation" }),
+      })
+    )
+    expect(row).toMatchObject({
+      chip: { state: "awaiting_confirmation" },
+      action: "View",
+      needsMe: false,
+    })
+    expect(row.status).toBe(
+      "You sent a finding. Your manager confirms it before it's used."
+    )
+  })
+
+  it("offers an assignee's saved draft before Start check, and still counts it", () => {
+    const row = slotRow(
+      slot({ ...assigned, myDraft: { savedAt: "2026-11-06T09:30:00.000Z" } })
+    )
+    expect(row).toMatchObject({
+      chip: { state: "saved" },
+      action: "Finish",
+      needsMe: true,
+    })
+    expect(
+      slotRow(slot({ myDraft: { savedAt: "2026-11-06T09:30:00.000Z" } }))
+        .needsMe
+    ).toBe(false)
+  })
+
+  it('never ends on "Your manager asked:" with nothing after it', () => {
+    expect(
+      slotRow(
+        slot({
+          myLatest: finding({ state: "needs_attention", managerNote: null }),
+        })
+      ).status
+    ).toBe("Your manager asked for more detail.")
+  })
+
+  it("leaves an awaiting check out of To do and the badge", () => {
+    const awaiting = slot({
+      ...assigned,
+      checkId: "c-sent",
+      myLatest: finding({ state: "awaiting_confirmation" }),
+    })
+    const items = todoItems(
+      tasksView(),
+      new Date(),
+      0,
+      [{ id: "c-sent" } as never, { id: "c-open" } as never],
+      [awaiting]
+    )
+    const amenity = items.find((item) => item.kind === "amenity")
+    expect(
+      amenity && "checks" in amenity ? amenity.checks.map((c) => c.id) : []
+    ).toEqual(["c-open"])
+    expect(todoCount(items)).toBe(1)
+  })
+})

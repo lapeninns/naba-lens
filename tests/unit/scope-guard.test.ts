@@ -167,6 +167,11 @@ const ALLOWED_HANDLERS = new Set([
   // with ?attention=1, the caller's stored labels; POST labels (stored until
   // the photo is ready); DELETE ?assetId= discards stored labels.
   "/api/upload-labels",
+  // Internal knowledge reader (B01): server-to-server, a per-consumer bearer
+  // credential and service-role reads only; never a session
+  // (docs/knowledge/internal-reader-api.md).
+  "/api/knowledge/v1/venues/[venueId]/answers",
+  "/api/knowledge/v1/meta",
 ])
 
 /** The dev-only preview must stay inside the `(dev)` route group. */

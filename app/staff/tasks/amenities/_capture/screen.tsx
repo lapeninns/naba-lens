@@ -13,11 +13,72 @@ import {
   PROGRESS_LABEL,
   type AmenityResult,
 } from "@/lib/amenities/contract"
+import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
+import { LatestFinding } from "@/components/nabalens/knowledge/latest-finding"
 import { ROUTES } from "@/lib/auth/routes"
+import {
+  knowledgeAssetsResult,
+  type CaptureCheck,
+  type QuestionView,
+} from "@/lib/knowledge-client/contract"
+import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck, listSubmittableAssets } from "@/lib/server/amenities"
 import type { MediaActor } from "@/lib/server/media/types"
 
-import { CaptureClient } from "./capture-client"
+import type { AssetsResult } from "@/components/nabalens/amenities/capture"
+
+import { CaptureClient, type KnowledgeProps } from "./capture-client"
+
+/**
+ * The question's knowledge view, or nothing when it isn't on a working list.
+ * A failed read falls back to the legacy form: the legacy submit refuses a
+ * working-list question (knowledge_path_required) and the form says so.
+ */
+async function knowledgeFor(
+  actor: MediaActor,
+  checkId: string,
+  role: KnowledgeProps["role"],
+  venueName: string
+): Promise<{ props: KnowledgeProps; capture: CaptureCheck } | null> {
+  const [view, draft] = await Promise.all([
+    knowledgeServices
+      .getKnowledgeCheck(actor, { checkId, venueName })
+      .catch(() => null),
+    knowledgeServices.getDraft(actor, { checkId }).catch(() => null),
+  ])
+  if (!view?.ok || !view.view.inScope) return null
+  return {
+    props: fromView(view.view, draft?.ok ? draft.draft : null, role),
+    capture: view.view.capture,
+  }
+}
+
+function fromView(
+  view: Extract<QuestionView, { inScope: true }>,
+  serverDraft: KnowledgeProps["serverDraft"],
+  role: KnowledgeProps["role"]
+): KnowledgeProps {
+  // The person's own finding a manager asked more detail about.
+  const latest = view.slot.myLatest
+  const asked =
+    latest?.state === "needs_attention" && latest.detailRequestId
+      ? { decisionId: latest.detailRequestId, note: latest.managerNote ?? "" }
+      : null
+  return {
+    venueName: view.venue.name,
+    slot: view.slot,
+    role,
+    canContribute: view.permissions.canContribute,
+    canSelfConfirm: view.permissions.canSelfConfirm,
+    respondsTo: role === "staff" ? asked : null,
+    serverDraft,
+    // Changing my undecided finding starts from what I sent.
+    prefill:
+      role === "staff" && latest?.state === "awaiting_confirmation"
+        ? { answer: latest.answer, unknownPreset: latest.unknownPreset }
+        : null,
+  }
+}
 
 /**
  * A page's amenity read, or the matching navigation: sign-in, the blocked
@@ -87,15 +148,45 @@ export async function CaptureScreen({
   backLabel: string
   doneHref: string
 }) {
-  const [checkResult, assets] = await Promise.all([
-    getCheck(actor, { checkId }),
-    listSubmittableAssets(actor, { checkId }),
-  ])
-  const { detail } = unwrapAmenity(checkResult)
-  const { check, permissions } = detail
-  if (venueId && check.venueId !== venueId) notFound()
-  const open = check.status === "active" && permissions.canSubmit
+  const venue = venueName ?? "your venue"
+  const [knowledgeRead, checkResult, assets] =
+    mode === "staff"
+      ? await staffReads(actor, checkId, venue)
+      : await Promise.all([
+          knowledgeFor(actor, checkId, "manager", venue),
+          getCheck(actor, { checkId }),
+          listSubmittableAssets(actor, { checkId }),
+        ])
+  const knowledge = knowledgeRead?.props ?? null
 
+  // The amenity read when there is one; for staff on a working-list
+  // question, the knowledge read's view of the check instead (F1).
+  const detail = checkResult ? unwrapAmenity(checkResult).detail : null
+  const check: CaptureCheck = detail?.check ?? knowledgeRead!.capture
+  const permissions = detail?.permissions ?? null
+  if (venueId && check.venueId !== venueId) notFound()
+  // A working-list question is open to every eligible person at the venue,
+  // not only its assignee (the knowledge service decides who).
+  const open =
+    check.status === "active" &&
+    (knowledge ? knowledge.canContribute : (permissions?.canSubmit ?? false))
+  // Staff see what they last sent above the form (§4.6).
+  const latest =
+    mode === "staff" && knowledge?.slot.myLatest?.answer
+      ? knowledge.slot.myLatest
+      : null
+  const legacyAnswer = knowledge ? null : (detail?.check.answer ?? null)
+  const form = (
+    <CaptureClient
+      check={check}
+      viewerId={actor.profile.id}
+      initialAssets={assets}
+      canUpload={canUpload}
+      canAttachLegacy={permissions?.canAttachLegacy ?? false}
+      doneHref={doneHref}
+      knowledge={knowledge}
+    />
+  )
   return (
     <div className="flex min-w-0 flex-col gap-6 pb-4">
       <BackLink href={backHref} label={backLabel} />
@@ -117,30 +208,115 @@ export async function CaptureScreen({
             >
               {PROGRESS_LABEL[check.progress]}
             </StatusChip>
-            {check.answer !== "to_check" ? (
+            {knowledge ? (
               <span className="text-meta-touch text-ink-muted md:text-meta">
-                Current answer: {ANSWER_LABEL[check.answer]}
+                {answerInUseLines(
+                  knowledge.slot.answerInUse,
+                  knowledge.slot
+                ).join(" ")}
+              </span>
+            ) : legacyAnswer && legacyAnswer !== "to_check" ? (
+              <span className="text-meta-touch text-ink-muted md:text-meta">
+                Current answer: {ANSWER_LABEL[legacyAnswer]}
               </span>
             ) : null}
           </span>
         }
       />
       {open ? (
-        <CaptureClient
-          check={check}
-          viewerId={actor.profile.id}
-          initialAssets={assets}
-          canUpload={canUpload}
-          canAttachLegacy={permissions.canAttachLegacy}
-          doneHref={doneHref}
-        />
+        latest ? (
+          <LatestFinding
+            finding={latest}
+            inUse={knowledge?.slot.answerInUse.value ?? null}
+          >
+            {form}
+          </LatestFinding>
+        ) : (
+          form
+        )
       ) : (
         <Notice tone="plain">
           {check.status === "archived"
             ? "This check was archived, so it can't take a finding."
-            : "You can't send a finding for this check. It may have been assigned to someone else."}
+            : knowledge
+              ? "You can't send a finding for this question right now. Ask your manager."
+              : "You can't send a finding for this check. It may have been assigned to someone else."}
         </Notice>
       )}
     </div>
   )
+}
+
+async function recheckReason(
+  actor: MediaActor,
+  checkId: string
+): Promise<string | null> {
+  try {
+    const result = await getCheck(actor, { checkId })
+    return result.ok ? result.detail.check.recheckReason : null
+  } catch {
+    return null
+  }
+}
+
+async function knowledgeAssets(
+  actor: MediaActor,
+  checkId: string
+): Promise<AssetsResult> {
+  try {
+    return knowledgeAssetsResult(
+      await knowledgeServices.listKnowledgeAssets(actor, { checkId })
+    )
+  } catch {
+    return {
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "We couldn't load your photos and videos.",
+    }
+  }
+}
+
+/**
+ * Staff read the knowledge view first. A working-list question is open to
+ * everyone working at the venue, but the amenity read lets only its assignee
+ * (and managers) see the check, so an unassigned person got a 404 (F1). The
+ * amenity read is for questions off the working list only.
+ */
+async function staffReads(
+  actor: MediaActor,
+  checkId: string,
+  venueName: string
+): Promise<
+  [
+    Awaited<ReturnType<typeof knowledgeFor>>,
+    Awaited<ReturnType<typeof getCheck>> | null,
+    AssetsResult,
+  ]
+> {
+  const knowledge = await knowledgeFor(actor, checkId, "staff", venueName)
+  if (knowledge) {
+    // Their own media, without the assignment the amenity list needs; and
+    // for the assignee of a reopened question, the reopen reason, which only
+    // the amenity read carries (it succeeds for the assignee).
+    const { slot } = knowledge.props
+    const [assets, reason] = await Promise.all([
+      knowledgeAssets(actor, checkId),
+      slot.assignee?.isMe && slot.progress === "needs_recheck"
+        ? recheckReason(actor, checkId)
+        : null,
+    ])
+    const withReason = reason
+      ? {
+          ...knowledge,
+          capture: { ...knowledge.capture, recheckReason: reason },
+        }
+      : knowledge
+    return [withReason, null, assets]
+  }
+  const [checkResult, assets] = await Promise.all([
+    getCheck(actor, { checkId }),
+    listSubmittableAssets(actor, { checkId }),
+  ])
+  return [null, checkResult, assets]
 }

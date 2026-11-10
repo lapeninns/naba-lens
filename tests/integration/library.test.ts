@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { afterEach, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest"
 
 import { MEDIA_LIMITS } from "../../lib/config/media"
 import {
@@ -10,7 +10,11 @@ import {
   signedUrlTtlSeconds,
   streamOriginal,
 } from "../../lib/server/media/access"
-import { listLibrary, listOwnMedia } from "../../lib/server/media/library"
+import {
+  libraryFilterOptions,
+  listLibrary,
+  listOwnMedia,
+} from "../../lib/server/media/library"
 import type {
   LibraryFilters,
   MediaActor,
@@ -30,6 +34,7 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
+import { localSql } from "./auth-support"
 
 /**
  * Library correctness (spec §3 admin library, §6 stable cursor pagination, §7
@@ -595,5 +600,70 @@ describe("signed reads", () => {
       "cache-control": "private, no-store",
       "x-content-type-options": "nosniff",
     })
+  })
+})
+
+describe("filter options past one PostgREST response", () => {
+  // The 1,005 people would otherwise stay for every later file and browser
+  // run. Deleting the auth users cascades to their profiles and memberships.
+  let fixture: { tag: string; venueId: string } | null = null
+  afterAll(() => {
+    if (!fixture) return
+    localSql(`
+      delete from auth.users
+      where email like 'it-lib-many-%-${fixture.tag}@nabalens.test';
+      delete from public.venues where id = '${fixture.venueId}'::uuid;
+    `)
+  })
+
+  it("lists every staff member past max_rows (1000), in name order", async () => {
+    const venue = await createVenue(service, "lib-many")
+    const tag = randomUUID().slice(0, 8)
+    fixture = { tag, venueId: venue.id }
+    const people = Array.from({ length: 1005 }, (_, n) => ({
+      id: randomUUID(),
+      email: `it-lib-many-${n}-${tag}@nabalens.test`,
+      name: `TEST Lib Many ${tag} ${String(n).padStart(4, "0")}`,
+    }))
+    const users = people
+      .map((p) => `('${p.id}'::uuid, '${p.email}')`)
+      .join(", ")
+    const profiles = people
+      .map(
+        (p) =>
+          `('${p.id}'::uuid, '${p.name}', 'staff'::public.app_role, '${venue.id}'::uuid, true)`
+      )
+      .join(", ")
+    localSql(`
+      with fixture_users (id, email) as (values ${users}),
+      inserted as (
+        insert into auth.users (
+          instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+          raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+          confirmation_token, recovery_token, email_change_token_new, email_change,
+          email_change_token_current, phone_change, phone_change_token, reauthentication_token
+        )
+        select '00000000-0000-0000-0000-000000000000', id, 'authenticated', 'authenticated',
+          email, '', now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+          now(), now(), '', '', '', '', '', '', '', ''
+        from fixture_users
+        returning id
+      )
+      insert into public.profiles (id, display_name, role, venue_id, active)
+      select v.* from (values ${profiles}) as v (id, display_name, role, venue_id, active)
+      where v.id in (select id from inserted);
+    `)
+
+    const options = await libraryFilterOptions(admin)
+    expect(options.staff.length).toBeGreaterThan(1000)
+    expect(new Set(options.staff.map((s) => s.id)).size).toBe(
+      options.staff.length
+    )
+    const seeded = new Set<string>(people.map((p) => p.id))
+    // Every seeded person, once, in the order the filter lists them.
+    expect(
+      options.staff.filter((s) => seeded.has(s.id)).map((s) => s.id)
+    ).toEqual(people.map((p) => p.id))
+    expect(options.venues.some((v) => v.id === venue.id)).toBe(true)
   })
 })

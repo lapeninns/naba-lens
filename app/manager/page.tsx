@@ -4,6 +4,8 @@ import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-acce
 import { Notice } from "@/components/nabalens/notice"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 import { ROUTES } from "@/lib/auth/routes"
+import { knowledgeServices } from "@/lib/knowledge-client/services"
+import { getAmenityActor } from "@/lib/server/amenities"
 import { getManagerCompletionRoster } from "@/lib/server/coverage/venue"
 
 import { failedRead, isRefusal, loadManagerOverview } from "./load-overview"
@@ -16,6 +18,18 @@ export const metadata = { title: "Overview · Naba-Lens" }
  * requireManagerVenue(), which redirects here, as does a read the database
  * refuses on any page below. A failed read goes to error.tsx (Try again).
  */
+/** Amenity findings waiting for this manager; null when unreadable (MG-03). */
+async function countToConfirm(): Promise<number | null> {
+  try {
+    const auth = await getAmenityActor()
+    if (!auth.ok) return null
+    const result = await knowledgeServices.listToConfirm(auth.actor, {})
+    return result.ok ? result.view.count : null
+  } catch {
+    return null
+  }
+}
+
 export default async function ManagerOverviewPage() {
   const workspace = await getManagerWorkspace()
   // After a grant ends mid-session the layout is not re-rendered on client
@@ -32,7 +46,10 @@ export default async function ManagerOverviewPage() {
       return <VenueAccessUnavailable reason="no_grant" refreshShell />
     failedRead(read.code, "the overview", ROUTES.managerHome)
   }
-  const team = await getManagerCompletionRoster(read.ctx)
+  const [team, confirmCount] = await Promise.all([
+    getManagerCompletionRoster(read.ctx),
+    countToConfirm(),
+  ])
   if (!team.ok && isRefusal(team.code)) {
     return <VenueAccessUnavailable reason="no_grant" refreshShell />
   }
@@ -40,6 +57,7 @@ export default async function ManagerOverviewPage() {
     <OverviewBody
       overview={read.overview}
       now={new Date().toISOString()}
+      confirmCount={confirmCount}
       staffTargets={
         team.ok ? (
           <TeamCompletionTargets roster={team.roster} />
