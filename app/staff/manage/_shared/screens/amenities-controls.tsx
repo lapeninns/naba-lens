@@ -19,6 +19,9 @@ import {
   resolveConflictAction,
   retirePlaceAction,
   addScheduleExceptionAction,
+  slotEventsAction,
+  slotHistoryAction,
+  withdrawAnswerAction,
 } from "@/app/_knowledge/actions"
 import { PlacesManager } from "@/components/nabalens/knowledge/places-manager"
 import type { PolicyContext } from "@/components/nabalens/knowledge/policy-detail"
@@ -26,6 +29,7 @@ import type { UpcomingRead } from "@/components/nabalens/knowledge/schedule-sect
 import type {
   LegacyNarrativeItem,
   RecheckTask,
+  SlotEventView,
 } from "@/lib/knowledge-client/contract"
 import {
   AmenitiesOverview,
@@ -82,6 +86,7 @@ export function AmenityCheckControl({
   schedule = null,
   rechecks = null,
   oldFacts,
+  corrections = null,
 }: {
   detail: CheckDetail
   basePath: string
@@ -89,6 +94,14 @@ export function AmenityCheckControl({
   knowledge?: Extract<QuestionView, { inScope: true }> | null
   /** A policy question (B03-c): its places and value lists. */
   policy?: PolicyContext | null
+  /** B03-g: who may correct, withdraw and read history, and its first page. */
+  corrections?: {
+    canCorrect: boolean
+    canWithdraw: boolean
+    canReadHistory: boolean
+    events: { items: SlotEventView[]; nextCursor: string | null } | null
+    today: string
+  } | null
   /** B03-f: the venue's old facts; null unreadable, undefined not read. */
   oldFacts?: LegacyNarrativeItem[] | null
   /** B03-e: the check's open rechecks; null when unreadable. */
@@ -114,6 +127,14 @@ export function AmenityCheckControl({
               policy,
               rechecks,
               oldFacts,
+              corrections: corrections
+                ? {
+                    ...corrections,
+                    withdraw: withdrawAnswerAction,
+                    loadOlder: slotEventsAction,
+                    loadAt: slotHistoryAction,
+                  }
+                : null,
               schedule: schedule
                 ? { ...schedule, addException: addScheduleExceptionAction }
                 : null,

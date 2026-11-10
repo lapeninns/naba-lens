@@ -23,8 +23,11 @@ import type {
   KnowledgeAsset,
   KnowledgeFailure,
   KnowledgeResult,
+  CorrectResult,
   FreshnessPreviewView,
   LegacyMappingsView,
+  SlotEventView,
+  SlotHistoryView,
   LegacyNarrativeItem,
   MyPending,
   ReconcileResult,
@@ -151,6 +154,39 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: unknown
   ): Promise<KnowledgeResult<{ count: number; tasks: RecheckTask[] }>>
+  /** B03-g (§9.1): a manager account or an admin corrects the answer in use. */
+  correctAnswer(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<CorrectResult>>
+  /** B03-g (§9.2): takes the answer in use out of use; it stays in history. */
+  withdrawAnswer(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<
+    KnowledgeResult<{
+      decisionId: string
+      slotRevision: number
+      replayed: boolean
+    }>
+  >
+  /** B03-g (§9.3): admin, a schema upgrade dry run or its apply. */
+  runSchemaUpgrade(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ result: Record<string, unknown> }>>
+  /** B03-g (§9.4): the answer in use at a moment. */
+  getSlotHistory(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ history: SlotHistoryView }>>
+  /** B03-g (A16): the slot's events, newest first. */
+  listSlotEvents(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<
+    KnowledgeResult<{ items: SlotEventView[]; nextCursor: string | null }>
+  >
   /** B03-f (A13): admin reconciliation; every call re-checks the admin. */
   listSources(
     actor: MediaActor,
@@ -310,6 +346,12 @@ export const knowledgeServices: KnowledgeServices = {
     server.listQuestionRegistry(actor, input),
 
   getLegacyNarrative: (actor, input) => server.getLegacyNarrative(actor, input),
+
+  correctAnswer: (actor, input) => server.correctAnswer(actor, input),
+  withdrawAnswer: (actor, input) => server.withdrawAnswer(actor, input),
+  runSchemaUpgrade: (actor, input) => server.runSchemaUpgrade(actor, input),
+  getSlotHistory: (actor, input) => server.getSlotHistory(actor, input),
+  listSlotEvents: (actor, input) => server.listSlotEvents(actor, input),
 
   listSources: (actor, input) => server.listSources(actor, input),
   declareSource: (actor, input) => server.declareSource(actor, input),

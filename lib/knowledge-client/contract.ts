@@ -45,6 +45,10 @@ export {
 export { SCHEDULE_EXCEPTION_KINDS, VALUE_LISTS } from "@/lib/knowledge/contract"
 export { SOURCE_KINDS } from "@/lib/knowledge/contract"
 export type {
+  CorrectResult,
+  CorrectionValue,
+  SlotEventView,
+  SlotHistoryView,
   LegacyMappingsView,
   LegacyNarrativeItem,
   MappingKind,

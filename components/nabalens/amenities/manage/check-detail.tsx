@@ -53,12 +53,18 @@ import {
 } from "@/components/nabalens/knowledge/schedule-section"
 import { SPORT_LINES } from "@/components/nabalens/knowledge/service-detail"
 import { CheckDatesSection } from "@/components/nabalens/knowledge/check-dates"
+import {
+  AnswerOnDate,
+  HistorySection,
+  WithdrawControl,
+} from "@/components/nabalens/knowledge/corrections"
 import { OldFactsSection } from "@/components/nabalens/knowledge/old-facts"
 import {
   findingKey,
   type LegacyNarrativeItem,
   type QuestionView,
   type RecheckTask,
+  type SlotEventView,
 } from "@/lib/knowledge-client/contract"
 
 import { FINDING_SENT_PARAM } from "../capture/finding-sent"
@@ -182,6 +188,17 @@ export function AmenityCheckDetail({
     handlers: DecisionHandlers
     /** A policy question (B03-c): State the policy, and its cards' rows. */
     policy?: PolicyContext | null
+    /** B03-g: who may correct, withdraw and read history, and its first page. */
+    corrections?: {
+      canCorrect: boolean
+      canWithdraw: boolean
+      canReadHistory: boolean
+      events: { items: SlotEventView[]; nextCursor: string | null } | null
+      withdraw: React.ComponentProps<typeof WithdrawControl>["onWithdraw"]
+      loadOlder: React.ComponentProps<typeof HistorySection>["loadOlder"]
+      loadAt: React.ComponentProps<typeof AnswerOnDate>["load"]
+      today: string
+    } | null
     /** B03-f: the venue's old facts as history; null when unreadable. */
     oldFacts?: LegacyNarrativeItem[] | null
     /** B03-e: the check's open rechecks; null when they couldn't be read. */
@@ -521,6 +538,18 @@ export function AmenityCheckDetail({
               {statesPolicy ? POLICY_COPY.statePolicy : UI_TEXT.captureMyself}
             </Link>
           ) : null}
+          {knowledge?.corrections?.canWithdraw &&
+          active &&
+          knowledge.view.slot.answerInUse.value &&
+          knowledge.view.slot.answerInUse.detail !== "answer_withdrawn" ? (
+            <WithdrawControl
+              checkId={check.id}
+              slotRevision={knowledge.view.slot.slotRevision}
+              value={ANSWER_LABEL[knowledge.view.slot.answerInUse.value]}
+              onWithdraw={knowledge.corrections.withdraw}
+              focusId="amenity-status-title"
+            />
+          ) : null}
           {canReopen ? (
             <Button
               variant="secondary"
@@ -744,6 +773,26 @@ export function AmenityCheckDetail({
             {stillSaving("notes")}
           </form>
         </CoverageSection>
+      ) : null}
+
+      {knowledge?.corrections?.canReadHistory ? (
+        <>
+          <HistorySection
+            checkId={check.id}
+            first={knowledge.corrections.events}
+            loadOlder={knowledge.corrections.loadOlder}
+            checkDatesApply={
+              knowledge.view.slot.freshness?.some(
+                (entry) => entry.state !== "unrated"
+              ) ?? false
+            }
+          />
+          <AnswerOnDate
+            checkId={check.id}
+            today={knowledge.corrections.today}
+            load={knowledge.corrections.loadAt}
+          />
+        </>
       ) : null}
 
       {knowledge && knowledge.oldFacts !== undefined ? (

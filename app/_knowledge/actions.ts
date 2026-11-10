@@ -118,6 +118,28 @@ export async function retirePlaceAction(input: unknown) {
   return write(k.retirePlace, input)
 }
 
+// ---- Corrections and history (B03-g) -----------------------------------------------
+
+/** A manager account or an admin corrects the answer in use. Keyed. */
+export async function correctAnswerAction(input: unknown) {
+  return write(k.correctAnswer, input)
+}
+
+/** A manager account or an admin takes the answer out of use. Keyed. */
+export async function withdrawAnswerAction(input: unknown) {
+  return write(k.withdrawAnswer, input)
+}
+
+/** The next page of a question's history. */
+export async function slotEventsAction(input: unknown) {
+  return read(k.listSlotEvents, input)
+}
+
+/** The answer in use at a moment. */
+export async function slotHistoryAction(input: unknown) {
+  return read(k.getSlotHistory, input)
+}
+
 // ---- Reconciliation (B03-f, admins) ------------------------------------------------
 
 async function adminWrite<T>(service: Service<T>, input: unknown) {
@@ -144,6 +166,11 @@ export async function reviewMappingAction(input: unknown) {
 /** A dry run, or an apply that a fresh matching dry run allows. */
 export async function reconcileAction(input: unknown) {
   return adminWrite(k.reconcile, input)
+}
+
+/** A schema upgrade dry run, or its apply (B03-g, §9.3). */
+export async function upgradeRunAction(input: unknown) {
+  return adminWrite(k.runSchemaUpgrade, input)
 }
 
 // ---- Schedules (B03-d) ------------------------------------------------------------

@@ -79,6 +79,10 @@ export function parseCapabilities(value: unknown): VenueCapabilities | null {
     canDecideOwnMenuPhoto: allowed(raw.canDecideOwnMenuPhoto),
     canReviewChecklist: allowed(raw.canReviewChecklist),
     canBeAssigned: allowed(raw.canBeAssigned),
+    // B03-g (A1, A16): a manager account or an admin; never a guess.
+    canCorrect: allowed(raw.canCorrect),
+    canWithdraw: allowed(raw.canWithdraw),
+    canReadHistory: allowed(raw.canReadHistory),
   }
 }
 

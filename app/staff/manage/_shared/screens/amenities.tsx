@@ -6,7 +6,11 @@ import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
 import type { PolicyContext } from "@/components/nabalens/knowledge/policy-detail"
 import { questionForm } from "@/components/nabalens/knowledge/question-form"
 import type { UpcomingRead } from "@/components/nabalens/knowledge/schedule-section"
-import type { QuestionView } from "@/lib/knowledge-client/contract"
+import type {
+  QuestionView,
+  SlotEventView,
+} from "@/lib/knowledge-client/contract"
+import { workServices } from "@/lib/work-client/services"
 import { londonToday } from "@/lib/server/knowledge/dates"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
@@ -204,6 +208,42 @@ async function rechecksFor(ctx: ManageContext, checkId: string) {
   }
 }
 
+/**
+ * B03-g (A1, A16): who may correct, withdraw and read history here, from the
+ * venue's capabilities, and the first page of history. Null when the
+ * capabilities can't be read: none of the actions are offered on a guess.
+ */
+async function correctionsFor(ctx: ManageContext, checkId: string) {
+  try {
+    const caps = await workServices.getCapabilities(ctx.actor, ctx.venueId)
+    if (caps.status !== "ok") return null
+    const {
+      canCorrect = false,
+      canWithdraw = false,
+      canReadHistory = false,
+    } = caps.value
+    let events: { items: SlotEventView[]; nextCursor: string | null } | null =
+      null
+    if (canReadHistory) {
+      const read = await knowledgeServices
+        .listSlotEvents(ctx.actor, { checkId, limit: 20 })
+        .catch(() => null)
+      events = read?.ok
+        ? { items: read.items, nextCursor: read.nextCursor }
+        : null
+    }
+    return {
+      canCorrect,
+      canWithdraw,
+      canReadHistory,
+      events,
+      today: londonToday(new Date()),
+    }
+  } catch {
+    return null
+  }
+}
+
 /** B03-f: the venue's old facts as history; null when they can't be read. */
 async function oldFactsFor(ctx: ManageContext) {
   try {
@@ -285,12 +325,13 @@ export async function AmenityCheckScreen({
         upcomingFor(ctx, inScope),
       ])
     : [null, null]
-  const [rechecks, oldFacts] = inScope
+  const [rechecks, oldFacts, corrections] = inScope
     ? await Promise.all([
         rechecksFor(ctx, inScope.slot.checkId),
         oldFactsFor(ctx),
+        correctionsFor(ctx, inScope.slot.checkId),
       ])
-    : [null, undefined]
+    : [null, undefined, null]
 
   return (
     <AmenitiesFrame
@@ -327,6 +368,7 @@ export async function AmenityCheckScreen({
         schedule={schedule}
         rechecks={rechecks}
         oldFacts={oldFacts}
+        corrections={corrections}
       />
     </AmenitiesFrame>
   )
