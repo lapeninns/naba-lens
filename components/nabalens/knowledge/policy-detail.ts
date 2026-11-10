@@ -547,8 +547,12 @@ export type PolicyContext = {
   places: Place[]
   conditionTypes: ValueListItem[]
   exceptionTypes: ValueListItem[]
-  /** A38: retired types, so an old answer still names them. */
-  retiredTypes?: ValueListItem[]
+  /**
+   * A38: each list's retired types, so an old answer still names them. Kept
+   * apart: a code is unique within its list only.
+   */
+  retiredConditionTypes?: ValueListItem[]
+  retiredExceptionTypes?: ValueListItem[]
 }
 
 /**
@@ -580,7 +584,10 @@ export function policyFacts(
       term: "Conditions",
       value: policy.conditions
         .map((c) =>
-          [listLabel(c.type, ctx.conditionTypes, ctx.retiredTypes), c.value]
+          [
+            listLabel(c.type, ctx.conditionTypes, ctx.retiredConditionTypes),
+            c.value,
+          ]
             .filter(Boolean)
             .join(": ")
         )
@@ -590,7 +597,9 @@ export function policyFacts(
     rows.push({
       term: "Exceptions",
       value: policy.exceptions
-        .map((e) => listLabel(e.type, ctx.exceptionTypes, ctx.retiredTypes))
+        .map((e) =>
+          listLabel(e.type, ctx.exceptionTypes, ctx.retiredExceptionTypes)
+        )
         .join("; "),
     })
   if (isRecord(detail) && "policyScope" in detail)

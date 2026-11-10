@@ -262,7 +262,8 @@ export function PolicyDetailFields({
   places,
   conditionTypes,
   exceptionTypes,
-  retiredTypes = [],
+  retiredConditionTypes = [],
+  retiredExceptionTypes = [],
   requiresZones,
   basis,
   canStateOrgPolicy,
@@ -277,8 +278,9 @@ export function PolicyDetailFields({
   places: Place[]
   conditionTypes: readonly ValueListItem[]
   exceptionTypes: readonly ValueListItem[]
-  /** A38: retired types an old answer may still name. */
-  retiredTypes?: readonly ValueListItem[]
+  /** A38: each list's retired types an old answer may still name. */
+  retiredConditionTypes?: readonly ValueListItem[]
+  retiredExceptionTypes?: readonly ValueListItem[]
   requiresZones: boolean
   /** The account's basis for a statement; null for a staff observation. */
   basis: PolicyBasis | null
@@ -431,7 +433,7 @@ export function PolicyDetailFields({
                     label={COPY.conditionType}
                     value={c.type}
                     items={conditionTypes}
-                    retiredItems={retiredTypes}
+                    retiredItems={retiredConditionTypes}
                     onChange={(type) => setRow("conditions", i, { type })}
                   />
                   {item?.needsValue || c.value ? (
@@ -497,7 +499,7 @@ export function PolicyDetailFields({
                   label={COPY.exceptionType}
                   value={x.type}
                   items={exceptionTypes}
-                  retiredItems={retiredTypes}
+                  retiredItems={retiredExceptionTypes}
                   onChange={(type) => setRow("exceptions", i, { type })}
                 />
                 <NoteInput

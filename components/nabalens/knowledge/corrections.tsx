@@ -19,6 +19,7 @@ import type {
 } from "@/lib/knowledge-client/contract"
 
 import { FieldMessage, LABEL, MUTED } from "../amenities/capture/field-parts"
+import type { PolicyContext } from "./policy-detail"
 
 import {
   AT_DATE_COPY,
@@ -256,10 +257,13 @@ export function AnswerOnDate({
   checkId,
   today,
   load,
+  policy = null,
 }: {
   checkId: string
   today: string
   load: LoadAt
+  /** A policy question: read the snapshot's policy with these lists. */
+  policy?: PolicyContext | null
 }) {
   const id = React.useId()
   const [date, setDate] = React.useState("")
@@ -286,7 +290,11 @@ export function AnswerOnDate({
         read.ok
           ? {
               kind: "shown",
-              lines: atDateLines(read.history, whenWords(date, time || null)),
+              lines: atDateLines(
+                read.history,
+                whenWords(date, time || null),
+                policy
+              ),
             }
           : { kind: "failed", retry: read.code === "unavailable" }
       )

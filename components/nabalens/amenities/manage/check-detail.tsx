@@ -50,6 +50,7 @@ import {
 } from "@/components/nabalens/knowledge/copy"
 import {
   POLICY_COPY,
+  policyFacts,
   type PolicyContext,
 } from "@/components/nabalens/knowledge/policy-detail"
 import { PolicyNeedsPanel } from "@/components/nabalens/knowledge/policy-detail-fields"
@@ -407,6 +408,16 @@ export function AmenityCheckDetail({
   // Recorded as their own rows.
   const inUse = knowledge?.view.slot.answerInUse ?? null
   const stepFree = inUse ? stepFreeAnswerWords(inUse) : null
+  // A policy in use (§4.4): its rows from the detail as recorded, a retired
+  // type by its label (A38). Never for an incomplete policy (§4.3).
+  const policyRows =
+    knowledge?.policy &&
+    inUse?.status === "available" &&
+    inUse.value &&
+    inUse.answerDetail &&
+    !notConfirmed
+      ? policyFacts(inUse.answerDetail, knowledge.policy)
+      : []
   const muted = "text-body-touch text-ink-muted md:text-body-sm"
   const stillSaving = (...keys: Write[]) =>
     still && busy && keys.includes(busy) ? (
@@ -517,6 +528,16 @@ export function AmenityCheckDetail({
               ) : null}
             </dd>
           </div>
+          {policyRows.map((row) => (
+            <div key={row.term} className="grid gap-1">
+              <dt className="text-meta-touch text-ink-muted md:text-meta">
+                {row.term}
+              </dt>
+              <dd className="text-body-touch break-words text-ink md:text-body">
+                {row.value}
+              </dd>
+            </div>
+          ))}
           {stepFree && inUse ? (
             <>
               <div className="grid gap-1">
@@ -857,6 +878,7 @@ export function AmenityCheckDetail({
             checkId={check.id}
             today={knowledge.corrections.today}
             load={knowledge.corrections.loadAt}
+            policy={knowledge.policy ?? null}
           />
         </>
       ) : null}

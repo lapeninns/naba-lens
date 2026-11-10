@@ -4,6 +4,7 @@
 // label, apart from the finding's rows. Only what the owner's lists and the
 // venue's places name; never who stated it.
 import { cleanup, render, screen, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/navigation", () => ({
@@ -11,7 +12,11 @@ vi.mock("next/navigation", () => ({
 }))
 
 import { DecisionPanel } from "@/components/nabalens/knowledge/decisions"
-import type { PolicyContext } from "@/components/nabalens/knowledge/policy-detail"
+import { AnswerOnDate } from "@/components/nabalens/knowledge/corrections"
+import {
+  policyFacts,
+  type PolicyContext,
+} from "@/components/nabalens/knowledge/policy-detail"
 import type {
   AnswerInUse,
   PendingFinding,
@@ -27,7 +32,7 @@ const POLICY: PolicyContext = {
     { code: "max", label: "⟨Up to⟩", needsValue: true, valueKind: "number" },
   ],
   exceptionTypes: [],
-  retiredTypes: [
+  retiredConditionTypes: [
     {
       code: "on_lead",
       label: "⟨On a lead⟩",
@@ -257,6 +262,33 @@ describe("To confirm: the policy in use (B03 UI §4, A38)", () => {
     })
   })
 
+  it("names a retired condition and exception from their own lists when codes match", () => {
+    const shared = (label: string) => ({
+      code: "shared",
+      label,
+      needsValue: false,
+      valueKind: null,
+    })
+    const rows = policyFacts(
+      {
+        stance: "conditional",
+        conditions: [{ type: "shared" }],
+        exceptions: [{ type: "shared" }],
+      },
+      {
+        ...POLICY,
+        retiredConditionTypes: [shared("⟨Condition label⟩")],
+        retiredExceptionTypes: [shared("⟨Exception label⟩")],
+      }
+    )
+    expect(
+      Object.fromEntries(rows.map((r) => [r.term, r.value]))
+    ).toMatchObject({
+      Conditions: "⟨Condition label⟩ (no longer offered)",
+      Exceptions: "⟨Exception label⟩ (no longer offered)",
+    })
+  })
+
   it("adds nothing off a policy question, or with no answer in use", () => {
     show([finding({ answer: "no" })], IN_USE, null)
     expect(Object.keys(facts(group("In use now")))).toEqual([
@@ -266,5 +298,111 @@ describe("To confirm: the policy in use (B03 UI §4, A38)", () => {
     cleanup()
     show([finding()], { ...IN_USE, value: null, savedAt: null })
     expect(Object.keys(facts(group("In use now")))).toEqual(["Answer"])
+  })
+})
+
+describe("the policy in use on the normal views (B03 UI §4.4, §8.5, A38)", () => {
+  async function renderCheck(answer: AnswerInUse) {
+    const { AmenityCheckDetail } =
+      await import("@/components/nabalens/amenities/manage")
+    const { detail, WIFI_CHECK } = await import("./amenities-manage-fixtures")
+    render(
+      <AmenityCheckDetail
+        detail={detail({ check: { ...WIFI_CHECK, progress: "complete" } })}
+        basePath="/manager"
+        handlers={{
+          assign: vi.fn(),
+          setNotes: vi.fn(),
+          archive: vi.fn(),
+          restore: vi.fn(),
+          reopen: vi.fn(),
+        }}
+        knowledge={{
+          view: view([], answer),
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
+          policy: POLICY,
+        }}
+      />
+    )
+    return screen
+      .getByRole("heading", { name: "Where it stands" })
+      .closest("section")!
+  }
+
+  it("Where it stands names a retired condition with nothing to confirm", async () => {
+    const section = await renderCheck(IN_USE)
+    // No pending finding: no To confirm card to carry it.
+    expect(screen.queryByRole("heading", { name: "In use now" })).toBeNull()
+    expect(facts(section)).toMatchObject({
+      Rule: "Allowed with conditions",
+      Areas: "⟨Back bar⟩: Allowed",
+      Conditions: "⟨On a lead⟩ (no longer offered)",
+      "Applies to": "This venue",
+      "Stated on": "30 Sept 2026",
+    })
+  })
+
+  it("Where it stands shows no rows for an incomplete policy", async () => {
+    const section = await renderCheck({
+      ...IN_USE,
+      status: "unavailable",
+      reason: "not_confirmed",
+      detail: "policy_incomplete",
+      policyMissing: ["stated_on"],
+    })
+    expect(facts(section).Conditions).toBeUndefined()
+    expect(facts(section).Rule).toBeUndefined()
+  })
+
+  async function showOnDate(policy: PolicyContext | null) {
+    const load = vi.fn().mockResolvedValue({
+      ok: true,
+      history: {
+        checkId: "c1",
+        at: "2026-10-02T22:59:59.000Z",
+        answerInUse: {
+          submissionId: "sub1",
+          answer: "yes",
+          sentAt: "2026-10-01T09:00:00.000Z",
+          confirmationState: "confirmed",
+          withdrawn: false,
+          detail: {
+            stance: "conditional",
+            conditions: [{ type: "on_lead" }],
+            policyScope: "venue",
+          },
+          questionVersion: 1,
+          selectionRule: "confirmation",
+        },
+      },
+    })
+    render(
+      <AnswerOnDate
+        checkId="c1"
+        today="2026-11-10"
+        load={load}
+        policy={policy}
+      />
+    )
+    const user = userEvent.setup()
+    const date = screen.getByLabelText("Date")
+    await user.type(date, "2026-10-02")
+    await user.click(screen.getByRole("button", { name: "Show" }))
+    await screen.findByText(/the answer in use was Yes/)
+    return load
+  }
+
+  it("the answer on a date names a retired condition from the snapshot", async () => {
+    const load = await showOnDate(POLICY)
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(
+      screen.getByText("Conditions: ⟨On a lead⟩ (no longer offered)")
+    ).toBeTruthy()
+    expect(screen.getByText("Rule: Allowed with conditions")).toBeTruthy()
+  })
+
+  it("the answer on a date adds no policy rows off a policy question", async () => {
+    await showOnDate(null)
+    expect(screen.queryByText(/^Conditions:/)).toBeNull()
   })
 })

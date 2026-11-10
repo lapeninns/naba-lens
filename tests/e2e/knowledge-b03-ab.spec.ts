@@ -6,6 +6,7 @@ import {
   type FeatureValue,
 } from "../../components/nabalens/knowledge/accessibility-detail"
 import { CHECKED_ON_COPY } from "../../components/nabalens/knowledge/checked-on"
+import { AT_DATE_COPY } from "../../components/nabalens/knowledge/corrections-copy"
 import {
   policyConfirmBlock,
   policyNeedWords,
@@ -750,10 +751,23 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
       expect.objectContaining({ code: oldRule.code, label: oldRule.label })
     )
 
-    // The page's adopted/history surfaces, read as they are. SOURCE GAP (as
+    // The answer on a date reads the adopted snapshot's own detail with the
+    // owner's lists, so it names the retired type (A38). This incomplete
+    // policy isn't shown as the current answer (§4.3), so Where it stands
+    // has the needs panel instead of its rows.
+    const atDate = manager.locator("#amenity-at-date")
+    await atDate
+      .getByLabel(AT_DATE_COPY.date, { exact: true })
+      .fill(londonDaysAgo(0))
+    await atDate.getByRole("button", { name: AT_DATE_COPY.show }).click()
+    await expect(
+      atDate.getByText(`Conditions: ${retiredName}`, { exact: true })
+    ).toBeVisible()
+
+    // The other adopted/history surfaces, read as they are. SOURCE GAP (as
     // built): History, Submissions and the event list render no policy
-    // conditions, so none of them names the retired type; only the pending
-    // card above does. Recorded, not passed off as history.
+    // conditions, so none of them names the retired type. Recorded, not
+    // passed off as history.
     await expect(manager.locator("#amenity-history")).toBeVisible()
     await expect(manager.locator("#amenity-submissions")).toBeVisible()
     const historyText = (

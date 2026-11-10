@@ -106,10 +106,9 @@ async function knowledgeFor(
       places: result?.ok ? (result.places ?? []).filter((p) => p.active) : [],
       conditionTypes: conditions?.ok ? conditions.items : [],
       exceptionTypes: exceptions?.ok ? exceptions.items : [],
-      retiredTypes: [
-        ...((conditions?.ok ? conditions.retired : null) ?? []),
-        ...((exceptions?.ok ? exceptions.retired : null) ?? []),
-      ],
+      // A38: each list's retired items apart; codes are unique per list only.
+      retiredConditionTypes: (conditions?.ok ? conditions.retired : null) ?? [],
+      retiredExceptionTypes: (exceptions?.ok ? exceptions.retired : null) ?? [],
       requiresZones: form.requiresZones,
       basis: caps
         ? caps.canStatePolicy

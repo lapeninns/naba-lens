@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   emptyPolicy,
+  POLICY_COPY,
   type PolicyDraft,
   type PolicyStance,
 } from "@/components/nabalens/knowledge/policy-detail"
@@ -187,6 +188,39 @@ describe("policy sections", () => {
         name: "old_code (no longer offered)",
       })
     ).toBeTruthy()
+  })
+
+  it("names a retired condition and exception from their own lists when codes match", () => {
+    // Codes are unique per list only: the same code may be retired in both.
+    const shared = (label: string) => ({
+      code: "shared",
+      label,
+      needsValue: false,
+      valueKind: null,
+    })
+    render(
+      <Fields
+        initial={{
+          stance: "conditional",
+          conditions: [{ type: "shared", value: "", note: "" }],
+          exceptions: [{ type: "shared", note: "" }],
+        }}
+        conditionTypes={[LEAD]}
+        exceptionTypes={[{ ...LEAD, code: "staff_only", label: "⟨Staff⟩" }]}
+        retiredConditionTypes={[shared("⟨Condition label⟩")]}
+        retiredExceptionTypes={[shared("⟨Exception label⟩")]}
+      />
+    )
+    const condition = screen.getByLabelText("Condition") as HTMLSelectElement
+    const exception = screen.getByLabelText(
+      POLICY_COPY.exceptionType
+    ) as HTMLSelectElement
+    expect(condition.selectedOptions[0]?.textContent).toBe(
+      "⟨Condition label⟩ (no longer offered)"
+    )
+    expect(exception.selectedOptions[0]?.textContent).toBe(
+      "⟨Exception label⟩ (no longer offered)"
+    )
   })
 
   it("offers Every venue only to someone who may state it", () => {

@@ -9,6 +9,7 @@ import type {
 } from "@/lib/knowledge-client/contract"
 
 import { dateAndTime, longDate } from "./copy"
+import { policyFacts, type PolicyContext } from "./policy-detail"
 
 export const WITHDRAW_COPY = {
   open: "Withdraw the answer",
@@ -173,13 +174,25 @@ export function eventWhen(e: SlotEventView): string {
 }
 
 /** The answer-on-a-date result in words (§8.5). */
-export function atDateLines(view: SlotHistoryView, when: string): string[] {
+/**
+ * The answer in use on a date, in words. On a policy question (`policy`
+ * given) the snapshot's own detail adds its rows, a retired type by its
+ * label (A38).
+ */
+export function atDateLines(
+  view: SlotHistoryView,
+  when: string,
+  policy: PolicyContext | null = null
+): string[] {
   const a = view.answerInUse
   if (!a) return [AT_DATE_COPY.none(when)]
   const lines: (string | null)[] = [
     AT_DATE_COPY.was(when, ANSWER_LABEL[a.answer]),
   ]
   if (a.withdrawn) lines.push(AT_DATE_COPY.withdrawn)
+  if (policy && a.detail)
+    for (const row of policyFacts(a.detail, policy))
+      lines.push(`${row.term}: ${row.value}`)
   lines.push(
     a.confirmationState === "confirmed"
       ? AT_DATE_COPY.confirmed
