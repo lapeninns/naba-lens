@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { afterEach, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest"
 
 import { MEDIA_LIMITS } from "../../lib/config/media"
 import {
@@ -604,9 +604,22 @@ describe("signed reads", () => {
 })
 
 describe("filter options past one PostgREST response", () => {
+  // The 1,005 people would otherwise stay for every later file and browser
+  // run. Deleting the auth users cascades to their profiles and memberships.
+  let fixture: { tag: string; venueId: string } | null = null
+  afterAll(() => {
+    if (!fixture) return
+    localSql(`
+      delete from auth.users
+      where email like 'it-lib-many-%-${fixture.tag}@nabalens.test';
+      delete from public.venues where id = '${fixture.venueId}'::uuid;
+    `)
+  })
+
   it("lists every staff member past max_rows (1000), in name order", async () => {
     const venue = await createVenue(service, "lib-many")
     const tag = randomUUID().slice(0, 8)
+    fixture = { tag, venueId: venue.id }
     const people = Array.from({ length: 1005 }, (_, n) => ({
       id: randomUUID(),
       email: `it-lib-many-${n}-${tag}@nabalens.test`,

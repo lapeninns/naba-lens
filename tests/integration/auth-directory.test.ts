@@ -3,7 +3,7 @@
 // to profile data plus a clear notice instead of failing.
 import { randomUUID } from "node:crypto"
 
-import { beforeAll, describe, expect, it, vi } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 vi.mock("next/headers", () =>
@@ -278,9 +278,22 @@ describe("the real pages during an Auth outage", { timeout: 30_000 }, () => {
 })
 
 describe("a directory longer than one PostgREST response", () => {
+  // The 1,005 people would otherwise stay for every later file and browser
+  // run. Deleting the auth users cascades to their profiles and memberships.
+  let fixture: { tag: string; venueId: string } | null = null
+  afterAll(() => {
+    if (!fixture) return
+    localSql(`
+      delete from auth.users
+      where email like 'it-dir-many-%-${fixture.tag}@nabalens.test';
+      delete from public.venues where id = '${fixture.venueId}'::uuid;
+    `)
+  })
+
   it("lists everyone past max_rows (1000), in name order", async () => {
     const many = await createVenue(service, "dir-many")
     const tag = randomUUID().slice(0, 8)
+    fixture = { tag, venueId: many.id }
     const people = Array.from({ length: 1005 }, (_, n) => ({
       id: randomUUID(),
       email: `it-dir-many-${n}-${tag}@nabalens.test`,
