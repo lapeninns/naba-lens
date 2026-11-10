@@ -6,6 +6,24 @@ import { needsEntranceLabels, withEntranceLabels } from "./adapt"
 import type { WorkingList } from "./contract"
 import { knowledgeServices } from "./services"
 
+type PlacesRead = Awaited<ReturnType<typeof knowledgeServices.listPlaces>>
+
+/**
+ * One Places read for a view, made on first use and shared after, failure
+ * included (null), so a form and the answer in use name places from the same
+ * snapshot and an unreadable list isn't asked for twice.
+ */
+export function venuePlacesOnce(
+  actor: MediaActor,
+  venueId: string
+): () => Promise<PlacesRead | null> {
+  let read: Promise<PlacesRead | null> | undefined
+  return () =>
+    (read ??= knowledgeServices
+      .listPlaces(actor, { venueId })
+      .catch(() => null))
+}
+
 /**
  * A working list whose step-free Yes rows name their entrances (B03 UI
  * design §3.5): one read of the list venue's places, only when a row needs

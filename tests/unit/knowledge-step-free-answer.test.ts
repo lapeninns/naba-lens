@@ -21,7 +21,10 @@ import {
   needsEntranceLabels,
   withEntranceLabels,
 } from "@/lib/knowledge-client/adapt"
-import { withWorkingListEntrances } from "@/lib/knowledge-client/entrances"
+import {
+  venuePlacesOnce,
+  withWorkingListEntrances,
+} from "@/lib/knowledge-client/entrances"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import type { KnowledgeSlotView, SubjectView } from "@/lib/knowledge/contract"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -153,6 +156,49 @@ describe("withEntranceLabels names entrances only from the same venue's places",
       expect(
         withEntranceLabels(answer, VENUE, read).entranceLabels
       ).toBeUndefined()
+  })
+})
+
+describe("a capture view reads places once, failure included", () => {
+  beforeEach(() => rpc.knowledgeRpc.mockReset())
+
+  it("shares one failed read between the form and the answer in use", async () => {
+    server.knowledgeRpcFailure.mockReturnValueOnce({
+      ok: false,
+      code: "not_permitted",
+      status: 403,
+      message: "no",
+    })
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "42501" },
+    })
+    const places = venuePlacesOnce(actor, VENUE)
+    const form = await places()
+    const labels = await places()
+    expect(rpc.knowledgeRpc).toHaveBeenCalledTimes(1)
+    expect(labels).toBe(form)
+    expect(form?.ok).toBe(false)
+  })
+
+  it("shares one thrown read as none", async () => {
+    rpc.knowledgeRpc.mockRejectedValueOnce(new Error("offline"))
+    const places = venuePlacesOnce(actor, VENUE)
+    expect(await places()).toBeNull()
+    expect(await places()).toBeNull()
+    expect(rpc.knowledgeRpc).toHaveBeenCalledTimes(1)
+  })
+
+  it("shares one good read", async () => {
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: { venueId: VENUE, items: [place({})] },
+      error: null,
+    })
+    const places = venuePlacesOnce(actor, VENUE)
+    const [a, b] = await Promise.all([places(), places()])
+    expect(rpc.knowledgeRpc).toHaveBeenCalledTimes(1)
+    expect(a).toBe(b)
+    expect(a?.ok && a.places?.map((p) => p.label)).toEqual(["Main entrance"])
   })
 })
 

@@ -49,13 +49,26 @@ export function stepFreeCoversLine(answer: AnswerInUse): string | null {
   return ACCESS_COPY.covers(joinLabels(answer.entranceLabels!))
 }
 
+/** Contributions whose observation date is their sender's own check. */
+const OBSERVED_BY_SENDER = new Set(["finding", "change_report", "detail"])
+
 /**
- * Whether the answer in use is the viewer's own finding: their latest
- * finding is the one in use (the server's `current` state), so its check
- * date is theirs. Anything else reads as someone's, never named.
+ * Whether the viewer made the check the answer in use is dated from: their
+ * latest contribution is the one in use (the server's `current` state) and
+ * it is their own observation. A correction is the corrector's contribution
+ * but carries the original observer's date, and an import is no one's check,
+ * so both read as someone's, never named.
  */
 export function checkedByViewer(
-  slot: Partial<Pick<WorkingSlot, "myLatest">>
+  slot: Partial<Pick<WorkingSlot, "myLatest">>,
+  answer: Pick<AnswerInUse, "source">
 ): boolean {
-  return slot.myLatest?.state === "current"
+  const mine = slot.myLatest
+  return (
+    mine?.state === "current" &&
+    OBSERVED_BY_SENDER.has(mine.kind) &&
+    (answer.source === undefined ||
+      answer.source === "staff_finding" ||
+      answer.source === "manager_statement")
+  )
 }

@@ -14,6 +14,7 @@ import {
   type AmenityResult,
 } from "@/lib/amenities/contract"
 import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
+import { stepFreeAnswerWords } from "@/components/nabalens/knowledge/entrance-answer"
 import { LatestFinding } from "@/components/nabalens/knowledge/latest-finding"
 import {
   questionForm,
@@ -37,6 +38,7 @@ import {
   needsEntranceLabels,
   withEntranceLabels,
 } from "@/lib/knowledge-client/adapt"
+import { venuePlacesOnce } from "@/lib/knowledge-client/entrances"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck, listSubmittableAssets } from "@/lib/server/amenities"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -79,7 +81,7 @@ async function knowledgeFor(
     .catch(() => null)
   const form = questionForm(question?.ok ? question.question : null)
   const props = fromView(view.view, draft?.ok ? draft.draft : null, role)
-  let placesRead: Parameters<typeof withEntranceLabels>[2] = null
+  const venuePlaces = venuePlacesOnce(actor, view.view.venue.id)
   // B03-e: whether a recheck is open here, for the sent notice (§6.2). A
   // failed read claims nothing either way.
   props.openRechecks = await openRechecksAt(actor, checkId)
@@ -87,9 +89,7 @@ async function knowledgeFor(
     // Places for Areas and the owner's lists for conditions and exceptions;
     // each reads as none when it can't be read (the editor says so).
     const [result, conditions, exceptions] = await Promise.all([
-      knowledgeServices
-        .listPlaces(actor, { venueId: view.view.venue.id })
-        .catch(() => null),
+      venuePlaces(),
       knowledgeServices
         .getValueList(actor, { list: "policy_condition_types" })
         .catch(() => null),
@@ -183,10 +183,7 @@ async function knowledgeFor(
     // The venue's places for "Where is it?" and "What did you check?"; none
     // when they can't be read (the person can still name a place, and
     // step-free entrance says to add entrances under Places).
-    const result = await knowledgeServices
-      .listPlaces(actor, { venueId: view.view.venue.id })
-      .catch(() => null)
-    placesRead = result?.ok ? result : null
+    const result = await venuePlaces()
     const places = result?.ok
       ? (result.places ?? []).filter((p) => p.active)
       : []
@@ -204,16 +201,13 @@ async function knowledgeFor(
   // A step-free Yes names its entrances (UI §3.5), from the read above when
   // there was one; unreadable, it names no place.
   if (needsEntranceLabels(props.slot.answerInUse)) {
-    placesRead ??= await knowledgeServices
-      .listPlaces(actor, { venueId: view.view.venue.id })
-      .then((result) => (result.ok ? result : null))
-      .catch(() => null)
+    const read = await venuePlaces()
     props.slot = {
       ...props.slot,
       answerInUse: withEntranceLabels(
         props.slot.answerInUse,
         view.view.venue.id,
-        placesRead
+        read?.ok ? read : null
       ),
     }
   }
@@ -515,6 +509,11 @@ export async function CaptureScreen({
           <LatestFinding
             finding={latest}
             inUse={knowledge?.slot.answerInUse.value ?? null}
+            answerWords={
+              latest.state === "current" && knowledge
+                ? stepFreeAnswerWords(knowledge.slot.answerInUse)
+                : null
+            }
           >
             {form}
           </LatestFinding>

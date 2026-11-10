@@ -28,7 +28,11 @@ import type {
 } from "@/lib/knowledge-client/contract"
 
 import type { ChipStateKey } from "../status-chip"
-import { checkedByViewer, stepFreeAnswerWords } from "./entrance-answer"
+import {
+  checkedByViewer,
+  stepFreeAnswerWords,
+  stepFreeCoversLine,
+} from "./entrance-answer"
 
 // ---- Dates --------------------------------------------------------------------
 
@@ -288,7 +292,7 @@ function withdrawnLines(
 
 /**
  * The day a step-free Yes was checked (B03 UI design §3.5): "You checked on"
- * only when the answer in use is the viewer's own finding, else no name (D3).
+ * only when the viewer made that check (checkedByViewer), else no name (D3).
  */
 export function stepFreeCheckedOnLine(
   answer: AnswerInUse,
@@ -321,7 +325,8 @@ export function answerInUseLines(
     if (stepFree)
       return [
         `Current answer: ${stepFree}.`,
-        stepFreeCheckedOnLine(answer, checkedByViewer(slot)) ?? recorded.trim(),
+        stepFreeCheckedOnLine(answer, checkedByViewer(slot, answer)) ??
+          recorded.trim(),
       ].filter(Boolean)
     return [`Current answer: ${value}.${recorded}`]
   }
@@ -989,6 +994,9 @@ export function captureContextLines({
     lines.push(
       `${slot.othersPending} other findings are waiting. Your manager will compare them.`
     )
+  // S3 (UI §2.3): a named step-free Yes covers its entrances only.
+  const covers = stepFreeCoversLine(answer)
+  if (covers) lines.push(covers)
   return lines
 }
 

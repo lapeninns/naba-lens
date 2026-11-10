@@ -16,6 +16,7 @@ import {
   captureContextLines,
   slotRow,
 } from "@/components/nabalens/knowledge/copy"
+import { LatestFinding } from "@/components/nabalens/knowledge/latest-finding"
 import { WorkingListSection } from "@/components/nabalens/knowledge/working-list"
 import type {
   AnswerInUse,
@@ -117,6 +118,36 @@ describe("staff Home rows", () => {
     expect(row.textContent).not.toMatch(/You checked|Recorded|Sam|e1/)
   })
 
+  it("names no one when my current contribution is a correction of someone's check", () => {
+    // A correction is the corrector's contribution but keeps the original
+    // observer's date, so the corrector didn't check it on that day.
+    const corrected = slot({
+      myLatest: { ...MINE, kind: "correction" as never },
+    })
+    expect(slotRow(corrected).status).toBe(
+      "Current answer: Yes, at Main entrance. Checked on 3 Nov 2026."
+    )
+    expect(answerInUseLines(corrected.answerInUse, corrected)).toEqual([
+      "Current answer: Yes, at Main entrance.",
+      "Checked on 3 Nov 2026.",
+    ])
+  })
+
+  it("names no one when the answer in use was imported", () => {
+    for (const source of ["legacy_fact", "external_source"] as const) {
+      const imported = slot({
+        myLatest: MINE,
+        answerInUse: { ...STEP_FREE_YES, source },
+      })
+      expect(slotRow(imported).status).not.toMatch(/You checked/)
+    }
+    const stated = slot({
+      myLatest: MINE,
+      answerInUse: { ...STEP_FREE_YES, source: "manager_statement" },
+    })
+    expect(slotRow(stated).status).toMatch(/You checked on 3 Nov 2026\.$/)
+  })
+
   it("never reads as a Yes for the venue when the entrance can't be named", () => {
     const unnamed = { ...STEP_FREE_YES, entranceLabels: undefined }
     const row = slotRow(slot({ answerInUse: unnamed }))
@@ -187,6 +218,55 @@ describe("the capture context", () => {
     expect(line).toMatch(
       /^Current answer: Yes, at Main entrance, recorded 4 Nov 2026\. If you send/
     )
+  })
+
+  it("says what the answer covers, for staff and managers (S3)", () => {
+    const covers =
+      "This covers Main entrance only. It says nothing about other entrances, routes inside, toilets or seating."
+    for (const [role, s] of [
+      ["staff", slot()],
+      ["manager", slot({ mode: "answer", assignee: null })],
+    ] as const)
+      expect(
+        captureContextLines({ venueName: "The Old Crown", slot: s, role })
+      ).toContain(covers)
+  })
+
+  it("says nothing it covers when the entrance can't be named or it isn't a step-free Yes", () => {
+    const unnamed = slot({
+      answerInUse: { ...STEP_FREE_YES, entranceLabels: undefined },
+    })
+    const old = slot({
+      answerInUse: { ...STEP_FREE_YES, stepFreeEntranceIds: undefined },
+    })
+    for (const s of [unnamed, old])
+      expect(
+        captureContextLines({
+          venueName: "The Old Crown",
+          slot: s,
+          role: "staff",
+        }).join(" ")
+      ).not.toMatch(/This covers/)
+  })
+
+  it("names the entrance on my latest finding when it is the answer in use", () => {
+    render(
+      <LatestFinding
+        finding={MINE}
+        inUse="yes"
+        answerWords="Yes, at Main entrance"
+      >
+        <div />
+      </LatestFinding>
+    )
+    expect(screen.getByText("Answer: Yes, at Main entrance")).toBeTruthy()
+    cleanup()
+    render(
+      <LatestFinding finding={MINE} inUse="yes">
+        <div />
+      </LatestFinding>
+    )
+    expect(screen.getByText("Answer: Yes")).toBeTruthy()
   })
 })
 
@@ -263,6 +343,9 @@ describe("the manager's Where it stands", () => {
     expect(row("Answer")).toMatch(/^Current answer: Yes, at Main entrance\./)
     expect(row("Checked on")).toBe("3 Nov 2026")
     expect(row("Recorded")).toBe("4 Nov 2026")
+    // Checked on and scope, without another staff name (§3.5, D3).
+    expect(row("Answer")).toBe("Current answer: Yes, at Main entrance.")
+    expect(section.textContent).not.toMatch(/Recorded by/)
     expect(
       within(section).getByText(
         "This covers Main entrance only. It says nothing about other entrances, routes inside, toilets or seating."
@@ -292,6 +375,7 @@ describe("the manager's Where it stands", () => {
     expect(row("Answer")).toMatch(
       /^Current answer: Yes\. Recorded 4 Nov 2026\./
     )
+    expect(row("Answer")).toMatch(/Recorded by /)
     expect(
       within(section).queryByText("Checked on", { selector: "dt" })
     ).toBeNull()

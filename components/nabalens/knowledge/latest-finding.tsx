@@ -27,10 +27,16 @@ export const LATEST_FINDING_HEADING_ID = "latest-finding-heading"
 export function LatestFinding({
   finding,
   inUse,
+  answerWords = null,
   children,
 }: {
   finding: FindingSummary
   inUse: AnswerInUse["value"]
+  /**
+   * The answer in use in words when this finding is that answer (a step-free
+   * Yes names its entrances), so the panel doesn't repeat a bare Yes.
+   */
+  answerWords?: string | null
   /** The capture form. */
   children: React.ReactNode
 }) {
@@ -70,7 +76,7 @@ export function LatestFinding({
         </div>
         {finding.answer ? (
           <p className="text-body text-ink">
-            Answer: {KNOWLEDGE_ANSWER_LABEL[finding.answer]}
+            Answer: {answerWords ?? KNOWLEDGE_ANSWER_LABEL[finding.answer]}
           </p>
         ) : null}
         {finding.sentAt ? (

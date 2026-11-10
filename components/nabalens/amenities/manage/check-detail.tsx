@@ -508,7 +508,9 @@ export function AmenityCheckDetail({
               ) : (
                 ANSWER_LABEL[check.answer]
               )}
-              {answered ? (
+              {/* A step-free Yes says Checked on and Recorded below, with
+                  no staff name (§3.5, D3). */}
+              {answered && !stepFree ? (
                 <span className="block text-meta-touch text-ink-muted md:text-meta">
                   {answered}
                 </span>
