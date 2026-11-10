@@ -1172,3 +1172,20 @@ triggers are unchanged. Migration
 `20261110095910_knowledge_b02c_group_visibility_repair.sql`; tests in
 `tests/security/knowledge-b02-groups.test.ts` and
 `tests/security/manager-uploads.test.ts`.
+
+**B02-c reservation replay repair (10 Nov 2026):** a retry of
+`reserve_media_asset` with a known upload key returned a manager account's
+existing reservation before its upload venue was resolved, so it could get
+back the id, path, venue and state of its staff-era reservation, of one made
+before a revoke, or of one at a venue it no longer manages. For a manager
+account the effective grant venue is now resolved first (none:
+`venue_unavailable`), and both the ordinary lookup and the unique-violation
+retry reuse only its own `uploader_role = 'manager'` row at that venue (any
+other: `media_asset_not_found`). Staff retries keep the original
+reservation, whatever their venue is now, as before. Reservation function
+only; signature, grants, limits and every other gate are unchanged.
+Migration `20261110095911_knowledge_b02c_manager_reservation_replay_scope.sql`;
+tests in `tests/security/manager-uploads.test.ts`. The same repair updates
+three assertions that still expected the pre-B02 manager refusals
+(`amenities.test.ts`, `manager-accounts.test.ts`,
+`manager-item-photos.test.ts`).

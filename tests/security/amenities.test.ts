@@ -1387,9 +1387,10 @@ describe("manager accounts", () => {
     const staffEra = await photo(acct.id)
     await makeManager(admin, acct, venue)
 
-    // Capture myself: a manager account cannot reserve an upload, so it
-    // submits media it already has (staff-era uploads, legacy Coverage media).
-    await fails(
+    // Capture myself: a manager account reserves amenity evidence uploads at
+    // its grant venue (B02 owner decision Q1), and still submits media it
+    // already has (staff-era uploads, legacy Coverage media).
+    const [reserved] = await ok(
       acct.client.rpc("reserve_media_asset", {
         p_client_upload_key: randomUUID(),
         p_size_bytes: 4,
@@ -1397,10 +1398,19 @@ describe("manager accounts", () => {
         p_extension: "jpg",
         p_original_filename: "TEST amenity.jpg",
         p_purpose: "amenity",
-      }),
-      "not_active_staff",
-      "42501"
+      })
     )
+    expect(reserved).toMatchObject({
+      venue_id: venue,
+      upload_state: "uploading",
+      reused: false,
+    })
+    expect(
+      psql(
+        `select concat_ws('|', uploader_id, venue_id, uploader_role, purpose, upload_state)
+         from public.media_assets where id = '${reserved!.id}'`
+      )
+    ).toBe(`${acct.id}|${venue}|manager|amenity|uploading`)
 
     const [bar, room] = await ok(
       acct.client.rpc("amenity_add_checks", {
