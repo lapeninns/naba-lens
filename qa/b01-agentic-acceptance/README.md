@@ -54,7 +54,9 @@ out of scope.
 ## Environment (names only)
 
 - Set by you: `B01_CHECKOUT` (required, absolute), and optionally
-  `B01_RUN_ID`, `B01_APP_PORT` and `B01_E2E_HOME`.
+  `B01_RUN_ID`, `B01_APP_PORT` and `B01_E2E_HOME`. `NABALENS_WS_ROOT` must be
+  unset; `run.mjs` refuses to start if it is inherited, so the lock and workdir
+  are always spare6's canonical `/tmp/nabalens-ws/spare6`.
 - Derived by `run.mjs` from `stack.mjs stackEnv(spare6)`, held in memory and
   passed only to child processes: `NEXT_PUBLIC_SUPABASE_URL`,
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
@@ -77,18 +79,28 @@ Run all commands from this directory.
 # Collection only: fixed loopback values and a placeholder key, starts nothing
 node run.mjs list
 
-# Guards only: candidate, stack, project, revision, loopback env, free port
+# Guards only: candidate, stack, project, revision, migrations, loopback env, free port
 B01_CHECKOUT=<checkout> node run.mjs check
 
-# Full run: lock, seed, build with spare6 env, start app, journey -> narrow -> reader, stop
+# Full run: lock, recheck, seed, build with spare6 env, start app, journey -> narrow -> reader, stop
 B01_CHECKOUT=<checkout> B01_RUN_ID=b01-acc-1 node run.mjs run --build
 
-# Same, on an existing .next built from the candidate with spare6's env
-B01_CHECKOUT=<checkout> B01_RUN_ID=b01-acc-1 node run.mjs run --reuse-build --suites journey,narrow,reader
+# Offline guard tests (no stack, app, browser or network)
+node --test run.test.mjs
 ```
 
-`NEXT_PUBLIC_*` values are baked into the client bundle at build time. Use
-`--reuse-build` only when the existing build was made for `spare6`.
+`NEXT_PUBLIC_*` values are baked into the client bundle at build time, so
+`run` requires `--build` and always builds the candidate with spare6's env.
+There is no reuse-build path.
+
+The guards require the checkout at the candidate with no tracked changes, and
+spare6 running as `nabalens-ws-spare6` in its canonical workdir. Its last
+`stack.mjs` reset must come from this checkout at the clean candidate,
+`status.migrations.matchesRecordedFiles` must be `true`, and the recorded
+migrations digest must equal the digest of the candidate commit's
+`supabase/migrations` (and of the checkout's copy). `run` and `seed` repeat
+every guard and the free-port check inside the held lock, immediately before
+seeding.
 
 ## Lock and bounds
 
@@ -98,7 +110,9 @@ wait 60 s and then fail rather than queue. They never remove a live owner's
 lock. The seed is limited to 180 s, the build to 900 s, app readiness
 (`/login`) to 180 s and each suite to 30 min. Every child runs in its own
 process group. Timeout, SIGINT and SIGTERM stop the children (the app last),
-and then the lock is released. The app is always stopped in a `finally`.
+and then the lock is released. A step returns only after any stop of its own
+group has finished, and nothing is signalled when a spawn fails. The app is
+always stopped in a `finally`.
 
 ## Output
 
