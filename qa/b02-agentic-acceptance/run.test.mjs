@@ -60,6 +60,7 @@ import {
   outgoing,
   outwardFailure,
   groupProof,
+  hasTmpdirEntry,
   ownedProcesses,
   parse,
   pinnedMigrations,
@@ -1967,7 +1968,7 @@ test("supervisor: a detached child that leaves at once with its own stdio is fou
   const table = () => {
     if (!existsSync(handoff)) return []
     const g = JSON.parse(readFileSync(handoff, "utf8"))
-    return groupAlive(g.pid) ? [{ pid: g.pid, ppid: 1, pgid: g.pid, command: `sleep 30 PATH=/usr/bin TMPDIR=${g.tmpdir}` }] : []
+    return groupAlive(g.pid) ? [{ pid: g.pid, ppid: 1, pgid: g.pid, command: `sleep 30 PATH=/usr/bin TMPDIR=${g.tmpdir}`, env: `PATH=/usr/bin TMPDIR=${g.tmpdir}` }] : []
   }
   // No ancestry poll ever runs before the stop: only the private path can find it.
   const sup = supervise({ stack, table, watchMs: 600_000 })
@@ -3116,7 +3117,7 @@ test("groupProof: a signal needs every member proven by a live leader that is th
   const marker = "/tmp/nb02-abcdef"
   const leader = { pid: 10, ppid: runner, pgid: 10 }
   const child = { pid: 11, ppid: 10, pgid: 10 }
-  const marked = { pid: 12, ppid: 1, pgid: 10, command: `node TMPDIR=${marker}` }
+  const marked = { pid: 12, ppid: 1, pgid: 10, command: "node", env: `TMPDIR=${marker}` }
   assert.equal(groupProof([leader, child], 10, 10, [marker], runner), "proven")
   assert.equal(groupProof([marked], 10, 10, [marker], runner), "proven", "leader gone: the private path still proves it")
   // Leader gone and an unmarked member: the id may have been reused.
@@ -3216,4 +3217,79 @@ test("launch output: after collection the suite's output is still absent (e2e) o
   rmSync(wrapRoot, { recursive: true, force: true })
   rmSync(checkout, { recursive: true, force: true })
   rmSync(fake.dir, { recursive: true, force: true })
+})
+
+test("signal proof is the exact TMPDIR entry in the environment: a process that only names the scratch path in its arguments is never signalled", async () => {
+  const marker = "/tmp/nb02-abcdef"
+  // Offline rows: a mention in argv, a longer path, or the entry nested in another value prove nothing.
+  for (const row of [
+    { pid: 12, ppid: 1, pgid: 12, command: `tail -f ${marker}/app.log` },
+    { pid: 12, ppid: 1, pgid: 12, command: `du -sh ${marker}`, env: "PATH=/usr/bin" },
+    { pid: 12, ppid: 1, pgid: 12, command: "sh", env: `TMPDIR=${marker}/sub` },
+    { pid: 12, ppid: 1, pgid: 12, command: "sh", env: `FOO=TMPDIR=${marker}` },
+  ]) {
+    assert.equal(groupProof([row], 12, 10, [marker], 100), "not proven this run's", JSON.stringify(row))
+  }
+  assert.equal(groupProof([{ pid: 12, ppid: 1, pgid: 12, command: "sleep 30", env: `PATH=/usr/bin TMPDIR=${marker} HOME=/x` }], 12, 10, [marker], 100), "proven")
+  assert.equal(hasTmpdirEntry(`A=1 TMPDIR=${marker}`, [marker]), true)
+  assert.equal(hasTmpdirEntry(null, [marker]), false)
+  // Discovery still sees the broad mention (fail-safe: lingering and sweep), only signalling needs the entry.
+  assert.deepEqual([...ownedProcesses([{ pid: 12, ppid: 1, pgid: 12, command: `tail ${marker}/x` }], 10, [marker], { group: false })], [12])
+})
+
+test("live ps: an unrelated process naming a scratch path in argv is detected but not proven, so no signal reaches it; one inheriting TMPDIR is proven", { skip: !psReadable && "ps -E is unavailable" }, async () => {
+  const marker = join(SCRATCH, `nb02-f1-${process.pid}`)
+  // Started through an intermediate that exits, so neither is this runner's child. Node, not a system
+  // binary: macOS hides the environment of platform binaries such as /bin/sh from ps -E.
+  const start = (env, extra) =>
+    Number(
+      spawnSync(process.execPath, ["-e", `const c=require('child_process').spawn(process.execPath,['-e','setTimeout(()=>{},30000)',...${JSON.stringify(extra)}],{detached:true,stdio:'ignore',env:${JSON.stringify(env)}});c.unref();console.log(c.pid)`], { encoding: "utf8" }).stdout.trim()
+    )
+  const mention = start({ PATH: "/usr/bin:/bin" }, [`${marker}/`])
+  const inherits = start({ PATH: "/usr/bin:/bin", TMPDIR: marker }, [])
+  try {
+    await waitFor(() => (processTable([marker]) ?? []).some((row) => row.pid === mention), 5000)
+    const rows = processTable([marker])
+    const m = rows.find((row) => row.pid === mention)
+    assert.deepEqual([m.marked, m.envMarked], [true, false], "argv mention: detected, not proof")
+    assert.equal(groupProof(rows, mention, mention, [marker]), "not proven this run's")
+    const sent = []
+    const said = await terminateProvenGroup(mention, () => groupProof(processTable([marker]), mention, mention, [marker]), { signal: (pid, name) => sent.push(name), graceMs: 50, killMs: 50 })
+    assert.equal(said, "SIGTERM withheld: not proven this run's")
+    assert.deepEqual(sent, [])
+    assert.equal(groupAlive(mention), true)
+    const i = rows.find((row) => row.pid === inherits)
+    assert.equal(i.envMarked, true, "the inherited TMPDIR entry is proof")
+    assert.equal(groupProof(rows, inherits, inherits, [marker]), "proven")
+  } finally {
+    for (const pid of [mention, inherits]) if (pid > 1 && groupAlive(pid)) process.kill(-pid, "SIGKILL")
+  }
+})
+
+test("terminateProvenGroup never signals process group 0, 1 or a non-integer", async () => {
+  for (const pgid of [0, 1, -5, 1.5, undefined]) {
+    const sent = []
+    const said = await terminateProvenGroup(pgid, () => "proven", { signal: (pid, name) => sent.push([pid, name]), probe: () => "alive", graceMs: 10, killMs: 10 })
+    assert.equal(said, "SIGTERM withheld: not a valid process group")
+    assert.deepEqual(sent, [])
+  }
+})
+
+test("the receipt is replaced and cleared only while the path still holds the file this run wrote", () => {
+  const dir = temp()
+  const path = join(dir, "receipt.json")
+  const receipt = createReceipt(path, { runId: "guard-own" })
+  receipt.update({ runRoot: "/x" })
+  // Another file swapped in at the path (same name, different inode): never overwritten or removed.
+  const foreign = JSON.stringify({ runId: "someone-else" })
+  rmSync(path)
+  writeFileSync(path, foreign, { mode: 0o600 })
+  assert.throws(() => receipt.update({ runRoot: "/y" }), /was replaced by something else/)
+  assert.throws(() => receipt.block(["x"]), /was replaced by something else/)
+  assert.throws(() => receipt.clear(), /was replaced by something else/)
+  assert.equal(readFileSync(path, "utf8"), foreign)
+  assert.deepEqual(readdirSync(dir).sort(), ["receipt.json"], "no temp file is left behind")
+  rmSync(path)
+  assert.throws(() => receipt.clear(), /was replaced by something else/)
+  rmSync(dir, { recursive: true, force: true })
 })

@@ -939,16 +939,27 @@ export function createReceipt(path, identity) {
   let data = { schema: RECEIPT_SCHEMA, state: "in-progress", ...identity, groups: [], reasons: [], createdAt: iso(), updatedAt: iso() }
   const text = () => outgoing(JSON.stringify(data, null, 2), 1024 * 1024) + "\n"
   createPrivateFile(path, text())
+  // The file this run wrote last: anything else at the path (another run's receipt, a swapped file) is never replaced or removed.
+  let own = lstatSync(path)
+  const requireOwn = () => {
+    const stat = lstatSync(path, { throwIfNoEntry: false })
+    if (!stat || stat.isSymbolicLink() || !stat.isFile() || stat.ino !== own.ino || stat.dev !== own.dev) {
+      fail(`The receipt at ${path} was replaced by something else.`)
+    }
+  }
   let n = 0
   const replace = () => {
     const temp = join(dir, `.${basename(path)}.${process.pid}.${++n}.tmp`)
     createPrivateFile(temp, text())
-    const stat = lstatSync(path)
-    if (stat.isSymbolicLink() || !stat.isFile()) {
+    try {
+      requireOwn()
+    } catch (error) {
       unlinkSync(temp)
-      fail(`The receipt at ${path} was replaced by something else.`)
+      throw error
     }
+    const next = lstatSync(temp)
     renameSync(temp, path)
+    own = next
     fsyncDir(dir)
   }
   return {
@@ -965,8 +976,7 @@ export function createReceipt(path, identity) {
       replace()
     },
     clear() {
-      const stat = lstatSync(path)
-      if (stat.isSymbolicLink() || !stat.isFile()) fail(`The receipt at ${path} was replaced by something else.`)
+      requireOwn()
       unlinkSync(path)
       fsyncDir(dir)
     },
@@ -1022,6 +1032,21 @@ export const APP_COMMAND = new RegExp(`(?:next(?:[\\s-]|\\/)|node[^\\n]*next)[^\
 const isMarked = (row, markers) => row.marked === true || carriesMarker(row.command, markers)
 
 /**
+ * Whether an environment text holds the exact entry TMPDIR=<marker> as a whole
+ * whitespace-separated token. Unlike carriesMarker it ignores any mention of
+ * the path elsewhere, so a command that merely names a scratch directory in
+ * its arguments (tail, du, lsof) never matches.
+ */
+export function hasTmpdirEntry(envText, markers) {
+  if (typeof envText !== "string" || !envText) return false
+  const tokens = new Set(envText.split(/\s+/))
+  return markers.some((marker) => marker && tokens.has(`TMPDIR=${marker}`))
+}
+
+/** Proof for a signal: the inherited TMPDIR entry in the process's own environment (the live flag, or an offline row's env text). */
+const isEnvMarked = (row, markers) => row.envMarked === true || hasTmpdirEntry(row.env, markers)
+
+/**
  * The process table as { pid, ppid, pgid, marked, app } rows (ps), or null
  * when it cannot be read: missing evidence, which the supervisor treats as
  * uncertain. -E adds each of this user's processes' environment, so a
@@ -1031,16 +1056,26 @@ const isMarked = (row, markers) => row.marked === true || carriesMarker(row.comm
  * `markers`; `app`: it is the app command on the app port).
  */
 export function processTable(markers = []) {
-  const r = spawnSync("ps", ["-axwwE", "-o", "pid=,ppid=,pgid=,command="], { encoding: "utf8", timeout: 30_000, maxBuffer: 256 * 1024 * 1024 })
-  if (r.error || r.status !== 0) return null
-  const rows = []
-  for (const line of r.stdout.split("\n")) {
-    const m = /^\s*(\d+)\s+(\d+)\s+(\d+)(?:\s(.*))?$/.exec(line)
-    if (!m) continue
-    const text = m[4] ?? ""
-    rows.push({ pid: Number(m[1]), ppid: Number(m[2]), pgid: Number(m[3]), marked: carriesMarker(text, markers), app: APP_COMMAND.test(text) })
+  const read = (flags) => spawnSync("ps", [flags, "-o", "pid=,ppid=,pgid=,command="], { encoding: "utf8", timeout: 30_000, maxBuffer: 256 * 1024 * 1024 })
+  const parse = (stdout) => {
+    const out = []
+    for (const line of stdout.split("\n")) {
+      const m = /^\s*(\d+)\s+(\d+)\s+(\d+)(?:\s(.*))?$/.exec(line)
+      if (m) out.push({ pid: Number(m[1]), ppid: Number(m[2]), pgid: Number(m[3]), text: m[4] ?? "" })
+    }
+    return out
   }
-  return rows
+  // -E appends the environment to the arguments in one text; the plain read gives the arguments alone, so the rest is the environment.
+  const plain = read("-axww")
+  const withEnv = read("-axwwE")
+  if (plain.error || plain.status !== 0 || withEnv.error || withEnv.status !== 0) return null
+  const args = new Map(parse(plain.stdout).map((row) => [row.pid, row.text]))
+  return parse(withEnv.stdout).map(({ pid, ppid, pgid, text }) => {
+    const a = args.get(pid)
+    // A process that changed (exec) between the two reads has no separable environment: never proof.
+    const env = a !== undefined && text.startsWith(a) ? text.slice(a.length) : null
+    return { pid, ppid, pgid, marked: carriesMarker(text, markers), envMarked: hasTmpdirEntry(env, markers), app: APP_COMMAND.test(text) }
+  })
 }
 
 /**
@@ -1052,13 +1087,14 @@ export function processTable(markers = []) {
  * group is proven empty its id may be reused, so `group: false` drops that
  * seed and only the private path proves ownership.
  */
-export function ownedProcesses(rows, pgid, markers = [], { group = true, roots = [] } = {}) {
+export function ownedProcesses(rows, pgid, markers = [], { group = true, roots = [], envOnly = false } = {}) {
+  const carries = envOnly ? isEnvMarked : isMarked
   const children = new Map()
   for (const row of rows) {
     if (!children.has(row.ppid)) children.set(row.ppid, [])
     children.get(row.ppid).push(row)
   }
-  const queue = rows.filter((row) => (group && row.pgid === pgid) || roots.includes(row.pid) || isMarked(row, markers))
+  const queue = rows.filter((row) => (group && row.pgid === pgid) || roots.includes(row.pid) || carries(row, markers))
   const owned = new Set(queue.map((row) => row.pid))
   while (queue.length) {
     const row = queue.shift()
@@ -1080,7 +1116,7 @@ export function ownedProcesses(rows, pgid, markers = [], { group = true, roots =
  */
 export function provenOwned(rows, pgid, markers = [], runnerPid = process.pid) {
   const roots = rows.filter((row) => row.pid === pgid && row.pgid === pgid && row.ppid === runnerPid).map((row) => row.pid)
-  return ownedProcesses(rows, pgid, markers, { group: false, roots })
+  return ownedProcesses(rows, pgid, markers, { group: false, roots, envOnly: true })
 }
 
 /** "proven" when `rows` show group `pgid` with members, every one proven owned by the child leading `ownerPgid`; otherwise why not. */
@@ -1105,6 +1141,8 @@ export const KILL_MS = 5_000
  * signal was withheld or failed.
  */
 export async function terminateProvenGroup(pgid, prove, { signal = process.kill.bind(process), probe = probeGroup, graceMs = GRACE_MS, killMs = KILL_MS } = {}) {
+  // kill(-0) would reach the runner's own group and kill(-1) every process this user may signal.
+  if (!Number.isInteger(pgid) || pgid <= 1) return "SIGTERM withheld: not a valid process group"
   for (const [name, wait] of [
     ["SIGTERM", graceMs],
     ["SIGKILL", killMs],
