@@ -307,7 +307,7 @@ describe("FixLabelsDialog: problem and loading", () => {
       "Labels were saved on this photo since. Yours are added to them; nothing is removed."
     await setup({ problem: { code: "conflict", message: savedSince } })
     expect(screen.getByText(savedSince)).toBeTruthy()
-    expect(screen.queryByText(/An admin changed these labels/)).toBeNull()
+    expect(screen.queryByText(/Someone changed these labels/)).toBeNull()
   })
 
   it("keeps the conflict copy and choices for a save refused as changed meanwhile", async () => {
@@ -321,9 +321,11 @@ describe("FixLabelsDialog: problem and loading", () => {
       }),
     })
     await user.click(saveButton())
+    // Nobody is named (it may be an admin, a manager or another device of
+    // theirs), and no time is guessed when the labels carry none.
     expect(
       await screen.findByText(
-        "An admin changed these labels a moment ago. Their labels are shown; check them, then save."
+        "Someone changed these labels. The latest labels are shown; check them, then save."
       )
     ).toBeTruthy()
     expect(

@@ -39,7 +39,7 @@ import {
 } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
 
-import { formatTime } from "../format"
+import { formatDate, formatTime } from "../format"
 import { buildCatalogueIndex } from "./catalogue-search"
 import {
   EMPTY_COMMON,
@@ -169,13 +169,24 @@ function countText(eff: EffectiveLabels) {
   return parts.length ? parts.join(" · ") : "No labels"
 }
 
+const STILL_SAVING = "Still saving; keep this page open."
+const STILL_SAVING_MS = 15_000
+
+/**
+ * Who changed the labels isn't known (an admin, a manager, or the person's
+ * other device), so nobody is named; when is the labels' own save time, in
+ * London, and left out when unknown.
+ */
 function conflictText(audience: LabelAudience, current?: MediaLabelSummary) {
-  if (audience === "staff")
-    return "An admin changed these labels a moment ago. Their labels are shown; check them, then save."
-  const at = current?.updatedAt ? new Date(current.updatedAt) : null
+  const iso = current?.updatedAt ?? null
+  const at = iso ? new Date(iso) : null
   const when =
-    at && !Number.isNaN(at.getTime()) ? `at ${formatTime(at)}` : "a moment ago"
-  return `Someone else changed these labels ${when}. The latest labels are shown; check them and save again if you still need to.`
+    iso && at && !Number.isNaN(at.getTime())
+      ? ` on ${formatDate(iso)} at ${formatTime(at)}`
+      : ""
+  if (audience === "staff")
+    return `Someone changed these labels${when}. The latest labels are shown; check them, then save.`
+  return `Someone else changed these labels${when}. The latest labels are shown; check them and save again if you still need to.`
 }
 
 function FileProblem({
@@ -350,6 +361,15 @@ function LabelEditor({
     false
   )
   const [announcement, setAnnouncement] = React.useState("")
+  // A save with no answer after 15 s says so, once, in the same region.
+  React.useEffect(() => {
+    if (!pending) return
+    const timer = window.setTimeout(
+      () => setAnnouncement(STILL_SAVING),
+      STILL_SAVING_MS
+    )
+    return () => window.clearTimeout(timer)
+  }, [pending])
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [focusTarget, setFocusTarget] = React.useState<{ id: string } | null>(
     null
@@ -1074,7 +1094,10 @@ function LabelEditor({
                           <div className="flex min-w-0 items-center gap-3">
                             <Thumb asset={asset} />
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-label text-ink">
+                              <p
+                                title={fileLabel(asset)}
+                                className="line-clamp-2 text-label [overflow-wrap:anywhere] text-ink"
+                              >
                                 {fileLabel(asset)}
                               </p>
                               <p
@@ -1146,7 +1169,10 @@ function LabelEditor({
                     <span className="block font-bold text-ink">
                       {singleTitle}
                     </span>
-                    <span className="block truncate text-ink-muted">
+                    <span
+                      title={singleMeta}
+                      className="line-clamp-2 [overflow-wrap:anywhere] text-ink-muted"
+                    >
                       {singleMeta}
                     </span>
                   </p>

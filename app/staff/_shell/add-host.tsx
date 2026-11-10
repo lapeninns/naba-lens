@@ -140,6 +140,24 @@ export function AddHost({
   const heldLabels = React.useRef(new Map<string, HeldLabels>())
   const readyListeners = React.useRef(new Set<AddReadyListener>())
 
+  // The Add queue's unfinished server assets: any other own upload the
+  // server still has uploading has stopped (see useUploadStopped).
+  const [heldIds, setHeldIds] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  const holdsChanged = React.useCallback((assetIds: string[]) => {
+    setHeldIds((current) =>
+      current.size === assetIds.length &&
+      assetIds.every((id) => current.has(id))
+        ? current
+        : new Set(assetIds)
+    )
+  }, [])
+  const holds = React.useMemo(
+    () => ({ assetIds: heldIds, account: userId ?? null }),
+    [heldIds, userId]
+  )
+
   const waiting =
     busy.active +
     busy.failed +
@@ -338,6 +356,7 @@ export function AddHost({
       busy: waiting > 0 ? { count: waiting, words: busyWords } : null,
       active: busy.active,
       refreshSignal,
+      holds,
     }),
     [
       blocked,
@@ -349,8 +368,24 @@ export function AddHost({
       labelled,
       discarded,
       openPicker,
+      holds,
     ]
   )
+
+  // With Add closed, a file that newly needs the person is said once, in
+  // one polite region for the whole app (the Add button's name alone is
+  // never announced).
+  const needing = busy.failed + busy.stopped + (busy.attention ?? 0)
+  const addShown = sheetOpen || uploadOpen
+  const [attentionSaid, setAttentionSaid] = React.useState("")
+  const [needingBefore, setNeedingBefore] = React.useState(needing)
+  if (needing !== needingBefore) {
+    setNeedingBefore(needing)
+    setAttentionSaid(
+      !addShown && needing > needingBefore ? needsAttentionWords(needing) : ""
+    )
+  }
+  if (addShown && attentionSaid) setAttentionSaid("")
 
   // Resume keys belong to the signed-in account (audit finding 15).
   const accountRef = React.useRef(userId)
@@ -518,11 +553,22 @@ export function AddHost({
             startOnPick
             keepRunningWhenClosed
             onBusyChange={setBusy}
+            onHoldsChange={holdsChanged}
           />
+          <p role="status" className="sr-only">
+            {attentionSaid}
+          </p>
         </AddProvider>
       </LeaveGuard>
     </SessionGuardProvider>
   )
+}
+
+/** `1 photo needs attention. Open Add.` */
+export function needsAttentionWords(count: number) {
+  return count === 1
+    ? "1 photo needs attention. Open Add."
+    : `${count} photos need attention. Open Add.`
 }
 
 /** A file's labels changed in the field, and what the sheet had then. */
@@ -747,4 +793,3 @@ function assetOf(
     labels,
   }
 }
-

@@ -90,12 +90,22 @@ type AddContextValue = {
    * labels): Add's rows for them read "Saved" with no labels.
    */
   discarded?: (assetIds: string[]) => void
+  /**
+   * The server assets of the Add queue's unfinished files (reserved, not yet
+   * saved), and who is signed in: an own upload missing from them has stopped.
+   */
+  holds?: { assetIds: ReadonlySet<string>; account: string | null }
 }
 
 const AddContext = React.createContext<AddContextValue | null>(null)
 
 /** Provided by the staff layout, which hosts the Add sheet and upload flow. */
 export const AddProvider = AddContext.Provider
+
+/** The whole Add context, or null outside the staff layout. */
+export function useAddContext(): AddContextValue | null {
+  return React.useContext(AddContext)
+}
 
 /**
  * Opens the global Add sheet (or a picker, with `source`), or null outside
@@ -225,4 +235,3 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
     </Link>
   )
 }
-

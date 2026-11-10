@@ -8,6 +8,7 @@ import { SUPABASE_TUS_CHUNK_SIZE, tusTransfer, type TusAdapters } from "./tus"
 import type {
   ClientUploadLimits,
   FinaliseFn,
+  MediaKind,
   ReserveFn,
   ReserveResult,
   UploadError,
@@ -101,7 +102,11 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
         }
         return fail({
           code: "reserve_failed",
-          message: messageOf(error, "Could not start the upload."),
+          message: networkOr(
+            error,
+            checked.kind,
+            "Could not start the upload."
+          ),
           retryable: true,
         })
       }
@@ -198,7 +203,11 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
       } catch (error) {
         return fail({
           code: "finalise_failed",
-          message: messageOf(error, "Could not confirm the upload."),
+          message: networkOr(
+            error,
+            checked.kind,
+            "Could not confirm the upload."
+          ),
           retryable: true,
         })
       }
@@ -216,4 +225,27 @@ function aborted(): UploadError {
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback
+}
+
+/** A reserve or finalise whose reply never arrived; Retry reuses the key. */
+export function unconfirmedMessage(kind: MediaKind) {
+  return `We couldn't confirm this ${kind === "video" ? "video" : "photo"} saved. Tap Retry; nothing is sent twice.`
+}
+
+// fetch rejects with a TypeError whose text is the browser's own ("Failed to
+// fetch", "Load failed", "NetworkError when attempting to fetch resource.").
+function isNetworkError(error: unknown) {
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error &&
+      /failed to fetch|load failed|networkerror|network request failed/i.test(
+        error.message
+      ))
+  )
+}
+
+function networkOr(error: unknown, kind: MediaKind, fallback: string) {
+  return isNetworkError(error)
+    ? unconfirmedMessage(kind)
+    : messageOf(error, fallback)
 }

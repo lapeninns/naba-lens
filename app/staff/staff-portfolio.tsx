@@ -529,7 +529,7 @@ function BetterPhotoRow({
 
 /** Which §3 state shape draws each milestone (the word stays MILESTONES'). */
 const MILESTONE_STATE: Record<Milestone, string> = {
-  saved: "saved",
+  saved: "portfolio_saved",
   label: "needs_labels",
   accepted: "accepted",
   better: "needs_another_photo",

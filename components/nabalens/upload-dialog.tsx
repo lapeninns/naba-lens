@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { guardBeforeUnload } from "@/lib/upload/before-unload"
+import { unconfirmedMessage } from "@/lib/upload/uploader"
 import { cn } from "@/lib/utils"
 
 import { Notice } from "./notice"
@@ -62,6 +63,8 @@ import {
   type RejectedFile,
   SessionExpiredError,
   SIGNED_OUT_MESSAGE,
+  STALLED_PROCESSING_MS,
+  STILL_PROCESSING_MS,
   type Uploader,
   type UploadPurpose,
 } from "./upload-queue"
@@ -127,6 +130,12 @@ type UploadDialogProps = {
   purpose?: UploadPurpose
   /** Each file's purpose when one queue holds both (Add). Default `purpose`. */
   purposeOf?: (file: File) => UploadPurpose
+  /**
+   * The server assets this queue holds and has not finished (reserved, not
+   * yet saved), whenever they change: any other upload of the person's that
+   * the server still has uploading has stopped.
+   */
+  onHoldsChange?: (assetIds: string[]) => void
 }
 
 export type UploadBusy = {
@@ -163,6 +172,43 @@ function sheetTitle(items: readonly QueueItem[]) {
 
 const plural = (n: number, one: string, many: string) =>
   `${n} ${n === 1 ? one : many}`
+
+export const STILL_PROCESSING =
+  "Still processing; this can take up to 2 minutes; you can leave this screen."
+export const STILL_SAVING_LABELS = "Still saving; keep this page open."
+/** A label save without an answer this long says so. */
+const STILL_SAVING_MS = 15_000
+
+/**
+ * True once `ms` have passed since `since` (null: not started). Timed from
+ * the queue's own clock, so a row shown again later is already past it.
+ */
+function useAfter(since: number | null, ms: number) {
+  const [passed, setPassed] = React.useState<number | null>(null)
+  React.useEffect(() => {
+    if (since === null) return
+    const timer = window.setTimeout(
+      () => setPassed(since),
+      Math.max(0, since + ms - Date.now())
+    )
+    return () => window.clearTimeout(timer)
+  }, [since, ms])
+  return since !== null && passed === since
+}
+
+/** True once `on` has held for `ms` without a break. */
+function useHeldFor(on: boolean, ms: number) {
+  const [held, setHeld] = React.useState(false)
+  React.useEffect(() => {
+    if (!on) return
+    const timer = window.setTimeout(() => setHeld(true), ms)
+    return () => {
+      window.clearTimeout(timer)
+      setHeld(false)
+    }
+  }, [on, ms])
+  return on && held
+}
 
 /**
  * The footer of a screen's own dialog (no labels): what is uploaded, then what
@@ -338,25 +384,51 @@ function QueueRow({
   const statusId = `${item.id}-status`
   const look = state.word ? WORD_LOOK[state.word] : null
   const StatusIcon = look?.icon
+  // Slow is said: a long finalise, then Retry once the server would take
+  // its claim over; a label save with no answer yet.
+  const processingSince =
+    item.status === "processing" ? (item.processingAt ?? null) : null
+  const processingLong = useAfter(processingSince, STILL_PROCESSING_MS)
+  const processingStalled = useAfter(processingSince, STALLED_PROCESSING_MS)
+  const labelsSlow = useHeldFor(
+    item.status === "done" && labels.kind === "saving",
+    STILL_SAVING_MS
+  )
+  const detail = processingStalled
+    ? unconfirmedMessage(item.kind)
+    : processingLong
+      ? STILL_PROCESSING
+      : labelsSlow
+        ? STILL_SAVING_LABELS
+        : state.detail
   const retryable =
     (item.status === "failed" && item.retryable !== false) ||
-    item.status === "cancelled"
+    item.status === "cancelled" ||
+    processingStalled
   const removable =
     item.status === "selected" ||
     item.status === "failed" ||
     item.status === "cancelled"
   return (
     <li
-      className="flex min-w-0 items-center gap-3 rounded-card bg-surface p-3 shadow-card"
+      data-row-id={item.id}
+      className="flex min-w-0 flex-wrap items-center gap-3 rounded-card bg-surface p-3 shadow-card"
       aria-describedby={statusId}
     >
       <FileThumb item={item} />
       <div className="grid min-w-0 flex-1 gap-0.5">
-        <p className="truncate text-label text-ink">{item.file.name}</p>
+        <p
+          title={item.file.name}
+          className="line-clamp-2 text-label [overflow-wrap:anywhere] text-ink"
+        >
+          {item.file.name}
+        </p>
         <p
           id={statusId}
+          // Takes focus when the action pressed in this row goes away.
+          tabIndex={-1}
           className={cn(
-            "font-mono text-meta-strong [overflow-wrap:anywhere] tabular-nums",
+            "font-mono text-meta-strong [overflow-wrap:anywhere] tabular-nums outline-none",
             look?.tone ?? "text-ink-muted"
           )}
         >
@@ -369,15 +441,17 @@ function QueueRow({
           ) : null}
           {[state.word, state.suffix].filter(Boolean).join(" · ")}
         </p>
-        {state.detail ? (
+        {detail ? (
           <p className="text-body [overflow-wrap:anywhere] text-ink-muted">
-            {state.detail}
+            {detail}
           </p>
         ) : null}
         {item.status === "uploading" || item.status === "processing" ? (
           <Progress
             value={item.status === "processing" ? null : percent}
-            aria-label={`${item.file.name} ${state.detail ?? ""}`.trim()}
+            // The value carries the percentage; a name that changed with it
+            // would be read twice and keep changing.
+            aria-label={item.file.name}
             tone="neutral"
             className="mt-1.5"
           />
@@ -410,7 +484,13 @@ function QueueRow({
           </Button>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-1",
+          // Below 400 px two actions leave the name a sliver: own line.
+          retryable && "max-[25rem]:basis-full max-[25rem]:justify-end"
+        )}
+      >
         {item.status === "queued" || item.status === "uploading" ? (
           <Button
             variant="ghost"
@@ -464,6 +544,7 @@ export function UploadDialog({
   onPick,
   purpose = "general",
   purposeOf,
+  onHoldsChange,
 }: UploadDialogProps) {
   const guard = useSessionGuard()
   const isSignedIn = guard?.isSignedIn
@@ -510,7 +591,22 @@ export function UploadDialog({
   // while the menu loads, or a choice not finished) are lost on leaving too.
   const unsavedLabels = Math.max(unstoredLabels, panelPending ? 1 : 0)
 
-  useLeaveGuard(summary.active, queue.cancelAll, unsavedLabels)
+  // Processing files finish on the server whether the person stays or not.
+  const processing = items.filter((i) => i.status === "processing").length
+  useLeaveGuard(
+    summary.active - processing,
+    queue.cancelAll,
+    unsavedLabels,
+    processing
+  )
+
+  const holds = items
+    .filter((i) => i.assetId && i.status !== "done")
+    .map((i) => i.assetId!)
+    .join(" ")
+  React.useEffect(() => {
+    onHoldsChange?.(holds ? holds.split(" ") : [])
+  }, [holds, onHoldsChange])
   const unstoredRef = React.useRef(unsavedLabels)
   React.useEffect(() => {
     unstoredRef.current = unsavedLabels
@@ -590,6 +686,40 @@ export function UploadDialog({
   const fileInput = React.useRef<HTMLInputElement>(null)
   const cameraInput = React.useRef<HTMLInputElement>(null)
   const limitsId = React.useId()
+  const listRef = React.useRef<HTMLUListElement>(null)
+  const titleRef = React.useRef<HTMLHeadingElement>(null)
+  // The row whose first action (or status, after Fix labels) takes focus on
+  // the next render or when the sheet shows again.
+  const focusRow = React.useRef<string | null>(null)
+  const statusAfterFix = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    const id = focusRow.current
+    if (!id) return
+    focusRow.current = null
+    const row = rowOf(id)
+    ;(row?.querySelector("button") ?? row)?.focus()
+  })
+
+  function rowOf(id: string) {
+    return Array.from(
+      listRef.current?.querySelectorAll<HTMLElement>("[data-row-id]") ?? []
+    ).find((row) => row.dataset.rowId === id)
+  }
+
+  /** The row is about to go: focus the next row's first action, or the title. */
+  function focusPast(id: string) {
+    const rows = Array.from(
+      listRef.current?.querySelectorAll<HTMLElement>("[data-row-id]") ?? []
+    )
+    const at = rows.findIndex((row) => row.dataset.rowId === id)
+    const next = at < 0 ? undefined : (rows[at + 1] ?? rows[at - 1])
+    ;(next?.querySelector("button") ?? titleRef.current)?.focus()
+  }
+
+  /** The pressed action goes away but the row stays: focus its status. */
+  function focusStatus(id: string) {
+    document.getElementById(`${id}-status`)?.focus()
+  }
 
   // Report each file as soon as it is ready; a slow video holds back nothing.
   const reported = React.useRef(new Set<string>())
@@ -756,9 +886,16 @@ export function UploadDialog({
 
   const uploadDialog = (
     <Dialog open={open && fixing === null} onOpenChange={handleOpenChange}>
-      <DialogContent className="md:max-w-lg">
+      <DialogContent
+        className="md:max-w-lg"
+        initialFocus={() => {
+          const id = statusAfterFix.current
+          statusAfterFix.current = null
+          return (id && document.getElementById(`${id}-status`)) || true
+        }}
+      >
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle ref={titleRef} tabIndex={-1} className="outline-none">
             {startOnPick && items.length > 0
               ? sheetTitle(items)
               : imagesOnly
@@ -879,6 +1016,7 @@ export function UploadDialog({
         {items.length > 0 ? (
           // Each file as a white row on the grey canvas (Common Room queue).
           <ul
+            ref={listRef}
             aria-label="Files"
             className="-mx-1 grid gap-2 rounded-card bg-bg p-1.5"
           >
@@ -898,17 +1036,30 @@ export function UploadDialog({
                   )}
                   labels={view}
                   onRemove={() => {
+                    focusPast(item.id)
                     forget([item.id])
                     remove(item)
                   }}
                   onCancel={() => {
+                    // Started on pick: a cancelled file just leaves the list;
+                    // otherwise it stays, with Retry in place of Cancel.
+                    if (startOnPick) focusPast(item.id)
+                    else focusRow.current = item.id
                     queue.cancel(item.id)
-                    // Started on pick: a cancelled file just leaves the list.
                     if (startOnPick) remove(item)
                   }}
-                  onRetry={() => queue.retry(item.id)}
-                  onRetryLabels={() => labels.retry(item.id)}
-                  onFixLabels={() => setFixing(item.id)}
+                  onRetry={() => {
+                    focusStatus(item.id)
+                    queue.retry(item.id)
+                  }}
+                  onRetryLabels={() => {
+                    focusStatus(item.id)
+                    labels.retry(item.id)
+                  }}
+                  onFixLabels={() => {
+                    statusAfterFix.current = item.id
+                    setFixing(item.id)
+                  }}
                 />
               )
             })}
@@ -948,7 +1099,9 @@ export function UploadDialog({
           ) : null}
         </div>
 
-        <DialogFooter>
+        {/* Sticky, as in the label editor: on phones the actions stay in
+            reach below long rows and the labels panel. */}
+        <DialogFooter className="sticky bottom-0 mx-0 mb-0 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:mx-0 md:mb-0 md:pb-4">
           {items.length > 0 && status ? (
             <p
               role="status"

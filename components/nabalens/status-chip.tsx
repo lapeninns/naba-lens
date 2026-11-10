@@ -329,6 +329,8 @@ export const CHIP_STATES = {
     icon: TagIcon,
     shape: "plain",
   },
+  // Me's milestone for an own photo in the portfolio (not a knowledge draft)
+  portfolio_saved: { word: "Saved", tone: "neutral", shape: "plain" },
   // A venue question nobody has answered (never "Needs verification", which
   // is a legacy fact's word)
   to_check: { word: "To check", tone: "neutral", shape: "plain" },
