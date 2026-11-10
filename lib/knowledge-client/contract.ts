@@ -176,6 +176,12 @@ export type WorkingSlot = {
     answeredBy: string | null
     at: Instant
   } | null
+  /**
+   * My latest send on this question (B02 R11), on a question read for the
+   * capture screen: the base its draft saves send. Absent from an older
+   * server, which saves without it.
+   */
+  mySentAt?: Instant | null
 }
 
 export type WorkingList = {
@@ -301,6 +307,8 @@ export type SubmittedFinding = {
   outcome: KnowledgeOutcome
   replacedOwn: { findingRef: FindingRef; sentAt: Instant | null } | null
   recognition: Recognition
+  /** This send's time (B02 R11): the next draft base for the same form. */
+  sentAt?: Instant
 }
 
 // ---- S4 drafts --------------------------------------------------------------------
@@ -341,6 +349,11 @@ export type SaveDraftInput = {
   payload: DraftPayload
   assetIds: string[]
   idempotencyKey: string
+  /**
+   * My latest send the form knows of (B02 R11); null when none. Omitted
+   * against an older server, which saves without the already-sent test.
+   */
+  baseSentAt?: Instant | null
 }
 
 // ---- S5 history, S6 to confirm, S14 pending --------------------------------------

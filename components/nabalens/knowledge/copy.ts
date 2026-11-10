@@ -433,6 +433,23 @@ export const DRAFT_SAVED: SentCopy = {
 }
 
 /**
+ * Save for later refused or overtaken (§8.10 L-b). Never names a device: the
+ * other send or save may have been from this phone.
+ */
+export const DRAFT_SAVE_COPY = {
+  alreadySent: "This finding was already sent.",
+  newerSend: (sentAt: string | null) =>
+    sentAt
+      ? `You sent a finding on ${dateAndTime(sentAt)}. Start a new draft to change it.`
+      : "You sent a finding since. Start a new draft to change it.",
+  startNew: "Start a new draft",
+  conflictGone:
+    "This draft was sent or discarded since you opened it. Save for later again to keep this version.",
+  conflictSaved:
+    "This draft was saved again since you opened it. Save for later again to replace that copy with this one.",
+} as const
+
+/**
  * Home's notice after a send (§4.3), from the person's latest finding as the
  * server has it now, so a reload stays truthful. Null when there is nothing
  * of theirs to announce.
@@ -609,6 +626,14 @@ export const UPLOAD_WAIT_COPY = {
       ? `Your ${uploadNoun(1, kinds)} didn't finish saving. Add it again or choose another.`
       : `Your ${n} ${uploadNoun(n, kinds)} didn't finish saving. Add them again or choose others.`,
 } as const
+
+/**
+ * Under the Wi-Fi redaction tick while uploads from the form are saving: the
+ * tick vouches for the exact photos sent, so it waits for them.
+ */
+export function redactionWaitLine(n: number, kinds: UploadKinds = "photo") {
+  return `Tick this when ${yours(n, kinds)} ${n === 1 ? "has" : "have"} finished saving: it covers every photo and video you send.`
+}
 
 // ---- Sending (§8.1 rule 5, CA-05, CA-24) -----------------------------------------------
 

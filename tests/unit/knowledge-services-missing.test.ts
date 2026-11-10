@@ -17,8 +17,12 @@ vi.mock("@/lib/server/knowledge", () => server)
 const rpc = vi.hoisted(() => ({ knowledgeRpc: vi.fn() }))
 vi.mock("@/lib/server/knowledge/rpc", () => rpc)
 
+import { adaptCheck, adaptSubmitted } from "@/lib/knowledge-client/adapt"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
-import type { KnowledgeCheckView } from "@/lib/knowledge/contract"
+import type {
+  KnowledgeCheckView,
+  SubmitKnowledgeResult,
+} from "@/lib/knowledge/contract"
 import type { MediaActor } from "@/lib/server/media/types"
 
 const CHECK = "8a000000-0000-4000-8000-000000000201"
@@ -195,5 +199,39 @@ describe("knowledge services seam: a question before the migrations (L-c)", () =
     })
     await knowledgeServices.getKnowledgeCheck(actor, input)
     expect(rpc.knowledgeRpc).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("adapters for the draft-save guard (R11)", () => {
+  it("passes mySentAt onto the capture screen's slot, and leaves it out from an older server", () => {
+    const sent = adaptCheck(
+      check({ mySentAt: "2026-11-05T10:00:00.000Z" }),
+      "The Old Crown"
+    )
+    if (!sent.inScope) throw new Error("in scope")
+    expect(sent.slot.mySentAt).toBe("2026-11-05T10:00:00.000Z")
+    const never = adaptCheck(check({ mySentAt: null }), "The Old Crown")
+    if (!never.inScope) throw new Error("in scope")
+    expect(never.slot.mySentAt).toBeNull()
+    const old = adaptCheck(check(), "The Old Crown")
+    if (!old.inScope) throw new Error("in scope")
+    expect("mySentAt" in old.slot).toBe(false)
+  })
+
+  it("passes a send's sentAt on, and leaves it out when absent", () => {
+    const base: SubmitKnowledgeResult = {
+      findingRef: { type: "contribution", id: "f1" },
+      submissionId: null,
+      outcome: "current",
+      replacedOwn: null,
+      replacedOwnSentAt: null,
+      slotRevision: 8,
+      replayed: false,
+      recognition: { kind: "none" },
+    }
+    expect(
+      adaptSubmitted({ ...base, sentAt: "2026-11-08T09:00:00.000Z" }).sentAt
+    ).toBe("2026-11-08T09:00:00.000Z")
+    expect("sentAt" in adaptSubmitted(base)).toBe(false)
   })
 })

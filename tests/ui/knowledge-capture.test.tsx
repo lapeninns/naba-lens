@@ -986,7 +986,7 @@ describe("knowledge capture: a send removes the saved draft (CA-01, CA-02, CA-04
     await user.click(radio("No"))
     await user.click(screen.getByRole("button", { name: "Save for later" }))
     expect(status()).toContain(
-      "This draft was also saved on another device. Save for later again to replace that copy with this one."
+      "This draft was saved again since you opened it. Save for later again to replace that copy with this one."
     )
     expect(status()).not.toContain("The newer version is shown")
     await user.click(screen.getByRole("button", { name: "Save for later" }))

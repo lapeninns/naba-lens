@@ -49,7 +49,9 @@ import { EmptyState } from "../../empty-state"
 import {
   ANSWER_HINT,
   DETAIL_SENT,
+  DRAFT_SAVE_COPY,
   DRAFT_SAVED,
+  redactionWaitLine,
   KNOWLEDGE_ANSWER_LABEL,
   KNOWLEDGE_FAILURE_COPY,
   captureContextLines,
@@ -170,6 +172,10 @@ type Outcome =
   | { kind: "save_failed" }
   /** Saved elsewhere since (or sent or discarded there, when `gone`). */
   | { kind: "draft_conflict"; gone: boolean }
+  /** The save was refused: this draft's own key was already sent (R11). */
+  | { kind: "already_sent" }
+  /** The save was refused: I sent a finding on this question since (R11). */
+  | { kind: "newer_send"; sentAt: string | null }
   | { kind: "discarded" }
   | { kind: "discard_failed" }
   /** Uploads from this form aren't ready yet: nothing was sent. */
@@ -584,6 +590,16 @@ export function CaptureForm({
     if (pendingUploads === 0) setPendingKinds(null)
   }, [pendingUploads, assets, restored])
 
+  // The draft-save base (B02 R11): my latest send on this question as the
+  // page read it, then this form's own sends. Undefined from an older
+  // server: saves go without it, as before.
+  const loadedSentAt = knowledge?.slot.mySentAt
+  const baseSentAt = React.useRef<string | null | undefined>(loadedSentAt)
+  React.useEffect(() => {
+    baseSentAt.current = loadedSentAt
+  }, [loadedSentAt])
+  const saveButtonRef = React.useRef<HTMLButtonElement>(null)
+
   // A re-read brings the account draft's current revision (CA-02).
   React.useEffect(() => {
     serverDraftRevision.current = serverDraft?.draftRevision ?? null
@@ -933,6 +949,8 @@ export function CaptureForm({
       clearDraft(sentFor)
       // The server removed the account draft with the send (CA-01).
       sentOk.current = true
+      // Saves from this form now go after that send (R11).
+      if (result.knowledge?.sentAt) baseSentAt.current = result.knowledge.sentAt
     }
     if (!mounted.current) return
 
@@ -1239,6 +1257,9 @@ export function CaptureForm({
         },
         assetIds: selected,
         idempotencyKey: draft.idempotencyKey,
+        ...(baseSentAt.current === undefined
+          ? {}
+          : { baseSentAt: baseSentAt.current }),
       })
     } catch (cause) {
       if (sessionEnded(cause)) {
@@ -1261,6 +1282,10 @@ export function CaptureForm({
       )
       return
     }
+    if (result.code === "draft_already_sent") {
+      draftAlreadySent(result)
+      return
+    }
     if (result.code === "draft_conflict") {
       // Take the revision now stored, so the next save goes through rather
       // than conflicting until a reload (CA-02).
@@ -1274,6 +1299,49 @@ export function CaptureForm({
       return
     }
     setOutcome({ kind: "save_failed" })
+  }
+
+  /**
+   * A save refused because the work was already sent (R11). Never says where
+   * it was sent from: the send may have been from this phone.
+   */
+  function draftAlreadySent(result: KnowledgeFailure) {
+    const sentAt = result.sentAt ?? null
+    if (result.sentReason === "newer_send") {
+      setOutcome({ kind: "newer_send", sentAt })
+      return
+    }
+    // This draft's own key was sent: its copy on this phone goes, and the
+    // form starts a new draft after that send.
+    if (sentAt) baseSentAt.current = sentAt
+    clearDraft(owner)
+    serverDraftRevision.current = null
+    setRestoredFrom(null)
+    setLastSendUnsure(false)
+    setDraft(emptyDraft(newKey, revision))
+    setOutcome({ kind: "already_sent" })
+  }
+
+  /**
+   * Start a new draft after a newer send: the old draft's phone copy goes,
+   * what is on screen becomes the new draft (a new key, nothing typed is
+   * lost), and saves go after that send from now on.
+   */
+  function startNewDraft(sentAt: string | null) {
+    if (sentAt) baseSentAt.current = sentAt
+    clearDraft(owner)
+    serverDraftRevision.current = null
+    setRestoredFrom(null)
+    setLastSendUnsure(false)
+    setDraft((d) => ({
+      ...d,
+      idempotencyKey: newKey(),
+      attempted: false,
+      sentSlotRevision: null,
+    }))
+    setOutcome(null)
+    // The notice that held the action is gone: Save for later is next.
+    requestAnimationFrame(() => saveButtonRef.current?.focus())
   }
 
   async function discardServerDraft() {
@@ -1735,14 +1803,28 @@ export function CaptureForm({
               id={`${ids}-redaction`}
               type="checkbox"
               checked={redactionConfirmed}
-              disabled={locked}
+              // A photo still saving changes the set the tick vouches for
+              // when it arrives, which clears it: it waits for the photo.
+              disabled={locked || pendingUploads > 0}
               onChange={(e) => confirmRedaction(e.currentTarget.checked)}
               aria-invalid={errors.redactionConfirmed ? true : undefined}
-              aria-describedby={errorId("redactionConfirmed")}
+              aria-describedby={
+                [
+                  pendingUploads > 0 ? `${ids}-redaction-wait` : null,
+                  errorId("redactionConfirmed") ?? null,
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined
+              }
               className="mt-0.5 size-5 shrink-0 accent-primary"
             />
             {UI_TEXT.redactionConfirm}
           </label>
+          {pendingUploads > 0 ? (
+            <p id={`${ids}-redaction-wait`} className={MUTED}>
+              {redactionWaitLine(pendingUploads, waitKinds)}
+            </p>
+          ) : null}
           <FieldMessage
             id={`${ids}-redactionConfirmed-error`}
             error={errors.redactionConfirmed}
@@ -1838,6 +1920,7 @@ export function CaptureForm({
         sending={sending}
         online={online}
         onRetry={() => void send()}
+        onStartNewDraft={startNewDraft}
         onReload={onReload}
         signInHref={signInHref}
         pageHref={pageHref}
@@ -1874,6 +1957,7 @@ export function CaptureForm({
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
             {knowledge?.saveDraft ? (
               <Button
+                ref={saveButtonRef}
                 type="button"
                 variant="secondary"
                 size="touch"
@@ -2074,6 +2158,7 @@ function OutcomeMessage({
   sending,
   online,
   onRetry,
+  onStartNewDraft,
   onReload,
   signInHref,
   pageHref,
@@ -2084,6 +2169,7 @@ function OutcomeMessage({
   sending: boolean
   online: boolean
   onRetry: () => void
+  onStartNewDraft: (sentAt: string | null) => void
   onReload: () => void
   signInHref: string
   pageHref?: string
@@ -2215,8 +2301,33 @@ function OutcomeMessage({
       return (
         <Notice tone="attention" role="status">
           {outcome.gone
-            ? "This draft was sent or discarded on another device. Save for later again to keep this version."
-            : "This draft was also saved on another device. Save for later again to replace that copy with this one."}
+            ? DRAFT_SAVE_COPY.conflictGone
+            : DRAFT_SAVE_COPY.conflictSaved}
+        </Notice>
+      )
+    case "already_sent":
+      return (
+        <Notice tone="plain" role="status">
+          {DRAFT_SAVE_COPY.alreadySent}
+        </Notice>
+      )
+    case "newer_send":
+      return (
+        <Notice
+          tone="attention"
+          role="status"
+          action={
+            <Button
+              type="button"
+              variant="secondary"
+              size="touch"
+              onClick={() => onStartNewDraft(outcome.sentAt)}
+            >
+              {DRAFT_SAVE_COPY.startNew}
+            </Button>
+          }
+        >
+          {DRAFT_SAVE_COPY.newerSend(outcome.sentAt)}
         </Notice>
       )
     case "discarded":

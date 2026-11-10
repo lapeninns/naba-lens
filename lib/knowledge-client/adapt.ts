@@ -277,7 +277,10 @@ export function adaptCheck(
   toConfirm: readonly ServerToConfirm[] = []
 ): QuestionView {
   if (!check.inScope) return { inScope: false }
-  const slot = adaptSlot(check)
+  const slot = {
+    ...adaptSlot(check),
+    ...(check.mySentAt === undefined ? {} : { mySentAt: check.mySentAt }),
+  }
   const inUse = slot.answerInUse
   const current = toConfirm
     .filter((item) => item.checkId === check.checkId)
@@ -437,6 +440,7 @@ export function adaptSubmitted(result: ServerSubmitted): SubmittedFinding {
         }
       : null,
     recognition: result.recognition,
+    ...(result.sentAt === undefined ? {} : { sentAt: result.sentAt }),
   }
 }
 
