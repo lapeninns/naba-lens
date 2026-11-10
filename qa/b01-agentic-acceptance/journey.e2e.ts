@@ -68,7 +68,10 @@ describe('B01 knowledge path on the enabled working list', { serial: true }, () 
     await expect(meRow.getByText('Not sent yet. Only you can see it.')).toBeVisible();
     await expect(meRow.getByRole('link', `Finish: ${QUESTION.onsite_parking}`)).toBeVisible();
 
-    // Finished from Home: the saved answer comes back, then it is sent.
+    // Finished from Home in a fresh browser: signInAs clears cookies and
+    // storage, so no copy on this device remains and the saved answer can only
+    // come back from the account draft. Then it is sent.
+    await signInAs(app, browser, w.staffA);
     await app.open('/staff/tasks');
     await home.getByRole('link', `Finish: ${QUESTION.onsite_parking}`).tap();
     await expect(screen.getByRole('heading', QUESTION.onsite_parking, { level: 1 })).toBeVisible();

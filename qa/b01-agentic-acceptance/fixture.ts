@@ -270,6 +270,9 @@ export function periodMonth(period: string): string {
   }).format(new Date(Date.UTC(y!, m! - 1, 15)))
 }
 
-/** True when nothing overflows the viewport horizontally. */
+/**
+ * True when nothing overflows the viewport horizontally. A function expression,
+ * not a call: browser.evaluate wraps the source and invokes it itself.
+ */
 export const NO_HORIZONTAL_OVERFLOW =
-  "(() => document.documentElement.scrollWidth <= window.innerWidth)()"
+  "() => document.documentElement.scrollWidth <= window.innerWidth"

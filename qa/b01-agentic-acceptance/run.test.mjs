@@ -4,15 +4,40 @@
 // commit) and its scripts/ci/stack.mjs for the process-group helpers.
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
+import { homedir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import * as realStack from "../../scripts/ci/stack.mjs"
+import { NO_HORIZONTAL_OVERFLOW } from "./fixture.ts"
 import { bounded, candidateMigrationsDigest, parse, requireCanonicalRoot, validatedStackEnvironment, verifyStack } from "./run.mjs"
 
 const RUNNER = fileURLToPath(new URL("./run.mjs", import.meta.url))
 const REPO = fileURLToPath(new URL("../..", import.meta.url))
 const CANDIDATE = "a41cc6b41562be4ff3717102d1dd0c35a117d2eb"
+
+test("the overflow check is callable source for the installed evaluator", async () => {
+  // The same standalone install run.mjs uses; browser.evaluate invokes the source itself.
+  const evaluation = join(process.env.B01_E2E_HOME ?? homedir(), "node_modules", "@e2e-dev", "web", "dist", "evaluation.js")
+  const { compileEvaluation } = await import(pathToFileURL(evaluation).href)
+  const page = (scrollWidth, innerWidth) => {
+    globalThis.document = { documentElement: { scrollWidth } }
+    globalThis.window = { innerWidth }
+  }
+  try {
+    page(390, 390)
+    assert.deepEqual(await compileEvaluation(NO_HORIZONTAL_OVERFLOW, false)(), { ok: true, value: true })
+    page(420, 390)
+    assert.deepEqual(await compileEvaluation(NO_HORIZONTAL_OVERFLOW, false)(), { ok: true, value: false })
+    // An immediately invoked expression hands the evaluator a boolean to call.
+    const invoked = await compileEvaluation(`(${NO_HORIZONTAL_OVERFLOW})()`, false)()
+    assert.equal(invoked.ok, false)
+    assert.match(invoked.message, /not a function/)
+  } finally {
+    delete globalThis.document
+    delete globalThis.window
+  }
+})
 
 test("an inherited NABALENS_WS_ROOT is rejected before anything runs", () => {
   assert.throws(() => requireCanonicalRoot({ NABALENS_WS_ROOT: "/tmp/elsewhere" }), /NABALENS_WS_ROOT/)
