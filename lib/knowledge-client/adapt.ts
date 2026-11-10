@@ -29,6 +29,7 @@ import type {
   KnowledgeAnswer,
   NoLongerUsedReason,
   PendingFinding,
+  PolicyNeed,
   QuestionView,
   ServerDraft,
   QualifiedAnswer,
@@ -55,7 +56,37 @@ const DETAILS: readonly SlotDetail[] = [
   "unable_to_establish",
   "not_checked",
   "qualified_answer",
+  "policy_incomplete",
 ]
+
+const POLICY_NEEDS: readonly PolicyNeed[] = [
+  "stance",
+  "conditions",
+  "zones",
+  "authority",
+  "stated_on",
+]
+
+/**
+ * `policyMissing` (b03-design A5), read defensively: absent stays absent, a
+ * code this build doesn't know becomes `unrecognised` (once).
+ */
+export function policyMissingOf(v: unknown): PolicyNeed[] | undefined {
+  if (!Array.isArray(v)) return undefined
+  const out: PolicyNeed[] = []
+  for (const code of v) {
+    const need = (POLICY_NEEDS as readonly unknown[]).includes(code)
+      ? (code as PolicyNeed)
+      : "unrecognised"
+    if (!out.includes(need)) out.push(need)
+  }
+  return out
+}
+
+const withPolicyMissing = (v: unknown) => {
+  const needs = policyMissingOf(v)
+  return needs ? { policyMissing: needs } : {}
+}
 
 function detailOf(slot: KnowledgeSlotView): SlotDetail | null {
   if (slot.detail && (DETAILS as readonly string[]).includes(slot.detail))
@@ -103,6 +134,7 @@ export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
     savedAt: answer?.savedAt ?? null,
     sentAt: answer?.sentAt ?? null,
     qualified: qualifiedOf(answer),
+    ...withPolicyMissing(answer?.policyMissing),
     confirmation: {
       state: answer?.confirmationState ?? "not_required",
       // Managers and admins only: staff get no confirmer.
@@ -264,6 +296,7 @@ function adaptPending(
         ? { decisionId: null, note: null, at: null }
         : null,
     removedEvidence: 0,
+    ...withPolicyMissing(view.policyMissing),
   }
 }
 
@@ -301,6 +334,7 @@ function currentCard(
     disputes: false,
     detailRequest: null,
     removedEvidence: 0,
+    ...withPolicyMissing(item.policyMissing),
   }
 }
 
@@ -368,6 +402,7 @@ export function adaptToConfirm(
       disputes: item.disputes,
       slotRevision: item.slotRevision,
       waitingSince: item.waitingSince ?? null,
+      ...withPolicyMissing(item.policyMissing),
     })),
   }
 }

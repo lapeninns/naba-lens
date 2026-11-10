@@ -9,6 +9,8 @@ import {
   FINDING_STATE_CHIP,
   KNOWLEDGE_ANSWER_LABEL,
   periodMonth,
+  policyNeedWords,
+  policyNotConfirmedLine,
   readerLine,
   recognitionLine,
   replacedOwnLine,
@@ -678,5 +680,67 @@ describe("qualified answers (B03 UI design §2.5)", () => {
     }).join(" ")
     expect(text).toContain("Current answer: Allowed with conditions")
     expect(text).not.toMatch(/Current answer: Yes/)
+  })
+})
+
+describe("what a policy still needs (B03 UI design §4.3)", () => {
+  it("words each code in the server's order, and a code it doesn't know", () => {
+    expect(
+      policyNeedWords([
+        "stance",
+        "conditions",
+        "zones",
+        "authority",
+        "stated_on",
+        "unrecognised",
+      ])
+    ).toEqual([
+      "a rule (not Couldn't establish)",
+      "at least one condition",
+      "at least one area with its rule",
+      "confirmation by a venue manager, with where it was stated",
+      "the date it was stated",
+      "something this screen can't name; reload to see it",
+    ])
+    expect(policyNeedWords(["authority"], { admin: true })).toEqual([
+      "confirmation by an admin, with where it was stated",
+    ])
+  })
+
+  it("says Not confirmed with what's missing, and nothing when complete", () => {
+    expect(policyNotConfirmedLine(["zones", "stated_on"])).toBe(
+      "Not confirmed: it still needs at least one area with its rule and the date it was stated."
+    )
+    expect(policyNotConfirmedLine([])).toBeNull()
+    expect(policyNotConfirmedLine(undefined)).toBeNull()
+  })
+
+  it("never shows an incomplete policy in use as an answer", () => {
+    const answer: AnswerInUse = {
+      ...YES,
+      status: "unavailable",
+      reason: "not_confirmed",
+      detail: "policy_incomplete",
+      policyMissing: ["authority"],
+    }
+    expect(answerInUseLines(answer, slot())).toEqual([
+      "Not confirmed: it still needs confirmation by a venue manager, with where it was stated.",
+    ])
+    expect(
+      answerInUseLines({ ...answer, policyMissing: undefined }, slot())
+    ).toEqual(["No answer in use: needs checking."])
+    expect(
+      slotRow(
+        slot({
+          answerInUse: answer,
+          progress: "needs_recheck",
+          assignee: { firstName: "⟨Name⟩", isMe: true },
+        })
+      )
+    ).toMatchObject({
+      chip: { state: "not_confirmed" },
+      action: "View",
+      needsMe: false,
+    })
   })
 })

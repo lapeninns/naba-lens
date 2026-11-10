@@ -11,6 +11,7 @@ import type {
   FindingSummary,
   KnowledgeAnswer,
   KnowledgeOutcome,
+  PolicyNeed,
   Recognition,
   ToConfirmRow,
   UnknownPreset,
@@ -174,6 +175,48 @@ function priorAnswer(
  * The venue's answer in staff and manager words, one sentence per line. Dates
  * are save dates ("Recorded"), never observation times.
  */
+/**
+ * What a policy still needs, as words (B03 UI design §4.3). Authority names
+ * an admin for a policy only an admin may confirm.
+ */
+export function policyNeedWords(
+  needs: readonly PolicyNeed[],
+  { admin = false }: { admin?: boolean } = {}
+): string[] {
+  return needs.map((need) => {
+    switch (need) {
+      case "stance":
+        return "a rule (not Couldn't establish)"
+      case "conditions":
+        return "at least one condition"
+      case "zones":
+        return "at least one area with its rule"
+      case "authority":
+        return `confirmation by ${admin ? "an admin" : "a venue manager"}, with where it was stated`
+      case "stated_on":
+        return "the date it was stated"
+      default:
+        return "something this screen can't name; reload to see it"
+    }
+  })
+}
+
+/** "a, b and c". */
+export function joinWords(words: readonly string[]): string {
+  return words.length > 1
+    ? `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`
+    : (words[0] ?? "")
+}
+
+/** "Not confirmed: it still needs …" (§4.3), or null when nothing is missing. */
+export function policyNotConfirmedLine(
+  needs: readonly PolicyNeed[] | undefined,
+  options?: { admin?: boolean }
+): string | null {
+  if (!needs?.length) return null
+  return `Not confirmed: it still needs ${joinWords(policyNeedWords(needs, options))}.`
+}
+
 export function answerInUseLines(
   answer: AnswerInUse,
   slot: Pick<WorkingSlot, "previousAnswer" | "latestAttempt">
@@ -231,6 +274,14 @@ export function answerInUseLines(
       return answer.qualified
         ? [qualifiedLine(answer.qualified)]
         : ["No answer in use: needs checking.", ...priorAnswer(answer, slot)]
+    case "policy_incomplete": // Never shown as confirmed while something is missing (§4.3).
+    // Without the list (an older server shape) it stays needs checking.
+    {
+      const line = policyNotConfirmedLine(answer.policyMissing)
+      return line
+        ? [line]
+        : ["No answer in use: needs checking.", ...priorAnswer(answer, slot)]
+    }
     case "not_checked":
     case "not_enabled":
     case null:
@@ -931,6 +982,16 @@ export function slotRow(slot: WorkingSlot): SlotRow {
         : slot.mode === "change"
           ? "Report a change"
           : "View",
+      needsMe: false,
+      dismissable: false,
+    }
+  // An incomplete policy in use (§4.3): never confirmed while something is
+  // missing. A manager or an admin completes it, so it isn't staff's to do.
+  if (answer.detail === "policy_incomplete")
+    return {
+      chip: { state: "not_confirmed" },
+      status: answerInUseLines(answer, slot).join(" "),
+      action: slot.mode === "change" ? "Report a change" : "View",
       needsMe: false,
       dismissable: false,
     }

@@ -33,8 +33,11 @@ import type {
   SubmitKnowledgeInput,
   SubmittedFinding,
   ToConfirmList,
+  ValueListItem,
+  ValueListName,
   WorkingList,
 } from "./contract"
+import { VALUE_LISTS } from "./contract"
 
 /**
  * The server operations the knowledge screens call (S1-S14), each with the
@@ -123,6 +126,14 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: unknown
   ): Promise<KnowledgeResult<{ subjectId: string; replayed: boolean }>>
+  /**
+   * A closed value list's active items (B03-c, A4). Empty until the owner
+   * supplies them, and before the migration that adds the lists.
+   */
+  getValueList(
+    actor: MediaActor,
+    input: { list: ValueListName }
+  ): Promise<KnowledgeResult<{ items: ValueListItem[] }>>
 }
 
 /** A registry key, as the server checks it. */
@@ -190,6 +201,23 @@ export const knowledgeServices: KnowledgeServices = {
   addPlace: (actor, input) => server.addPlace(actor, input),
 
   retirePlace: (actor, input) => server.retirePlace(actor, input),
+
+  async getValueList(actor, input) {
+    if (!(VALUE_LISTS as readonly string[]).includes(input.list))
+      return knowledgeInvalid({ list: "Choose a list." })
+    // Read here for the database's code: before the B03-c migration there
+    // are no lists, which the editor reads as none set up yet.
+    const { data, error } = await knowledgeRpc(
+      actor.db,
+      "knowledge_value_list",
+      { p_list: input.list }
+    )
+    if (error) {
+      if (MISSING_FUNCTION.has(error.code ?? "")) return { ok: true, items: [] }
+      return server.knowledgeRpcFailure(error, "knowledge value list")
+    }
+    return { ok: true, items: data.items }
+  },
 
   async getQuestion(actor, input) {
     if (!QUESTION_KEY.test(input.key))

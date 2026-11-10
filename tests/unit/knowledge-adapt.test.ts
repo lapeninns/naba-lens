@@ -10,6 +10,7 @@ import {
   adaptSubmitted,
   adaptToConfirm,
   adaptWorkingList,
+  policyMissingOf,
 } from "@/lib/knowledge-client/adapt"
 import type {
   KnowledgeCheckView,
@@ -548,5 +549,63 @@ describe("adaptAnswerInUse and newer server details (B03 UI §2.5)", () => {
       ).qualified
     ).toBeNull()
     expect(adaptAnswerInUse(slot()).qualified).toBeNull()
+  })
+})
+
+describe("policyMissing (B03-c, A5)", () => {
+  it("reads it on the answer in use, keeping policy_incomplete", () => {
+    const view = adaptAnswerInUse(
+      slot({
+        status: "unavailable",
+        reason: "not_confirmed",
+        detail: "policy_incomplete",
+        answerInUse: {
+          ...slot().answerInUse!,
+          policyMissing: ["zones", "authority"],
+        },
+      })
+    )
+    expect(view.detail).toBe("policy_incomplete")
+    expect(view.policyMissing).toEqual(["zones", "authority"])
+  })
+
+  it("keeps a code it doesn't know once as unrecognised, and leaves it out when absent", () => {
+    expect(policyMissingOf(["stance", "new_a", "new_b"])).toEqual([
+      "stance",
+      "unrecognised",
+    ])
+    expect(policyMissingOf(undefined)).toBeUndefined()
+    expect(policyMissingOf("stance")).toBeUndefined()
+    expect(adaptAnswerInUse(slot())).not.toHaveProperty("policyMissing")
+  })
+
+  it("reads it on pending findings and To confirm items", () => {
+    const view = adaptCheck(
+      check({ pending: [pending({ policyMissing: ["conditions"] })] }),
+      "The Old Crown"
+    )
+    expect(view.inScope && view.pending[0].policyMissing).toEqual([
+      "conditions",
+    ])
+    const item: ToConfirmItem = {
+      checkId: CHECK,
+      questionKey: "dogs_allowed",
+      question: "⟨Question⟩",
+      findingRef: { type: "contribution", id: "f9" },
+      kind: "finding",
+      answer: "yes",
+      senderName: "Sam",
+      sentAt: "2026-11-05T10:00:00.000Z",
+      slotRevision: 9,
+      conflict: false,
+      disputes: false,
+      policyMissing: ["stated_on"],
+    }
+    expect(adaptToConfirm([item], 1).items[0].policyMissing).toEqual([
+      "stated_on",
+    ])
+    expect(
+      adaptToConfirm([{ ...item, policyMissing: undefined }], 1).items[0]
+    ).not.toHaveProperty("policyMissing")
   })
 })

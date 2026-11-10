@@ -279,3 +279,48 @@ describe("places before the B03-b migration", () => {
     ).resolves.toEqual(DOWN)
   })
 })
+
+describe("value lists before the B03-c migration", () => {
+  it("reads a missing function as no items yet, not a failure", async () => {
+    rpc.knowledgeRpc.mockResolvedValueOnce(missing("PGRST202"))
+    await expect(
+      knowledgeServices.getValueList(actor, { list: "policy_condition_types" })
+    ).resolves.toEqual({ ok: true, items: [] })
+    expect(rpc.knowledgeRpc).toHaveBeenCalledWith(db, "knowledge_value_list", {
+      p_list: "policy_condition_types",
+    })
+  })
+
+  it("returns the list's items, and keeps any other failure a failure", async () => {
+    const items = [
+      {
+        code: "on_lead",
+        label: "⟨On a lead⟩",
+        needsValue: false,
+        valueKind: null,
+      },
+    ]
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: { list: "policy_condition_types", items },
+      error: null,
+    })
+    await expect(
+      knowledgeServices.getValueList(actor, { list: "policy_condition_types" })
+    ).resolves.toEqual({ ok: true, items })
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "42501", message: "denied" },
+    })
+    await expect(
+      knowledgeServices.getValueList(actor, { list: "policy_exception_types" })
+    ).resolves.toEqual(DOWN)
+  })
+
+  it("refuses a list that isn't one, without a read", async () => {
+    const result = await knowledgeServices.getValueList(actor, {
+      list: "nope" as never,
+    })
+    expect(result.ok).toBe(false)
+    expect(rpc.knowledgeRpc).not.toHaveBeenCalled()
+  })
+})

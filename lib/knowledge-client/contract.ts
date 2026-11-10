@@ -25,10 +25,12 @@ import type {
   KnowledgeErrorCode,
   KnowledgeResult,
   ObservedOnSource,
+  PolicyMissing,
   Recognition,
   SlotReason,
   SubmitOutcome,
   UnknownPreset,
+  ValueListView,
 } from "@/lib/knowledge/contract"
 
 export {
@@ -37,8 +39,12 @@ export {
   KNOWLEDGE_ANSWERS,
   UNKNOWN_PRESETS,
 } from "@/lib/knowledge/contract"
+export { VALUE_LISTS } from "@/lib/knowledge/contract"
 export type {
   ObservedOnSource,
+  PolicyMissing,
+  ValueListName,
+  ValueListView,
   PlaceKind,
   PlaceRef,
   QuestionFeature,
@@ -90,8 +96,20 @@ export type SlotDetail =
   | "not_checked"
   /** B03: the answer in use is qualified; see `AnswerInUse.qualified`. */
   | "qualified_answer"
+  /** B03-c: a policy answer that still needs something; see `policyMissing`. */
+  | "policy_incomplete"
   /** A detail from a newer server this build doesn't know: needs checking. */
   | "unrecognised"
+
+/** One item of a closed value list (A4, A9), in the owner's order. */
+export type ValueListItem = ValueListView["items"][number]
+
+/**
+ * What a policy answer still needs (b03-design A5), in the server's order.
+ * A code this build doesn't know is kept as `unrecognised` (once), so the
+ * screen says something is missing instead of reading it as complete.
+ */
+export type PolicyNeed = PolicyMissing | "unrecognised"
 
 /**
  * A current answer stored as Yes whose detail narrows it (b03-design §3.8):
@@ -122,6 +140,8 @@ export type AnswerInUse = {
    * otherwise, and on servers before B03.
    */
   qualified?: QualifiedAnswer | null
+  /** B03-c: policy keys only; empty means complete. Absent elsewhere. */
+  policyMissing?: PolicyNeed[]
   confirmation: {
     state: ConfirmationState
     self: boolean
@@ -263,6 +283,8 @@ export type PendingFinding = {
   } | null
   /** Evidence removed: photos deleted from the answer in use. */
   removedEvidence: number
+  /** B03-c: a policy finding's gaps, as if it were adopted. Absent elsewhere. */
+  policyMissing?: PolicyNeed[]
 }
 
 export type KnowledgePermissions = {
@@ -433,6 +455,8 @@ export type ToConfirmRow = {
    * the withdrawal or revoke time. Null before the B02 migrations.
    */
   waitingSince?: Instant | null
+  /** B03-c: policy items only. */
+  policyMissing?: PolicyNeed[]
 }
 
 export type ToConfirmList = { items: ToConfirmRow[]; count: number }
