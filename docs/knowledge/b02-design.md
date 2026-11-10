@@ -1024,6 +1024,16 @@ Every batch runs, on a spare stack after a full-chain reset:
 - the credit-function hash check;
 - the T9b and T11a compatibility guards.
 
+### 7.4 Timing to measure before B10
+
+- **My contributions waiting rows.** Each photo row on a page calls
+  `private.menu_photo_pending_tuples(venue, false, true)` for the photo's
+  venue (the own-only waiting set), so a 20-row page of photos runs that
+  read up to 20 times. Each call is bounded by one venue's active menu and the
+  caller's own labels. Measure a full page on a seeded venue with a large menu
+  before B10; if it is slow, compute the caller's waiting set once per page
+  and pass it to the photo helper.
+
 ---
 
 ## 8. B01 follow-ups raised with the matrix (for the record)
