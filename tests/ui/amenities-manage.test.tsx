@@ -487,9 +487,7 @@ describe("Amenities overview: rechecks (B03 UI §6.3, A41)", () => {
 
   it("says when the rechecks couldn't be read, and shows no group when none are open or not read", () => {
     renderWith(null)
-    expect(
-      screen.getByText("Open rechecks couldn't be loaded.")
-    ).toBeTruthy()
+    expect(screen.getByText("Open rechecks couldn't be loaded.")).toBeTruthy()
     cleanup()
     renderWith([])
     expect(screen.queryByRole("region", { name: /^Rechecks/ })).toBeNull()

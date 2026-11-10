@@ -199,6 +199,42 @@ describe("freshness as it read at a time (B08 M1)", () => {
     ).toBe("f")
   })
 
+  it("dates a schema_changed task from a future-effective version only once it is in force (review L1)", async () => {
+    const w = await world("kn-b03-schema-due")
+    await yes(w.staffA, w, "guest_toilets")
+    const check = w.checks.guest_toilets
+    // One transaction, rolled back: the new version never reaches the shared
+    // stack. Version 2 replaces the schema and takes effect in 10 days.
+    const out = psql(`begin;
+insert into public.knowledge_question_versions
+select (jsonb_populate_record(null::public.knowledge_question_versions, to_jsonb(v) || jsonb_build_object(
+  'version', (select max(m.version) + 1 from public.knowledge_question_versions m where m.key = v.key),
+  'value_schema', case when v.value_schema = 'presence' then 'facility' else 'presence' end,
+  'change_kind', 'schema', 'change_note', 'R-L1 fixture', 'upgrade_rules', '{}'::jsonb,
+  'created_at', now(), 'effective_from', now() + interval '10 days', 'created_by', null))).*
+from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.version = 1;
+create temp table l1_before on commit drop as select private.knowledge_open_rechecks(now()) as opened,
+  private.knowledge_schema_change_due('guest_toilets', now()) as due_now;
+create temp table l1_after on commit drop as select private.knowledge_open_rechecks(now() + interval '20 days') as opened;
+select concat_ws('|',
+  (select due_now = (select greatest(v.created_at, coalesce(v.effective_from, v.created_at))
+     from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.version = 1) from l1_before),
+  private.knowledge_schema_change_due('guest_toilets', now() + interval '20 days') = now() + interval '10 days',
+  (select count(*) from public.knowledge_recheck_tasks t where t.check_id = '${check}' and t.cause = 'schema_changed'),
+  (select bool_and(t.due_at = now() + interval '10 days') from public.knowledge_recheck_tasks t
+     where t.check_id = '${check}' and t.cause = 'schema_changed'));
+rollback;`)
+    // Before it takes effect version 1 is in force: no schema change, and the
+    // due date is version 1's. Once in force the one task is due from when
+    // version 2 took effect, not when it was written.
+    expect(out.split("\n").pop()).toBe("true|true|1|true")
+    expect(
+      psql(
+        `select count(*) from public.knowledge_question_versions where key = 'guest_toilets' and change_note = 'R-L1 fixture'`
+      )
+    ).toBe("0")
+  })
+
   it("labels the answer at a time as the history read, not B08 R2 (review R-L2)", () => {
     expect(
       psql(

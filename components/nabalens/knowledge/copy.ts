@@ -1295,7 +1295,8 @@ export const FRESHNESS_PREVIEW_COPY = {
   ruleHelp:
     "Only the rules set up for each use are offered. The question's rules in force are chosen first.",
   noRule: "None",
-  noPolicies: "The check-date rules couldn't be read. Reload the page to try again.",
+  noPolicies:
+    "The check-date rules couldn't be read. Reload the page to try again.",
   nonePolicies: "No check-date rules have been set up yet.",
   show: "Show what it would do",
   use: { internal: "For staff and internal tools", public: "For guests" },

@@ -229,7 +229,10 @@ describe("admin check dates preview", () => {
   })
 
   it("says when no rules are set up, or they can't be read", async () => {
-    knowledge.listFreshnessPolicies.mockResolvedValue({ ok: true, policies: [] })
+    knowledge.listFreshnessPolicies.mockResolvedValue({
+      ok: true,
+      policies: [],
+    })
     await show()
     expect(
       screen.getByText("No check-date rules have been set up yet.")

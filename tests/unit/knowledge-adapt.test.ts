@@ -596,7 +596,7 @@ describe("the withdrawal on the read (B03 UI §8.2, D-B3-18)", () => {
     const finding = adaptFinding(
       mine({
         state: "no_longer_used",
-        stateReason: "withdrawn",
+        stateReason: "withdrawn" as never,
         managerNote: "⟨Reason⟩",
         stateReasonBasis: "admin",
         stateReasonAt: "2026-11-08T09:30:00.000Z",
@@ -612,7 +612,7 @@ describe("the withdrawal on the read (B03 UI §8.2, D-B3-18)", () => {
     const partial = adaptFinding(
       mine({
         state: "no_longer_used",
-        stateReason: "corrected",
+        stateReason: "corrected" as never,
         stateReasonBasis: "admin",
       })
     )
