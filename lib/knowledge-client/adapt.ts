@@ -15,6 +15,7 @@ import {
   type MyFindingsPage as ServerFindingsPage,
   type PendingFindingView,
   type ResolveConflictResult,
+  type StateReasonB03,
   type SubmitKnowledgeResult as ServerSubmitted,
   type ToConfirmItem as ServerToConfirm,
   type WorkingListView as ServerWorkingList,
@@ -156,14 +157,13 @@ export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
   }
 }
 
-const NO_LONGER_USED: Record<
-  NonNullable<MyFindingView["stateReason"]>,
-  NoLongerUsedReason
-> = {
+const NO_LONGER_USED: Record<StateReasonB03, NoLongerUsedReason> = {
   archived: "archived",
   replaced_by_newer: "replaced_by_newer_answer",
   reopened: "reopened",
   replaced_by_own: "replaced_by_own",
+  corrected: "corrected",
+  withdrawn: "withdrawn",
 }
 
 export function adaptFinding(view: MyFindingView): FindingSummary {
@@ -177,7 +177,7 @@ export function adaptFinding(view: MyFindingView): FindingSummary {
     state: view.state,
     noLongerUsed:
       view.state === "no_longer_used" && view.stateReason
-        ? NO_LONGER_USED[view.stateReason]
+        ? (NO_LONGER_USED[view.stateReason as StateReasonB03] ?? null)
         : null,
     stateReason: view.managerNote ?? null,
     managerNote: view.managerNote ?? null,

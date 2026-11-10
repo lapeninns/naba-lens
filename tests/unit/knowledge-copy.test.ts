@@ -828,3 +828,26 @@ describe("check dates (B03 UI design §6.1)", () => {
     )
   })
 })
+
+describe("an author's answer that was corrected or withdrawn (B03 UI §8.2, A15)", () => {
+  it("says a manager or an admin took it out of use, with their reason and no name", () => {
+    expect(
+      findingExplanation(
+        finding({
+          state: "no_longer_used",
+          noLongerUsed: "corrected",
+          stateReason: "⟨Reason⟩",
+        })
+      )
+    ).toBe("No longer in use: a manager or an admin corrected it. ⟨Reason⟩")
+    expect(
+      findingExplanation(
+        finding({
+          state: "no_longer_used",
+          noLongerUsed: "withdrawn",
+          stateReason: null,
+        })
+      )
+    ).toBe("No longer in use: a manager or an admin withdrew it.")
+  })
+})

@@ -204,6 +204,9 @@ export type NoLongerUsedReason =
   | "evidence_deleted"
   | "replaced_by_detail"
   | "replaced_by_own"
+  /** B03-g (A15): a manager account or an admin corrected or withdrew it. */
+  | "corrected"
+  | "withdrawn"
 
 export type FindingSummary = {
   /** Null for drafts and closed assignments. */

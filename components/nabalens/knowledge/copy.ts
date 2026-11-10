@@ -358,6 +358,9 @@ const NO_LONGER_USED: Record<
   evidence_deleted: () => "Its photo was deleted",
   replaced_by_detail: () => "Replaced by your added detail",
   replaced_by_own: () => "Replaced by your newer finding",
+  // B03-g (A15): the role only; the read carries no basis, and no name (D3).
+  corrected: () => "A manager or an admin corrected it",
+  withdrawn: () => "A manager or an admin withdrew it",
 }
 
 /** How a finding compared with the venue's answer when it was sent. */
@@ -398,6 +401,12 @@ export function findingExplanation(
         ? `Your manager didn't use this: ${finding.stateReason}`
         : "Your manager didn't use this."
     case "no_longer_used": {
+      // B03-g (§8.2): "No longer in use: …" with the reason they gave.
+      if (
+        finding.noLongerUsed === "corrected" ||
+        finding.noLongerUsed === "withdrawn"
+      )
+        return `No longer in use: a manager or an admin ${finding.noLongerUsed === "corrected" ? "corrected" : "withdrew"} it.${finding.stateReason ? ` ${finding.stateReason}` : ""}`
       const why = finding.noLongerUsed
         ? NO_LONGER_USED[finding.noLongerUsed](finding.stateReason)
         : "It isn't used any more"

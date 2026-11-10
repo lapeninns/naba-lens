@@ -5,6 +5,7 @@ import {
   adaptCheck,
   adaptDecision,
   adaptDraft,
+  adaptFinding,
   adaptFindingsPage,
   adaptSlot,
   adaptSubmitted,
@@ -710,5 +711,31 @@ describe("imports (B03-f, A12, A23)", () => {
     ).items
     expect(rows[0]).toMatchObject({ source: "legacy_fact" })
     expect(rows[0]).not.toHaveProperty("adoptable")
+  })
+})
+
+describe("corrected and withdrawn findings (B03-g, A15)", () => {
+  it("reads the new reasons and the reason given", () => {
+    const corrected = adaptFinding(
+      mine({
+        state: "no_longer_used",
+        stateReason: "corrected" as never,
+        managerNote: "⟨Reason⟩",
+      })
+    )
+    expect(corrected).toMatchObject({
+      noLongerUsed: "corrected",
+      stateReason: "⟨Reason⟩",
+    })
+    expect(
+      adaptFinding(
+        mine({ state: "no_longer_used", stateReason: "withdrawn" as never })
+      ).noLongerUsed
+    ).toBe("withdrawn")
+    expect(
+      adaptFinding(
+        mine({ state: "no_longer_used", stateReason: "something_new" as never })
+      ).noLongerUsed
+    ).toBeNull()
   })
 })
