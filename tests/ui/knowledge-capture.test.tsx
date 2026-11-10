@@ -22,6 +22,7 @@ import type { OpenAddOptions } from "@/components/nabalens/shell/add-context"
 import type {
   AmenityFailure,
   CheckSummary,
+  EvidenceRule,
   SubmittableAsset,
 } from "@/lib/amenities/contract"
 import type {
@@ -657,7 +658,14 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     thumbUrl: null,
   }
 
-  function withUpload(submit = vi.fn<Submit>(async () => sent())) {
+  function withUpload(
+    submit = vi.fn<Submit>(async () => sent()),
+    question: { key: string; question: string; evidenceRule: EvidenceRule } = {
+      key: "onsite_parking",
+      question: "Is there parking on site?",
+      evidenceRule: "photo",
+    }
+  ) {
     let listed: SubmittableAsset[] = [PHOTO]
     let failing = false
     const loadAssets = vi.fn(async (): Promise<AssetsResult> =>
@@ -678,7 +686,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     const onReload = vi.fn()
     render(
       <CaptureForm
-        check={check}
+        check={{ ...check, entry: { ...check.entry, ...question } }}
         viewerId={VIEWER_ID}
         initialAssets={{ ok: true, assets: [PHOTO] }}
         loadAssets={loadAssets}
@@ -699,7 +707,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
         newKey={keys()}
         knowledge={{
           venueName: "The Old Crown",
-          slot: slot(),
+          slot: slot(question),
           role: "staff",
           canSelfConfirm: false,
           respondsTo: null,
@@ -795,6 +803,116 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
       assetIds: [NEW_PHOTO.assetId],
     })
     expect(onDone).toHaveBeenCalled()
+  })
+
+  describe("a question that asks for the redaction tick", () => {
+    const WIFI = {
+      key: "guest_wifi",
+      question: "Is guest Wi-Fi available?",
+      evidenceRule: "both" as const,
+    }
+    const tick = () =>
+      screen.getByRole("checkbox", {
+        name: "I have covered the Wi-Fi password and join QR code",
+      }) as HTMLInputElement
+    const LINE =
+      "Your photo is still saving. When it's ready, tick that the password and join QR code are covered, then send."
+
+    it("never offers to wait: it says to tick once the photo is ready, then sends what was ticked", async () => {
+      const { user, submit, pick, ready } = withUpload(undefined, WIFI)
+      await user.click(radio("No"))
+      await user.type(
+        screen.getByRole("textbox", { name: /^Reason/ }),
+        "No guest network"
+      )
+      await pick()
+      await user.click(screen.getByRole("button", { name: "Submit finding" }))
+      expect(submit).not.toHaveBeenCalled()
+      expect(screen.getByText(LINE)).toBeTruthy()
+      expect(screen.queryByRole("button", { name: "Wait for it" })).toBeNull()
+      // A No needs no evidence, so going without the photo stays allowed.
+      expect(
+        screen.getByRole("button", { name: "Send without it" })
+      ).toBeTruthy()
+
+      await ready()
+      expect(submit).not.toHaveBeenCalled()
+      expect(screen.queryByText(LINE)).toBeNull()
+      expect(screen.queryByText(/sends by itself/)).toBeNull()
+      expect(tick().checked).toBe(false)
+
+      await user.click(tick())
+      await user.click(screen.getByRole("button", { name: "Submit finding" }))
+      expect(submit).toHaveBeenCalledTimes(1)
+      expect(lastInput(submit)).toMatchObject({
+        answer: "no",
+        assetIds: [NEW_PHOTO.assetId],
+      })
+    })
+
+    it("a Yes that only the saving photo would meet offers neither waiting nor sending without it", async () => {
+      const { user, submit, pick } = withUpload(undefined, WIFI)
+      await user.click(radio("Yes"))
+      await user.click(tick())
+      await user.type(
+        screen.getByRole("textbox", { name: "Where you tested" }),
+        "Garden"
+      )
+      await user.type(screen.getByLabelText("Test date"), "2026-11-01")
+      await user.type(
+        screen.getByRole("textbox", { name: "Download (Mbps)" }),
+        "40"
+      )
+      await user.type(
+        screen.getByRole("textbox", { name: "Upload (Mbps)" }),
+        "10"
+      )
+      await pick()
+      await user.click(screen.getByRole("button", { name: "Submit finding" }))
+      expect(submit).not.toHaveBeenCalled()
+      // Only the evidence is missing, so the pending-upload notice is what shows.
+      expect(screen.getByText(LINE)).toBeTruthy()
+      expect(screen.queryByRole("button", { name: "Wait for it" })).toBeNull()
+      expect(
+        screen.queryByRole("button", { name: "Send without it" })
+      ).toBeNull()
+    })
+
+    it("the tick is asked for again whenever the evidence changes", async () => {
+      const { user, pick, ready } = withUpload(undefined, WIFI)
+      await user.click(tick())
+      await user.click(photoBox())
+      expect(tick().checked).toBe(false)
+      await user.click(tick())
+      expect(tick().checked).toBe(true)
+      await pick()
+      await ready()
+      expect(tick().checked).toBe(false)
+    })
+  })
+
+  it("a question without the redaction tick still waits and sends by itself (guest toilets)", async () => {
+    const { user, submit, pick, ready } = withUpload(undefined, {
+      key: "guest_toilets",
+      question: "Are there customer toilets?",
+      evidenceRule: "photo",
+    })
+    await user.click(radio("Yes"))
+    await pick()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Wait for it" }))
+    expect(
+      screen.getByText(
+        "Waiting for your photo to finish saving. It sends by itself when ready."
+      )
+    ).toBeTruthy()
+    await ready()
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(lastInput(submit)).toMatchObject({
+      answer: "yes",
+      idempotencyKey: "key-1",
+      assetIds: [NEW_PHOTO.assetId],
+    })
   })
 
   it("Stop waiting and edit cancels: nothing sends when the photo is ready", async () => {

@@ -571,6 +571,11 @@ export const UPLOAD_WAIT_COPY = {
   waiting: (n: number) =>
     `Waiting for ${photos(n)} to finish saving. It sends by itself when ready.`,
   primary: (n: number) => `Waiting for ${n} ${n === 1 ? "photo" : "photos"}…`,
+  /** A redaction question: the tick is given for the evidence, once it's there. */
+  redactionFirst: (n: number) =>
+    n === 1
+      ? "Your photo is still saving. When it's ready, tick that the password and join QR code are covered, then send."
+      : `Your ${n} photos are still saving. When they're ready, tick that the password and join QR code are covered, then send.`,
   stop: "Stop waiting and edit",
   offline:
     "You're offline. Your photo will finish saving when you're back online; then you can send.",
