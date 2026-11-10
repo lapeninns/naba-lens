@@ -81,6 +81,8 @@ type AddContextValue = {
   busy?: { count: number; words: string } | null
   /** Uploads still transferring or processing (not failed or stopped). */
   active?: number
+  /** Files in the Add queue that didn't finish saving (failed or stopped). */
+  failed?: number
   /**
    * Labels were saved on these photos elsewhere (Me's Fix labels): Add's
    * rows for them read "Saved" with the labels the photo has now.
@@ -161,6 +163,14 @@ function noop() {}
  */
 export function useAddActive(): number | null {
   return React.useContext(AddContext)?.active ?? null
+}
+
+/**
+ * How many files in the one Add queue didn't finish saving on this device,
+ * or null outside the staff layout.
+ */
+export function useAddFailed(): number | null {
+  return React.useContext(AddContext)?.failed ?? null
 }
 
 export function useAddRefreshSignal(): number {

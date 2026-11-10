@@ -40,7 +40,7 @@ export type JustSent =
 export const RULE_SENTENCE =
   "Ready photos are already in Photos and on your profile. Review decides whether they count, not whether they are shared."
 
-function sentNotice(justSent: JustSent) {
+export function sentNotice(justSent: JustSent) {
   const task = justSent.taskTitle ?? "this month's photos"
   return justSent.kind === "replaced"
     ? `Your new photo for ${task} is waiting for review.`

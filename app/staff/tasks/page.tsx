@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { cookies } from "next/headers"
 
 import { dismissClosedAssignmentAction } from "@/app/_knowledge/actions"
@@ -8,12 +9,18 @@ import { FINDING_SENT_PARAM } from "@/components/nabalens/amenities/capture/find
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import type { OurMenuProgress } from "@/components/nabalens/home/our-menu-card"
 import {
+  AlsoThisMonth,
+  AlsoThisMonthSkeleton,
+} from "@/components/nabalens/home/this-month-card"
+import {
   TasksOverview,
   FIRST_RUN_COOKIE,
   showWelcomeEntry,
   type JustSent,
 } from "@/components/nabalens/tasks"
+import { HomeOverview } from "@/components/nabalens/tasks/home-overview"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import { homeLayout } from "@/lib/config/home-layout"
 import { homePrompt } from "@/lib/config/work-roles"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck } from "@/lib/server/amenities"
@@ -24,6 +31,8 @@ import { getMediaActor } from "@/lib/server/media/context"
 
 import {
   myAmenityTasks,
+  myLabelWork,
+  myRetakes,
   myTasks,
   myWorkingList,
   staffShellStatus,
@@ -167,6 +176,9 @@ export default async function TasksPage({
   const profile = await requireActiveStaff()
   const { actor } = unwrap(await getCoverageActor())
   const dismissedAt = profile.work?.welcomeDismissedAt ?? null
+  const layout = homeLayout(profile.venueId)
+  // B02 streams these lines in their own boundary rather than waiting here.
+  const streamedPending = layout === "b02" ? myPending(actor) : null
   const [
     { tasks },
     colleagues,
@@ -179,6 +191,8 @@ export default async function TasksPage({
     findingSent,
     workingList,
     pending,
+    labels,
+    retakes,
   ] = await Promise.all([
     myTasks(actor).then(unwrap),
     recentColleaguePhotos(),
@@ -191,7 +205,9 @@ export default async function TasksPage({
     myAmenityTasks(actor),
     searchParams.then((p) => sentFinding(actor, p)),
     myWorkingList(actor),
-    myPending(actor),
+    layout === "b01" ? myPending(actor) : null,
+    layout === "b02" ? myLabelWork(actor) : null,
+    layout === "b02" ? myRetakes(actor) : null,
   ])
   const { reviewCount } = shell
   const blockedReason = uploadBlockReason(profile)
@@ -211,6 +227,33 @@ export default async function TasksPage({
         .title ?? null
   )
 
+  const common = {
+    tasks,
+    profile: {
+      displayName: profile.displayName,
+      venueName: profile.venue?.name ?? null,
+      department: profile.department ?? null,
+      hasAvatar: profile.avatarPath !== null,
+    },
+    tasksPath: TASKS_PATH,
+    portfolioPath: PORTFOLIO_PATH,
+    reviewCount,
+    reviewError: shell.canManage && reviewCount === undefined,
+    justSent,
+    colleagues,
+    welcomeHref: showWelcome ? WELCOME_PATH : null,
+    contribute: {
+      prompt: homePrompt(profile.work?.roleKey),
+      blocked: blockedReason ? UPLOAD_BLOCKED[blockedReason] : null,
+    },
+    ourMenu,
+    amenityTasks,
+    findingSent,
+    workingList: workingList ?? null,
+    workingListError: workingList === undefined,
+    onDismissClosed: dismissClosedAssignmentAction,
+  }
+
   return (
     <AppShell
       variant="staff"
@@ -219,33 +262,21 @@ export default async function TasksPage({
       userName={profile.displayName}
     >
       <OfflineNotice className="mb-3" />
-      <TasksOverview
-        tasks={tasks}
-        profile={{
-          displayName: profile.displayName,
-          venueName: profile.venue?.name ?? null,
-          department: profile.department ?? null,
-          hasAvatar: profile.avatarPath !== null,
-        }}
-        tasksPath={TASKS_PATH}
-        portfolioPath={PORTFOLIO_PATH}
-        reviewCount={reviewCount}
-        reviewError={shell.canManage && reviewCount === undefined}
-        justSent={justSent}
-        colleagues={colleagues}
-        welcomeHref={showWelcome ? WELCOME_PATH : null}
-        contribute={{
-          prompt: homePrompt(profile.work?.roleKey),
-          blocked: blockedReason ? UPLOAD_BLOCKED[blockedReason] : null,
-        }}
-        ourMenu={ourMenu}
-        amenityTasks={amenityTasks}
-        findingSent={findingSent}
-        workingList={workingList ?? null}
-        workingListError={workingList === undefined}
-        onDismissClosed={dismissClosedAssignmentAction}
-        alsoPending={pending}
-      />
+      {streamedPending ? (
+        <HomeOverview
+          {...common}
+          labelWork={labels?.status === "ok" ? labels.work : null}
+          labelWorkError={labels?.status === "failed"}
+          retakes={retakes}
+          alsoThisMonth={
+            <Suspense fallback={<AlsoThisMonthSkeleton />}>
+              <AlsoThisMonth pending={streamedPending} />
+            </Suspense>
+          }
+        />
+      ) : (
+        <TasksOverview {...common} alsoPending={pending} />
+      )}
     </AppShell>
   )
 }

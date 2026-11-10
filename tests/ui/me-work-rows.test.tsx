@@ -15,6 +15,8 @@ import { AddProvider } from "@/components/nabalens/shell/add-context"
 import { EMPTY_LABEL_SUMMARY } from "@/lib/menus/types"
 
 vi.mock("server-only", () => ({}))
+// Me with the B01 Home badge; the B02 badge is tested in staff-shell-status.
+vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }))

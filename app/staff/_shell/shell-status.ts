@@ -3,7 +3,12 @@ import "server-only"
 import { cache } from "react"
 
 import { todoCount, todoItems } from "@/components/nabalens/tasks"
+import {
+  nextActions,
+  type RetakeRequest,
+} from "@/components/nabalens/tasks/next-actions-model"
 import type { MyAmenityTask } from "@/lib/amenities/contract"
+import { homeLayout } from "@/lib/config/home-layout"
 import type { WorkingList } from "@/lib/knowledge-client/contract"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getMyAmenityTasks } from "@/lib/server/amenities"
@@ -11,9 +16,13 @@ import {
   getCoverageActor,
   getManagerReviewCount,
   getMyTasks,
+  listMyMenuPhotoDecisions,
 } from "@/lib/server/coverage"
 import { avatarUrl } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
+import type { LabelWork } from "@/lib/work-client/contract"
+import { workServices } from "@/lib/work-client/services"
+import { todoBadge } from "@/lib/work-client/todo"
 
 import { canManageVenue } from "../can-manage"
 
@@ -79,6 +88,68 @@ export const myWorkingList = (actor: MediaActor) =>
   workingListOf(sharedActor(actor))
 
 /**
+ * Home's labels card (B02): the counts, hidden when the account can't label
+ * or the database predates B02, or failed (the card says so and the badge is
+ * unknown).
+ */
+export type HomeLabels =
+  | { status: "ok"; work: LabelWork }
+  | { status: "hidden" }
+  | { status: "failed" }
+
+const labelWorkOf = cache(async (actor: MediaActor): Promise<HomeLabels> => {
+  try {
+    const [work, capabilities] = await Promise.all([
+      workServices.getLabelWork(actor),
+      // Only to hide the card: R1 already gives zeros to anyone who can't label.
+      workServices.getCapabilities(actor).catch(() => null),
+    ])
+    if (work.status === "failed") return { status: "failed" }
+    if (work.status === "missing") return { status: "hidden" }
+    if (capabilities?.status === "ok" && !capabilities.value.canLabel)
+      return { status: "hidden" }
+    return { status: "ok", work: work.value }
+  } catch {
+    return { status: "failed" }
+  }
+})
+
+export const myLabelWork = (actor: MediaActor) =>
+  labelWorkOf(sharedActor(actor))
+
+const retakesOf = cache(
+  async (actor: MediaActor): Promise<RetakeRequest[] | null> => {
+    try {
+      const result = await listMyMenuPhotoDecisions(actor, {
+        requestsOnly: true,
+      })
+      if (!result.ok) return null
+      // D13: a dish no longer on the menu (or one the menu read couldn't
+      // place) asks nothing of this person.
+      return result.states.flatMap((state) =>
+        state.state === "better_photo_requested" && state.canRetake === true
+          ? [
+              {
+                photoId: state.photoId,
+                itemId: state.itemId,
+                variantId: state.variantId,
+                itemName: state.itemName,
+                variantName: state.variantName,
+                reason: state.reason,
+              },
+            ]
+          : []
+      )
+    } catch {
+      return null
+    }
+  }
+)
+
+/** Better photos asked of me that I can take now; null when unread. */
+export const myRetakes = (actor: MediaActor) => retakesOf(sharedActor(actor))
+
+/**
  * Whether the caller manages their venue and, only then, the photos waiting
  * for their review. Runs alongside the tasks rather than after them.
  */
@@ -133,15 +204,54 @@ export async function staffShellStatus(
   actor: MediaActor,
   profile: { id: string; avatarPath: string | null }
 ): Promise<StaffShellStatus> {
-  const [tasks, amenityTasks, { canManage, reviewCount }, workingList] =
-    await Promise.all([
-      myTasks(actor).catch(() => null),
-      myAmenityTasks(actor),
-      managerStatus(actor),
-      myWorkingList(actor),
-    ])
+  const b02 = homeLayout(actor.profile?.venueId) === "b02"
+  const [
+    tasks,
+    amenityTasks,
+    { canManage, reviewCount },
+    workingList,
+    labels,
+    retakes,
+  ] = await Promise.all([
+    myTasks(actor).catch(() => null),
+    myAmenityTasks(actor),
+    managerStatus(actor),
+    myWorkingList(actor),
+    b02 ? myLabelWork(actor) : null,
+    b02 ? myRetakes(actor) : null,
+  ])
   const view = tasks?.ok ? tasks.tasks : null
   const reviewKnown = !canManage || reviewCount !== undefined
+  if (b02) {
+    // Failed uploads on this device are added in the browser, on Home.
+    const failed =
+      !view ||
+      !amenityTasks ||
+      !reviewKnown ||
+      workingList === undefined ||
+      labels?.status === "failed" ||
+      retakes === null
+    const count = view
+      ? todoBadge(
+          nextActions({
+            tasks: view,
+            reviewCount: reviewCount ?? 0,
+            amenityChecks: amenityTasks ?? [],
+            slots: workingList?.slots ?? [],
+            retakes: retakes ?? [],
+            labels: labels?.status === "ok" ? labels.work : null,
+          }),
+          failed
+        )
+      : null
+    return {
+      canManage,
+      todoUnknown: count === null,
+      todoCount: count ?? undefined,
+      reviewCount,
+      avatarUrl: avatarUrl(profile.id, profile.avatarPath),
+    }
+  }
   const known =
     !!view && !!amenityTasks && reviewKnown && workingList !== undefined
   return {

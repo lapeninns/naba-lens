@@ -13,6 +13,8 @@ import type { MyAmenityTask } from "@/lib/amenities/contract"
 import { tasksView } from "./tasks-fixtures"
 
 vi.mock("server-only", () => ({}))
+// The B01 Home and badge; the B02 layout is tested in home-b02.test.tsx.
+vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   redirect: vi.fn(),
@@ -84,6 +86,11 @@ const knowledge = vi.hoisted(() => ({
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: knowledge,
 }))
+const work = vi.hoisted(() => ({
+  getLabelWork: vi.fn(),
+  getCapabilities: vi.fn(),
+}))
+vi.mock("@/lib/work-client/services", () => ({ workServices: work }))
 
 import {
   currentStaffShell,
@@ -423,5 +430,97 @@ describe("Me: Your findings (B01-06)", () => {
     knowledge.listMyFindings.mockRejectedValue(new Error("down"))
     const { queryByRole } = render(await StaffPage())
     expect(queryByRole("region", { name: /Your findings/ })).toBeNull()
+  })
+})
+
+describe("staffShellStatus on the B02 Home", () => {
+  const request = (photoId: string, canRetake: boolean | undefined) => ({
+    photoId,
+    assetId: `a-${photoId}`,
+    itemId: "i1",
+    itemName: "Fish pie",
+    variantId: null,
+    variantName: null,
+    state: "better_photo_requested",
+    isPrimary: false,
+    reason: "Too dark",
+    canRetake,
+  })
+
+  beforeEach(() => {
+    vi.stubEnv("NABALENS_HOME_LAYOUT", "b02")
+    work.getLabelWork.mockResolvedValue({
+      status: "ok",
+      value: { needsLabels: 2, needsAttention: 1 },
+    })
+    work.getCapabilities.mockResolvedValue({
+      status: "ok",
+      value: { canLabel: true },
+    })
+    // D13: only a dish still on the menu asks anything of me.
+    coverage.listMyMenuPhotoDecisions.mockResolvedValue({
+      ok: true,
+      states: [request("p1", true), request("p2", false), request("p3", undefined)],
+    })
+  })
+  afterEach(() => vi.stubEnv("NABALENS_HOME_LAYOUT", "b01"))
+
+  it("counts checks, label work and better-photo requests I can take", async () => {
+    expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
+      todoCount: 2 + 3 + 1,
+      todoUnknown: false,
+    })
+    expect(coverage.listMyMenuPhotoDecisions).toHaveBeenCalledWith(ACTOR, {
+      requestsOnly: true,
+    })
+  })
+
+  it("leaves labels out before the B02 database, or for an account that can't label", async () => {
+    work.getLabelWork.mockResolvedValue({ status: "missing" })
+    expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
+      todoCount: 3,
+    })
+    vi.clearAllMocks()
+    work.getLabelWork.mockResolvedValue({
+      status: "ok",
+      value: { needsLabels: 2, needsAttention: 1 },
+    })
+    work.getCapabilities.mockResolvedValue({
+      status: "ok",
+      value: { canLabel: false },
+    })
+    expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
+      todoCount: 3,
+    })
+  })
+
+  it.each([
+    [
+      "the labels read fails",
+      () =>
+        work.getLabelWork.mockResolvedValue({
+          status: "failed",
+          failure: { ok: false, code: "unavailable", status: 503, message: "" },
+        }),
+    ],
+    [
+      "the better-photo read fails",
+      () =>
+        coverage.listMyMenuPhotoDecisions.mockResolvedValue({
+          ok: false,
+          code: "unavailable",
+        }),
+    ],
+    [
+      "the better-photo read throws",
+      () =>
+        coverage.listMyMenuPhotoDecisions.mockRejectedValue(new Error("down")),
+    ],
+  ])("is unknown, never smaller, when %s", async (_, fail) => {
+    fail()
+    expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
+      todoCount: undefined,
+      todoUnknown: true,
+    })
   })
 })
