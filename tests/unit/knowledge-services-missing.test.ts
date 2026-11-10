@@ -285,7 +285,7 @@ describe("value lists before the B03-c migration", () => {
     rpc.knowledgeRpc.mockResolvedValueOnce(missing("PGRST202"))
     await expect(
       knowledgeServices.getValueList(actor, { list: "policy_condition_types" })
-    ).resolves.toEqual({ ok: true, items: [] })
+    ).resolves.toEqual({ ok: true, items: [], retired: [] })
     expect(rpc.knowledgeRpc).toHaveBeenCalledWith(db, "knowledge_value_list", {
       p_list: "policy_condition_types",
     })
@@ -306,7 +306,7 @@ describe("value lists before the B03-c migration", () => {
     })
     await expect(
       knowledgeServices.getValueList(actor, { list: "policy_condition_types" })
-    ).resolves.toEqual({ ok: true, items })
+    ).resolves.toEqual({ ok: true, items, retired: [] })
     rpc.knowledgeRpc.mockResolvedValueOnce({
       data: null,
       error: { code: "42501", message: "denied" },
@@ -322,5 +322,26 @@ describe("value lists before the B03-c migration", () => {
     })
     expect(result.ok).toBe(false)
     expect(rpc.knowledgeRpc).not.toHaveBeenCalled()
+  })
+})
+
+describe("retired value-list items (A38)", () => {
+  it("passes the retired items on beside the active ones", async () => {
+    const retired = [
+      {
+        code: "old",
+        label: "⟨Old⟩",
+        needsValue: false,
+        valueKind: null,
+        retiredAt: "2026-11-01T00:00:00.000Z",
+      },
+    ]
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: { list: "policy_condition_types", items: [], retired },
+      error: null,
+    })
+    await expect(
+      knowledgeServices.getValueList(actor, { list: "policy_condition_types" })
+    ).resolves.toEqual({ ok: true, items: [], retired })
   })
 })
