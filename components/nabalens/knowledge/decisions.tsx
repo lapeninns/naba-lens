@@ -1139,8 +1139,9 @@ function FindingCard({
               {answer.value ? (
                 <Fact term="Confirmation">{confirmationText(answer)}</Fact>
               ) : null}
-              {/* A38 (§4): the answer in use names a retired type too. */}
-              {answer.value ? (
+              {/* A38 (§4): the answer in use names a retired type too;
+                  never an incomplete policy's partial rows (§4.3). */}
+              {answer.value && answer.detail !== "policy_incomplete" ? (
                 <PolicyFacts detail={answer.answerDetail} policy={policy} />
               ) : null}
             </dl>

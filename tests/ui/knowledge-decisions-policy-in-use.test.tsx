@@ -214,7 +214,7 @@ describe("To confirm: the policy in use (B03 UI §4, A38)", () => {
     expect(screen.queryByText(/venue manager|as admin/i)).toBeNull()
   })
 
-  it("reads it on an answer awaiting confirmation, where only the answer in use is shown", () => {
+  it("shows no policy rows for an incomplete policy awaiting confirmation (§4.3)", () => {
     show(
       [
         finding({
@@ -237,11 +237,11 @@ describe("To confirm: the policy in use (B03 UI §4, A38)", () => {
       }
     )
     expect(screen.queryByRole("heading", { name: "This finding" })).toBeNull()
-    expect(facts(group("In use now"))).toMatchObject({
-      Answer: "Yes, recorded 1 Oct 2026",
-      Rule: "Allowed with conditions",
-      Conditions: "⟨On a lead⟩ (no longer offered)",
-    })
+    const inUse = facts(group("In use now"))
+    expect(inUse).toMatchObject({ Answer: "Yes, recorded 1 Oct 2026" })
+    for (const term of ["Rule", "Conditions", "Applies to", "Stated on"])
+      expect(inUse[term]).toBeUndefined()
+    expect(screen.queryByText(/On a lead/)).toBeNull()
     // Still incomplete: Confirm says why it can't be used yet.
     const confirm = screen.getByRole("button", { name: "Confirm" })
     expect(confirm.getAttribute("aria-disabled")).toBe("true")
