@@ -213,16 +213,6 @@
       }
     },
     {
-      "name": "schema not built yet",
-      "schema": "service",
-      "version": 1,
-      "headline": "yes",
-      "detail": null,
-      "expect": {
-        "unknownSchema": true
-      }
-    },
-    {
       "name": "unknown version",
       "schema": "presence",
       "version": 2,
@@ -978,6 +968,293 @@
       "expect": {
         "ok": true,
         "detail": null
+      }
+    },
+    {
+      "name": "schema not built yet",
+      "schema": "connectivity.wifi",
+      "version": 2,
+      "headline": "yes",
+      "detail": null,
+      "expect": {
+        "unknownSchema": true
+      }
+    },
+    {
+      "name": "service offered with a schedule, channels and fees (B03-d)",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "schedule": {
+          "effectiveFrom": "2026-11-01",
+          "recurrence": {
+            "kind": "weekly",
+            "days": ["sun"]
+          },
+          "windows": [
+            {
+              "start": "12:00",
+              "end": "15:00"
+            }
+          ]
+        },
+        "channels": ["Phone", "Walk in"],
+        "fees": {
+          "kind": "free"
+        },
+        "limitations": "Sundays only"
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "schedule": {
+            "effectiveFrom": "2026-11-01",
+            "recurrence": {
+              "kind": "weekly",
+              "days": ["sun"]
+            },
+            "windows": [
+              {
+                "start": "12:00",
+                "end": "15:00"
+              }
+            ]
+          },
+          "channels": ["Phone", "Walk in"],
+          "fees": {
+            "kind": "free"
+          },
+          "limitations": "Sundays only"
+        }
+      }
+    },
+    {
+      "name": "service temporarily unavailable",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "availability": {
+          "state": "temporarily_unavailable",
+          "note": "Kitchen refit"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "availability": {
+            "state": "temporarily_unavailable",
+            "note": "Kitchen refit"
+          }
+        }
+      }
+    },
+    {
+      "name": "service shape problems in order",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "locations": [],
+        "bogus": 1,
+        "schedule": {
+          "effectiveFrom": "2026-11-01",
+          "recurrence": {
+            "kind": "weekly",
+            "days": []
+          },
+          "windows": [
+            {
+              "start": "25:00",
+              "end": "01:00"
+            }
+          ],
+          "extra": 1
+        },
+        "channels": ["", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", 5],
+        "fees": {
+          "kind": "sometimes"
+        },
+        "broadcasters": ["sky"]
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.bogus",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.locations",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.schedule.extra",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.schedule.recurrence.days",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.schedule.windows[0]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.channels[0]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.channels[1]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.channels[2]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.fees.kind",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.broadcasters[0]",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "service schedule missing parts",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "schedule": {}
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.schedule.effectiveFrom",
+            "problem": "required"
+          },
+          {
+            "path": "detail.schedule.recurrence",
+            "problem": "required"
+          },
+          {
+            "path": "detail.schedule.windows",
+            "problem": "required"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fixture showing committed",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "event": {
+          "title": "Six Nations: England v Wales",
+          "localDate": "2026-11-14",
+          "start": "16:45",
+          "end": "19:00"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "event": {
+            "title": "Six Nations: England v Wales",
+            "localDate": "2026-11-14",
+            "start": "16:45",
+            "end": "19:00"
+          }
+        }
+      }
+    },
+    {
+      "name": "fixture showing cancelled",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "no",
+      "detail": {
+        "cancelled": true,
+        "event": {
+          "title": "Quiz",
+          "localDate": "2026-11-14"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "cancelled": true,
+          "event": {
+            "title": "Quiz",
+            "localDate": "2026-11-14"
+          }
+        }
+      }
+    },
+    {
+      "name": "schedule event problems in order",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "x": 1,
+        "event": {
+          "title": " ",
+          "localDate": "2026-02-30",
+          "start": "16:45"
+        },
+        "cancelled": true,
+        "limitations": 5
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.x",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.event.title",
+            "problem": "required"
+          },
+          {
+            "path": "detail.event.localDate",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.event.window[0]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.cancelled",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.limitations",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "committed event needs the event",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "limitations": "x"
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.event",
+            "problem": "required"
+          }
+        ]
       }
     }
   ]

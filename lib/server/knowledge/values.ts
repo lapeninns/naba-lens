@@ -14,6 +14,11 @@ import type {
 } from "@/lib/knowledge/contract"
 import { parseWifi } from "@/lib/server/amenities/validate"
 
+import { londonToday, safeDate } from "./dates"
+import { scheduleProblems, scheduleWindowProblems } from "./schedules"
+
+export { londonToday, safeDate }
+
 const HEADLINES = ["yes", "no", "not_applicable", "unknown"] as const
 type Headline = (typeof HEADLINES)[number]
 
@@ -35,12 +40,15 @@ const SUPPORTED: Record<string, true> = {
   "facility@1": true,
   "accessibility@1": true,
   "policy@1": true,
+  "service@1": true,
+  "schedule_event@1": true,
 }
 
-/** Active codes of the policy value lists (public.knowledge_value_list). */
+/** Active codes of the value lists (public.knowledge_value_list, A4, A9). */
 export type PolicyValueLists = {
   conditionTypes: readonly string[]
   exceptionTypes: readonly string[]
+  broadcasters?: readonly string[]
 }
 const NO_LISTS: PolicyValueLists = { conditionTypes: [], exceptionTypes: [] }
 
@@ -109,27 +117,6 @@ const hasKey = (v: unknown, k: string) =>
 
 const isEmptyDetail = (v: unknown) =>
   v === null || v === undefined || (isRecord(v) && Object.keys(v).length === 0)
-
-/** private.knowledge_safe_date: a real calendar date written YYYY-MM-DD. */
-export function safeDate(v: unknown): string | null {
-  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null
-  const [y, m, d] = v.split("-").map(Number) as [number, number, number]
-  if (y < 1 || m < 1 || m > 12 || d < 1) return null
-  const days = new Date(Date.UTC(2000, m, 0)).getUTCDate()
-  const leap = y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)
-  if (d > (m === 2 ? (leap ? 29 : 28) : days)) return null
-  return v
-}
-
-/** Today's date in London, YYYY-MM-DD (private.london_today). */
-export function londonToday(now: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now)
-}
 
 /** private.knowledge_place_ref_problem: exactly one of subjectId or label. */
 export function placeRefProblem(ref: unknown): Problem | null {
@@ -445,6 +432,108 @@ function policyProblems(
   return out
 }
 
+/** private.knowledge_service_problems (§6, B03-d). */
+function serviceProblems(
+  detail: unknown,
+  lists: PolicyValueLists,
+  now: Date
+): ValueFieldProblem[] {
+  const out: ValueFieldProblem[] = []
+  const add = (path: string, problem: Problem) => out.push({ path, problem })
+  if (!isRecord(detail)) return [{ path: "detail", problem: "invalid" }]
+  for (const key of Object.keys(detail).sort())
+    if (
+      ![
+        "schedule",
+        "channels",
+        "fees",
+        "limitations",
+        "availability",
+        "broadcasters",
+      ].includes(key)
+    )
+      add(`detail.${key}`, "not_allowed")
+  if (has(detail, "schedule"))
+    out.push(...scheduleProblems("detail.schedule", detail.schedule))
+  if (has(detail, "channels")) {
+    const list = detail.channels
+    if (!Array.isArray(list) || list.length > 10)
+      add("detail.channels", "invalid")
+    else
+      list.forEach((c: unknown, i) => {
+        if (
+          typeof c !== "string" ||
+          chars(btrim(c)) < 1 ||
+          chars(btrim(c)) > 40
+        )
+          add(`detail.channels[${i}]`, "invalid")
+      })
+  }
+  const facility: Json = {}
+  for (const key of ["fees", "limitations", "availability"])
+    if (has(detail, key)) facility[key] = detail[key]
+  out.push(...detailProblems("facility", facility, now))
+  if (has(detail, "broadcasters")) {
+    const codes = lists.broadcasters ?? []
+    const list = detail.broadcasters
+    if (!Array.isArray(list) || list.length > MAX_ITEMS)
+      add("detail.broadcasters", "invalid")
+    else
+      list.forEach((b: unknown, i) => {
+        if (typeof b !== "string" || !codes.includes(b))
+          add(`detail.broadcasters[${i}]`, "invalid")
+      })
+  }
+  return out
+}
+
+/** private.knowledge_schedule_event_problems (§6.3, §6.4, B03-d). */
+function scheduleEventProblems(
+  headline: unknown,
+  detail: unknown
+): ValueFieldProblem[] {
+  const out: ValueFieldProblem[] = []
+  const add = (path: string, problem: Problem) => out.push({ path, problem })
+  if (!isRecord(detail)) return [{ path: "detail", problem: "invalid" }]
+  for (const key of Object.keys(detail).sort())
+    if (!["event", "cancelled", "limitations"].includes(key))
+      add(`detail.${key}`, "not_allowed")
+  if (has(detail, "event")) {
+    const e = detail.event
+    if (!isRecord(e) || !onlyKeys(e, ["title", "localDate", "start", "end"]))
+      add("detail.event", "invalid")
+    else {
+      if (typeof e.title !== "string")
+        add("detail.event.title", has(e, "title") ? "invalid" : "required")
+      else if (chars(btrim(e.title)) === 0)
+        add("detail.event.title", "required")
+      else if (chars(e.title) > 120) add("detail.event.title", "too_long")
+      if (!has(e, "localDate")) add("detail.event.localDate", "required")
+      else if (!safeDate(e.localDate)) add("detail.event.localDate", "invalid")
+      if (has(e, "start") || has(e, "end"))
+        out.push(
+          ...scheduleWindowProblems("detail.event.window", [
+            { start: e.start ?? null, end: e.end ?? null },
+          ])
+        )
+    }
+  } else if (headline === "yes") add("detail.event", "required")
+  if (
+    has(detail, "cancelled") &&
+    (typeof detail.cancelled !== "boolean" ||
+      (detail.cancelled && headline !== "no"))
+  )
+    add("detail.cancelled", "invalid")
+  if (has(detail, "limitations") && typeof detail.limitations !== "string")
+    add("detail.limitations", "invalid")
+  else if (
+    typeof detail.limitations === "string" &&
+    chars(detail.limitations) > 2000
+  )
+    add("detail.limitations", "too_long")
+  return out
+}
+
 function wifiDetail(v: unknown, now: Date): WifiMetadata | null {
   if (!isRecord(v)) return null
   if (Object.keys(v).some((k) => !WIFI_KEYS.includes(k))) return null
@@ -485,6 +574,12 @@ export function validateKnowledgeValue(
       if (!normalised) fields.push({ path: "detail", problem: "invalid" })
     } else if (schema === "policy") {
       fields.push(...policyProblems(headline, given, lists, now))
+      normalised = given as Record<string, unknown>
+    } else if (schema === "service") {
+      fields.push(...serviceProblems(given, lists, now))
+      normalised = given as Record<string, unknown>
+    } else if (schema === "schedule_event") {
+      fields.push(...scheduleEventProblems(headline, given))
       normalised = given as Record<string, unknown>
     } else {
       fields.push(...detailProblems(schema, given, now))
