@@ -714,6 +714,38 @@ describe("occurrences at a stop (A40, correction 1)", () => {
         "scheduled",
       ],
     ])
+    // The stop moves to 30 November (last day Sunday 29 November), still before
+    // 1 December, so it too is sent without a schedule. It is based on the
+    // first stop, which has none either; the walk goes on to the upcoming one.
+    const moved = await answer(w, "guest_toilets", {
+      lastDayOffered: "2026-11-29",
+    })
+    expect(
+      psql(`select count(*) from public.knowledge_schedules
+        where contribution_id = '${moved.contributionId}'`)
+    ).toBe("0")
+    expect(
+      psql(`select x.based_on_submission_id = s.id
+        from public.knowledge_contributions x, public.amenity_submissions s
+        where x.id = '${moved.contributionId}'
+          and s.source_contribution_id = '${stop.contributionId}'`)
+    ).toBe("t")
+    expect(await occurrences(w)).toEqual([
+      ...november1To22,
+      // 22 November ends at its own 02:00 again; only this stop's cutoff applies.
+      [
+        "2026-11-22",
+        "2026-11-22T22:00:00.000Z",
+        "2026-11-23T02:00:00.000Z",
+        "scheduled",
+      ],
+      [
+        "2026-11-29",
+        "2026-11-29T22:00:00.000Z",
+        "2026-11-30T00:00:00.000Z",
+        "scheduled",
+      ],
+    ])
   })
 
   it("never fall back to another schedule of the check when the based-on submission had none (review P2)", async () => {
@@ -729,6 +761,10 @@ describe("occurrences at a stop (A40, correction 1)", () => {
     await answer(w, "guest_toilets", { fees: { kind: "free" } })
     expect(await occurrences(w)).toEqual([])
     await answer(w, "guest_toilets", { lastDayOffered: "2026-11-22" })
+    expect(await occurrences(w)).toEqual([])
+    // A moved stop walks back through the first stop only as far as the
+    // ordinary answer, never to the older schedule behind it.
+    await answer(w, "guest_toilets", { lastDayOffered: "2026-11-29" })
     expect(await occurrences(w)).toEqual([])
   })
 })

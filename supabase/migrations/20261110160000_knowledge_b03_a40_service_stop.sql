@@ -58,8 +58,12 @@
 --   overnight one to it; private.schedule_occurrences (shared with B04) is
 --   unchanged. Review P2: a deliberate stop with no schedule row of its own
 --   reads the supersedes chain of the exact submission it was based on (its
---   latest schedule row created at or before the stop's contribution), never
---   another schedule of the check. private.knowledge_schedule_create copies
+--   latest schedule row created at or before the stop's contribution). A
+--   based-on deliberate stop without a schedule (a moved stop) is walked
+--   through by its own based-on link, the same way, on the same check and
+--   venue (bounded, cycle-safe); an ordinary answer without a schedule or a
+--   broken link reads nothing. Never another schedule of the check, and only
+--   the current stop's cutoff applies. private.knowledge_schedule_create copies
 --   the replaced version's exceptions up to the new effective_to when the new
 --   version restates it (same submission base, timezone, effective_from,
 --   recurrence and windows), so cancellations and other earlier exceptions
@@ -797,8 +801,8 @@ $$;
 -- 20261110113909 body (review M1 chain); the service wrapper ends at a
 -- deliberate stop: no occurrence from Not offered from, and the last
 -- overnight one ends then. A stop without a schedule row keeps the chain of
--- the submission it was based on (review P2). The shared expansion is
--- unchanged (B04).
+-- the submission it was based on, through any earlier stops without one
+-- (review P2). The shared expansion is unchanged (B04).
 create or replace function public.knowledge_occurrences(p_check_id uuid, p_from date, p_to date)
 returns table (local_date date, starts_at timestamptz, ends_at timestamptz, state text)
 language plpgsql
@@ -812,6 +816,8 @@ declare
   v_schedule public.knowledge_schedules;
   v_end jsonb;
   v_stop_at timestamptz;
+  v_successor public.knowledge_contributions;
+  v_seen uuid[] := '{}';
 begin
   perform private.amenity_assert_active_user();
   select c.* into v_check from public.venue_amenity_checks c where c.id = p_check_id;
@@ -828,18 +834,45 @@ begin
   v_schedule := private.knowledge_schedule_in_use(v_check.id);
   -- A40 review P2: a deliberate stop sent without a schedule (it falls before
   -- an upcoming version starts) keeps the chain of the exact submission it was
-  -- based on, as that chain stood when the stop was sent, up to the stop.
-  -- Never another schedule of the check.
+  -- based on, as that chain stood when the stop was sent, up to the stop. A
+  -- based-on submission that is itself such a stop (the stop was moved) is
+  -- walked through to the one it was based on, and so on; an ordinary answer
+  -- without a schedule or a broken link ends the walk. Same check and venue
+  -- at every step; never another schedule of the check.
   if v_schedule.id is null and v_stop_at is not null then
-    select s.* into v_schedule
+    select x.* into v_successor
     from public.venue_amenity_checks c
     join public.amenity_submissions cs on cs.id = c.current_submission_id
+      and cs.check_id = c.id and cs.venue_id = c.venue_id
     join public.knowledge_contributions x on x.id = cs.source_contribution_id
-    join public.knowledge_schedules s on s.check_id = c.id and s.submission_id = x.based_on_submission_id
-      and s.created_at <= x.created_at
-    where c.id = v_check.id and c.progress = 'complete'
-    order by s.created_at desc, s.id desc
-    limit 1;
+      and x.check_id = c.id and x.venue_id = c.venue_id
+    where c.id = v_check.id and c.progress = 'complete';
+    while v_successor.id is not null and v_successor.based_on_submission_id is not null
+          and not (v_successor.based_on_submission_id = any (v_seen))
+          and cardinality(v_seen) < 100 loop
+      v_seen := v_seen || v_successor.based_on_submission_id;
+      -- The based-on submission's schedule as it stood when its successor was sent.
+      select s.* into v_schedule
+      from public.knowledge_schedules s
+      where s.check_id = v_check.id and s.venue_id = v_check.venue_id
+        and s.submission_id = v_successor.based_on_submission_id
+        and s.created_at <= v_successor.created_at
+      order by s.created_at desc, s.id desc
+      limit 1;
+      exit when v_schedule.id is not null;
+      -- No schedule: walk on only through a deliberate stop sent without one.
+      select x.* into v_successor
+      from public.amenity_submissions b
+      join public.knowledge_contributions x on x.id = b.source_contribution_id
+        and x.check_id = b.check_id and x.venue_id = b.venue_id
+      join public.knowledge_contribution_details kd on kd.contribution_id = x.id
+      cross join lateral (select private.knowledge_effective_detail(x.id) as detail) ed
+      where b.id = v_successor.based_on_submission_id
+        and b.check_id = v_check.id and b.venue_id = v_check.venue_id
+        and jsonb_typeof(ed.detail -> 'schedule') is distinct from 'object'
+        and private.knowledge_service_end(b.venue_id, b.id, b.answer, kd.value_schema, ed.detail,
+          v_successor.created_at) ->> 'kind' = 'stopped';
+    end loop;
   end if;
   if v_schedule.id is null then
     return;
