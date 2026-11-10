@@ -25,6 +25,7 @@ import {
 } from "./knowledge-fixtures"
 
 const OPS = `nlr_sec-b03_${randomBytes(32).toString("base64url")}`
+const STAFF_OPS = `nlr_sec-b03-staff_${randomBytes(32).toString("base64url")}`
 
 let w: World
 let disputed: World
@@ -45,7 +46,7 @@ function attach(contributionId: string, schema: string, detail: object) {
     from public.knowledge_contributions x where x.id = '${contributionId}'`)
 }
 
-async function read(at: World, keys: string) {
+async function read(at: World, keys: string, credential = OPS) {
   const query = new URLSearchParams({
     keys,
     audience: "internal",
@@ -55,7 +56,7 @@ async function read(at: World, keys: string) {
   const res = await GET(
     new Request(
       `http://127.0.0.1:3000/api/knowledge/v1/venues/${at.venue}/answers?${query}`,
-      { headers: { authorization: `Bearer ${OPS}` } }
+      { headers: { authorization: `Bearer ${credential}` } }
     ),
     { params: Promise.resolve({ venueId: at.venue }) }
   )
@@ -114,8 +115,22 @@ beforeAll(async () => {
           imported.venue,
           importedNa.venue,
           importedLegacy.venue,
-          staffReason.venue,
         ],
+        audiences: ["internal"],
+        purposes: ["operations_lookup"],
+        questions: "all",
+        schemaMajors: [1],
+      },
+      {
+        // Keep the ordinary reason control in its own real limiter bucket.
+        id: "sec-b03-staff",
+        credentials: [
+          {
+            sha256: credentialDigest(STAFF_OPS),
+            expiresAt: "2099-01-01T00:00:00Z",
+          },
+        ],
+        venues: [staffReason.venue],
         audiences: ["internal"],
         purposes: ["operations_lookup"],
         questions: "all",
@@ -221,8 +236,8 @@ const withdraw = (at: World, key: string) =>
     p_reason: "TEST withdrawn",
   })
 
-const one = async (at: World, key: string) => {
-  const { status, raw } = await read(at, key)
+const one = async (at: World, key: string, credential = OPS) => {
+  const { status, raw } = await read(at, key, credential)
   expect(status).toBe(200)
   return { answer: JSON.parse(raw).answers[0], raw }
 }
@@ -519,7 +534,7 @@ describe("internal reader over adopted B03-f imports", () => {
     expect(row.status).toBe("available")
     expect(row.source_origin).toBeNull()
     expect(row.reason_text).toBe(REASON)
-    const { answer } = await one(staffReason, "guest_toilets")
+    const { answer } = await one(staffReason, "guest_toilets", STAFF_OPS)
     expect(answer.value).toEqual({ type: "yes_no_na", answer: "no" })
     expect(answer.provenance?.contributionId).toBe(sent.contributionId)
     expect(answer.conditions).toEqual([{ kind: "reason", text: REASON }])
