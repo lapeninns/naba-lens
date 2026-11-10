@@ -24,8 +24,12 @@ import type {
   KnowledgeFailure,
   KnowledgeResult,
   FreshnessPreviewView,
+  LegacyMappingsView,
   LegacyNarrativeItem,
   MyPending,
+  ReconcileResult,
+  ReconciliationRunView,
+  SourceView,
   Occurrence,
   RecheckTask,
   Place,
@@ -147,6 +151,43 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: unknown
   ): Promise<KnowledgeResult<{ count: number; tasks: RecheckTask[] }>>
+  /** B03-f (A13): admin reconciliation; every call re-checks the admin. */
+  listSources(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ sources: SourceView[] }>>
+  declareSource(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ sourceId: string; replayed: boolean }>>
+  retireSource(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ sourceId: string; replayed: boolean }>>
+  listLegacyMappings(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ page: LegacyMappingsView }>>
+  reviewMapping(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ mappingId: string; replayed: boolean }>>
+  reconcile(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ result: ReconcileResult }>>
+  listReconciliationRuns(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<
+    KnowledgeResult<{
+      page: { items: Record<string, unknown>[]; nextCursor: string | null }
+    }>
+  >
+  getReconciliationRun(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ run: ReconciliationRunView }>>
   /** B03-f (§8.2 L5): a venue's legacy facts as narrative, for managers. */
   getLegacyNarrative(
     actor: MediaActor,
@@ -269,6 +310,17 @@ export const knowledgeServices: KnowledgeServices = {
     server.listQuestionRegistry(actor, input),
 
   getLegacyNarrative: (actor, input) => server.getLegacyNarrative(actor, input),
+
+  listSources: (actor, input) => server.listSources(actor, input),
+  declareSource: (actor, input) => server.declareSource(actor, input),
+  retireSource: (actor, input) => server.retireSource(actor, input),
+  listLegacyMappings: (actor, input) => server.listLegacyMappings(actor, input),
+  reviewMapping: (actor, input) => server.reviewMapping(actor, input),
+  reconcile: (actor, input) => server.reconcile(actor, input),
+  listReconciliationRuns: (actor, input) =>
+    server.listReconciliationRuns(actor, input),
+  getReconciliationRun: (actor, input) =>
+    server.getReconciliationRun(actor, input),
 
   getOccurrences: (actor, input) => server.getOccurrences(actor, input),
 

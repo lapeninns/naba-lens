@@ -129,6 +129,11 @@ const ALLOWED_PAGES = new Set([
   // B03 knowledge admin (B03 UI design §6.4): what turning on a check-date
   // rule would do, read only.
   "/admin/knowledge/check-dates",
+  // B03-f reconciliation (§7.3, §7.4): declared sources and old-fact
+  // mappings, and dry runs whose imports managers decide one by one.
+  "/admin/knowledge/sources",
+  "/admin/knowledge/runs",
+  "/admin/knowledge/runs/[runId]",
 ])
 
 const ALLOWED_HANDLERS = new Set([

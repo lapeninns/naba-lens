@@ -118,6 +118,34 @@ export async function retirePlaceAction(input: unknown) {
   return write(k.retirePlace, input)
 }
 
+// ---- Reconciliation (B03-f, admins) ------------------------------------------------
+
+async function adminWrite<T>(service: Service<T>, input: unknown) {
+  const result = await write(service, input)
+  if (result.ok) revalidatePath("/admin/knowledge", "layout")
+  return result
+}
+
+/** Declares a source the owner approved. Keyed. */
+export async function declareSourceAction(input: unknown) {
+  return adminWrite(k.declareSource, input)
+}
+
+/** Retires a source with a reason. Keyed. */
+export async function retireSourceAction(input: unknown) {
+  return adminWrite(k.retireSource, input)
+}
+
+/** Appends a mapping review with its reason. Keyed. */
+export async function reviewMappingAction(input: unknown) {
+  return adminWrite(k.reviewMapping, input)
+}
+
+/** A dry run, or an apply that a fresh matching dry run allows. */
+export async function reconcileAction(input: unknown) {
+  return adminWrite(k.reconcile, input)
+}
+
 // ---- Schedules (B03-d) ------------------------------------------------------------
 
 /** The next dates a schedule being written would give; nothing is saved. */

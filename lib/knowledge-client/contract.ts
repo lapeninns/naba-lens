@@ -43,8 +43,16 @@ export {
   UNKNOWN_PRESETS,
 } from "@/lib/knowledge/contract"
 export { SCHEDULE_EXCEPTION_KINDS, VALUE_LISTS } from "@/lib/knowledge/contract"
+export { SOURCE_KINDS } from "@/lib/knowledge/contract"
 export type {
+  LegacyMappingsView,
   LegacyNarrativeItem,
+  MappingKind,
+  ReconcileProposal,
+  ReconcileResult,
+  ReconciliationRunView,
+  SourceKind,
+  SourceView,
   FindingSource,
   FreshnessEntry,
   FreshnessPreviewView,
