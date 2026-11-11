@@ -40,6 +40,7 @@ import {
   staffShellStatus,
 } from "../_shell/shell-status"
 import { WELCOME_PATH, PORTFOLIO_PATH, TASKS_PATH, unwrap } from "./result"
+import { withRecheckSent } from "./sent-recheck"
 
 export const metadata = { title: "Home · Naba-Lens" }
 
@@ -143,7 +144,12 @@ async function sentFinding(
   const slot = list?.slots.find((item) => item.checkId === checkId)
   if (slot) {
     const copy = sentNoticeFor(slot)
-    return copy ? { question: slot.question, copy } : null
+    return copy
+      ? {
+          question: slot.question,
+          copy: await withRecheckSent(actor, slot, copy),
+        }
+      : null
   }
   try {
     const result = await getCheck(actor, { checkId })
