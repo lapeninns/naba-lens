@@ -663,6 +663,19 @@ export const DRAFT_SAVE_COPY = {
 } as const
 
 /**
+ * Whether Home's notice is "Saved for later" rather than a send: a draft
+ * saved after the person's latest finding (or with nothing sent).
+ */
+export function draftWins(slot: Pick<WorkingSlot, "myLatest" | "myDraft">) {
+  const latest = slot.myLatest
+  const draft = slot.myDraft
+  const sentAt = latest?.sentAt ?? latest?.savedAt ?? null
+  return Boolean(
+    draft && (!latest || !sentAt || isAfter(draft.savedAt, sentAt))
+  )
+}
+
+/**
  * Home's notice after a send (§4.3), from the person's latest finding as the
  * server has it now, so a reload stays truthful. Null when there is nothing
  * of theirs to announce.
@@ -671,10 +684,7 @@ export function sentNoticeFor(
   slot: Pick<WorkingSlot, "myLatest" | "myDraft" | "answerInUse">
 ): (SentCopy & { extra: string | null }) | null {
   const latest = slot.myLatest
-  const draft = slot.myDraft
-  const sentAt = latest?.sentAt ?? latest?.savedAt ?? null
-  if (draft && (!latest || !sentAt || isAfter(draft.savedAt, sentAt)))
-    return { ...DRAFT_SAVED, extra: null }
+  if (draftWins(slot)) return { ...DRAFT_SAVED, extra: null }
   if (!latest?.answer) return null
   // Recognition only when it is real; nothing is promised (§2.4).
   const extra =
