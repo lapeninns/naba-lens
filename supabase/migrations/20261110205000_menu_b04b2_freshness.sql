@@ -71,7 +71,7 @@ create table public.menu_freshness_bindings (
   use text not null check (use in ('internal', 'public')),
   policy_id text,
   policy_version integer,
-  approved_by uuid not null references public.profiles (id) on delete restrict,
+  bound_by uuid not null references public.profiles (id) on delete restrict,
   effective_from timestamptz not null default now(),
   created_at timestamptz not null default now(),
   constraint menu_freshness_bindings_policy_fkey foreign key (policy_id, policy_version)
@@ -578,7 +578,7 @@ begin
   if p_venue is not null then
     perform private.lock_venue_menu(p_venue, false);
   end if;
-  insert into public.menu_freshness_bindings (venue_id, field, use, policy_id, policy_version, approved_by, effective_from)
+  insert into public.menu_freshness_bindings (venue_id, field, use, policy_id, policy_version, bound_by, effective_from)
   values (p_venue, p_field, p_use, p_policy_id, p_policy_version, v_uid, coalesce(p_effective_from, now()))
   returning * into v_row;
   return jsonb_build_object('bindingId', v_row.id, 'venueId', v_row.venue_id, 'field', v_row.field,

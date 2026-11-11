@@ -342,10 +342,10 @@ create table public.menu_field_authority (
   source_id uuid,
   effective_from timestamptz not null default now(),
   -- design_default: the §4.4 default, seeded by migration and not yet
-  -- confirmed by the owner; owner_approval: recorded by an admin.
-  basis text not null check (basis in ('design_default', 'owner_approval')),
-  approved_by uuid references public.profiles (id) on delete restrict,
-  approved_at timestamptz,
+  -- confirmed by the owner; owner_decision: recorded by an admin.
+  basis text not null check (basis in ('design_default', 'owner_decision')),
+  decided_by uuid references public.profiles (id) on delete restrict,
+  decided_at timestamptz,
   reason text not null check (length(reason) between 1 and 500),
   supersedes uuid,
   created_at timestamptz not null default now(),
@@ -355,9 +355,9 @@ create table public.menu_field_authority (
   -- A row supersedes the previous row of the same venue, field and channel.
   constraint menu_field_authority_supersedes_fkey foreign key (supersedes, venue_id, field, channel)
     references public.menu_field_authority (id, venue_id, field, channel) on delete restrict,
-  constraint menu_field_authority_approval check (
-    (basis = 'design_default') = (approved_by is null)
-    and (approved_by is null) = (approved_at is null)
+  constraint menu_field_authority_decision check (
+    (basis = 'design_default') = (decided_by is null)
+    and (decided_by is null) = (decided_at is null)
   ),
   constraint menu_field_authority_source check (
     case
@@ -1543,7 +1543,7 @@ begin
 end;
 $$;
 
--- Append a field authority row (§4.5), recorded as the owner's approval. A
+-- Append a field authority row (§4.5), recorded as the owner's decision. A
 -- switch to `nabalens` is refused for every field that is not NabaLens's
 -- already (identity, photos) until B04-05's reconciliation exists (§4.4).
 create function public.menu_set_field_authority(
@@ -1620,16 +1620,16 @@ begin
     and not exists (select 1 from public.menu_field_authority n where n.supersedes = a.id);
   v_has_latest := found;
 
-  if v_has_latest and v_latest.basis = 'owner_approval' and v_latest.authority = p_authority
+  if v_has_latest and v_latest.basis = 'owner_decision' and v_latest.authority = p_authority
      and v_latest.source_id is not distinct from p_source then
     v_result := jsonb_build_object('authorityId', v_latest.id, 'unchanged', true, 'replayed', false);
   else
     begin
       insert into public.menu_field_authority (
-        venue_id, field, channel, authority, source_id, basis, approved_by, approved_at, reason, supersedes
+        venue_id, field, channel, authority, source_id, basis, decided_by, decided_at, reason, supersedes
       )
       values (
-        p_venue, p_field, v_channel, p_authority, p_source, 'owner_approval', v_uid, now(), v_reason,
+        p_venue, p_field, v_channel, p_authority, p_source, 'owner_decision', v_uid, now(), v_reason,
         case when v_has_latest then v_latest.id end
       )
       returning id into v_id;
@@ -1647,7 +1647,7 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- Managers see authorities, sources (without locators), coverage and outcomes;
--- only admins see reasons, approvers, source locators, price text and the
+-- only admins see reasons, deciders, source locators, price text and the
 -- review list with evidence. Staff and other venues see nothing.
 create function public.menu_manifest(p_venue uuid)
 returns jsonb
@@ -1682,7 +1682,7 @@ begin
       coalesce(l.authority, private.menu_default_field_authority(f.field)) as authority,
       l.source_id, l.effective_from, coalesce(l.basis, 'design_default') as basis,
       coalesce(l.reason, 'Design default (b04-design §4.4, OD-B4-1); owner to confirm.') as reason,
-      l.approved_by, l.approved_at
+      l.decided_by, l.decided_at
     from unnest(private.menu_fields()) with ordinality as f(field, ord)
     cross join unnest(array['all', 'dine_in', 'takeaway']) with ordinality as c(channel, cord)
     left join latest l on l.field = f.field and l.channel = c.channel
@@ -1750,7 +1750,7 @@ begin
           'sourceId', fr.source_id, 'sourceKind', src.kind, 'sourceLabel', src.label,
           'effectiveFrom', fr.effective_from, 'basis', fr.basis)
         || case when v_admin then jsonb_build_object(
-             'reason', fr.reason, 'approvedBy', fr.approved_by, 'approvedAt', fr.approved_at)
+             'reason', fr.reason, 'decidedBy', fr.decided_by, 'decidedAt', fr.decided_at)
            else '{}'::jsonb end
         order by fr.ord, fr.cord)
       from field_rows fr

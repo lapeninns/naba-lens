@@ -8,15 +8,15 @@ enabled, no real mapping is populated and no field is switched to NabaLens.
 Migration `supabase/migrations/20261110200000_menu_b04a_sources_crosswalk.sql`
 (additive; sorts after every migration on the B02 integration baseline):
 
-| Object                  | Notes                                                                                                                                                                                                                                                                 |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `menu_sources`          | Declared by venue id only. Retire-once guard; never deleted.                                                                                                                                                                                                          |
-| `menu_source_snapshots` | Append-only. `(source, revision)` unique; same bytes again is a no-op, other bytes `snapshot_revision_conflict`. `captured_at` stays null when unknown.                                                                                                               |
-| `menu_field_authority`  | Append-only chain per `(venue, field, channel)`; the row nobody supersedes is in force. Seeded with the §4.4 defaults for every existing venue as `basis = 'design_default'` (no approver). Venues created later read the same defaults until an admin records a row. |
-| `menu_crosswalk`        | Append-only rows; each supersedes the previous row of its `(source, locator)`.                                                                                                                                                                                        |
-| `menu_crosswalk_heads`  | The row in force per `(source, locator)` (primary key: one identity per source entry). Partial unique index over confirmed/carried heads: one source entry per `(item, variant, channel)`. A trigger keeps each head equal to its row.                                |
-| `menu_source_commands`  | Request-key replay (B03 §14.1), append-only.                                                                                                                                                                                                                          |
-| `menu_crosswalk_runs`   | Append-only: the first matcher run on each snapshot. A source whose newest snapshot has no run awaits reconciliation.                                                                                                                                                 |
+| Object                  | Notes                                                                                                                                                                                                                                                                |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `menu_sources`          | Declared by venue id only. Retire-once guard; never deleted.                                                                                                                                                                                                         |
+| `menu_source_snapshots` | Append-only. `(source, revision)` unique; same bytes again is a no-op, other bytes `snapshot_revision_conflict`. `captured_at` stays null when unknown.                                                                                                              |
+| `menu_field_authority`  | Append-only chain per `(venue, field, channel)`; the row nobody supersedes is in force. Seeded with the §4.4 defaults for every existing venue as `basis = 'design_default'` (no decider). Venues created later read the same defaults until an admin records a row. |
+| `menu_crosswalk`        | Append-only rows; each supersedes the previous row of its `(source, locator)`.                                                                                                                                                                                       |
+| `menu_crosswalk_heads`  | The row in force per `(source, locator)` (primary key: one identity per source entry). Partial unique index over confirmed/carried heads: one source entry per `(item, variant, channel)`. A trigger keeps each head equal to its row.                               |
+| `menu_source_commands`  | Request-key replay (B03 §14.1), append-only.                                                                                                                                                                                                                         |
+| `menu_crosswalk_runs`   | Append-only: the first matcher run on each snapshot. A source whose newest snapshot has no run awaits reconciliation.                                                                                                                                                |
 
 No client can read or write the tables; everything goes through the
 functions below. No existing table, row or function changes, and the credit
@@ -108,7 +108,7 @@ decision rules and the manifest types and CSV export.
   `photos` until B04-05's reconciliation report exists. A source authority
   must cite a live source of the same venue and a matching kind.
 - **Manifest.** Managers see authorities, sources (no locator), coverage
-  counts and per-entry outcomes; only admins see reasons, approvers, locators,
+  counts and per-entry outcomes; only admins see reasons, deciders, locators,
   source price text and the review list with evidence. Outcomes per active
   entry and source: `confirmed`, `needs_review`, `not_on_source` (the source
   has rows, none names the item) or `unmatched` (no crosswalk run yet).

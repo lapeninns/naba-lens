@@ -950,11 +950,11 @@ export type ManifestFieldRow = {
   sourceLabel: string | null
   effectiveFrom: string | null
   /** `design_default`: the §4.4 default, not yet confirmed by the owner. */
-  basis: "design_default" | "owner_approval"
+  basis: "design_default" | "owner_decision"
   /** Admin view only. */
   reason?: string
-  approvedBy?: string | null
-  approvedAt?: string | null
+  decidedBy?: string | null
+  decidedAt?: string | null
 }
 
 export type ManifestSnapshot = {

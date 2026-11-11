@@ -2170,7 +2170,7 @@ describe("field authority (§4.4, OD-B4-1: inert defaults)", () => {
     ).toEqual([])
     expect(
       rows(`select 1 from public.menu_field_authority
-        where basis = 'design_default' and (approved_by is not null or supersedes is not null)`)
+        where basis = 'design_default' and (decided_by is not null or supersedes is not null)`)
     ).toEqual([])
   })
 
@@ -2234,7 +2234,7 @@ describe("field authority (§4.4, OD-B4-1: inert defaults)", () => {
       fields: { field: string; basis: string; sourceId: string }[]
     }>(manifest(admin, venueA))
     expect(m.fields.find((f) => f.field === "price")).toMatchObject({
-      basis: "owner_approval",
+      basis: "owner_decision",
       sourceId: site,
     })
   })
@@ -2315,7 +2315,7 @@ describe("manifest (§4.2 #7, White Horse-style disagreement)", () => {
       '"priceText"',
       '"evidence"',
       '"reason"',
-      '"approvedBy"',
+      '"decidedBy"',
       '"snapshotId"',
     ])
       expect(text).not.toContain(forbidden)

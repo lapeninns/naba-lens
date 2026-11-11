@@ -125,7 +125,7 @@ const CODES: Record<string, [MenuFailure["status"], string]> = {
   ],
   authority_switch_not_enabled: [
     409,
-    "Fields cannot be switched to NabaLens yet. They need a reconciliation report and the owner's approval first.",
+    "Fields cannot be switched to NabaLens yet. They need a reconciliation report and the owner's go-ahead first.",
   ],
   menu_authority_conflict: [
     409,
@@ -461,7 +461,7 @@ export async function decideMenuCrosswalk(
 // ---------------------------------------------------------------------------
 
 /**
- * Records the owner's approved authority for one field of one venue (admin).
+ * Records the owner's chosen authority for one field of one venue (admin).
  * A switch to `nabalens` is refused by the database for every field that is
  * not NabaLens's already.
  */
