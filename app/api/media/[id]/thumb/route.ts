@@ -1,5 +1,6 @@
 import { signDerivative } from "@/lib/server/media/access"
 import { getMediaActor } from "@/lib/server/media/context"
+import { OWN_MEDIA_ROLES } from "@/lib/server/media/roles"
 
 import { fail, redirectTo } from "../../_respond"
 
@@ -11,7 +12,7 @@ export async function GET(
   _request: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  const auth = await getMediaActor()
+  const auth = await getMediaActor(OWN_MEDIA_ROLES)
   if (!auth.ok) return fail(auth.status, auth.message)
   const { id } = await ctx.params
   const signed = await signDerivative(auth.actor, id, "thumbnail")

@@ -11,9 +11,11 @@ import {
   type Locator,
   type Page,
   type Request,
+  type TestInfo,
 } from "@playwright/test"
 
 import { signIn, type Db } from "../../support/identities"
+import { addJustPhotos } from "./add-entry"
 import { legacyStaffGrant, type CoverageWorld } from "./coverage-world"
 import { syntheticJpeg, type SourceFile } from "./media"
 import { activateMenu, ok } from "./menus"
@@ -49,6 +51,12 @@ export function phone(width: number, height = 800): BrowserContextOptions {
 export class TapCounter {
   taps = 0
   readonly steps: string[] = []
+  /** Dialogs the flow passed through, by name, in order. */
+  readonly dialogs: string[] = []
+
+  dialog(name: string) {
+    this.dialogs.push(name)
+  }
 
   async tap(target: Locator, step = String(target)) {
     this.taps += 1
@@ -120,6 +128,39 @@ export function modalsOpened(page: Page) {
   )
 }
 
+/**
+ * Keeps a journey's measured taps and modals before its budget is asserted,
+ * so a budget failure still leaves the actual totals: a JSON file in the
+ * test's output (attached), an annotation, and a line in the run's log.
+ */
+export async function recordBudget(
+  testInfo: TestInfo,
+  name: string,
+  taps: TapCounter,
+  modals: { count: number; names: string[] },
+  limits: { taps: number; modals: number }
+) {
+  const measured = {
+    route: taps.steps.join(" > "),
+    taps: taps.taps,
+    tapSteps: taps.steps,
+    tapCounterDialogs: taps.dialogs,
+    modals: modals.count,
+    modalNames: modals.names,
+    limits,
+  }
+  const file = testInfo.outputPath(`${name}-taps-and-modals.json`)
+  writeFileSync(file, JSON.stringify(measured, null, 2))
+  await testInfo.attach(`${name}-taps-and-modals`, {
+    path: file,
+    contentType: "application/json",
+  })
+  const line = `${name}: ${measured.taps} taps (limit ${limits.taps}; ${measured.route}); ${measured.modals} modals (limit ${limits.modals}; ${modals.names.join(", ")})`
+  testInfo.annotations.push({ type: "taps-and-modals", description: line })
+  console.log(`taps and modals, ${line}`)
+  return measured
+}
+
 // ---------------------------------------------------------------------------
 // Staff UI
 // ---------------------------------------------------------------------------
@@ -170,16 +211,18 @@ export async function pickFiles(
   return input
 }
 
-/** Phone Add: tab, then "Choose from your photos" in the Add sheet. */
+/**
+ * Phone Add while idle: tab, "Just photos" in the intent dialog, then
+ * "Choose from your photos" in the Add sheet.
+ */
 export async function addFromLibrary(
   page: Page,
   paths: string[],
   taps?: TapCounter
 ) {
-  const tab = addTab(page)
-  if (taps) await taps.tap(tab, "Add")
-  else await tab.click()
+  await addJustPhotos(page, addTab(page), taps)
   await expect(addSheet(page)).toBeVisible()
+  taps?.dialog("Add photos")
   await pickFiles(
     page,
     addSheet(page).getByRole("button", { name: /^Choose from your photos/ }),
@@ -188,6 +231,7 @@ export async function addFromLibrary(
   )
   const sheet = savingSheet(page)
   await expect(sheet).toBeVisible()
+  taps?.dialog("Saving sheet")
   return sheet
 }
 

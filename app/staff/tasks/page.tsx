@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { cookies } from "next/headers"
 
 import { dismissClosedAssignmentAction } from "@/app/_knowledge/actions"
@@ -8,12 +9,18 @@ import { FINDING_SENT_PARAM } from "@/components/nabalens/amenities/capture/find
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import type { OurMenuProgress } from "@/components/nabalens/home/our-menu-card"
 import {
+  AlsoThisMonth,
+  AlsoThisMonthSkeleton,
+} from "@/components/nabalens/home/this-month-card"
+import {
   TasksOverview,
   FIRST_RUN_COOKIE,
   showWelcomeEntry,
   type JustSent,
 } from "@/components/nabalens/tasks"
+import { HomeOverview } from "@/components/nabalens/tasks/home-overview"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import { homeLayout } from "@/lib/config/home-layout"
 import { homePrompt } from "@/lib/config/work-roles"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck } from "@/lib/server/amenities"
@@ -24,6 +31,9 @@ import { getMediaActor } from "@/lib/server/media/context"
 
 import {
   myAmenityTasks,
+  myContributionEntry,
+  myLabelWork,
+  myRetakes,
   myTasks,
   myWorkingList,
   staffShellStatus,
@@ -107,6 +117,16 @@ async function ourMenuProgress(
 }
 
 /**
+ * When the working list can't be read, a complete check may still have a
+ * newer finding of mine waiting: say it was sent, never that it is complete.
+ */
+const SENT_NEUTRAL: FindingSentCopy = {
+  title: "Sent",
+  body: "",
+  tone: "positive",
+}
+
+/**
  * The amenity check named by `?finding_sent=<id>`, as the database has it now:
  * the notice is never shown on the word of the URL alone. A working-list
  * question says what happened to my latest finding (design §4.3); any other
@@ -118,9 +138,8 @@ async function sentFinding(
 ): Promise<string | { question: string; copy: FindingSentCopy } | null> {
   const checkId = first(params[FINDING_SENT_PARAM])
   if (!checkId) return null
-  const slot = (await myWorkingList(actor))?.slots.find(
-    (item) => item.checkId === checkId
-  )
+  const list = await myWorkingList(actor)
+  const slot = list?.slots.find((item) => item.checkId === checkId)
   if (slot) {
     const copy = sentNoticeFor(slot)
     return copy ? { question: slot.question, copy } : null
@@ -129,10 +148,14 @@ async function sentFinding(
     const result = await getCheck(actor, { checkId })
     if (!result.ok) return null
     const { check } = result.detail
-    return check.progress === "complete" &&
-      check.answeredBy?.id === actor.profile.id
-      ? check.entry.question
-      : null
+    if (
+      check.progress !== "complete" ||
+      check.answeredBy?.id !== actor.profile.id
+    )
+      return null
+    return list === undefined
+      ? { question: check.entry.question, copy: SENT_NEUTRAL }
+      : check.entry.question
   } catch {
     return null
   }
@@ -154,6 +177,9 @@ export default async function TasksPage({
   const profile = await requireActiveStaff()
   const { actor } = unwrap(await getCoverageActor())
   const dismissedAt = profile.work?.welcomeDismissedAt ?? null
+  const layout = homeLayout(profile.venueId)
+  // B02 streams these lines in their own boundary rather than waiting here.
+  const streamedPending = layout === "b02" ? myPending(actor) : null
   const [
     { tasks },
     colleagues,
@@ -166,6 +192,9 @@ export default async function TasksPage({
     findingSent,
     workingList,
     pending,
+    labels,
+    retakes,
+    entry,
   ] = await Promise.all([
     myTasks(actor).then(unwrap),
     recentColleaguePhotos(),
@@ -178,7 +207,12 @@ export default async function TasksPage({
     myAmenityTasks(actor),
     searchParams.then((p) => sentFinding(actor, p)),
     myWorkingList(actor),
-    myPending(actor),
+    layout === "b01" ? myPending(actor) : null,
+    layout === "b02" ? myLabelWork(actor) : null,
+    layout === "b02" ? myRetakes(actor) : null,
+    layout === "b02" && profile.venue && !uploadBlockReason(profile)
+      ? myContributionEntry(actor, profile.venue.name)
+      : null,
   ])
   const { reviewCount } = shell
   const blockedReason = uploadBlockReason(profile)
@@ -198,6 +232,34 @@ export default async function TasksPage({
         .title ?? null
   )
 
+  const common = {
+    tasks,
+    profile: {
+      displayName: profile.displayName,
+      venueName: profile.venue?.name ?? null,
+      department: profile.department ?? null,
+      hasAvatar: profile.avatarPath !== null,
+    },
+    tasksPath: TASKS_PATH,
+    portfolioPath: PORTFOLIO_PATH,
+    reviewCount,
+    reviewError: shell.canManage && reviewCount === undefined,
+    justSent,
+    colleagues,
+    welcomeHref: showWelcome ? WELCOME_PATH : null,
+    contribute: {
+      prompt: homePrompt(profile.work?.roleKey),
+      blocked: blockedReason ? UPLOAD_BLOCKED[blockedReason] : null,
+      canAnswer: entry?.intents.includes("question") ?? false,
+    },
+    ourMenu,
+    amenityTasks,
+    findingSent,
+    workingList: workingList ?? null,
+    workingListError: workingList === undefined,
+    onDismissClosed: dismissClosedAssignmentAction,
+  }
+
   return (
     <AppShell
       variant="staff"
@@ -206,33 +268,21 @@ export default async function TasksPage({
       userName={profile.displayName}
     >
       <OfflineNotice className="mb-3" />
-      <TasksOverview
-        tasks={tasks}
-        profile={{
-          displayName: profile.displayName,
-          venueName: profile.venue?.name ?? null,
-          department: profile.department ?? null,
-          hasAvatar: profile.avatarPath !== null,
-        }}
-        tasksPath={TASKS_PATH}
-        portfolioPath={PORTFOLIO_PATH}
-        reviewCount={reviewCount}
-        reviewError={shell.canManage && reviewCount === undefined}
-        justSent={justSent}
-        colleagues={colleagues}
-        welcomeHref={showWelcome ? WELCOME_PATH : null}
-        contribute={{
-          prompt: homePrompt(profile.work?.roleKey),
-          blocked: blockedReason ? UPLOAD_BLOCKED[blockedReason] : null,
-        }}
-        ourMenu={ourMenu}
-        amenityTasks={amenityTasks}
-        findingSent={findingSent}
-        workingList={workingList ?? null}
-        workingListError={workingList === undefined}
-        onDismissClosed={dismissClosedAssignmentAction}
-        alsoPending={pending}
-      />
+      {streamedPending ? (
+        <HomeOverview
+          {...common}
+          labelWork={labels?.status === "ok" ? labels.work : null}
+          labelWorkError={labels?.status === "failed"}
+          retakes={retakes}
+          alsoThisMonth={
+            <Suspense fallback={<AlsoThisMonthSkeleton />}>
+              <AlsoThisMonth pending={streamedPending} />
+            </Suspense>
+          }
+        />
+      ) : (
+        <TasksOverview {...common} alsoPending={pending} />
+      )}
     </AppShell>
   )
 }

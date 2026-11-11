@@ -245,7 +245,14 @@ describe("CaptureForm", () => {
     expect(ruleStatus().textContent).toContain("A photo isn't enough here")
     await user.click(submitButton())
     expect(submit).not.toHaveBeenCalled()
-    expect(screen.getByRole("alert").textContent).toContain("Required: Video.")
+    // No alert per field (CA-13): focus goes to the first invalid control,
+    // whose description carries the message.
+    expect(screen.queryByRole("alert")).toBeNull()
+    await waitFor(() => expect(document.activeElement).toBe(photoBox()))
+    expect(
+      document.getElementById(photoBox().getAttribute("aria-describedby") ?? "")
+        ?.textContent
+    ).toContain("Required: Video.")
     await user.click(videoBox())
     expect(ruleStatus().textContent).toBe("Evidence rule met: Video.")
     await user.click(submitButton())
@@ -946,7 +953,7 @@ describe("CaptureForm: Try again while offline (S-H1)", () => {
     const retry = await screen.findByRole("button", { name: UI_TEXT.retry })
     expect((retry as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByRole("alert").textContent).toContain(
-      "You're offline. We'll try when you're back online."
+      "You're offline. Keep this page open; it sends again when you're back online."
     )
     // An upload finishing while the answer is unresolved waits, as before.
     opts.onReady?.([LATER.assetId])

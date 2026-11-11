@@ -3,7 +3,6 @@ import {
   expect,
   test,
   type BrowserContextOptions,
-  type Locator,
   type Page,
   type TestInfo,
 } from "@playwright/test"
@@ -30,8 +29,9 @@ import { signedInPage, type Person } from "./helpers/world"
 
 /**
  * The venue manager workspace (/manager) in the built app, Phase 2 (spec
- * §6.6): sign-in lands managers on /manager, wrong-role navigation, no way to
- * add photos, Overview counts against the active menu, the review journey
+ * §6.6): sign-in lands managers on /manager, wrong-role navigation, Add on
+ * every page while the grant is open (B02-c, owner decision Q1/Q4) and none
+ * once it ends, Overview counts against the active menu, the review journey
  * (staff upload and label → accept → menu photo → staff Our menu), relink
  * with a reason, ask for another photo, withdraw, the Unlabelled photos
  * filter, venue isolation and a revoked manager. Managers are real venue
@@ -109,15 +109,6 @@ const card = (page: Page, label: string, who: Person) =>
     .filter({ hasText: label })
     .filter({ hasText: who.name })
 
-/** Clicks a card action, opening "More actions" first when it is tucked away. */
-async function cardAction(page: Page, scope: Locator, name: string) {
-  const button = scope.getByRole("button", { name, exact: true })
-  if (!(await button.isVisible())) {
-    await scope.getByRole("button", { name: "More actions" }).click()
-  }
-  await button.click()
-}
-
 async function statusFilter(page: Page, name: string) {
   await page
     .getByRole("group", { name: "Status" })
@@ -136,13 +127,26 @@ const staffProgress = (page: Page, covered: number) =>
     { exact: true }
   )
 
-/** Pages a manager can open; none may offer to add or upload photos. */
-async function expectNoAddControls(page: Page, path: string) {
+/** Add on the phone tab bar ("Add") or the desktop header ("Add photos"). */
+const addTrigger = (page: Page) =>
+  page.getByRole("button", { name: /^Add( photos)?(,|$)/ })
+
+/**
+ * Pages a manager can open. With an open grant (B02-c: R8 canUpload, the
+ * shared entry on, the default in this stack) each offers Add. The b01
+ * switch, which keeps today's workspace with no Add, is a server setting
+ * this stack can't flip per test: tests/unit/layout-session-guard.test.ts
+ * and tests/ui/manager-add-b02c.test.tsx cover it.
+ */
+async function expectAddControls(page: Page, path: string) {
   await page.goto(path)
   await expect(main(page)).toBeVisible()
-  const adding = /upload|add (a )?photo|add photos|^add\b|take a photo/i
-  await expect(page.getByRole("button", { name: adding })).toHaveCount(0)
-  await expect(page.getByRole("link", { name: adding })).toHaveCount(0)
+  await expect(addTrigger(page).first()).toBeVisible()
+}
+
+/** A manager whose access has ended: nothing to add with. */
+async function expectNoAddControls(page: Page) {
+  await expect(addTrigger(page)).toHaveCount(0)
   await expect(page.locator('input[type="file"]')).toHaveCount(0)
 }
 
@@ -213,7 +217,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     note("roles", "manager (link, code), staff, admin")
   })
 
-  test("Overview counts match the active menu; no page offers to add or upload photos", async ({
+  test("Overview counts match the active menu; with a grant every page offers Add", async ({
     browser,
   }, info) => {
     const w = await provisionManagerWorld()
@@ -248,12 +252,18 @@ test.describe("venue manager workspace (Phase 2)", () => {
       await expect(main(mgr).getByText(section)).toBeVisible()
     await evidence(mgr, "overview-counts")
 
-    // Menu lists every active item, grouped by section.
+    // Menu lists every active item, grouped by section, each with its own
+    // dish photo buttons now that the manager account can upload (B02-c).
     await mgr.goto("/manager/menu")
     for (const name of ["Soup", "Salad", "Pie", "Lager"])
       await expect(
         main(mgr).getByRole("link", { name, exact: true })
       ).toBeVisible()
+    await expect(
+      main(mgr)
+        .getByRole("button", { name: "Take a photo of this dish" })
+        .first()
+    ).toBeVisible()
 
     for (const path of [
       "/manager",
@@ -265,7 +275,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
       `/manager/review/contributors/${w.staffA1.id}`,
       "/manager/account",
     ]) {
-      await expectNoAddControls(mgr, path)
+      await expectAddControls(mgr, path)
     }
     // The photo itself is reachable through the private route.
     const thumb = await mgr.request.get(`/api/menu-photos/${soupPhoto}/thumb`, {
@@ -505,12 +515,15 @@ test.describe("venue manager workspace (Phase 2)", () => {
     ).toBeVisible()
 
     // Withdraw the relinked acceptance with a reason: Lager needs a photo again.
+    // The accepted Lager card offers Withdraw acceptance directly at both
+    // widths; the click waits for it while the list switches to Accepted.
     await statusFilter(mgr, "Accepted")
-    await cardAction(
-      mgr,
-      card(mgr, "Labelled: Salad", w.staffA1),
-      "Withdraw acceptance"
-    )
+    const accepted = card(mgr, "Labelled: Salad", w.staffA1).filter({
+      has: mgr.getByRole("heading", { level: 3, name: "Lager", exact: true }),
+    })
+    await accepted
+      .getByRole("button", { name: "Withdraw acceptance", exact: true })
+      .click()
     const withdraw = mgr.getByRole("dialog", {
       name: "Withdraw acceptance for Lager",
     })
@@ -630,6 +643,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
       await expect(
         mgrA.getByRole("navigation", { name: "Venue workspace" })
       ).toHaveCount(0)
+      await expectNoAddControls(mgrA)
     }
     await expect(mgrA.getByRole("button", { name: "Sign out" })).toBeVisible()
     await evidence(mgrA, "venue-access-unavailable")

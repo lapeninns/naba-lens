@@ -1,14 +1,8 @@
 import { devices, expect, test } from "@playwright/test"
 
-import {
-  amenityHrefs,
-  PROGRESS_LABEL,
-  staffCaptureHref,
-  UI_TEXT,
-} from "../../lib/amenities/contract"
+import { amenityHrefs, PROGRESS_LABEL } from "../../lib/amenities/contract"
 import {
   captureForm,
-  checkItem,
   checkState,
   currentSubmission,
   provisionAmenitiesWorld,
@@ -18,7 +12,7 @@ import {
   submitAndComplete,
 } from "./helpers/amenities-world"
 import { horizontalOverflow } from "./helpers/overflow"
-import { escape, STAFF_LANDING } from "./helpers/ui"
+import { expectTodoCheck, STAFF_LANDING, startTodoCheck } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -42,16 +36,11 @@ test.describe("amenity capture at phone width", () => {
 
     const staff = await signedInPage(browser, w.staffA, device)
     await expect(staff).toHaveURL(STAFF_LANDING)
-    const section = staff.getByRole("region", { name: UI_TEXT.staffSection })
-    await expect(checkItem(section, "darts")).toContainText(
-      PROGRESS_LABEL.needs_capture
-    )
+    const darts = await expectTodoCheck(staff, question("darts"), id)
+    await expect(darts.card).toContainText(PROGRESS_LABEL.needs_capture)
     expect((await horizontalOverflow(staff)).overflowPx).toBe(0)
 
-    await section.getByRole("link", { name: question("darts") }).tap()
-    await expect(staff).toHaveURL(
-      new RegExp(`${escape(staffCaptureHref(id))}$`)
-    )
+    await startTodoCheck(staff, question("darts"), id, "tap")
     const form = captureForm(staff)
     await form.answer("yes")
     await form.attach(photo)

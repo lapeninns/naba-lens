@@ -46,13 +46,18 @@ export function assigneeText(check: CheckSummary) {
     : "Unassigned"
 }
 
+/** When the answer was saved, not when its evidence was taken. */
 export function answeredText(check: CheckSummary) {
   if (!check.answeredAt) return null
   const who = check.answeredBy?.displayName ?? "a former team member"
-  return `Answered by ${who} on ${formatDate(check.answeredAt)}`
+  return `Recorded by ${who} on ${formatDate(check.answeredAt)}`
 }
 
-/** One check in a list: the question links to its page; facts wrap below. */
+/**
+ * One check in a list: the question links to its page and its target covers
+ * the whole row (at least 44px); facts wrap below. A row action sits above
+ * the link's target.
+ */
 export function CheckRow({
   check,
   href,
@@ -71,13 +76,15 @@ export function CheckRow({
   return (
     <li
       data-check-key={check.entry.key}
-      className="flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2 border-b border-line py-3 last:border-b-0"
+      data-check-id={check.id}
+      data-archived={check.status === "archived" || undefined}
+      className="relative flex min-h-11 min-w-0 flex-wrap items-start gap-x-4 gap-y-2 border-b border-line py-3 last:border-b-0 hover:bg-surface-2"
     >
       <div className="grid min-w-0 flex-1 basis-64 gap-1">
         <Link
           href={href}
           id={labelId}
-          className="text-body-touch font-semibold break-words text-ink underline-offset-3 hover:underline md:text-body"
+          className="rounded-control text-body-touch font-semibold break-words text-ink underline-offset-3 outline-none after:absolute after:inset-0 hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:text-body"
         >
           {check.entry.question}
         </Link>
@@ -104,7 +111,7 @@ export function CheckRow({
           </p>
         ) : null}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? <div className="relative shrink-0">{action}</div> : null}
     </li>
   )
 }

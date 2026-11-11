@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test"
 
+import { staffCaptureHref } from "../../../lib/amenities/contract"
 import type { SourceFile } from "./media"
 import { provisioner } from "./stack"
 
@@ -58,6 +59,54 @@ export async function staffTile(
 
 /** Where staff land after sign-in or a wrong-role redirect: Home. */
 export const STAFF_LANDING = /\/staff\/tasks$/
+
+/**
+ * Home's To do region. It is named by its heading's aria-label, which carries
+ * the count ("To do, 2 things to do"; "To do" when there is nothing).
+ */
+export const todoRegion = (page: Page) =>
+  page.getByRole("region", { name: /^To do(, \d+ things? to do)?$/ })
+
+/**
+ * An assigned amenity check in To do (CheckCard in
+ * components/nabalens/tasks/next-actions.tsx): the card with this exact
+ * question as its heading and the exact "Start check: <question>" link.
+ */
+export function todoCheck(page: Page, question: string) {
+  const name = `Start check: ${question}`
+  const card = todoRegion(page)
+    .getByRole("listitem")
+    .filter({
+      has: page.getByRole("heading", { level: 3, name: question, exact: true }),
+    })
+  return { card, start: card.getByRole("link", { name, exact: true }) }
+}
+
+/** The check is in To do once, and its action opens this check's capture page. */
+export async function expectTodoCheck(
+  page: Page,
+  question: string,
+  checkId: string
+) {
+  const check = todoCheck(page, question)
+  await expect(check.card).toHaveCount(1)
+  await expect(check.start).toHaveAttribute("href", staffCaptureHref(checkId))
+  return check
+}
+
+/** Starts an assigned check from To do and lands on its capture page. */
+export async function startTodoCheck(
+  page: Page,
+  question: string,
+  checkId: string,
+  how: "click" | "tap" = "click"
+) {
+  const { start } = await expectTodoCheck(page, question, checkId)
+  await start[how]()
+  await expect(page).toHaveURL(
+    new RegExp(`${escape(staffCaptureHref(checkId))}$`)
+  )
+}
 
 /** My portfolio is a page staff open, no longer where they land. */
 export async function openPortfolio(page: Page) {

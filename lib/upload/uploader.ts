@@ -1,13 +1,19 @@
 // Browser upload orchestration: preflight -> reserve -> transfer -> finalise.
 // Client-only; reserve/finalise are injected (server actions in the app).
 
-import { AbortedError, ReservationGoneError, TransferError } from "./errors"
+import {
+  AbortedError,
+  FinaliseRefusedError,
+  ReservationGoneError,
+  TransferError,
+} from "./errors"
 import { preflight } from "./preflight"
 import { signedPut, type XhrLike } from "./signed-put"
 import { SUPABASE_TUS_CHUNK_SIZE, tusTransfer, type TusAdapters } from "./tus"
 import type {
   ClientUploadLimits,
   FinaliseFn,
+  MediaKind,
   ReserveFn,
   ReserveResult,
   UploadError,
@@ -41,8 +47,14 @@ export type CreateUploaderOptions = {
 }
 
 export type MediaUploader = UploadFn & {
-  /** Number of uploads currently in flight (for the beforeunload guard). */
+  /** Number of uploads currently in flight, including those finalising. */
   activeCount(): number
+  /**
+   * Uploads that leaving the page would stop (for the beforeunload guard):
+   * reserving or transferring. One handed to the server's finalise, or found
+   * already ready, is not counted: the server finishes it either way.
+   */
+  stoppableCount(): number
 }
 
 export function createUploader(options: CreateUploaderOptions): MediaUploader {
@@ -58,6 +70,7 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
   } = options
   const endpoint = `${options.supabaseUrl.replace(/\/+$/, "")}/storage/v1/upload/resumable`
   let active = 0
+  let stoppable = 0
 
   const upload: UploadFn = async (file, uploadOptions) => {
     const { idempotencyKey, signal } = uploadOptions
@@ -75,6 +88,15 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
     if (signal?.aborted) return fail(aborted())
 
     active++
+    stoppable++
+    let handedOff = false
+    // From here the server owns the outcome; counted down once, whatever
+    // happens after.
+    const handOff = () => {
+      if (handedOff) return
+      handedOff = true
+      stoppable--
+    }
     try {
       onStateChange("uploading")
 
@@ -101,7 +123,11 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
         }
         return fail({
           code: "reserve_failed",
-          message: messageOf(error, "Could not start the upload."),
+          message: networkOr(
+            error,
+            checked.kind,
+            "Could not start the upload."
+          ),
           retryable: true,
         })
       }
@@ -117,6 +143,7 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
         // ran), maybe leaving its stored labels needing attention. Finalise
         // answers a ready asset at once and reports such a draft; with no
         // answer, the photo is still ready, just without that report.
+        handOff()
         onProgress(1)
         const labels = await finalise({ assetId, idempotencyKey })
           .then((result) =>
@@ -176,6 +203,7 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
       // Never finalise a cancelled upload. Once finalise starts it runs to
       // completion: the server owns validation from here.
       if (signal?.aborted) return fail(aborted())
+      handOff()
       onProgress(1)
       onStateChange("processing")
 
@@ -196,18 +224,32 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
           retryable: false,
         })
       } catch (error) {
+        if (error instanceof FinaliseRefusedError)
+          return fail({
+            code: "finalise_refused",
+            message: error.message,
+            retryable: false,
+          })
         return fail({
           code: "finalise_failed",
-          message: messageOf(error, "Could not confirm the upload."),
+          message: networkOr(
+            error,
+            checked.kind,
+            "Could not confirm the upload."
+          ),
           retryable: true,
         })
       }
     } finally {
+      handOff()
       active--
     }
   }
 
-  return Object.assign(upload, { activeCount: () => active })
+  return Object.assign(upload, {
+    activeCount: () => active,
+    stoppableCount: () => stoppable,
+  })
 }
 
 function aborted(): UploadError {
@@ -216,4 +258,27 @@ function aborted(): UploadError {
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback
+}
+
+/** A reserve or finalise whose reply never arrived; Retry reuses the key. */
+export function unconfirmedMessage(kind: MediaKind) {
+  return `We couldn't confirm this ${kind === "video" ? "video" : "photo"} saved. Tap Retry; nothing is sent twice.`
+}
+
+// fetch rejects with a TypeError whose text is the browser's own ("Failed to
+// fetch", "Load failed", "NetworkError when attempting to fetch resource.").
+function isNetworkError(error: unknown) {
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error &&
+      /failed to fetch|load failed|networkerror|network request failed/i.test(
+        error.message
+      ))
+  )
+}
+
+function networkOr(error: unknown, kind: MediaKind, fallback: string) {
+  return isNetworkError(error)
+    ? unconfirmedMessage(kind)
+    : messageOf(error, fallback)
 }

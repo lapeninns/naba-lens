@@ -60,6 +60,26 @@ export const GUIDE_RULES: string[] = [
 export const GUIDE_SAFETY =
   "Only take photos when it's safe. Never while carrying hot food or using a knife."
 
+/**
+ * Tips by kind of dish (B02 D8: the coordinator's default, owner to
+ * confirm). Text only: they add no photo-count rule, and Drinks has no
+ * example photos because the examples show food.
+ */
+export const GUIDE_SUBJECT_TIPS: { title: string; text: string }[] = [
+  {
+    title: "Tandoor and grilled dishes",
+    text: "Start with a 45° view of the whole plated item. If another photo adds useful detail, show the surface or a side view. Keep any accompaniments included in the serving visible.",
+  },
+  {
+    title: "Bread",
+    text: "Show the whole serving from above. An optional closer view can show its texture. Photograph it as it is normally served.",
+  },
+  {
+    title: "Drinks",
+    text: "Show the whole glass or cup, with the rim and base in frame. Keep the background clear and tap the drink to focus. Add another angle only if it shows useful detail.",
+  },
+]
+
 export const GUIDE_IMAGE_WIDTHS = { thumb: 480, large: 1200 } as const
 
 const BASE = "/guide/v1"

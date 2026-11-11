@@ -11,8 +11,14 @@ import {
 import type { CatalogueProp } from "@/components/nabalens"
 import { FixLabelsDialog, LabelSummary } from "@/components/nabalens/labels"
 import { Notice } from "@/components/nabalens/notice"
+import { useAdd } from "@/components/nabalens/shell/add-context"
 import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
 import { LABELS_LOST } from "@/components/nabalens/upload-label-drafts"
+import {
+  OPEN_ADD,
+  stoppedText,
+  useUploadStopped,
+} from "@/components/nabalens/upload-stopped"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -46,7 +52,12 @@ export const ATTENTION_COPY = {
   menuChanged: "The menu changed. Check the dish.",
   notSaved: "Labels not saved yet.",
   photoNotFinished:
-    "The photo didn't finish saving. These labels are kept and go on it when it does.",
+    "The photo didn't finish saving. These labels are kept and go on it if you choose the same photo again from Add.",
+  openAdd: OPEN_ADD,
+  working: "Working…",
+  discarded: "Labels discarded.",
+  fixed: "Labels saved.",
+  kept: "Labels kept.",
   conflict: "These labels were changed somewhere else. Check the dish.",
   otherFailure: "Labels couldn't be added.",
   unusableLabels: LABELS_LOST,
@@ -90,15 +101,20 @@ export function isUnusable(item: PendingLabelItem): boolean {
 /**
  * Rows Me lists: labels the server could not apply, and labels whose upload
  * failed (for now or for good). Labels still waiting for their photo to
- * finish uploading are not listed: they are saving, and Add shows them.
- * Only `failed` is an upload problem: upload_state has no other end state,
- * and a removed photo takes its stored labels with it.
+ * finish uploading are listed only once that upload has `stopped` (nothing
+ * on this device is sending it); otherwise they are saving, and Add shows
+ * them. Only `failed` is an upload end state, and a removed photo takes its
+ * stored labels with it.
  */
-export function attentionItems(
-  items: readonly PendingLabelItem[]
-): PendingLabelItem[] {
+export function attentionItems<T extends PendingLabelItem>(
+  items: readonly T[],
+  stopped?: (item: PendingLabelItem) => boolean
+): T[] {
   return items.filter(
-    (item) => item.status === "needs_attention" || item.uploadState === "failed"
+    (item) =>
+      item.status === "needs_attention" ||
+      item.uploadState === "failed" ||
+      (item.uploadState === "uploading" && !!stopped?.(item))
   )
 }
 
@@ -107,6 +123,10 @@ export function attentionReason(item: PendingLabelItem): string {
   // The list carries no reason for the upload's failure.
   if (isUnusable(item)) return cannotUse(null)
   if (isRetryable(item)) return ATTENTION_COPY.notSaved
+  // A stopped upload (only listed then). The list has no upload time, so it
+  // can't say whether choosing the photo again continues where it stopped.
+  if (item.status === "pending" && item.uploadState === "uploading")
+    return stoppedText(item.mediaType, null)
   switch (item.code) {
     case "catalogue_changed":
     case "unavailable_items":
@@ -247,7 +267,21 @@ export function NeedsAttention({
   )
   const [fixing, setFixing] = React.useState<Fixing | null>(null)
   const [confirming, setConfirming] = React.useState<Row | null>(null)
+  // What the last action did, said once in the section's one live region.
+  const [outcome, setOutcome] = React.useState("")
   const sessionEnded = useSessionEndedCatch()
+  const isStopped = useUploadStopped()
+  const openAdd = useAdd()
+  const headingRef = React.useRef<HTMLHeadingElement>(null)
+  const listRef = React.useRef<HTMLUListElement>(null)
+  // A row that left takes its focused button with it: focus goes to the next
+  // row's first action, else the heading, once it has gone.
+  const focusAfter = React.useRef<string | null>(null)
+  const stopped = (item: PendingLabelItem) =>
+    isStopped?.({ id: item.assetId, uploadState: item.uploadState }) ?? false
+  // Rows kept from the server: stopped uploads are told apart as they render,
+  // since this device's Add queue changes between reads.
+  const shown = attentionItems(items, stopped)
   // Rows discarded or fixed here: a read that started before the server
   // changed must not bring them back.
   const handled = React.useRef(new Set<string>())
@@ -261,7 +295,7 @@ export function NeedsAttention({
       (result) => {
         if (controller.signal.aborted) return
         if (result.ok) {
-          const next = attentionItems(result.items).filter(
+          const next = attentionItems(result.items, () => true).filter(
             (i) => !handled.current.has(i.assetId)
           )
           listed.current = new Set(next.map((i) => i.assetId))
@@ -293,10 +327,24 @@ export function NeedsAttention({
       return next
     })
 
-  const drop = (assetId: string) => {
+  const drop = (assetId: string, said: string) => {
+    const order = shown.map((i) => i.assetId)
+    const at = order.indexOf(assetId)
+    focusAfter.current = order[at + 1] ?? order[at - 1] ?? HEADING
     handled.current.add(assetId)
     setItems((current) => current.filter((i) => i.assetId !== assetId))
+    setOutcome(said)
   }
+
+  React.useEffect(() => {
+    const target = focusAfter.current
+    if (!target) return
+    focusAfter.current = null
+    const row = Array.from(
+      listRef.current?.querySelectorAll<HTMLElement>("[data-asset-id]") ?? []
+    ).find((el) => el.dataset.assetId === target)
+    ;(row?.querySelector("button") ?? headingRef.current)?.focus()
+  })
 
   const markBusy = (assetId: string, on: boolean) =>
     setBusy((current) => {
@@ -329,11 +377,12 @@ export function NeedsAttention({
       onFixed?.([item.assetId])
       return
     }
-    drop(item.assetId)
+    drop(item.assetId, ATTENTION_COPY.discarded)
     onDiscarded?.([item.assetId])
   }
 
   async function openFix(item: Row) {
+    if (busy.has(item.assetId)) return
     markBusy(item.assetId, true)
     setRowError(item.assetId, null)
     try {
@@ -349,7 +398,11 @@ export function NeedsAttention({
             state: "error",
             message: context.catalogueError ?? ATTENTION_COPY.openFailed,
           }
-      if (!asset && isRetryable(item) && !item.applied) {
+      if (
+        !asset &&
+        (isRetryable(item) || item.uploadState === "uploading") &&
+        !item.applied
+      ) {
         // The photo didn't finish saving, so it has no labels yet: fix the
         // kept labels against the venue's current menu.
         const menu = await api.loadCatalogue(item.venueId)
@@ -433,13 +486,14 @@ export function NeedsAttention({
       // stays (not on the photo yet) with the new labels, so re-read.
       setReloads((n) => n + 1)
     } else {
-      drop(item.assetId)
+      drop(item.assetId, ATTENTION_COPY.fixed)
       onFixed?.([item.assetId])
     }
     return result
   }
 
-  if (items.length === 0 && !loadError) return null
+  // An outcome keeps the heading (and focus on it) after the last row left.
+  if (shown.length === 0 && !loadError && !outcome) return null
 
   return (
     <section
@@ -448,20 +502,25 @@ export function NeedsAttention({
     >
       <div className="grid gap-1 px-1">
         <h2
+          ref={headingRef}
           id="needs-attention-heading"
-          className="flex items-center gap-2 font-display text-section-title text-ink"
+          tabIndex={-1}
+          className="flex items-center gap-2 font-display text-section-title text-ink outline-none"
         >
           {ATTENTION_COPY.heading}
-          {items.length > 0 ? (
+          {shown.length > 0 ? (
             <CountBadge
-              count={items.length}
-              label={items.length === 1 ? "photo" : "photos"}
+              count={shown.length}
+              label={shown.length === 1 ? "photo" : "photos"}
             />
           ) : null}
         </h2>
-        {items.length > 0 ? (
+        {shown.length > 0 ? (
           <p className="text-body text-ink-muted">{ATTENTION_COPY.intro}</p>
         ) : null}
+        <p role="status" className="text-body text-ink empty:hidden">
+          {outcome}
+        </p>
       </div>
       {loadError ? (
         <Notice
@@ -480,21 +539,26 @@ export function NeedsAttention({
           {loadError}
         </Notice>
       ) : null}
-      {items.length > 0 ? (
+      {shown.length > 0 ? (
         <ul
+          ref={listRef}
           aria-label={ATTENTION_COPY.list}
           className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
         >
-          {items.map((item, index) => (
+          {shown.map((item, index) => (
             <AttentionRow
               key={item.assetId}
               item={item}
-              position={`${index + 1} of ${items.length}`}
+              position={`${index + 1} of ${shown.length}`}
               busy={busy.has(item.assetId)}
               error={rowErrors.get(item.assetId) ?? null}
+              notFinished={
+                !item.applied && (isRetryable(item) || stopped(item))
+              }
               onFix={() => void openFix(item)}
               onDiscard={() => setConfirming(item)}
-              onKeep={() => drop(item.assetId)}
+              onKeep={() => drop(item.assetId, ATTENTION_COPY.kept)}
+              onOpenAdd={openAdd ? () => openAdd() : null}
             />
           ))}
         </ul>
@@ -558,30 +622,43 @@ export function NeedsAttention({
   )
 }
 
+const HEADING = "heading"
+
 function AttentionRow({
   item,
   position,
   busy,
   error,
+  notFinished,
   onFix,
   onDiscard,
   onKeep,
+  onOpenAdd,
 }: {
   item: Row
   /** "1 of 2": tells rows (and their same-named buttons) apart by ear. */
   position: string
   busy: boolean
   error: string | null
+  /** Its upload didn't finish: the labels wait for the photo chosen again. */
+  notFinished: boolean
   onFix: () => void
   onDiscard: () => void
   onKeep: () => void
+  /** Null outside the staff layout. */
+  onOpenAdd: (() => void) | null
 }) {
   const id = React.useId()
   const applied = item.applied
   const unusable = !applied && isUnusable(item)
   const kind = item.mediaType === "video" ? "Video" : "Photo"
+  // aria-disabled, not disabled: the pressed button keeps focus while busy.
+  const guard = (action: () => void) => () => {
+    if (!busy) action()
+  }
   return (
     <li
+      data-asset-id={item.assetId}
       aria-labelledby={`${id}-reason`}
       className="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 p-3"
     >
@@ -621,10 +698,13 @@ function AttentionRow({
             Labels: {ATTENTION_COPY.unusableLabels}
           </p>
         ) : null}
-        {!applied && isRetryable(item) ? (
+        {notFinished ? (
           <p className="text-meta text-ink-muted">
             {ATTENTION_COPY.photoNotFinished}
           </p>
+        ) : null}
+        {busy ? (
+          <p className="text-meta text-ink-muted">{ATTENTION_COPY.working}</p>
         ) : null}
         {error ? (
           <p role="alert" className="text-meta text-warn-fg">
@@ -633,14 +713,25 @@ function AttentionRow({
         ) : null}
       </div>
       <div className="col-span-2 flex flex-wrap gap-2">
+        {notFinished && onOpenAdd ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            aria-describedby={`${id}-reason`}
+            onClick={onOpenAdd}
+          >
+            {ATTENTION_COPY.openAdd}
+          </Button>
+        ) : null}
         {unusable ? null : (
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            disabled={busy}
+            aria-disabled={busy || undefined}
             aria-describedby={`${id}-reason`}
-            onClick={onFix}
+            onClick={guard(onFix)}
           >
             {ATTENTION_COPY.fix}
           </Button>
@@ -650,9 +741,9 @@ function AttentionRow({
             type="button"
             variant="quiet"
             size="sm"
-            disabled={busy}
+            aria-disabled={busy || undefined}
             aria-describedby={`${id}-reason`}
-            onClick={onKeep}
+            onClick={guard(onKeep)}
           >
             {ATTENTION_COPY.keep}
           </Button>
@@ -661,9 +752,9 @@ function AttentionRow({
             type="button"
             variant="quiet"
             size="sm"
-            disabled={busy}
+            aria-disabled={busy || undefined}
             aria-describedby={`${id}-reason`}
-            onClick={onDiscard}
+            onClick={guard(onDiscard)}
           >
             {ATTENTION_COPY.discard}
           </Button>

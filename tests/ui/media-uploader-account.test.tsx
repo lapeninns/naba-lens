@@ -43,6 +43,7 @@ vi.mock("@/lib/upload", async (importOriginal) => ({
   createUploader: () =>
     Object.assign(async () => ({ assetId: "asset-1", state: "ready" }), {
       activeCount: () => 0,
+      stoppableCount: () => 0,
     }),
   localUploadKeyStore: () => mocks.keys,
 }))

@@ -280,10 +280,13 @@ describe("Home: working list beside the legacy checks", () => {
         workingList={LIST}
       />
     )
-    const lists = screen.getAllByRole("list", { name: "Amenity checks" })
-    expect(lists).toHaveLength(2)
-    expect(within(lists[1]).getAllByRole("listitem")).toHaveLength(1)
-    expect(within(lists[1]).getByText("Is there a cot?")).toBeTruthy()
+    // The two lists are named apart (HM-11).
+    expect(
+      screen.getAllByRole("list", { name: "Amenity checks" })
+    ).toHaveLength(1)
+    const legacy = screen.getByRole("list", { name: "Other amenity checks" })
+    expect(within(legacy).getAllByRole("listitem")).toHaveLength(1)
+    expect(within(legacy).getByText("Is there a cot?")).toBeTruthy()
   })
 
   it("says To do may be incomplete when the working list can't be read", () => {

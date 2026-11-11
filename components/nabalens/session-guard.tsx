@@ -127,6 +127,15 @@ function count(n: number, one: string, many: string) {
   return `${n} ${n === 1 ? one : many}`
 }
 
+/** What to tap once signed in again, for the files this tab still holds. */
+function retryWords(stopped: number) {
+  return stopped === 0
+    ? "tap Retry"
+    : stopped === 1
+      ? "tap Retry on the stopped photo"
+      : "tap Retry on each stopped photo"
+}
+
 /**
  * E7 Sign in again: a sheet over the page that sends a sign-in link, so the
  * page, and anything waiting on it, stays where it is. `uploads` speaks about
@@ -281,21 +290,26 @@ export function SignInAgainSheet({
               </DialogDescription>
             )
           ) : guard.email ? (
+            // This tab still holds the stopped files: Retry carries on with
+            // them. Choosing them again (perhaps in the tab the email link
+            // opens) would start a second upload.
             <DialogDescription>
-              We&apos;ll send a sign-in link to{" "}
+              We&apos;ll send a sign-in link
+              {guard.verifyCode ? " and code" : ""} to{" "}
               <strong className="font-bold [overflow-wrap:anywhere] text-ink">
                 {guard.email}
               </strong>
-              . Open it on this phone, then choose the stopped{" "}
-              {stopped === 1 ? "photo" : "photos"} again to finish{" "}
-              {stopped === 1 ? "it" : "them"}. Nothing is sent twice.
+              .{" "}
+              {guard.verifyCode
+                ? "Sign in again here"
+                : "Open it on this phone, come back to this page"}
+              , then {retryWords(stopped)}. Nothing is sent twice.
             </DialogDescription>
           ) : (
             // Off-deck: no email on the profile, so sign in on /login instead.
             <DialogDescription>
-              Sign in again in a new tab, then choose the stopped{" "}
-              {stopped === 1 ? "photo" : "photos"} again to finish{" "}
-              {stopped === 1 ? "it" : "them"}. Nothing is sent twice.
+              Sign in again in a new tab, come back to this page, then{" "}
+              {retryWords(stopped)}. Nothing is sent twice.
             </DialogDescription>
           )}
         </DialogHeader>

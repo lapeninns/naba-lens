@@ -13,6 +13,8 @@ import {
   participationOf,
   type PreparationState,
 } from "@/components/nabalens/coverage/overview-body"
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
+import { TriageCard } from "@/components/nabalens/manager/overview/triage-card"
 import { buttonVariants } from "@/components/ui/button"
 import {
   getMenuCoverage,
@@ -21,7 +23,11 @@ import {
 } from "@/lib/server/coverage"
 import { periodView, shiftPeriod } from "@/lib/server/coverage/time"
 
-import { venueCoverage, type ManageContext } from "../context"
+import {
+  readVenueTriage,
+  venueCoverage,
+  type ManageContext,
+} from "../context"
 import { ManageFrame } from "../frame"
 import { PrepareActionControl, RetryLoadButton } from "../overview-controls"
 
@@ -32,9 +38,10 @@ const primaryLink = buttonVariants({ variant: "primary", size: "touch" })
 export async function OverviewScreen({ ctx }: { ctx: ManageContext }) {
   const coverage = await venueCoverage(ctx)
   const { summary, period } = coverage
-  const [preparation, roster] = await Promise.all([
+  const [preparation, roster, triage] = await Promise.all([
     getPreparationStatus(ctx.actor, { venueId: ctx.venueId }),
     getVenueRoster(ctx.actor, { venueId: ctx.venueId }),
+    readVenueTriage(ctx),
   ])
   const hrefs = manageHrefs(ctx.basePath)
   const title = "Overview"
@@ -120,6 +127,21 @@ export async function OverviewScreen({ ctx }: { ctx: ManageContext }) {
       actions={actionLeads ? undefined : actions}
       pendingReview={summary.pendingReview}
     >
+      {triage ? (
+        <TriageCard
+          rows={triage}
+          hrefs={{
+            // A staff-held grant reviews menu photos per item; an admin on
+            // the venue's Review page.
+            menu_photos:
+              ctx.mode === "admin"
+                ? managerHrefs.adminMenuPhotos(ctx.venueId)
+                : hrefs.menuItems,
+            findings: `${hrefs.amenities}#amenities-to-confirm`,
+            checklist: hrefs.review,
+          }}
+        />
+      ) : null}
       <OverviewBody
         venueName={ctx.venue.name}
         period={period}

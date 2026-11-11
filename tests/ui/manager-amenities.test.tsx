@@ -51,6 +51,13 @@ vi.mock("@/app/_amenities/actions", () => ({
   setCheckNotesAction: vi.fn(),
 }))
 
+const r8 = vi.hoisted(() => ({
+  managerCapabilities: vi.fn(
+    async (): Promise<{ canUpload: boolean } | null> => null
+  ),
+}))
+vi.mock("@/app/manager/entry", () => r8)
+
 const capture = vi.hoisted(() => ({
   CaptureScreen: vi.fn<(props: Record<string, unknown>) => null>(() => null),
 }))
@@ -237,7 +244,7 @@ describe("/manager/amenities/[checkId]/capture", () => {
       actor,
       checkId: WIFI_CHECK.id,
       mode: "manager",
-      // Manager accounts can't upload (reserve_media_asset is staff-only).
+      // R8 unread: the form attaches existing media only, as before B02-c.
       canUpload: false,
       venueId: VENUE.id,
       venueName: VENUE.name,
@@ -247,5 +254,29 @@ describe("/manager/amenities/[checkId]/capture", () => {
     })
     // No staff AppShell around it: the workspace layout is the shell.
     expect(within(container).queryByRole("navigation")).toBeNull()
+  })
+
+  it("offers a new upload as evidence only while R8 says the account can upload (B02-c)", async () => {
+    const canUpload = async () => {
+      capture.CaptureScreen.mockClear()
+      await show(ManagerAmenityCapturePage({ params: params(WIFI_CHECK.id) }))
+      return capture.CaptureScreen.mock.calls[0][0].canUpload
+    }
+    r8.managerCapabilities.mockResolvedValue({ canUpload: true })
+    expect(await canUpload()).toBe(true)
+    expect(r8.managerCapabilities).toHaveBeenCalledWith(VENUE.id)
+    r8.managerCapabilities.mockResolvedValue({ canUpload: false })
+    expect(await canUpload()).toBe(false)
+    r8.managerCapabilities.mockResolvedValue(null)
+    expect(await canUpload()).toBe(false)
+    // The entry off for the venue: today's form, whatever R8 says.
+    r8.managerCapabilities.mockResolvedValue({ canUpload: true })
+    vi.stubEnv("NABALENS_CONTRIBUTION_ENTRY", "b01")
+    try {
+      expect(await canUpload()).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+      r8.managerCapabilities.mockResolvedValue(null)
+    }
   })
 })

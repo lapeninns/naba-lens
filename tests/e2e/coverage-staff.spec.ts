@@ -327,18 +327,27 @@ async function staffJourney(
   setup: Setup,
   browser: Browser
 ) {
-  const { label } = londonMonth()
-  const monthly = page.getByRole("region", {
-    name: `Your photos for ${label}`,
-  })
+  // "This month" exactly: "Other tasks this month" is a region too, and its
+  // task card shows the same "N of 2 photos accepted" as an img.
+  const monthly = page.getByRole("region", { name: "This month", exact: true })
+  const monthProgress = (accepted: number) =>
+    monthly.getByRole("progressbar", {
+      name: `${accepted} of 2 photos accepted`,
+      exact: true,
+    })
   const assigned = page.getByRole("list", { name: "Assigned tasks" })
+  const taskCard = assigned.getByRole("listitem").filter({
+    has: page.getByRole("link", { name: setup.title, exact: true }),
+  })
 
   // Landing: Home with the month's target and the assigned task.
   await expect(page).toHaveURL(STAFF_LANDING)
   await expect(page.getByRole("heading", { name: "Home" })).toBeVisible()
-  await expect(monthly.getByLabel("0 of 2 photos accepted")).toBeVisible()
+  await expect(monthProgress(0)).toBeVisible()
   await expect(assigned.getByRole("link", { name: setup.title })).toBeVisible()
-  await expect(assigned.getByLabel("0 of 2 photos accepted")).toBeVisible()
+  await expect(
+    taskCard.getByRole("img", { name: "0 of 2 photos accepted", exact: true })
+  ).toBeVisible()
 
   // Open the task, take/upload two photos, send them.
   await assigned.getByRole("link", { name: setup.title }).click()
@@ -388,7 +397,7 @@ async function staffJourney(
   await review(setup.manager, sent[1]!, "needs_another_photo", reason)
 
   await page.goto("/staff/tasks")
-  await expect(monthly.getByLabel("1 of 2 photos accepted")).toBeVisible()
+  await expect(monthProgress(1)).toBeVisible()
   const replacements = page.getByRole("region", { name: /To do/ })
   await expect(replacements.getByText(reason)).toBeVisible()
   await replacements
@@ -414,11 +423,9 @@ async function staffJourney(
 
   // Done: target met, task complete, nothing left to replace.
   await page.goto("/staff/tasks")
-  await expect(monthly.getByLabel("2 of 2 photos accepted")).toBeVisible()
+  await expect(monthProgress(2)).toBeVisible()
   await expect(monthly.getByText("Target met")).toBeVisible()
-  await expect(
-    assigned.getByRole("listitem").filter({ hasText: setup.title })
-  ).toContainText("Complete")
+  await expect(taskCard).toContainText("Complete")
   await expect(
     page
       .getByRole("region", { name: /To do/ })
@@ -458,9 +465,9 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     const setupList = page.getByRole("list", { name: "Profile setup" })
     await expect(setupList).toContainText("Team (FOH or BOH)")
     await expect(setupList).toContainText("Ask an admin to set your team.")
-    const { label } = londonMonth()
     const monthly = page.getByRole("region", {
-      name: `Your photos for ${label}`,
+      name: "This month",
+      exact: true,
     })
     await expect(monthly).toBeVisible()
     await expect(monthly.getByText("Target met")).toHaveCount(0)

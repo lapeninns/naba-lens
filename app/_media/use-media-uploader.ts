@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/browser"
 import { getSupabasePublicEnv } from "@/lib/supabase/env"
 import {
   createUploader,
+  FinaliseRefusedError,
   guardBeforeUnload,
   localUploadKeyStore,
   ReservationGoneError,
@@ -40,7 +41,13 @@ export function useMediaUploader(): Uploader {
       },
       finalise: async (input) => {
         const result = await finaliseUpload(input)
-        if (!result.ok) throw new Error(result.message)
+        if (!result.ok) {
+          // 403: the server won't finish this upload (access ended); a 503
+          // or any other failure stays retryable.
+          throw result.status === 403
+            ? new FinaliseRefusedError(result.message)
+            : new Error(result.message)
+        }
         return result.result
       },
       supabaseUrl: url,
@@ -51,8 +58,10 @@ export function useMediaUploader(): Uploader {
     })
   }, [supabase])
 
+  // Only reserving or transferring stops when the page goes; a file the
+  // server is finalising is saved either way.
   React.useEffect(
-    () => guardBeforeUnload(() => upload.activeCount() > 0),
+    () => guardBeforeUnload(() => upload.stoppableCount() > 0),
     [upload]
   )
 

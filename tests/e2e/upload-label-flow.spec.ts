@@ -38,6 +38,7 @@ import {
   modalsOpened,
   phone,
   pickFiles,
+  recordBudget,
   resetModals,
   savingSheet,
   seedUploadingAsset,
@@ -102,42 +103,73 @@ function acceptPrompts(page: Page) {
 // a. Labels survive log out and reload; the guard counts unsaved labels
 // ---------------------------------------------------------------------------
 
-test("a1 log out while the photo is still saving: its labels land on it with no staff action (F2)", async ({
+test("a1 log out while the photo is processing: no warning, and its labels land on it with no staff action (F2, UP-05)", async ({
   browser,
 }) => {
   test.setTimeout(180_000)
   const page = await signedInPage(browser, world.staffA, phone(360))
-  acceptPrompts(page)
+  // Any prompt is accepted so sign-out is never left hanging, and recorded:
+  // a beforeunload warning on this log out is a failure.
+  const prompts: string[] = []
+  page.on("dialog", (dialog) => {
+    prompts.push(`${dialog.type()}: ${dialog.message()}`)
+    void dialog.accept().catch(() => {})
+  })
   // Finalise is held until the labels are kept on the server, then runs on
   // the server while its answer is held: the phone still says "Saving…".
   const finalise = await gate(page, isFinalise, { holdResponse: true })
-  await page.goto("/staff")
-  const photo = await syntheticJpeg(`${unique("a1")}.jpg`)
-  const sheet = await addFromLibrary(page, [photo.path])
-  await chooseDish(sheet, COMMON_FIELD, "bhaji", /^Onion Bhaji/)
+  try {
+    await page.goto("/staff")
+    const photo = await syntheticJpeg(`${unique("a1")}.jpg`)
+    const sheet = await addFromLibrary(page, [photo.path])
+    await chooseDish(sheet, COMMON_FIELD, "bhaji", /^Onion Bhaji/)
 
-  const id = await assetIdFor(photo.name)
-  await finalise.seen
-  await expect.poll(() => keptLabels(id), { timeout: 30_000 }).toBe("pending")
-  finalise.forward()
-  await finalise.answered
-  await expect(fileRow(sheet, photo.name)).toContainText("Saving…")
+    const id = await assetIdFor(photo.name)
+    await finalise.seen
+    await expect.poll(() => keptLabels(id), { timeout: 30_000 }).toBe("pending")
+    finalise.forward()
+    await finalise.answered
 
-  await doneButton(sheet).click()
-  await expect(sheet).toBeHidden()
-  await page.getByRole("button", { name: "Log out", exact: true }).click()
-  const guard = page.getByRole("alertdialog", { name: "Log out now?" })
-  await expect(guard).toContainText("1 upload stops")
-  // The server already keeps the labels, so they are not counted as unsaved.
-  await expect(guard).not.toContainText("haven't saved yet")
-  await guard.getByRole("button", { name: "Log out anyway" }).click()
-  // Log out is a Server Action too, queued behind finalise's held answer.
-  finalise.deliver()
-  await page.waitForURL(/\/login/)
+    // The server has finished the photo and applied its kept labels; only
+    // the answer is still held, so the phone shows it processing.
+    await expect.poll(() => uploadState(id), { timeout: 30_000 }).toBe("ready")
+    await expect
+      .poll(() => labelsOn(id), { timeout: 30_000 })
+      .toBe("Onion Bhaji")
+    await expect.poll(() => keptLabels(id), { timeout: 30_000 }).toBe("")
+    await expect(fileRow(sheet, photo.name)).toContainText("Saving…")
 
-  expect(labelsOn(id)).toBe("Onion Bhaji")
-  expect(keptLabels(id)).toBe("")
-  expect(uploadState(id)).toBe("ready")
+    await doneButton(sheet).click()
+    await expect(sheet).toBeHidden()
+    // Processing isn't work leaving stops (UP-05) and the labels are on the
+    // server, so Log out goes straight through. It is a plain form POST, not
+    // a Server Action, so it never waits for the held finalise answer.
+    await page.getByRole("button", { name: "Log out", exact: true }).click()
+    const guard = page.getByRole("alertdialog", { name: "Log out now?" })
+    const signInHeading = page.getByRole("heading", {
+      name: "Sign in",
+      exact: true,
+    })
+    await expect(guard.or(signInHeading)).toBeVisible({ timeout: 30_000 })
+    await expect(guard).toHaveCount(0)
+    await expect(page.getByRole("alertdialog")).toHaveCount(0)
+    await expect(page).toHaveURL(/\/login\?signed_out=1$/)
+    await expect(signInHeading).toBeVisible()
+    expect(prompts).toEqual([])
+    // Signed out for real: staff pages send this browser back to sign in.
+    await page.goto("/staff")
+    await expect(page).toHaveURL(/\/login\?next=%2Fstaff$/)
+    await expect(signInHeading).toBeVisible()
+
+    expect(uploadState(id)).toBe("ready")
+    expect(labelsOn(id)).toBe("Onion Bhaji")
+    expect(keptLabels(id)).toBe("")
+    expect(assetIdsNamed(photo.name)).toEqual([id])
+  } finally {
+    // Release a hold left by an earlier failure; the answer has no page now.
+    finalise.forward()
+    finalise.deliver()
+  }
 })
 
 test("a2 leaving or logging out warns while labels are not on the server yet; they then save on their own (F2)", async ({
@@ -330,6 +362,13 @@ test("c menu changed mid-upload: Needs attention, Fix labels re-picks and saves 
 // ---------------------------------------------------------------------------
 // d, e. Taps and modals at phone widths (J5, J1, J3)
 // ---------------------------------------------------------------------------
+// e1 and e2 enter through the global Add, which asks "What are you adding?"
+// first (B02-02); their counts include that tap and dialog. The owner kept
+// the chooser and approved the measured budgets at both widths: e1 6 taps
+// and 3 modals, e2 9 taps and 3 modals. d keeps the J5 limits.
+
+const E1_BUDGET = { taps: 6, modals: 3 }
+const E2_BUDGET = { taps: 9, modals: 3 }
 
 for (const width of [360, 412]) {
   test(`d @${width}: known dish from Our menu in at most 2 taps and 1 modal (J5)`, async ({
@@ -403,9 +442,9 @@ for (const width of [360, 412]) {
       .toBe("Onion Bhaji")
   })
 
-  test(`e1 @${width}: Add with one dish in at most 5 taps and 2 modals`, async ({
+  test(`e1 @${width}: Add with one dish in at most ${E1_BUDGET.taps} taps and ${E1_BUDGET.modals} modals`, async ({
     browser,
-  }) => {
+  }, testInfo) => {
     test.setTimeout(180_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
@@ -421,17 +460,22 @@ for (const width of [360, 412]) {
     await expect(sheet).toBeHidden()
 
     const modals = await modalsOpened(page)
-    expect(taps.taps, taps.steps.join(" > ")).toBeLessThanOrEqual(5)
-    expect(modals.count, modals.names.join(", ")).toBeLessThanOrEqual(2)
+    await recordBudget(testInfo, `e1-${width}`, taps, modals, E1_BUDGET)
+    expect(taps.taps, taps.steps.join(" > ")).toBeLessThanOrEqual(
+      E1_BUDGET.taps
+    )
+    expect(modals.count, modals.names.join(", ")).toBeLessThanOrEqual(
+      E1_BUDGET.modals
+    )
     const id = await assetIdFor(photo.name)
     await expect
       .poll(() => labelsOn(id), { timeout: 90_000 })
       .toBe("Onion Bhaji")
   })
 
-  test(`e2 @${width}: batch of 3 with one exception in at most 8 taps`, async ({
+  test(`e2 @${width}: batch of 3 with one exception in at most ${E2_BUDGET.taps} taps and ${E2_BUDGET.modals} modals`, async ({
     browser,
-  }) => {
+  }, testInfo) => {
     test.setTimeout(240_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
@@ -471,8 +515,13 @@ for (const width of [360, 412]) {
     await expect(sheet).toBeHidden()
 
     const modals = await modalsOpened(page)
-    expect(taps.taps, taps.steps.join(" > ")).toBeLessThanOrEqual(8)
-    expect(modals.count, modals.names.join(", ")).toBeLessThanOrEqual(2)
+    await recordBudget(testInfo, `e2-${width}`, taps, modals, E2_BUDGET)
+    expect(taps.taps, taps.steps.join(" > ")).toBeLessThanOrEqual(
+      E2_BUDGET.taps
+    )
+    expect(modals.count, modals.names.join(", ")).toBeLessThanOrEqual(
+      E2_BUDGET.modals
+    )
     const ids = await Promise.all(photos.map((p) => assetIdFor(p.name)))
     await expect
       .poll(() => ids.map(labelsOn), { timeout: 120_000 })

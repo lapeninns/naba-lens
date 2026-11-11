@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { useRouter } from "next/navigation"
 import { XIcon } from "@phosphor-icons/react"
 
@@ -26,7 +27,9 @@ const CHIP =
 /**
  * Review filters: status, section and contributor, plus a removable chip
  * when the view shows one item. Every change replaces the URL without
- * scrolling, and the page reads the new view.
+ * scrolling, and the page reads the new view. The choice shows at once,
+ * before the server's render arrives; pass the list's `startTransition` so
+ * the list can say it is updating.
  */
 export function ReviewFilters({
   scope,
@@ -37,6 +40,7 @@ export function ReviewFilters({
   fixedContributorId,
   defaultStatus = "pending",
   itemName,
+  startTransition,
 }: {
   scope: ReviewScope
   view: ReviewView
@@ -48,18 +52,25 @@ export function ReviewFilters({
   fixedContributorId?: string | null
   defaultStatus?: QueueStatus
   itemName?: string | null
+  startTransition?: React.TransitionStartFunction
 }) {
   const router = useRouter()
+  const [, startOwn] = React.useTransition()
+  const start = startTransition ?? startOwn
+  const [shown, setShown] = React.useOptimistic(view)
   const go = (next: Partial<ReviewView>) =>
-    router.replace(
-      reviewHref(
-        scope,
-        { ...view, ...next },
-        fixedContributorId,
-        defaultStatus
-      ),
-      { scroll: false }
-    )
+    start(() => {
+      setShown({ ...view, ...next })
+      router.replace(
+        reviewHref(
+          scope,
+          { ...view, ...next },
+          fixedContributorId,
+          defaultStatus
+        ),
+        { scroll: false }
+      )
+    })
   const statuses = REVIEW_STATUS_ORDER.filter(
     (s) => s !== "mine" || showMine || view.status === "mine"
   )
@@ -73,14 +84,16 @@ export function ReviewFilters({
       <div
         role="group"
         aria-label={REVIEW_COPY.statusLabel}
-        className="-mx-(--page-gutter) [scrollbar-width:none] overflow-x-auto px-(--page-gutter) py-1 contain-inline-size md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden"
+        className="py-1"
       >
-        <div className="inline-flex gap-2">
+        {/* Wraps rather than scrolls: at 320px a scrolled row hides the last
+            pills with no cue. */}
+        <div className="flex flex-wrap gap-2">
           {statuses.map((status) => (
             <button
               key={status}
               type="button"
-              aria-pressed={view.status === status}
+              aria-pressed={shown.status === status}
               className={SEGMENT}
               onClick={() => go({ status })}
             >
@@ -98,7 +111,7 @@ export function ReviewFilters({
             <OptionSelect
               aria-label={REVIEW_COPY.sectionLabel}
               options={sections}
-              value={view.sectionId}
+              value={shown.sectionId}
               emptyLabel={REVIEW_COPY.allSections}
               onValueChange={(sectionId) => go({ sectionId })}
             />
@@ -112,14 +125,14 @@ export function ReviewFilters({
             <OptionSelect
               aria-label={REVIEW_COPY.contributorLabel}
               options={contributors}
-              value={view.contributorId}
+              value={shown.contributorId}
               emptyLabel={REVIEW_COPY.allContributors}
               onValueChange={(contributorId) => go({ contributorId })}
             />
           </div>
         ) : null}
       </div>
-      {view.itemId ? (
+      {shown.itemId ? (
         <div>
           <button
             type="button"

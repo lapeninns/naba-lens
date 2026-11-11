@@ -13,11 +13,18 @@ import {
   type DeleteImpact,
   type MediaItem,
 } from "@/components/nabalens"
+import {
+  deleteWarning,
+  type DeleteWarning,
+} from "@/components/nabalens/delete-impact/copy"
 import { Button } from "@/components/ui/button"
 import type { MediaPage } from "@/lib/server/media/types"
 
-import { deleteMedia } from "./actions"
+import { deleteMedia, type DeleteEvidenceResult } from "./actions"
 import { usePreviewRecovery } from "./preview-recovery"
+
+/** How long the delete confirm waits for the evidence read (HM-04). */
+const DELETE_EVIDENCE_WAIT_MS = 10_000
 
 export type LoadPage = (
   cursor: string | null
@@ -68,6 +75,11 @@ type MediaGalleryProps = {
    * it. Without it the confirm says nothing about tasks or targets.
    */
   getDeleteImpact?: (item: MediaItem) => DeleteImpact | undefined
+  /**
+   * Reads what deleting the caller's own file does to venue answers (HM-04)
+   * as the delete confirm opens. Only the owner's own gallery passes it.
+   */
+  readDeleteEvidence?: (assetId: string) => Promise<DeleteEvidenceResult>
   /** Admin views only: tile names include the original file name. */
   showFileName?: boolean
   /** `feed`: posts on the grey canvas (Photos); default square tiles. */
@@ -140,6 +152,7 @@ export function MediaGallery({
   canLabel = false,
   showLabelBadge = false,
   getDeleteImpact,
+  readDeleteEvidence,
   showFileName = false,
   layout = "grid",
   onChanged,
@@ -154,6 +167,43 @@ export function MediaGallery({
   const [openId, setOpenId] = React.useState<string | null>(null)
   const [viewerOpen, setViewerOpen] = React.useState(false)
   const [deleting, setDeleting] = React.useState<MediaItem | null>(null)
+  const [evidence, setEvidence] = React.useState<
+    "checking" | DeleteWarning | undefined
+  >(undefined)
+  // Only the latest open confirm's read may set its warning.
+  const evidenceRequest = React.useRef(0)
+
+  function openDelete(item: MediaItem) {
+    setDeleting(item)
+    evidenceRequest.current += 1
+    if (!readDeleteEvidence) {
+      setEvidence(undefined)
+      return
+    }
+    const request = evidenceRequest.current
+    setEvidence("checking")
+    const settle = (value: DeleteWarning | undefined) => {
+      if (evidenceRequest.current !== request) return
+      clearTimeout(timer)
+      setEvidence(value)
+    }
+    // A read that never answers must not hold Delete: say it wasn't checked.
+    const timer = setTimeout(
+      () => settle(deleteWarning(null)),
+      DELETE_EVIDENCE_WAIT_MS
+    )
+    readDeleteEvidence(item.id).then(
+      (result) =>
+        settle(
+          result.status === "ok"
+            ? deleteWarning(result.impact)
+            : result.status === "missing"
+              ? undefined
+              : deleteWarning(null)
+        ),
+      () => settle(deleteWarning(null))
+    )
+  }
   const [downloadError, setDownloadError] = React.useState<{
     id: string
     message: string
@@ -429,7 +479,7 @@ export function MediaGallery({
           downloadError?.id === openId ? downloadError.message : null
         }
         getPortfolioHref={getPortfolioHref}
-        onDelete={canDelete ? (item) => setDeleting(item) : undefined}
+        onDelete={canDelete ? openDelete : undefined}
         onEditLabels={canLabel ? (item) => setLabelIds([item.id]) : undefined}
       />
       {canLabel ? (
@@ -459,13 +509,17 @@ export function MediaGallery({
       <ConfirmDeleteDialog
         open={deleting !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleting(null)
+          if (open) return
+          setDeleting(null)
+          evidenceRequest.current += 1
+          setEvidence(undefined)
         }}
         mediaType={deleting?.mediaType}
         // Only the admin views offer downloads; there the confirm names the
         // owner of the file being removed.
         ownerName={getDownloadHref ? deleting?.contributorName : undefined}
         impact={deleting ? getDeleteImpact?.(deleting) : undefined}
+        evidence={deleting ? evidence : undefined}
         onConfirm={async () => {
           if (!deleting) return
           const result = await deleteMedia(deleting.id)

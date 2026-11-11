@@ -8,6 +8,7 @@ import {
 } from "@/lib/menus/types"
 import { ensureMediaOriginalArchived } from "@/lib/server/archive"
 import { labelSaveMessage, tryLoadLabelSummaries } from "@/lib/server/labels"
+import { knowledgeRpc } from "@/lib/server/knowledge/rpc"
 import { touchMediaReservation } from "@/lib/server/lifecycle/cleanup"
 
 import { validationMessage } from "./errors"
@@ -71,6 +72,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 type AssetRow = {
   id: string
   uploader_id: string
+  venue_id: string
   original_path: string
   original_filename: string
   media_type: "image" | "video"
@@ -88,11 +90,12 @@ const notFound: Outcome<never> = {
 }
 
 async function readOwnAsset(actor: MediaActor, assetId: string) {
-  // RLS: active staff read only their own, non-deleted rows.
+  // RLS: active staff read only their own, non-deleted rows; a manager
+  // account only its own manager-era rows.
   const { data, error } = await actor.db
     .from("media_assets")
     .select(
-      "id, uploader_id, original_path, original_filename, media_type, upload_state, client_upload_key, size_bytes, updated_at"
+      "id, uploader_id, venue_id, original_path, original_filename, media_type, upload_state, client_upload_key, size_bytes, updated_at"
     )
     .eq("id", assetId)
     .eq("uploader_id", actor.profile.id)
@@ -238,6 +241,36 @@ async function validateStored(
 }
 
 /**
+ * A manager account finishes an upload only while it still manages the
+ * upload's venue (B02-c), as the storage write trigger requires; null when
+ * it may.
+ */
+async function managerUploadEnded(
+  actor: MediaActor,
+  venueId: string
+): Promise<Outcome<never> | null> {
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "my_venue_capabilities",
+    { p_venue_id: null }
+  )
+  if (error)
+    return {
+      ok: false,
+      status: 503,
+      message: "Could not check this file right now. Try again.",
+    }
+  return data?.canUpload && data.venueId === venueId
+    ? null
+    : {
+        ok: false,
+        status: 403,
+        message:
+          "Your venue manager access has ended, so this upload can't be finished.",
+      }
+}
+
+/**
  * Finalise an upload (spec §5 steps 4–5). Idempotent: a ready asset returns
  * ready; a concurrent call waits for the first; a crashed claim is taken over.
  * Validates the stored bytes with lib/media (never the browser's MIME type),
@@ -248,8 +281,12 @@ export async function finaliseAsset(
   actor: MediaActor,
   input: FinaliseRequest
 ): Promise<Outcome<FinaliseResponse>> {
-  if (actor.profile.role !== "staff") {
-    return { ok: false, status: 403, message: "Only staff can upload." }
+  if (actor.profile.role !== "staff" && actor.profile.role !== "manager") {
+    return {
+      ok: false,
+      status: 403,
+      message: "Only staff and venue manager accounts can upload.",
+    }
   }
   if (typeof input?.assetId !== "string" || !UUID.test(input.assetId)) {
     return notFound
@@ -261,6 +298,10 @@ export async function finaliseAsset(
     return notFound
   }
   if (row.upload_state === "ready") return readyWithAttention(actor, row.id)
+  if (actor.profile.role === "manager") {
+    const ended = await managerUploadEnded(actor, row.venue_id)
+    if (ended) return ended
+  }
 
   // Finalise begins: record upload activity for cleanup (lifecycle's
   // recordUploadActivity). Skipped for `processing`, which cleanup never

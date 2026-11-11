@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { Database } from "@/lib/db/types"
+import { redactError } from "@/lib/server/log/redact"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import { readAccess, resolveVenue } from "./context"
@@ -313,11 +314,54 @@ export async function listOurMenuItems(
   const rows = data ?? []
   const page = rows.slice(0, ITEMS_PAGE)
   const last = rows.length > ITEMS_PAGE ? page[page.length - 1] : null
+  const mine = await myWaitingByItem(
+    actor,
+    venue.venueId,
+    page.map((r) => r.item_id)
+  )
   return {
     ok: true,
-    items: page.map((r) => itemView(r, venue.canReview)),
+    items: page.map((r) => {
+      const view = itemView(r, venue.canReview)
+      return mine ? { ...view, myWaiting: mine.get(r.item_id) ?? 0 } : view
+    }),
     nextCursor: last ? encodeItemCursor(last) : null,
   }
+}
+
+type WaitingRpc = {
+  rpc(
+    fn: "my_menu_waiting_items",
+    args: { p_venue_id: string; p_item_ids: string[] }
+  ): PromiseLike<{
+    data: { item_id: string; waiting: number }[] | null
+    error: { message?: string; code?: string; details?: string | null } | null
+  }>
+}
+
+/**
+ * The caller's own waiting photos per listed item (my_menu_waiting_items), or
+ * null when that read fails: the list is still served, without myWaiting.
+ */
+async function myWaitingByItem(
+  actor: MediaActor,
+  venueId: string,
+  itemIds: string[]
+): Promise<Map<string, number> | null> {
+  if (itemIds.length === 0) return new Map()
+  const { data, error } = await (actor.db as unknown as WaitingRpc).rpc(
+    "my_menu_waiting_items",
+    { p_venue_id: venueId, p_item_ids: itemIds }
+  )
+  if (error) {
+    console.error("[coverage] our menu own waiting failed", {
+      error: redactError(
+        new Error(`${error.code || "unknown"}: ${error.message ?? ""}`)
+      ),
+    })
+    return null
+  }
+  return new Map((data ?? []).map((r) => [r.item_id, r.waiting]))
 }
 
 function candidateView(row: CandidateRow): ItemPhotoCandidate {
@@ -557,7 +601,7 @@ export async function getMyMenuPhotoStates(
 }
 
 const MY_STATE_COLUMNS =
-  "id, asset_id, item_id, item_name, variant_id, variant_name, state, is_primary, reason"
+  "id, asset_id, item_id, item_name, variant_id, variant_name, state, is_primary, reason, decided_at"
 
 function myStateView(r: {
   id: string
@@ -569,6 +613,7 @@ function myStateView(r: {
   state: string
   is_primary: boolean
   reason: string | null
+  decided_at: string
 }): MyMenuPhotoState {
   return {
     photoId: r.id,
@@ -580,6 +625,7 @@ function myStateView(r: {
     state: r.state as MyMenuPhotoState["state"],
     isPrimary: r.is_primary,
     reason: r.reason,
+    decidedAt: r.decided_at,
   }
 }
 
@@ -587,9 +633,11 @@ function myStateView(r: {
  * The caller's own accepted and better-photo-requested decisions, newest
  * decision first, whichever of their photos they are on (Me's "Accepted for
  * menu use" and "Better photo requested", not limited to the loaded page).
+ * `requestsOnly` returns only the better-photo requests (To do, B02 R2).
  */
 export async function listMyMenuPhotoDecisions(
-  actor: MediaActor
+  actor: MediaActor,
+  options: { requestsOnly?: boolean } = {}
 ): Promise<CoverageResult<{ states: MyMenuPhotoState[] }>> {
   if (!actor.profile.active)
     return failure("account_inactive", "Your account is not active.")
@@ -597,7 +645,12 @@ export async function listMyMenuPhotoDecisions(
     .from("menu_item_photos")
     .select(MY_STATE_COLUMNS)
     .eq("author_id", actor.profile.id)
-    .in("state", ["accepted", "better_photo_requested"])
+    .in(
+      "state",
+      options.requestsOnly
+        ? ["better_photo_requested"]
+        : ["accepted", "better_photo_requested"]
+    )
     .order("decided_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(STATES_MAX)

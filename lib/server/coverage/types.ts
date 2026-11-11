@@ -645,6 +645,12 @@ export type OurMenuItem = {
   /** Pass as `expectedRevision` to review, withdraw or set a primary for this item. */
   itemRevision: number
   review: { candidates: number; oldestCandidateAt: Instant | null } | null
+  /**
+   * The caller's own photos of this item waiting for a decision or a recheck
+   * (any viewer, own photos only). Set by listOurMenuItems; left out when
+   * that count could not be read, so the list still loads.
+   */
+  myWaiting?: number
 }
 
 /** A labelled photo a reviewer can decide for one item (and variant). */
@@ -704,6 +710,8 @@ export type MyMenuPhotoState = {
   isPrimary: boolean
   /** The reviewer's note: what a better photo needs (or an accept note). */
   reason: string | null
+  /** When the reviewer decided (or asked for a better photo); always read. */
+  decidedAt?: string
   /**
    * Better photo requested only: the dish (and variant) is on the caller's
    * current venue's active food or drinks menu, so a retake can be labelled

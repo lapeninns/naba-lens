@@ -6,7 +6,6 @@ import {
   CORE_CHECK_KEYS,
   PROGRESS_LABEL,
   REOPEN_PRESET_LABEL,
-  staffCaptureHref,
   UI_TEXT,
   evidenceHref,
 } from "../../lib/amenities/contract"
@@ -36,7 +35,15 @@ import {
   submitArgs,
   type AmenitiesWorld,
 } from "./helpers/amenities-world"
-import { escape, STAFF_LANDING, chooseOption } from "./helpers/ui"
+import {
+  escape,
+  expectTodoCheck,
+  STAFF_LANDING,
+  chooseOption,
+  startTodoCheck,
+  todoCheck,
+  todoRegion,
+} from "./helpers/ui"
 import { signedInPage, type Person } from "./helpers/world"
 
 /**
@@ -56,16 +63,15 @@ const LEGACY_MANAGE = amenityHrefs("/staff/manage")
 const adminHrefs = (w: AmenitiesWorld) =>
   amenityHrefs(`/admin/coverage/${w.venueA.id}`)
 
+/** Staff land on Home and start the assigned check from its To do card. */
 async function openStaffCheck(page: Page, key: string, id: string) {
   await expect(page).toHaveURL(STAFF_LANDING)
-  const section = page.getByRole("region", { name: UI_TEXT.staffSection })
-  await section.getByRole("link", { name: question(key) }).click()
-  await expect(page).toHaveURL(new RegExp(`${escape(staffCaptureHref(id))}$`))
+  await startTodoCheck(page, question(key), id)
 }
 
 /**
  * The check page states progress, answer, and who answered and when, as
- * "Answered by <name> on 7 Nov 2026" under the answer (answeredText in
+ * "Recorded by <name> on 7 Nov 2026" under the answer (answeredText in
  * components/nabalens/amenities/manage/check-row.tsx).
  */
 async function expectAnswered(
@@ -84,7 +90,7 @@ async function expectAnswered(
     main
       .getByText(
         new RegExp(
-          `^Answered by ${escape(by.name)} on \\d{1,2} [A-Za-z]+ \\d{4}$`
+          `^Recorded by ${escape(by.name)} on \\d{1,2} [A-Za-z]+ \\d{4}$`
         )
       )
       .first()
@@ -197,6 +203,8 @@ test.describe("amenity checks", () => {
 
     // Complete checks leave staff Home.
     await staff.goto("/staff/tasks")
+    await expect(todoRegion(staff)).toBeVisible()
+    await expect(todoCheck(staff, question("darts")).card).toHaveCount(0)
     await expect(
       staff.getByRole("link", { name: question("darts") })
     ).toHaveCount(0)
@@ -366,9 +374,25 @@ test.describe("amenity checks", () => {
   }) => {
     const w = await provisionAmenitiesWorld()
     const id = await readyCheck(w, w.venueA, "guest_toilets", null)
-    // The manager's own photo, as if uploaded while still a staff account
-    // (manager accounts do not upload); the fixture seeds it as theirs.
-    const photo = await seedPhoto(w.managerA, w.venueA, `toilets-${w.tag}`)
+    // The manager account's own upload (B02-c: recorded as "manager"), and
+    // one from its staff era (no role recorded). Ordinary media reads hide the
+    // staff-era one from the manager account (B02-c).
+    const photo = await seedPhoto(w.managerA, w.venueA, `toilets-${w.tag}`, {
+      uploaderRole: "manager",
+    })
+    const staffEra = await seedPhoto(
+      w.managerA,
+      w.venueA,
+      `toilets-staff-era-${w.tag}`
+    )
+    const { data: ownMedia, error } = await (
+      await sessionOf(w.managerA)
+    )
+      .from("media_assets")
+      .select("id")
+      .in("id", [photo, staffEra])
+    if (error) throw new Error(`media_assets: ${error.message}`)
+    expect(ownMedia.map((row) => row.id)).toEqual([photo])
 
     const manager = await signedInPage(browser, w.managerA)
     await manager.goto(MANAGER.check(id))
@@ -381,12 +405,24 @@ test.describe("amenity checks", () => {
     )
     const form = captureForm(manager)
     await form.answer("yes")
+    // The dedicated evidence picker (amenity_submittable_assets) offers the
+    // account's own ready media at this venue, staff era included; the
+    // manager-era photo is the one chosen.
+    await expect(form.evidence(photo)).toHaveCount(1)
+    await expect(form.evidence(staffEra)).toHaveCount(1)
     await form.attach(photo)
+    await expect(form.evidence(photo)).toBeChecked()
+    await expect(form.evidence(staffEra)).not.toBeChecked()
     await submitAndComplete(manager, id)
     expect(checkState(id)).toMatchObject({
       answer: "yes",
       answeredBy: w.managerA.id,
       assignee: null,
+    })
+    expect(currentSubmission(id)).toMatchObject({
+      answer: "yes",
+      submittedBy: w.managerA.id,
+      assets: [photo],
     })
     await manager.goto(MANAGER.check(id))
     await expectAnswered(manager, "yes", w.managerA)
@@ -442,10 +478,12 @@ test.describe("amenity checks", () => {
     expect(checkState(id).recheckReason).toContain(extra)
 
     const staff = await signedInPage(browser, w.staffA)
-    const section = staff.getByRole("region", { name: UI_TEXT.staffSection })
-    await expect(checkItem(section, "darts")).toContainText(
-      PROGRESS_LABEL.needs_recheck
+    const recheck = await expectTodoCheck(staff, question("darts"), id)
+    await expect(recheck.card).toContainText(PROGRESS_LABEL.needs_recheck)
+    await expect(recheck.card).toContainText(
+      `Recheck reason: ${REOPEN_PRESET_LABEL.wrong_area}`
     )
+    await expect(recheck.card).toContainText(extra)
     await openStaffCheck(staff, "darts", id)
     await expect(
       staff.getByText(REOPEN_PRESET_LABEL.wrong_area).first()
@@ -530,7 +568,7 @@ test.describe("amenity checks", () => {
     const before = coverageFootprint(w.venueA)
 
     const darts = await readyCheck(w, w.venueA, "darts", w.staffA)
-    await readyCheck(w, w.venueA, "guest_toilets", w.staffA)
+    const toilets = await readyCheck(w, w.venueA, "guest_toilets", w.staffA)
     const photo = await seedPhoto(w.staffA, w.venueA, `darts-${w.tag}`)
     const staffDb = await sessionOf(w.staffA)
     const managerDb = await sessionOf(w.managerA)
@@ -552,14 +590,12 @@ test.describe("amenity checks", () => {
     )
     expect(coverageFootprint(w.venueA)).toEqual(before)
 
-    // Staff Home lists the amenity check in its own section, never as a
+    // Staff Home lists the amenity check as its own To do card, never as a
     // Coverage task or in the month's photo count.
     const staff = await signedInPage(browser, w.staffA)
     await expect(staff).toHaveURL(STAFF_LANDING)
     await expect(
-      staff
-        .getByRole("region", { name: UI_TEXT.staffSection })
-        .getByRole("link", { name: question("guest_toilets") })
+      (await expectTodoCheck(staff, question("guest_toilets"), toilets)).start
     ).toBeVisible()
     const coverageTasks = staff.getByRole("list", { name: "Assigned tasks" })
     for (const key of ["darts", ...CORE_CHECK_KEYS]) {

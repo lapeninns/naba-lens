@@ -150,7 +150,7 @@ export function CataloguePicker({
                 onChange={(e) => setQuery(e.currentTarget.value)}
                 placeholder="Question, category or key"
                 autoComplete="off"
-                className="block h-11 w-full min-w-0 rounded-control border border-line-control bg-panel ps-10 pe-3 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus focus-visible:outline-solid md:h-9 md:text-body"
+                className="block h-11 w-full min-w-0 rounded-control border border-line-control bg-panel ps-10 pe-3 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus focus-visible:outline-solid md:text-body"
               />
             </div>
           </div>
@@ -243,25 +243,30 @@ function CatalogueRow({
 }) {
   const added = option.existing?.status === "active"
   const archived = option.existing?.status === "archived"
+  // The whole row is the label, so the target is the row, not a 20px box.
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-control border border-line p-3">
+    <label
+      htmlFor={id}
+      className="flex min-h-14 min-w-0 cursor-pointer items-start gap-3 rounded-control border border-line p-3 hover:bg-surface-2 has-disabled:cursor-default has-disabled:hover:bg-transparent"
+    >
       <input
         id={id}
         type="checkbox"
         checked={added || checked}
         disabled={added || disabled}
         onChange={(e) => onChange(e.currentTarget.checked)}
+        aria-labelledby={`${id}-question`}
         aria-describedby={`${id}-meta ${id}-brief`}
         className="mt-1 size-5 shrink-0 accent-accent"
       />
-      <div className="grid min-w-0 gap-1">
-        <label
-          htmlFor={id}
+      <span className="grid min-w-0 gap-1">
+        <span
+          id={`${id}-question`}
           className="text-body-touch font-semibold break-words text-ink md:text-body"
         >
           {option.question}
-        </label>
-        <p
+        </span>
+        <span
           id={`${id}-meta`}
           className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta-touch text-ink-muted md:text-meta"
         >
@@ -275,14 +280,14 @@ function CatalogueRow({
               Archived · adding restores it
             </StatusChip>
           ) : null}
-        </p>
-        <p
+        </span>
+        <span
           id={`${id}-brief`}
           className="text-body-touch break-words text-ink-muted md:text-body-sm"
         >
           {option.captureBrief}
-        </p>
-      </div>
-    </div>
+        </span>
+      </span>
+    </label>
   )
 }

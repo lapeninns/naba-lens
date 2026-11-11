@@ -27,6 +27,11 @@ import {
   openUploadDialog,
   row,
 } from "../fixtures/uploads/support"
+import {
+  addJustPhotos,
+  intentDialog,
+  visibleBadgeText,
+} from "./helpers/add-entry"
 import { firefoxLaunchOptions } from "./helpers/firefox"
 import { mailboxIds, SUBJECTS, waitForLink } from "./helpers/mailpit"
 import {
@@ -348,7 +353,7 @@ test.describe("upload recovery in the real UI", () => {
         const tile = await staffTile(portfolio, name, staff.id)
         await expect(tile).toBeVisible()
         await expect(tile).not.toHaveAccessibleName(
-          /(Uploading|Processing|Failed)$/
+          /(Uploading|Stopped|Processing|Failed)$/
         )
       }
     }
@@ -489,17 +494,21 @@ test.describe("upload recovery in the real UI", () => {
     expect(rows.map((r) => r.original_filename)).not.toContain("eleventh.jpg")
     await dialog.getByRole("button", { name: "Done" }).click()
 
-    // Until cleanup, the portfolio lists them as unfinished, never ready.
+    // Until cleanup, the portfolio lists them as unfinished, never ready:
+    // stopped, since nothing on this device is sending them any more.
     const portfolio = page.getByRole("list", { name: "Your portfolio" })
     await page.reload()
     await expect(
-      portfolio.getByRole("button", { name: /^Photo, uploaded .*Uploading$/ })
+      portfolio.getByRole("button", { name: /^Photo, uploaded .*Stopped$/ })
     ).toHaveCount(2)
     for (const r of cancelled) {
       await expect(
         portfolio.locator(`button[data-media-id="${r.id}"]`)
-      ).toHaveAccessibleName(/Uploading$/)
+      ).toHaveAccessibleName(/Stopped$/)
     }
+    await expect(
+      portfolio.getByRole("button", { name: "Open Add" })
+    ).toHaveCount(2)
 
     // Cleanup (24 h window) removes the abandoned reservations.
     const { error } = await admin.rpc("prepare_media_cleanup", {
@@ -620,8 +629,9 @@ test.describe("upload recovery in the real UI", () => {
     await page.unroute(TUS)
 
     // --- 3. A reload mid-transfer ends it. The portfolio shows the upload as
-    // unfinished (server state), and choosing the same file again resumes
-    // the same asset from the stored offset.
+    // stopped (the server still has it uploading, nothing here sends it) with
+    // what to do, and choosing the same file again resumes the same asset
+    // from the stored offset.
     storage.reset()
     let held = false
     await page.route(TUS, async (route) => {
@@ -648,15 +658,20 @@ test.describe("upload recovery in the real UI", () => {
     const portfolio = page.getByRole("list", { name: "Your portfolio" })
     await expect(
       portfolio.locator(`button[data-media-id="${unfinished.id}"]`)
-    ).toHaveAccessibleName(/^Video, uploaded .*Uploading$/)
+    ).toHaveAccessibleName(/^Video, uploaded .*Stopped$/)
     await expect(
-      portfolio.getByRole("button", { name: /^Video, uploaded .*Uploading$/ })
+      portfolio.getByRole("button", { name: /^Video, uploaded .*Stopped$/ })
     ).toHaveCount(1)
+    await expect(
+      portfolio.getByText(
+        "Stopped. Choose the same video again from Add to finish it; it continues where it stopped."
+      )
+    ).toBeVisible()
     // A fresh context (another device or browser) shows the same states.
     const other = await signIn(browser, staff, baseURL!)
     const otherPortfolio = other.getByRole("list", { name: "Your portfolio" })
     await expect(
-      otherPortfolio.getByRole("button", { name: /Uploading$/ })
+      otherPortfolio.getByRole("button", { name: /Stopped$/ })
     ).toHaveCount(1)
     await expect(
       otherPortfolio.getByRole("button", { name: /^Video, uploaded / })
@@ -675,7 +690,7 @@ test.describe("upload recovery in the real UI", () => {
     expect(rows[2]).toMatchObject({ id: unfinished.id, upload_state: "ready" })
     await dialog.getByRole("button", { name: "Done" }).click()
     await expect(
-      portfolio.getByRole("button", { name: /Uploading$/ })
+      portfolio.getByRole("button", { name: /(Uploading|Stopped)$/ })
     ).toHaveCount(0)
     await page.context().close()
   })
@@ -1019,7 +1034,7 @@ test.describe("session ends mid-queue", () => {
       "You were signed out after a while away. 1 photo finished uploading and is safe. 2 stopped."
     )
     await expect(e7).toContainText(
-      `We'll send a sign-in link to ${staff.email}.`
+      `We'll send a sign-in link and code to ${staff.email}.`
     )
     // Same page, same queue: nothing navigated to /login.
     expect(page.url()).toBe(url)
@@ -1154,10 +1169,11 @@ test.describe("leaving while uploads run", () => {
       held.push(route)
     })
 
-    await page
-      .getByRole("banner")
-      .getByRole("button", { name: "Add photos" })
-      .click()
+    // Idle Add asks what is being added; Just photos opens the upload dialog.
+    await addJustPhotos(
+      page,
+      page.getByRole("banner").getByRole("button", { name: "Add photos" })
+    )
     const queue = uploadSheet(page)
     await expect(queue).toHaveAccessibleName("Upload photos or videos")
     // They start uploading as soon as they are picked.
@@ -1199,6 +1215,7 @@ test.describe("leaving while uploads run", () => {
     await expect(addPhotos).toHaveAccessibleName("Add photos, 2 in progress")
     await addPhotos.click()
     await expect(queue).toHaveAccessibleName("Saving 2 photos")
+    await expect(intentDialog(page)).toBeHidden()
     await expect(queue.getByRole("status").last()).toHaveText(
       "0 saved · 2 saving"
     )
@@ -1256,7 +1273,11 @@ test.describe("leaving while uploads run", () => {
     const tabbar = page.locator('[data-slot="tabbar"]')
     const sheet = page.getByRole("dialog", { name: "Add photos" })
     const queue = uploadSheet(page)
-    await tabbar.getByRole("button", { name: "Add", exact: true }).click()
+    // Idle Add asks what is being added; Just photos opens the Add sheet.
+    await addJustPhotos(
+      page,
+      tabbar.getByRole("button", { name: "Add", exact: true })
+    )
     await expect(sheet).toBeVisible()
     await expect(sheet).toContainText(
       "Photos start saving as soon as you pick them."
@@ -1272,7 +1293,10 @@ test.describe("leaving while uploads run", () => {
     await expect(queue).toBeHidden()
     const add = tabbar.getByRole("button", { name: /^Add\b/ })
     await expect(add).toHaveAccessibleName("Add, 2 in progress")
-    await expect(add.locator('[data-slot="add-busy"]')).toHaveText("2")
+    // The badge's own words are assistive-only; on screen it shows the digit.
+    const badge = add.locator('[data-slot="add-busy"] [data-slot="count"]')
+    await expect(badge).toBeVisible()
+    await expect.poll(() => visibleBadgeText(badge)).toBe("2")
 
     // One transfer drops while the queue is hidden.
     failing = true
@@ -1281,9 +1305,11 @@ test.describe("leaving while uploads run", () => {
       timeout: 90_000,
     })
 
+    // Busy, Add goes straight to the queue: neither entry dialog opens.
     await add.click()
     await expect(queue).toBeVisible()
     await expect(sheet).toBeHidden()
+    await expect(intentDialog(page)).toBeHidden()
     await expect(queue).toHaveAccessibleName("Saving 2 photos")
     await expect(queue.getByRole("status").last()).toHaveText(
       "0 saved · 1 saving · 1 need attention"

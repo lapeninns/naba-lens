@@ -117,9 +117,8 @@ export function BackLink({ href, label }: { href: string; label: string }) {
 /**
  * One amenity check to capture, for staff (from Home) and for a manager or
  * admin capturing it themselves. Every read re-checks the caller's role in
- * the database; the form's submit does again. Uploading is for staff accounts
- * only (reserve_media_asset), so admins and manager accounts in /manager pass
- * `canUpload={false}` and choose from existing media instead.
+ * the database; the form's submit does again. Admins can't upload and pass
+ * `canUpload={false}`; a manager account in /manager passes what R8 says.
  */
 export async function CaptureScreen({
   actor,
@@ -131,6 +130,7 @@ export async function CaptureScreen({
   backHref,
   backLabel,
   doneHref,
+  announceSent = true,
 }: {
   actor: MediaActor
   checkId: string
@@ -138,7 +138,7 @@ export async function CaptureScreen({
   /**
    * Offer the upload flow. Defaults to every mode but admin: staff, and a
    * staff account holding a manager grant in /staff/manage. A manager account
-   * in /manager can't upload, so its page passes false.
+   * in /manager passes R8's canUpload (false when it can't be read).
    */
   canUpload?: boolean
   /** Manager and admin pages: the venue in the URL or grant; another venue's check is a 404. */
@@ -147,6 +147,11 @@ export async function CaptureScreen({
   backHref: string
   backLabel: string
   doneHref: string
+  /**
+   * Name the sent check on `doneHref` (`?finding_sent=`): Home and the check
+   * pages say what happened to it. Off for other origins of `?from=`.
+   */
+  announceSent?: boolean
 }) {
   const venue = venueName ?? "your venue"
   const [knowledgeRead, checkResult, assets] =
@@ -184,6 +189,8 @@ export async function CaptureScreen({
       canUpload={canUpload}
       canAttachLegacy={permissions?.canAttachLegacy ?? false}
       doneHref={doneHref}
+      announceSent={announceSent}
+      uploadRefused={mode === "manager" && !canUpload}
       knowledge={knowledge}
     />
   )

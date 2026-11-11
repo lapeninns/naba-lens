@@ -69,7 +69,7 @@ const EXTENSION_FOR_TYPE: Record<string, string> = {
 }
 
 const BLOCKED: Record<string, string> = {
-  not_staff: "Only staff accounts can upload.",
+  not_staff: "Only staff and venue manager accounts can upload.",
   no_venue:
     "Your account is not assigned to a venue yet, so uploads are paused. Ask an admin to assign your venue.",
   venue_inactive:

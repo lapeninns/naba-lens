@@ -1,5 +1,7 @@
 import { UI_TEXT, amenityHrefs } from "@/lib/amenities/contract"
 
+import { TO_CONFIRM_COPY } from "../knowledge/copy"
+
 import { SectionTabs } from "../section-tabs"
 
 export type ManageSection =
@@ -52,11 +54,14 @@ export function ManageNav({
   basePath,
   active,
   pendingReview,
+  confirmCount,
   label = "Venue tools",
 }: {
   basePath: string
   active: ManageSection
   pendingReview?: number
+  /** Findings waiting for a decision, on Amenities (F7). */
+  confirmCount?: number | null
   label?: string
 }) {
   return (
@@ -70,7 +75,9 @@ export function ManageNav({
         count:
           section.id === "review" && pendingReview
             ? { value: pendingReview, label: "to review" }
-            : undefined,
+            : section.id === "amenities" && confirmCount
+              ? { value: confirmCount, label: TO_CONFIRM_COPY.badge(confirmCount) }
+              : undefined,
       }))}
     />
   )

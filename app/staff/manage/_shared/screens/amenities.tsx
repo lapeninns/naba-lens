@@ -96,7 +96,7 @@ function amenityFailed(
   if (failure.code === "unavailable" || failure.code === "needs_setup") {
     return (
       <AmenitiesFrame ctx={ctx} title={title}>
-        <OfflineNotice />
+        <OfflineNotice loadedAt={new Date().toISOString()} />
         <Notice tone="negative" title="Amenities couldn't be loaded">
           {failure.message} Reload the page to try again.
         </Notice>
@@ -131,7 +131,7 @@ export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
       summary={`Questions guests ask about ${venue}, each answered with photo or video evidence. Separate from the checklist and photo targets.`}
       pendingReview={ctx.coverage?.summary.pendingReview}
     >
-      <OfflineNotice />
+      <OfflineNotice loadedAt={new Date().toISOString()} />
       <AmenitiesOverviewControl
         view={view}
         catalogue={catalogue?.ok ? catalogue.options : null}
@@ -169,11 +169,11 @@ export async function AmenityCheckScreen({
       title={detail.check.entry.question}
       pendingReview={ctx.coverage?.summary.pendingReview}
     >
-      <OfflineNotice />
+      <OfflineNotice loadedAt={new Date().toISOString()} />
       <div>
         <Link
           href={hrefs.list}
-          className={buttonVariants({ variant: "link", size: "sm" })}
+          className={buttonVariants({ variant: "row-link", size: "sm" })}
         >
           <ArrowLeftIcon aria-hidden />
           All amenities

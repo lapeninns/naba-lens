@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { OfflineShell } from "./offline-notice"
 import { ProfileAvatar } from "./profile-avatar"
 import { AddTrigger } from "./shell/add-context"
+import { TabBadge } from "./shell/tab-badge"
 import { TAB_ITEM } from "./shell/tab-item"
 import { CountBadge } from "./status-chip"
 
@@ -42,6 +43,8 @@ type AppShellProps = {
       avatarUrl?: string | null
       /** Things in To do, counted on Home while another section is open. */
       todoCount?: number
+      /** To do couldn't be read: Home shows "?" rather than no badge. */
+      todoUnknown?: boolean
       /** Photos waiting for this manager's decision, counted on Manage. */
       reviewCount?: number
     }
@@ -130,6 +133,10 @@ export function AppShell(props: AppShellProps) {
   const staff = props.variant === "staff" ? props : null
   const admin = props.variant === "admin" ? props : null
 
+  const todo = (id: string) =>
+    staff && id === "tasks" && active !== "tasks"
+      ? { count: staff.todoCount, unknown: !!staff.todoUnknown }
+      : null
   const barItems: { item: NavItem<string>; href: string; count?: number }[] =
     admin
       ? ADMIN_NAV.map((item) => ({
@@ -150,6 +157,11 @@ export function AppShell(props: AppShellProps) {
         }))
   const active = admin ? admin.active : (staff?.active ?? "portfolio")
   const navLabel = admin ? "Admin" : "Staff"
+  // Pages render this shell themselves, so each navigation and refresh
+  // renders it again: the server's time now is when this content was read.
+  // Rendered in the browser (an error boundary), it has no such time.
+  const loadedAt =
+    typeof window === "undefined" ? new Date().toISOString() : undefined
 
   const logoutButton = (
     <Button
@@ -194,6 +206,7 @@ export function AppShell(props: AppShellProps) {
           >
             {barItems.map(({ item, href, count }) => {
               const current = active === item.id
+              const todoBadge = todo(item.id)
               return (
                 <Link
                   key={item.id}
@@ -220,6 +233,17 @@ export function AppShell(props: AppShellProps) {
                       label="to review"
                       tone="warn"
                       className="-ml-0.5"
+                    />
+                  ) : null}
+                  {/* The same To do count as the phone's Home tab. */}
+                  {todoBadge ? (
+                    <TabBadge
+                      placement="inline"
+                      count={todoBadge.count}
+                      unknown={todoBadge.unknown}
+                      label={
+                        todoBadge.count === 1 ? "thing to do" : "things to do"
+                      }
                     />
                   ) : null}
                 </Link>
@@ -276,7 +300,7 @@ export function AppShell(props: AppShellProps) {
         // older -mx-4 full-bleed bar from scrolling a 320px page sideways.
         className="mx-auto w-full max-w-(--size-page) flex-1 overflow-x-clip px-(--page-gutter) pt-4 pb-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6 md:py-8"
       >
-        <OfflineShell>{children}</OfflineShell>
+        <OfflineShell loadedAt={loadedAt}>{children}</OfflineShell>
       </main>
       <nav
         aria-label={navLabel}
@@ -299,11 +323,8 @@ export function AppShell(props: AppShellProps) {
                   item={item}
                   href={item.href}
                   current={active === item.id}
-                  count={
-                    item.id === "tasks" && active !== "tasks"
-                      ? staff?.todoCount
-                      : undefined
-                  }
+                  count={todo(item.id)?.count}
+                  unknown={todo(item.id)?.unknown}
                 />
               ) : (
                 <AddTrigger key="add" kind="tab" />
@@ -319,11 +340,13 @@ function TabLink({
   href,
   current,
   count,
+  unknown = false,
 }: {
   item: NavItem<string>
   href: string
   current: boolean
   count?: number
+  unknown?: boolean
 }) {
   const Icon = item.icon
   return (
@@ -342,14 +365,11 @@ function TabLink({
     >
       <Icon aria-hidden className="size-[26px]" />
       {item.label}
-      {count ? (
-        <CountBadge
-          count={count}
-          label={count === 1 ? "thing to do" : "things to do"}
-          tone="warn"
-          className="absolute top-1 left-[calc(50%+6px)] ring-2 ring-surface"
-        />
-      ) : null}
+      <TabBadge
+        count={count}
+        unknown={unknown}
+        label={count === 1 ? "thing to do" : "things to do"}
+      />
     </Link>
   )
 }

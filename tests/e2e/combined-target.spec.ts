@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test"
 
-import { UI_TEXT } from "../../lib/amenities/contract"
 import {
   amenityOk,
   captureForm,
@@ -15,6 +14,7 @@ import {
 import { activeItemId, labelledPhoto } from "./helpers/manager-world"
 import { activateMenu, createMenuDraft, ok } from "./helpers/menus"
 import { psql } from "./helpers/stack"
+import { startTodoCheck } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 test("a staff target combines distinct menu items and completed amenity checks", async ({
@@ -64,36 +64,64 @@ test("a staff target combines distinct menu items and completed amenity checks",
   const darts = await readyCheck(w, w.venueA, "darts", w.staffA)
   const photo = await seedPhoto(w.staffA, w.venueA, `target-${w.tag}`)
 
+  // This month's card on Monthly target: one region, named by its heading
+  // ("Your target for November 2026"), holds the count, breakdown and chip.
+  const monthLabel = new Intl.DateTimeFormat("en-GB", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${period}T00:00:00Z`))
   const staff = await signedInPage(browser, w.staffA)
+  const currentTarget = staff.getByRole("region", {
+    name: `Your target for ${monthLabel}`,
+    exact: true,
+  })
+  const expectCurrentTarget = async (
+    count: number,
+    breakdown: string,
+    met: boolean
+  ) => {
+    await expect(currentTarget).toHaveCount(1)
+    await expect(
+      currentTarget.getByRole("heading", {
+        level: 2,
+        name: `Your target for ${monthLabel}`,
+        exact: true,
+      })
+    ).toBeVisible()
+    await expect(
+      currentTarget.getByRole("img", {
+        name: `${count} of 5 items completed`,
+        exact: true,
+      })
+    ).toBeVisible()
+    await expect(
+      currentTarget.getByText(breakdown, { exact: true })
+    ).toBeVisible()
+    await expect(
+      currentTarget.getByText("Target met", { exact: true })
+    ).toHaveCount(met ? 1 : 0)
+  }
   try {
     await expect(
       staff.getByRole("progressbar", { name: "4 of 5 items completed" })
     ).toBeVisible()
-    await staff.getByRole("link", { name: "See this month's target" }).click()
+    await staff.getByRole("link", { name: "See this month" }).click()
     await expect(
       staff.getByRole("heading", { name: "Monthly target", exact: true })
     ).toBeVisible()
-    await expect(
-      staff.getByRole("img", { name: "4 of 5 items completed" })
-    ).toBeVisible()
-    await expect(
-      staff.getByText("3 menu items · 1 amenity check", { exact: true })
-    ).toBeVisible()
+    await expectCurrentTarget(4, "3 menu items · 1 amenity check", false)
     await expect(
       staff.getByRole("link", { name: "Browse menu items" })
     ).toHaveAttribute("href", "/staff/menu")
     await expect(
       staff.getByRole("heading", { name: "Add photos for this month" })
     ).toHaveCount(0)
-    await expect(staff.getByText("Target met", { exact: true })).toHaveCount(0)
 
     await staff
       .getByRole("link", { name: "See assigned checks on Home" })
       .click()
-    await staff
-      .getByRole("region", { name: UI_TEXT.staffSection })
-      .getByRole("link", { name: question("darts"), exact: true })
-      .click()
+    await startTodoCheck(staff, question("darts"), darts)
     const form = captureForm(staff)
     await form.answer("yes")
     await form.attach(photo)
@@ -101,12 +129,9 @@ test("a staff target combines distinct menu items and completed amenity checks",
 
     await staff.goto("/staff/tasks/month")
     await expect(
-      staff.getByRole("img", { name: "5 of 5 items completed" })
+      staff.getByRole("heading", { name: "Monthly target", exact: true })
     ).toBeVisible()
-    await expect(
-      staff.getByText("3 menu items · 2 amenity checks", { exact: true })
-    ).toBeVisible()
-    await expect(staff.getByText("Target met", { exact: true })).toBeVisible()
+    await expectCurrentTarget(5, "3 menu items · 2 amenity checks", true)
   } finally {
     await staff.context().close()
   }

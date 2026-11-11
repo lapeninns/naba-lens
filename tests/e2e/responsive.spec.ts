@@ -251,11 +251,16 @@ for (const width of WIDTHS) {
     )
     await viewer.getByRole("button", { name: "Delete" }).click()
     const confirm = staff.getByRole("alertdialog")
+    // HM-04: Delete holds as "Checking…" while the delete impact is read,
+    // then reads Delete, or Delete anyway when the photo is venue evidence.
+    await expect(
+      confirm.getByRole("button", { name: "Checking…" })
+    ).toHaveCount(0)
     await check(
       staff,
       width,
       "staff-delete-confirm",
-      confirm.getByRole("button", { name: "Delete" }),
+      confirm.getByRole("button", { name: /^Delete( anyway)?$/ }),
       confirm
     )
     await confirm

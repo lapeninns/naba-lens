@@ -1993,3 +1993,34 @@ describe("Saving sheet: a file picked again after a reload (B3)", () => {
     expect(labels.discard).not.toHaveBeenCalled()
   })
 })
+
+describe("a slow label save says so (UP-19, rule 5)", () => {
+  afterEach(() => vi.useRealTimers())
+
+  it("reads Still saving after 15 s without an answer, until the answer comes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("dish.jpg"),
+    ])
+    act(() => find("dish.jpg").reserve("asset-1"))
+    await act(async () => find("dish.jpg").resolve())
+    const answer = heldSave(labels)
+    await labels.choose((id) => input(id))
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(1))
+    expect(row("dish.jpg").textContent).toContain("Saving labels")
+
+    await act(async () => vi.advanceTimersByTime(15_000))
+    expect(row("dish.jpg").textContent).toContain(
+      "Still saving; keep this page open."
+    )
+
+    await answer(savedAs("asset-1", ["Onion Bhaji"]))
+    await waitFor(() =>
+      expect(row("dish.jpg").textContent).not.toContain("Still saving")
+    )
+  })
+})

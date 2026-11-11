@@ -371,7 +371,11 @@ test.describe("release negatives", () => {
       .getByRole("button", { name: "Delete" })
       .click()
     const confirm = staff.getByRole("alertdialog")
-    await confirm.getByRole("button", { name: "Delete" }).click()
+    // HM-04: wait for "Checking…" (the delete impact read) to settle first.
+    await expect(
+      confirm.getByRole("button", { name: "Checking…" })
+    ).toHaveCount(0)
+    await confirm.getByRole("button", { name: /^Delete( anyway)?$/ }).click()
     await expect(
       confirm.getByRole("alert").filter({
         hasText: "Your account is not active, so files cannot be removed.",

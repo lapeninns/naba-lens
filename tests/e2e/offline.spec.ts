@@ -12,8 +12,8 @@ import { provisionWorld, signedInPage, type World } from "./helpers/world"
 test.skip(({ browserName }) => browserName !== "chromium", "Chromium only")
 test.describe.configure({ mode: "serial" })
 
-const BODY =
-  /^What you see was last updated at \d{1,2}:\d{2}(\s?[ap]m)?\. Nothing is sent twice when you try again\.$/i
+// The page's server render time, then when the connection dropped (X-01).
+const BODY = /^Loaded at \d{2}:\d{2}\. You've been offline since \d{2}:\d{2}\.$/
 
 let world: World
 let staff: Page
@@ -35,14 +35,47 @@ test.afterAll(async () => {
 const offlineAlerts = (page: Page) =>
   page.getByRole("alert").filter({ hasText: "You're offline" })
 
+/**
+ * A page's own control answering in this document: React has hydrated it,
+ * and with it the shell's offline listeners. A server-rendered heading alone
+ * doesn't show that; going offline before hydration shows the page's
+ * loaded-offline copy instead of the two clocks.
+ */
+type Ready = (page: Page) => Promise<void>
+
+/** Admin Content: More filters opens its panel and closes it again. */
+const moreFiltersAnswers: Ready = async (page) => {
+  const more = page.getByRole("button", { name: /^More filters/ })
+  await expect(more).toHaveAttribute("aria-expanded", "false")
+  await more.click()
+  await expect(more).toHaveAttribute("aria-expanded", "true")
+  await more.click()
+  await expect(more).toHaveAttribute("aria-expanded", "false")
+}
+
+/** The page's `name` button opens its `name` dialog, and Escape closes it. */
+const dialogAnswers =
+  (name: string): Ready =>
+  async (page) => {
+    await page.getByRole("button", { name }).first().click()
+    const dialog = page.getByRole("dialog", { name })
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(dialog).toBeHidden()
+  }
+
 async function offlineRoundTrip(
   page: Page,
   path: string,
   heading: RegExp,
-  placed: "shell" | "page"
+  placed: "shell" | "page",
+  ready: Ready
 ) {
   await page.goto(path)
-  await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { level: 1, name: heading })
+  ).toBeVisible()
+  await ready(page)
   await expect(offlineAlerts(page)).toHaveCount(0)
 
   await page.context().setOffline(true)
@@ -63,20 +96,34 @@ async function offlineRoundTrip(
     placed === "shell"
   )
   // What was loaded stays on screen.
-  await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { level: 1, name: heading })
+  ).toBeVisible()
 
   await page.context().setOffline(false)
   await expect(offlineAlerts(page)).toHaveCount(0)
 }
 
 test("staff list page: the shell shows the offline notice", async () => {
-  await offlineRoundTrip(staff, "/staff", /./, "shell")
+  await offlineRoundTrip(
+    staff,
+    "/staff",
+    /./,
+    "shell",
+    dialogAnswers("Edit profile")
+  )
 })
 
 test("admin list page: the shell shows the offline notice", async () => {
-  await offlineRoundTrip(admin, "/admin", /./, "shell")
+  await offlineRoundTrip(admin, "/admin", /./, "shell", moreFiltersAnswers)
 })
 
 test("admin Staff keeps its own notice and shows exactly one", async () => {
-  await offlineRoundTrip(admin, "/admin/staff", /^Staff$/, "page")
+  await offlineRoundTrip(
+    admin,
+    "/admin/staff",
+    /^Staff$/,
+    "page",
+    dialogAnswers("Invite staff")
+  )
 })

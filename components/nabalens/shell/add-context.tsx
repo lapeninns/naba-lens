@@ -6,9 +6,11 @@ import { PlusIcon } from "@phosphor-icons/react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import type { EntryIntent } from "@/lib/work-client/entry"
 
 import type { PhotoSource } from "../photo-source"
 import type { UploadPurpose } from "../upload-queue"
+import { TabBadge } from "./tab-badge"
 import { TAB_ITEM } from "./tab-item"
 
 /**
@@ -63,7 +65,36 @@ export type OpenAddOptions = {
    * community. Default "general".
    */
   purpose?: UploadPurpose
+  /**
+   * Open the shared entry ("What are you adding?") instead, where it is on
+   * for this person (B02-02): "choose" from Add, "question" from Home's
+   * "Answer a venue question". Off, "choose" opens today's Add and
+   * "question" does nothing. Waiting files still open the queue first.
+   */
+  entry?: "choose" | "question"
+  /**
+   * Hears each file picked from this call that ended without becoming ready,
+   * and why: it failed, was cancelled, or was removed from Add.
+   */
+  onUnfinished?: (reason: UnfinishedReason, file: File) => void
+  /**
+   * What the files picked from this call show, besides a dish preset: a
+   * task or a working-list question. Several picked together, or added with
+   * "Add more to this set", become one set (B02-05) where the shared entry
+   * is on; each photo keeps its own state.
+   */
+  subject?: AddSubject | null
 }
+
+/** A subject Add can make a set of photos for, named for its notice. */
+export type AddSubject = {
+  kind: "task" | "question"
+  id: string
+  name: string
+}
+
+/** Why a picked file never became ready. */
+export type UnfinishedReason = "failed" | "cancelled" | "removed"
 
 export type AddReadyListener = (assetIds: string[]) => void
 
@@ -80,6 +111,8 @@ type AddContextValue = {
   busy?: { count: number; words: string } | null
   /** Uploads still transferring or processing (not failed or stopped). */
   active?: number
+  /** Files in the Add queue that didn't finish saving (failed or stopped). */
+  failed?: number
   /**
    * Labels were saved on these photos elsewhere (Me's Fix labels): Add's
    * rows for them read "Saved" with the labels the photo has now.
@@ -90,12 +123,27 @@ type AddContextValue = {
    * labels): Add's rows for them read "Saved" with no labels.
    */
   discarded?: (assetIds: string[]) => void
+  /**
+   * The server assets of the Add queue's unfinished files (reserved, not yet
+   * saved), and who is signed in: an own upload missing from them has stopped.
+   */
+  holds?: { assetIds: ReadonlySet<string>; account: string | null }
+  /**
+   * The shared entry's choices once read (R8), or null before then or with
+   * the entry off: a dish button needs "dish".
+   */
+  intents?: readonly EntryIntent[] | null
 }
 
 const AddContext = React.createContext<AddContextValue | null>(null)
 
 /** Provided by the staff layout, which hosts the Add sheet and upload flow. */
 export const AddProvider = AddContext.Provider
+
+/** The whole Add context, or null outside the staff layout. */
+export function useAddContext(): AddContextValue | null {
+  return React.useContext(AddContext)
+}
 
 /**
  * Opens the global Add sheet (or a picker, with `source`), or null outside
@@ -152,6 +200,19 @@ export function useAddActive(): number | null {
   return React.useContext(AddContext)?.active ?? null
 }
 
+/**
+ * How many files in the one Add queue didn't finish saving on this device,
+ * or null outside the staff layout.
+ */
+export function useAddFailed(): number | null {
+  return React.useContext(AddContext)?.failed ?? null
+}
+
+/** Add offers dish photos (R8 says the person can upload and label). */
+export function useAddDish(): boolean {
+  return React.useContext(AddContext)?.intents?.includes("dish") ?? false
+}
+
 export function useAddRefreshSignal(): number {
   return React.useContext(AddContext)?.refreshSignal ?? 0
 }
@@ -170,17 +231,16 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
   // a count on the trigger, and the words after its name. The name is set
   // whole because Chrome inserts a space before an sr-only suffix.
   const busyName = busy ? `${label}, ${busy.words}` : undefined
+  // The shared tab badge: anchored to the icon and capped at "9+" on the
+  // phone bar. Its own words are hidden: the button's name already says them.
   const badge = busy ? (
-    <span
-      aria-hidden
-      data-slot="add-busy"
-      className={cn(
-        "inline-grid h-[26px] min-w-[26px] place-items-center rounded-round bg-ink px-[7px] font-mono text-[1.0625rem] leading-none font-bold text-surface tabular-nums",
-        kind === "tab" &&
-          "absolute top-1 left-[calc(50%+12px)] ring-2 ring-surface"
-      )}
-    >
-      {busy.count}
+    <span aria-hidden data-slot="add-busy" className="contents">
+      <TabBadge
+        count={busy.count}
+        label="in Add"
+        placement={kind === "tab" ? "tab" : "inline"}
+        className="bg-ink"
+      />
     </span>
   ) : null
   const content =
@@ -215,7 +275,7 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
       type="button"
       className={className}
       aria-label={busyName}
-      onClick={() => openAdd()}
+      onClick={() => openAdd({ entry: "choose" })}
     >
       {content}
     </button>
@@ -225,4 +285,3 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
     </Link>
   )
 }
-

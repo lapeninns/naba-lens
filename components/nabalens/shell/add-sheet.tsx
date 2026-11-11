@@ -15,9 +15,17 @@ import {
 } from "@/components/ui/dialog"
 
 import { CAMERA_LABEL, LIBRARY_LABEL, usePhotoSource } from "../photo-source"
+import { EntryContext } from "./entry-flow"
 
 export type AddBlocked =
-  { reason: "no_venue" } | { reason: "venue_inactive"; venueName: string }
+  | { reason: "no_venue" }
+  | { reason: "venue_inactive"; venueName: string }
+  /** The server refused to finish an upload: a manager's access ended. */
+  | { reason: "access_ended"; venueName: string }
+
+/** Once the server refused to finish an upload for a manager account. */
+export const ACCESS_ENDED =
+  "Your venue manager access has ended, so you can't add photos or videos here."
 
 /**
  * What Add opens on phones: choose from the phone's photos (first, several at
@@ -31,6 +39,7 @@ export function AddSheet({
   onFiles,
   maxFiles,
   imagesOnly = false,
+  context = null,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -40,6 +49,8 @@ export function AddSheet({
   maxFiles: number
   /** Photos only (task screens): the pickers offer no videos. */
   imagesOnly?: boolean
+  /** With the shared entry on: the venue and who sees the photos (§4.2). */
+  context?: { venueName: string; audience: string } | null
 }) {
   // The inputs live inside the sheet, so the click that opens a picker is on
   // the open dialog's own content.
@@ -58,7 +69,9 @@ export function AddSheet({
             <DialogDescription>
               {blocked.reason === "no_venue"
                 ? "An admin needs to assign your venue first. Ask your manager or an admin."
-                : `${blocked.venueName} isn't active in Naba-Lens at the moment. Photos you already added stay on your profile.`}
+                : blocked.reason === "access_ended"
+                  ? ACCESS_ENDED
+                  : `${blocked.venueName} isn't active in Naba-Lens at the moment. Photos you already added stay on your profile.`}
             </DialogDescription>
           </DialogHeader>
         ) : (
@@ -66,6 +79,12 @@ export function AddSheet({
             <DialogHeader>
               <DialogTitle>Add photos</DialogTitle>
             </DialogHeader>
+            {context ? (
+              <EntryContext
+                venueName={context.venueName}
+                audience={context.audience}
+              />
+            ) : null}
             <div className="grid gap-3">
               <AddOption
                 icon={<ImageIcon aria-hidden className="size-7" />}

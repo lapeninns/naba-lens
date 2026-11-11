@@ -3,11 +3,11 @@ import { SignOutIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { Button } from "@/components/ui/button"
 
-import { OfflineShell } from "../offline-notice"
+import { LayoutOfflineShell } from "../offline-notice"
 import { ProfileAvatar } from "../profile-avatar"
 import { MANAGER_COPY } from "./copy"
 import { managerHrefs } from "./hrefs"
-import { ManagerNav } from "./manager-nav"
+import { ManagerAddButton, ManagerNav } from "./manager-nav"
 import { ReviewCountProvider } from "./review-count"
 
 const FOCUS =
@@ -16,9 +16,9 @@ const FOCUS =
 /**
  * Page frame of the venue manager workspace: the wordmark, the venue's name,
  * Overview · Review · Menu · Amenities at every width (a row under the
- * header from md, a bottom tab bar on phones), Account and Log out. It has no
- * Add, upload, Photos, People or Me: a manager account reviews and does not
- * contribute (amenity evidence goes through the check's Capture myself page).
+ * header from md, a bottom tab bar on phones), Account and Log out. Add shows
+ * only inside the workspace's Add host, once R8 says this account can upload
+ * (B02-c); there is no Photos, People or Me.
  * The Review badge count lives in a ReviewCountProvider, so Review can move
  * it as decisions land.
  */
@@ -27,6 +27,7 @@ export function ManagerShell({
   userName,
   reviewCount,
   confirmCount,
+  loadedAt,
   children,
 }: {
   venueName: string
@@ -35,6 +36,12 @@ export function ManagerShell({
   reviewCount?: number
   /** Amenity findings waiting for a decision; omitted when it could not be read. */
   confirmCount?: number
+  /**
+   * The layout's render time (ISO), for the offline banner. A layout isn't
+   * re-rendered on navigation, only on refresh, so pages under it pass their
+   * own to their OfflineNotice.
+   */
+  loadedAt?: string
   children: React.ReactNode
 }) {
   return (
@@ -55,13 +62,17 @@ export function ManagerShell({
             >
               Naba-Lens
             </Link>
+            {/* Two lines, then the full name on hover; each page's header
+                names the venue in full too. */}
             <p
               data-slot="venue-name"
-              className="min-w-0 truncate border-l border-line-control pl-3 text-meta-strong text-ink-muted"
+              title={venueName}
+              className="line-clamp-2 min-w-0 border-l border-line-control pl-3 text-meta-strong [overflow-wrap:anywhere] text-ink-muted"
             >
               {venueName}
             </p>
             <div className="ml-auto flex flex-none items-center gap-2">
+              <ManagerAddButton />
               <span className="hidden max-w-48 truncate text-meta text-ink-muted lg:inline">
                 {userName}
               </span>
@@ -104,7 +115,9 @@ export function ManagerShell({
           id="main"
           className="mx-auto w-full max-w-(--size-page) flex-1 overflow-x-clip px-(--page-gutter) pt-4 pb-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6 md:py-8"
         >
-          <OfflineShell>{children}</OfflineShell>
+          <LayoutOfflineShell loadedAt={loadedAt}>
+            {children}
+          </LayoutOfflineShell>
         </main>
         <ManagerNav
           kind="bar"
