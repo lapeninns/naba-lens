@@ -136,21 +136,30 @@ export function SearchResults({
   // So a blur with no new target is judged after the commit (see onBlur).
   const focusedInList = React.useRef<Element | null>(null)
 
-  // The committed list moved to a new page one: drop the page in flight now,
-  // during the commit, and give focus a home if its card went with the reset.
+  // Every commit. When the committed list moved to a new page one: drop the
+  // page in flight now and give focus a home if the reset removed the focused
+  // element. Any other commit that removed it (React ignores the blur during
+  // its own commit) forgets it, so only a reset's own removal can recover.
+  const lostFocus = React.useRef(onLostFocus)
   React.useLayoutEffect(() => {
-    if (committedGen.current === list.gen) return
+    lostFocus.current = onLostFocus
+  })
+  React.useLayoutEffect(() => {
+    const lost = focusedInList.current
+    if (committedGen.current === list.gen) {
+      if (lost && !lost.isConnected) focusedInList.current = null
+      return
+    }
     committedGen.current = list.gen
     abort.current?.abort()
-    const lost = focusedInList.current
     if (lost && !lost.isConnected) {
       focusedInList.current = null
       const active = document.activeElement
       // Only when nothing else took focus meanwhile.
       if (!active || active === document.body || !active.isConnected)
-        onLostFocus()
+        lostFocus.current()
     }
-  }, [list.gen, onLostFocus])
+  })
 
   // The list itself unmounting drops its page in flight.
   React.useEffect(() => () => abort.current?.abort(), [])

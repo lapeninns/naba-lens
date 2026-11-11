@@ -304,6 +304,45 @@ describe("SearchResults follows page one (R1)", () => {
     expect(onLostFocus).toHaveBeenCalledTimes(1)
   })
 
+  it("forgets a control removed outside a reset, so a later reset does not take focus", async () => {
+    // Show more: expired, so focus goes to Search again. Search again then
+    // finds nothing: its own commit removes the button (no reset), and the
+    // screen is handed focus once. Focus is then dropped on blank space; a
+    // later same-key refresh must not pull it back.
+    fetchMock.fetchSearchPage
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        code: "invalid_input",
+        message: "",
+        fieldErrors: { cursor: "expired" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        page: { items: [], nextCursor: null },
+      })
+    const onLostFocus = vi.fn()
+    const { rerender } = render(
+      <List initialPage={okPage(2, "c1")} onLostFocus={onLostFocus} />
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.searchAgain })
+    )
+    expect(screen.getByText("EMPTY")).toBeTruthy()
+    expect(onLostFocus).toHaveBeenCalledTimes(1)
+    vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    expect(document.activeElement).toBe(document.body)
+    await act(async () => {
+      rerender(<List initialPage={okPage(1)} onLostFocus={onLostFocus} />)
+    })
+    expect(cards()).toHaveLength(1)
+    expect(onLostFocus).toHaveBeenCalledTimes(1)
+  })
+
   it("leaves focus alone when a new page one arrives while focus is elsewhere", () => {
     const onLostFocus = vi.fn()
     const { rerender } = render(
