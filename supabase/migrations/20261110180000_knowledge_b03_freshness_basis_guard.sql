@@ -1,11 +1,15 @@
 -- B03 owner decision (11 Nov 2026): a freshness rule that counts from the day
 -- an answer was checked (basis observed_on) applies only to a question whose
--- form records Checked on (facility, accessibility, service; b03-ui-design
--- §2.1, §3.2). Elsewhere every answer reads basis_missing, and its rechecks
--- (S§7.4 M4: close only when current and fresh) could never close.
+-- form records Checked on (b03-ui-design §2.1, §3.2). Elsewhere every answer
+-- reads basis_missing, and its rechecks (S§7.4 M4: close only when current
+-- and fresh) could never close.
 --
--- * private.knowledge_schema_has_checked_on: the schemas whose form records
---   observed_on.
+-- * private.knowledge_schema_has_checked_on(name, version): the forms this
+--   build renders with Checked on, by schema name and version: facility@1,
+--   accessibility@1 and service@1 (CHECKED_ON_FORMS in
+--   components/nabalens/knowledge/question-form.ts; a unit test holds the
+--   two together). A later version of those schemas, which the registry
+--   accepts, has no form here and so no Checked on.
 -- * Refused with freshness_basis_unavailable (NLK15) wherever such a rule is
 --   bound to such a question:
 --   - a question version naming an observed_on rule for a use
@@ -16,13 +20,13 @@
 --     in force (public.knowledge_freshness_preview, body otherwise unchanged).
 -- No existing row is affected: no registry version names a rule (OD-15).
 
-create function private.knowledge_schema_has_checked_on(p_schema text)
+create function private.knowledge_schema_has_checked_on(p_schema text, p_version integer)
 returns boolean
 language sql
 immutable
 set search_path = ''
 as $$
-  select coalesce(p_schema in ('facility', 'accessibility', 'service'), false);
+  select coalesce(p_schema || '@' || p_version in ('facility@1', 'accessibility@1', 'service@1'), false);
 $$;
 
 create function private.knowledge_question_version_basis_guard()
@@ -34,7 +38,7 @@ declare
   v_use text;
   v_rule text;
 begin
-  if private.knowledge_schema_has_checked_on(new.value_schema) then
+  if private.knowledge_schema_has_checked_on(new.value_schema, new.value_schema_version) then
     return new;
   end if;
   foreach v_use in array array['internal', 'public'] loop
@@ -45,7 +49,7 @@ begin
     ) then
       raise exception 'freshness_basis_unavailable' using errcode = 'NLK15',
         detail = jsonb_build_object('key', new.key, 'version', new.version, 'schema', new.value_schema,
-          'use', v_use, 'policyId', v_rule)::text;
+          'schemaVersion', new.value_schema_version, 'use', v_use, 'policyId', v_rule)::text;
     end if;
   end loop;
   return new;
@@ -70,13 +74,14 @@ begin
   select v.* into v_version
   from public.knowledge_question_versions v
   where v.freshness ->> new.use = new.id
-    and not private.knowledge_schema_has_checked_on(v.value_schema)
+    and not private.knowledge_schema_has_checked_on(v.value_schema, v.value_schema_version)
   order by v.key, v.version
   limit 1;
   if found then
     raise exception 'freshness_basis_unavailable' using errcode = 'NLK15',
       detail = jsonb_build_object('key', v_version.key, 'version', v_version.version,
-        'schema', v_version.value_schema, 'use', new.use, 'policyId', new.id)::text;
+        'schema', v_version.value_schema, 'schemaVersion', v_version.value_schema_version,
+        'use', new.use, 'policyId', new.id)::text;
   end if;
   return new;
 end;
@@ -87,7 +92,7 @@ create trigger knowledge_freshness_policies_basis_guard
   for each row execute function private.knowledge_freshness_policy_basis_guard();
 
 revoke all on function
-  private.knowledge_schema_has_checked_on(text),
+  private.knowledge_schema_has_checked_on(text, integer),
   private.knowledge_question_version_basis_guard(),
   private.knowledge_freshness_policy_basis_guard()
 from public, anon, authenticated, service_role;
@@ -106,7 +111,7 @@ declare
   v_fields jsonb := '[]'::jsonb;
   v_use text;
   v_items jsonb;
-  v_schema text;
+  v_version public.knowledge_question_versions;
 begin
   perform private.amenity_assert_active_user();
   if not private.is_active_admin() then
@@ -131,19 +136,21 @@ begin
     raise exception 'invalid_value' using errcode = '22023', detail = jsonb_build_object('fields', v_fields)::text;
   end if;
 
-  v_schema := coalesce(
-    (private.knowledge_version_as_of(p_key, now())).value_schema,
-    (select v.value_schema from public.knowledge_question_versions v
-     where v.key = p_key order by v.version desc limit 1));
-  if not private.knowledge_schema_has_checked_on(v_schema) then
+  select * into v_version from private.knowledge_version_as_of(p_key, now());
+  if v_version.key is null then
+    select v.* into v_version from public.knowledge_question_versions v
+    where v.key = p_key order by v.version desc limit 1;
+  end if;
+  if not private.knowledge_schema_has_checked_on(v_version.value_schema, v_version.value_schema_version) then
     foreach v_use in array array['internal', 'public'] loop
       if exists (
         select 1 from public.knowledge_freshness_policies p
         where p.id = p_policy ->> v_use and p.use = v_use and p.basis = 'observed_on'
       ) then
         raise exception 'freshness_basis_unavailable' using errcode = 'NLK15',
-          detail = jsonb_build_object('key', p_key, 'schema', v_schema, 'use', v_use,
-            'policyId', p_policy ->> v_use)::text;
+          detail = jsonb_build_object('key', p_key, 'version', v_version.version,
+            'schema', v_version.value_schema, 'schemaVersion', v_version.value_schema_version,
+            'use', v_use, 'policyId', p_policy ->> v_use)::text;
       end if;
     end loop;
   end if;

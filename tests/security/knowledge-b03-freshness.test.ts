@@ -801,99 +801,153 @@ describe("guards", () => {
 })
 
 describe("rules that count from the day it was checked (owner decision, 11 Nov 2026)", () => {
-  it("bind only to questions whose form asks when it was checked (NLK15)", async () => {
-    const w = await world("kn-b03-basis-guard")
-    const id = randomUUID().replace(/-/g, "").slice(0, 16)
-    const obs = `test_obs_${id}`
-    const evt = `test_evt_${id}`
-    const late = `test_late_${id}`
-    const claims = `'${JSON.stringify({ sub: w.admin.id, role: "authenticated" })}'`
-    // A new guest_toilets version (rolled back below) with this schema and
-    // these rules.
-    const version = (
-      schema: string,
-      freshness: string
-    ) => `insert into public.knowledge_question_versions
+  const REFUSED = "NLK15:freshness_basis_unavailable"
+  const CLAIM = {
+    observed_on: "fixture",
+    stated_on: "policy",
+    event_end: "event",
+  }
+  type Basis = keyof typeof CLAIM
+  type Step = { name: string; sql: string; asAdmin?: true }
+  const tag = () => randomUUID().replace(/-/g, "").slice(0, 16)
+  const step = (name: string, sql: string): Step => ({ name, sql })
+  /** A rule version for one use. */
+  const rule = (
+    name: string,
+    id: string,
+    version: number,
+    basis: Basis,
+    use = "internal"
+  ) =>
+    step(
+      name,
+      `insert into public.knowledge_freshness_policies (id, version, claim_class, use, max_age, recheck_lead, basis)
+  values ('${id}', ${version}, '${CLAIM[basis]}', '${use}', ${basis === "event_end" ? "null, null" : "interval '30 days', interval '7 days'"}, '${basis}')`
+    )
+  /**
+   * A new guest_toilets version (presence@1 in force) with this form and
+   * these rules, in force at once unless `effective` (SQL) says when.
+   */
+  const version = (
+    name: string,
+    schema: string,
+    rules: { internal?: string; public?: string },
+    { schemaVersion = 1, effective = "null" } = {}
+  ) =>
+    step(
+      name,
+      `insert into public.knowledge_question_versions
 select (jsonb_populate_record(null::public.knowledge_question_versions, to_jsonb(v) || jsonb_build_object(
   'version', (select max(m.version) + 1 from public.knowledge_question_versions m where m.key = v.key),
-  'value_schema', '${schema}', 'freshness', '${freshness}'::jsonb, 'change_kind', 'rule',
-  'change_note', 'TEST basis guard', 'upgrade_rules', '{}'::jsonb, 'created_at', now(),
-  'effective_from', null, 'created_by', null))).*
+  'value_schema', '${schema}', 'value_schema_version', ${schemaVersion},
+  'freshness', '${JSON.stringify({ internal: rules.internal ?? null, public: rules.public ?? null })}'::jsonb,
+  'change_kind', 'rule', 'change_note', 'TEST basis guard', 'upgrade_rules', '{}'::jsonb, 'created_at', now(),
+  'effective_from', ${effective}, 'created_by', null))).*
 from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.version = 1`
-    const attempt = (name: string, sql: string) => `do $$ begin
+    )
+  /** The admin Check dates preview of these rules on guest_toilets. */
+  const preview = (
+    name: string,
+    rules: { internal?: string; public?: string }
+  ): Step => ({
+    name,
+    asAdmin: true,
+    sql: `perform public.knowledge_freshness_preview('guest_toilets', '${JSON.stringify(rules)}'::jsonb)`,
+  })
+  /**
+   * Each step's outcome, in one transaction rolled back at the end: nothing
+   * reaches the shared stack, and a step that succeeds holds for the next.
+   */
+  async function outcomes(label: string, steps: Step[]) {
+    const w = await world(label)
+    const claims = `'${JSON.stringify({ sub: w.admin.id, role: "authenticated" })}'`
+    const block = ({ name, sql, asAdmin }: Step) => {
+      const attempt = `do $$ begin
   ${sql};
   perform set_config('g.${name}', 'ok', true);
 exception when others then
   perform set_config('g.${name}', sqlstate || ':' || sqlerrm, true);
 end $$;`
-    const asAdmin = (
-      name: string,
-      policy: string
-    ) => `set local "request.jwt.claims" to ${claims};
+      return asAdmin
+        ? `set local "request.jwt.claims" to ${claims};
 set local role authenticated;
-${attempt(name, `perform public.knowledge_freshness_preview('guest_toilets', '${policy}'::jsonb)`)}
+${attempt}
 reset role;`
-    // One transaction, rolled back: nothing reaches the shared stack.
+        : attempt
+    }
     const out = psql(`begin;
-insert into public.knowledge_freshness_policies (id, version, claim_class, use, max_age, recheck_lead, basis)
-values ('${obs}', 1, 'fixture', 'internal', interval '30 days', interval '7 days', 'observed_on'),
-       ('${evt}', 1, 'event', 'public', null, null, 'event_end');
-${asAdmin("previewPresenceObserved", `{"internal": "${obs}"}`)}
-${asAdmin("previewPresenceEvent", `{"public": "${evt}"}`)}
-${attempt("presenceObserved", version("presence", `{"internal": "${obs}", "public": null}`))}
-${attempt("presenceEvent", version("presence", `{"internal": null, "public": "${evt}"}`))}
-${attempt("facilityObserved", version("facility", `{"internal": "${obs}", "public": null}`))}
-${asAdmin("previewFacilityObserved", `{"internal": "${obs}"}`)}
-${attempt("presenceNamesLate", version("presence", `{"internal": "${late}", "public": null}`))}
-${attempt(
-  "lateObserved",
-  `insert into public.knowledge_freshness_policies (id, version, claim_class, use, max_age, recheck_lead, basis)
-  values ('${late}', 1, 'fixture', 'internal', interval '30 days', interval '7 days', 'observed_on')`
-)}
-${attempt(
-  "lateStated",
-  `insert into public.knowledge_freshness_policies (id, version, claim_class, use, max_age, recheck_lead, basis)
-  values ('${late}', 1, 'policy', 'internal', interval '30 days', interval '7 days', 'stated_on')`
-)}
-select jsonb_build_object(${[
-      "previewPresenceObserved",
-      "previewPresenceEvent",
-      "presenceObserved",
-      "presenceEvent",
-      "facilityObserved",
-      "previewFacilityObserved",
-      "presenceNamesLate",
-      "lateObserved",
-      "lateStated",
-    ]
-      .map((k) => `'${k}', current_setting('g.${k}')`)
-      .join(", ")});
+${steps.map(block).join("\n")}
+select jsonb_build_object(${steps.map(({ name }) => `'${name}', current_setting('g.${name}')`).join(", ")});
 rollback;`)
-    const got = JSON.parse(out.split("\n").pop()!) as Record<string, string>
-    const refused = "NLK15:freshness_basis_unavailable"
-    expect(got).toEqual({
-      // guest_toilets is presence.v1 in force: no Checked on on its form.
-      previewPresenceObserved: refused,
+    return JSON.parse(out.split("\n").pop()!) as Record<string, string>
+  }
+
+  it("bind only to a form that asks when it was checked, by schema and version (NLK15)", async () => {
+    const id = tag()
+    const obs = `test_obs_${id}`
+    const evt = `test_evt_${id}`
+    const late = `test_late_${id}`
+    const later = `test_later_${id}`
+    expect(
+      await outcomes("kn-b03-basis-forms", [
+        rule("obsRule", obs, 1, "observed_on"),
+        rule("evtRule", evt, 1, "event_end", "public"),
+        // guest_toilets is presence@1 in force: no Checked on on its form.
+        preview("previewPresenceObserved", { internal: obs }),
+        preview("previewPresenceEvent", { public: evt }),
+        version("presenceObserved", "presence", { internal: obs }),
+        version("presenceEvent", "presence", { public: evt }),
+        // facility@1 asks Checked on; facility@2, which the registry accepts,
+        // has no form in this build, so none.
+        version(
+          "facility2Observed",
+          "facility",
+          { internal: obs },
+          { schemaVersion: 2 }
+        ),
+        version("facilityObserved", "facility", { internal: obs }),
+        preview("previewFacilityObserved", { internal: obs }),
+        version("facility2", "facility", {}, { schemaVersion: 2 }),
+        preview("previewFacility2Observed", { internal: obs }),
+        // A rule a version without Checked on already names can't later count
+        // from the check day; another basis can.
+        version(
+          "facility2NamesLater",
+          "facility",
+          { internal: later },
+          { schemaVersion: 2 }
+        ),
+        rule("laterObserved", later, 1, "observed_on"),
+        version("presenceNamesLate", "presence", { internal: late }),
+        rule("lateObserved", late, 1, "observed_on"),
+        rule("lateStated", late, 1, "stated_on"),
+      ])
+    ).toEqual({
+      obsRule: "ok",
+      evtRule: "ok",
+      previewPresenceObserved: REFUSED,
       previewPresenceEvent: "ok",
-      presenceObserved: refused,
+      presenceObserved: REFUSED,
       presenceEvent: "ok",
-      // facility.v1 records Checked on, so the same rule binds and previews.
+      facility2Observed: REFUSED,
       facilityObserved: "ok",
       previewFacilityObserved: "ok",
-      // A rule a presence version already names can't later count from the
-      // check day; another basis can.
+      facility2: "ok",
+      previewFacility2Observed: REFUSED,
+      facility2NamesLater: "ok",
+      laterObserved: REFUSED,
       presenceNamesLate: "ok",
-      lateObserved: refused,
+      lateObserved: REFUSED,
       lateStated: "ok",
     })
     expect(
       psql(
-        `select private.knowledge_schema_has_checked_on(s) from unnest(array['presence', 'connectivity.wifi', 'policy', 'schedule_event', 'facility', 'accessibility', 'service']) s`
+        `select private.knowledge_schema_has_checked_on(s, v) from (values ('facility', 1), ('accessibility', 1), ('service', 1), ('facility', 2), ('accessibility', 2), ('service', 2), ('presence', 1), ('connectivity.wifi', 1), ('policy', 1), ('schedule_event', 1), ('facility', null)) x(s, v)`
       ).split("\n")
-    ).toEqual(["f", "f", "f", "f", "t", "t", "t"])
+    ).toEqual(["t", "t", "t", "f", "f", "f", "f", "f", "f", "f", "f"])
     expect(
       psql(
-        `select has_function_privilege('authenticated', 'private.knowledge_schema_has_checked_on(text)', 'execute')`
+        `select has_function_privilege('authenticated', 'private.knowledge_schema_has_checked_on(text, integer)', 'execute')`
       )
     ).toBe("f")
   })

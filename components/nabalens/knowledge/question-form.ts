@@ -40,6 +40,24 @@ const B01_FORMS: ReadonlySet<string> = new Set([
   "connectivity.wifi@1",
 ])
 
+/**
+ * The forms that ask Checked on, as `name@version` (b03-design §7.2). A
+ * freshness rule that counts from that day binds only to these: the database
+ * keeps the same set (private.knowledge_schema_has_checked_on), and a unit
+ * test fails if the two drift.
+ */
+export const CHECKED_ON_FORMS: ReadonlySet<string> = new Set([
+  "facility@1",
+  "accessibility@1",
+  "service@1",
+])
+
+/** Whether this form asks Checked on (its detail form's usesCheckedOn). */
+export const asksCheckedOn = (form: QuestionForm) =>
+  form.kind === "facility" ||
+  form.kind === "accessibility" ||
+  form.kind === "service"
+
 const ASKED: ReadonlySet<QuestionLifecycle> = new Set([
   "supported",
   "presence_only",
