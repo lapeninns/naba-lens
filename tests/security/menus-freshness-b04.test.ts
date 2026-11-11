@@ -171,8 +171,9 @@ describe("freshness rechecks and C-B04-4 (A1-4, A1-8)", () => {
       "D:availability:expired:internal:open",
     ])
     expect(out.OPENED_DUE).toBe(1)
+    // Once due, A's due_soon task gives way to its expired one (as B03).
     expect(out.TASKS_DUE).toEqual([
-      "A:price:due_soon:internal:open",
+      "A:price:due_soon:internal:cancelled",
       "A:price:expired:internal:open",
       "C:price:expired:internal:open",
       "D:availability:expired:internal:open",
@@ -182,8 +183,14 @@ describe("freshness rechecks and C-B04-4 (A1-4, A1-8)", () => {
   it("keeps a task open after a withdrawal and closes it only on a re-statement", () => {
     expect(out.OPENED_AFTER_WITHDRAW).toBe(0)
     expect(out.TASKS_AFTER_WITHDRAW).toEqual(out.TASKS_DUE)
+    expect(out.TASKS_AFTER_WITHDRAW).toContain(
+      "A:price:due_soon:internal:cancelled"
+    )
     expect(out.TASKS_AFTER_RESTATE).toContain("C:price:expired:internal:done")
     expect(out.TASKS_AFTER_RESTATE).toContain("A:price:expired:internal:open")
+    expect(out.TASKS_AFTER_RESTATE).toContain(
+      "A:price:due_soon:internal:cancelled"
+    )
   })
 
   it("C-B04-4: expiry and two job runs leave photos, photo events, counts and the credit function unchanged", () => {
