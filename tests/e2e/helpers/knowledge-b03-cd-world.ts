@@ -59,7 +59,7 @@ export type Rules = { internal: string | null; public: string | null }
 
 export type SeedVersion = {
   version: number
-  schema: "presence" | "service"
+  schema: "presence" | "facility" | "service"
   confirmation: "none" | "venue_manager"
   freshness: Rules
   /** SQL for effective_from; null when in force from creation. */

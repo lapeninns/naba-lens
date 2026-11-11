@@ -8,6 +8,7 @@ import {
   type Route,
 } from "@playwright/test"
 
+import { CHECKED_ON_COPY } from "../../components/nabalens/knowledge/checked-on"
 import {
   localDateWords,
   nextDay,
@@ -344,8 +345,10 @@ test.describe("B03 browser charters C and D", () => {
     }
     const policy = `${prefix}_rule`
 
-    // service.v1 (no rule) for the two services; presence with a 7-day
-    // internal rule for the three stale answers, confirmed by a manager.
+    // service.v1 (no rule) for the two services; facility with a 7-day
+    // internal rule for the three stale answers, confirmed by a manager. Its
+    // form carries Checked on, the rule's observed_on basis: a presence form
+    // has none, so nothing sent from it could make the answer fresh again.
     seedPolicies([
       {
         id: policy,
@@ -377,7 +380,7 @@ test.describe("B03 browser charters C and D", () => {
       versions: [
         {
           version: 1,
-          schema: "presence",
+          schema: "facility",
           confirmation: "venue_manager",
           freshness: { internal: policy, public: null },
           effectiveFrom: null,
@@ -758,6 +761,11 @@ test.describe("B03 browser charters C and D", () => {
     const capture = captureForm(staff)
     await capture.answer("yes")
     await capture.attach(recheckPhoto)
+    // Checked on is the answer's freshness basis; left at today, the
+    // confirmed change report is fresh and the recheck can close.
+    await expect(
+      staff.getByRole("main").getByLabel(CHECKED_ON_COPY.label, { exact: true })
+    ).toHaveValue(today)
     // A question with an answer is in change mode: its primary action is
     // "Send change report", not "Submit finding" (b01-ui-design §4.2), and a
     // change report says what changed (required).
