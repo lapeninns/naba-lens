@@ -130,6 +130,58 @@ async function getColleagueAsset(
   }
 }
 
+type CanOpenClient = {
+  rpc(
+    fn: "asset_search_can_open",
+    args: { p_asset_id: string }
+  ): PromiseLike<{ data: unknown; error: unknown }>
+}
+
+/**
+ * Manager arm of the thumbnail gate (B05-m4): a manager account may see the
+ * thumbnail of an asset that asset search lists for it. The database answers
+ * with the search predicate itself (`asset_search_can_open`, as the caller);
+ * only then does the service role read the storage paths. Thumbnails only:
+ * originals, previews and downloads keep the rules of `getReadableAsset`.
+ */
+async function getSearchThumbnailAsset(
+  actor: MediaActor,
+  assetId: string
+): Promise<Outcome<{ asset: ReadableAsset }>> {
+  const checked = await (actor.db as unknown as CanOpenClient).rpc(
+    "asset_search_can_open",
+    { p_asset_id: assetId }
+  )
+  if (checked.error) return unavailable
+  if (checked.data !== true) return notFound
+  const { data, error } = await actor.service
+    .from("media_assets")
+    .select(
+      "id, uploader_id, media_type, original_path, preview_path, thumbnail_path, validated_mime_type, size_bytes"
+    )
+    .eq("id", assetId)
+    .eq("upload_state", "ready")
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (error) return unavailable
+  if (!data || !data.validated_mime_type || data.size_bytes === null)
+    return notFound
+  return {
+    ok: true,
+    asset: {
+      id: data.id,
+      uploaderId: data.uploader_id,
+      mediaType: data.media_type,
+      originalPath: data.original_path,
+      previewPath: data.preview_path,
+      thumbnailPath: data.thumbnail_path,
+      mimeType: data.validated_mime_type,
+      sizeBytes: Number(data.size_bytes),
+      originalFilename: null,
+    },
+  }
+}
+
 /**
  * Lifetime of newly issued signed read URLs: MEDIA_LIMITS.signedUrlExpirySeconds
  * (60 s). Tests can SHORTEN it with NABALENS_SIGNED_URL_TTL_SECONDS to exercise
@@ -147,13 +199,22 @@ export function signedUrlTtlSeconds(): number {
  * derivative. Signed with the service role only after `getReadableAsset` has
  * authorised the caller and the asset: end users have no storage read policy, so
  * they cannot mint signed URLs (of any lifetime) themselves (wave 3 finding 1).
+ * A manager's thumbnail that `getReadableAsset` refuses is retried through the
+ * asset-search arm (`getSearchThumbnailAsset`); the same TTL applies.
  */
 export async function signDerivative(
   actor: MediaActor,
   assetId: string,
   which: "thumbnail" | "preview"
 ): Promise<Outcome<{ url: string }>> {
-  const found = await getReadableAsset(actor, assetId)
+  let found = await getReadableAsset(actor, assetId)
+  if (
+    !found.ok &&
+    found.status === 404 &&
+    which === "thumbnail" &&
+    actor.profile.role === "manager"
+  )
+    found = await getSearchThumbnailAsset(actor, assetId)
   if (!found.ok) return found
   const path =
     which === "thumbnail" ? found.asset.thumbnailPath : found.asset.previewPath
