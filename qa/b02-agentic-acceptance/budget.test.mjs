@@ -1,11 +1,12 @@
 // Offline tests for budget.mjs: no stack, app, browser, lock or network. Pure functions and fixtures only.
 //   node --test qa/b02-agentic-acceptance/budget.test.mjs
+import { liveLaneTouches } from "./offline-guard.mjs"
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { test } from "node:test"
+import { after, test } from "node:test"
 import { fileURLToPath } from "node:url"
 
 import {
@@ -215,4 +216,8 @@ test("on a signal the gate interrupts every group, waits for finalisation within
   // A receipt that cannot be written still lets the hook return (the in-progress receipt already blocks).
   await terminationHook(sup, { block: () => { throw new Error("EROFS") } }, new Promise(() => {}), 10)()
   assert.equal(FINALIZE_MS, 120_000)
+})
+
+after(() => {
+  assert.deepEqual(liveLaneTouches(), [], "an offline test touched the live spare6 lane")
 })

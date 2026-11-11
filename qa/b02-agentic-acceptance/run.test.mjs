@@ -6,6 +6,7 @@
 // Uses this repository as a stand-in checkout where only git objects are
 // needed (it contains the pinned candidate commit) and its
 // scripts/ci/stack.mjs for the real process-group helpers.
+import { forgetLiveLaneTouches, GUARD_IMPORT, liveLaneTouches } from "./offline-guard.mjs"
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -325,7 +326,7 @@ test("the product and harness identities stay distinct", () => {
 
 test("the runner refuses a non-candidate checkout before any lock or write", () => {
   const id = `guard-${process.pid}-head`
-  const env = { PATH: process.env.PATH, HOME: process.env.HOME, B02_CHECKOUT: REPO, B02_RUN_ID: id }
+  const env = { PATH: process.env.PATH, HOME: process.env.HOME, B02_CHECKOUT: REPO, B02_RUN_ID: id, NODE_OPTIONS: GUARD_IMPORT }
   const r = spawnSync(process.execPath, [RUNNER, "run", "--build"], { env, encoding: "utf8" })
   assert.equal(r.status, 1)
   assert.match(r.stderr, /not the pinned candidate c467182323b9db4cbeb330db8248b3dd26042400/)
@@ -926,7 +927,7 @@ test("an inherited NABALENS_WS_ROOT is rejected before anything runs", () => {
   assert.throws(() => requireCanonicalRoot({ NABALENS_WS_ROOT: "" }), /NABALENS_WS_ROOT/)
   requireCanonicalRoot({})
   for (const command of ["check", "seed", "list"]) {
-    const env = { PATH: process.env.PATH, HOME: process.env.HOME, NABALENS_WS_ROOT: "/tmp/elsewhere", B02_CHECKOUT: REPO }
+    const env = { PATH: process.env.PATH, HOME: process.env.HOME, NABALENS_WS_ROOT: "/tmp/elsewhere", B02_CHECKOUT: REPO, NODE_OPTIONS: GUARD_IMPORT }
     const r = spawnSync(process.execPath, [RUNNER, command], { env, encoding: "utf8" })
     assert.equal(r.status, 1, command)
     assert.match(r.stderr, /NABALENS_WS_ROOT is set/)
@@ -1236,7 +1237,7 @@ test("every outgoing string is redacted before it is cut: diagnostics, outer fai
     import { registerSecrets, outwardFailure } from ${JSON.stringify(pathToFileURL(RUNNER).href)}
     registerSecrets([{ name: "MARKER", value: ${JSON.stringify(MARKER)} }])
     try { throw new Error("stack status failed: token ${MARKER}") } catch (error) { console.error(outwardFailure(error)); process.exitCode = 1 }
-  `], { encoding: "utf8" })
+  `], { encoding: "utf8", env: { ...process.env, NODE_OPTIONS: GUARD_IMPORT } })
   assert.equal(r.status, 1)
   assert.equal(r.stderr.trim(), "b02: stack status failed: token [redacted:MARKER]")
 })
@@ -3387,4 +3388,22 @@ test("budget gate: the under-lock recheck re-reads candidate.json, the harness, 
   await assert.rejects(again(), /applied ledger has/)
   world.cleanup()
   rmSync(root, { recursive: true, force: true })
+})
+
+// ---- Offline guard ----------------------------------------------------------------------------------------
+
+test("offline guard: the live lane is unreachable from these tests and from every runner child they spawn", () => {
+  // In this process: the default lane paths are refused before any read.
+  assert.throws(() => requireLaneClear(), /cannot be inspected \(ELIVELANE\)/)
+  assert.throws(() => requireNoQualificationBlocker(), /cannot be inspected \(ELIVELANE\)/)
+  assert.throws(() => requireNoReceipt(), /cannot be inspected \(ELIVELANE\)/)
+  forgetLiveLaneTouches(3)
+  // In a spawned node child preloaded as the runner tests preload it.
+  const child = spawnSync(process.execPath, ["-e", "require('fs').lstatSync('/tmp/nabalens-ws')"], { env: { PATH: process.env.PATH, NODE_OPTIONS: GUARD_IMPORT }, encoding: "utf8" })
+  assert.notEqual(child.status, 0)
+  assert.match(child.stderr, /ELIVELANE|touched the live lane/)
+})
+
+after(() => {
+  assert.deepEqual(liveLaneTouches(), [], "an offline test touched the live spare6 lane")
 })

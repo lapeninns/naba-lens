@@ -2531,7 +2531,6 @@ const tool = (checkout, name) => join(checkout, "node_modules", ".bin", name)
  */
 async function check({ suites = [...SUITES], requireFiles = false, requireCleanHarness = false } = {}) {
   requireCanonicalRoot()
-  requireLaneClear()
   const pin = loadPin()
   const checkout = process.env.B02_CHECKOUT
   verifyCheckout(checkout, pin)
@@ -2540,6 +2539,8 @@ async function check({ suites = [...SUITES], requireFiles = false, requireCleanH
   if (requireCleanHarness && !harness.clean) fail("The harness directory has uncommitted changes; run a committed harness.")
   requireDistinctIdentities(harness, checkout, pin)
   const e2e = resolveE2E()
+  // The lane is looked at only once the candidate and harness are proven, and before anything reads the stack.
+  requireLaneClear()
   const stack = await import(pathToFileURL(join(checkout, "scripts", "ci", "stack.mjs")).href)
   const spec = stack.stackSpec(STACK.name)
   if (spec.workdir !== STACK.workdir) fail(`stack.mjs workdir for ${STACK.name} is ${spec.workdir}, expected ${STACK.workdir}.`)
