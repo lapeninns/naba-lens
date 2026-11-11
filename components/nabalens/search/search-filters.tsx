@@ -190,6 +190,7 @@ export function SearchFilters({
             {SEARCH_COPY.mediaType}
           </legend>
           <Segmented
+            id={fieldId("mediaType")}
             name={fieldId("mediaType")}
             aria-labelledby={`${fieldId("mediaType")}-legend`}
             aria-describedby={describe("mediaType")}

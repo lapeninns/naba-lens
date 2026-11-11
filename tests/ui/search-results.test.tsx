@@ -1,0 +1,266 @@
+// @vitest-environment jsdom
+// B05-06 search screen review repairs (R1, R2, R3, R5, R7): the result list
+// follows each server render of page one, every outcome goes through the
+// screen's one status region, and a failed Show more keeps focus on a control.
+import { act, cleanup, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import * as React from "react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+const fetchMock = vi.hoisted(() => ({
+  fetchSearchPage: vi.fn(),
+  // A plain function, not a spy: a spy's rejected result is reported as a
+  // failure of its own even when the caller handles it.
+  rejecting: null as null | (() => Promise<never>),
+}))
+vi.mock("@/app/_media/fetch-search-page", () => ({
+  fetchSearchPage: (...args: unknown[]) =>
+    fetchMock.rejecting
+      ? fetchMock.rejecting()
+      : fetchMock.fetchSearchPage(...args),
+}))
+
+import { SEARCH_COPY } from "@/components/nabalens/search/search-copy"
+import { SearchResults } from "@/components/nabalens/search/search-results"
+import type { SearchPageResult } from "@/components/nabalens/search/types"
+import type { AssetSearchItem } from "@/lib/server/media/search/types"
+
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
+beforeEach(() => {
+  fetchMock.fetchSearchPage.mockReset()
+  fetchMock.rejecting = null
+})
+
+const NOW = "2026-11-11T12:00:00.000Z"
+
+function item(n: number): AssetSearchItem {
+  return {
+    id: `asset-${n}`,
+    mediaType: "image",
+    thumbnailUrl: null,
+    venueName: "Venue A",
+    uploaderFirstName: "Sam",
+    uploadedAt: "2026-11-10T09:00:00.000Z",
+    groupId: null,
+    subjects: { menuItems: [], checks: [], tasks: [], group: null },
+    use: {
+      state: "not_granted",
+      inForce: 0,
+      withdrawn: 0,
+      destinations: [],
+    },
+    menuDecisions: [],
+  }
+}
+
+/** A promise React's use() reads at once (already fulfilled). */
+function settled(value: SearchPageResult): Promise<SearchPageResult> {
+  return Object.assign(Promise.resolve(value), {
+    status: "fulfilled",
+    value,
+  })
+}
+
+const okPage = (n: number, nextCursor: string | null = null) =>
+  settled({
+    ok: true,
+    page: {
+      items: Array.from({ length: n }, (_, i) => item(i + 1)),
+      nextCursor,
+    },
+  })
+
+type Props = Partial<React.ComponentProps<typeof SearchResults>>
+
+function List(props: Props & { initialPage: Promise<SearchPageResult> }) {
+  return (
+    <SearchResults
+      search=""
+      showVenue={false}
+      now={NOW}
+      empty={<p>EMPTY</p>}
+      emptyStatus={SEARCH_COPY.emptyFiltered}
+      onStatus={() => {}}
+      onFieldErrors={() => {}}
+      onRetry={() => {}}
+      onReload={() => {}}
+      onLostFocus={() => {}}
+      {...props}
+    />
+  )
+}
+
+const cards = () => document.querySelectorAll("[data-asset-card]")
+
+describe("SearchResults follows page one (R1)", () => {
+  it("replaces a stale empty list when a new page one arrives with the same key", () => {
+    const { rerender } = render(<List initialPage={okPage(0)} />)
+    expect(screen.getByText("EMPTY")).toBeTruthy()
+    rerender(<List initialPage={okPage(3)} />)
+    expect(cards()).toHaveLength(3)
+  })
+
+  it("replaces a failed page one when a refresh brings a good one", () => {
+    const failed = settled({
+      ok: false,
+      status: 503,
+      code: "unavailable",
+      message: "",
+    })
+    const { rerender } = render(<List initialPage={failed} />)
+    expect(screen.getByText(SEARCH_COPY.couldNotLoad)).toBeTruthy()
+    rerender(<List initialPage={okPage(2)} />)
+    expect(cards()).toHaveLength(2)
+  })
+
+  it("picks up a refreshed page one after Show more", async () => {
+    fetchMock.fetchSearchPage.mockResolvedValue({
+      ok: true,
+      page: { items: [item(10), item(11)], nextCursor: null },
+    })
+    const { rerender } = render(<List initialPage={okPage(2, "c1")} />)
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    expect(cards()).toHaveLength(4)
+    rerender(<List initialPage={okPage(1)} />)
+    expect(cards()).toHaveLength(1)
+  })
+})
+
+describe("the one status region says every outcome (R2, R7)", () => {
+  it("announces an empty result", () => {
+    const onStatus = vi.fn()
+    render(<List initialPage={okPage(0)} onStatus={onStatus} />)
+    expect(onStatus).toHaveBeenLastCalledWith(SEARCH_COPY.emptyFiltered)
+  })
+
+  it("announces the count", () => {
+    const onStatus = vi.fn()
+    render(<List initialPage={okPage(2, "c")} onStatus={onStatus} />)
+    expect(onStatus).toHaveBeenLastCalledWith(SEARCH_COPY.shownMore(2))
+  })
+
+  it.each([
+    [{ status: 401, code: "signed_out", message: "" }, SEARCH_COPY.signedOut],
+    [
+      {
+        status: 403,
+        code: "not_permitted",
+        message: SEARCH_COPY.wrongVenue,
+      },
+      SEARCH_COPY.wrongVenue,
+    ],
+    [
+      {
+        status: 400,
+        code: "invalid_input",
+        message: "",
+        fieldErrors: { mediaType: "bad" },
+      },
+      SEARCH_COPY.checkFilters,
+    ],
+    [
+      { status: 503, code: "unavailable", message: "" },
+      SEARCH_COPY.couldNotLoad,
+    ],
+  ] as const)(
+    "a refused page one (%o) renders no live region of its own and says its title",
+    (failure, title) => {
+      const onStatus = vi.fn()
+      render(
+        <List
+          initialPage={settled({ ok: false, ...failure } as SearchPageResult)}
+          onStatus={onStatus}
+        />
+      )
+      expect(screen.getByText(title)).toBeTruthy()
+      expect(
+        document.querySelectorAll('[role="status"], [role="alert"]')
+      ).toHaveLength(0)
+      expect(onStatus).toHaveBeenLastCalledWith(title)
+    }
+  )
+})
+
+describe("a failed Show more keeps focus and says why (R3, R5)", () => {
+  it.each([
+    [
+      { ok: false, status: 503, code: "unavailable", message: "" },
+      SEARCH_COPY.tryAgain,
+      SEARCH_COPY.moreFailed,
+    ],
+    [
+      {
+        ok: false,
+        status: 400,
+        code: "invalid_input",
+        message: "",
+        fieldErrors: { cursor: "expired" },
+      },
+      SEARCH_COPY.searchAgain,
+      SEARCH_COPY.expired,
+    ],
+    [
+      { ok: false, status: 401, code: "signed_out", message: "" },
+      SEARCH_COPY.signIn,
+      SEARCH_COPY.signedOut,
+    ],
+  ] as const)(
+    "%o focuses %s and announces it",
+    async (failure, control, sentence) => {
+      fetchMock.fetchSearchPage.mockResolvedValue(failure)
+      const onStatus = vi.fn()
+      render(<List initialPage={okPage(2, "c1")} onStatus={onStatus} />)
+      await userEvent.click(
+        screen.getByRole("button", { name: SEARCH_COPY.showMore })
+      )
+      const target = screen.getByText(control).closest("a, button")
+      expect(document.activeElement).toBe(target)
+      expect(onStatus).toHaveBeenLastCalledWith(sentence)
+    }
+  )
+
+  it("a fetch that throws without an abort shows Try again, not a stuck loader", async () => {
+    // As AbortSignal.any did on Safari before 17.4 (a thrown TypeError).
+    fetchMock.rejecting = () =>
+      Promise.reject(new TypeError("AbortSignal.any is not a function"))
+    const onStatus = vi.fn()
+    render(<List initialPage={okPage(2, "c1")} onStatus={onStatus} />)
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    const retry = screen.getByRole("button", { name: SEARCH_COPY.tryAgain })
+    expect(retry.getAttribute("aria-disabled")).toBeNull()
+    expect(document.activeElement).toBe(retry)
+    expect(onStatus).toHaveBeenLastCalledWith(SEARCH_COPY.moreFailed)
+  })
+
+  it("Search again that finds nothing hands focus back to the screen", async () => {
+    fetchMock.fetchSearchPage
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        code: "invalid_input",
+        message: "",
+        fieldErrors: { cursor: "expired" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        page: { items: [], nextCursor: null },
+      })
+    const onLostFocus = vi.fn()
+    render(<List initialPage={okPage(2, "c1")} onLostFocus={onLostFocus} />)
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.searchAgain })
+    )
+    await act(async () => {})
+    expect(onLostFocus).toHaveBeenCalled()
+  })
+})

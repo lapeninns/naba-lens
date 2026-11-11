@@ -25,7 +25,11 @@ import {
   filterDay,
 } from "./search-copy"
 import { CONTROL_ORDER, SearchFilters, fieldId } from "./search-filters"
-import { SearchErrorBoundary, SearchResults } from "./search-results"
+import {
+  ERROR_SUMMARY_ID,
+  SearchErrorBoundary,
+  SearchResults,
+} from "./search-results"
 import { SearchGridSkeleton } from "./search-skeleton"
 import type { SearchMenuOptions, SearchOption, SearchPageResult } from "./types"
 
@@ -64,7 +68,9 @@ export function filterPills(
       "mediaType",
       v.mediaType === "video"
         ? SEARCH_COPY.mediaVideos
-        : SEARCH_COPY.mediaPhotos
+        : v.mediaType === "image"
+          ? SEARCH_COPY.mediaPhotos
+          : v.mediaType
     )
   if (v.item) add("item", item?.name ?? SEARCH_COPY.pillItem)
   if (v.variant)
@@ -94,6 +100,13 @@ export function filterPills(
   if (v.group) add("group", SEARCH_COPY.pillGroup)
   if (v.submission) add("submission", SEARCH_COPY.pillSubmission)
   return pills
+}
+
+/** A control focus can land on: there, enabled and not hidden. */
+function focusable(el: HTMLElement | null): el is HTMLElement {
+  if (!el || el.closest("[hidden], [inert]")) return false
+  if ((el as HTMLInputElement).disabled) return false
+  return el.getAttribute("aria-disabled") !== "true"
 }
 
 /** The widest single step back from an empty result. */
@@ -165,11 +178,15 @@ export function SearchView({
   }
 
   const clear = () => navigate(EMPTY_SEARCH_FILTERS, { focus: true })
-  const retry = () =>
+  // The Try again button goes with the list it was in: focus the heading.
+  const retry = () => {
+    focusHeading.current = true
     startTransition(() => {
       setAttempt((a) => a + 1)
       router.refresh()
     })
+  }
+  const focusResults = React.useCallback(() => headingRef.current?.focus(), [])
 
   React.useEffect(() => {
     if (pending || !focusHeading.current) return
@@ -183,10 +200,18 @@ export function SearchView({
     return () => clearTimeout(timer)
   }, [pending, target])
 
-  // New field errors: focus the first control that has one.
+  // New field errors: focus the first control that has one and can take
+  // focus; else the error summary, else the results heading.
   React.useEffect(() => {
-    const key = CONTROL_ORDER.find((k) => fieldErrors[k])
-    if (key) document.getElementById(fieldId(key))?.focus()
+    if (Object.keys(fieldErrors).length === 0) return
+    for (const key of CONTROL_ORDER) {
+      if (!fieldErrors[key]) continue
+      const el = document.getElementById(fieldId(key))
+      if (focusable(el)) return el.focus()
+    }
+    const summary = document.getElementById(ERROR_SUMMARY_ID)
+    if (summary) summary.focus()
+    else headingRef.current?.focus()
   }, [fieldErrors])
 
   const onFieldErrors = React.useCallback(
@@ -212,6 +237,12 @@ export function SearchView({
       : SEARCH_COPY.searching
     : status
 
+  const emptyStatus =
+    pills.length > 0
+      ? SEARCH_COPY.emptyFiltered
+      : venueName
+        ? SEARCH_COPY.emptyManager(venueName)
+        : SEARCH_COPY.emptyAdmin
   const empty =
     pills.length > 0 ? (
       <EmptyState
@@ -315,7 +346,7 @@ export function SearchView({
           inert={pending}
           className={pending ? "opacity-60" : undefined}
         >
-          <SearchErrorBoundary>
+          <SearchErrorBoundary onStatus={setStatus}>
             <React.Suspense fallback={<SearchGridSkeleton />}>
               <SearchResults
                 key={listKey}
@@ -324,10 +355,12 @@ export function SearchView({
                 showVenue={mode === "admin"}
                 now={now}
                 empty={empty}
+                emptyStatus={emptyStatus}
                 onStatus={setStatus}
                 onFieldErrors={onFieldErrors}
                 onRetry={retry}
-                onReload={() => navigate(shown)}
+                onReload={() => navigate(shown, { focus: true })}
+                onLostFocus={focusResults}
               />
             </React.Suspense>
           </SearchErrorBoundary>

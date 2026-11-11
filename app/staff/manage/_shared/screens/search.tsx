@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import {
+  canonicalFilters,
   searchToFilters,
   toServiceFilters,
+  type SearchFilterValue,
   type SearchMode,
 } from "@/app/_media/search-params"
 import { AppShell } from "@/components/nabalens/app-shell"
@@ -20,7 +22,8 @@ import type {
 } from "@/components/nabalens/search/types"
 import { redactError } from "@/lib/server/log/redact"
 import { getLabellingCatalogue } from "@/lib/server/labels"
-import { libraryFilterOptions } from "@/lib/server/media/library"
+import { isUuid } from "@/lib/server/coverage/validate"
+import { libraryVenueOptions } from "@/lib/server/media/library"
 import { libraryLabelFilterOptions } from "@/lib/server/media/library-labels"
 import { searchAssets } from "@/lib/server/media/search"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -81,11 +84,16 @@ async function menuOptionsFor(
   }
 }
 
+type DestinationRow = { key: string; label: string }
+
 /**
  * Registered places of use (active, organisation-wide or this venue), for the
  * "Where it's used" filter. The registry is readable by the service role only
  * and holds labels, never asset data; read after the page's own access check.
  * Empty (the control hides) when there are none or the read fails.
+ *
+ * Two parameterised reads, never a filter string: an admin's venue comes from
+ * the URL, and is only asked about when it is a venue id at all.
  */
 async function destinationOptions(
   actor: MediaActor,
@@ -94,18 +102,19 @@ async function destinationOptions(
   try {
     // media_use_destinations predates the generated types (B05-m1).
     const db = actor.service as unknown as SupabaseClient
-    let query = db
-      .from("media_use_destinations")
-      .select("key, label")
-      .eq("active", true)
-      .order("label")
-    if (venueId) query = query.or(`venue_id.is.null,venue_id.eq.${venueId}`)
-    const { data, error } = await query
-    if (error) throw error
-    return ((data ?? []) as { key: string; label: string }[]).map((d) => ({
-      id: d.key,
-      name: d.label,
-    }))
+    const active = () =>
+      db.from("media_use_destinations").select("key, label").eq("active", true)
+    const reads = [active().is("venue_id", null)]
+    if (venueId && isUuid(venueId)) reads.push(active().eq("venue_id", venueId))
+    const answers = await Promise.all(reads)
+    const rows: DestinationRow[] = []
+    for (const { data, error } of answers) {
+      if (error) throw error
+      rows.push(...((data ?? []) as DestinationRow[]))
+    }
+    return rows
+      .sort((a, b) => a.label.localeCompare(b.label, "en-GB"))
+      .map((d) => ({ id: d.key, name: d.label }))
   } catch (error) {
     console.error("[asset-search] destinations unavailable", {
       error: redactError(error),
@@ -114,10 +123,13 @@ async function destinationOptions(
   }
 }
 
-/** Page one, never thrown: a failure is a value the list shows in its place. */
+/**
+ * Page one, never thrown: a failure is a value the list shows in its place.
+ * `filters` are the canonical ones, as Show more asks with.
+ */
 function firstPage(
   actor: MediaActor,
-  filters: ReturnType<typeof searchToFilters>
+  filters: SearchFilterValue
 ): Promise<SearchPageResult> {
   return searchAssets(actor, { filters: toServiceFilters(filters) }).then(
     (result): SearchPageResult =>
@@ -145,16 +157,18 @@ function firstPage(
  */
 export async function SearchScreen(props: SearchScreenProps) {
   const filters = searchToFilters(props.search)
+  // The search itself uses the canonical filters (the same ones the list key
+  // and Show more use), so page one never differs from the pages after it.
+  const searched = canonicalFilters(filters)
   const admin = props.mode === "admin"
   const actor = admin ? props.actor : props.ctx.actor
   const venueId = admin ? filters.venue : props.ctx.venueId
   const codecMode: SearchMode = admin ? "admin" : "manager"
   // Not awaited: the header and filters render while the list streams in.
-  const page = firstPage(actor, filters)
+  const page = firstPage(actor, searched)
   const [venues, menuOptions, destinations] = await Promise.all([
-    admin
-      ? libraryFilterOptions(actor).then((o) => o.venues)
-      : Promise.resolve([] as SearchOption[]),
+    // Venues only: the library's options also page every staff profile.
+    admin ? libraryVenueOptions(actor) : Promise.resolve([] as SearchOption[]),
     menuOptionsFor(actor, venueId),
     destinationOptions(actor, venueId),
   ])

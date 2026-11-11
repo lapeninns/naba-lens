@@ -17,16 +17,25 @@ export function ErrorState({
   children = ERROR_COPY.checkConnection,
   action,
   detail,
+  role,
   className,
 }: {
   title: React.ReactNode
   children?: React.ReactNode
   action?: React.ReactNode
   detail?: React.ReactNode
+  /** "none" when the screen's own status region says the title instead. */
+  role?: "alert" | "none"
   className?: string
 }) {
   return (
-    <Notice tone="negative" title={title} action={action} className={className}>
+    <Notice
+      tone="negative"
+      role={role}
+      title={title}
+      action={action}
+      className={className}
+    >
       <p>{children}</p>
       {detail ? (
         <p className="mt-1 font-mono text-mono [overflow-wrap:anywhere] text-ink-muted">

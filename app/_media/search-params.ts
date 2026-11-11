@@ -59,6 +59,18 @@ export function filtersToSearch(
 }
 
 /**
+ * The filters the screen actually searches with: the canonical query read
+ * back (a place of use without `rights=in_force` dropped). `venue` is kept in
+ * every mode, so a manager's stray venue still reaches the database and is
+ * refused there. Page one, the list key and Show more all use these.
+ */
+export function canonicalFilters(
+  filters: Partial<SearchFilterValue>
+): SearchFilterValue {
+  return searchToFilters(new URLSearchParams(filtersToSearch(filters, "admin")))
+}
+
+/**
  * `submission=<source>:<uuid>` -> `{ source, id }`, split at the first ":".
  * Anything else is passed through unchanged so the server answers with
  * `fieldErrors.submission`.

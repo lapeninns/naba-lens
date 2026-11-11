@@ -29,11 +29,33 @@ export function pageFieldErrors(
   return result.code === "invalid_input" ? (result.fieldErrors ?? {}) : {}
 }
 
+/** The id of the error summary a 400 shows, for focus when no control can. */
+export const ERROR_SUMMARY_ID = "search-error-summary"
+
+/** What the one status region says for a first page that failed. */
+export function failureStatus(failure: SearchPageFailure): string {
+  if (failure.code === "signed_out") return SEARCH_COPY.signedOut
+  if (failure.code === "invalid_input" || failure.status === 404)
+    return SEARCH_COPY.checkFilters
+  if (failure.code === "not_permitted")
+    return failure.message || SEARCH_COPY.notManager
+  return SEARCH_COPY.couldNotLoad
+}
+
+const MORE_STATUS: Record<Exclude<MoreState, null>, string> = {
+  failed: SEARCH_COPY.moreFailed,
+  expired: SEARCH_COPY.expired,
+  signed_out: SEARCH_COPY.signedOut,
+}
+
 /**
  * The result list for one set of filters (keyed by its canonical query, so a
  * filter change mounts a new one). The first page is server-rendered and read
- * with use(); Show more and Search again GET /api/media/search with an abort
- * signal, and a page that lands after the list is gone is dropped.
+ * with use(); each new server render of it (a refresh, a retry) replaces the
+ * list's own pages. Show more and Search again GET /api/media/search with an
+ * abort signal, and a page that lands after the list moved on is dropped.
+ * Every outcome is said through the screen's one status region (onStatus);
+ * nothing here is a live region of its own.
  */
 export function SearchResults({
   search,
@@ -41,10 +63,12 @@ export function SearchResults({
   showVenue,
   now,
   empty,
+  emptyStatus,
   onStatus,
   onFieldErrors,
   onRetry,
   onReload,
+  onLostFocus,
 }: {
   /** The canonical query for /api/media/search (no cursor). */
   search: string
@@ -53,13 +77,17 @@ export function SearchResults({
   /** ISO instant of the render, so server and browser agree on "this year". */
   now: string
   empty: React.ReactNode
-  /** The count line for the screen's one status region. */
+  /** What the status region says when nothing matches (the empty title). */
+  emptyStatus: string
+  /** The line for the screen's one status region. */
   onStatus: (text: string) => void
   onFieldErrors: (errors: Partial<Record<string, string>>) => void
   /** Reads page one again (503 or a lost reply). */
   onRetry: () => void
   /** Leaves a refused URL for the screen's own one. */
   onReload: () => void
+  /** The focused control went away with nothing to take its place. */
+  onLostFocus: () => void
 }) {
   const first = React.use(initialPage)
   const today = React.useMemo(() => new Date(now), [now])
@@ -71,12 +99,26 @@ export function SearchResults({
   )
   const [loading, setLoading] = React.useState(false)
   const [more, setMore] = React.useState<MoreState>(null)
+  // A new server render of page one (router.refresh, a retry, a corrected
+  // URL with the same key) replaces whatever this list had loaded since.
+  const [seenFirst, setSeenFirst] = React.useState(first)
+  if (first !== seenFirst) {
+    setSeenFirst(first)
+    setItems(first.ok ? first.page.items : [])
+    setCursor(first.ok ? first.page.nextCursor : null)
+    setLoading(false)
+    setMore(null)
+  }
   const listRef = React.useRef<HTMLUListElement>(null)
   const pagerRef = React.useRef<HTMLButtonElement>(null)
+  const againRef = React.useRef<HTMLButtonElement>(null)
+  const signInRef = React.useRef<HTMLAnchorElement>(null)
   const focusIndex = React.useRef<number | null>(null)
   const abort = React.useRef<AbortController | null>(null)
+  const lastFrom = React.useRef<string | null>(null)
 
-  React.useEffect(() => () => abort.current?.abort(), [])
+  // A page asked for before this page one (or the list) is dropped.
+  React.useEffect(() => () => abort.current?.abort(), [first])
 
   React.useEffect(() => {
     onFieldErrors(pageFieldErrors(first))
@@ -84,13 +126,19 @@ export function SearchResults({
 
   React.useEffect(() => {
     onStatus(
-      first.ok && items.length > 0
-        ? cursor
-          ? SEARCH_COPY.shownMore(items.length)
-          : SEARCH_COPY.shown(items.length)
-        : ""
+      !first.ok
+        ? failureStatus(first)
+        : more
+          ? MORE_STATUS[more]
+          : items.length === 0
+            ? loading
+              ? ""
+              : emptyStatus
+            : cursor
+              ? SEARCH_COPY.shownMore(items.length)
+              : SEARCH_COPY.shown(items.length)
     )
-  }, [first.ok, items.length, cursor, onStatus])
+  }, [first, more, items.length, cursor, loading, emptyStatus, onStatus])
 
   React.useEffect(() => {
     const index = focusIndex.current
@@ -98,11 +146,16 @@ export function SearchResults({
     focusIndex.current = null
     const cards =
       listRef.current?.querySelectorAll<HTMLElement>("[data-asset-card]")
-    cards?.[Math.min(index, cards.length - 1)]?.focus()
-  }, [items])
+    const card = cards?.[Math.min(index, cards.length - 1)]
+    if (card) card.focus()
+    else onLostFocus()
+  }, [items, onLostFocus])
 
+  // A failed Show more puts focus on the control that replaces it.
   React.useEffect(() => {
     if (more === "failed") pagerRef.current?.focus()
+    else if (more === "expired") againRef.current?.focus()
+    else if (more === "signed_out") signInRef.current?.focus()
   }, [more])
 
   async function load(from: string | null) {
@@ -110,13 +163,15 @@ export function SearchResults({
     abort.current?.abort()
     const controller = new AbortController()
     abort.current = controller
+    lastFrom.current = from
     setLoading(true)
     setMore(null)
     let result: SearchPageResult
     try {
       result = await fetchSearchPage(search, from, controller.signal)
     } catch {
-      return // aborted: this list is gone
+      if (controller.signal.aborted) return // this list moved on
+      result = { ok: false, status: 0, code: "no_reply", message: "" }
     }
     if (controller.signal.aborted) return
     setLoading(false)
@@ -148,7 +203,7 @@ export function SearchResults({
   if (!first.ok) {
     return <PageFailure failure={first} onRetry={onRetry} onReload={onReload} />
   }
-  if (items.length === 0 && !loading) return <>{empty}</>
+  if (items.length === 0 && !loading && !more) return <>{empty}</>
 
   return (
     <div className="grid min-w-0 gap-(--gutter)">
@@ -171,6 +226,7 @@ export function SearchResults({
               {SEARCH_COPY.expired}
             </p>
             <Button
+              ref={againRef}
               type="button"
               variant="secondary"
               size="touch"
@@ -186,6 +242,7 @@ export function SearchResults({
               {SEARCH_COPY.signedOut}
             </p>
             <Link
+              ref={signInRef}
               href={ROUTES.login}
               className={buttonVariants({
                 variant: "secondary",
@@ -195,7 +252,7 @@ export function SearchResults({
               {SEARCH_COPY.signIn}
             </Link>
           </>
-        ) : cursor ? (
+        ) : cursor || more === "failed" ? (
           <Button
             ref={pagerRef}
             type="button"
@@ -203,7 +260,10 @@ export function SearchResults({
             size="touch"
             aria-disabled={loading || undefined}
             onClick={() => {
-              if (!loading) void load(cursor)
+              if (loading) return
+              // Try again repeats the page that failed (page one after an
+              // expired link); otherwise the next page.
+              void load(more === "failed" ? lastFrom.current : cursor)
             }}
           >
             {loading ? (
@@ -228,7 +288,10 @@ export function SearchResults({
   )
 }
 
-/** A first page that failed: in the list's place, the filters stay usable. */
+/**
+ * A first page that failed: in the list's place, the filters stay usable.
+ * Not a live region: its title is said through the screen's status region.
+ */
 function PageFailure({
   failure,
   onRetry,
@@ -242,6 +305,7 @@ function PageFailure({
     return (
       <Notice
         tone="attention"
+        role="none"
         title={SEARCH_COPY.signedOut}
         action={
           <Link
@@ -257,7 +321,13 @@ function PageFailure({
   if (failure.code === "invalid_input" || failure.status === 404) {
     const errors = pageFieldErrors(failure)
     return (
-      <Notice tone="negative" title={SEARCH_COPY.checkFilters}>
+      <Notice
+        id={ERROR_SUMMARY_ID}
+        tabIndex={-1}
+        tone="negative"
+        role="none"
+        title={SEARCH_COPY.checkFilters}
+      >
         <ul className="grid gap-1">
           {Object.entries(errors).map(([key, text]) => (
             <li key={key}>{fieldErrorText(key, text ?? "")}</li>
@@ -271,6 +341,7 @@ function PageFailure({
     return (
       <Notice
         tone="attention"
+        role="none"
         title={failure.message || SEARCH_COPY.notManager}
         action={
           wrongVenue ? (
@@ -288,19 +359,23 @@ function PageFailure({
       />
     )
   }
-  return <SearchError retry={onRetry} />
+  return <SearchError retry={onRetry} live={false} />
 }
 
 export function SearchError({
   retry,
   digest,
+  live = true,
 }: {
   retry: () => void
   digest?: string
+  /** False inside the search screen, whose status region says the title. */
+  live?: boolean
 }) {
   return (
     <ErrorState
       title={SEARCH_COPY.couldNotLoad}
+      role={live ? undefined : "none"}
       action={
         <Button type="button" variant="secondary" size="sm" onClick={retry}>
           <ArrowClockwiseIcon aria-hidden />
@@ -312,14 +387,30 @@ export function SearchError({
   )
 }
 
-function SearchErrorFallback(_props: object, { error, retry }: ErrorInfo) {
+function SearchErrorFallback(
+  { onStatus }: { onStatus: (text: string) => void },
+  { error, retry }: ErrorInfo
+) {
   const digest =
     error instanceof Error &&
     "digest" in error &&
     typeof error.digest === "string"
       ? error.digest
       : undefined
-  return <SearchError retry={retry} digest={digest} />
+  return <BoundaryFailure onStatus={onStatus} retry={retry} digest={digest} />
+}
+
+function BoundaryFailure({
+  onStatus,
+  retry,
+  digest,
+}: {
+  onStatus: (text: string) => void
+  retry: () => void
+  digest?: string
+}) {
+  React.useEffect(() => onStatus(SEARCH_COPY.couldNotLoad), [onStatus])
+  return <SearchError retry={retry} digest={digest} live={false} />
 }
 
 /** An unexpected throw while reading the results: the list's place only. */
