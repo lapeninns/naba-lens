@@ -142,11 +142,13 @@ $$;
 -- 'ambiguous_price', form: market | from | multiple } for "MP", "M/P",
 -- "market price", "from <price>" and "<price> / <price>", or { ok: false,
 -- error: 'invalid_price' } (more than two decimals, a sign, free text, a
--- currency outside the list).
+-- currency outside the list). STABLE, not IMMUTABLE: its results are built
+-- with jsonb_build_object, which PostgreSQL marks STABLE; only commands and
+-- tests call it (no index, generated column or constraint).
 create function private.menu_parse_price(p_input jsonb, p_currency text)
 returns jsonb
 language plpgsql
-immutable
+stable
 set search_path = ''
 as $$
 declare
@@ -1061,7 +1063,7 @@ declare
   v_stop_at timestamptz;
   v_schedule public.knowledge_schedules;
   v_successor public.knowledge_contributions;
-  v_seen uuid[] := '{}';
+  v_seen uuid[] := '{}'::uuid[];
 begin
   select c.* into v_check from public.venue_amenity_checks c
   where c.id = p_check_id and c.venue_id = p_venue_id;
