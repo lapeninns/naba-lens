@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // X-01 / UP-21: the offline banner's times say what they measure.
 import { act, cleanup, render, screen } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const nav = vi.hoisted(() => ({ pathname: "/manager/amenities" }))
 vi.mock("next/navigation", () => ({
@@ -19,6 +19,7 @@ import {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.restoreAllMocks()
   nav.pathname = "/manager/amenities"
 })
@@ -41,12 +42,18 @@ const banner = () =>
 
 // 09:30 London (GMT in November).
 const LOADED = "2026-11-10T09:30:00.000Z"
+// The banner adds a date to any time that isn't today, so every case runs on
+// the fixture day rather than the machine's.
+const NOW = "2026-11-10T10:05:00.000Z"
 
 describe("offline banner times", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date(NOW))
+  })
+
   it("says when the page was loaded and when the connection dropped", () => {
     setOnline(true)
-    vi.useFakeTimers({ toFake: ["Date"] })
-    vi.setSystemTime(new Date("2026-11-10T10:05:00.000Z"))
     render(
       <OfflineShell loadedAt={LOADED}>
         <p>Page</p>
@@ -56,7 +63,6 @@ describe("offline banner times", () => {
     expect(banner()?.textContent).toContain(
       "Loaded at 09:30. You've been offline since 10:05."
     )
-    vi.useRealTimers()
   })
 
   it("never names a time for a page that loaded already offline", () => {
