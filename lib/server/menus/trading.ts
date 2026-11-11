@@ -177,6 +177,21 @@ const CODES: Record<string, [MenuFailure["status"], string]> = {
   invalid_trading_reason: [400, "The note is too long (up to 500 characters)."],
   invalid_trading_decision: [400, "Choose confirm, decline or withdraw."],
   invalid_timezone: [400, "Choose a valid timezone."],
+  not_active_admin: [403, "Only an admin can do this."],
+  venue_not_found: [404, "This venue could not be found."],
+  invalid_freshness_binding: [
+    400,
+    "Choose price, availability, temporary unavailability, dietary or allergens, and internal or public use.",
+  ],
+  invalid_effective_from: [400, "Choose a start time from now on."],
+  freshness_policy_not_found: [
+    404,
+    "This freshness policy could not be found.",
+  ],
+  freshness_policy_unsuitable: [
+    409,
+    "This policy does not fit that field: it must age from the stated date and suit the field.",
+  ],
   invalid_value: [400, "The schedule is invalid."],
 }
 

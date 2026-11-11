@@ -433,6 +433,13 @@ describe("tradingRpcFailure", () => {
       "not this option or portion",
     ],
     [{ message: "idempotency_key_reused", code: "22023" }, 400, "Reload"],
+    [
+      { message: "freshness_policy_unsuitable", code: "P0001" },
+      409,
+      "stated date",
+    ],
+    [{ message: "invalid_effective_from", code: "22023" }, 400, "from now on"],
+    [{ message: "not_active_admin", code: "42501" }, 403, "admin"],
     [{ message: "something_else", code: "40001" }, 409, "changed elsewhere"],
   ] as const)("%j", (error, status, text) => {
     const out = tradingRpcFailure(error, "test")
