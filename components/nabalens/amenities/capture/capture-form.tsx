@@ -35,6 +35,7 @@ import {
   type UnknownPreset,
   type KnowledgeFailure,
   type KnowledgeResult,
+  type Occurrence,
   type SaveDraftInput,
   type ServerDraft,
   type SubmitKnowledgeInput,
@@ -56,6 +57,8 @@ import {
   KNOWLEDGE_FAILURE_COPY,
   captureContextLines,
   dockNote,
+  policyNeedWords,
+  RECHECK_COPY,
   recognitionLine,
   replacedOwnLine,
   SEND_PROGRESS_COPY,
@@ -65,6 +68,64 @@ import {
   type SentCopy,
   type UploadKinds,
 } from "../../knowledge/copy"
+import {
+  checkedOnError,
+  newCheckedOn,
+  reopenCheckedOn,
+} from "../../knowledge/checked-on"
+import { CheckedOnField } from "../../knowledge/checked-on-field"
+import {
+  emptyAccess,
+  firstBadMeasurement,
+} from "../../knowledge/accessibility-detail"
+import { AccessDetailFields } from "../../knowledge/accessibility-detail-fields"
+import {
+  detailErrorsFor,
+  detailFieldErrors,
+  detailToSend,
+  draftDetail,
+  hasDetailErrors,
+  NO_DETAIL_ERRORS,
+  partsFromDetail,
+  partsTouched,
+  policyOf,
+  showsAccess,
+  showsFacility,
+  showsService,
+  usesCheckedOn,
+  type DetailErrors,
+  type DetailForm,
+} from "../../knowledge/detail-form"
+import {
+  firstBadCondition,
+  firstBadException,
+  firstBadZone,
+  POLICY_COPY,
+  policyNeeds,
+  type PolicyDraft,
+  policySentCopy,
+  stanceAnswer,
+} from "../../knowledge/policy-detail"
+import {
+  PolicyDetailFields,
+  PolicyNeedsPanel,
+  PolicyRuleField,
+} from "../../knowledge/policy-detail-fields"
+import { emptyEvent } from "../../knowledge/event-detail"
+import { emptyFacility } from "../../knowledge/facility-detail"
+import {
+  DATE_CHANGE_COPY,
+  firstBadWindow,
+  scheduleShape,
+  scheduleTouched,
+} from "../../knowledge/schedule-detail"
+import {
+  ScheduleFields,
+  SchedulePreview,
+} from "../../knowledge/schedule-fields"
+import { emptyService, SPORT_LINES } from "../../knowledge/service-detail"
+import { EventFields, ServiceExtraFields } from "../../knowledge/service-fields"
+import { FacilityDetailFields } from "../../knowledge/facility-detail-fields"
 import { Notice } from "../../notice"
 import { useOnline } from "../../offline-notice"
 import {
@@ -136,6 +197,15 @@ export type KnowledgeCapture = {
     | null
   onDiscardDraft: (() => Promise<KnowledgeResult<Record<never, never>>>) | null
   serverDraft: ServerDraft | null
+  /** B03-e: this check's open recheck tasks when the form opened. */
+  openRechecks?: number
+  /** B03-d: the server's next dates for a schedule being written. */
+  loadNextDates?: (input: {
+    schedule: Record<string, unknown>
+    timezone: string
+    from: string
+    to: string
+  }) => Promise<KnowledgeResult<{ occurrences: Occurrence[] }>>
   /**
    * "Change my finding" (§4.6): start from my undecided finding's answer.
    * A draft on this device or the account still wins.
@@ -143,8 +213,30 @@ export type KnowledgeCapture = {
   prefill?: {
     answer: KnowledgeAnswer | null
     unknownPreset: UnknownPreset | null
+    /**
+     * B03-c "Complete the policy" (§4.4): someone else's policy finding to
+     * start from, and its sender's first name. Sending it states the policy
+     * as the manager's or admin's own.
+     */
+    policy?: PolicyDraft | null
+    completesFrom?: string | null
   } | null
+  /**
+   * B03-b: the question's version has a detail form this build renders
+   * (facility or accessibility), with the venue's active places for it.
+   */
+  detailForm?: DetailForm | null
 }
+
+/** Without a preview read the editor says the dates couldn't be shown. */
+const NO_PREVIEW = async (): Promise<
+  KnowledgeResult<{ occurrences: Occurrence[] }>
+> => ({
+  ok: false,
+  code: "unavailable",
+  status: 503,
+  message: "No preview here.",
+})
 
 type Outcome =
   | { kind: "retry" }
@@ -245,7 +337,9 @@ function isDirty(draft: CaptureDraft): boolean {
     draft.assetIds.length ||
     draft.redactionConfirmed ||
     draft.uploadsPending?.count ||
-    Object.values(draft.wifi).some(Boolean)
+    Object.values(draft.wifi).some(Boolean) ||
+    partsTouched(draft) ||
+    draft.checkedOn?.source === "chosen"
   )
 }
 
@@ -318,6 +412,8 @@ function fromServerDraft(server: ServerDraft): CaptureDraft {
     sentSlotRevision: payload.sentSlotRevision,
     wifi: { ...payload.wifi },
     assetIds: [...server.assetIds],
+    ...(payload.detail ? partsFromDetail(payload.detail) : {}),
+    ...(payload.checkedOn ? { checkedOn: payload.checkedOn } : {}),
   }
 }
 
@@ -437,7 +533,15 @@ export function CaptureForm({
       newKey,
       knowledge ? knowledge.slot.slotRevision : check.revision
     ),
-    ...(knowledge?.prefill ?? {}),
+    ...(knowledge?.prefill
+      ? {
+          answer: knowledge.prefill.answer,
+          unknownPreset: knowledge.prefill.unknownPreset,
+          ...(knowledge.prefill.policy
+            ? { policy: knowledge.prefill.policy }
+            : {}),
+        }
+      : {}),
   }))
   const [restored, setRestored] = React.useState(false)
   const [assets, setAssets] = React.useState<SubmittableAsset[]>(() =>
@@ -450,6 +554,15 @@ export function CaptureForm({
     () => new Map()
   )
   const [errors, setErrors] = React.useState<CaptureErrors>({})
+  // B03-b detail forms: detail and Checked on errors, and why a reopened
+  // draft's Checked on was cleared.
+  const detailForm = knowledge?.detailForm ?? null
+  const [detailErrors, setDetailErrors] =
+    React.useState<DetailErrors>(NO_DETAIL_ERRORS)
+  const [checkedOnErr, setCheckedOnErr] = React.useState<string | undefined>()
+  const [checkedOnNotice, setCheckedOnNotice] = React.useState<string | null>(
+    null
+  )
   const [extraErrors, setExtraErrors] = React.useState<string[]>([])
   const [outcome, setOutcome] = React.useState<Outcome | null>(null)
   const [sending, setSending] = React.useState(false)
@@ -551,10 +664,21 @@ export function CaptureForm({
     // This device's draft is the newest; otherwise the account's saved one.
     const fromServer =
       !stored && serverDraft ? fromServerDraft(serverDraft) : null
+    // A form's Checked on date from an earlier day is cleared (D-B3-12).
+    const saved = stored ?? fromServer
+    const reopened = saved?.checkedOn
+      ? reopenCheckedOn(saved.checkedOn, londonToday())
+      : null
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restore from storage
-    setDraft((current) =>
-      reconcileDraft(stored ?? fromServer ?? current, revision, newKey)
-    )
+    setCheckedOnNotice(reopened?.notice ?? null)
+    setDraft((current) => {
+      const next = reconcileDraft(
+        stored ?? fromServer ?? current,
+        revision,
+        newKey
+      )
+      return reopened ? { ...next, checkedOn: reopened.value } : next
+    })
     setLastSendUnsure(Boolean((stored ?? fromServer)?.attempted))
     // Uploads still saving when the person left: newer unticked ones listed
     // now finished after they went, and aren't attached by themselves.
@@ -656,6 +780,10 @@ export function CaptureForm({
     setOutcome((o) => (o?.kind === "sent" ? o : null))
     setDraft((current) => {
       let next = change(current)
+      // The form's Checked on date is stamped at the first edit, so a draft
+      // reopened later can tell it from a chosen one.
+      if (usesCheckedOn(detailForm) && next.checkedOn === undefined)
+        next = { ...next, checkedOn: newCheckedOn(londonToday()) }
       if (!sameIds(next.assetIds, current.assetIds))
         next = { ...next, redactionConfirmed: false, redactionAssetIds: [] }
       return current.attempted && !sameIntent
@@ -896,21 +1024,56 @@ export function CaptureForm({
         })
       : validateDraft({ ...common, revision: check.revision })
     setExtraErrors([])
+    // B03-b detail forms: the detail and Checked on, checked here (the
+    // database checks them again against the question's version).
+    const today = londonToday()
+    const checkedOnValue = draft.checkedOn ?? newCheckedOn(today)
+    const detailErrs = detailForm
+      ? detailErrorsFor(detailForm, draft, draft.answer, {
+          venueName: knowledge?.venueName ?? "",
+          today,
+        })
+      : NO_DETAIL_ERRORS
+    const checkedOnErrNow =
+      usesCheckedOn(detailForm) && draft.answer
+        ? (checkedOnError(checkedOnValue, today) ?? undefined)
+        : undefined
+    const detailBad = hasDetailErrors(detailErrs) || Boolean(checkedOnErrNow)
+    if (detailForm) {
+      setDetailErrors(detailErrs)
+      setCheckedOnErr(checkedOnErrNow)
+    }
+    if (detailForm && checked.ok && !detailBad) {
+      const detail = detailToSend(detailForm, draft, draft.answer)
+      Object.assign(checked.input, {
+        ...(detail ? { detail } : {}),
+        ...(usesCheckedOn(detailForm)
+          ? {
+              observedOn: checkedOnValue.date!,
+              observedOnSource: checkedOnValue.source!,
+            }
+          : {}),
+      })
+    }
     // Knowledge evidence must be ready to attach: with uploads from this form
     // still saving, nothing is sent until the person waits or goes without.
     const waitable = knowledge !== null && pendingUploads > 0 && !ignorePending
-    if (!checked.ok) {
-      const onlyEvidence = Object.entries(checked.errors).every(
-        ([field, message]) => !message || field === "assetIds"
-      )
-      if (waitable && onlyEvidence) {
+    if (!checked.ok || detailBad) {
+      const errs = checked.ok ? {} : checked.errors
+      const onlyEvidence =
+        !detailBad &&
+        Object.entries(errs).every(
+          ([field, message]) => !message || field === "assetIds"
+        )
+      if (!checked.ok && waitable && onlyEvidence) {
         setErrors({})
         setOutcome({ kind: "uploads_pending", canSendWithout: false })
         return
       }
-      setErrors(checked.errors)
+      setErrors(errs)
       setOutcome(null)
-      focusFirstInvalid(checked.errors)
+      if (Object.values(errs).some(Boolean)) focusFirstInvalid(errs)
+      else focusDetailError(detailErrs, checkedOnErrNow)
       return
     }
     if (waitable) {
@@ -1068,6 +1231,152 @@ export function CaptureForm({
   }
 
   /** Focus the first invalid control; its message is in its description. */
+  /**
+   * The first invalid detail control: Checked on, else the accessibility
+   * section's, else the facility field.
+   */
+  function focusDetailError(errs: DetailErrors, checkedOn: string | undefined) {
+    requestAnimationFrame(() => {
+      if (checkedOn) {
+        document.getElementById(`${ids}-checked-on`)?.focus()
+        return
+      }
+      const access =
+        accessTarget(errs.access) ??
+        policyTarget(errs.policy) ??
+        serviceTarget(errs.service) ??
+        eventTarget(errs.event)
+      if (access) {
+        access.focus()
+        return
+      }
+      const facilityErrs = errs.facility
+      const field = (
+        [
+          "locations",
+          "availability",
+          "fees",
+          "limitations",
+          "howToRequest",
+        ] as const
+      ).find((f) => facilityErrs[f])
+      const target =
+        field === "locations"
+          ? document.getElementById(`${ids}-facility-label`)
+          : field === "availability"
+            ? (document.getElementsByName(`${ids}-facility-availability`)[0] as
+                HTMLElement | undefined)
+            : field === "fees"
+              ? (document.getElementById(`${ids}-facility-amount`) ??
+                (document.getElementsByName(`${ids}-facility-fees`)[0] as
+                  HTMLElement | undefined))
+              : field
+                ? document.getElementById(`${ids}-facility-${field}`)
+                : null
+      target?.focus()
+    })
+  }
+
+  /** The accessibility control an error belongs to, in screen order. */
+  function accessTarget(errs: DetailErrors["access"]): HTMLElement | null {
+    const first = (prefix: string) =>
+      document.querySelector<HTMLElement>(
+        `input[name^="${ids}-access-${prefix}"]`
+      )
+    if (errs.entrances) return first("entrance-")
+    if (errs.scope) {
+      const typed = document.getElementById(`${ids}-access-scope-label`)
+      return typed ?? first("scope")
+    }
+    if (errs.features) return first("feature-")
+    if (errs.measurements) {
+      const bad = firstBadMeasurement(
+        draft.access ?? emptyAccess(),
+        londonToday()
+      )
+      return (
+        (bad &&
+          document.getElementById(`${ids}-access-m${bad.index}-${bad.part}`)) ||
+        document.getElementById(`${ids}-access-m0-feature`)
+      )
+    }
+    return null
+  }
+
+  /** The When or service control an error belongs to, in screen order. */
+  function serviceTarget(errs: DetailErrors["service"]): HTMLElement | null {
+    const byId = (suffix: string) => document.getElementById(`${ids}-${suffix}`)
+    if (errs.effectiveFrom) return byId("schedule-from")
+    if (errs.effectiveTo) return byId("schedule-to")
+    if (errs.recurrence)
+      return (
+        document.querySelector<HTMLElement>(
+          `input[name="${ids}-schedule-day"]`
+        ) ??
+        byId("schedule-nth") ??
+        byId("schedule-date0") ??
+        byId("schedule-add-date")
+      )
+    if (errs.windows) {
+      const bad = firstBadWindow((draft.service ?? emptyService()).schedule)
+      return (
+        (bad && byId(`schedule-w${bad.index}-${bad.part}`)) ??
+        byId("schedule-add-time")
+      )
+    }
+    if (errs.channels) return byId("service-channel0")
+    return null
+  }
+
+  /** The fixture control an error belongs to. */
+  function eventTarget(errs: DetailErrors["event"]): HTMLElement | null {
+    if (errs.title) return document.getElementById(`${ids}-event-title`)
+    if (errs.localDate) return document.getElementById(`${ids}-event-date`)
+    if (errs.window) return document.getElementById(`${ids}-event-start`)
+    return null
+  }
+
+  /** The policy control an error belongs to, in screen order. */
+  function policyTarget(errs: DetailErrors["policy"]): HTMLElement | null {
+    if (detailForm?.schema !== "policy") return null
+    const policy = policyOf(draft, draft.answer, detailForm.requiresZones)
+    const row = (
+      prefix: string,
+      bad: { index: number; part: string } | null
+    ) =>
+      bad
+        ? document.getElementById(
+            bad.part === "value"
+              ? `${ids}-policy-${prefix}${bad.index}-value`
+              : `${ids}-policy-${prefix}${bad.index}-first`
+          )
+        : null
+    const byName = (name: string) =>
+      document.querySelector<HTMLElement>(`input[name="${ids}-policy-${name}"]`)
+    if (errs.stance) return byName("rule")
+    if (errs.zones)
+      return (
+        row("z", firstBadZone(policy)) ??
+        document.getElementById(`${ids}-policy-zones-add`)
+      )
+    if (errs.conditions)
+      return (
+        row("c", firstBadCondition(policy, detailForm)) ??
+        document.getElementById(`${ids}-policy-conditions-add`)
+      )
+    if (errs.exceptions)
+      return (
+        row("e", firstBadException(policy)) ??
+        document.getElementById(`${ids}-policy-exceptions-add`)
+      )
+    if (errs.policyScope) return byName("scope")
+    if (errs.statedOn) return document.getElementById(`${ids}-policy-stated-on`)
+    if (errs.source) return byName("source")
+    if (errs.reference)
+      return document.getElementById(`${ids}-policy-reference`)
+    return null
+  }
+
   function focusFirstInvalid(errs: CaptureErrors) {
     const field = FIELD_ORDER.find((name) => errs[name])
     if (!field) return
@@ -1123,9 +1432,37 @@ export function CaptureForm({
             leftForOthers: input.confirmOwn === false,
           })
     const recognition = recognitionLine(sent.recognition, input.answer)
+    // A policy statement says what it still needs, or that it's confirmed.
+    const policy =
+      detailForm?.schema === "policy" &&
+      detailForm.basis &&
+      input.kind !== "detail" &&
+      input.answer !== "unknown"
+        ? policySentCopy({
+            needs: policyNeedWords(
+              policyNeeds(
+                policyOf(draft, input.answer, detailForm.requiresZones),
+                {
+                  requiresZones: detailForm.requiresZones,
+                }
+              )
+            ),
+            selfConfirmed:
+              input.confirmOwn === true && sent.outcome === "current",
+            venueName: knowledge?.venueName ?? "the venue",
+          })
+        : null
+    // B03-e (§6.2): "Recheck done." only when the server says it closed.
+    const recheck = sent.rechecksClosed?.length
+      ? [RECHECK_COPY.done]
+      : (knowledge?.openRechecks ?? 0) > 0 &&
+          sent.outcome === "awaiting_confirmation"
+        ? [RECHECK_COPY.sentOpen]
+        : []
     return {
-      copy,
+      copy: policy ?? copy,
       extra: [
+        ...recheck,
         ...(sent.replacedOwn ? [replacedOwnLine(sent.replacedOwn.sentAt)] : []),
         ...(recognition ? [recognition] : []),
       ],
@@ -1215,8 +1552,16 @@ export function CaptureForm({
     if (result.fieldErrors) {
       const known: CaptureErrors = {}
       const other: string[] = []
+      // B03-b: detail paths and the observation date go to their fields.
+      const detailErrs = detailFieldErrors(result.fieldErrors)
+      if (hasDetailErrors(detailErrs)) setDetailErrors(detailErrs)
+      const observed =
+        result.fieldErrors.observedOn ?? result.fieldErrors.observedOnSource
+      if (observed) setCheckedOnErr(observed)
       for (const [field, message] of Object.entries(result.fieldErrors)) {
         if (!message) continue
+        if (field.startsWith("detail.") || field.startsWith("observedOn"))
+          continue
         if (FIELD_NAMES.has(field)) known[field as CaptureField] = message
         else if (field === "wifi" || field.startsWith("wifi"))
           known["wifi.testSpot"] ??= message
@@ -1280,6 +1625,12 @@ export function CaptureForm({
           changeReason: draft.changeReason,
           wifi: { ...draft.wifi },
           sentSlotRevision: draft.attempted ? draft.sentSlotRevision : null,
+          ...(detailForm
+            ? {
+                detail: draftDetail(detailForm, draft),
+                checkedOn: draft.checkedOn ?? null,
+              }
+            : {}),
         },
         assetIds: selected,
         idempotencyKey: draft.idempotencyKey,
@@ -1501,6 +1852,16 @@ export function CaptureForm({
     errors[field] ? `${ids}-${field}-error` : undefined
 
   const answer = draft.answer
+  // B03-c policy versions: the rule stands for the answer (§4.2).
+  const policyForm = detailForm?.schema === "policy" ? detailForm : null
+  const policyDraft = policyForm
+    ? policyOf(draft, answer, policyForm.requiresZones)
+    : null
+  // A statement's guide to what's still missing; the server's list follows.
+  const policyNeedsNow =
+    policyForm?.basis && policyDraft
+      ? policyNeeds(policyDraft, { requiresZones: policyForm.requiresZones })
+      : null
   // Read-only while sending, while waiting for uploads to send by itself, and
   // after a send that left late uploads out.
   const locked = sending || waiting || afterSend !== null
@@ -1540,6 +1901,19 @@ export function CaptureForm({
               {line}
             </p>
           ))}
+          {SPORT_LINES[slot.key] ? (
+            <p className="[overflow-wrap:anywhere]">{SPORT_LINES[slot.key]}</p>
+          ) : null}
+          {knowledge.role === "staff" && slot.answerInUse.scheduleId ? (
+            <p className="[overflow-wrap:anywhere]">
+              {DATE_CHANGE_COPY.staffLine}
+            </p>
+          ) : null}
+        </Notice>
+      ) : null}
+      {knowledge?.prefill?.completesFrom ? (
+        <Notice tone="plain" role="note">
+          {POLICY_COPY.completesFrom(knowledge.prefill.completesFrom)}
         </Notice>
       ) : null}
       {knowledge?.respondsTo ? (
@@ -1585,7 +1959,12 @@ export function CaptureForm({
         <Notice
           tone="attention"
           role="note"
-          title="Your manager asked for a recheck"
+          title={
+            // A qualified answer's reason comes from the server, not a manager.
+            check.qualification
+              ? "This answer needs checking"
+              : "Your manager asked for a recheck"
+          }
         >
           <span className="break-words">{check.recheckReason}</span>
         </Notice>
@@ -1608,71 +1987,99 @@ export function CaptureForm({
         />
       ) : null}
 
-      <fieldset
-        ref={answerGroupRef}
-        className="flex min-w-0 flex-col gap-2"
-        aria-describedby={errorId("answer")}
-        disabled={locked}
-      >
-        <legend className={cn(LABEL, "mb-2")}>{entry.question}</legend>
-        {knowledge ? (
-          <div className="grid gap-2 min-[360px]:grid-cols-2 sm:grid-cols-4">
-            {KNOWLEDGE_ANSWERS.map((option: KnowledgeAnswer) => (
-              <label
-                key={option}
-                className="flex min-h-13 cursor-pointer items-start gap-3 rounded-control border border-line-control bg-panel px-4 py-3 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
-              >
-                <input
-                  type="radio"
-                  name={`${ids}-answer`}
-                  value={option}
-                  checked={answer === option}
-                  onChange={() => setField("answer", option)}
-                  aria-labelledby={`${ids}-answer-${option}`}
-                  aria-describedby={`${ids}-answer-${option}-hint`}
-                  className="mt-0.5 size-5 shrink-0 accent-primary"
-                />
-                <span className="grid gap-0.5">
-                  <span id={`${ids}-answer-${option}`}>
-                    {KNOWLEDGE_ANSWER_LABEL[option]}
+      {policyForm ? (
+        <PolicyRuleField
+          fieldsetRef={answerGroupRef}
+          id={`${ids}-policy-rule`}
+          value={policyDraft?.stance ?? null}
+          onChange={(stance) => {
+            edit((d) => ({
+              ...d,
+              answer: stanceAnswer(stance),
+              policy: {
+                ...policyOf(d, d.answer, policyForm.requiresZones),
+                stance,
+              },
+            }))
+            if (errors.answer) setErrors((e) => ({ ...e, answer: undefined }))
+            setDetailErrors((e) => ({ ...e, policy: {} }))
+          }}
+          staff={policyForm.basis === null}
+          conditionsAvailable={policyForm.conditionTypes.length > 0}
+          error={
+            errors.answer
+              ? POLICY_COPY.stanceRequired
+              : detailErrors.policy.stance
+          }
+          disabled={locked}
+        />
+      ) : (
+        <fieldset
+          ref={answerGroupRef}
+          className="flex min-w-0 flex-col gap-2"
+          aria-describedby={errorId("answer")}
+          disabled={locked}
+        >
+          <legend className={cn(LABEL, "mb-2")}>{entry.question}</legend>
+          {knowledge ? (
+            <div className="grid gap-2 min-[360px]:grid-cols-2 sm:grid-cols-4">
+              {KNOWLEDGE_ANSWERS.map((option: KnowledgeAnswer) => (
+                <label
+                  key={option}
+                  className="flex min-h-13 cursor-pointer items-start gap-3 rounded-control border border-line-control bg-panel px-4 py-3 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
+                >
+                  <input
+                    type="radio"
+                    name={`${ids}-answer`}
+                    value={option}
+                    checked={answer === option}
+                    onChange={() => setField("answer", option)}
+                    aria-labelledby={`${ids}-answer-${option}`}
+                    aria-describedby={`${ids}-answer-${option}-hint`}
+                    className="mt-0.5 size-5 shrink-0 accent-primary"
+                  />
+                  <span className="grid gap-0.5">
+                    <span id={`${ids}-answer-${option}`}>
+                      {KNOWLEDGE_ANSWER_LABEL[option]}
+                    </span>
+                    <span
+                      id={`${ids}-answer-${option}-hint`}
+                      className="text-meta-touch font-normal text-ink-muted md:text-meta"
+                    >
+                      {option === "yes" && yesRefused
+                        ? yesRefused
+                        : ANSWER_HINT[option]}
+                    </span>
                   </span>
-                  <span
-                    id={`${ids}-answer-${option}-hint`}
-                    className="text-meta-touch font-normal text-ink-muted md:text-meta"
-                  >
-                    {option === "yes" && yesRefused
-                      ? yesRefused
-                      : ANSWER_HINT[option]}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </div>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-3">
-            {SUBMIT_ANSWERS.map((option) => (
-              <label
-                key={option}
-                className="flex min-h-13 cursor-pointer items-center gap-3 rounded-control border border-line-control bg-panel px-4 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
-              >
-                <input
-                  type="radio"
-                  name={`${ids}-answer`}
-                  value={option}
-                  checked={answer === option}
-                  onChange={() => setField("answer", option)}
-                  className="size-5 shrink-0 accent-primary"
-                />
-                {ANSWER_LABEL[option]}
-              </label>
-            ))}
-          </div>
-        )}
-        {yesRefused && !knowledge ? (
-          <p className={MUTED}>{yesRefused}</p>
-        ) : null}
-        <FieldMessage id={`${ids}-answer-error`} error={errors.answer} />
-      </fieldset>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-3">
+              {SUBMIT_ANSWERS.map((option) => (
+                <label
+                  key={option}
+                  className="flex min-h-13 cursor-pointer items-center gap-3 rounded-control border border-line-control bg-panel px-4 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
+                >
+                  <input
+                    type="radio"
+                    name={`${ids}-answer`}
+                    value={option}
+                    checked={answer === option}
+                    onChange={() => setField("answer", option)}
+                    className="size-5 shrink-0 accent-primary"
+                  />
+                  {ANSWER_LABEL[option]}
+                </label>
+              ))}
+            </div>
+          )}
+          {yesRefused && !knowledge ? (
+            <p className={MUTED}>{yesRefused}</p>
+          ) : null}
+          <FieldMessage id={`${ids}-answer-error`} error={errors.answer} />
+        </fieldset>
+      )}
 
       {knowledge && answer === "unknown" ? (
         <UnknownFields
@@ -1683,6 +2090,133 @@ export function CaptureForm({
           onTried={(value) => setField("triedText", value)}
           presetError={errors.unknownPreset}
           triedError={errors.triedText}
+          disabled={locked}
+        />
+      ) : null}
+
+      {detailForm?.schema === "accessibility" &&
+      showsAccess(detailForm, answer) ? (
+        <AccessDetailFields
+          id={`${ids}-access`}
+          value={draft.access ?? emptyAccess()}
+          onChange={(next) => {
+            edit((d) => ({ ...d, access: next }))
+            setDetailErrors((e) => ({ ...e, access: {} }))
+          }}
+          answer={answer}
+          stepFree={detailForm.stepFree}
+          places={detailForm.places}
+          features={detailForm.features}
+          venueName={knowledge?.venueName ?? ""}
+          canManagePlaces={detailForm.canManagePlaces}
+          errors={detailErrors.access}
+          today={londonToday()}
+          disabled={locked}
+        />
+      ) : null}
+      {policyForm && policyDraft?.stance && policyDraft.stance !== "unknown" ? (
+        <PolicyDetailFields
+          id={`${ids}-policy`}
+          value={policyDraft}
+          onChange={(next) => {
+            edit((d) => ({ ...d, policy: next }))
+            setDetailErrors((e) => ({ ...e, policy: {} }))
+          }}
+          places={policyForm.places}
+          conditionTypes={policyForm.conditionTypes}
+          exceptionTypes={policyForm.exceptionTypes}
+          retiredConditionTypes={policyForm.retiredConditionTypes}
+          retiredExceptionTypes={policyForm.retiredExceptionTypes}
+          requiresZones={policyForm.requiresZones}
+          basis={policyForm.basis}
+          canStateOrgPolicy={policyForm.canStateOrgPolicy}
+          errors={detailErrors.policy}
+          today={londonToday()}
+          disabled={locked}
+        />
+      ) : null}
+      {detailForm?.schema === "service" && showsService(detailForm, answer) ? (
+        <>
+          <ScheduleFields
+            id={`${ids}-schedule`}
+            value={(draft.service ?? emptyService()).schedule}
+            onChange={(schedule) => {
+              edit((d) => ({
+                ...d,
+                service: { ...(d.service ?? emptyService()), schedule },
+              }))
+              setDetailErrors((e) => ({ ...e, service: {} }))
+            }}
+            errors={detailErrors.service}
+            timezone={detailForm.timezone}
+            disabled={locked}
+          />
+          <SchedulePreview
+            id={`${ids}-schedule-preview`}
+            schedule={
+              draft.service && scheduleTouched(draft.service.schedule)
+                ? scheduleShape(draft.service.schedule)
+                : null
+            }
+            timezone={detailForm.timezone}
+            today={londonToday()}
+            preview={knowledge?.loadNextDates ?? NO_PREVIEW}
+          />
+          <ServiceExtraFields
+            id={`${ids}-service`}
+            value={draft.service ?? emptyService()}
+            onChange={(service) => {
+              edit((d) => ({ ...d, service }))
+              setDetailErrors((e) => ({ ...e, service: {} }))
+            }}
+            channels={detailForm.channels}
+            broadcasters={detailForm.broadcasters}
+            errors={detailErrors.service}
+            disabled={locked}
+          />
+        </>
+      ) : null}
+      {detailForm?.schema === "schedule_event" && answer === "yes" ? (
+        <EventFields
+          id={`${ids}-event`}
+          value={draft.event ?? emptyEvent()}
+          onChange={(event) => {
+            edit((d) => ({ ...d, event }))
+            setDetailErrors((e) => ({ ...e, event: {} }))
+          }}
+          committedBy={detailForm.committedBy}
+          errors={detailErrors.event}
+          disabled={locked}
+        />
+      ) : null}
+      {detailForm && showsFacility(detailForm, answer) ? (
+        <FacilityDetailFields
+          id={`${ids}-facility`}
+          value={draft.facility ?? emptyFacility()}
+          onChange={(next) => {
+            edit((d) => ({ ...d, facility: next }))
+            setDetailErrors((e) => ({ ...e, facility: {} }))
+          }}
+          places={"places" in detailForm ? detailForm.places : []}
+          venueName={knowledge?.venueName ?? ""}
+          errors={detailErrors.facility}
+          showWhere={detailForm.schema === "facility"}
+          showHowToRequest={detailForm.schema !== "service"}
+          disabled={locked}
+        />
+      ) : null}
+      {usesCheckedOn(detailForm) && answer ? (
+        <CheckedOnField
+          id={`${ids}-checked-on`}
+          value={draft.checkedOn ?? newCheckedOn(londonToday())}
+          today={londonToday()}
+          onChange={(next) => {
+            edit((d) => ({ ...d, checkedOn: next }))
+            setCheckedOnErr(undefined)
+            setCheckedOnNotice(null)
+          }}
+          error={checkedOnErr}
+          notice={checkedOnNotice}
           disabled={locked}
         />
       ) : null}
@@ -1735,6 +2269,9 @@ export function CaptureForm({
         >
           Evidence
         </h2>
+        {policyForm ? (
+          <p className={MUTED}>{POLICY_COPY.evidenceHelp}</p>
+        ) : null}
         <p aria-live="polite" className="sr-only">
           {ruleAnnouncement}
         </p>
@@ -1936,6 +2473,13 @@ export function CaptureForm({
         />
       ) : null}
 
+      {policyForm?.basis && policyNeedsNow ? (
+        <PolicyNeedsPanel
+          needs={policyNeedsNow}
+          admin={policyForm.basis === "admin"}
+        />
+      ) : null}
+
       {/* Notices sit in the page flow; only the buttons stay sticky, so a
           notice never covers the fields it is about on a phone (CA-22).
           The redaction tick only holds for the evidence it was given for,
@@ -2047,9 +2591,11 @@ export function CaptureForm({
                       ? "Send detail"
                       : findingKind === "change_report"
                         ? "Send change report"
-                        : askConfirmOwn && draft.confirmOwn === true
-                          ? "Submit and confirm"
-                          : UI_TEXT.submit}
+                        : policyNeedsNow?.length
+                          ? "Save policy (not confirmed)"
+                          : askConfirmOwn && draft.confirmOwn === true
+                            ? "Submit and confirm"
+                            : UI_TEXT.submit}
             </Button>
           </div>
         )}

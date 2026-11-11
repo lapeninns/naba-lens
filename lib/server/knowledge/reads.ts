@@ -220,7 +220,15 @@ export async function getLabelWork(
 export async function getManagerTriage(
   actor: MediaActor,
   input: unknown
-): Promise<KnowledgeResult<{ queues: TriageQueueSummary[] }>> {
+): Promise<
+  KnowledgeResult<{
+    queues: TriageQueueSummary[]
+    /** B03-e (§7.4): open recheck tasks; absent before the B03-e migration. */
+    rechecks?: Omit<TriageQueueSummary, "queue" | "ownWaiting">
+    /** B03-f (A12): undecided imported suggestions; absent before B03-f. */
+    suggestions?: Omit<TriageQueueSummary, "queue" | "ownWaiting">
+  }>
+> {
   const venueId = optionalVenueId(input)
   if (!venueId.ok) return venueId
   const { data, error } = await knowledgeRpc(
@@ -230,6 +238,8 @@ export async function getManagerTriage(
   )
   if (error) return knowledgeRpcFailure(error, "manager triage")
   const rows = new Map(data.map((r) => [r.queue, r]))
+  const rechecks = rows.get("rechecks")
+  const suggestions = rows.get("suggestions")
   return {
     ok: true,
     queues: TRIAGE_QUEUES.map((queue) => {
@@ -242,6 +252,24 @@ export async function getManagerTriage(
         ownWaiting: r?.own_waiting ?? null,
       }
     }),
+    ...(rechecks
+      ? {
+          rechecks: {
+            available: rechecks.available,
+            waiting: rechecks.waiting,
+            oldestWaitingAt: rechecks.oldest_waiting_at,
+          },
+        }
+      : {}),
+    ...(suggestions
+      ? {
+          suggestions: {
+            available: suggestions.available,
+            waiting: suggestions.waiting,
+            oldestWaitingAt: suggestions.oldest_waiting_at,
+          },
+        }
+      : {}),
   }
 }
 

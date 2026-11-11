@@ -22,6 +22,7 @@ import { HomeOverview } from "@/components/nabalens/tasks/home-overview"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { homeLayout } from "@/lib/config/home-layout"
 import { homePrompt } from "@/lib/config/work-roles"
+import { withWorkingListEntrances } from "@/lib/knowledge-client/entrances"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck } from "@/lib/server/amenities"
 import { getCoverageActor, getOurMenu } from "@/lib/server/coverage"
@@ -39,6 +40,7 @@ import {
   staffShellStatus,
 } from "../_shell/shell-status"
 import { WELCOME_PATH, PORTFOLIO_PATH, TASKS_PATH, unwrap } from "./result"
+import { withRecheckSent } from "./sent-recheck"
 
 export const metadata = { title: "Home · Naba-Lens" }
 
@@ -142,7 +144,12 @@ async function sentFinding(
   const slot = list?.slots.find((item) => item.checkId === checkId)
   if (slot) {
     const copy = sentNoticeFor(slot)
-    return copy ? { question: slot.question, copy } : null
+    return copy
+      ? {
+          question: slot.question,
+          copy: await withRecheckSent(actor, slot, copy),
+        }
+      : null
   }
   try {
     const result = await getCheck(actor, { checkId })
@@ -156,6 +163,16 @@ async function sentFinding(
     return list === undefined
       ? { question: check.entry.question, copy: SENT_NEUTRAL }
       : check.entry.question
+  } catch {
+    return null
+  }
+}
+
+/** My open recheck tasks (B03-e); null when they can't be read. */
+async function myRechecks(actor: MediaActor) {
+  try {
+    const result = await knowledgeServices.listMyRechecks(actor)
+    return result.ok ? result.tasks : null
   } catch {
     return null
   }
@@ -195,6 +212,7 @@ export default async function TasksPage({
     labels,
     retakes,
     entry,
+    rechecks,
   ] = await Promise.all([
     myTasks(actor).then(unwrap),
     recentColleaguePhotos(),
@@ -213,7 +231,13 @@ export default async function TasksPage({
     layout === "b02" && profile.venue && !uploadBlockReason(profile)
       ? myContributionEntry(actor, profile.venue.name)
       : null,
+    // B03-e: open rechecks on checks assigned to me; null when unreadable.
+    layout === "b02" ? myRechecks(actor) : null,
   ])
+  // A step-free Yes names its entrances on Home and To do (B03 UI §3.5).
+  const listed = workingList
+    ? await withWorkingListEntrances(actor, workingList)
+    : workingList
   const { reviewCount } = shell
   const blockedReason = uploadBlockReason(profile)
 
@@ -255,8 +279,8 @@ export default async function TasksPage({
     ourMenu,
     amenityTasks,
     findingSent,
-    workingList: workingList ?? null,
-    workingListError: workingList === undefined,
+    workingList: listed ?? null,
+    workingListError: listed === undefined,
     onDismissClosed: dismissClosedAssignmentAction,
   }
 
@@ -274,6 +298,7 @@ export default async function TasksPage({
           labelWork={labels?.status === "ok" ? labels.work : null}
           labelWorkError={labels?.status === "failed"}
           retakes={retakes}
+          rechecks={rechecks}
           alsoThisMonth={
             <Suspense fallback={<AlsoThisMonthSkeleton />}>
               <AlsoThisMonth pending={streamedPending} />

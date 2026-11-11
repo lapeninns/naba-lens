@@ -3,7 +3,13 @@
 // form (staff, manager account, legacy grant, admin), and every route keeps
 // the legacy form for a question that isn't on a working list. Renders the
 // real capture screen and form.
-import { cleanup, render, screen, within } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { cloneElement, isValidElement, type ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -62,6 +68,8 @@ const amenityActions = vi.hoisted(() => ({
 vi.mock("@/app/_amenities/actions", () => amenityActions)
 const actions = vi.hoisted(() => ({
   submitKnowledgeFindingAction: vi.fn(),
+  correctAnswerAction: vi.fn(),
+  previewScheduleAction: vi.fn(),
   saveKnowledgeDraftAction: vi.fn(),
   discardKnowledgeDraftAction: vi.fn(),
   listKnowledgeAssetsAction: vi.fn(),
@@ -71,10 +79,16 @@ const knowledge = vi.hoisted(() => ({
   getKnowledgeCheck: vi.fn(),
   getDraft: vi.fn(),
   listKnowledgeAssets: vi.fn(),
+  getQuestion: vi.fn(),
+  listPlaces: vi.fn(),
+  getValueList: vi.fn(),
+  getCheckRechecks: vi.fn(async () => ({ ok: true, count: 0, tasks: [] })),
 }))
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: knowledge,
 }))
+const work = vi.hoisted(() => ({ getCapabilities: vi.fn() }))
+vi.mock("@/lib/work-client/services", () => ({ workServices: work }))
 vi.mock("@/app/_media/use-media-uploader", () => ({
   useMediaUploader: () => ({}),
 }))
@@ -225,6 +239,202 @@ beforeEach(() => {
   services.listSubmittableAssets.mockResolvedValue({ ok: true, assets: [] })
   knowledge.listKnowledgeAssets.mockResolvedValue({ ok: true, assets: [] })
   knowledge.getDraft.mockResolvedValue({ ok: true, draft: null })
+  knowledge.getQuestion.mockResolvedValue({ ok: true, question: null })
+})
+
+describe("capture routes and the question registry (B03 UI §2.1)", () => {
+  const registry = (over: Record<string, unknown>) => ({
+    ok: true,
+    question: {
+      key: "step_free_entrance",
+      lifecycle: "supported",
+      supersededBy: null,
+      valueSchema: { name: "presence", version: 1 },
+      ...over,
+    },
+  })
+
+  it.each(Object.keys(pages) as (keyof typeof pages)[])(
+    "%s capture keeps today's form for a version 1 schema, reading the question's key",
+    async (name) => {
+      knowledge.getKnowledgeCheck.mockResolvedValue({
+        ok: true,
+        view: inScope(),
+      })
+      knowledge.getQuestion.mockResolvedValue(registry({}))
+      await show(pages[name]())
+      expect(knowledge.getQuestion).toHaveBeenCalledWith(expect.anything(), {
+        key: "step_free_entrance",
+      })
+      expect(
+        screen.getByRole("radio", { name: "Couldn't establish" })
+      ).toBeTruthy()
+    }
+  )
+
+  it.each(Object.keys(pages) as (keyof typeof pages)[])(
+    "%s capture shows a notice and no form for a schema this build doesn't know",
+    async (name) => {
+      knowledge.getKnowledgeCheck.mockResolvedValue({
+        ok: true,
+        view: inScope(),
+      })
+      knowledge.getQuestion.mockResolvedValue(
+        registry({ valueSchema: { name: "policy", version: 2 } })
+      )
+      await show(pages[name]())
+      expect(
+        screen.getByText(
+          "This question has a newer form than this screen knows. Reload to get it."
+        )
+      ).toBeTruthy()
+      expect(screen.getByRole("button", { name: "Reload" })).toBeTruthy()
+      expect(screen.queryByRole("radio")).toBeNull()
+      expect(screen.queryByRole("button", { name: /Submit/ })).toBeNull()
+      expect(
+        screen.queryByRole("button", { name: "Save for later" })
+      ).toBeNull()
+    }
+  )
+
+  it("loads the venue's places for a facility question and shows its detail after Yes", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.getQuestion.mockResolvedValue(
+      registry({ valueSchema: { name: "facility", version: 1 } })
+    )
+    knowledge.listPlaces.mockResolvedValue({
+      ok: true,
+      venueId: VENUE.id,
+      places: [
+        {
+          subjectId: "5a000000-0000-4000-8000-000000000001",
+          kind: "area",
+          label: "⟨Back bar⟩",
+          active: true,
+        },
+        {
+          subjectId: "5a000000-0000-4000-8000-000000000002",
+          kind: "area",
+          label: "⟨Old room⟩",
+          active: false,
+        },
+      ],
+    })
+    await show(pages.staff())
+    expect(knowledge.listPlaces).toHaveBeenCalledWith(expect.anything(), {
+      venueId: VENUE.id,
+    })
+    fireEvent.click(screen.getByRole("radio", { name: "Yes" }))
+    const where = screen.getByRole("group", { name: "Where is it?" })
+    expect(
+      within(where).getByRole("checkbox", { name: "⟨Back bar⟩" })
+    ).toBeTruthy()
+    expect(within(where).queryByText("⟨Old room⟩")).toBeNull()
+    expect(screen.getByLabelText("When did you check?")).toBeTruthy()
+  })
+
+  it.each([
+    ["staff", "Ask your manager to add entrances under Places."],
+    ["manager", "Add entrances under Places."],
+  ] as const)(
+    "%s capture of step-free entrance lists the venue's entrances from Places",
+    async (name, ask) => {
+      knowledge.getKnowledgeCheck.mockResolvedValue({
+        ok: true,
+        view: inScope(),
+      })
+      knowledge.getQuestion.mockResolvedValue(
+        registry({
+          valueSchema: { name: "accessibility", version: 1 },
+          features: [],
+        })
+      )
+      knowledge.listPlaces.mockResolvedValue({
+        ok: true,
+        venueId: VENUE.id,
+        places: [],
+      })
+      await show(pages[name]())
+      fireEvent.click(screen.getByRole("radio", { name: "No" }))
+      expect(
+        screen.getByRole("group", { name: "Which entrances did you check?" })
+      ).toBeTruthy()
+      expect(
+        screen.getByText(
+          `No entrances are listed for ${VENUE.name} yet. ${ask}`
+        )
+      ).toBeTruthy()
+      expect(screen.queryByText("Features")).toBeNull()
+    }
+  )
+
+  it.each([
+    ["staff", "The rule you saw"],
+    ["manager", "The rule"],
+    ["admin", "The rule"],
+  ] as const)(
+    "%s capture of a policy question gets its form, with the owner's lists",
+    async (name, legend) => {
+      knowledge.getKnowledgeCheck.mockResolvedValue({
+        ok: true,
+        view: inScope(),
+      })
+      knowledge.getQuestion.mockResolvedValue(
+        registry({ valueSchema: { name: "policy", version: 1 } })
+      )
+      knowledge.listPlaces.mockResolvedValue({
+        ok: true,
+        venueId: VENUE.id,
+        places: [],
+      })
+      knowledge.getValueList.mockResolvedValue({ ok: true, items: [] })
+      await show(pages[name]())
+      expect(screen.getByRole("group", { name: legend })).toBeTruthy()
+      if (name === "staff") {
+        expect(knowledge.getValueList).toHaveBeenCalledTimes(2)
+        return
+      }
+      expect(knowledge.getValueList).toHaveBeenCalledWith(expect.anything(), {
+        list: "policy_condition_types",
+      })
+      expect(knowledge.getValueList).toHaveBeenCalledWith(expect.anything(), {
+        list: "policy_exception_types",
+      })
+      fireEvent.click(screen.getByRole("radio", { name: "Allowed" }))
+      expect(
+        screen.getByText(
+          name === "admin" ? "You, as admin" : "You, as venue manager"
+        )
+      ).toBeTruthy()
+      if (name === "admin")
+        expect(screen.getByRole("group", { name: "Applies to" })).toBeTruthy()
+      else
+        expect(screen.queryByRole("group", { name: "Applies to" })).toBeNull()
+    }
+  )
+
+  it("says a question isn't asked any more, with no form", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.getQuestion.mockResolvedValue(registry({ lifecycle: "retired" }))
+    await show(pages.staff())
+    expect(
+      screen.getByText(
+        "This question isn't asked any more. Its earlier answers are kept."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByRole("radio")).toBeNull()
+  })
+
+  it("keeps today's form when the registry read fails or doesn't exist yet", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.getQuestion.mockRejectedValueOnce(new Error("network"))
+    await show(pages.staff())
+    expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+    cleanup()
+    knowledge.getQuestion.mockResolvedValueOnce({ ok: true, question: null })
+    await show(pages.staff())
+    expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+  })
 })
 
 describe("capture routes on a working-list question (G2)", () => {
@@ -493,5 +703,251 @@ describe("capture routes on a working-list question (G2)", () => {
     expect(
       screen.queryByRole("radio", { name: "Couldn't establish" })
     ).toBeNull()
+  })
+})
+
+describe("Complete the policy (B03 UI §4.4)", () => {
+  const registry = {
+    ok: true,
+    question: {
+      key: "step_free_entrance",
+      lifecycle: "supported",
+      supersededBy: null,
+      valueSchema: { name: "policy", version: 1 },
+      requiresZones: false,
+    },
+  }
+  const pendingPolicy = {
+    findingRef: { type: "contribution" as const, id: "f-policy" },
+    kind: "finding" as const,
+    answer: "yes" as const,
+    finding: null,
+    limitations: null,
+    reason: null,
+    unknownPreset: null,
+    triedText: null,
+    changeReason: null,
+    sender: { id: "s1", displayName: "Sam Lee" },
+    senderIsAssignee: false,
+    mine: false,
+    sentAt: "2026-11-05T10:00:00.000Z",
+    evidence: [],
+    wifi: null,
+    disputes: false,
+    detailRequest: null,
+    removedEvidence: 0,
+    policyMissing: ["authority" as const, "stated_on" as const],
+    policyDetail: { stance: "not_allowed" },
+  }
+
+  beforeEach(() => {
+    knowledge.getQuestion.mockResolvedValue(registry)
+    knowledge.listPlaces.mockResolvedValue({
+      ok: true,
+      venueId: VENUE.id,
+      places: [],
+    })
+    knowledge.getValueList.mockResolvedValue({ ok: true, items: [] })
+    knowledge.getKnowledgeCheck.mockResolvedValue({
+      ok: true,
+      view: { ...inScope(), pending: [pendingPolicy] },
+    })
+  })
+
+  it("starts the manager's statement from the finding named in the link", async () => {
+    await show(
+      ManagerCapturePage({
+        params,
+        searchParams: Promise.resolve({ complete: "contribution:f-policy" }),
+      })
+    )
+    expect(
+      screen.getByText(
+        "Starting from Sam's finding. When you send it, it's your statement of the policy."
+      )
+    ).toBeTruthy()
+    expect(
+      (screen.getByRole("radio", { name: "Not allowed" }) as HTMLInputElement)
+        .checked
+    ).toBe(true)
+    expect(screen.getByText("You, as venue manager")).toBeTruthy()
+  })
+
+  it("ignores a link that names no pending policy finding", async () => {
+    await show(
+      ManagerCapturePage({
+        params,
+        searchParams: Promise.resolve({ complete: "contribution:other" }),
+      })
+    )
+    expect(screen.queryByText(/Starting from/)).toBeNull()
+    expect(
+      (screen.getByRole("radio", { name: "Not allowed" }) as HTMLInputElement)
+        .checked
+    ).toBe(false)
+  })
+})
+
+describe("service and fixture questions on the capture routes (B03 UI §5)", () => {
+  const registry = (name: string, key = "step_free_entrance") => ({
+    ok: true,
+    question: {
+      key,
+      lifecycle: "supported",
+      supersededBy: null,
+      valueSchema: { name, version: 1 },
+      requiresZones: false,
+    },
+  })
+
+  it("gives staff the page without the form on a fixture showing", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.getQuestion.mockResolvedValue(registry("schedule_event"))
+    await show(pages.staff())
+    expect(
+      screen.getByText("Your manager commits to showing a fixture.")
+    ).toBeTruthy()
+    expect(screen.queryByRole("radio")).toBeNull()
+  })
+
+  it("gives a manager the fixture form, and reads the broadcasters list only for subscriptions", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({
+      ok: true,
+      view: { ...inScope(), timezone: "Europe/London" },
+    })
+    knowledge.getQuestion.mockResolvedValue(registry("schedule_event"))
+    await show(pages.manager())
+    fireEvent.click(screen.getByRole("radio", { name: "Yes" }))
+    expect(screen.getByLabelText("Fixture")).toBeTruthy()
+    cleanup()
+    knowledge.getQuestion.mockResolvedValue(registry("service"))
+    await show(pages.staff())
+    expect(knowledge.getValueList).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("radio", { name: "Yes" }))
+    expect(screen.getByText("Times are UK time.")).toBeTruthy()
+  })
+})
+
+describe("Correct the answer on the capture route (B03 UI §8.1)", () => {
+  const base = inScope()
+  if (!base.inScope) throw new Error("in scope")
+  const YES_IN_USE = {
+    ...base,
+    slot: {
+      ...base.slot,
+      answerInUse: {
+        status: "available" as const,
+        reason: null,
+        detail: null,
+        value: "yes" as const,
+        savedAt: "2026-11-03T14:05:00.000Z",
+        sentAt: null,
+        confirmation: {
+          state: "not_required" as const,
+          self: false,
+          at: null,
+          by: null,
+        },
+      },
+    },
+  }
+
+  it("gives a manager who may correct the correction form, and anyone else the reason not", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({
+      ok: true,
+      view: YES_IN_USE,
+    })
+    work.getCapabilities.mockResolvedValue({
+      status: "ok",
+      value: { canCorrect: true },
+    })
+    await show(
+      ManagerCapturePage({
+        params,
+        searchParams: Promise.resolve({ correct: "1" }),
+      })
+    )
+    expect(
+      screen.getByText("You're correcting the answer in use.")
+    ).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Save correction" })).toBeTruthy()
+    cleanup()
+    work.getCapabilities.mockResolvedValue({
+      status: "ok",
+      value: { canCorrect: false },
+    })
+    await show(
+      ManagerCapturePage({
+        params,
+        searchParams: Promise.resolve({ correct: "1" }),
+      })
+    )
+    expect(
+      screen.getByText(
+        "Only a manager account or an admin can correct answers. Nothing was changed."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Save correction" })).toBeNull()
+  })
+})
+
+describe("policy capabilities on the capture route (A35)", () => {
+  const registry = {
+    ok: true,
+    question: {
+      key: "step_free_entrance",
+      lifecycle: "supported",
+      supersededBy: null,
+      valueSchema: { name: "policy", version: 1 },
+      requiresZones: false,
+    },
+  }
+
+  beforeEach(() => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.getQuestion.mockResolvedValue(registry)
+    knowledge.listPlaces.mockResolvedValue({
+      ok: true,
+      venueId: VENUE.id,
+      places: [],
+    })
+    knowledge.getValueList.mockResolvedValue({
+      ok: true,
+      items: [],
+      retired: [],
+    })
+  })
+
+  it("states on the basis the server gives, and observes where it says no", async () => {
+    work.getCapabilities.mockResolvedValue({
+      status: "ok",
+      value: {
+        canStatePolicy: true,
+        canStateOrgPolicy: true,
+        policyBasis: "admin",
+      },
+    })
+    await show(pages.manager())
+    fireEvent.click(screen.getByRole("radio", { name: "Allowed" }))
+    expect(screen.getByText("You, as admin")).toBeTruthy()
+    expect(screen.getByRole("group", { name: "Applies to" })).toBeTruthy()
+    cleanup()
+    work.getCapabilities.mockResolvedValue({
+      status: "ok",
+      value: {
+        canStatePolicy: false,
+        canStateOrgPolicy: false,
+        policyBasis: null,
+      },
+    })
+    await show(pages.manager())
+    expect(screen.getByRole("group", { name: "The rule you saw" })).toBeTruthy()
+  })
+
+  it("keeps the role's default when the capabilities can't be read", async () => {
+    work.getCapabilities.mockRejectedValue(new Error("down"))
+    await show(pages.manager())
+    fireEvent.click(screen.getByRole("radio", { name: "Allowed" }))
+    expect(screen.getByText("You, as venue manager")).toBeTruthy()
   })
 })

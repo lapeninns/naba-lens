@@ -12,12 +12,14 @@ import {
 import { manageHrefs } from "@/components/nabalens/coverage"
 import { ManageNav } from "@/components/nabalens/coverage/manage-nav"
 import { UI_TEXT, type AmenityFailure } from "@/lib/amenities/contract"
+import type { RecheckTask } from "@/lib/knowledge-client/contract"
 
 import {
   ARCHIVED,
   BASE,
   CATALOGUE,
   DARTS,
+  STAFF,
   WIFI_CHECK,
   view,
 } from "./amenities-manage-fixtures"
@@ -322,5 +324,176 @@ describe("Catalogue picker", () => {
     expect((await within(dialog).findByRole("alert")).textContent).toBe(
       "Unknown catalogue key."
     )
+  })
+})
+
+describe("AmenitiesOverview: qualified answers (B03 UI §2.6)", () => {
+  // Stored complete with a qualified Yes; the legacy read presents it as
+  // needs recheck with the server's reason (b03-design §3.8, A19).
+  const DOGS = {
+    ...DARTS,
+    id: "c0000000-0000-4000-8000-0000000000d1",
+    entry: { ...DARTS.entry, key: "dogs_inside", question: "⟨Dogs question⟩" },
+    progress: "needs_recheck" as const,
+    answer: "yes" as const,
+    recheckReason: "⟨Server reason⟩",
+    qualification: "conditional" as const,
+  }
+
+  it("lists a qualified answer in its own group and count, never as a recheck or a bare Yes", () => {
+    render(
+      <AmenitiesOverview
+        view={view({
+          active: [DARTS, DOGS],
+          counts: { needs_capture: 1, needs_recheck: 1, complete: 0 },
+        })}
+        catalogue={CATALOGUE}
+        basePath={BASE}
+        handlers={handlers()}
+      />
+    )
+    const own = screen.getByRole("region", {
+      name: /Answered with conditions or temporarily unavailable/,
+    })
+    expect(
+      within(own).getByRole("link", { name: "⟨Dogs question⟩" })
+    ).toBeTruthy()
+    expect(
+      within(own).getByText("Answer: Allowed with conditions")
+    ).toBeTruthy()
+    expect(within(own).queryByText(/Answer: Yes/)).toBeNull()
+    expect(within(own).queryByText(/Recheck:/)).toBeNull()
+    const recheck = screen.getByRole("region", { name: "Needs recheck" })
+    expect(within(recheck).queryByText("⟨Dogs question⟩")).toBeNull()
+    expect(within(recheck).getByText("None.")).toBeTruthy()
+    // The recheck tally no longer counts it.
+    expect(
+      screen.getByRole("link", { name: /Needs recheck/ }).textContent
+    ).toContain("0")
+  })
+})
+
+describe("Amenities overview: a withdrawn answer or an incomplete policy (B03 review M3, A39)", () => {
+  it("stays with Needs recheck, says what it is and keeps the server's reason", () => {
+    const WITHDRAWN = {
+      ...DARTS,
+      id: "c0000000-0000-4000-8000-0000000000d2",
+      entry: {
+        ...DARTS.entry,
+        key: "dogs_inside",
+        question: "⟨Withdrawn question⟩",
+      },
+      progress: "needs_recheck" as const,
+      answer: "yes" as const,
+      recheckReason: "⟨Withdrawal reason⟩",
+      qualification: "withdrawn" as const,
+    }
+    render(
+      <AmenitiesOverview
+        view={view({
+          active: [WITHDRAWN],
+          counts: { needs_capture: 0, needs_recheck: 1, complete: 0 },
+        })}
+        catalogue={CATALOGUE}
+        basePath={BASE}
+        handlers={handlers()}
+      />
+    )
+    expect(
+      screen.queryByRole("region", {
+        name: /Answered with conditions or temporarily unavailable/,
+      })
+    ).toBeNull()
+    const recheck = screen.getByRole("region", { name: "Needs recheck" })
+    expect(within(recheck).getByText("⟨Withdrawn question⟩")).toBeTruthy()
+    expect(within(recheck).getAllByText("Withdrawn").length).toBeGreaterThan(0)
+    expect(
+      within(recheck).getByText("Recheck: ⟨Withdrawal reason⟩")
+    ).toBeTruthy()
+    expect(within(recheck).queryByText(/Answer: Yes/)).toBeNull()
+  })
+})
+
+describe("Amenities overview: rechecks (B03 UI §6.3, A41)", () => {
+  const ASSIGNED = { ...WIFI_CHECK, assignee: STAFF }
+  const task = (over: Partial<RecheckTask> = {}): RecheckTask => ({
+    taskId: "t1",
+    checkId: ASSIGNED.id,
+    venueId: ASSIGNED.venueId,
+    questionKey: ASSIGNED.entry.key,
+    question: ASSIGNED.entry.question,
+    cause: "schema_changed",
+    use: "internal",
+    dueAt: "2099-11-20T12:00:00.000Z",
+    ...over,
+  })
+
+  function renderWith(rechecks: RecheckTask[] | null | undefined) {
+    render(
+      <AmenitiesOverview
+        view={view({
+          active: [DARTS, ASSIGNED],
+          counts: { needs_capture: 2, needs_recheck: 0, complete: 0 },
+        })}
+        catalogue={CATALOGUE}
+        basePath={BASE}
+        handlers={handlers()}
+        rechecks={rechecks}
+      />
+    )
+  }
+
+  it("lists each open recheck above the checks, in the server's order, with its cause, due date and the check's assignee", () => {
+    renderWith([
+      task(),
+      task({
+        taskId: "t2",
+        checkId: DARTS.id,
+        questionKey: DARTS.entry.key,
+        question: DARTS.entry.question,
+        cause: "evidence_lost",
+        dueAt: "2099-11-21T12:00:00.000Z",
+      }),
+    ])
+    const group = screen.getByRole("region", { name: /^Rechecks/ })
+    const rows = within(group).getAllByRole("listitem")
+    expect(rows).toHaveLength(2)
+    expect(within(rows[0]).getByText(ASSIGNED.entry.question)).toBeTruthy()
+    expect(
+      within(rows[0]).getByText(
+        "This question now asks for more detail. Check it again."
+      )
+    ).toBeTruthy()
+    expect(
+      within(rows[0]).getByText(
+        `Due 20 Nov 2099 · Assigned to ${STAFF.displayName}`
+      )
+    ).toBeTruthy()
+    expect(
+      within(rows[1]).getByText("Due 21 Nov 2099 · Not assigned")
+    ).toBeTruthy()
+    // Assign goes to the check's own assignment, which the recheck follows.
+    expect(
+      within(rows[1])
+        .getByRole("link", { name: `Assign: ${DARTS.entry.question}` })
+        .getAttribute("href")
+    ).toBe(`${BASE}/amenities/${DARTS.id}#amenity-assignee`)
+    // Above the progress groups.
+    const sections = screen.getAllByRole("region").map((r) => r.id)
+    expect(sections.indexOf("amenities-rechecks")).toBeLessThan(
+      sections.indexOf("amenities-needs_capture")
+    )
+  })
+
+  it("says when the rechecks couldn't be read, and shows no group when none are open or not read", () => {
+    renderWith(null)
+    expect(screen.getByText("Open rechecks couldn't be loaded.")).toBeTruthy()
+    cleanup()
+    renderWith([])
+    expect(screen.queryByRole("region", { name: /^Rechecks/ })).toBeNull()
+    cleanup()
+    renderWith(undefined)
+    expect(screen.queryByRole("region", { name: /^Rechecks/ })).toBeNull()
+    expect(screen.queryByText("Open rechecks couldn't be loaded.")).toBeNull()
   })
 })

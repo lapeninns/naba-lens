@@ -524,3 +524,36 @@ describe("EvidenceTile", () => {
     expect(screen.getByRole("img", { name: "Video unavailable" })).toBeTruthy()
   })
 })
+
+describe("AmenityCheckDetail: a qualified answer (B03 UI §2.6)", () => {
+  const QUALIFIED = {
+    ...WIFI_CHECK,
+    progress: "needs_recheck" as const,
+    recheckReason: "⟨Server reason⟩",
+    qualification: "temporarily_unavailable" as const,
+  }
+
+  it("shows the qualifier, offers Reopen and says assigning doesn't change it", () => {
+    render(
+      <AmenityCheckDetail
+        detail={detail({
+          check: QUALIFIED,
+          permissions: { ...detail().permissions, canReopen: true },
+        })}
+        basePath={BASE}
+        handlers={handlers()}
+      />
+    )
+    const status = screen.getByRole("region", { name: "Where it stands" })
+    expect(within(status).getAllByText("Temporarily unavailable").length).toBe(
+      2
+    )
+    expect(within(status).queryByText("Needs recheck")).toBeNull()
+    expect(within(status).queryByText("Recheck reason")).toBeNull()
+    expect(within(status).queryByText(/^Yes$/)).toBeNull()
+    expect(screen.getByRole("button", { name: UI_TEXT.reopen })).toBeTruthy()
+    expect(
+      screen.getByText(/Assigning doesn't change the answer in use/)
+    ).toBeTruthy()
+  })
+})

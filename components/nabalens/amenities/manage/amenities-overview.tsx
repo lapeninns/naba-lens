@@ -19,7 +19,7 @@ import {
   TallyItem,
 } from "@/components/nabalens/coverage"
 import { Notice } from "@/components/nabalens/notice"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   PROGRESS_LABEL,
   UI_TEXT,
@@ -33,18 +33,22 @@ import {
 
 import {
   KNOWLEDGE_ANSWER_LABEL,
+  recheckCauseLine,
   shortDate,
   TO_CONFIRM_COPY,
+  VENUE_RECHECKS_COPY,
   toConfirmLine,
+  qualifiedInUse,
 } from "@/components/nabalens/knowledge/copy"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import type {
+  RecheckTask,
   ToConfirmList,
   ToConfirmRow,
 } from "@/lib/knowledge-client/contract"
 
 import { CataloguePicker, type AddOutcome } from "./catalogue-picker"
-import { CheckRow } from "./check-row"
+import { assigneeText, CheckRow } from "./check-row"
 import { useAmenityAction } from "./use-amenity-action"
 
 export type AmenitiesOverviewHandlers = {
@@ -60,6 +64,10 @@ export type AmenitiesOverviewHandlers = {
     idempotencyKey: string
   }) => Promise<AmenityResult<{ revision: number }>>
 }
+
+/** Answers in use that are qualified (b03-design §3.8; B03 UI design §2.6). */
+export const QUALIFIED_TITLE =
+  "Answered with conditions or temporarily unavailable"
 
 /** Work first: what needs a recheck, then what was never captured, then done. */
 export const PROGRESS_ORDER: CheckProgress[] = [
@@ -100,6 +108,7 @@ export function AmenitiesOverview({
   handlers,
   toConfirm = null,
   toConfirmFailed = false,
+  rechecks,
 }: {
   view: VenueAmenitiesView
   /** Null when the catalogue could not be read (or Amenities are off). */
@@ -110,10 +119,16 @@ export function AmenitiesOverview({
   toConfirm?: ToConfirmList | null
   /** The findings to confirm couldn't be read: say so (MG-03). */
   toConfirmFailed?: boolean
+  /**
+   * A41: the venue's open rechecks, oldest due first (the tasks the triage
+   * row counts); null when they couldn't be read, undefined when not read.
+   */
+  rechecks?: readonly RecheckTask[] | null
 }) {
   const hrefs = amenityHrefs(basePath)
   const action = useAmenityAction()
   const [pickerOpen, setPickerOpen] = React.useState(false)
+  const [show, setShow] = React.useState<"all" | "findings" | "imports">("all")
   const venue = view.venue.name
   const rootRef = React.useRef<HTMLDivElement>(null)
   const noticeRef = React.useRef<HTMLDivElement>(null)
@@ -229,21 +244,50 @@ export function AmenitiesOverview({
     )
   }
 
+  // A qualified answer reads needs recheck but is an answer in use (§2.6):
+  // it gets its own group and count, never the recheck ones.
+  const qualified = view.active
+    .filter((check) => qualifiedInUse(check.qualification))
+    .sort(byPosition)
   const groups = PROGRESS_ORDER.map((progress) => ({
     progress,
     checks: view.active
-      .filter((check) => check.progress === progress)
+      .filter(
+        (check) =>
+          check.progress === progress && !qualifiedInUse(check.qualification)
+      )
       .sort(byPosition),
   }))
+  const countOf = (progress: CheckProgress) =>
+    progress === "needs_recheck"
+      ? Math.max(0, view.counts[progress] - qualified.length)
+      : view.counts[progress]
 
+  // B03-f (§7.1): imports and findings can be shown apart; the server's
+  // order is kept either way.
+  const isImportRow = (row: ToConfirmRow) =>
+    row.source === "legacy_fact" || row.source === "external_source"
+  const hasImports = (toConfirm?.items ?? []).some(isImportRow)
+  const shownRows = (toConfirm?.items ?? []).filter((row) =>
+    !hasImports || show === "all"
+      ? true
+      : show === "imports"
+        ? isImportRow(row)
+        : !isImportRow(row)
+  )
   // One row per question: its findings are decided together.
   const confirmGroups = new Map<string, ToConfirmRow[]>()
-  for (const row of toConfirm?.items ?? [])
+  for (const row of shownRows)
     confirmGroups.set(row.checkId, [
       ...(confirmGroups.get(row.checkId) ?? []),
       row,
     ])
   const confirmCount = toConfirm?.count ?? 0
+  // §6.3: a recheck's assignee is always its check's, read from the check.
+  const assigneeOf = (checkId: string) => {
+    const check = view.active.find((c) => c.id === checkId)
+    return check?.assignee ? assigneeText(check) : null
+  }
 
   return (
     <div ref={rootRef} className="grid gap-6 md:gap-8">
@@ -262,12 +306,20 @@ export function AmenitiesOverview({
           <TallyItem
             key={progress}
             label={PROGRESS_LABEL[progress]}
-            value={view.counts[progress]}
+            value={countOf(progress)}
             tone={PROGRESS_TONE[progress]}
             icon={PROGRESS_ICON[progress]}
             href={`#amenities-${progress}`}
           />
         ))}
+        {qualified.length > 0 ? (
+          <TallyItem
+            label={QUALIFIED_TITLE}
+            value={qualified.length}
+            icon={WarningIcon}
+            href="#amenities-qualified"
+          />
+        ) : null}
       </Tally>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -307,6 +359,38 @@ export function AmenitiesOverview({
           title={TO_CONFIRM_COPY.title}
           count={confirmCount}
         >
+          {hasImports ? (
+            <fieldset className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+              <legend className="sr-only">Show</legend>
+              <span
+                aria-hidden
+                className="text-label-touch text-ink md:text-label"
+              >
+                Show:
+              </span>
+              {(
+                [
+                  ["all", "All"],
+                  ["findings", "Findings"],
+                  ["imports", "Imports"],
+                ] as const
+              ).map(([value, label]) => (
+                <label
+                  key={value}
+                  className="flex min-h-11 cursor-pointer items-center gap-2 text-body-touch text-ink md:text-body"
+                >
+                  <input
+                    type="radio"
+                    name="amenities-to-confirm-show"
+                    className="size-5 shrink-0 accent-primary"
+                    checked={show === value}
+                    onChange={() => setShow(value)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+          ) : null}
           <ul className="grid min-w-0 divide-y divide-line">
             {[...confirmGroups].map(([checkId, rows]) => (
               <li key={checkId}>
@@ -349,6 +433,62 @@ export function AmenitiesOverview({
         </CoverageSection>
       ) : null}
 
+      {rechecks === null ? (
+        <Notice tone="negative" role="alert">
+          {VENUE_RECHECKS_COPY.failed}
+        </Notice>
+      ) : rechecks && rechecks.length > 0 ? (
+        <CoverageSection
+          id="amenities-rechecks"
+          title={VENUE_RECHECKS_COPY.title}
+          count={rechecks.length}
+        >
+          <ul className="grid min-w-0 divide-y divide-line">
+            {rechecks.map((task) => {
+              const assignee = assigneeOf(task.checkId)
+              return (
+                <li
+                  key={task.taskId}
+                  data-check-id={task.checkId}
+                  className="grid min-w-0 gap-2 py-3"
+                >
+                  <Link
+                    href={hrefs.check(task.checkId)}
+                    className="grid min-h-11 min-w-0 gap-1 outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+                  >
+                    <span className="text-item-title [overflow-wrap:anywhere] text-ink">
+                      {task.question}
+                    </span>
+                    <span className="text-body-touch text-ink md:text-body">
+                      {recheckCauseLine(task)}
+                    </span>
+                    <span className="text-meta-touch text-ink-muted md:text-meta">
+                      {[
+                        VENUE_RECHECKS_COPY.due(task.dueAt),
+                        assignee ?? VENUE_RECHECKS_COPY.notAssigned,
+                      ].join(" · ")}
+                    </span>
+                  </Link>
+                  <div>
+                    {/* Assigns the check; the recheck follows it (§6.3). */}
+                    <Link
+                      href={`${hrefs.check(task.checkId)}#amenity-assignee`}
+                      aria-label={`${VENUE_RECHECKS_COPY.assign}: ${task.question}`}
+                      className={buttonVariants({
+                        variant: "secondary",
+                        size: "sm",
+                      })}
+                    >
+                      {VENUE_RECHECKS_COPY.assign}
+                    </Link>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </CoverageSection>
+      ) : null}
+
       {view.active.length === 0 ? (
         <p className="text-body-touch text-ink-muted md:text-body">
           No active checks. Add questions from the catalogue, or restore an
@@ -380,6 +520,24 @@ export function AmenitiesOverview({
           </CoverageSection>
         ))
       )}
+
+      {qualified.length > 0 ? (
+        <CoverageSection
+          id="amenities-qualified"
+          title={QUALIFIED_TITLE}
+          count={qualified.length}
+        >
+          <ul className="grid min-w-0">
+            {qualified.map((check) => (
+              <CheckRow
+                key={check.id}
+                check={check}
+                href={hrefs.check(check.id)}
+              />
+            ))}
+          </ul>
+        </CoverageSection>
+      ) : null}
 
       <CoverageSection
         id="amenities-recent"

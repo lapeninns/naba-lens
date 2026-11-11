@@ -34,6 +34,9 @@ import type {
   SubmittedFinding,
   WorkingSlot,
 } from "@/lib/knowledge-client/contract"
+import { londonToday } from "@/components/nabalens/amenities/capture/validate"
+import { daysBefore } from "@/components/nabalens/knowledge/checked-on"
+import { longDate } from "@/components/nabalens/knowledge/copy"
 
 const CHECK_ID = "8a000000-0000-4000-8000-000000000002"
 const VIEWER_ID = "1a2b3c4d-0000-4aaa-8bbb-00000000000b"
@@ -156,6 +159,9 @@ function setup({
   })),
   discardDraft = vi.fn<DiscardDraft>(async () => ({ ok: true })),
   prefill = null,
+  detailForm = null,
+  loadNextDates,
+  openRechecks,
 }: {
   knowledgeSlot?: WorkingSlot
   submit?: ReturnType<typeof vi.fn<Submit>>
@@ -165,6 +171,9 @@ function setup({
   saveDraft?: ReturnType<typeof vi.fn<SaveDraft>>
   discardDraft?: ReturnType<typeof vi.fn<DiscardDraft>>
   prefill?: KnowledgeCapture["prefill"]
+  detailForm?: KnowledgeCapture["detailForm"]
+  loadNextDates?: KnowledgeCapture["loadNextDates"]
+  openRechecks?: number
 } = {}) {
   const onDone = vi.fn()
   const onReload = vi.fn()
@@ -194,6 +203,9 @@ function setup({
         onDiscardDraft: discardDraft,
         serverDraft,
         prefill,
+        detailForm,
+        loadNextDates,
+        openRechecks,
       }}
     />
   )
@@ -1162,5 +1174,744 @@ describe("knowledge capture: a send removes the saved draft (CA-01, CA-02, CA-04
     await user.click(screen.getByRole("button", { name: "Discard" }))
     expect(status()).toContain("Draft discarded.")
     await waitFor(() => expect(document.activeElement).toBe(radio("Yes")))
+  })
+})
+
+describe("knowledge capture: facility detail and Checked on (B03-b)", () => {
+  const BAR = {
+    subjectId: "5a000000-0000-4000-8000-000000000001",
+    kind: "area" as const,
+    label: "⟨Back bar⟩",
+    active: true,
+  }
+  const FACILITY = { schema: "facility" as const, places: [BAR] }
+  const today = londonToday()
+
+  it("keeps today's form, with no detail or Checked on, without a detail form", async () => {
+    const { user } = setup()
+    await user.click(radio("Yes"))
+    expect(screen.queryByRole("group", { name: "Where is it?" })).toBeNull()
+    expect(screen.queryByLabelText("When did you check?")).toBeNull()
+  })
+
+  it("sends the facility detail and the form's date, left as the form's", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, detailForm: FACILITY })
+    await user.click(radio("Yes"))
+    await user.click(screen.getByRole("checkbox", { name: "⟨Back bar⟩" }))
+    await user.click(photoBox())
+    expect(
+      (screen.getByLabelText("When did you check?") as HTMLInputElement).value
+    ).toBe(today)
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(lastInput(submit)).toMatchObject({
+      answer: "yes",
+      detail: { locations: [{ subjectId: BAR.subjectId }] },
+      observedOn: today,
+      observedOnSource: "form_default",
+    })
+  })
+
+  it("sends a changed date as chosen, and no detail for No", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, detailForm: FACILITY })
+    await user.click(radio("No"))
+    expect(screen.queryByRole("group", { name: "Where is it?" })).toBeNull()
+    const date = screen.getByLabelText("When did you check?")
+    await user.clear(date)
+    await user.type(date, daysBefore(today, 2))
+    await user.type(screen.getByLabelText(/Reason/), "⟨Reason⟩")
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    const input = lastInput(submit)
+    expect(input).toMatchObject({
+      answer: "no",
+      observedOn: daysBefore(today, 2),
+      observedOnSource: "chosen",
+    })
+    expect(input).not.toHaveProperty("detail")
+  })
+
+  it("puts the server's detail and date errors on their fields", async () => {
+    const submit = vi.fn<Submit>(async () => ({
+      ok: false as const,
+      code: "invalid_input" as const,
+      status: 400 as const,
+      message: "Check the highlighted answers.",
+      fieldErrors: {
+        "detail.locations[0]": "Choose a place at this venue.",
+        observedOn: "Choose a date in the last 30 days.",
+      },
+    }))
+    const { user } = setup({ submit, detailForm: FACILITY })
+    await user.click(radio("Yes"))
+    await user.click(screen.getByRole("checkbox", { name: "⟨Back bar⟩" }))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(
+      await screen.findByText("Choose a place at this venue.")
+    ).toBeTruthy()
+    expect(screen.getByText("Choose a date in the last 30 days.")).toBeTruthy()
+    expect(
+      screen.getByLabelText("When did you check?").getAttribute("aria-invalid")
+    ).toBe("true")
+    expect(
+      screen.getByText("Nothing was sent. Check the highlighted answers.")
+    ).toBeTruthy()
+  })
+
+  it("clears a draft's form date from an earlier day and needs a choice (D-B3-12)", async () => {
+    const started = daysBefore(today, 3)
+    window.localStorage.setItem(
+      `nabalens.amenity-draft.v2:${VIEWER_ID}:${CHECK_ID}`,
+      JSON.stringify({
+        idempotencyKey: "stored-key",
+        attempted: false,
+        revision: 7,
+        answer: "no",
+        reason: "⟨Reason⟩",
+        checkedOn: { date: started, source: "form_default" },
+      })
+    )
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, detailForm: FACILITY })
+    const date = (await screen.findByLabelText(
+      "When did you check?"
+    )) as HTMLInputElement
+    expect(date.value).toBe("")
+    expect(
+      screen.getByText(
+        `This draft was started on ${longDate(started)}. Choose the day you checked.`
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(screen.getByText("Choose the day you checked.")).toBeTruthy()
+    await waitFor(() => expect(document.activeElement).toBe(date))
+  })
+
+  it("saves the detail and Checked on with the account draft", async () => {
+    const { user, saveDraft } = setup({ detailForm: FACILITY })
+    await user.click(radio("Yes"))
+    await user.click(screen.getByRole("checkbox", { name: "⟨Back bar⟩" }))
+    await user.click(screen.getByRole("button", { name: "Save for later" }))
+    expect(saveDraft.mock.lastCall?.[0].payload).toMatchObject({
+      answer: "yes",
+      detail: { locations: [{ subjectId: BAR.subjectId }] },
+      checkedOn: { date: today, source: "form_default" },
+    })
+  })
+})
+
+describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => {
+  const MAIN = {
+    subjectId: "5a000000-0000-4000-8000-000000000011",
+    kind: "entrance" as const,
+    label: "⟨Main entrance⟩",
+    active: true,
+  }
+  const SIDE = {
+    subjectId: "5a000000-0000-4000-8000-000000000012",
+    kind: "entrance" as const,
+    label: "⟨Side door⟩",
+    active: true,
+  }
+  const TOILET = {
+    subjectId: "5a000000-0000-4000-8000-000000000013",
+    kind: "facility_point" as const,
+    label: "⟨Ground floor toilet⟩",
+    active: true,
+  }
+  const stepFreeForm = (
+    places = [MAIN, SIDE, TOILET],
+    canManagePlaces = false
+  ) => ({
+    schema: "accessibility" as const,
+    places,
+    features: [],
+    stepFree: true,
+    canManagePlaces,
+  })
+  const otherForm = (features: { key: string; label: string }[] = []) => ({
+    schema: "accessibility" as const,
+    places: [MAIN, TOILET],
+    features: features.map((f) => ({ ...f, measurable: false })),
+    stepFree: false,
+    canManagePlaces: false,
+  })
+  const stepFreeSlot = () => slot({ key: "step_free_entrance" })
+  const entrance = (label: string, value: string) =>
+    within(screen.getByRole("group", { name: label })).getByRole("radio", {
+      name: value,
+    })
+
+  it("lists only Places entrances for step-free, and a Yes needs one marked step-free", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({
+      submit,
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm(),
+    })
+    await user.click(radio("Yes"))
+    const group = screen.getByRole("group", {
+      name: "Which entrances did you check?",
+    })
+    expect(
+      within(group).getByRole("group", { name: "⟨Main entrance⟩" })
+    ).toBeTruthy()
+    expect(within(group).queryByText("⟨Ground floor toilet⟩")).toBeNull()
+    expect(
+      screen.queryByRole("group", { name: /What did you check/ })
+    ).toBeNull()
+    expect(screen.queryByText("Features")).toBeNull()
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        "To answer Yes, mark at least one entrance as step-free."
+      )
+    ).toBeTruthy()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        entrance("⟨Main entrance⟩", "Step-free")
+      )
+    )
+    await user.click(entrance("⟨Main entrance⟩", "Step-free"))
+    expect(
+      screen.getByText(
+        "Yes says ⟨Main entrance⟩ is step-free. It says nothing about the others."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    const input = lastInput(submit)
+    expect(input.detail).toMatchObject({
+      entrances: [
+        { subjectId: MAIN.subjectId, stepFree: "yes" },
+        { subjectId: SIDE.subjectId, stepFree: "not_checked" },
+      ],
+    })
+    expect(input.detail).not.toHaveProperty("scope")
+    expect(input.detail).not.toHaveProperty("features")
+  })
+
+  it("says to ask a manager when no entrances are listed, and refuses a No", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({
+      submit,
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm([TOILET]),
+    })
+    await user.click(radio("No"))
+    expect(
+      screen.getByText(
+        "No entrances are listed for The Old Crown yet. Ask your manager to add entrances under Places."
+      )
+    ).toBeTruthy()
+    await user.type(screen.getByLabelText(/Reason/), "⟨Reason⟩")
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        "No needs The Old Crown's entrances to be listed first. Ask your manager to add them under Places, or send Couldn't establish."
+      )
+    ).toBeTruthy()
+  })
+
+  it("tells a manager to add entrances under Places", async () => {
+    const { user } = setup({
+      role: "manager",
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm([], true),
+    })
+    await user.click(radio("No"))
+    expect(
+      screen.getByText(
+        "No entrances are listed for The Old Crown yet. Add entrances under Places."
+      )
+    ).toBeTruthy()
+  })
+
+  it("asks no detail for Couldn't establish", async () => {
+    const { user } = setup({
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm(),
+    })
+    await user.click(radio("Couldn't establish"))
+    expect(
+      screen.queryByRole("group", { name: "Which entrances did you check?" })
+    ).toBeNull()
+    expect(screen.getByLabelText("When did you check?")).toBeTruthy()
+  })
+
+  it("needs what was checked on any other question, and sends every feature, untouched as Not checked", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({
+      submit,
+      detailForm: otherForm([
+        { key: "grab_rails", label: "⟨Grab rails⟩" },
+        { key: "alarm_cord", label: "⟨Alarm cord⟩" },
+      ]),
+    })
+    await user.click(radio("Yes"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("Choose what you checked, or name it.")
+    ).toBeTruthy()
+    const scope = screen.getByRole("group", {
+      name: "What did you check? (required)",
+    })
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(scope).getByRole("radio", { name: "⟨Main entrance⟩" })
+      )
+    )
+    await user.click(
+      within(scope).getByRole("radio", { name: "⟨Ground floor toilet⟩" })
+    )
+    await user.click(
+      within(screen.getByRole("group", { name: "⟨Grab rails⟩" })).getByRole(
+        "radio",
+        { name: "Yes" }
+      )
+    )
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(lastInput(submit).detail).toMatchObject({
+      scope: { subjectId: TOILET.subjectId },
+      features: { grab_rails: "yes", alarm_cord: "not_checked" },
+    })
+  })
+
+  it("shows no features section when the version lists none", async () => {
+    const { user } = setup({ detailForm: otherForm() })
+    await user.click(radio("No"))
+    expect(
+      screen.getByRole("group", { name: "What did you check? (required)" })
+    ).toBeTruthy()
+    expect(screen.queryByText("Features")).toBeNull()
+  })
+
+  it("puts the server's entrance error on the entrances", async () => {
+    const submit = vi.fn<Submit>(async () => ({
+      ok: false as const,
+      code: "invalid_input" as const,
+      status: 400 as const,
+      message: "Check the highlighted answers.",
+      fieldErrors: {
+        "detail.entrances": "Mark every listed entrance.",
+      },
+    }))
+    const { user } = setup({
+      submit,
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm(),
+    })
+    await user.click(radio("Yes"))
+    await user.click(entrance("⟨Side door⟩", "Step-free"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(await screen.findByText("Mark every listed entrance.")).toBeTruthy()
+  })
+
+  it("saves the entrances with the account draft and keeps them on this device", async () => {
+    const { user, saveDraft } = setup({
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm(),
+    })
+    await user.click(radio("Yes"))
+    await user.click(entrance("⟨Main entrance⟩", "Step-free"))
+    await user.click(screen.getByRole("button", { name: "Save for later" }))
+    expect(saveDraft.mock.lastCall?.[0].payload).toMatchObject({
+      detail: {
+        entrances: [
+          { subjectId: MAIN.subjectId, stepFree: "yes" },
+          { subjectId: SIDE.subjectId, stepFree: "not_checked" },
+        ],
+      },
+    })
+    cleanup()
+    setup({ knowledgeSlot: stepFreeSlot(), detailForm: stepFreeForm() })
+    await waitFor(() =>
+      expect(
+        (entrance("⟨Main entrance⟩", "Step-free") as HTMLInputElement).checked
+      ).toBe(true)
+    )
+  })
+})
+describe("knowledge capture: policy (B03 UI §4)", () => {
+  const BAR = {
+    subjectId: "5a000000-0000-4000-8000-000000000001",
+    kind: "area" as const,
+    label: "⟨Back bar⟩",
+    active: true,
+  }
+  const statement = (over: Record<string, unknown> = {}) => ({
+    schema: "policy" as const,
+    places: [BAR],
+    conditionTypes: [],
+    exceptionTypes: [],
+    requiresZones: false,
+    basis: "venue_manager" as const,
+    canStateOrgPolicy: false,
+    ...over,
+  })
+  const today = londonToday()
+
+  it("asks the rule instead of the answers, with no Checked on, and saves an incomplete policy as not confirmed", async () => {
+    const submit = vi.fn<Submit>(async () =>
+      sent({ outcome: "awaiting_confirmation" })
+    )
+    const { user } = setup({ submit, role: "manager", detailForm: statement() })
+    expect(screen.queryByRole("radio", { name: /^Yes/ })).toBeNull()
+    await user.click(screen.getByRole("radio", { name: "Allowed" }))
+    expect(screen.queryByLabelText("When did you check?")).toBeNull()
+    const note = screen.getByRole("note", {
+      name: "What this policy still needs",
+    })
+    expect(
+      within(note).getByText(
+        "confirmation by a venue manager, with where it was stated"
+      )
+    ).toBeTruthy()
+    await user.click(photoBox())
+    await user.click(
+      screen.getByRole("button", { name: "Save policy (not confirmed)" })
+    )
+    const input = lastInput(submit)
+    expect(input).toMatchObject({
+      answer: "yes",
+      detail: {
+        stance: "allowed",
+        policyScope: "venue",
+        authority: { basis: "venue_manager" },
+      },
+    })
+    expect(input).not.toHaveProperty("observedOn")
+    expect(
+      await screen.findByText(
+        "Recorded. Not confirmed yet: it still needs confirmation by a venue manager, with where it was stated and the date it was stated."
+      )
+    ).toBeTruthy()
+  })
+
+  it("sends who stated it, and says nothing is missing once it's complete", async () => {
+    const submit = vi.fn<Submit>(async () =>
+      sent({ outcome: "awaiting_confirmation" })
+    )
+    const { user } = setup({ submit, role: "manager", detailForm: statement() })
+    await user.click(screen.getByRole("radio", { name: "Not allowed" }))
+    const date = screen.getByLabelText("Stated on")
+    await user.type(date, today)
+    await user.click(screen.getByRole("radio", { name: "Written policy" }))
+    expect(screen.getByText("Nothing is missing.")).toBeTruthy()
+    await user.type(screen.getByLabelText(/Reason/), "⟨Reason⟩")
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(lastInput(submit)).toMatchObject({
+      answer: "no",
+      detail: {
+        stance: "not_allowed",
+        authority: {
+          basis: "venue_manager",
+          statedOn: today,
+          source: "written_policy",
+        },
+      },
+    })
+  })
+
+  it("keeps Allowed with conditions unavailable while no condition types are set up", async () => {
+    const { user } = setup({ role: "manager", detailForm: statement() })
+    const conditional = screen.getByRole("radio", {
+      name: "Allowed with conditions",
+    })
+    expect(conditional.getAttribute("aria-disabled")).toBe("true")
+    await user.click(conditional)
+    expect((conditional as HTMLInputElement).checked).toBe(false)
+  })
+
+  it("marks Areas required and lists them as missing when the version requires them", async () => {
+    const { user } = setup({
+      role: "manager",
+      detailForm: statement({ requiresZones: true }),
+    })
+    await user.click(screen.getByRole("radio", { name: "Allowed" }))
+    expect(screen.getByRole("group", { name: "Areas (required)" })).toBeTruthy()
+    expect(screen.getByText("at least one area with its rule")).toBeTruthy()
+  })
+
+  it("stops a send for a half-filled area and focuses it", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, role: "manager", detailForm: statement() })
+    await user.click(screen.getByRole("radio", { name: "Allowed" }))
+    await user.click(screen.getByRole("button", { name: "Add an area" }))
+    await user.click(
+      within(screen.getByRole("group", { name: "Rule here" })).getByRole(
+        "radio",
+        { name: "Allowed" }
+      )
+    )
+    await user.click(photoBox())
+    await user.click(
+      screen.getByRole("button", { name: "Save policy (not confirmed)" })
+    )
+    expect(submit).not.toHaveBeenCalled()
+    expect(screen.getByText("Choose the area, or name it.")).toBeTruthy()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText("Place"))
+    )
+  })
+
+  it("puts the server's policy errors on their sections", async () => {
+    const submit = vi.fn<Submit>(async () => ({
+      ok: false as const,
+      code: "invalid_input" as const,
+      status: 400 as const,
+      message: "Check the highlighted answers.",
+      fieldErrors: { "detail.authority.statedOn": "⟨Date problem⟩" },
+    }))
+    const { user } = setup({ submit, role: "manager", detailForm: statement() })
+    await user.click(screen.getByRole("radio", { name: "Allowed" }))
+    await user.click(photoBox())
+    await user.click(
+      screen.getByRole("button", { name: "Save policy (not confirmed)" })
+    )
+    expect(await screen.findByText("⟨Date problem⟩")).toBeTruthy()
+  })
+
+  it("gives staff the observation form: the rule seen and areas, never who stated it", async () => {
+    const submit = vi.fn<Submit>(async () =>
+      sent({ outcome: "awaiting_confirmation" })
+    )
+    const { user } = setup({
+      submit,
+      detailForm: statement({ basis: null }),
+    })
+    expect(screen.getByRole("group", { name: "The rule you saw" })).toBeTruthy()
+    expect(
+      screen.getByText(
+        "A manager or an admin states the policy. What you send helps them; it doesn't set the rule."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("radio", { name: "Allowed" }))
+    expect(screen.queryByLabelText("Stated on")).toBeNull()
+    expect(screen.queryByText("What this policy still needs")).toBeNull()
+    expect(
+      screen.getByText(
+        "A photo can show what's there, such as a sign or a bowl. It doesn't confirm the policy."
+      )
+    ).toBeTruthy()
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(lastInput(submit).detail).toEqual({ stance: "allowed" })
+  })
+
+  it("records Couldn't establish with its reason and no policy sections", async () => {
+    const { user } = setup({ role: "manager", detailForm: statement() })
+    await user.click(screen.getByRole("radio", { name: "Couldn't establish" }))
+    expect(screen.queryByRole("group", { name: "Areas" })).toBeNull()
+    expect(screen.getByText("a rule (not Couldn't establish)")).toBeTruthy()
+  })
+})
+describe("knowledge capture: a qualified answer's reason (B03 UI §2.6)", () => {
+  it("doesn't say a manager asked for the recheck", () => {
+    render(
+      <CaptureForm
+        check={{
+          ...check,
+          progress: "needs_recheck",
+          recheckReason: "⟨Server reason⟩",
+          qualification: "conditional",
+        }}
+        viewerId={VIEWER_ID}
+        initialAssets={{ ok: true, assets: [] }}
+        loadAssets={async () => ({ ok: true, assets: [] })}
+        submit={vi.fn()}
+        upload={null}
+        onReload={vi.fn()}
+        onDone={vi.fn()}
+        signInHref="/login"
+        newKey={keys()}
+      />
+    )
+    expect(screen.getByText("This answer needs checking")).toBeTruthy()
+    expect(screen.queryByText("Your manager asked for a recheck")).toBeNull()
+  })
+})
+
+describe("knowledge capture: services and fixture showings (B03 UI §5)", () => {
+  const service = (over: Record<string, unknown> = {}) => ({
+    schema: "service" as const,
+    timezone: "Europe/London",
+    channels: false,
+    broadcasters: null,
+    ...over,
+  })
+
+  it("asks When for Offered, previews through the server, and sends it with Checked on", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const preview = vi.fn(async () => ({ ok: true as const, occurrences: [] }))
+    const { user } = setup({
+      submit,
+      detailForm: service(),
+      loadNextDates: preview,
+    })
+    await user.click(radio("Yes"))
+    expect(screen.getByText("Times are UK time.")).toBeTruthy()
+    expect(
+      screen.getByText("Fix the highlighted times to see the dates.")
+    ).toBeTruthy()
+    await user.type(screen.getByLabelText("Starts on"), "2026-11-15")
+    await user.click(screen.getByRole("checkbox", { name: "Sunday" }))
+    await user.type(screen.getByLabelText("From"), "12:00")
+    await user.type(screen.getByLabelText("To"), "15:00")
+    await waitFor(() => expect(preview).toHaveBeenCalled(), { timeout: 2000 })
+    expect(screen.queryByText("Where is it?")).toBeNull()
+    expect(screen.queryByLabelText("How to ask for it")).toBeNull()
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(lastInput(submit)).toMatchObject({
+      answer: "yes",
+      detail: {
+        schedule: {
+          effectiveFrom: "2026-11-15",
+          recurrence: { kind: "weekly", days: ["sun"] },
+          windows: [{ start: "12:00", end: "15:00" }],
+        },
+      },
+      observedOnSource: "form_default",
+    })
+  })
+
+  it("stops a half-written When and focuses its first gap", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, detailForm: service() })
+    await user.click(radio("Yes"))
+    await user.click(screen.getByRole("checkbox", { name: "Sunday" }))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(screen.getByText("Choose the day it starts.")).toBeTruthy()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText("Starts on"))
+    )
+  })
+
+  it("needs the day it's back or a note when temporarily unavailable", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, detailForm: service() })
+    await user.click(radio("Yes"))
+    await user.click(screen.getByText("Availability", { selector: "summary" }))
+    await user.click(
+      screen.getByRole("radio", { name: "Temporarily unavailable" })
+    )
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("Add the day it's back, or say what's happening.")
+    ).toBeTruthy()
+  })
+
+  it("says no broadcaster list is set up, and the subscription line", async () => {
+    const { user } = setup({
+      knowledgeSlot: slot({ key: "sports_subscription" }),
+      detailForm: service({ broadcasters: [] }),
+    })
+    expect(
+      screen.getByText(
+        "Subscriptions only. Having a subscription isn't a promise to show any particular fixture."
+      )
+    ).toBeTruthy()
+    await user.click(radio("Yes"))
+    expect(
+      screen.getByText("No broadcaster list is set up yet. Ask an admin.")
+    ).toBeTruthy()
+  })
+
+  it("commits a manager to one showing, with no Checked on", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({
+      submit,
+      role: "manager",
+      knowledgeSlot: slot({ key: "sports_fixture_showing" }),
+      detailForm: {
+        schema: "schedule_event",
+        committedBy: "You, as venue manager",
+      },
+    })
+    expect(
+      screen.getByText(
+        "One fixture, on one date. It promises nothing about other fixtures."
+      )
+    ).toBeTruthy()
+    await user.click(radio("Yes"))
+    expect(screen.queryByLabelText("When did you check?")).toBeNull()
+    expect(screen.getByText("You, as venue manager")).toBeTruthy()
+    await user.type(screen.getByLabelText("Fixture"), "⟨Fixture⟩")
+    await user.type(screen.getByLabelText("Date"), "2026-11-21")
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    const input = lastInput(submit)
+    expect(input.detail).toEqual({
+      event: { title: "⟨Fixture⟩", localDate: "2026-11-21" },
+    })
+    expect(input).not.toHaveProperty("observedOn")
+  })
+})
+
+describe("knowledge capture: a date change is the manager's (B03 UI §5.2)", () => {
+  it("points staff at Report a change when a schedule is in use", () => {
+    setup({
+      knowledgeSlot: slot({
+        mode: "change",
+        answerInUse: {
+          ...YES,
+          scheduleId: "5c000000-0000-4000-8000-000000000001",
+        },
+      }),
+    })
+    expect(
+      screen.getByText("Something different on a date? Report a change.")
+    ).toBeTruthy()
+  })
+})
+
+describe("knowledge capture: a recheck's sent notice (B03 UI §6.2)", () => {
+  it("says Recheck done only when the server closed the task", async () => {
+    const submit = vi.fn<Submit>(async () =>
+      sent({ rechecksClosed: [{ taskId: "t1", use: "internal" }] })
+    )
+    const { user } = setup({ submit })
+    await user.click(radio("Yes"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(await screen.findByText("Recheck done.")).toBeTruthy()
+  })
+
+  it("says the recheck stays open while the finding awaits confirmation", async () => {
+    const submit = vi.fn<Submit>(async () =>
+      sent({ outcome: "awaiting_confirmation" })
+    )
+    const { user } = setup({ submit, openRechecks: 1 })
+    await user.click(radio("Yes"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(
+      await screen.findByText(
+        "Recheck sent. It stays open until a manager or an admin confirms your finding."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByText("Recheck done.")).toBeNull()
+  })
+
+  it("claims nothing about a recheck without one", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit })
+    await user.click(radio("Yes"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await screen.findByText(/Finding sent/)
+    expect(screen.queryByText(/Recheck/)).toBeNull()
   })
 })

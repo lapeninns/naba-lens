@@ -16,6 +16,8 @@ import type {
   WifiMetadata,
 } from "@/lib/amenities/contract"
 import type {
+  ActorBasis,
+  AnswerWithdrawal,
   ConfirmationState,
   ContributionKind,
   Decision,
@@ -24,16 +26,64 @@ import type {
   KnowledgeAsset,
   KnowledgeErrorCode,
   KnowledgeResult,
+  FindingSource,
+  FreshnessEntry,
+  ObservedOnSource,
+  PolicyMissing,
+  RecheckClosed,
   Recognition,
   SlotReason,
   SubmitOutcome,
   UnknownPreset,
+  ValueListView,
 } from "@/lib/knowledge/contract"
 
 export {
+  PLACE_KINDS,
   CONTRIBUTION_KINDS as FINDING_KINDS,
   KNOWLEDGE_ANSWERS,
   UNKNOWN_PRESETS,
+} from "@/lib/knowledge/contract"
+export { SCHEDULE_EXCEPTION_KINDS, VALUE_LISTS } from "@/lib/knowledge/contract"
+export { SOURCE_KINDS } from "@/lib/knowledge/contract"
+export type {
+  ActorBasis,
+  AnswerWithdrawal,
+  CorrectResult,
+  CorrectionValue,
+  SlotEventView,
+  SlotHistoryView,
+  LegacyMappingsView,
+  LegacyNarrativeItem,
+  MappingKind,
+  ReconcileProposal,
+  ReconcileResult,
+  ReconciliationRunView,
+  SourceKind,
+  SourceView,
+  FindingSource,
+  FreshnessEntry,
+  FreshnessPolicyView,
+  FreshnessPreviewView,
+  QuestionLegacyNarrativeItem,
+  RecheckCause,
+  RecheckClosed,
+  RecheckTaskView as RecheckTask,
+} from "@/lib/knowledge/contract"
+export type { ScheduleExceptionKind } from "@/lib/knowledge/contract"
+export type {
+  ObservedOnSource,
+  PolicyMissing,
+  ValueListName,
+  ValueListView,
+  PlaceKind,
+  PlaceRef,
+  QuestionFeature,
+  SubjectView as Place,
+  QuestionView as RegistryQuestion,
+  RegistryItemView as RegistryItem,
+  QuestionLifecycle,
+  ValueSchemaName,
 } from "@/lib/knowledge/contract"
 export type {
   ConfirmationState,
@@ -76,6 +126,35 @@ export type SlotDetail =
   | "declined"
   | "unable_to_establish"
   | "not_checked"
+  /** B03: the answer in use is qualified; see `AnswerInUse.qualified`. */
+  | "qualified_answer"
+  /** B03-c: a policy answer that still needs something; see `policyMissing`. */
+  | "policy_incomplete"
+  /** A detail from a newer server this build doesn't know: needs checking. */
+  | "unrecognised"
+
+/** One item of a closed value list (A4, A9), in the owner's order. */
+export type ValueListItem = ValueListView["items"][number]
+
+/**
+ * What a policy answer still needs (b03-design A5), in the server's order.
+ * A code this build doesn't know is kept as `unrecognised` (once), so the
+ * screen says something is missing instead of reading it as complete.
+ */
+export type PolicyNeed = PolicyMissing | "unrecognised"
+
+/**
+ * A current answer stored as Yes whose detail narrows it (b03-design §3.8):
+ * a policy allowed with conditions, or something temporarily unavailable.
+ * Read from `answerInUse.qualified`; the B01 fields then say needs checking.
+ */
+export type QualifiedAnswer = {
+  qualifier: "conditional" | "temporarily_unavailable"
+  /** Temporarily unavailable: the London date it's back, when given. */
+  until: string | null
+  /** Temporarily unavailable: what's happening, when given (internal). */
+  note: string | null
+}
 
 export type AnswerInUse = {
   /** `available` is the only status a reader may present as an answer. */
@@ -88,6 +167,43 @@ export type AnswerInUse = {
   savedAt: Instant | null
   /** When its finding was sent, if known. */
   sentAt: Instant | null
+  /**
+   * The real answer behind a `qualified_answer` status (B03); absent or null
+   * otherwise, and on servers before B03.
+   */
+  qualified?: QualifiedAnswer | null
+  /** B03-c: policy keys only; empty means complete. Absent elsewhere. */
+  policyMissing?: PolicyNeed[]
+  /** B03-b: the answer's structured detail as recorded; absent when none. */
+  answerDetail?: Record<string, unknown>
+  /**
+   * B03-b (§7.2): the day its sender says they checked (London date,
+   * YYYY-MM-DD). Absent when not recorded; never a save or send time.
+   */
+  observedOn?: string
+  /**
+   * `step_free_entrance` Yes with recorded detail (UI §3.5): the place ids
+   * saved as Step-free, in order. Empty when the detail names none, which
+   * the screens never word as a Yes for the venue. Absent otherwise.
+   */
+  stepFreeEntranceIds?: string[]
+  /**
+   * Those places' labels from the same venue's Places read, in the same
+   * order; set only when every id was found. Absent: say no place.
+   */
+  entranceLabels?: string[]
+  /** B03-d (A25): the schedule version in use, for a date change. */
+  scheduleId?: string
+  /** B03-f (review low 2): where the answer in use came from. */
+  source?: FindingSource
+  /** Imports only: the source's label (null for the old facts list). */
+  sourceLabel?: string | null
+  /**
+   * While it reads withdrawn (UI §8.2, D-B3-18): when it was withdrawn and
+   * whether a manager or an admin acted. Never who or why. Absent on servers
+   * that don't send it.
+   */
+  withdrawal?: AnswerWithdrawal | null
   confirmation: {
     state: ConfirmationState
     self: boolean
@@ -121,6 +237,9 @@ export type NoLongerUsedReason =
   | "evidence_deleted"
   | "replaced_by_detail"
   | "replaced_by_own"
+  /** B03-g (A15): a manager account or an admin corrected or withdrew it. */
+  | "corrected"
+  | "withdrawn"
 
 export type FindingSummary = {
   /** Null for drafts and closed assignments. */
@@ -134,6 +253,12 @@ export type FindingSummary = {
   noLongerUsed: NoLongerUsedReason | null
   /** Reason given by the manager (not confirmed, reopened). */
   stateReason: string | null
+  /**
+   * Corrected or withdrawn (A15, UI §8.2): whether a manager or an admin took
+   * it out of use, and when. Never a name. Null when the read doesn't say.
+   */
+  stateReasonBasis?: ActorBasis | null
+  stateReasonAt?: Instant | null
   /** A request for more detail, or why it wasn't confirmed. */
   managerNote: string | null
   /** The open request for more detail this finding answers. */
@@ -176,6 +301,8 @@ export type WorkingSlot = {
     answeredBy: string | null
     at: Instant
   } | null
+  /** B03-e (A10): per use; every entry `unrated` until a rule applies. */
+  freshness?: FreshnessEntry[]
   /**
    * My latest send on this question (B02 R11), on a question read for the
    * capture screen: the base its draft saves send. Absent from an older
@@ -229,6 +356,21 @@ export type PendingFinding = {
   } | null
   /** Evidence removed: photos deleted from the answer in use. */
   removedEvidence: number
+  /** B03-c: a policy finding's gaps, as if it were adopted. Absent elsewhere. */
+  policyMissing?: PolicyNeed[]
+  /** B03-c: a policy finding's stored detail, as sent (read with policyFacts). */
+  policyDetail?: unknown
+  /** B03-f (A12): where it came from; absent before B03-f. */
+  source?: FindingSource
+  /** B03-f: imports only, the source's label. */
+  sourceLabel?: string
+  /** B03-f (WS5 item 3): imports only, what the source said. Internal. */
+  sourceExcerpt?: string
+  /**
+   * B03-f (A23): imports only; whether it may be confirmed. Missing is read as
+   * false, so Confirm is never offered on a guess.
+   */
+  adoptable?: boolean
 }
 
 export type KnowledgePermissions = {
@@ -253,7 +395,13 @@ export type KnowledgeEventLine = {
  */
 export type CaptureCheck = Pick<
   CheckSummary,
-  "id" | "venueId" | "status" | "progress" | "recheckReason" | "revision"
+  | "id"
+  | "venueId"
+  | "status"
+  | "progress"
+  | "recheckReason"
+  | "revision"
+  | "qualification"
 > & {
   entry: Pick<
     CheckSummary["entry"],
@@ -272,7 +420,18 @@ export type QuestionView =
       pending: PendingFinding[]
       permissions: KnowledgePermissions
       history: KnowledgeEventLine[]
+      /** B03-d (A6): the venue's IANA timezone for schedules. */
+      timezone?: string
     }
+
+/** B03-d (§6.1): one occurrence of a schedule, read from the server. */
+export type Occurrence = {
+  localDate: string
+  /** UTC instants, ISO 8601. */
+  startsAt: string
+  endsAt: string
+  state: "scheduled" | "cancelled" | "changed" | "extra"
+}
 
 // ---- S3 submit ------------------------------------------------------------------
 
@@ -298,6 +457,14 @@ export type SubmitKnowledgeInput = {
   redactionConfirmed?: boolean
   /** Managers on a confirmation-required key: confirm it themselves now. */
   confirmOwn?: boolean
+  /**
+   * B03-b: structured detail for the question's schema, and the day the
+   * person says they checked with whether it was the form's date or chosen.
+   * Sent only by forms for detail schemas; the database checks the shape.
+   */
+  detail?: Record<string, unknown> | null
+  observedOn?: string
+  observedOnSource?: ObservedOnSource
 }
 
 export type SubmittedFinding = {
@@ -309,6 +476,8 @@ export type SubmittedFinding = {
   recognition: Recognition
   /** This send's time (B02 R11): the next draft base for the same form. */
   sentAt?: Instant
+  /** B03-e (A24): recheck tasks this send closed; absent before B03-e. */
+  rechecksClosed?: RecheckClosed[]
 }
 
 // ---- S4 drafts --------------------------------------------------------------------
@@ -330,6 +499,9 @@ export type DraftPayload = {
   }
   /** Set once a send was attempted: replays resend the same revision. */
   sentSlotRevision: number | null
+  /** B03-b detail forms: the detail as it would be sent, and Checked on. */
+  detail?: Record<string, unknown> | null
+  checkedOn?: { date: string | null; source: ObservedOnSource | null } | null
 }
 
 export type ServerDraft = {
@@ -382,6 +554,11 @@ export type ToConfirmRow = {
    * the withdrawal or revoke time. Null before the B02 migrations.
    */
   waitingSince?: Instant | null
+  /** B03-c: policy items only. */
+  policyMissing?: PolicyNeed[]
+  /** B03-f (A12): where it came from; imports carry their label. */
+  source?: FindingSource
+  sourceLabel?: string
 }
 
 export type ToConfirmList = { items: ToConfirmRow[]; count: number }
@@ -457,7 +634,8 @@ export function knowledgeAssetsResult(
       code === "already_decided" ||
       code === "self_confirmation_not_permitted" ||
       code === "draft_conflict" ||
-      code === "draft_already_sent"
+      code === "draft_already_sent" ||
+      code === "import_slot_has_answer"
         ? "state_conflict"
         : code,
   }

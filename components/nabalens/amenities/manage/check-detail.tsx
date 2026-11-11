@@ -10,6 +10,7 @@ import {
   SpinnerGapIcon,
   UserMinusIcon,
   UserPlusIcon,
+  PencilSimpleIcon,
 } from "@phosphor-icons/react"
 
 import {
@@ -37,10 +38,43 @@ import {
   type DecisionHandlers,
 } from "@/components/nabalens/knowledge/decisions"
 import {
+  stepFreeAnswerWords,
+  stepFreeCoversLine,
+} from "@/components/nabalens/knowledge/entrance-answer"
+import {
   answerInUseLines,
+  longDate,
   managerSentNoticeFor,
+  LEGACY_QUALIFICATION_WORD,
+  qualifiedInUse,
 } from "@/components/nabalens/knowledge/copy"
-import type { QuestionView } from "@/lib/knowledge-client/contract"
+import {
+  POLICY_COPY,
+  policyFacts,
+  type PolicyContext,
+} from "@/components/nabalens/knowledge/policy-detail"
+import { PolicyNeedsPanel } from "@/components/nabalens/knowledge/policy-detail-fields"
+import {
+  DateChangeControl,
+  UpcomingSection,
+  type UpcomingRead,
+} from "@/components/nabalens/knowledge/schedule-section"
+import { SPORT_LINES } from "@/components/nabalens/knowledge/service-detail"
+import { CheckDatesSection } from "@/components/nabalens/knowledge/check-dates"
+import {
+  AnswerOnDate,
+  HistorySection,
+  WithdrawControl,
+} from "@/components/nabalens/knowledge/corrections"
+import { CORRECT_COPY } from "@/components/nabalens/knowledge/corrections-copy"
+import { OldFactsSection } from "@/components/nabalens/knowledge/old-facts"
+import {
+  findingKey,
+  type LegacyNarrativeItem,
+  type QuestionView,
+  type RecheckTask,
+  type SlotEventView,
+} from "@/lib/knowledge-client/contract"
 
 import { FINDING_SENT_PARAM } from "../capture/finding-sent"
 import {
@@ -161,6 +195,33 @@ export function AmenityCheckDetail({
   knowledge?: {
     view: Extract<QuestionView, { inScope: true }>
     handlers: DecisionHandlers
+    /** A policy question (B03-c): State the policy, and its cards' rows. */
+    policy?: PolicyContext | null
+    /** B03-g: who may correct, withdraw and read history, and its first page. */
+    corrections?: {
+      canCorrect: boolean
+      canWithdraw: boolean
+      canReadHistory: boolean
+      /** A35: may state a policy here; unread is the earlier default. */
+      canStatePolicy?: boolean
+      events: { items: SlotEventView[]; nextCursor: string | null } | null
+      withdraw: React.ComponentProps<typeof WithdrawControl>["onWithdraw"]
+      loadOlder: React.ComponentProps<typeof HistorySection>["loadOlder"]
+      loadAt: React.ComponentProps<typeof AnswerOnDate>["load"]
+      today: string
+    } | null
+    /** B03-f: the venue's old facts as history; null when unreadable. */
+    oldFacts?: LegacyNarrativeItem[] | null
+    /** B03-e: the check's open rechecks; null when they couldn't be read. */
+    rechecks?: { count: number; tasks: RecheckTask[] } | null
+    /** A schedule in use (B03-d): Upcoming, and a change for one date. */
+    schedule?: {
+      read: UpcomingRead
+      timezone: string
+      lastDay: string | null
+      today: string
+      addException: React.ComponentProps<typeof DateChangeControl>["onAdd"]
+    } | null
   } | null
 }) {
   const { check, permissions } = detail
@@ -315,6 +376,13 @@ export function AmenityCheckDetail({
   }
 
   const answered = answeredText(check)
+  // An incomplete policy is never shown as the current answer (B03 UI §4.3).
+  const notConfirmed =
+    knowledge?.view.slot.answerInUse.detail === "policy_incomplete"
+  // On a policy question a manager or an admin states the policy (§4.1).
+  const statesPolicy =
+    Boolean(knowledge?.policy) &&
+    knowledge?.corrections?.canStatePolicy !== false
   // "Capture myself" came back here naming this check (CA-15): say what
   // happened to the finding, from this page's read, never the URL alone.
   const sentId = React.useSyncExternalStore(
@@ -330,8 +398,26 @@ export function AmenityCheckDetail({
         : check.progress === "complete"
           ? LEGACY_SENT
           : null
+  // A qualified answer reads needs recheck but is stored complete (§2.6),
+  // so it can be reopened like any answer in use.
   const canReopen =
-    permissions.canReopen && active && check.progress === "complete"
+    permissions.canReopen &&
+    active &&
+    (check.progress === "complete" || Boolean(check.qualification))
+  // A step-free Yes in use (B03 UI design §3.5): where, then Checked on and
+  // Recorded as their own rows.
+  const inUse = knowledge?.view.slot.answerInUse ?? null
+  const stepFree = inUse ? stepFreeAnswerWords(inUse) : null
+  // A policy in use (§4.4): its rows from the detail as recorded, a retired
+  // type by its label (A38). Never for an incomplete policy (§4.3).
+  const policyRows =
+    knowledge?.policy &&
+    inUse?.status === "available" &&
+    inUse.value &&
+    inUse.answerDetail &&
+    !notConfirmed
+      ? policyFacts(inUse.answerDetail, knowledge.policy)
+      : []
   const muted = "text-body-touch text-ink-muted md:text-body-sm"
   const stillSaving = (...keys: Write[]) =>
     still && busy && keys.includes(busy) ? (
@@ -377,17 +463,43 @@ export function AmenityCheckDetail({
           view={knowledge.view}
           handlers={knowledge.handlers}
           onReopen={canReopen ? () => setReopenOpen(true) : undefined}
+          policy={knowledge.policy ?? null}
+          stateHref={
+            permissions.canSubmit && active
+              ? hrefs.capture(check.id)
+              : undefined
+          }
+          completeHref={
+            statesPolicy
+              ? (finding) =>
+                  `${hrefs.capture(check.id)}?complete=${encodeURIComponent(findingKey(finding.findingRef))}`
+              : undefined
+          }
         />
       ) : null}
 
-      <CoverageSection id="amenity-status" title="Where it stands">
+      <CoverageSection
+        id="amenity-status"
+        title="Where it stands"
+        focusableTitle
+      >
+        {SPORT_LINES[check.entry.key] ? (
+          <p className="text-body-touch text-ink md:text-body">
+            {SPORT_LINES[check.entry.key]}
+          </p>
+        ) : null}
+        {knowledge?.view.slot.answerInUse.policyMissing?.length ? (
+          <PolicyNeedsPanel
+            needs={knowledge.view.slot.answerInUse.policyMissing}
+          />
+        ) : null}
         <dl className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1">
             <dt className="text-meta-touch text-ink-muted md:text-meta">
               Progress
             </dt>
             <dd>
-              <ProgressChip check={check} />
+              <ProgressChip check={check} notConfirmed={notConfirmed} />
             </dd>
           </div>
           <div className="grid gap-1">
@@ -395,23 +507,63 @@ export function AmenityCheckDetail({
               Answer
             </dt>
             <dd className="text-body-touch text-ink md:text-body">
-              {knowledge
-                ? answerInUseLines(
-                    knowledge.view.slot.answerInUse,
-                    knowledge.view.slot
-                  ).map((line) => (
-                    <span key={line} className="block">
-                      {line}
-                    </span>
-                  ))
-                : ANSWER_LABEL[check.answer]}
-              {answered ? (
+              {stepFree ? (
+                <span className="block">{`Current answer: ${stepFree}.`}</span>
+              ) : knowledge ? (
+                answerInUseLines(
+                  knowledge.view.slot.answerInUse,
+                  knowledge.view.slot
+                ).map((line) => (
+                  <span key={line} className="block">
+                    {line}
+                  </span>
+                ))
+              ) : check.qualification ? (
+                LEGACY_QUALIFICATION_WORD[check.qualification]
+              ) : (
+                ANSWER_LABEL[check.answer]
+              )}
+              {/* A step-free Yes says Checked on and Recorded below, with
+                  no staff name (§3.5, D3). */}
+              {answered && !stepFree ? (
                 <span className="block text-meta-touch text-ink-muted md:text-meta">
                   {answered}
                 </span>
               ) : null}
             </dd>
           </div>
+          {policyRows.map((row) => (
+            <div key={row.term} className="grid gap-1">
+              <dt className="text-meta-touch text-ink-muted md:text-meta">
+                {row.term}
+              </dt>
+              <dd className="text-body-touch break-words text-ink md:text-body">
+                {row.value}
+              </dd>
+            </div>
+          ))}
+          {stepFree && inUse ? (
+            <>
+              <div className="grid gap-1">
+                <dt className="text-meta-touch text-ink-muted md:text-meta">
+                  Checked on
+                </dt>
+                <dd className="text-body-touch text-ink md:text-body">
+                  {inUse.observedOn
+                    ? longDate(inUse.observedOn)
+                    : "Not recorded"}
+                </dd>
+              </div>
+              <div className="grid gap-1">
+                <dt className="text-meta-touch text-ink-muted md:text-meta">
+                  Recorded
+                </dt>
+                <dd className="text-body-touch text-ink md:text-body">
+                  {inUse.savedAt ? longDate(inUse.savedAt) : "Not recorded"}
+                </dd>
+              </div>
+            </>
+          ) : null}
           <div className="grid gap-1">
             <dt className="text-meta-touch text-ink-muted md:text-meta">
               Evidence needed
@@ -429,7 +581,14 @@ export function AmenityCheckDetail({
             </dd>
           </div>
         </dl>
-        {check.progress === "needs_recheck" && check.recheckReason ? (
+        {inUse && stepFreeCoversLine(inUse) ? (
+          <p className="text-body-touch text-ink-muted md:text-body-sm">
+            {stepFreeCoversLine(inUse)}
+          </p>
+        ) : null}
+        {check.progress === "needs_recheck" &&
+        check.recheckReason &&
+        !qualifiedInUse(check.qualification) ? (
           <Notice tone="attention" role="note" title="Recheck reason">
             <span className="break-words">{check.recheckReason}</span>
           </Notice>
@@ -445,13 +604,40 @@ export function AmenityCheckDetail({
             <Link
               href={hrefs.capture(check.id)}
               className={buttonVariants({
-                variant: canUpload ? "primary" : "secondary",
+                variant: canUpload || statesPolicy ? "primary" : "secondary",
                 size: "touch",
               })}
             >
               <CameraIcon aria-hidden />
-              {UI_TEXT.captureMyself}
+              {statesPolicy ? POLICY_COPY.statePolicy : UI_TEXT.captureMyself}
             </Link>
+          ) : null}
+          {knowledge?.corrections?.canCorrect &&
+          active &&
+          knowledge.view.slot.answerInUse.value &&
+          knowledge.view.slot.answerInUse.detail !== "answer_withdrawn" ? (
+            <Link
+              href={`${hrefs.capture(check.id)}?correct=1`}
+              className={buttonVariants({
+                variant: "secondary",
+                size: "touch",
+              })}
+            >
+              <PencilSimpleIcon aria-hidden />
+              {CORRECT_COPY.open}
+            </Link>
+          ) : null}
+          {knowledge?.corrections?.canWithdraw &&
+          active &&
+          knowledge.view.slot.answerInUse.value &&
+          knowledge.view.slot.answerInUse.detail !== "answer_withdrawn" ? (
+            <WithdrawControl
+              checkId={check.id}
+              slotRevision={knowledge.view.slot.slotRevision}
+              value={ANSWER_LABEL[knowledge.view.slot.answerInUse.value]}
+              onWithdraw={knowledge.corrections.withdraw}
+              focusId="amenity-status-title"
+            />
           ) : null}
           {canReopen ? (
             <Button
@@ -506,13 +692,42 @@ export function AmenityCheckDetail({
           ) : null}
         </div>
         {stillSaving("archive", "restore")}
-        {permissions.canSubmit && active && !canUpload ? (
+        {permissions.canSubmit && active && !canUpload && !statesPolicy ? (
           <p className={muted}>
             {UI_TEXT.captureMyself} attaches photos and videos already on
             Naba-Lens. For new ones, assign this check to staff.
           </p>
         ) : null}
       </CoverageSection>
+
+      {knowledge?.view.slot.freshness ? (
+        <CheckDatesSection
+          freshness={knowledge.view.slot.freshness}
+          rechecks={knowledge.rechecks ?? null}
+          assignee={check.assignee?.displayName ?? null}
+          findingWaiting={knowledge.view.pending.length > 0}
+          policy={statesPolicy}
+        />
+      ) : null}
+
+      {knowledge?.schedule ? (
+        <>
+          <UpcomingSection
+            read={knowledge.schedule.read}
+            timezone={knowledge.schedule.timezone}
+            lastDay={knowledge.schedule.lastDay}
+            today={knowledge.schedule.today}
+          />
+          {active && knowledge.view.slot.answerInUse.scheduleId ? (
+            <DateChangeControl
+              checkId={check.id}
+              slotRevision={knowledge.view.slot.slotRevision}
+              scheduleId={knowledge.view.slot.answerInUse.scheduleId}
+              onAdd={knowledge.schedule.addException}
+            />
+          ) : null}
+        </>
+      ) : null}
 
       <CoverageSection id="amenity-brief" title="Capture brief">
         <p className="max-w-(--size-reading) text-body-touch break-words whitespace-pre-line text-ink md:text-body">
@@ -526,6 +741,15 @@ export function AmenityCheckDetail({
             ? `Assigned to ${check.assignee.displayName ?? "a former team member"}.`
             : "No one is assigned."}
         </p>
+        {qualifiedInUse(check.qualification) &&
+        permissions.canAssign &&
+        active ? (
+          <p className="text-body-touch text-ink-muted md:text-body-sm">
+            Assigning doesn&apos;t change the answer in use. Whoever you assign
+            is asked to look again; what they send goes through this
+            question&apos;s usual confirmation.
+          </p>
+        ) : null}
         {permissions.canAssign && active ? (
           <div className="grid max-w-md gap-3">
             <div className="grid gap-1.5">
@@ -642,7 +866,35 @@ export function AmenityCheckDetail({
         </CoverageSection>
       ) : null}
 
-      <SubmissionHistory submissions={detail.submissions} />
+      {knowledge?.corrections?.canReadHistory ? (
+        <>
+          <HistorySection
+            checkId={check.id}
+            first={knowledge.corrections.events}
+            loadOlder={knowledge.corrections.loadOlder}
+            checkDatesApply={
+              knowledge.view.slot.freshness?.some(
+                (entry) => entry.state !== "unrated"
+              ) ?? false
+            }
+          />
+          <AnswerOnDate
+            checkId={check.id}
+            today={knowledge.corrections.today}
+            load={knowledge.corrections.loadAt}
+            policy={knowledge.policy ?? null}
+          />
+        </>
+      ) : null}
+
+      {knowledge && knowledge.oldFacts !== undefined ? (
+        <OldFactsSection items={knowledge.oldFacts} />
+      ) : null}
+
+      <SubmissionHistory
+        submissions={detail.submissions}
+        currentNotConfirmed={notConfirmed}
+      />
       <EventHistory events={detail.events} people={people} />
 
       {canReopen ? (

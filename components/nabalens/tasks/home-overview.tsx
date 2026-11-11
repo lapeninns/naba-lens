@@ -1,6 +1,6 @@
 import type { MyAmenityTask } from "@/lib/amenities/contract"
 import type { Department } from "@/lib/config/departments"
-import type { WorkingList } from "@/lib/knowledge-client/contract"
+import type { RecheckTask, WorkingList } from "@/lib/knowledge-client/contract"
 import type { LabelWork } from "@/lib/work-client/contract"
 import { withoutTodo } from "@/lib/work-client/todo"
 
@@ -71,6 +71,7 @@ export function HomeOverview({
   labelWork = null,
   labelWorkError = false,
   retakes = [],
+  rechecks = [],
   alsoThisMonth = null,
 }: {
   tasks: MyTasksView
@@ -106,6 +107,8 @@ export function HomeOverview({
   labelWorkError?: boolean
   /** Better photos asked of me; null when they couldn't be read. */
   retakes?: RetakeRequest[] | null
+  /** B03-e: my open recheck tasks; null when they couldn't be read. */
+  rechecks?: RecheckTask[] | null
   /** The "Also this month" lines, streamed in their own Suspense boundary. */
   alsoThisMonth?: React.ReactNode
 }) {
@@ -118,6 +121,7 @@ export function HomeOverview({
     slots: workingList?.slots ?? [],
     retakes: retakes ?? [],
     labels: labelWork,
+    rechecks: rechecks ?? [],
   })
 
   // One home per piece of work (§2): rows already in To do are only counted.
@@ -185,6 +189,7 @@ export function HomeOverview({
           amenity: amenityTasks === null || workingListError,
           labels: labelWorkError,
           retakes: retakes === null,
+          rechecks: rechecks === null,
         }}
       />
 

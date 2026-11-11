@@ -116,7 +116,7 @@ export function WorkingListSection({
                 // The whole card is the link; its name leads with the action.
                 <Link
                   href={staffCaptureHref(slot.checkId)}
-                  aria-label={`${row.action}: ${slot.question}`}
+                  aria-label={`${row.action}: ${slot.question}${row.answerName ? ` (${row.answerName})` : ""}`}
                   className="outline-none after:absolute after:inset-0 after:rounded-card"
                 >
                   {slot.question}
