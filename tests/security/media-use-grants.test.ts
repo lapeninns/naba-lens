@@ -246,6 +246,109 @@ describe("media use grants (B05-02)", () => {
     expect((await status(w.staffA, asset)).state).toBe("granted")
   })
 
+  it("M1: a withdrawal key replays only for the same command, target, reason and note", async () => {
+    const asset = await photo(w.staffA.id, w.venue)
+    const g1 = await grant(w.admin, args(asset))
+    await grant(w.admin, args(asset))
+    const k = key()
+    const byGrant = {
+      p_request_key: k,
+      p_grant_id: g1.grantId,
+      p_reason_code: "granter_withdrawn",
+      p_note: null,
+    }
+    expect(
+      await json(w.admin, "media_use_grant_withdraw", byGrant)
+    ).toMatchObject({ withdrawn: 1 })
+    const byAsset = {
+      p_request_key: k,
+      p_asset_id: asset,
+      p_reason_code: "owner_request",
+      p_note: null,
+    }
+    // The reviewer's reproduction: this used to read replayed with nothing
+    // withdrawn while the second grant stayed in force.
+    await refused(
+      w.admin,
+      "media_use_withdraw_asset",
+      byAsset,
+      "idempotency_key_reused"
+    )
+    expect((await status(w.staffA, asset)).state).toBe("granted")
+    const k2 = key()
+    expect(
+      await json(w.admin, "media_use_withdraw_asset", {
+        ...byAsset,
+        p_request_key: k2,
+      })
+    ).toMatchObject({ withdrawn: 1, replayed: false })
+    expect((await status(w.staffA, asset)).state).toBe("withdrawn")
+    expect(
+      await json(w.admin, "media_use_withdraw_asset", {
+        ...byAsset,
+        p_request_key: k2,
+      })
+    ).toMatchObject({ withdrawn: 0, replayed: true })
+    await refused(
+      w.admin,
+      "media_use_grant_withdraw",
+      { ...byGrant, p_request_key: k2 },
+      "idempotency_key_reused"
+    )
+    const elsewhere = await photo(w.staffA.id, w.venue)
+    await refused(
+      w.admin,
+      "media_use_withdraw_asset",
+      { ...byAsset, p_request_key: k2, p_asset_id: elsewhere },
+      "idempotency_key_reused"
+    )
+  })
+
+  it("L1: a withdrawal replay with a changed reason or note is refused", async () => {
+    const asset = await photo(w.staffA.id, w.venue)
+    const { grantId } = await grant(w.admin, args(asset))
+    const byGrant = {
+      p_request_key: key(),
+      p_grant_id: grantId,
+      p_reason_code: "granter_withdrawn",
+      p_note: "TEST reason",
+    }
+    await json(w.admin, "media_use_grant_withdraw", byGrant)
+    expect(
+      await json(w.admin, "media_use_grant_withdraw", byGrant)
+    ).toMatchObject({ replayed: true })
+    await refused(
+      w.admin,
+      "media_use_grant_withdraw",
+      { ...byGrant, p_reason_code: "owner_request" },
+      "idempotency_key_reused"
+    )
+    await refused(
+      w.admin,
+      "media_use_grant_withdraw",
+      { ...byGrant, p_note: "changed" },
+      "idempotency_key_reused"
+    )
+    const byAsset = {
+      p_request_key: key(),
+      p_asset_id: asset,
+      p_reason_code: "owner_request",
+      p_note: null,
+    }
+    await json(w.admin, "media_use_withdraw_asset", byAsset)
+    await refused(
+      w.admin,
+      "media_use_withdraw_asset",
+      { ...byAsset, p_reason_code: "superseded" },
+      "idempotency_key_reused"
+    )
+    await refused(
+      w.admin,
+      "media_use_withdraw_asset",
+      { ...byAsset, p_note: "changed" },
+      "idempotency_key_reused"
+    )
+  })
   it("L1: an update that does not name use_baseline cannot change it", () => {
     expect(
       psql(

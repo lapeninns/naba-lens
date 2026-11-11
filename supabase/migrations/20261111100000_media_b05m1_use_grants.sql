@@ -26,8 +26,11 @@
 -- * Nothing here creates a grant from anything else: no trigger, and no
 --   existing function is re-created. Credit functions are untouched.
 --
--- Rollback: the app's publicUseGrants switch stops grant creation; withdrawal
--- keeps working. The tables stay (append-only records).
+-- Rollback: switch the app's publicUseGrants off AND keep (or set) every
+-- clearance version inactive. The switch gates only the app; with no active
+-- version media_use_grant_create refuses every call, including direct RPC
+-- calls by admins or named granters. Withdrawal keeps working. The tables
+-- stay (append-only records).
 
 -- ---------------------------------------------------------------------------
 -- Baseline (B05-02a)
@@ -261,11 +264,25 @@ create index media_use_grant_withdrawals_key_idx
   on public.media_use_grant_withdrawals (withdrawn_by, request_key)
   where request_key is not null;
 
+-- One row per withdrawal request key: which command used it, for which
+-- target and with which reason and note. Both withdrawal commands share the
+-- key space, so a key replays only for the same command, target and payload.
+create table public.media_use_withdraw_requests (
+  requested_by uuid not null references public.profiles (id) on delete restrict,
+  request_key text not null check (request_key ~ '^[A-Za-z0-9_-]{8,128}$'),
+  command text not null check (command in ('grant', 'asset')),
+  target_id uuid not null,
+  reason_code text not null,
+  internal_note text check (internal_note is null or length(internal_note) <= 500),
+  created_at timestamptz not null default now(),
+  primary key (requested_by, request_key)
+);
+
 do $$
 declare
   t text;
 begin
-  foreach t in array array['media_use_grants', 'media_use_grant_withdrawals'] loop
+  foreach t in array array['media_use_grants', 'media_use_grant_withdrawals', 'media_use_withdraw_requests'] loop
     execute format(
       'create trigger %I before update or delete on public.%I for each row execute function private.append_only_guard()',
       t || '_append_only', t);
@@ -277,15 +294,16 @@ end;
 $$;
 
 revoke all on public.media_use_destinations, public.media_use_granters, public.media_use_grants,
-  public.media_use_grant_withdrawals
+  public.media_use_grant_withdrawals, public.media_use_withdraw_requests
 from public, anon, authenticated, service_role;
 grant select on public.media_use_destinations, public.media_use_granters, public.media_use_grants,
-  public.media_use_grant_withdrawals
+  public.media_use_grant_withdrawals, public.media_use_withdraw_requests
 to service_role;
 alter table public.media_use_destinations enable row level security;
 alter table public.media_use_granters enable row level security;
 alter table public.media_use_grants enable row level security;
 alter table public.media_use_grant_withdrawals enable row level security;
+alter table public.media_use_withdraw_requests enable row level security;
 
 revoke all on function
   private.media_use_destinations_guard(),
@@ -629,9 +647,41 @@ begin
 end;
 $$;
 
+-- Records a withdrawal request key, or recognises a replay. True: the same
+-- command already ran with this key for the same target, reason and note.
+-- Any other earlier use of the key (the other command, another target, or a
+-- changed reason or note) is idempotency_key_reused.
+create function private.media_use_withdraw_request(
+  p_uid uuid, p_request_key text, p_command text, p_target uuid, p_reason_code text, p_note text
+)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_prior public.media_use_withdraw_requests;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('nabalens_media_use_withdraw:' || p_uid::text || ':' || p_request_key, 0));
+  select r.* into v_prior from public.media_use_withdraw_requests r
+  where r.requested_by = p_uid and r.request_key = p_request_key;
+  if found then
+    if v_prior.command <> p_command or v_prior.target_id <> p_target
+       or v_prior.reason_code <> p_reason_code or v_prior.internal_note is distinct from p_note then
+      raise exception 'idempotency_key_reused' using errcode = 'P0001';
+    end if;
+    return true;
+  end if;
+  insert into public.media_use_withdraw_requests (requested_by, request_key, command, target_id, reason_code, internal_note)
+  values (p_uid, p_request_key, p_command, p_target, p_reason_code, p_note);
+  return false;
+end;
+$$;
+
 -- Withdraws one grant. Terminal: a new grant is needed to use the asset
 -- again. Replays by request key; an already withdrawn grant reads
--- alreadyWithdrawn. The same key for another grant is idempotency_key_reused.
+-- alreadyWithdrawn. The same key used differently is idempotency_key_reused.
 create function public.media_use_grant_withdraw(
   p_request_key text, p_grant_id uuid, p_reason_code text, p_note text
 )
@@ -643,34 +693,27 @@ set search_path = ''
 as $$
 declare
   v_uid uuid := private.amenity_assert_active_user();
+  v_note text := nullif(btrim(p_note), '');
   v_grant public.media_use_grants;
-  v_prior uuid[];
   v_count integer;
 begin
   perform private.media_use_withdraw_check(p_request_key, p_reason_code, p_note);
-  perform pg_advisory_xact_lock(hashtextextended('nabalens_media_use_withdraw:' || v_uid::text || ':' || p_request_key, 0));
-  select array_agg(w.grant_id) into v_prior from public.media_use_grant_withdrawals w
-  where w.withdrawn_by = v_uid and w.request_key = p_request_key;
-  if v_prior is not null then
-    if v_prior <> array[p_grant_id] then
-      raise exception 'idempotency_key_reused' using errcode = 'P0001';
-    end if;
+  if private.media_use_withdraw_request(v_uid, p_request_key, 'grant', p_grant_id, p_reason_code, v_note) then
     return jsonb_build_object('grantId', p_grant_id, 'withdrawn', 0, 'replayed', true);
   end if;
   select g.* into v_grant from public.media_use_grants g where g.id = p_grant_id for update;
   if not found or not private.can_grant_public_use(v_grant.venue_id) then
     raise exception 'media_use_grant_not_found' using errcode = 'P0002';
   end if;
-  v_count := private.media_use_withdraw(v_uid, p_request_key, array[v_grant.id], p_reason_code,
-    nullif(btrim(p_note), ''));
+  v_count := private.media_use_withdraw(v_uid, p_request_key, array[v_grant.id], p_reason_code, v_note);
   return jsonb_build_object('grantId', v_grant.id, 'withdrawn', v_count,
     'alreadyWithdrawn', v_count = 0, 'replayed', false);
 end;
 $$;
 
 -- Withdraws every grant on the asset that is not yet withdrawn (any upload
--- state, deleted included). Replaying a key that withdrew grants withdraws
--- nothing new.
+-- state, deleted included). A replay withdraws nothing new; the same key
+-- used differently is idempotency_key_reused.
 create function public.media_use_withdraw_asset(
   p_request_key text, p_asset_id uuid, p_reason_code text, p_note text
 )
@@ -682,21 +725,13 @@ set search_path = ''
 as $$
 declare
   v_uid uuid := private.amenity_assert_active_user();
+  v_note text := nullif(btrim(p_note), '');
   v_asset public.media_assets;
-  v_prior uuid[];
   v_ids uuid[];
   v_count integer;
 begin
   perform private.media_use_withdraw_check(p_request_key, p_reason_code, p_note);
-  perform pg_advisory_xact_lock(hashtextextended('nabalens_media_use_withdraw:' || v_uid::text || ':' || p_request_key, 0));
-  select array_agg(distinct g.asset_id) into v_prior
-  from public.media_use_grant_withdrawals w
-  join public.media_use_grants g on g.id = w.grant_id
-  where w.withdrawn_by = v_uid and w.request_key = p_request_key;
-  if v_prior is not null then
-    if v_prior <> array[p_asset_id] then
-      raise exception 'idempotency_key_reused' using errcode = 'P0001';
-    end if;
+  if private.media_use_withdraw_request(v_uid, p_request_key, 'asset', p_asset_id, p_reason_code, v_note) then
     return jsonb_build_object('assetId', p_asset_id, 'withdrawn', 0, 'replayed', true);
   end if;
   select a.* into v_asset from public.media_assets a where a.id = p_asset_id for share;
@@ -705,8 +740,7 @@ begin
   end if;
   select array_agg(g.id order by g.id) into v_ids from public.media_use_grants g where g.asset_id = v_asset.id;
   perform 1 from public.media_use_grants g where g.id = any(v_ids) order by g.id for update;
-  v_count := private.media_use_withdraw(v_uid, p_request_key, coalesce(v_ids, '{}'), p_reason_code,
-    nullif(btrim(p_note), ''));
+  v_count := private.media_use_withdraw(v_uid, p_request_key, coalesce(v_ids, '{}'), p_reason_code, v_note);
   return jsonb_build_object('assetId', v_asset.id, 'withdrawn', v_count, 'replayed', false);
 end;
 $$;
@@ -801,6 +835,7 @@ revoke all on function
   private.can_grant_public_use(uuid),
   private.is_any_public_use_granter(),
   private.media_use_withdraw(uuid, text, uuid[], text, text),
+  private.media_use_withdraw_request(uuid, text, text, uuid, text, text),
   private.media_use_withdraw_check(text, text, text)
 from public, anon, authenticated, service_role;
 
