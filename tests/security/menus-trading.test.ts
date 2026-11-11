@@ -845,11 +845,38 @@ describe("roles, venue scope and privacy (V01, V02, V11)", () => {
   })
 
   it("keeps notes, actor ids, source text and locators out of the staff read", async () => {
-    const view = JSON.stringify(await ok(linesFor(staffA, pie())))
+    const data = await ok(linesFor(staffA, pie()))
+    const view = JSON.stringify(data)
+    // A status object's reason is one of the resolver's closed outcome
+    // values (resolve.ts, private.menu_trading_field_state and
+    // availability); any other text under that key would be a person's note.
+    const STAFF_REASONS = [
+      "unknown",
+      "disputed",
+      "withdrawn",
+      "stale",
+      "not_confirmed",
+    ]
+    const reasons: unknown[] = []
+    const walk = (v: unknown): void => {
+      if (Array.isArray(v)) v.forEach(walk)
+      else if (v && typeof v === "object")
+        for (const [k, x] of Object.entries(v)) {
+          if (k === "reason") reasons.push(x)
+          walk(x)
+        }
+    }
+    walk(data)
+    expect(reasons.length).toBeGreaterThan(0)
+    for (const reason of reasons) expect(STAFF_REASONS).toContain(reason)
     for (const forbidden of [
       '"statedBy"',
       '"decidedBy"',
-      '"reason"',
+      '"note"',
+      '"observedOn"',
+      '"commandKey"',
+      '"createdBy"',
+      '"retiredBy"',
       '"rawText"',
       '"sourceLocator"',
       '"snapshotId"',
@@ -1253,6 +1280,14 @@ describe("source snapshot provenance (§5.2 #2)", () => {
     await review(source.sourceId, FISH, fish())
     await review(source.sourceId, "menu.json#Pie", pie())
     await review(source.sourceId, "menu.json#Curry", curry().itemId)
+    // S1 proposes variant rows only inside a confirmed entry: propose the
+    // snapshot again so the Chicken row exists before it is reviewed.
+    await ok(
+      rpc(admin, "menu_crosswalk_propose", {
+        p_snapshot: snapshotId,
+        p_request_key: randomUUID(),
+      })
+    )
     await review(source.sourceId, CHICKEN, curry().itemId, chicken())
     await review(
       source.sourceId,
@@ -2747,9 +2782,19 @@ reset role;
 insert into public.knowledge_schedule_exceptions (schedule_id, venue_id, local_date, kind, created_by, created_at)
 select s.id, s.venue_id, ${literal(sunday)}, 'cancelled', ${literal(w.manager.id)}, ${literal(at(0, 13.5))}
 from public.knowledge_schedules s where s.id = ${latestSchedule};
+-- B03 keeps one schedule per contribution (knowledge_schedules_contribution),
+-- so the later version carries its own contribution, dated with it.
+with c as (
+  insert into public.knowledge_contributions
+  select (jsonb_populate_record(null::public.knowledge_contributions, to_jsonb(x) || jsonb_build_object(
+    'id', gen_random_uuid(), 'idempotency_key', gen_random_uuid(), 'created_at', ${literal(at(0, 14.5))}))).*
+  from public.knowledge_contributions x
+  where x.id = (select s.contribution_id from public.knowledge_schedules s where s.id = ${latestSchedule})
+  returning id
+)
 insert into public.knowledge_schedules (venue_id, question_key, check_id, contribution_id, submission_id, supersedes,
   timezone, effective_from, effective_to, recurrence, windows, created_at)
-select s.venue_id, s.question_key, s.check_id, s.contribution_id, s.submission_id, s.id, s.timezone,
+select s.venue_id, s.question_key, s.check_id, (select c.id from c), s.submission_id, s.id, s.timezone,
   s.effective_from, s.effective_to, s.recurrence, '[{"start": "18:00", "end": "20:00"}]'::jsonb,
   ${literal(at(0, 14.5))}
 from public.knowledge_schedules s where s.id = ${latestSchedule};
@@ -2919,7 +2964,7 @@ describe("catalogue assertions (T9b) and privileges", () => {
     )
     expect(
       psql(
-        `select provolatile || ':' || prosecdef from pg_proc where oid = 'private.menu_open_rechecks(timestamptz,uuid[])'::regprocedure`
+        `select provolatile::text || ':' || prosecdef from pg_proc where oid = 'private.menu_open_rechecks(timestamptz,uuid[])'::regprocedure`
       )
     ).toBe("v:true")
   })
@@ -2960,12 +3005,27 @@ describe("catalogue assertions (T9b) and privileges", () => {
   })
 
   it("reads a linked service only through private B04 projections, never a public B03 read", () => {
+    // The projections reuse B03's private reads and its append-only tables
+    // inside B04's authorised, same-venue scope; a public B03 function (the
+    // client surface B03 authorises itself) is never called.
+    const b04 = `(p.proname like 'menu\\_trading%' or p.proname like 'menu\\_availability%'
+          or p.proname like 'menu\\_service%')`
     expect(
-      rows(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-        where (p.proname like 'menu\\_trading%' or p.proname like 'menu\\_availability%'
-          or p.proname like 'menu\\_service%')
-          and p.prosrc ~* 'public\\.knowledge_'`)
+      rows(`select p.proname, f.proname as called
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        join pg_proc f on f.pronamespace = 'public'::regnamespace and f.proname like 'knowledge\\_%'
+        where ${b04} and p.prosrc ~* ('public\\.' || f.proname || '\\s*\\(')`)
     ).toEqual([])
+    const named = rows<{ fn: string; name: string; kind: string | null }>(
+      `select distinct p.proname as fn, m.x[1] as name,
+        (select c.relkind::text from pg_class c
+         where c.relnamespace = 'public'::regnamespace and c.relname = m.x[1]) as kind
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        cross join lateral regexp_matches(p.prosrc, 'public\\.(knowledge_[a-z0-9_]+)', 'gi') as m(x)
+        where ${b04}`
+    )
+    expect(named.length).toBeGreaterThan(0)
+    expect(named.filter((r) => r.kind !== "r")).toEqual([])
     // WS1/WS6's hourly route calls the job with p_now only: every venue.
     expect(
       psql(
