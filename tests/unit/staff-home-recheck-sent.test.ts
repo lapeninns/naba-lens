@@ -127,4 +127,33 @@ describe("Home's sent notice and an open recheck", () => {
       recheck: RECHECK_COPY.sentOpen,
     })
   })
+
+  it("says the recheck stays open after a detail that awaits confirmation too", async () => {
+    services.getCheckRechecks.mockResolvedValue({
+      ok: true,
+      count: 1,
+      tasks: [],
+    })
+    const detail = {
+      checkId: "c1",
+      myLatest: {
+        state: "awaiting_confirmation",
+        kind: "detail",
+        answer: "yes",
+        sentAt: SENT_AT,
+        savedAt: null,
+        recognition: { kind: "pending" },
+      } as FindingSummary,
+      myDraft: null,
+    }
+    const notice = sentNoticeFor({ ...detail, answerInUse: NONE })
+    expect(notice?.title).toBe("Detail sent")
+    expect(await withRecheckSent(actor, detail, notice!)).toEqual({
+      ...notice,
+      recheck: RECHECK_COPY.sentOpen,
+    })
+    expect(services.getCheckRechecks).toHaveBeenCalledWith(actor, {
+      checkId: "c1",
+    })
+  })
 })
