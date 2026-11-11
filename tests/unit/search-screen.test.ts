@@ -135,6 +135,28 @@ describe("SearchScreen (admin)", () => {
     )
   })
 
+  it("lists every venue's active places when an admin searches every venue", async () => {
+    const { service, queries } = fakeService([
+      { key: "org", label: "Org place", venue: null },
+      { key: "mine", label: "A place", venue: VENUE },
+      { key: "other", label: "B place", venue: "x" },
+    ])
+    const view = await SearchScreen({
+      mode: "admin",
+      actor: adminActor(service),
+      viewerName: "Admin",
+      search: { rights: "in_force" },
+    })
+    const all = calls(queries)
+    expect(all.filter((c) => c.method === "or")).toEqual([])
+    const json = JSON.stringify(view, (_k, v) =>
+      typeof v === "function" || v instanceof Promise ? undefined : v
+    )
+    expect(json).toContain(
+      '"destinations":[{"id":"mine","name":"A place"},{"id":"other","name":"B place"},{"id":"org","name":"Org place"}]'
+    )
+  })
+
   it("asks page one with the canonical filters: no destination without In use (R10)", async () => {
     const { service } = fakeService([])
     await SearchScreen({

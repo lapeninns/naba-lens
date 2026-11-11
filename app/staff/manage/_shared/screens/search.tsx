@@ -92,19 +92,22 @@ type DestinationRow = { key: string; label: string }
  * and holds labels, never asset data; read after the page's own access check.
  * Empty (the control hides) when there are none or the read fails.
  *
- * Two parameterised reads, never a filter string: an admin's venue comes from
- * the URL, and is only asked about when it is a venue id at all.
+ * Parameterised reads, never a filter string: an admin's venue comes from the
+ * URL, and is only asked about when it is a venue id at all. An admin
+ * searching every venue (`allVenues`) sees every active place, as before.
  */
 async function destinationOptions(
   actor: MediaActor,
-  venueId: string | null
+  venueId: string | null,
+  allVenues: boolean
 ): Promise<SearchOption[]> {
   try {
     // media_use_destinations predates the generated types (B05-m1).
     const db = actor.service as unknown as SupabaseClient
     const active = () =>
       db.from("media_use_destinations").select("key, label").eq("active", true)
-    const reads = [active().is("venue_id", null)]
+    const reads =
+      allVenues && !venueId ? [active()] : [active().is("venue_id", null)]
     if (venueId && isUuid(venueId)) reads.push(active().eq("venue_id", venueId))
     const answers = await Promise.all(reads)
     const rows: DestinationRow[] = []
@@ -170,7 +173,7 @@ export async function SearchScreen(props: SearchScreenProps) {
     // Venues only: the library's options also page every staff profile.
     admin ? libraryVenueOptions(actor) : Promise.resolve([] as SearchOption[]),
     menuOptionsFor(actor, venueId),
-    destinationOptions(actor, venueId),
+    destinationOptions(actor, venueId, admin),
   ])
   const now = new Date().toISOString()
   const view = (

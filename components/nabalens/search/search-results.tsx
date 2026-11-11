@@ -20,6 +20,19 @@ import type { SearchPageFailure, SearchPageResult } from "./types"
 
 type MoreState = null | "failed" | "expired" | "signed_out"
 
+/** The loaded pages, tied to the generation of the page one they grew from. */
+type ListState = {
+  gen: number
+  items: AssetSearchItem[]
+  cursor: string | null
+}
+
+function listFrom(first: SearchPageResult, gen: number): ListState {
+  return first.ok
+    ? { gen, items: first.page.items, cursor: first.page.nextCursor }
+    : { gen, items: [], cursor: null }
+}
+
 /** The field errors a first page carries (a missing venue is the Venue's). */
 export function pageFieldErrors(
   result: SearchPageResult
@@ -91,12 +104,11 @@ export function SearchResults({
 }) {
   const first = React.use(initialPage)
   const today = React.useMemo(() => new Date(now), [now])
-  const [items, setItems] = React.useState<AssetSearchItem[]>(
-    first.ok ? first.page.items : []
-  )
-  const [cursor, setCursor] = React.useState<string | null>(
-    first.ok ? first.page.nextCursor : null
-  )
+  // The loaded pages carry the generation of the page one they grew from. A
+  // page asked for under an earlier generation is dropped inside the state
+  // update itself, so it can never land on a newer list, whenever it settles.
+  const [list, setList] = React.useState<ListState>(() => listFrom(first, 0))
+  const { items, cursor } = list
   const [loading, setLoading] = React.useState(false)
   const [more, setMore] = React.useState<MoreState>(null)
   // A new server render of page one (router.refresh, a retry, a corrected
@@ -104,8 +116,7 @@ export function SearchResults({
   const [seenFirst, setSeenFirst] = React.useState(first)
   if (first !== seenFirst) {
     setSeenFirst(first)
-    setItems(first.ok ? first.page.items : [])
-    setCursor(first.ok ? first.page.nextCursor : null)
+    setList((current) => listFrom(first, current.gen + 1))
     setLoading(false)
     setMore(null)
   }
@@ -116,9 +127,31 @@ export function SearchResults({
   const focusIndex = React.useRef<number | null>(null)
   const abort = React.useRef<AbortController | null>(null)
   const lastFrom = React.useRef<string | null>(null)
+  // The committed generation, for the parts of a settled page outside `list`.
+  const committedGen = React.useRef(list.gen)
+  // Whether focus is on a card, so a reset that removes it can recover.
+  const focusInList = React.useRef(false)
 
-  // A page asked for before this page one (or the list) is dropped.
-  React.useEffect(() => () => abort.current?.abort(), [first])
+  // The committed list moved to a new page one: drop the page in flight now,
+  // during the commit, and give focus a home if its card went with the reset.
+  React.useLayoutEffect(() => {
+    if (committedGen.current === list.gen) return
+    committedGen.current = list.gen
+    abort.current?.abort()
+    const active = document.activeElement
+    if (
+      focusInList.current &&
+      (!active ||
+        active === document.body ||
+        !listRef.current?.contains(active))
+    ) {
+      focusInList.current = false
+      onLostFocus()
+    }
+  }, [list.gen, onLostFocus])
+
+  // The list itself unmounting drops its page in flight.
+  React.useEffect(() => () => abort.current?.abort(), [])
 
   React.useEffect(() => {
     onFieldErrors(pageFieldErrors(first))
@@ -163,6 +196,7 @@ export function SearchResults({
     abort.current?.abort()
     const controller = new AbortController()
     abort.current = controller
+    const gen = list.gen
     lastFrom.current = from
     setLoading(true)
     setMore(null)
@@ -173,7 +207,8 @@ export function SearchResults({
       if (controller.signal.aborted) return // this list moved on
       result = { ok: false, status: 0, code: "no_reply", message: "" }
     }
-    if (controller.signal.aborted) return
+    // This list moved on (a new page one, or unmounted) while it was asked.
+    if (controller.signal.aborted || committedGen.current !== gen) return
     setLoading(false)
     if (!result.ok) {
       setMore(
@@ -186,18 +221,20 @@ export function SearchResults({
       return
     }
     const page = result.page
-    if (from === null) {
-      // Search again: page one replaces the list.
-      focusIndex.current = 0
-      setItems(page.items)
-    } else {
-      focusIndex.current = items.length
-      setItems((current) => {
-        const seen = new Set(current.map((i) => i.id))
-        return [...current, ...page.items.filter((i) => !seen.has(i.id))]
-      })
-    }
-    setCursor(page.nextCursor)
+    focusIndex.current = from === null ? 0 : items.length
+    setList((current) => {
+      if (current.gen !== gen) return current // a newer page one won
+      if (from === null) {
+        // Search again: page one replaces the list.
+        return { gen, items: page.items, cursor: page.nextCursor }
+      }
+      const seen = new Set(current.items.map((i) => i.id))
+      return {
+        gen,
+        items: [...current.items, ...page.items.filter((i) => !seen.has(i.id))],
+        cursor: page.nextCursor,
+      }
+    })
   }
 
   if (!first.ok) {
@@ -207,7 +244,18 @@ export function SearchResults({
 
   return (
     <div className="grid min-w-0 gap-(--gutter)">
-      <ul ref={listRef} className={RESULTS_GRID}>
+      <ul
+        ref={listRef}
+        className={RESULTS_GRID}
+        onFocus={() => {
+          focusInList.current = true
+        }}
+        onBlur={(event) => {
+          focusInList.current =
+            event.relatedTarget instanceof Node &&
+            event.currentTarget.contains(event.relatedTarget)
+        }}
+      >
         {items.map((item) => (
           <li key={item.id} className="min-w-0">
             <SearchCard item={item} showVenue={showVenue} now={today} />

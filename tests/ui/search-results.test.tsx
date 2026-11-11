@@ -129,6 +129,76 @@ describe("SearchResults follows page one (R1)", () => {
     rerender(<List initialPage={okPage(1)} />)
     expect(cards()).toHaveLength(1)
   })
+
+  it("drops a Show more page that settles after a new page one, even before its abort", async () => {
+    // The abort of the old request can come after its reply (it used to run
+    // in a passive effect). Model that by making abort do nothing: the page
+    // must still be dropped, not appended to the new list.
+    vi.spyOn(AbortController.prototype, "abort").mockImplementation(() => {})
+    let reply!: (value: SearchPageResult) => void
+    fetchMock.fetchSearchPage.mockReturnValue(
+      new Promise<SearchPageResult>((resolve) => {
+        reply = resolve
+      })
+    )
+    const { rerender } = render(<List initialPage={okPage(2, "c1")} />)
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    rerender(<List initialPage={okPage(1)} />)
+    expect(cards()).toHaveLength(1)
+    await act(async () => {
+      reply({
+        ok: true,
+        page: { items: [item(10), item(11)], nextCursor: "stale" },
+      })
+    })
+    expect(cards()).toHaveLength(1)
+    // The stale page's cursor did not survive either: page one had none.
+    expect(
+      screen.queryByRole("button", { name: SEARCH_COPY.showMore })
+    ).toBeNull()
+  })
+
+  it("gives focus a home when a new page one removes the focused card", async () => {
+    fetchMock.fetchSearchPage.mockResolvedValue({
+      ok: true,
+      page: { items: [item(10), item(11)], nextCursor: null },
+    })
+    const onLostFocus = vi.fn()
+    const { rerender } = render(
+      <List initialPage={okPage(2, "c1")} onLostFocus={onLostFocus} />
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    // Show more put focus on the first new card (the third).
+    expect(document.activeElement).toBe(cards()[2])
+    rerender(<List initialPage={okPage(1)} onLostFocus={onLostFocus} />)
+    expect(cards()).toHaveLength(1)
+    expect(onLostFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it("leaves focus alone when a new page one arrives while focus is elsewhere", () => {
+    const onLostFocus = vi.fn()
+    const { rerender } = render(
+      <>
+        <button type="button">Elsewhere</button>
+        <List initialPage={okPage(3)} onLostFocus={onLostFocus} />
+      </>
+    )
+    screen.getByRole("button", { name: "Elsewhere" }).focus()
+    rerender(
+      <>
+        <button type="button">Elsewhere</button>
+        <List initialPage={okPage(1)} onLostFocus={onLostFocus} />
+      </>
+    )
+    expect(onLostFocus).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Elsewhere" })
+    )
+  })
 })
 
 describe("the one status region says every outcome (R2, R7)", () => {
