@@ -1,0 +1,82 @@
+{
+  "fixture": "fx_menu_recheck_public_withdrawal",
+  "version": 1,
+  "owner": "WS3 menu half; WS4 adds deliveryAfterActivation, deliveryAfterSweep, grantState, derivativeState and reaccept.revision through the coordinator",
+  "files": {
+    "menu": "menu.sql",
+    "overlay": "b05-overlay.sql",
+    "activate": "menu-activate.sql",
+    "reaccept": "menu-reaccept.sql"
+  },
+  "items": [
+    {
+      "key": "A",
+      "change": "rename",
+      "photoState": "needs_recheck",
+      "recheckKind": "name_changed"
+    },
+    {
+      "key": "B",
+      "change": "section_food_to_drinks",
+      "photoState": "needs_recheck",
+      "recheckKind": "section_changed"
+    },
+    {
+      "key": "C",
+      "change": "variant_removed",
+      "photoState": "needs_recheck",
+      "recheckKind": "variant_removed"
+    },
+    {
+      "key": "D",
+      "change": "declaration_variant_meaning",
+      "photoState": "needs_recheck",
+      "recheckKind": "variant_meaning_changed"
+    },
+    {
+      "key": "E",
+      "change": "declaration_presentation",
+      "photoState": "needs_recheck",
+      "recheckKind": "presentation_changed"
+    },
+    {
+      "key": "F",
+      "change": "declaration_recipe",
+      "photoState": "needs_recheck",
+      "recheckKind": "recipe_changed"
+    },
+    {
+      "key": "G",
+      "change": "declaration_portion",
+      "photoState": "needs_recheck",
+      "recheckKind": "portion_changed"
+    },
+    {
+      "key": "H",
+      "change": "declaration_reviewer_flag",
+      "photoState": "needs_recheck",
+      "recheckKind": "reviewer_flag"
+    },
+    {
+      "key": "I",
+      "change": "description_only",
+      "photoState": "accepted",
+      "recheckKind": null
+    }
+  ],
+  "reaccept": {
+    "item": "E",
+    "photoState": "accepted"
+  },
+  "credit": {
+    "openMonthUnitsLost": ["A", "B", "C", "D", "E", "F", "G", "H"],
+    "openMonthUnitsKept": ["I"],
+    "closedMonthsUnchanged": true
+  },
+  "order": [
+    "menu.sql",
+    "b05-overlay.sql",
+    "menu-activate.sql",
+    "menu-reaccept.sql"
+  ]
+}
