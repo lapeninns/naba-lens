@@ -102,10 +102,10 @@ describe("B10-m1 access control", () => {
           `${role} ${privilege}`
         ).toBe("f")
     const acl = psql(
-      "select coalesce(relacl::text, '') || '|' || relrowsecurity from pg_class where oid = 'private.ops_job_runs'::regclass"
+      "select coalesce(relacl::text, '') || '|' || relrowsecurity::text from pg_class where oid = 'private.ops_job_runs'::regclass"
     )
     expect(acl.split("|")[0]).not.toMatch(/(^|[{,])=/)
-    expect(acl.split("|")[1]).toBe("t")
+    expect(acl.split("|")[1]).toBe("true")
   })
 
   it("lets only service_role execute the writer and the reading", () => {
