@@ -1187,6 +1187,9 @@ describe("closed-month protection (C-B08-2)", () => {
   })
 })
 
+// Legacy photos here are accepted by the admin, as in design E30: B01's
+// deny_manager_coverage_writes trigger refuses coverage writes from a manager
+// account, so world()'s manager cannot review them.
 describe("month close and drift (C-B08-5)", () => {
   it("closes once per participant, keeps snapshots after a profile deletion, and reports drift", async () => {
     const month = monthOffset(-4)
@@ -1260,7 +1263,7 @@ describe("month close and drift (C-B08-5)", () => {
 
   it("labels a legacy late acceptance after close as expected drift", async () => {
     const month = monthOffset(-6)
-    const { venue, staffA, manager } = await world("scoring-legacy-close")
+    const { venue, staffA } = await world("scoring-legacy-close")
     memberSince(venue, month)
     const asset = await insertAsset(service, {
       venue,
@@ -1290,7 +1293,7 @@ describe("month close and drift (C-B08-5)", () => {
       ),
     })
 
-    await accept(service, manager, item)
+    await accept(service, admin, item)
     const row = (await progress(admin, venue, month)).find(
       (r) => r.staff_id === staffA.id
     )
@@ -1367,7 +1370,7 @@ describe("month close and drift (C-B08-5)", () => {
 
   it("labels an acceptance decided before the close but committed after it as expected", async () => {
     const month = monthOffset(-15)
-    const { venue, staffA, manager } = await world("scoring-legacy-straddle")
+    const { venue, staffA } = await world("scoring-legacy-straddle")
     memberSince(venue, month)
     const asset = await insertAsset(service, {
       venue,
@@ -1382,7 +1385,7 @@ describe("month close and drift (C-B08-5)", () => {
     })
     const { revision } = await itemRevision(service, item)
     const g = gate()
-    const claims = JSON.stringify({ sub: manager.id, role: "authenticated" })
+    const claims = JSON.stringify({ sub: admin.id, role: "authenticated" })
     // The released writer stamps decided_at = now(), its transaction start,
     // which precedes the close; the commit follows it.
     const accepting = session(`begin;
@@ -1431,7 +1434,7 @@ describe("month close and drift (C-B08-5)", () => {
 
   it("reports a lost counted asset beside late additions as unexpected", async () => {
     const month = monthOffset(-16)
-    const { venue, staffA, manager } = await world("scoring-legacy-mixed")
+    const { venue, staffA } = await world("scoring-legacy-mixed")
     memberSince(venue, month)
     const assets: string[] = []
     const items: string[] = []
@@ -1451,7 +1454,7 @@ describe("month close and drift (C-B08-5)", () => {
         })
       )
     }
-    await accept(service, manager, items[0]!)
+    await accept(service, admin, items[0]!)
     expect(closedFor(closeMonth(month), venue)).toEqual([
       { venue_id: venue, outcome: "closed", participants: 2 },
     ])
@@ -1466,8 +1469,8 @@ describe("month close and drift (C-B08-5)", () => {
     // two late acceptances arrive: a net increase, but not only additions.
     psql(`update public.media_assets set deleted_at = '${month.slice(0, 8)}20T12:00:00Z'
       where id = '${assets[0]}'`)
-    await accept(service, manager, items[1]!)
-    await accept(service, manager, items[2]!)
+    await accept(service, admin, items[1]!)
+    await accept(service, admin, items[2]!)
     expect(
       (await progress(admin, venue, month)).find(
         (r) => r.staff_id === staffA.id
