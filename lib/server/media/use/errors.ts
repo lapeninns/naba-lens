@@ -48,14 +48,17 @@ const MAPPING: Record<string, [UseErrorCode, string]> = {
   not_active_user: ["not_permitted", "Your account is not active."],
   not_public_use_granter: [
     "not_permitted",
-    "Only an approved granter can approve or withdraw use.",
+    "Only a named granter or an admin can grant or withdraw use.",
   ],
   own_upload_not_grantable: [
     "not_permitted",
-    "You cannot approve use of your own upload. Ask another granter.",
+    "You cannot grant use of your own upload. Ask another granter.",
   ],
   media_asset_not_found: ["not_found", "This file could not be found."],
-  media_use_grant_not_found: ["not_found", "This approval could not be found."],
+  media_use_grant_not_found: [
+    "not_found",
+    "This use grant could not be found.",
+  ],
   use_subject_not_found: [
     "not_found",
     "What this photo shows is no longer available. Reload the page.",

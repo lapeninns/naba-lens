@@ -56,7 +56,7 @@ export async function createUseGrant(
   input: unknown
 ): Promise<UseResult<UseGrantCreated>> {
   if (!publicUseGrantsEnabled())
-    return mediaUseFailure("disabled", "Approving use is switched off.")
+    return mediaUseFailure("disabled", "Granting use is switched off.")
   if (!isObject(input)) return mediaUseInvalid({ form: "Reload the page." })
   const errors: Record<string, string> = {}
   const requestKey = input.requestKey
@@ -151,7 +151,7 @@ export async function withdrawUseGrant(
   input: unknown
 ): Promise<UseResult<UseGrantWithdrawn>> {
   if (!isObject(input) || !isUuid(input.grantId))
-    return mediaUseFailure("not_found", "This approval could not be found.")
+    return mediaUseFailure("not_found", "This use grant could not be found.")
   const parsed = withdrawInput(input)
   if (Object.keys(parsed.errors).length > 0)
     return mediaUseInvalid(parsed.errors)
