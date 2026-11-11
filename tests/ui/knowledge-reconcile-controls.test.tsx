@@ -142,7 +142,7 @@ describe("Runs", () => {
       <StartDryRunForm
         venues={[VENUE]}
         onReconcile={onReconcile}
-        runHref={(id) => `/admin/knowledge/runs/${id}`}
+        runBase="/admin/knowledge/runs"
       />
     )
     await user.click(screen.getByRole("radio", { name: "Other sources" }))

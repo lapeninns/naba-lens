@@ -91,7 +91,7 @@ export default async function RunsPage({
         <StartDryRunForm
           venues={venues}
           onReconcile={reconcileAction}
-          runHref={(runId) => `${PATH}/${runId}`}
+          runBase={PATH}
         />
         <CoverageSection id="runs" title={COPY.runs}>
           {!runs?.ok ? (

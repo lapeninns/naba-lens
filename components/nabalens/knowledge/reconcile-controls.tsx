@@ -364,13 +364,18 @@ const SLOW_MS = 15_000
 export function StartDryRunForm({
   venues,
   onReconcile,
-  runHref,
+  runBase,
 }: {
   venues: Venue[]
   onReconcile: (
     input: Record<string, unknown>
   ) => Promise<KnowledgeResult<{ result: ReconcileResult }>>
-  runHref: (runId: string) => string
+  /**
+   * The runs route; a run's page is `${runBase}/${runId}`. A path, not a
+   * function: a Server Component can pass this component only serializable
+   * props and Server Actions.
+   */
+  runBase: string
 }) {
   const id = React.useId()
   const router = useRouter()
@@ -396,7 +401,7 @@ export function StartDryRunForm({
         setNotice({ tone: "error", text: result.message })
         return
       }
-      router.push(runHref(result.result.runId))
+      router.push(`${runBase}/${encodeURIComponent(result.result.runId)}`)
     } catch (cause) {
       setNotice({ tone: "error", text: sessionEnded(cause) || COPY.failed })
     } finally {
