@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
+import { ACCESS_COPY } from "../../components/nabalens/knowledge/accessibility-detail"
 import {
   dateAndTime,
   KNOWLEDGE_FAILURE_COPY,
@@ -57,6 +58,10 @@ import {
   slotRevision,
   uuid,
 } from "./helpers/knowledge-b03-ef-world"
+import {
+  addPlace,
+  stepFreeAccessibilityVersion,
+} from "./helpers/knowledge-b03-ab-world"
 import { psql } from "./helpers/stack"
 import { signedInPage } from "./helpers/world"
 
@@ -620,6 +625,13 @@ test.describe("knowledge B03 E and F", () => {
     // step_free_entrance needs a manager's confirmation (rule v1), so a
     // material correction has to be confirmed again.
     const KEY = "step_free_entrance"
+    // On the disposable B03 lane the step-free key is accessibility.v1
+    // (B03-A appends it; pinned here so F doesn't depend on run order). A No
+    // then needs every listed entrance marked as having steps, so venue A
+    // gets one entrance for the correction below to mark.
+    stepFreeAccessibilityVersion()
+    const ENTRANCE = `DEV FIXTURE B03-F Front door ${w.tag}`
+    const entranceId = await addPlace(w.managerA, "entrance", ENTRANCE)
     const a = (await knowledgeChecks(w, w.venueA, [KEY]))[KEY]!
     const b = (await knowledgeChecks(w, w.venueB, [KEY]))[KEY]!
     // staffA sent the answer; staffA2 holds a legacy grant (history only);
@@ -850,20 +862,36 @@ test.describe("knowledge B03 E and F", () => {
     await correction
       .getByRole("radio", { name: ANSWER_LABEL.no, exact: true })
       .check()
+    // The valid No: the venue's one listed entrance has steps (UI §3.3).
+    await correction
+      .getByRole("group", { name: ENTRANCE, exact: true })
+      .getByRole("radio", { name: ACCESS_COPY.entranceValue.no, exact: true })
+      .check()
     const why = correction.getByLabel(`${CORRECT_COPY.why} (required)`)
     await why.fill(CORRECTION_REASON)
     const changes = correction.getByRole("region", {
       name: CORRECT_COPY.whatChanges,
     })
-    await expect(changes.getByRole("listitem")).toHaveCount(1)
-    await expect(changes.getByRole("listitem")).toContainText(
-      `Answer · ${CORRECT_COPY.material}`
-    )
-    await expect(changes.getByRole("listitem")).toContainText(
+    // The answer, and the entrances the Yes was sent without.
+    await expect(changes.getByRole("listitem")).toHaveCount(2)
+    const answerRow = changes
+      .getByRole("listitem")
+      .filter({ hasText: /^Answer · / })
+    await expect(answerRow).toContainText(`Answer · ${CORRECT_COPY.material}`)
+    await expect(answerRow).toContainText(
       `${CORRECT_COPY.before}: ${ANSWER_LABEL.yes}`
     )
-    await expect(changes.getByRole("listitem")).toContainText(
+    await expect(answerRow).toContainText(
       `${CORRECT_COPY.after}: ${ANSWER_LABEL.no}`
+    )
+    const entranceRow = changes
+      .getByRole("listitem")
+      .filter({ hasText: /^Entrances/ })
+    await expect(entranceRow).toContainText(
+      `${CORRECT_COPY.before}: Not recorded`
+    )
+    await expect(entranceRow).toContainText(
+      `${CORRECT_COPY.after}: a place at the venue`
     )
     await expect(
       changes.getByText(CORRECT_COPY.materialLine, { exact: true })
@@ -919,7 +947,10 @@ test.describe("knowledge B03 E and F", () => {
       basis: "venue_manager",
       detail: {
         before: { headline: "yes" },
-        after: { headline: "no" },
+        after: {
+          headline: "no",
+          detail: { entrances: [{ subjectId: entranceId, stepFree: "no" }] },
+        },
         material: true,
         selectionRule: "correction",
       },

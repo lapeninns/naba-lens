@@ -758,7 +758,12 @@ test.describe("B03 browser charters C and D", () => {
     const capture = captureForm(staff)
     await capture.answer("yes")
     await capture.attach(recheckPhoto)
-    await capture.submit.click()
+    // A question with an answer is in change mode: its primary action is
+    // "Send change report", not "Submit finding" (b01-ui-design §4.2).
+    await staff
+      .getByRole("main")
+      .getByRole("button", { name: "Send change report", exact: true })
+      .click()
     await expect(staff.getByText(RECHECK_SENT_OPEN)).toBeVisible()
     const sentByStaff = () =>
       psql(`select coalesce(string_agg(x.id::text || ':' || x.initial_outcome, ','), '')

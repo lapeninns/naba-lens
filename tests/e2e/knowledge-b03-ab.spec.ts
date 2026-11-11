@@ -8,6 +8,7 @@ import {
 import { CHECKED_ON_COPY } from "../../components/nabalens/knowledge/checked-on"
 import { AT_DATE_COPY } from "../../components/nabalens/knowledge/corrections-copy"
 import {
+  longDate,
   policyConfirmBlock,
   policyNeedWords,
   SEND_PROGRESS_COPY,
@@ -358,20 +359,23 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     // ---- Staff Home and the check page after confirmation ------------------
     await staff.goto("/staff/tasks")
     await settled(staff)
+    // The answer in use names its entrance in the same sentence (UI §2.3
+    // S1) and the day staffA checked it, as staffA's own finding (UI §3.5:
+    // "Current answer: Yes, at ⟨Main entrance⟩. You checked on {date}.").
+    const inUse = `Current answer: Yes, at ${frontLabel}. You checked on ${longDate(checkedOn)}.`
     const home = staff.getByRole("listitem").filter({ hasText: ask })
-    await expect(home).toContainText("Current answer: Yes.")
+    await expect(home).toContainText(inUse)
     await staff.goto(staffCaptureHref(id))
     await settled(staff)
-    await expect(staff.getByText(/Current answer: Yes\./).first()).toBeVisible()
-    // Neither page renders the answer in use's entrances or Checked on date
-    // at this head (answerInUseLines gives the value and Recorded date only;
-    // checkedOnLine has no caller). Recorded as unsupported, not inferred:
-    // the read below is the server's, not browser proof.
-    test.info().annotations.push({
-      type: "unsupported",
-      description:
-        "B03-A after confirmation: Staff Home and the check page show 'Current answer: Yes.' but render neither the chosen entrance nor the Checked on date; those are proven by the staff-session knowledge_check read and the detail row only.",
-    })
+    await expect(
+      staff.getByRole("main").getByText(inUse, { exact: true })
+    ).toBeVisible()
+    // S3: the capture context says what the answer covers, and only that.
+    await expect(
+      staff.getByRole("main").getByText(ACCESS_COPY.covers(frontLabel), {
+        exact: true,
+      })
+    ).toBeVisible()
     const view = await knowledgeRpc<{
       answerInUse: { value: string; detail: unknown; observedOn: string }
     }>(await sessionOf(w.staffA), "knowledge_check", { p_check_id: id })

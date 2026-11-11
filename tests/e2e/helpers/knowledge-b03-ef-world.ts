@@ -353,7 +353,11 @@ export function detailCorrections(
 // ---- Holding a real Server Action response ---------------------------------------------
 
 export type HeldAction = {
-  /** Resolves when the first matching request reaches the browser's network layer. */
+  /**
+   * Resolves when the first matching request reaches the browser's network
+   * layer; rejects if none has within ARRIVAL_MS of holding, so a click that
+   * sends nothing fails as itself instead of running out the test's time.
+   */
   arrived: Promise<void>
   /** Matching requests seen so far. */
   count: () => number
@@ -365,6 +369,9 @@ export type HeldAction = {
    */
   settle: () => Promise<void>
 }
+
+/** How long a held action may take to be sent after its route is set. */
+const ARRIVAL_MS = 15_000
 
 /**
  * Holds the browser's next-action POSTs whose body matches, until released,
@@ -378,7 +385,23 @@ export async function holdServerAction(
   let release!: () => void
   const gate = new Promise<void>((resolve) => (release = resolve))
   let arrive!: () => void
-  const arrived = new Promise<void>((resolve) => (arrive = resolve))
+  let arrivalTimer: ReturnType<typeof setTimeout> | undefined
+  const arrived = Promise.race([
+    new Promise<void>((resolve) => (arrive = resolve)),
+    new Promise<never>((_, reject) => {
+      arrivalTimer = setTimeout(
+        () =>
+          reject(
+            new Error(
+              `no matching server action was sent within ${ARRIVAL_MS} ms`
+            )
+          ),
+        ARRIVAL_MS
+      )
+    }),
+  ]).finally(() => clearTimeout(arrivalTimer))
+  // Only the caller's await reports a late arrival; never unhandled.
+  arrived.catch(() => undefined)
   let count = 0
   const passing = new Set<Promise<void>>()
   const handler = async (route: Route) => {
@@ -407,6 +430,7 @@ export async function holdServerAction(
     release,
     settle: () =>
       (settled ??= (async () => {
+        clearTimeout(arrivalTimer)
         release()
         await Promise.allSettled([...passing])
         await page.unroute("**/*", handler).catch(() => undefined)
