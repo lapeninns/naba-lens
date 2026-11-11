@@ -166,8 +166,12 @@ describe('B02 manager scope and triage', { serial: true }, () => {
     await editor.getByRole('button', /^Save labels/).tap();
     await expect(editor).toBeHidden({ timeout: 30000 });
     await expect.poll(() => db.labelItems(video!.id), { timeout: 30000 }).toEqual([DISH.lager]);
-    await expect(mine.getByRole('heading', 'Video', { level: 3 })).toHaveCount(0);
-    await expect(mine.getByRole('heading', DISH.lager, { level: 3 })).toHaveCount(3);
+    // A row is titled by its menu decisions, else by its kind (b02-ui-design §6.1): a video never waits
+    // for menu review, so it keeps its kind as its title once labelled; only the set's two photos read
+    // the dish. ("Video" rather than §6.1's "Photo" fallback is the app's wording, owner to confirm.)
+    await expect(row).toHaveCount(1);
+    await expect(row.getByText('Labels: Labelled')).toBeVisible();
+    await expect(mine.getByRole('heading', DISH.lager, { level: 3 })).toHaveCount(2);
 
     // -- Private: uploader and admin only; a video never waits for menu review.
     expect(db.rlsVisible(w.managerA.id, [video!.id])).toEqual([video!.id]);

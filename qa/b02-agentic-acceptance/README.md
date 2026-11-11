@@ -424,6 +424,34 @@ serialise plugin servers. Collection (`--list`) and the report must still show
 no `webServer`, and there is never a second server. The coordinator updates
 the pin when it integrates a reviewed journey candidate.
 
+### Journey pins
+
+`JOURNEY_SHA256` in `run.mjs` pins every journey file a run depends on by its reviewed bytes:
+`staff.e2e.ts`, `manager.e2e.ts`, `recovery.e2e.ts`, `layout.e2e.ts`, `charters.playwright.ts`,
+`charters.config.ts` (also `CHARTERS_CONFIG_SHA256`), `e2e.config.ts`, `fixture.ts` and `seed.ts`. Each
+must be a regular file this user owns that nobody else may write, read without following a link, at its
+pinned hash. The check runs at `check`, at `list`, under the lock before the seed, and before each
+suite's collection and launch; on any difference nothing is started. A journey change means review,
+then a pin update with the new hashes recorded.
+
+Journey repair after run `b02-c467-20261111-001713`. Each change follows the governing contract, which
+decides what the app shows:
+
+- **C03** (staff, photo tips): the check is scoped to the one disclosure group holding "What a useful
+  photo shows" (`b02-ui-design.md` §7 D8, line 244: optional tips as a disclosure). The bare text query
+  matched both the summary text and the group it names.
+- **C06** (manager video): a My uploads row is titled by its menu decisions, else by kind
+  (`b02-ui-design.md` §6.1, line 220). A video never gets a menu decision, so it keeps its kind title
+  once labelled, and only the set's two photos read the dish. The contract's fallback word is "Photo";
+  the app's "Video" for a video is kept, owner to confirm.
+- **C15–C18** (layout keyboard): neither the contract (§8.4, lines 297–316) nor the owner budgets
+  (taps and modals only, line 138) fix a Tab count from Reason to Submit. The test now follows the
+  page's own tab path (`TAB_PATH`), stop by stop. UX note: keyboard users pass every evidence choice
+  between Reason and Submit.
+- **C20** (charters B02-06-B): the capture page is unchanged from B01 (`b02-ui-design.md` line 156).
+  For an undecided finding it shows "Your latest finding" with "Change my finding" in place of the form,
+  which opens the form prefilled (`b01-ui-design.md` line 283). The charter taps it before checking
+  the prefill.
 ### Settlement and the blocking receipt
 
 **Process groups.** One supervisor owns every process group the run starts:

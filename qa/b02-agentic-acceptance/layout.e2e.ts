@@ -120,6 +120,30 @@ const FOCUS_STATE = `() => {
 }`;
 type FocusState = { tag: string; name: string; ring: boolean; inViewport: boolean; underTabbar: boolean };
 
+/**
+ * The page's own keyboard path from the focused element to the named button: every tabbable control in
+ * document order (no positive tabindex; a radio group is one stop, at its checked radio or else its
+ * first), named as FOCUS_STATE names them. null when the button does not follow the focused element.
+ */
+const TAB_PATH = `(endName) => {
+  const name = (el) => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim().replace(/\\s+/g, ' ')
+  const shown = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' }
+  const all = Array.from(document.querySelectorAll('a[href], button, input, select, textarea, summary, [tabindex]'))
+    .filter((el) => el.tabIndex >= 0 && !el.disabled && !el.closest('[inert]') && shown(el))
+  if (all.some((el) => el.tabIndex > 0)) return null
+  const seen = new Set()
+  const stops = all.filter((el) => {
+    if (el.type !== 'radio' || !el.name) return true
+    if (seen.has(el.name)) return false
+    seen.add(el.name)
+    return true
+  }).map((el) => (el.type === 'radio' && el.name ? (document.querySelector('input[type=radio][name="' + el.name + '"]:checked') ?? el) : el))
+  const start = stops.indexOf(document.activeElement)
+  const end = stops.findIndex((el, i) => i > start && el.tagName === 'BUTTON' && name(el) === endName)
+  return start < 0 || end < 0 ? null : stops.slice(start + 1, end + 1).map((el) => ({ tag: el.tagName.toLowerCase(), name: name(el) }))
+}`;
+type TabStop = { tag: string; name: string };
+
 test('B02 narrow layout: real viewport, no sideways scroll, failed upload, two-digit To do, sticky submit and visible focus', async ({ app, browser, screen, agent }) => {
   const w = world();
 
@@ -252,12 +276,18 @@ test('B02 narrow layout: real viewport, no sideways scroll, failed upload, two-d
   expect(submit.width).toBeGreaterThanOrEqual(24);
   await app.screenshot(`${t}-capture-dock`);
 
-  // Keyboard: from Reason, Tab reaches Submit finding with a visible outline, clear of the tab bar.
+  // Keyboard: from Reason, Tab follows the page's own path to Submit finding (every evidence choice in
+  // between is a stop; no count is assumed), each stop focused in turn, and Submit ends it with a visible
+  // outline, clear of the tab bar.
   await screen.getByLabel('Reason').focus();
+  const path = await browser.evaluate<TabStop[] | null, string>(TAB_PATH, 'Submit finding');
+  expect(path, 'Submit finding follows Reason in the tab order, with no positive tabindex').not.toBeNull();
+  expect(path!.at(-1)).toEqual({ tag: 'button', name: 'Submit finding' });
   focused = null;
-  for (let presses = 0; presses < 6 && focused?.name !== 'Submit finding'; presses++) {
+  for (const [i, stop] of path!.entries()) {
     await browser.keyboard.press('Tab');
     focused = await browser.evaluate<FocusState>(FOCUS_STATE);
+    expect({ tag: focused.tag, name: focused.name }, `stop ${i + 1} of ${path!.length}`).toEqual(stop);
   }
   expect(focused).toEqual({ tag: 'button', name: 'Submit finding', ring: true, inViewport: true, underTabbar: false });
   expect(await browser.evaluate(NO_HORIZONTAL_OVERFLOW)).toBe(true);

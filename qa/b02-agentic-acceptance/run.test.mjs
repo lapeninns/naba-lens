@@ -54,6 +54,7 @@ import {
   HARNESS,
   isSuite,
   JOURNAL,
+  JOURNEY_SHA256,
   lineRedactor,
   listEnv,
   liveModelWork,
@@ -87,6 +88,7 @@ import {
   requirePlaywright,
   requirePrivateChain,
   requireReviewedChartersConfig,
+  requireReviewedJourneys,
   REVIEWED_CHARTERS_CONFIG,
   resolveE2E,
   runCharters,
@@ -124,6 +126,8 @@ import {
 import { recheckUnderLock, resetManifest as budgetResetManifest } from "./budget.mjs"
 
 const RUNNER = fileURLToPath(new URL("./run.mjs", import.meta.url))
+/** jsdom from the candidate's own install (the harness has no node_modules), for page-helper tests. */
+const CANDIDATE_JSDOM = "/Users/amankumarshrestha/LapenInns Project/platform/nabalens-wt/b02-candidate-c4671823/node_modules/jsdom"
 const FIXTURE = pathToFileURL(fileURLToPath(new URL("./fixture.ts", import.meta.url))).href
 const REPO = fileURLToPath(new URL("../..", import.meta.url))
 
@@ -3406,4 +3410,70 @@ test("offline guard: the live lane is unreachable from these tests and from ever
 
 after(() => {
   assert.deepEqual(liveLaneTouches(), [], "an offline test touched the live spare6 lane")
+})
+
+test("layout's keyboard path helper: every tabbable stop in document order, a radio group once, ending at the named button", async () => {
+  const source = readFileSync(join(HARNESS, "layout.e2e.ts"), "utf8")
+  const focusState = /const FOCUS_STATE = `([\s\S]*?)`;/.exec(source)[1]
+  const tabPath = /const TAB_PATH = `([\s\S]*?)`;/.exec(source)[1]
+  // Template literal values, as the runner passes them to the page.
+  const value = (raw) => new Function(`return \`${raw}\``)()
+  const { JSDOM } = await import(pathToFileURL(join(CANDIDATE_JSDOM, "lib", "api.js")).href)
+  const dom = new JSDOM(`<main>
+    <label>Reason <textarea id="reason"></textarea></label>
+    <input type="radio" name="ev" aria-label="Photo added 11 Nov 2026, 00:17">
+    <input type="radio" name="ev" aria-label="Photo added 11 Nov 2026, 00:18" checked>
+    <input type="checkbox" aria-label="Video added 11 Nov 2026, 00:19">
+    <button disabled>Disabled</button>
+    <a href="#more">Show   more
+      photos</a>
+    <button>Submit finding</button>
+    <button>After</button>
+  </main>`, { runScripts: "outside-only" })
+  const { window } = dom
+  window.HTMLElement.prototype.getBoundingClientRect = () => ({ width: 10, height: 10, top: 0, left: 0, bottom: 10, right: 10 })
+  // JSON round trip: the page's objects belong to jsdom's realm.
+  const run = (raw, arg) => JSON.parse(JSON.stringify(window.eval(`(${value(raw)})(${JSON.stringify(arg ?? null)})`)))
+  window.document.getElementById("reason").focus()
+  assert.deepEqual(run(tabPath, "Submit finding"), [
+    { tag: "input", name: "Photo added 11 Nov 2026, 00:18" },
+    { tag: "input", name: "Video added 11 Nov 2026, 00:19" },
+    { tag: "a", name: "Show more photos" },
+    { tag: "button", name: "Submit finding" },
+  ])
+  // Named exactly as FOCUS_STATE names the focused element.
+  window.document.querySelector("a").focus()
+  assert.equal(run(focusState).name, "Show more photos")
+  window.document.getElementById("reason").focus()
+  assert.equal(run(tabPath, "No such button"), null)
+  window.document.querySelector("a").setAttribute("tabindex", "2")
+  assert.equal(run(tabPath, "Submit finding"), null, "a positive tabindex makes the path unprovable")
+})
+
+test("every journey file the run depends on is pinned to its reviewed bytes; any change, link or loose permission is refused", () => {
+  assert.deepEqual(Object.keys(JOURNEY_SHA256).sort(), ["charters.config.ts", "charters.playwright.ts", "e2e.config.ts", "fixture.ts", "layout.e2e.ts", "manager.e2e.ts", "recovery.e2e.ts", "seed.ts", "staff.e2e.ts"])
+  for (const [name, digest] of Object.entries(JOURNEY_SHA256)) assert.equal(sha(readFileSync(join(HARNESS, name))), digest, name)
+  assert.equal(JOURNEY_SHA256["charters.config.ts"], CHARTERS_CONFIG_SHA256)
+  requireReviewedJourneys()
+  const dir = temp()
+  for (const name of Object.keys(JOURNEY_SHA256)) writeFileSync(join(dir, name), readFileSync(join(HARNESS, name)), { mode: 0o600 })
+  const reviewed = { dir, sha256: JOURNEY_SHA256 }
+  requireReviewedJourneys(reviewed)
+  for (const name of ["staff.e2e.ts", "charters.playwright.ts", "seed.ts"]) {
+    const original = readFileSync(join(dir, name))
+    writeFileSync(join(dir, name), Buffer.concat([original, Buffer.from("\n// changed\n")]))
+    assert.throws(() => requireReviewedJourneys(reviewed), new RegExp(`${name.replace(".", "\\.")} is not the reviewed journey file`))
+    writeFileSync(join(dir, name), original)
+  }
+  rmSync(join(dir, "layout.e2e.ts"))
+  symlinkSync(join(HARNESS, "layout.e2e.ts"), join(dir, "layout.e2e.ts"))
+  assert.throws(() => requireReviewedJourneys(reviewed), /must be a regular file, not a link/)
+  rmSync(join(dir, "layout.e2e.ts"))
+  writeFileSync(join(dir, "layout.e2e.ts"), readFileSync(join(HARNESS, "layout.e2e.ts")))
+  chmodSync(join(dir, "manager.e2e.ts"), 0o666)
+  assert.throws(() => requireReviewedJourneys(reviewed), /writable by others/)
+  chmodSync(join(dir, "manager.e2e.ts"), 0o600)
+  rmSync(join(dir, "fixture.ts"))
+  assert.throws(() => requireReviewedJourneys(reviewed), /is missing/)
+  rmSync(dir, { recursive: true, force: true })
 })

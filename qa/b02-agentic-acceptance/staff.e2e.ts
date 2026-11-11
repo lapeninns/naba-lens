@@ -226,8 +226,11 @@ describe('B02 staff Home, shared entry, photo sets and contributions', { serial:
     await app.open('/staff/menu');
     await expect(screen.getByRole('heading', 'Our menu', { level: 1 })).toBeVisible();
     const dish = screen.getByRole('article', DISH.tandoor);
-    // Optional guidance is offered, closed, next to the dishes.
-    await expect(screen.getByText('What a useful photo shows')).toBeVisible();
+    // Optional guidance is offered, closed, next to the dishes: the one disclosure group holding the tips
+    // (its summary text also names the group, so a bare text query matches both).
+    const tips = screen.getByRole('main').getByRole('group').filter({ hasText: 'What a useful photo shows' });
+    await expect(tips).toHaveCount(1);
+    await expect(tips).toBeVisible();
 
     // -- Every PUT of the second member's reservation is dropped at the network
     // level (the transport retries 6 times, then reports it). Only that

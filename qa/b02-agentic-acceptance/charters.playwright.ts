@@ -272,9 +272,13 @@ test(CHARTERS[1], async ({ browser }) => {
   await expect(back.getByRole("heading", { level: 1, name: question })).toBeVisible()
   await expect(back.getByText(RESTORED_LOCAL, { exact: true })).toHaveCount(0)
   await expect(back.getByText(/^You saved this on /)).toHaveCount(0)
-  // A staff member's own waiting finding prefills its answer (screen.tsx
-  // prefill: "Changing my undecided finding starts from what I sent"), so No
-  // is checked; the reason typed offline must not come back from anywhere.
+  // An undecided finding of mine shows "Your latest finding" with "Change my
+  // finding" in place of the form, which opens it prefilled from what I sent
+  // (B01 capture page, kept unchanged by B02): No is checked, and the reason
+  // typed offline must not come back from anywhere.
+  const latest = back.getByRole("region", { name: "Your latest finding" })
+  await expect(latest.getByText("Answer: No", { exact: true })).toBeVisible()
+  await back.getByRole("button", { name: "Change my finding", exact: true }).click()
   await expect(back.getByRole("radio", { name: "No", exact: true })).toBeChecked()
   await expect(back.getByLabel("Reason", { exact: true })).toHaveValue("")
   expect((await localDraft(back, key))?.reason ?? "").toBe("")

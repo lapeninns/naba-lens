@@ -2484,6 +2484,44 @@ export function suiteFiles(suite, dir = HARNESS) {
  */
 export const CHARTERS_CONFIG_SHA256 = "3721d32a79310184caecf5f1ccf2974412eb8655aaf58f15387a673a2c1b50e6"
 export const REVIEWED_CHARTERS_CONFIG = Object.freeze({ dir: HARNESS, sha256: CHARTERS_CONFIG_SHA256 })
+/**
+ * Every journey file a run depends on, by its reviewed bytes (sha256): the four e2e suites, the
+ * charters, their config, the e2e config, the shared fixture and the seed. A change to any of them is
+ * refused until the coordinator has it reviewed and updates this pin (README.md, "Journey pins").
+ */
+export const JOURNEY_SHA256 = Object.freeze({
+  "staff.e2e.ts": "163fbfbfac07cc05d873635071380c1bf18fe576e048fd70ce189d57aa5a8c4a",
+  "manager.e2e.ts": "48df2d7c6eb58fe0d47fbd2a7491f1be648a946c45faf0f1c37d221467c9eab1",
+  "recovery.e2e.ts": "5e2fece80b354f0df94791f741e0f3de152fb815046102f9248663ff0d1f6d54",
+  "layout.e2e.ts": "e9528850ba0c95c128f9e20395ca15c5f42fe362922983a466a7da59eb7acfbb",
+  "charters.playwright.ts": "f6618d8c483f0871f35da8c344e647b5e25234ad0d4fc58f5b4f48756ae37845",
+  "charters.config.ts": CHARTERS_CONFIG_SHA256,
+  "e2e.config.ts": "aab653133c5d32bbe37d07f7bd88b70b1a3746d545a36414b305973dade343e5",
+  "fixture.ts": "a3a495b2c69d6ecc8511165791d6f4d7b813dead350c1e8442de7d435bbbf813",
+  "seed.ts": "c645e875718c2e680ad66d880337c5f7a532fc228c42df405a70ba8bac33d9b0",
+})
+export const REVIEWED_JOURNEYS = Object.freeze({ dir: HARNESS, sha256: JOURNEY_SHA256 })
+
+/**
+ * Each pinned journey file is a regular file this user owns that nobody else may write, read without
+ * following a link, whose bytes hash to its pin. Checked at the guards, before list, under the lock
+ * before the seed, and before each suite's collection and launch. `reviewed` is an offline test seam.
+ */
+export function requireReviewedJourneys(reviewed = REVIEWED_JOURNEYS) {
+  for (const [name, sha256] of Object.entries(reviewed.sha256)) {
+    const file = join(reviewed.dir, name)
+    trustedFile(file, name)
+    const fd = openSync(file, FS.O_RDONLY | NOFOLLOW)
+    let bytes
+    try {
+      bytes = readFileSync(fd)
+    } finally {
+      closeSync(fd)
+    }
+    const actual = createHash("sha256").update(bytes).digest("hex")
+    if (actual !== sha256) fail(`${name} is not the reviewed journey file (sha256 ${actual}, reviewed ${sha256}); nothing is started. The coordinator verifies and updates the pin.`)
+  }
+}
 
 /**
  * charters.config.ts is the reviewed config: a regular file this user owns
@@ -2556,6 +2594,7 @@ async function check({ suites = [...SUITES], requireFiles = false, requireCleanH
   const awaiting = suites.flatMap((s) => suiteFiles(s).missing)
   if (requireFiles && awaiting.length) fail(`Selected suites are awaiting integration: ${awaiting.join(", ")}.`)
   if (suites.includes("charters") && suiteFiles("charters").missing.length === 0) requireReviewedChartersConfig()
+  if (awaiting.length === 0) requireReviewedJourneys()
   say(`checkout ${pin.commit} (tree ${pin.tree}) clean; ${STACK.name} running as ${STACK.project} with the pinned ${pin.migrationCount} migrations on disk, in revision.json and in its ledger; app port ${STACK.appPort} free`)
   say(`harness ${harness.commit} (tree ${harness.tree}) ${harness.clean ? "clean" : "with uncommitted changes"}; e2e ${e2e.version} at ${e2e.entry}${awaiting.length ? `; awaiting integration: ${awaiting.join(", ")}` : ""}`)
   return ctx
@@ -2572,6 +2611,7 @@ async function recheck(ctx, label, d) {
   if (JSON.stringify(pin) !== JSON.stringify(ctx.pin)) fail("candidate.json changed during the run.")
   const harness = harnessState()
   if (harness.commit !== ctx.harness.commit || harness.tree !== ctx.harness.tree || harness.clean !== ctx.harness.clean) fail("The harness changed during the run.")
+  requireReviewedJourneys()
   const spec = ctx.stack.stackSpec(STACK.name)
   if (spec.workdir !== STACK.workdir) fail(`stack.mjs workdir for ${STACK.name} changed to ${spec.workdir}.`)
   ;({ env: ctx.stackEnv, secrets: ctx.secrets } = validatedStackEnvironment(ctx.stack, spec, freshStackStatus, verifyPhysicalWorkdir(spec.workdir)))
@@ -2726,6 +2766,7 @@ const E2E_RUN_ARGS = ["--no-cache", "--retries", "0", "--workers", "1", "--trace
  */
 export async function runE2E(ctx, suite, sup) {
   const e2e = requireSameE2E(ctx)
+  requireReviewedJourneys(ctx.journeys ?? REVIEWED_JOURNEYS)
   const out = freshOutput(ctx.runRoot, suite)
   const listed = await sup.run(`e2e list ${suite}`, e2e.entry, ["list", "--config", CONFIG, "--reporter", "json"], { cwd: HARNESS, env: listEnv(suite, process.env) }, LIST_MS, {
     secrets: ctx.secrets,
@@ -2743,6 +2784,7 @@ export async function runE2E(ctx, suite, sup) {
     return combine(suite, listed, { ok: false, problems: collection.problems.map((p) => `collection: ${p}`), counts: { expected: expectedInstances(suite) } }, `e2e list ${suite}`)
   }
   sup.ensureActive(`e2e ${suite}`)
+  requireReviewedJourneys(ctx.journeys ?? REVIEWED_JOURNEYS)
   requireLaunchOutput(ctx.runRoot, suite, out)
   const startedAtMs = Date.now()
   const r = await sup.run(`e2e ${suite}`, e2e.entry, ["run", "--config", CONFIG, ...E2E_RUN_ARGS], { cwd: HARNESS, env: e2eEnv(process.env, ctx, suite) }, SUITE_MS, { secrets: ctx.secrets })
@@ -2765,6 +2807,7 @@ export async function runCharters(ctx, sup) {
   const pw = requirePlaywright(ctx.checkout)
   const reviewed = ctx.chartersConfig ?? REVIEWED_CHARTERS_CONFIG
   const config = requireReviewedChartersConfig(reviewed)
+  requireReviewedJourneys(ctx.journeys ?? REVIEWED_JOURNEYS)
   const results = dirname(ctx.runRoot)
   const out = freshOutput(ctx.runRoot, "charters")
   mkdirSync(out, { mode: 0o700 })
@@ -2786,6 +2829,7 @@ export async function runCharters(ctx, sup) {
   }
   sup.ensureActive("charters")
   requireReviewedChartersConfig(reviewed)
+  requireReviewedJourneys(ctx.journeys ?? REVIEWED_JOURNEYS)
   requireLaunchOutput(ctx.runRoot, "charters", out)
   const reportFile = join(out, "report.json")
   const startedAtMs = Date.now()
@@ -3043,6 +3087,7 @@ export async function lockedRun(flags, seedOnly, overrides = {}) {
 function listCommand(flags) {
   requireCanonicalRoot()
   const e2e = resolveE2E()
+  if (SUITES.every((s) => suiteFiles(s).missing.length === 0)) requireReviewedJourneys()
   const checkout = process.env.B02_CHECKOUT
   let failed = false
   let collected = 0
