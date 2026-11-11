@@ -18,6 +18,7 @@ execution, the database lifecycle, receipt clearance and delivery.
 
 | File | Owner | Role |
 | --- | --- | --- |
+| `budget.mjs`, `budget.test.mjs` | budget gate | The separate owner-budget gate (E1, E2 at 360/412; J5) on the same pin and lane, using `run.mjs`'s guards ("Budget gate"). |
 | `run.mjs` | foundation | Entry point. It runs the guards, takes the `spare6` lock and the blocking receipt, seeds, builds, scans the bundle, starts and stops the app, collects and runs the four e2e suites and the Playwright charters, validates every report, settles every process group and writes the summary. |
 | `run.test.mjs` | foundation | Offline guard tests. They use no DB, app, browser, model, real stack or real lock. |
 | `fixture.ts` | foundation | Target guards, run binding, the world, fixture sign-in, read-only DB read-back, copy helpers and page-geometry sources |
@@ -702,6 +703,38 @@ Then update `PINNED` in `run.test.mjs` to the same values and rerun
 `node --test run.test.mjs`. The test computes the digest from git and refuses
 any mismatch.
 
+## Budget gate (budget.mjs)
+
+The 20 agentic cases do not measure the owner-approved phone budgets. `budget.mjs` is a separate gate on
+the same pin and lane:
+
+| Group | Case ID | Title (candidate `tests/e2e/upload-label-flow.spec.ts`) | Budget |
+|---|---|---|---|
+| e1-360 | `6ba767f6c311117e4d57-513ca76ffea133db7fb8` | `e1 @360: Add with one dish in at most 6 taps and 3 modals` | 6 taps, 3 modals (measured) |
+| e1-412 | `6ba767f6c311117e4d57-849ee240b53576c8d092` | `e1 @412: …` | 6 taps, 3 modals (measured) |
+| e2-360 | `6ba767f6c311117e4d57-f2e5dae724f391c4b5e1` | `e2 @360: batch of 3 with one exception in at most 9 taps and 3 modals` | 9 taps, 3 modals (measured) |
+| e2-412 | `6ba767f6c311117e4d57-57ceccb41c1d3bd75143` | `e2 @412: …` | 9 taps, 3 modals (measured) |
+| j5 | `6ba767f6c311117e4d57-02e1abfec4ac2e26ec31`, `6ba767f6c311117e4d57-03317c923f5c1c8517d2` | `d @360` and `d @412: known dish from Our menu in at most 2 taps and 1 modal (J5)` | 2 taps, 1 modal (asserted in the test) |
+
+- It was derived from the coordinator's focused retest runner (sha256 `82673455…`). That runner was
+  pinned to `abdb77f9`, to an older reset's `revision.json` hash and to a fixed output directory. This gate
+  instead pins `candidate.json`, verifies spare6's current reset with `verifyProductInputs`, and records
+  that reset's `revision.json` sha256. Each run writes to its own `.results/budget-…` directory.
+- It reuses `run.mjs`'s guards rather than copying them: the lane, blocker and receipt checks, the lock
+  owner check before every phase, `buildPhase` and `scanPhase`, the supervisor (proven-ownership signals
+  only), the private output chain and the artifact scrub. Each group runs as one supervised child: the
+  candidate's own Playwright with `playwright.config.ts`, project `chromium`, `--retries=0 --workers=1
+  --forbid-only`. The candidate's web server serves the scanned build on 3646. The port must be free
+  before and after each group.
+- Measured groups must attach exactly one `<group>-taps-and-modals.json` from the candidate's
+  `recordBudget`, read inside the group's private output, with the approved limits and within them.
+- J5's `d` cases write no measurement (the spec does not call `recordBudget` for them). Their limits are
+  `expect`s inside the test, so J5 evidence is that both cases ran once and passed. `d` sits in a serial
+  file, but it depends only on the file's `beforeAll`: `provisionCoverageWorld()`, `world.staffA` and The
+  Railway menu imported for venue 1. Each `d` uploads and checks its own new photo. Cases `a1` to `c`
+  create nothing `d` reads, so no predecessor runs as setup.
+- `node budget.mjs list` collects the six IDs with placeholder values; it contacts no stack. `check` runs
+  the guards only. `run` takes the lock and needs the coordinator's authorisation and a fresh reset.
 ## Offline checks run for this commit
 
 - `node --test run.test.mjs`: 87 of 87 passed, none skipped (Node 24.16.0).

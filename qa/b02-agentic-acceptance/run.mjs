@@ -2577,7 +2577,7 @@ function requireSameBuild(ctx) {
  * public env and the four B02 switches. Its .next/BUILD_ID must be written by
  * this build, and the checkout must still be the clean pin afterwards.
  */
-async function buildPhase(ctx, sup) {
+export async function buildPhase(ctx, sup) {
   const startedAt = Date.now()
   const r = await sup.run("build", tool(ctx.checkout, "next"), ["build"], { cwd: ctx.checkout, env: buildEnv(process.env, ctx) }, BUILD_MS, { secrets: ctx.secrets })
   if (r.code !== 0 || !r.settled) fail(`next build exited ${r.code}${r.settled ? "" : " and its process group did not settle"}.`)
@@ -2620,7 +2620,7 @@ export function scanOutcome(child, buildId) {
 }
 
 /** The candidate's own scripts/ci/scan-bundle.mjs on that same build; a finding or failure stops the run before the app starts. */
-async function scanPhase(ctx, sup) {
+export async function scanPhase(ctx, sup) {
   requireSameBuild(ctx)
   const scanner = join(ctx.checkout, "scripts", "ci", "scan-bundle.mjs")
   const r = await sup.run("scan", process.execPath, [scanner, "--root", ctx.checkout, "--dir", ".next", "--json"], { cwd: ctx.checkout, env: scanEnv(process.env, ctx) }, SCAN_MS, {
