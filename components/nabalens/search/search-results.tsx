@@ -129,9 +129,11 @@ export function SearchResults({
   const lastFrom = React.useRef<string | null>(null)
   // The committed generation, for the parts of a settled page outside `list`.
   const committedGen = React.useRef(list.gen)
-  // The element inside the list that last took focus, so a reset that
-  // removes it can recover. Kept while the window or tab loses focus (a blur
-  // with no new target): the element is still the page's focus then.
+  // The element inside the results (a card or a pager control) that last took
+  // focus, so a reset that removes it can recover. Browsers differ on a
+  // focused element's removal (Chromium blurs it while still connected,
+  // WebKit fires nothing), and React 19 ignores events during its own commit.
+  // So a blur with no new target is judged after the commit (see onBlur).
   const focusedInList = React.useRef<Element | null>(null)
 
   // The committed list moved to a new page one: drop the page in flight now,
@@ -243,27 +245,32 @@ export function SearchResults({
   if (items.length === 0 && !loading && !more) return <>{empty}</>
 
   return (
-    <div className="grid min-w-0 gap-(--gutter)">
-      <ul
-        ref={listRef}
-        className={RESULTS_GRID}
-        onFocus={(event) => {
-          focusedInList.current = event.target
-        }}
-        onBlur={(event) => {
-          // Forget the element when focus left it on purpose: moved to
-          // something outside the list, or dropped to nothing within the
-          // page (a click on blank space). Keep it when the window or tab
-          // lost focus (the card is still the page's focus), or when the
-          // card itself is being removed (a reset should recover from that).
-          const next = event.relatedTarget
-          const left =
-            next instanceof Node
-              ? !event.currentTarget.contains(next)
-              : document.hasFocus() && event.target.isConnected
-          if (left) focusedInList.current = null
-        }}
-      >
+    <div
+      className="grid min-w-0 gap-(--gutter)"
+      onFocus={(event) => {
+        focusedInList.current = event.target
+      }}
+      onBlur={(event) => {
+        const next = event.relatedTarget
+        if (next instanceof Node) {
+          // Focus moved to another element: forget it if that is outside.
+          if (!event.currentTarget.contains(next)) focusedInList.current = null
+          return
+        }
+        // No new target: the window lost focus, the user dropped focus on
+        // blank space, or the element is being removed. A reset's removal is
+        // handled by the layout effect in the same commit, before this
+        // microtask runs. What is left to decide here is a deliberate drop
+        // (the document still has focus): forget it. While the window is
+        // away, the element stays the page's focus.
+        const target = event.target
+        queueMicrotask(() => {
+          if (focusedInList.current === target && document.hasFocus())
+            focusedInList.current = null
+        })
+      }}
+    >
+      <ul ref={listRef} className={RESULTS_GRID}>
         {items.map((item) => (
           <li key={item.id} className="min-w-0">
             <SearchCard item={item} showVenue={showVenue} now={today} />

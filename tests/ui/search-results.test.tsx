@@ -222,11 +222,86 @@ describe("SearchResults follows page one (R1)", () => {
     expect(document.activeElement).toBe(card)
     // A click on blank space: the document keeps focus, the card loses it.
     vi.spyOn(document, "hasFocus").mockReturnValue(true)
-    act(() => card.blur())
+    await act(async () => card.blur())
     expect(document.activeElement).toBe(document.body)
     rerender(<List initialPage={okPage(1)} onLostFocus={onLostFocus} />)
     expect(cards()).toHaveLength(1)
     expect(onLostFocus).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Chromium blurs a focused element while removing it, still connected, with
+   * no related target (verified in real Chromium; WebKit and jsdom fire
+   * nothing). Model that in jsdom so recovery is proven under either
+   * behaviour. (React 19 ignores events dispatched during its own commit, so
+   * the model guards against that ever changing, not a current failure.)
+   */
+  function blurOnRemovalLikeChromium() {
+    const remove = Node.prototype.removeChild
+    vi.spyOn(Node.prototype, "removeChild").mockImplementation(function <
+      T extends Node,
+    >(this: Node, child: T): T {
+      const active = document.activeElement
+      if (active && child.contains(active)) {
+        active.dispatchEvent(
+          new FocusEvent("blur", { bubbles: false, relatedTarget: null })
+        )
+        active.dispatchEvent(
+          new FocusEvent("focusout", { bubbles: true, relatedTarget: null })
+        )
+      }
+      return remove.call(this, child) as T
+    })
+  }
+
+  it("recovers focus when the browser blurs the card while removing it (Chromium)", async () => {
+    fetchMock.fetchSearchPage.mockResolvedValue({
+      ok: true,
+      page: { items: [item(10), item(11)], nextCursor: null },
+    })
+    const onLostFocus = vi.fn()
+    const { rerender } = render(
+      <List initialPage={okPage(2, "c1")} onLostFocus={onLostFocus} />
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    expect(document.activeElement).toBe(cards()[2])
+    vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    blurOnRemovalLikeChromium()
+    await act(async () => {
+      rerender(<List initialPage={okPage(1)} onLostFocus={onLostFocus} />)
+    })
+    expect(cards()).toHaveLength(1)
+    expect(onLostFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it("recovers focus when a reset removes the focused pager control", async () => {
+    fetchMock.fetchSearchPage.mockResolvedValue({
+      ok: false,
+      status: 400,
+      code: "invalid_input",
+      message: "",
+      fieldErrors: { cursor: "expired" },
+    })
+    const onLostFocus = vi.fn()
+    const { rerender } = render(
+      <List initialPage={okPage(2, "c1")} onLostFocus={onLostFocus} />
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    const again = screen.getByRole("button", { name: SEARCH_COPY.searchAgain })
+    expect(document.activeElement).toBe(again)
+    vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    blurOnRemovalLikeChromium()
+    await act(async () => {
+      rerender(<List initialPage={okPage(1)} onLostFocus={onLostFocus} />)
+    })
+    expect(
+      screen.queryByRole("button", { name: SEARCH_COPY.searchAgain })
+    ).toBeNull()
+    expect(onLostFocus).toHaveBeenCalledTimes(1)
   })
 
   it("leaves focus alone when a new page one arrives while focus is elsewhere", () => {
