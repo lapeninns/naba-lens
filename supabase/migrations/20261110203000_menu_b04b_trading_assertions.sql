@@ -1723,8 +1723,8 @@ begin
     where h.source_id = v_snapshot.source_id and h.locator = v_locator and h.venue_id = v_venue;
     -- An entry row names no entry locator; a variant row names its entry's.
     if not found or v_mapping.status not in ('confirmed', 'carried')
-       or v_mapping.entry_locator is distinct from case when v_entry ->> 'locator' <> v_locator
-                                                     then v_entry ->> 'locator' end
+       or v_mapping.entry_locator is distinct from (case when v_entry ->> 'locator' <> v_locator
+                                                     then v_entry ->> 'locator' end)
        or v_mapping.content_hash <> private.menu_crosswalk_content_hash(v_entry) then
       raise exception 'menu_source_mapping_unverified' using errcode = 'P0001';
     end if;
