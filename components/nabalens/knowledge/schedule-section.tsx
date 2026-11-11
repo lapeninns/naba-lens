@@ -129,9 +129,7 @@ export function DateChangeControl({
   checkId: string
   slotRevision: number
   scheduleId: string
-  onAdd: (
-    input: AddInput
-  ) => Promise<
+  onAdd: (input: AddInput) => Promise<
     KnowledgeResult<{
       exceptionId: string
       slotRevision: number
