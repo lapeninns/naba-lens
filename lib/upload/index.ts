@@ -29,4 +29,33 @@ export type {
   UploadKeyScope,
   UploadKeyStore,
 } from "./upload-keys"
+export {
+  detectCaptureCapabilities,
+  type CaptureCapabilities,
+  type ProbeEnvironment,
+} from "./capabilities"
+export {
+  accountHash,
+  indexedDbJournalBackend,
+  JOURNAL_ACCOUNT_STORAGE_KEY,
+  JOURNAL_DB_NAME,
+  JOURNAL_LIMITS,
+  memoryJournalBackend,
+  openCaptureJournal,
+  resumeAction,
+} from "./journal"
+export type {
+  CaptureJournal,
+  CaptureJournalOptions,
+  JournalBackend,
+  JournalEntry,
+  JournalState,
+  JournalSubject,
+  PickInput,
+  ResumeAction,
+} from "./journal"
+export {
+  claimCaptureDataForAccount,
+  clearCaptureDataOnDevice,
+} from "./device-cleanup"
 export type * from "./types"

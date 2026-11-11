@@ -1,0 +1,398 @@
+// Bounded, account-scoped capture journal (b05-design §5, B05-05b to e).
+// Keeps what was picked and how far its upload got, so a closed or discarded
+// tab can be continued (photo bytes kept) or re-picked with exact copy (no
+// bytes). It never uploads by itself and never promises background upload.
+// Nothing here is logged or sent anywhere.
+
+import type { CaptureCapabilities } from "./capabilities"
+import type { UploadPurpose } from "./types"
+
+export const JOURNAL_DB_NAME = "nabalens-capture-journal"
+/** Which account's entries the journal last held (a SHA-256, never the id). */
+export const JOURNAL_ACCOUNT_STORAGE_KEY = "nabalens-capture-account"
+
+/** §5.3 technical defaults (reversible). */
+export const JOURNAL_LIMITS = {
+  maxEntries: 50,
+  /** Below the server's 24 h abandoned-upload window. */
+  expiryMs: 20 * 60 * 60 * 1000,
+  maxPhotoBytes: 20 * 1024 * 1024,
+  maxFilesWithBytes: 10,
+  maxTotalBytes: 100 * 1024 * 1024,
+  /** Bytes are kept only when at least this many times their size is free. */
+  freeSpaceFactor: 2,
+  progressThrottleMs: 2000,
+} as const
+
+export type JournalState =
+  | "picked"
+  | "reserved"
+  | "transferring"
+  | "finalising"
+  | "done"
+  | "failed"
+  | "needs_reselection"
+
+export type JournalSubject = {
+  kind: "menu_item" | "task" | "question" | "none"
+  id: string | null
+}
+
+export type JournalEntry = {
+  id: string
+  accountHash: string
+  createdAt: number
+  touchedAt: number
+  expiresAt: number
+  purpose: UploadPurpose
+  subject: JournalSubject
+  groupKey: string | null
+  uploadKey: string
+  assetId: string | null
+  fileFingerprint: string
+  displayName: string
+  mediaType: "image" | "video"
+  sizeBytes: number
+  state: JournalState
+  /** Bytes sent so far (throttled), for the progress line after a reopen. */
+  transferredBytes?: number
+  failure?: { code: string; permanent: boolean }
+  /** Labels typed before reservation (UP-04), in stage_media_labels' shape. */
+  pendingLabels?: unknown
+  /** Photos only, within the limits. */
+  bytes?: Blob
+}
+
+/** Where entries live. All methods may throw; the journal treats that as "not kept". */
+export type JournalBackend = {
+  getAll(): Promise<JournalEntry[]>
+  put(entry: JournalEntry): Promise<void>
+  delete(id: string): Promise<void>
+  clear(): Promise<void>
+}
+
+/** What to offer for an unfinished entry (§5.4). */
+export type ResumeAction =
+  /** Bytes are here: one tap continues the same asset (same key, TUS offset). */
+  | { kind: "continue" }
+  /** "{name} didn't finish. Choose it again from Add; it continues where it stopped." */
+  | { kind: "reselect" }
+  /** A permanent failure: picking the same file fails again. */
+  | { kind: "choose_different"; code: string }
+
+export function resumeAction(entry: JournalEntry): ResumeAction {
+  if (entry.failure?.permanent)
+    return { kind: "choose_different", code: entry.failure.code }
+  if (entry.bytes && entry.state !== "needs_reselection")
+    return { kind: "continue" }
+  return { kind: "reselect" }
+}
+
+export type PickInput = {
+  purpose: UploadPurpose
+  subject: JournalSubject
+  groupKey: string | null
+  uploadKey: string
+  fileFingerprint: string
+  file: Pick<File, "name" | "size" | "type"> & Partial<Blob>
+  mediaType: "image" | "video"
+  pendingLabels?: unknown
+}
+
+export type CaptureJournal = {
+  /** Records a picked file; keeps photo bytes when the limits allow. */
+  pick(input: PickInput): Promise<JournalEntry | null>
+  /** Any lifecycle step except progress. Unknown or expired ids are ignored. */
+  update(
+    id: string,
+    patch: Partial<
+      Pick<JournalEntry, "state" | "assetId" | "pendingLabels" | "groupKey">
+    >
+  ): Promise<void>
+  /** Transfer progress, written at most once per throttle window per entry. */
+  progress(id: string, transferredBytes: number): Promise<void>
+  /** Writes any throttled progress now (pagehide, visibilitychange hidden). */
+  flush(): Promise<void>
+  /** Finalise reported a failure; the code stays on this device only. */
+  fail(id: string, code: string, permanent: boolean): Promise<void>
+  /** Finalised: the entry and its bytes go. */
+  done(id: string): Promise<void>
+  /** Unfinished, unexpired entries of this account, newest first. */
+  unfinished(): Promise<JournalEntry[]>
+  /** Removes every entry (any account). */
+  clear(): Promise<void>
+}
+
+export type CaptureJournalOptions = {
+  backend: JournalBackend
+  /** SHA-256 of the signed-in user's id (see accountHash). */
+  accountHash: string
+  capabilities: Pick<
+    CaptureCapabilities,
+    "storeBytes" | "quotaBytes" | "usageBytes"
+  >
+  now?: () => number
+  randomId?: () => string
+}
+
+/** SHA-256 of the user id; the raw id is never stored. */
+export async function accountHash(userId: string): Promise<string> {
+  const digest = await globalThis.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`nabalens-journal:${userId}`)
+  )
+  return Array.from(new Uint8Array(digest), (b) =>
+    b.toString(16).padStart(2, "0")
+  ).join("")
+}
+
+/**
+ * Opens the journal for one account. Before anything is returned, entries of
+ * any other account and expired entries are deleted (§5.2 items 4 and 5).
+ */
+export async function openCaptureJournal(
+  options: CaptureJournalOptions
+): Promise<CaptureJournal> {
+  const { backend, capabilities } = options
+  const now = options.now ?? Date.now
+  const randomId = options.randomId ?? (() => globalThis.crypto.randomUUID())
+  const pending = new Map<string, number>()
+  const lastWrite = new Map<string, number>()
+
+  const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+    try {
+      return await fn()
+    } catch {
+      return fallback
+    }
+  }
+  const all = () => safe(() => backend.getAll(), [] as JournalEntry[])
+
+  for (const entry of await all())
+    if (entry.accountHash !== options.accountHash || entry.expiresAt <= now())
+      await safe(() => backend.delete(entry.id), undefined)
+
+  const mine = async () =>
+    (await all()).filter(
+      (e) => e.accountHash === options.accountHash && e.expiresAt > now()
+    )
+
+  async function save(entry: JournalEntry) {
+    const t = now()
+    await backend.put({
+      ...entry,
+      touchedAt: t,
+      expiresAt: t + JOURNAL_LIMITS.expiryMs,
+    })
+  }
+
+  /** Bytes first (oldest first), then the oldest metadata (§5.9 order). */
+  async function enforceLimits(keep: string) {
+    const entries = (await mine()).sort((a, b) => a.touchedAt - b.touchedAt)
+    const withBytes = entries.filter((e) => e.bytes)
+    let total = withBytes.reduce((n, e) => n + (e.bytes?.size ?? 0), 0)
+    let files = withBytes.length
+    for (const e of withBytes) {
+      if (
+        files <= JOURNAL_LIMITS.maxFilesWithBytes &&
+        total <= JOURNAL_LIMITS.maxTotalBytes
+      )
+        break
+      if (e.id === keep) continue
+      total -= e.bytes?.size ?? 0
+      files--
+      const { bytes: _dropped, ...rest } = e
+      void _dropped
+      await backend.put({
+        ...rest,
+        state: rest.state === "done" ? rest.state : "needs_reselection",
+      })
+    }
+    const overflow = entries.length - JOURNAL_LIMITS.maxEntries
+    for (const e of entries.slice(0, Math.max(0, overflow)))
+      if (e.id !== keep) await backend.delete(e.id)
+  }
+
+  function bytesAllowed(
+    input: PickInput,
+    existingTotal: number,
+    existingFiles: number
+  ) {
+    if (!capabilities.storeBytes || input.mediaType !== "image") return false
+    if (!(input.file instanceof Blob)) return false
+    const size = input.file.size
+    if (size <= 0 || size > JOURNAL_LIMITS.maxPhotoBytes) return false
+    if (existingFiles + 1 > JOURNAL_LIMITS.maxFilesWithBytes) return false
+    if (existingTotal + size > JOURNAL_LIMITS.maxTotalBytes) return false
+    const { quotaBytes, usageBytes } = capabilities
+    if (quotaBytes === null || usageBytes === null) return false
+    return quotaBytes - usageBytes >= size * JOURNAL_LIMITS.freeSpaceFactor
+  }
+
+  async function find(id: string) {
+    return (await mine()).find((e) => e.id === id) ?? null
+  }
+
+  return {
+    async pick(input) {
+      const existing = (await mine()).find(
+        (e) => e.uploadKey === input.uploadKey
+      )
+      const others = (await mine()).filter(
+        (e) => e.bytes && e.uploadKey !== input.uploadKey
+      )
+      const total = others.reduce((n, e) => n + (e.bytes?.size ?? 0), 0)
+      const keepBytes = bytesAllowed(input, total, others.length)
+      const t = now()
+      const entry: JournalEntry = {
+        id: existing?.id ?? randomId(),
+        accountHash: options.accountHash,
+        createdAt: existing?.createdAt ?? t,
+        touchedAt: t,
+        expiresAt: t + JOURNAL_LIMITS.expiryMs,
+        purpose: input.purpose,
+        subject: input.subject,
+        groupKey: input.groupKey,
+        uploadKey: input.uploadKey,
+        assetId: existing?.assetId ?? null,
+        fileFingerprint: input.fileFingerprint,
+        displayName: input.file.name,
+        mediaType: input.mediaType,
+        sizeBytes: input.file.size,
+        state:
+          existing && existing.state !== "needs_reselection"
+            ? existing.state
+            : "picked",
+        ...(input.pendingLabels !== undefined
+          ? { pendingLabels: input.pendingLabels }
+          : existing?.pendingLabels !== undefined
+            ? { pendingLabels: existing.pendingLabels }
+            : {}),
+        ...(keepBytes ? { bytes: input.file as Blob } : {}),
+      }
+      const stored = await safe(async () => {
+        await save(entry)
+        return true
+      }, false)
+      if (!stored && entry.bytes) {
+        // A refused write with bytes (quota): keep the metadata only.
+        const { bytes: _b, ...meta } = entry
+        void _b
+        const ok = await safe(async () => {
+          await save({ ...meta, state: "needs_reselection" })
+          return true
+        }, false)
+        return ok ? { ...meta, state: "needs_reselection" } : null
+      }
+      if (!stored) return null
+      await safe(() => enforceLimits(entry.id), undefined)
+      return (await find(entry.id)) ?? entry
+    },
+    async update(id, patch) {
+      const entry = await find(id)
+      if (!entry) return
+      await safe(() => save({ ...entry, ...patch }), undefined)
+    },
+    async progress(id, transferredBytes) {
+      pending.set(id, transferredBytes)
+      const t = now()
+      if (t - (lastWrite.get(id) ?? 0) < JOURNAL_LIMITS.progressThrottleMs)
+        return
+      lastWrite.set(id, t)
+      pending.delete(id)
+      const entry = await find(id)
+      if (entry)
+        await safe(
+          () => save({ ...entry, state: "transferring", transferredBytes }),
+          undefined
+        )
+    },
+    async flush() {
+      for (const [id, transferredBytes] of [...pending]) {
+        pending.delete(id)
+        lastWrite.set(id, now())
+        const entry = await find(id)
+        if (entry)
+          await safe(
+            () => save({ ...entry, state: "transferring", transferredBytes }),
+            undefined
+          )
+      }
+    },
+    async fail(id, code, permanent) {
+      const entry = await find(id)
+      if (!entry) return
+      await safe(
+        () => save({ ...entry, state: "failed", failure: { code, permanent } }),
+        undefined
+      )
+    },
+    async done(id) {
+      pending.delete(id)
+      await safe(() => backend.delete(id), undefined)
+    },
+    async unfinished() {
+      return (await mine())
+        .filter((e) => e.state !== "done")
+        .sort((a, b) => b.touchedAt - a.touchedAt)
+    },
+    async clear() {
+      pending.clear()
+      await safe(() => backend.clear(), undefined)
+    },
+  }
+}
+
+/** An in-memory backend (tests, and browsers where IndexedDB is refused). */
+export function memoryJournalBackend(): JournalBackend & { size(): number } {
+  const rows = new Map<string, JournalEntry>()
+  return {
+    async getAll() {
+      return [...rows.values()]
+    },
+    async put(entry) {
+      rows.set(entry.id, entry)
+    },
+    async delete(id) {
+      rows.delete(id)
+    },
+    async clear() {
+      rows.clear()
+    },
+    size: () => rows.size,
+  }
+}
+
+/** The IndexedDB backend (database JOURNAL_DB_NAME, one object store). */
+export function indexedDbJournalBackend(
+  idb: IDBFactory = indexedDB
+): JournalBackend {
+  let opened: Promise<IDBDatabase> | null = null
+  const db = () =>
+    (opened ??= new Promise<IDBDatabase>((resolve, reject) => {
+      const req = idb.open(JOURNAL_DB_NAME, 1)
+      req.onupgradeneeded = () =>
+        req.result.createObjectStore("entries", { keyPath: "id" })
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    }))
+  const run = async <T>(
+    mode: IDBTransactionMode,
+    fn: (s: IDBObjectStore) => IDBRequest<T>
+  ) => {
+    const tx = (await db()).transaction("entries", mode)
+    const req = fn(tx.objectStore("entries"))
+    return new Promise<T>((resolve, reject) => {
+      tx.oncomplete = () => resolve(req.result)
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
+    })
+  }
+  return {
+    getAll: () =>
+      run("readonly", (s) => s.getAll() as IDBRequest<JournalEntry[]>),
+    put: async (entry) => void (await run("readwrite", (s) => s.put(entry))),
+    delete: async (id) => void (await run("readwrite", (s) => s.delete(id))),
+    clear: async () => void (await run("readwrite", (s) => s.clear())),
+  }
+}
