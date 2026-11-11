@@ -300,7 +300,9 @@ function recordAltered(
   const [menu, amenity] = alter.swapMenuAmenity
     ? ["x.amenity_units", "x.menu_units"]
     : ["x.menu_units", "x.amenity_units"]
-  const hash = alter.functionHash ? `'${alter.functionHash}'` : "x.function_hash"
+  const hash = alter.functionHash
+    ? `'${alter.functionHash}'`
+    : "x.function_hash"
   psql(`insert into private.scoring_month_snapshots
       (venue_id, staff_id, period_month, kind, policy_key, policy_version, target_basis,
         menu_units, amenity_units, photo_units, late_photo_units, photo_asset_ids, total,
