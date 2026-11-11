@@ -75,6 +75,8 @@ describe("knowledge_reader_answers_v1 (T6)", () => {
         "observed_at",
         "next_check_due",
         "freshness_state",
+        // B03 WS5 item 2: an import's origin, null for any other answer.
+        "source_origin",
       ].sort()
     )
     expect(rows[0]).toMatchObject({
@@ -82,6 +84,7 @@ describe("knowledge_reader_answers_v1 (T6)", () => {
       value: "yes",
       finding: null,
       redaction_proof: "recorded",
+      source_origin: null,
     })
     expect(rows[1]).toMatchObject({
       status: "available",

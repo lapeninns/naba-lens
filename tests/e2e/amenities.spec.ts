@@ -58,8 +58,16 @@ const adminHrefs = (w: AmenitiesWorld) =>
 
 async function openStaffCheck(page: Page, key: string, id: string) {
   await expect(page).toHaveURL(STAFF_LANDING)
-  const section = page.getByRole("region", { name: UI_TEXT.staffSection })
-  await section.getByRole("link", { name: question(key) }).click()
+  // B02 Home (b02-ui-design §3.1 item 6, §3.2): an assigned check not yet
+  // answered is its own To do card, and Amenity checks lists only the rest;
+  // the b01 layout keeps it in Amenity checks.
+  const card = page
+    .getByRole("region", { name: /^To do/ })
+    .getByRole("link", { name: `Start check: ${question(key)}`, exact: true })
+  const listed = page
+    .getByRole("region", { name: UI_TEXT.staffSection })
+    .getByRole("link", { name: question(key) })
+  await card.or(listed).click()
   await expect(page).toHaveURL(new RegExp(`${escape(staffCaptureHref(id))}$`))
 }
 

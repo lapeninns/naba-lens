@@ -71,6 +71,15 @@ const PHONE = (width: number, height = 740) => ({
 })
 const DESKTOP = { viewport: { width: 1280, height: 900 } }
 
+/**
+ * After a document load, until React moves a streamed boundary into the page:
+ * meanwhile the boundary sits both in the page and in a hidden `<div id="S:n">`
+ * (tests/e2e/visual.spec.ts), so strict id locators would match twice.
+ */
+async function settled(page: Page) {
+  await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
+}
+
 /** The capture form on a page, and its one submit control (label changes). */
 function capture(page: Page) {
   const form = page.locator('form[aria-label^="Capture:"]')
@@ -128,8 +137,16 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
       evidenceRule: "video",
       confirmation: "venue_manager",
     })
-    // A separate accessibility question at the same venue, never answered here.
-    const other = "accessible_toilet"
+    // A separate accessibility question at the same venue, never answered
+    // here. Synthetic, with its own rule: the working list refuses a key
+    // without one (knowledge_rule_missing), and accessible_toilet has none.
+    const other = seedSyntheticQuestion({
+      tag: w.tag,
+      kind: "toilet",
+      schema: "accessibility",
+      category: "Accessibility",
+      question: `DEV FIXTURE B03-A Is there an accessible toilet ${w.tag}?`,
+    }).key
     const checksA = await enableOnWorkingList(w, w.venueA, [
       STEP_FREE_KEY,
       other,
@@ -691,6 +708,7 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     })
     expect(policyMissing(legacyId)).toEqual(["authority", "stated_on"])
     await manager.goto(MANAGER.check(legacyId))
+    await settled(manager)
     for (const need of policyNeedWords(["authority", "stated_on"]))
       await expect(needsPanel(manager)).toContainText(need)
     const retiredName = POLICY_COPY.retired(oldRule.label)
@@ -755,7 +773,7 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     // owner's lists, so it names the retired type (A38). This incomplete
     // policy isn't shown as the current answer (§4.3), so Where it stands
     // has the needs panel instead of its rows.
-    const atDate = manager.locator("#amenity-at-date")
+    const atDate = manager.locator("#main #amenity-at-date")
     await atDate
       .getByLabel(AT_DATE_COPY.date, { exact: true })
       .fill(londonDaysAgo(0))
@@ -768,13 +786,13 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     // built): History, Submissions and the event list render no policy
     // conditions, so none of them names the retired type. Recorded, not
     // passed off as history.
-    await expect(manager.locator("#amenity-history")).toBeVisible()
-    await expect(manager.locator("#amenity-submissions")).toBeVisible()
+    await expect(manager.locator("#main #amenity-history")).toBeVisible()
+    await expect(manager.locator("#main #amenity-submissions")).toBeVisible()
     const historyText = (
       await Promise.all(
         ["#amenity-history", "#amenity-submissions", "#amenity-events"].map(
           async (sel) => {
-            const section = manager.locator(sel)
+            const section = manager.locator(`#main ${sel}`)
             return (await section.count()) ? section.innerText() : ""
           }
         )

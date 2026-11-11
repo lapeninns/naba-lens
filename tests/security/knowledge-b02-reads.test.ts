@@ -39,7 +39,7 @@ import {
 
 type LabelWork = { needs_labels: number; needs_attention: number }
 type TriageRow = {
-  queue: "menu_photos" | "findings" | "checklist"
+  queue: "menu_photos" | "findings" | "suggestions" | "checklist" | "rechecks"
   available: boolean
   waiting: number | null
   oldest_waiting_at: string | null
@@ -54,8 +54,13 @@ type ToConfirm = {
     findingRef: { type: string; id: string }
     sentAt: string | null
     waitingSince: string
+    /** B03-f: an import's origin; imports are the suggestions queue. */
+    source?: string | null
   }[]
 }
+type VenueRechecks = { count: number; items: { dueAt: string }[] }
+
+const IMPORTED = ["legacy_fact", "external_source"]
 
 const same = (a: string | null | undefined, b: string | null | undefined) =>
   expect(a == null ? null : Date.parse(a)).toBe(
@@ -214,7 +219,9 @@ describe("manager triage summary (R3)", () => {
     expect(rows.map((r) => r.queue)).toEqual([
       "menu_photos",
       "findings",
+      "suggestions",
       "checklist",
+      "rechecks",
     ])
     return Object.fromEntries(rows.map((r) => [r.queue, r])) as Record<
       TriageRow["queue"],
@@ -245,15 +252,41 @@ describe("manager triage summary (R3)", () => {
     const tc = await json<ToConfirm>(who, "knowledge_to_confirm", {
       p_venue_id: venue,
     })
+    // B03-f (A12): imports waiting are the suggestions queue, apart from
+    // findings and never summed into them.
+    const oldestOf = (items: ToConfirm["items"]) =>
+      items
+        .map((i) => i.waitingSince)
+        .sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null
+    const imported = tc.items.filter((i) => IMPORTED.includes(i.source ?? ""))
+    const found = tc.items.filter((i) => !IMPORTED.includes(i.source ?? ""))
+    expect(found.length + imported.length).toBe(tc.count)
     expect(t.findings).toMatchObject({
       available: true,
-      waiting: tc.count,
+      waiting: found.length,
       own_waiting: null,
     })
-    const oldest = tc.items
-      .map((i) => i.waitingSince)
+    same(t.findings.oldest_waiting_at, oldestOf(found))
+    expect(t.suggestions).toMatchObject({
+      available: true,
+      waiting: imported.length,
+      own_waiting: null,
+    })
+    same(t.suggestions.oldest_waiting_at, oldestOf(imported))
+
+    // B03-e (A41): the open rechecks knowledge_venue_rechecks lists.
+    const rc = await json<VenueRechecks>(who, "knowledge_venue_rechecks", {
+      p_venue_id: venue,
+    })
+    expect(t.rechecks).toMatchObject({
+      available: true,
+      waiting: rc.count,
+      own_waiting: null,
+    })
+    const due = rc.items
+      .map((i) => i.dueAt)
       .sort((a, b) => Date.parse(a) - Date.parse(b))[0]
-    same(t.findings.oldest_waiting_at, oldest ?? null)
+    same(t.rechecks.oldest_waiting_at, due ?? null)
 
     if (checklist) {
       const [summary] = await ok(

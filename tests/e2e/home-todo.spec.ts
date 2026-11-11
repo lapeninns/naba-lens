@@ -119,8 +119,15 @@ test.describe("Home: truthful To do and badges", () => {
     await expect(todo).toHaveAccessibleName(/^To do, 2 things to do$/)
     await expect(page.getByText("Nothing to do right now.")).toHaveCount(0)
 
-    // The lead card starts the first check in one tap.
-    await todo.getByRole("link", { name: /^Start check: / }).tap()
+    // Each assigned check is its own card (b02-ui-design §3.1 item 6); the
+    // first starts its check in one tap, whichever check that is.
+    await expect(
+      todo.getByRole("link", { name: /^Start check: / })
+    ).toHaveCount(2)
+    await todo
+      .getByRole("link", { name: /^Start check: / })
+      .first()
+      .tap()
     await expect(page).toHaveURL(/\/staff\/tasks\/amenities\/[0-9a-f-]+$/)
     const sent = page.url().split("/").pop()!
     const left = sent === toilets ? checkId(w.venueA, "darts") : toilets

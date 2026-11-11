@@ -91,10 +91,19 @@ const IMPORT_TEXT = {
 /** components/nabalens/knowledge/old-facts.tsx (OLD_FACTS_COPY.title). */
 const oldFactsTitle = (n: number) => `From the old facts list (${n})`
 
+/**
+ * After a document load, until React moves a streamed boundary into the page:
+ * meanwhile the boundary sits both in the page and in a hidden `<div id="S:n">`
+ * (tests/e2e/visual.spec.ts), so strict id locators would match twice.
+ */
+async function settled(page: Page) {
+  await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
+}
+
 /** The To confirm panel (CoverageSection id amenity-to-confirm). */
-const toConfirm = (page: Page) => page.locator("#amenity-to-confirm")
+const toConfirm = (page: Page) => page.locator("#main #amenity-to-confirm")
 /** Where it stands (CoverageSection id amenity-status). */
-const whereItStands = (page: Page) => page.locator("#amenity-status")
+const whereItStands = (page: Page) => page.locator("#main #amenity-status")
 
 /** One finding card in To confirm, by text only it carries. */
 const cardWith = (page: Page, text: string): Locator =>
@@ -131,9 +140,9 @@ function expectRefusal(
 }
 
 /** History (CoverageSection id amenity-history), for readers allowed it. */
-const history = (page: Page) => page.locator("#amenity-history")
+const history = (page: Page) => page.locator("#main #amenity-history")
 /** See the answer on a date (CoverageSection id amenity-at-date). */
-const atDate = (page: Page) => page.locator("#amenity-at-date")
+const atDate = (page: Page) => page.locator("#main #amenity-at-date")
 
 /**
  * The /manager check's not-found screen (tests/e2e/amenities-isolation.spec):
@@ -297,6 +306,7 @@ test.describe("knowledge B03 E and F", () => {
     // ---- 1. Admin/manager at 1280: confirm an eligible import onto an empty slot.
     const manager = await signedInPage(browser, w.managerA, DESK)
     await manager.goto(MANAGER.check(toilets))
+    await settled(manager)
     const toiletsCard = cardWith(manager, TOILETS_NOTE)
     await expect(
       toiletsCard.getByRole("heading", {
@@ -362,6 +372,7 @@ test.describe("knowledge B03 E and F", () => {
 
     const admin = await signedInPage(browser, w.admin, DESK)
     await admin.goto(ADMIN.check(toilets))
+    await settled(admin)
     facts = await openOldFacts(admin, 1)
     await expect(facts).toContainText(TOILETS_NOTE)
     await expect(facts).not.toContainText(OLDER_NOTE)
@@ -370,6 +381,7 @@ test.describe("knowledge B03 E and F", () => {
     // ---- 3. Conflict: the parking import card is held open in the manager's
     // page while the admin, in their own context, records a competing answer.
     await manager.goto(MANAGER.check(parking))
+    await settled(manager)
     const parkingCard = cardWith(manager, PARKING_NOTE)
     const staleConfirm = parkingCard.getByRole("button", {
       name: "Confirm",
@@ -386,6 +398,7 @@ test.describe("knowledge B03 E and F", () => {
 
     const COMPETING_REASON = `DEV FIXTURE B03-E no guest parking now ${w.tag}`
     await admin.goto(ADMIN.capture(parking))
+    await settled(admin)
     const capture = captureForm(admin)
     await capture.answer("no")
     await capture.reason.fill(COMPETING_REASON)
@@ -477,6 +490,7 @@ test.describe("knowledge B03 E and F", () => {
     // ---- 4. Staff at 390: the approved source attribution, no private notes.
     const staff = await signedInPage(browser, w.staffA, PHONE)
     await staff.goto(staffCaptureHref(toilets))
+    await settled(staff)
     await expect(
       staff.getByRole("heading", {
         level: 1,
@@ -508,6 +522,7 @@ test.describe("knowledge B03 E and F", () => {
         "/admin/knowledge/runs",
       ]) {
         const res = await page.goto(path)
+        await settled(page)
         expect(res?.status(), `${label} ${path}`).toBeLessThan(500)
         await expect(page, `${label} ${path}`).not.toHaveURL(/\/admin(\/|$)/)
         await expect(
@@ -533,6 +548,7 @@ test.describe("knowledge B03 E and F", () => {
 
     // ---- 6. Admin Runs: hold the real dry-run response, then release it.
     await admin.goto("/admin/knowledge/runs")
+    await settled(admin)
     await expect(
       admin.getByRole("heading", {
         name: RECONCILE_COPY.runsTitle,
@@ -664,6 +680,7 @@ test.describe("knowledge B03 E and F", () => {
     // ---- 1. Capability boundaries, before anything changes.
     const manager = await signedInPage(browser, w.managerA, DESK)
     await manager.goto(MANAGER.check(a))
+    await settled(manager)
     await expect(
       whereItStands(manager).getByRole("link", { name: CORRECT_COPY.open })
     ).toBeVisible()
@@ -675,6 +692,7 @@ test.describe("knowledge B03 E and F", () => {
 
     const admin = await signedInPage(browser, w.admin, DESK)
     await admin.goto(ADMIN.check(a))
+    await settled(admin)
     await expect(
       whereItStands(admin).getByRole("link", { name: CORRECT_COPY.open })
     ).toBeVisible()
@@ -687,6 +705,7 @@ test.describe("knowledge B03 E and F", () => {
     // or withdraw, even by opening the correction URL directly.
     const legacy = await signedInPage(browser, w.staffA2, DESK)
     await legacy.goto(LEGACY_MANAGE.check(a))
+    await settled(legacy)
     await expect(history(legacy)).toBeVisible()
     await expect(atDate(legacy)).toBeVisible()
     await expect(
@@ -696,6 +715,7 @@ test.describe("knowledge B03 E and F", () => {
       legacy.getByRole("button", { name: WITHDRAW_COPY.open })
     ).toHaveCount(0)
     await legacy.goto(`${LEGACY_MANAGE.capture(a)}?correct=1`)
+    await settled(legacy)
     await expect(
       legacy.getByText(CORRECT_COPY.notPermitted, { exact: true })
     ).toBeVisible()
@@ -710,6 +730,7 @@ test.describe("knowledge B03 E and F", () => {
       `${staffCaptureHref(a)}?correct=1`,
     ]) {
       await staff.goto(path)
+      await settled(staff)
       await expect(
         staff.getByRole("heading", {
           level: 1,
@@ -730,6 +751,7 @@ test.describe("knowledge B03 E and F", () => {
       ).toHaveCount(0)
     }
     await staff.goto(LEGACY_MANAGE.check(a))
+    await settled(staff)
     await expect(history(staff)).toHaveCount(0)
     await expectNone(staff, [NOTE, video], "staff /staff/manage check")
 
@@ -738,6 +760,7 @@ test.describe("knowledge B03 E and F", () => {
     const managerB = await signedInPage(browser, w.managerB, DESK)
     for (const path of [MANAGER.check(a), `${MANAGER.capture(a)}?correct=1`]) {
       await managerB.goto(path)
+      await settled(managerB)
       await expect(managerNotFound(managerB), `manager B ${path}`).toBeVisible()
       await expect(history(managerB)).toHaveCount(0)
       await expectNone(managerB, venueASecrets, `manager B ${path}`)
@@ -799,6 +822,7 @@ test.describe("knowledge B03 E and F", () => {
 
     // ---- 2. Manager correction at 1280: What changes, then a held save.
     await manager.goto(MANAGER.check(a))
+    await settled(manager)
     await whereItStands(manager)
       .getByRole("link", { name: CORRECT_COPY.open })
       .click()
@@ -910,6 +934,7 @@ test.describe("knowledge B03 E and F", () => {
 
     // ---- 3. Admin confirms the corrected answer through the To confirm card.
     await admin.goto(ADMIN.check(a))
+    await settled(admin)
     const unconfirmed = toConfirm(admin)
       .getByRole("article")
       .filter({
@@ -945,6 +970,7 @@ test.describe("knowledge B03 E and F", () => {
 
     // ---- 4. Admin withdraws, with the real response held.
     await admin.goto(ADMIN.check(a))
+    await settled(admin)
     await expect(whereItStands(admin)).toContainText(
       `Current answer: ${ANSWER_LABEL.no}.`
     )
@@ -1017,6 +1043,7 @@ test.describe("knowledge B03 E and F", () => {
 
     // ---- 5. History: who (and in what role) did what, and when.
     await manager.goto(MANAGER.check(a))
+    await settled(manager)
     await expect(whereItStands(manager)).toContainText(withdrawnLine)
     const line = (page: Page, text: string, at: string) =>
       history(page)
@@ -1048,6 +1075,7 @@ test.describe("knowledge B03 E and F", () => {
     const later = secondAfter(withdrawal.at)
     for (const page of [manager, legacy]) {
       if (page === legacy) await legacy.goto(LEGACY_MANAGE.check(a))
+      await settled(legacy)
       const then = await answerOn(page, earlier)
       await expect(
         atDate(page).getByText(AT_DATE_COPY.was(then, ANSWER_LABEL.yes), {
@@ -1081,6 +1109,7 @@ test.describe("knowledge B03 E and F", () => {
 
     // ---- 7. Staff read at 390 and the legacy list fallback agree.
     await staff.goto(staffCaptureHref(a))
+    await settled(staff)
     await expect(
       staff.getByText(`${withdrawnLine} Previous answer: ${ANSWER_LABEL.no}.`, {
         exact: true,
@@ -1094,6 +1123,7 @@ test.describe("knowledge B03 E and F", () => {
       "staff 390 after withdrawal"
     )
     await manager.goto(MANAGER.list)
+    await settled(manager)
     await expect(
       checkItem(manager.getByRole("main"), KEY)
         .filter({
@@ -1105,10 +1135,12 @@ test.describe("knowledge B03 E and F", () => {
     // ---- 8. Still nothing for venue B's people, and venue B's answer stands.
     for (const path of [MANAGER.check(a), `${MANAGER.capture(a)}?correct=1`]) {
       await managerB.goto(path)
+      await settled(managerB)
       await expect(managerNotFound(managerB), `manager B ${path}`).toBeVisible()
       await expectNone(managerB, venueASecrets, `manager B ${path}`)
     }
     await managerB.goto(MANAGER.check(b))
+    await settled(managerB)
     await expect(whereItStands(managerB)).toContainText(`${ANSWER_LABEL.no}.`)
     await expectNone(managerB, venueASecrets, "manager B own check")
     expect(slotRead(w.venueB, b), "venue B untouched").toEqual(venueBSlot)

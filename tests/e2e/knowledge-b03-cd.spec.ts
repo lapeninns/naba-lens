@@ -120,6 +120,60 @@ const checkDatesQuery = (f: {
   ])}`
 
 /**
+ * The Check dates page as it still is while its document request is held,
+ * read in one evaluate. Web-first assertions and locator reads first wait for
+ * a pending main-frame navigation, so they can't observe the held state. The
+ * reads mirror the locators used after the release: each select by its exact
+ * label, the preview's list items naming the venue, and the one item naming
+ * the venue and the use with its own lines.
+ */
+async function heldCheckDates(
+  page: Page,
+  venueName: string,
+  use: "internal" | "public"
+) {
+  return page.evaluate(
+    ({ labels, venueName, useText }) => {
+      const text = (el: Element) =>
+        (el.textContent ?? "").replace(/\s+/g, " ").trim()
+      const field = (label: string) => {
+        const named = [...document.querySelectorAll("label")].filter(
+          (l) => text(l) === label
+        )
+        const el =
+          named.length === 1 ? document.getElementById(named[0]!.htmlFor) : null
+        return el instanceof HTMLSelectElement ? el.value : null
+      }
+      const previews = document.querySelectorAll("#check-dates-preview")
+      const items = [...document.querySelectorAll("#check-dates-preview li")]
+      const venueRows = items.filter((li) => text(li).includes(venueName))
+      const rows = venueRows.filter((li) => text(li).includes(useText))
+      return {
+        path: location.pathname + location.search,
+        previews: previews.length,
+        question: field(labels.question),
+        internal: field(labels.internal),
+        guests: field(labels.public),
+        venueRows: venueRows.length,
+        row:
+          rows.length === 1
+            ? [...rows[0]!.querySelectorAll("li")].map(text)
+            : { matches: rows.length },
+      }
+    },
+    {
+      labels: {
+        question: CHECK_DATES_TEXT.question,
+        internal: CHECK_DATES_TEXT.internal,
+        public: CHECK_DATES_TEXT.public,
+      },
+      venueName,
+      useText: CHECK_DATES_TEXT.use[use],
+    }
+  )
+}
+
+/**
  * Presses Show what it would do while the real native GET for `questionKey`
  * is held before it reaches the server. The click is started and not awaited
  * (its navigation can't commit while the request is held). `observe` runs
@@ -675,8 +729,13 @@ test.describe("B03 browser charters C and D", () => {
       .getByRole("button", { name: "Confirm", exact: true })
       .click()
     await expect.poll(() => tasksOf(id.stale)[0]?.state).toBe("done")
-    const decision = psql(`select id from public.knowledge_decisions
-      where contribution_id = ${uuid(recheckContribution)} and decision = 'confirmed'`)
+    // A confirmation is stored against the answer it confirms, not the
+    // finding: reach it through the answer adopted from that finding.
+    const decision = psql(`select d.id from public.knowledge_decisions d
+      join public.amenity_submissions s on s.id = d.submission_id
+      where s.source_contribution_id = ${uuid(recheckContribution)}
+        and d.decision = 'confirmed'`)
+    expect(decision).toMatch(/^[0-9a-f-]{36}$/)
     expect(tasksOf(id.stale)).toEqual([
       { ...staleTask, state: "done", closedDecisionId: decision },
     ])
@@ -928,11 +987,18 @@ test.describe("B03 browser charters C and D", () => {
       expect(`${sent.pathname}${sent.search}`).toBe(firstQuery)
       // Pending: the page that sent the form stays as it was, with no preview
       // and no rule chosen for the question.
-      await expect(admin).toHaveURL(new RegExp(`${escape(CHECK_DATES)}$`))
-      await expect(preview).toHaveCount(0)
-      await expect(question).toHaveValue(q1)
-      await expect(internal).toHaveValue("")
-      await expect(guests).toHaveValue("")
+      expect(new URL(admin.url()).pathname + new URL(admin.url()).search).toBe(
+        CHECK_DATES
+      )
+      expect(await heldCheckDates(admin, w.venueA.name, "internal")).toEqual({
+        path: CHECK_DATES,
+        previews: 0,
+        question: q1,
+        internal: "",
+        guests: "",
+        venueRows: 0,
+        row: { matches: 0 },
+      })
       expect(registryRows()).toBe(registryBefore)
     })
     await expect(admin).toHaveURL(new RegExp(`${escape(firstQuery)}$`))
@@ -974,12 +1040,23 @@ test.describe("B03 browser charters C and D", () => {
       // The form still names the first question's rule, for the first one.
       expect(`${sent.pathname}${sent.search}`).toBe(secondQuery)
       // Pending: still the first question's document and preview.
-      await expect(admin).toHaveURL(new RegExp(`${escape(firstQuery)}$`))
-      await expect(internal).toHaveValue(rule.v1.id)
-      await expect(venueRows).toHaveCount(1)
-      await expect(row("internal").getByRole("listitem")).toHaveText(
-        previewLines({ answers: 1, expired: 0, basisMissing: 0, rechecks: 0 })
+      expect(new URL(admin.url()).pathname + new URL(admin.url()).search).toBe(
+        firstQuery
       )
+      expect(await heldCheckDates(admin, w.venueA.name, "internal")).toEqual({
+        path: firstQuery,
+        previews: 1,
+        question: q2,
+        internal: rule.v1.id,
+        guests: "",
+        venueRows: 1,
+        row: previewLines({
+          answers: 1,
+          expired: 0,
+          basisMissing: 0,
+          rechecks: 0,
+        }),
+      })
     })
     await expect(admin).toHaveURL(new RegExp(`${escape(secondQuery)}$`))
     await expect(question).toHaveValue(q2)

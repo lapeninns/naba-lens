@@ -213,15 +213,22 @@ export function contributionsAt(venue: Pick<Venue, "id">, checkId: string) {
   }[]
 }
 
-/** Every decision on one check, oldest first. */
+/**
+ * Every decision on one check, oldest first. `contribution` is the finding
+ * the decision is about: a confirmation is stored against the answer it
+ * confirms (exactly one of contribution_id and submission_id is set), so it
+ * reads that answer's source finding.
+ */
 export function decisionsAt(venue: Pick<Venue, "id">, checkId: string) {
   return JSON.parse(
     psql(`
       select coalesce(json_agg(json_build_object(
-        'contribution', d.contribution_id, 'decision', d.decision,
+        'contribution', coalesce(d.contribution_id, s.source_contribution_id),
+        'decision', d.decision,
         'by', d.decided_by, 'basis', d.decider_basis, 'self', d.self_confirmed
       ) order by d.created_at, d.id), '[]'::json)
       from public.knowledge_decisions d
+      left join public.amenity_submissions s on s.id = d.submission_id
       where d.venue_id = ${uuid(venue.id)} and d.check_id = ${uuid(checkId)}`)
   ) as {
     contribution: string | null

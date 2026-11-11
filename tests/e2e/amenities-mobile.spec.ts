@@ -4,7 +4,6 @@ import {
   amenityHrefs,
   PROGRESS_LABEL,
   staffCaptureHref,
-  UI_TEXT,
 } from "../../lib/amenities/contract"
 import {
   captureForm,
@@ -42,7 +41,9 @@ test.describe("amenity capture at phone width", () => {
 
     const staff = await signedInPage(browser, w.staffA, device)
     await expect(staff).toHaveURL(STAFF_LANDING)
-    const section = staff.getByRole("region", { name: UI_TEXT.staffSection })
+    // B02 Home (b02-ui-design §3.1 item 6): an assigned check not yet
+    // answered is a To do card, not a row under Amenity checks.
+    const section = staff.getByRole("region", { name: /^To do/ })
     await expect(checkItem(section, "darts")).toContainText(
       PROGRESS_LABEL.needs_capture
     )
