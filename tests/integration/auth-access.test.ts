@@ -859,12 +859,21 @@ describe("venue manager accounts", () => {
       redirectOf(() => ManagerLayout({ children }))
     )
     expect(layout.location).toBeNull()
+    // The shared entry is on by default, so the workspace shell sits in the
+    // manager Add host (B02-c); the b01 rollback shape is unit-tested.
     expect(layout.value).toMatchObject({
       type: SessionGuardHost,
       props: {
         children: {
-          type: ManagerShell,
-          props: { venueName: managerVenue.name, children },
+          type: AddHost,
+          props: {
+            venueName: managerVenue.name,
+            role: "manager",
+            children: {
+              type: ManagerShell,
+              props: { venueName: managerVenue.name, children },
+            },
+          },
         },
       },
     })
