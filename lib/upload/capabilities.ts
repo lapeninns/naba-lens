@@ -23,17 +23,29 @@ export type CaptureCapabilities = {
 export type ProbeEnvironment = {
   indexedDB?: IDBFactory
   storage?: Pick<StorageManager, "estimate" | "persisted">
+  /** Give up on IndexedDB after this long (default 3 s): some locked-down browsers never answer. */
+  timeoutMs?: number
 }
 
 const PROBE_DB = "nabalens-capture-probe"
 
 /** Opens a scratch database, writes and reads back a Blob, then deletes it. */
-async function blobRoundTrip(idb: IDBFactory): Promise<boolean> {
+async function blobRoundTrip(
+  idb: IDBFactory,
+  timeoutMs: number
+): Promise<boolean> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs)
     const req = idb.open(PROBE_DB, 1)
     req.onupgradeneeded = () => req.result.createObjectStore("p")
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
+    req.onsuccess = () => {
+      clearTimeout(timer)
+      resolve(req.result)
+    }
+    req.onerror = () => {
+      clearTimeout(timer)
+      reject(req.error)
+    }
   })
   try {
     const blob = new Blob([new Uint8Array([1, 2, 3])])
@@ -52,7 +64,11 @@ async function blobRoundTrip(idb: IDBFactory): Promise<boolean> {
     return back instanceof Blob && back.size === 3
   } finally {
     db.close()
-    idb.deleteDatabase(PROBE_DB)
+    try {
+      idb.deleteDatabase(PROBE_DB)
+    } catch {
+      // The scratch database stays; the round trip itself succeeded.
+    }
   }
 }
 
@@ -98,7 +114,7 @@ export async function detectCaptureCapabilities(
   if (!env.indexedDB) return result(false, "no_indexeddb")
   let roundTrip = false
   try {
-    roundTrip = await blobRoundTrip(env.indexedDB)
+    roundTrip = await blobRoundTrip(env.indexedDB, env.timeoutMs ?? 3000)
   } catch {
     roundTrip = false
   }

@@ -6,12 +6,25 @@
 import { JOURNAL_ACCOUNT_STORAGE_KEY, JOURNAL_DB_NAME } from "./journal"
 import { UPLOAD_KEYS_STORAGE_KEY } from "./upload-keys"
 
-type DeviceStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">
+type DeviceStorage = Pick<
+  Storage,
+  "getItem" | "setItem" | "removeItem" | "key" | "length"
+>
 
 export type DeviceCleanupEnvironment = {
   storage?: DeviceStorage
   indexedDB?: Pick<IDBFactory, "deleteDatabase">
 }
+
+/**
+ * tus-js-client's default URL storage keeps one localStorage entry per
+ * unfinished transfer, `tus::<fingerprint>::<n>`, holding its upload URL;
+ * lib/upload/tus.ts fingerprints as `nabalens-media:<assetId>`.
+ */
+export const TUS_RESUME_KEY_PREFIX = "tus::nabalens-media:"
+
+/** How the journal database delete ended. "blocked" stays queued until other tabs close it. */
+export type JournalDeleteOutcome = "deleted" | "blocked" | "failed" | "absent"
 
 function defaults(): DeviceCleanupEnvironment {
   if (typeof window === "undefined") return {}
@@ -29,20 +42,41 @@ function defaults(): DeviceCleanupEnvironment {
   return env
 }
 
-/** Removes every upload resume key, the journal database and the account marker. */
+/**
+ * Removes every upload resume key (ours and tus-js-client's), the journal
+ * database and the account marker. Storage keys go synchronously; the
+ * promise reports the database delete. Open journal connections close on
+ * versionchange, so "blocked" means another tab that has not yet closed; the
+ * delete stays queued and completes when it does.
+ */
 export function clearCaptureDataOnDevice(
   env: DeviceCleanupEnvironment = defaults()
-) {
+): Promise<JournalDeleteOutcome> {
   try {
-    env.storage?.removeItem(UPLOAD_KEYS_STORAGE_KEY)
-    env.storage?.removeItem(JOURNAL_ACCOUNT_STORAGE_KEY)
+    const storage = env.storage
+    if (storage) {
+      const keys: string[] = []
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i)
+        if (key?.startsWith(TUS_RESUME_KEY_PREFIX)) keys.push(key)
+      }
+      for (const key of keys) storage.removeItem(key)
+      storage.removeItem(UPLOAD_KEYS_STORAGE_KEY)
+      storage.removeItem(JOURNAL_ACCOUNT_STORAGE_KEY)
+    }
   } catch {
     // Nothing stored.
   }
+  if (!env.indexedDB) return Promise.resolve("absent")
   try {
-    env.indexedDB?.deleteDatabase(JOURNAL_DB_NAME)
+    const req = env.indexedDB.deleteDatabase(JOURNAL_DB_NAME)
+    return new Promise((resolve) => {
+      req.onsuccess = () => resolve("deleted")
+      req.onerror = () => resolve("failed")
+      req.onblocked = () => resolve("blocked")
+    })
   } catch {
-    // Nothing stored.
+    return Promise.resolve("failed")
   }
 }
 
@@ -63,7 +97,7 @@ export function claimCaptureDataForAccount(
     previous = null
   }
   const cleared = previous !== null && previous !== hash
-  if (cleared) clearCaptureDataOnDevice(env)
+  if (cleared) void clearCaptureDataOnDevice(env)
   try {
     env.storage?.setItem(JOURNAL_ACCOUNT_STORAGE_KEY, hash)
   } catch {

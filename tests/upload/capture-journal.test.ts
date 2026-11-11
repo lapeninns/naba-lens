@@ -1,16 +1,19 @@
 // B05-05 capture journal, capability probe and device clean-up (b05-design
 // §5.9 unit list). The journal runs over the in-memory backend; the probe
-// over a minimal fake IndexedDB (fake-indexeddb is not a dependency).
+// over a minimal fake IndexedDB (and fake-indexeddb for the real backend).
+import { IDBFactory } from "fake-indexeddb"
 import { describe, expect, it, vi } from "vitest"
 
 import { detectCaptureCapabilities } from "@/lib/upload/capabilities"
 import {
   claimCaptureDataForAccount,
   clearCaptureDataOnDevice,
+  TUS_RESUME_KEY_PREFIX,
 } from "@/lib/upload/device-cleanup"
 import {
   JOURNAL_ACCOUNT_STORAGE_KEY,
   JOURNAL_DB_NAME,
+  indexedDbJournalBackend,
   JOURNAL_LIMITS,
   memoryJournalBackend,
   openCaptureJournal,
@@ -19,6 +22,7 @@ import {
   type JournalEntry,
   type PickInput,
 } from "@/lib/upload/journal"
+import { tusFingerprint } from "@/lib/upload/tus"
 import { UPLOAD_KEYS_STORAGE_KEY } from "@/lib/upload/upload-keys"
 
 const MiB = 1024 * 1024
@@ -318,55 +322,70 @@ describe("detectCaptureCapabilities", () => {
   })
 })
 
-describe("device clean-up (J-1)", () => {
+describe("device clean-up (J-1, review C1 and C2)", () => {
   function memStorage(init: Record<string, string> = {}) {
     const m = new Map(Object.entries(init))
     return {
       getItem: (k: string) => m.get(k) ?? null,
       setItem: (k: string, v: string) => void m.set(k, v),
       removeItem: (k: string) => void m.delete(k),
+      key: (i: number) => [...m.keys()][i] ?? null,
+      get length() {
+        return m.size
+      },
       map: m,
     }
   }
 
-  it("sign-out removes the upload resume keys, the journal database and the account marker", () => {
+  it("sign-out removes our keys, every tus-js-client resume entry, the marker and the journal", async () => {
+    const idb = new IDBFactory()
+    const backend = indexedDbJournalBackend(idb)
+    await backend.put(entryFor("acct-a"))
     const s = memStorage({
       [UPLOAD_KEYS_STORAGE_KEY]: "{}",
       [JOURNAL_ACCOUNT_STORAGE_KEY]: "acct-a",
+      [`tus::nabalens-media:${crypto.randomUUID()}::1`]:
+        "https://storage.test/upload/a",
+      [`tus::nabalens-media:${crypto.randomUUID()}::2`]:
+        "https://storage.test/upload/b",
+      "tus::someone-else::1": "kept",
       other: "kept",
     })
-    const deleted: string[] = []
-    clearCaptureDataOnDevice({
-      storage: s,
-      indexedDB: {
-        deleteDatabase: (n: string) => (
-          deleted.push(n),
-          {} as IDBOpenDBRequest
-        ),
-      },
+    // The backend's open connection closes on versionchange, so the delete is not blocked.
+    expect(await clearCaptureDataOnDevice({ storage: s, indexedDB: idb })).toBe(
+      "deleted"
+    )
+    expect([...s.map.keys()].sort()).toEqual(["other", "tus::someone-else::1"])
+    expect((await idb.databases()).map((d) => d.name)).not.toContain(
+      JOURNAL_DB_NAME
+    )
+    // The backend reopens an empty journal afterwards.
+    expect(await backend.getAll()).toEqual([])
+  })
+
+  it("reports a delete blocked by a connection that does not close", async () => {
+    const idb = new IDBFactory()
+    const stubborn = await new Promise<IDBDatabase>((resolve) => {
+      const req = idb.open(JOURNAL_DB_NAME, 1)
+      req.onupgradeneeded = () =>
+        req.result.createObjectStore("entries", { keyPath: "id" })
+      req.onsuccess = () => resolve(req.result)
     })
-    expect([...s.map.keys()]).toEqual(["other"])
-    expect(deleted).toEqual([JOURNAL_DB_NAME])
+    stubborn.onversionchange = () => {}
+    expect(
+      await clearCaptureDataOnDevice({ storage: memStorage(), indexedDB: idb })
+    ).toBe("blocked")
+    stubborn.close()
   })
 
   it("a different account clears everything first; the same account keeps it", () => {
     const s = memStorage({ [UPLOAD_KEYS_STORAGE_KEY]: "{}" })
-    const deleted: string[] = []
-    const env = {
-      storage: s,
-      indexedDB: {
-        deleteDatabase: (n: string) => (
-          deleted.push(n),
-          {} as IDBOpenDBRequest
-        ),
-      },
-    }
+    const env = { storage: s, indexedDB: new IDBFactory() }
     expect(claimCaptureDataForAccount("acct-a", env)).toBe(false)
     expect(s.map.has(UPLOAD_KEYS_STORAGE_KEY)).toBe(true)
     expect(claimCaptureDataForAccount("acct-a", env)).toBe(false)
     expect(claimCaptureDataForAccount("acct-b", env)).toBe(true)
     expect(s.map.has(UPLOAD_KEYS_STORAGE_KEY)).toBe(false)
-    expect(deleted).toEqual([JOURNAL_DB_NAME])
     expect(s.map.get(JOURNAL_ACCOUNT_STORAGE_KEY)).toBe("acct-b")
   })
 
@@ -375,5 +394,131 @@ describe("device clean-up (J-1)", () => {
     const src = readFileSync("app/login/login-card-host.tsx", "utf8")
     expect(src).toMatch(/clearCaptureDataOnDevice\(\)/)
     expect(src).toMatch(/clearAllDrafts\(\)/)
+  })
+
+  it("matches the fingerprint lib/upload/tus.ts gives tus-js-client", () => {
+    expect(
+      `tus::${tusFingerprint("x")}::`.startsWith(TUS_RESUME_KEY_PREFIX)
+    ).toBe(true)
+  })
+})
+
+function entryFor(
+  account: string,
+  over: Partial<JournalEntry> = {}
+): JournalEntry {
+  const t = Date.now()
+  return {
+    id: crypto.randomUUID(),
+    accountHash: account,
+    createdAt: t,
+    touchedAt: t,
+    expiresAt: t + JOURNAL_LIMITS.expiryMs,
+    purpose: "general",
+    subject: { kind: "none", id: null },
+    groupKey: null,
+    uploadKey: `key-${crypto.randomUUID()}`,
+    fileFingerprint: "fp",
+    displayName: "dish.jpg",
+    mediaType: "image",
+    sizeBytes: 3,
+    state: "picked",
+    ...over,
+  } as JournalEntry
+}
+
+describe("IndexedDB journal backend (fake-indexeddb, review C2)", () => {
+  it("stores, lists, deletes and clears entries in nabalens-capture-journal", async () => {
+    const idb = new IDBFactory()
+    const backend = indexedDbJournalBackend(idb)
+    const a = entryFor("acct-a")
+    const b = entryFor("acct-a", {
+      state: "reserved",
+      assetId: "asset-1",
+      pendingLabels: { types: ["dish"] },
+    })
+    await backend.put(a)
+    await backend.put(b)
+    expect((await backend.getAll()).map((e) => e.id).sort()).toEqual(
+      [a.id, b.id].sort()
+    )
+    await backend.delete(a.id)
+    expect(await backend.getAll()).toEqual([b])
+    await backend.clear()
+    expect(await backend.getAll()).toEqual([])
+    expect((await idb.databases()).map((d) => d.name)).toContain(
+      JOURNAL_DB_NAME
+    )
+  })
+
+  it("runs the journal end to end and purges another account on open", async () => {
+    const idb = new IDBFactory()
+    const backend = indexedDbJournalBackend(idb)
+    const a = await openCaptureJournal({
+      backend,
+      accountHash: "acct-a",
+      capabilities: { storeBytes: false, quotaBytes: null, usageBytes: null },
+    })
+    const e = await a.pick(pickOf(photo(10, "kept.jpg")))
+    expect(e?.state).toBe("needs_reselection")
+    expect(await a.unfinished()).toHaveLength(1)
+    const b = await openCaptureJournal({
+      backend,
+      accountHash: "acct-b",
+      capabilities: { storeBytes: false, quotaBytes: null, usageBytes: null },
+    })
+    expect(await b.unfinished()).toEqual([])
+    expect(await backend.getAll()).toEqual([])
+  })
+})
+
+describe("review L1 to L3", () => {
+  it("L1: a photo refused only by the 10-file cap reads needs_reselection", async () => {
+    const { j } = await journal()
+    const many: (JournalEntry | null)[] = []
+    for (let i = 0; i < 11; i++) many.push(await j.pick(pickOf(photo(1000))))
+    expect(many[10]).toMatchObject({ state: "needs_reselection" })
+    expect(many[10]?.bytes).toBeUndefined()
+    const v = await j.pick(
+      pickOf(new File([new Uint8Array(10)], "v.mp4", { type: "video/mp4" }))
+    )
+    expect(v?.state).toBe("picked")
+  })
+
+  it("L2: bytes stored since the probe count against the free space", async () => {
+    // 50 MiB free at the probe: a 20 MiB photo fits twice over, the next does not once the first is stored.
+    const { j } = await journal({
+      caps: { storeBytes: true, quotaBytes: 50 * MiB, usageBytes: 0 },
+    })
+    expect((await j.pick(pickOf(photo(20 * MiB))))?.bytes).toBeDefined()
+    expect((await j.pick(pickOf(photo(10 * MiB))))?.bytes).toBeDefined()
+    expect((await j.pick(pickOf(photo(15 * MiB))))?.bytes).toBeUndefined()
+  })
+
+  it("L3: an IndexedDB open that never answers times out as write_refused", async () => {
+    const silent = {
+      open: () => ({}),
+      deleteDatabase: () => ({}),
+    } as unknown as IDBFactory
+    const started = Date.now()
+    const caps = await detectCaptureCapabilities({
+      indexedDB: silent,
+      timeoutMs: 50,
+      storage: storage(1e10, true),
+    })
+    expect(caps).toMatchObject({ storeBytes: false, reason: "write_refused" })
+    expect(Date.now() - started).toBeLessThan(2000)
+  })
+
+  it("probes a real (fake-indexeddb) database end to end", async () => {
+    const caps = await detectCaptureCapabilities({
+      indexedDB: new IDBFactory(),
+      storage: storage(10_000 * MiB, true),
+    })
+    expect(caps).toMatchObject({
+      indexedDb: true,
+      storeBytes: true,
+      reason: null,
+    })
   })
 })

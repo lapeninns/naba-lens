@@ -226,7 +226,11 @@ export async function openCaptureJournal(
     if (existingTotal + size > JOURNAL_LIMITS.maxTotalBytes) return false
     const { quotaBytes, usageBytes } = capabilities
     if (quotaBytes === null || usageBytes === null) return false
-    return quotaBytes - usageBytes >= size * JOURNAL_LIMITS.freeSpaceFactor
+    // usage is from the probe; bytes the journal stored since then count too.
+    return (
+      quotaBytes - usageBytes - existingTotal >=
+      size * JOURNAL_LIMITS.freeSpaceFactor
+    )
   }
 
   async function find(id: string) {
@@ -259,10 +263,14 @@ export async function openCaptureJournal(
         displayName: input.file.name,
         mediaType: input.mediaType,
         sizeBytes: input.file.size,
+        // §5.2 item 6: a photo whose bytes could not be kept must be picked
+        // again after a discard. Videos are never kept, so "picked" says enough.
         state:
           existing && existing.state !== "needs_reselection"
             ? existing.state
-            : "picked",
+            : input.mediaType === "image" && !keepBytes
+              ? "needs_reselection"
+              : "picked",
         ...(input.pendingLabels !== undefined
           ? { pendingLabels: input.pendingLabels }
           : existing?.pendingLabels !== undefined
@@ -373,8 +381,20 @@ export function indexedDbJournalBackend(
       const req = idb.open(JOURNAL_DB_NAME, 1)
       req.onupgradeneeded = () =>
         req.result.createObjectStore("entries", { keyPath: "id" })
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
+      req.onsuccess = () => {
+        const conn = req.result
+        // Sign-out deletes the database: close at once so the delete is not
+        // blocked by this tab, and reopen (empty) on the next use.
+        conn.onversionchange = () => {
+          conn.close()
+          opened = null
+        }
+        resolve(conn)
+      }
+      req.onerror = () => {
+        opened = null
+        reject(req.error)
+      }
     }))
   const run = async <T>(
     mode: IDBTransactionMode,
