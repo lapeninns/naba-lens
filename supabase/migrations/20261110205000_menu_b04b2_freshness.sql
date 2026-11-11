@@ -437,7 +437,8 @@ $$;
 -- line of a venue with a binding in force, each bound field's confirmed
 -- value and use: due_soon or expired (due at nextCheckDue) and
 -- basis_missing (due at the binding's effective_from), once per subject,
--- field, cause, due time and use.
+-- field, cause, due time and use; opening expired cancels the open due_soon
+-- task of the same subject, field, use and due time (as B03).
 create or replace function private.menu_open_rechecks(p_now timestamptz, p_venue_ids uuid[] default null)
 returns integer
 language plpgsql
@@ -507,6 +508,15 @@ begin
                     and (b.venue_id = v_venue or b.venue_id is null)
                   order by (b.venue_id is null), b.effective_from desc, b.created_at desc limit 1)
                 else (v_entry ->> 'nextCheckDue')::timestamptz end;
+              -- As B03: once due, a due_soon task gives way to the expired one
+              -- (same subject, field, use and due time), so a stale value is
+              -- never two open tasks (A1-4).
+              if v_entry ->> 'state' = 'expired' then
+                update public.menu_trading_recheck_tasks t
+                set state = 'cancelled', closed_at = now()
+                where t.line_id = v_line.id and t.field = v_field and t.use = v_entry ->> 'use'
+                  and t.due_at = v_due and t.cause = 'due_soon' and t.state = 'open';
+              end if;
               insert into public.menu_trading_recheck_tasks (venue_id, line_id, assertion_id, field, cause, use, due_at)
               values (v_line.venue_id, v_line.id, (v_state ->> 'assertionId')::uuid, v_field, v_entry ->> 'state',
                 v_entry ->> 'use', v_due)
