@@ -16,6 +16,7 @@
 // atomically. Ids, names, emails and media paths only; nothing secret.
 import { randomUUID } from "node:crypto"
 import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { createRequire } from "node:module"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 
@@ -85,8 +86,9 @@ const menus = await repo("tests/e2e/helpers/menus.ts")
 const amenities = await repo("tests/e2e/helpers/amenities-world.ts")
 const stack = await repo("tests/e2e/helpers/stack.ts")
 const identities = await repo("tests/support/identities.ts")
-// sharp is the checkout's dependency (tests/e2e/helpers/media.ts uses it).
-const sharp = (await repo("node_modules/sharp/lib/index.js")).default
+// sharp is the checkout's dependency (tests/e2e/helpers/media.ts uses it), resolved as the checkout
+// itself would resolve it: its entry file moved between releases (0.35 has no lib/index.js).
+const sharp = (await import(pathToFileURL(createRequire(join(checkout, "package.json")).resolve("sharp")).href)).default
 
 const person = (p: Person): Person => ({ id: p.id, email: p.email, name: p.name })
 const venue = (v: Venue): Venue => ({ id: v.id, name: v.name })
