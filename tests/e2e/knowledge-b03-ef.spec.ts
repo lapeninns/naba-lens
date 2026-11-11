@@ -60,6 +60,7 @@ import {
 } from "./helpers/knowledge-b03-ef-world"
 import {
   addPlace,
+  B03_DISPOSABLE_REGISTRY,
   londonDaysAgo,
   stepFreeAccessibilityVersion,
 } from "./helpers/knowledge-b03-ab-world"
@@ -623,6 +624,12 @@ test.describe("knowledge B03 E and F", () => {
   test("B03-F correction and withdrawal keep authorized historical answers", async ({
     browser,
   }) => {
+    // Pins accessibility.v1 on the real step-free key (as B03-A appends it):
+    // a disposable B03 lane only.
+    test.skip(
+      !B03_DISPOSABLE_REGISTRY,
+      "appends a registry version to step_free_entrance; set B03_DISPOSABLE_REGISTRY=1 on a disposable B03 lane"
+    )
     const w = await provisionAmenitiesWorld()
     const ADMIN = adminHrefs(w.venueA.id)
     // step_free_entrance needs a manager's confirmation (rule v1), so a
