@@ -111,7 +111,14 @@ export async function sendFinding(
   checkId: string,
   questionKey: string,
   answer: "yes" | "no",
-  o: { assets?: string[]; reason?: string | null } = {}
+  o: {
+    assets?: string[]
+    reason?: string | null
+    /** The registry version's structured detail, when it asks for one. */
+    detail?: Record<string, unknown> | null
+    /** The London day it was checked (YYYY-MM-DD), as chosen on the form. */
+    observedOn?: string | null
+  } = {}
 ) {
   return knowledgeOk<{ contributionId: string; outcome: string }>(
     db,
@@ -133,6 +140,9 @@ export async function sendFinding(
       p_internal_metadata: null,
       p_redaction_confirmed: null,
       p_confirm_own: false,
+      p_detail: o.detail ?? null,
+      p_observed_on: o.observedOn ?? null,
+      p_observed_on_source: o.observedOn ? "chosen" : null,
     }
   )
 }

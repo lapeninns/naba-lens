@@ -60,6 +60,7 @@ import {
 } from "./helpers/knowledge-b03-ef-world"
 import {
   addPlace,
+  londonDaysAgo,
   stepFreeAccessibilityVersion,
 } from "./helpers/knowledge-b03-ab-world"
 import { psql } from "./helpers/stack"
@@ -675,15 +676,26 @@ test.describe("knowledge B03 E and F", () => {
       submissionId: first.currentSubmissionId,
     })
 
-    // Venue B holds its own, different answer for the same question.
+    // Venue B holds its own, different answer for the same question: a
+    // valid No under accessibility.v1, so its one listed entrance has steps
+    // and the day it was checked is recorded.
     const B_REASON = `DEV FIXTURE B03-F venue B has steps at every door ${w.tag}`
+    const entranceB = await addPlace(
+      w.managerB,
+      "entrance",
+      `DEV FIXTURE B03-F Venue B door ${w.tag}`
+    )
     const sentB = await sendFinding(
       await sessionOf(w.staffB),
       w.venueB,
       b,
       KEY,
       "no",
-      { reason: B_REASON }
+      {
+        reason: B_REASON,
+        detail: { entrances: [{ subjectId: entranceB, stepFree: "no" }] },
+        observedOn: londonDaysAgo(0),
+      }
     )
     await confirmFinding(
       await sessionOf(w.managerB),
