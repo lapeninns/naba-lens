@@ -1297,10 +1297,13 @@ describe("source snapshot provenance (§5.2 #2)", () => {
   })
 
   it("takes the price text from the cited entry, not the caller, and records it", async () => {
-    const fixed = await ok<Proposed>(cite({ item: fish() }, FISH))
+    // The plain curry line: no confirmed price yet, and the curry entry
+    // itself is its reviewed source (an entry row, no variant or portion).
+    const CURRY = "menu.json#Curry"
+    const fixed = await ok<Proposed>(cite({ item: curry().itemId }, CURRY))
     expect(fixed.value).toEqual({
       kind: "fixed",
-      amountMinor: 1450,
+      amountMinor: 1395,
       currency: "GBP",
     })
     expect(fixed.current).toMatchObject({ detail: "not_recorded" })
@@ -1308,21 +1311,21 @@ describe("source snapshot provenance (§5.2 #2)", () => {
       rows(`select basis, snapshot_id as "snapshotId", source_locator as "locator", raw_text as "rawText"
         from public.menu_trading_assertions where id = ${literal(fixed.assertionId)}`)
     ).toEqual([
-      { basis: "source_mapping", snapshotId, locator: FISH, rawText: "£14.50" },
+      { basis: "source_mapping", snapshotId, locator: CURRY, rawText: "13.95" },
     ])
     // The same text, given byte for byte, is accepted.
-    await ok(cite({ item: fish() }, FISH, "£14.50"))
+    await ok(cite({ item: curry().itemId }, CURRY, "13.95"))
     // Only admins see the source text.
     const lineA = await ok<{
       lines: { lineId: string; pending: Record<string, unknown>[] }[]
-    }>(linesFor(admin, fish()))
+    }>(linesFor(admin, curry().itemId))
     expect(
       lineA.lines
         .find((l) => l.lineId === fixed.lineId)!
         .pending.find((p) => p.assertionId === fixed.assertionId)
     ).toMatchObject({
-      rawText: "£14.50",
-      sourceLocator: FISH,
+      rawText: "13.95",
+      sourceLocator: CURRY,
     })
   })
 
