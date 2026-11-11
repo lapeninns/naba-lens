@@ -394,7 +394,14 @@ async function runGate(ctx) {
     }
     const settlement = await sup.settle()
     let scrub = { skipped: "process settlement is uncertain" }
-    if (runRoot && settlement.settled) scrub = scrubArtifacts(runRoot, ctx.secrets ?? [])
+    try {
+      if (runRoot && settlement.settled) {
+        requirePrivateChain(RESULTS, runRoot)
+        scrub = scrubArtifacts(runRoot, ctx.secrets ?? [])
+      }
+    } catch (caught) {
+      scrub = { unsafe: [`the scrub stopped (${caught.code ?? caught.message})`] }
+    }
     const verdict = summariseBudget(groups, settlement)
     const summary = { gate: "b02 owner budgets (E1, E2 at 360/412; J5)", runId: id, ...verdict, candidate: { commit: ctx.pin.commit, tree: ctx.pin.tree }, harness: { commit: ctx.harness.commit, tree: ctx.harness.tree }, reset: ctx.reset, specFiles: ctx.specFiles, playwright: ctx.playwright.version, app: APP, evidence, groups, settlement, scrub, error: error ? String(error.message ?? error) : null }
     const written = runRoot ? writeSummary(runRoot, summary, ctx.secrets ?? []) : { ok: false, problem: "no run directory was created" }

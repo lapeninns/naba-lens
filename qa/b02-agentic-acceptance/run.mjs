@@ -1761,8 +1761,8 @@ export const FIXTURE_LOAD_MAX_MS = 15 * 60_000
  * reloads fixtures (which rewrites it) and writes revision.json last, so a reset that failed part-way
  * leaves the previous revision.json claiming a world the database no longer has, with fixtures.json
  * gone. When revision.json names fixtures, fixtures.json must be a regular file for spare6, loaded
- * within this reset (no later than resetAt, and no earlier than FIXTURE_LOAD_MAX_MS before it); when
- * it says "none", there must be no fixtures.json.
+ * within this reset (no later than resetAt, and no earlier than FIXTURE_LOAD_MAX_MS before it). spare6
+ * must have been reset with fixtures: a "none" record is refused (the run's seed builds on that world).
  */
 export function verifyFixtureManifest(workdir) {
   const read = readJson(join(workdir, "revision.json"), 1024 * 1024)
@@ -1771,8 +1771,7 @@ export function verifyFixtureManifest(workdir) {
   const path = join(workdir, "fixtures.json")
   const stat = lstatSync(path, { throwIfNoEntry: false })
   if (fixtures === "none") {
-    if (stat) fail(`${STACK.name}'s revision.json records no fixtures, but fixtures.json exists: the manifest and the reset disagree.`)
-    return { fixtures: "none" }
+    fail(`${STACK.name}'s revision.json records no fixtures${stat ? ", yet fixtures.json exists" : ""}; reset it with its fixtures (stack.mjs reset without --no-fixtures).`)
   }
   if (typeof fixtures !== "string" || !fixtures) fail(`${STACK.name}'s revision.json does not record its fixtures.`)
   if (!stat) fail(`${STACK.name}'s revision.json records fixtures (${fixtures}) but fixtures.json is missing: a later reset failed part-way and revision.json is stale.`)

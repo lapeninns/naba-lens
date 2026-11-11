@@ -2157,8 +2157,10 @@ function productWorld() {
   mkdirSync(join(workdir, "supabase", "migrations"), { recursive: true })
   const pinned = pinnedMigrations(dir, pin)
   for (const file of pinned.files) copyFileSync(join(dir, "supabase", "migrations", file), join(workdir, "supabase", "migrations", file))
-  const revision = { from: dir, commit: pin.commit, branch: "main", dirty: false, migrationsDigest: pin.migrationsDigest, migrationFiles: [...pinned.files], fixtures: "none", resetAt: new Date().toISOString() }
+  const resetAt = new Date().toISOString()
+  const revision = { from: dir, commit: pin.commit, branch: "main", dirty: false, migrationsDigest: pin.migrationsDigest, migrationFiles: [...pinned.files], fixtures: "journey-world: test", resetAt }
   writeFileSync(join(workdir, "revision.json"), JSON.stringify(revision))
+  writeFileSync(join(workdir, "fixtures.json"), JSON.stringify({ stack: "spare6", loadedAt: resetAt, menus: [], media: [] }))
   const ledger = { versions: [...pinned.versions] }
   const stack = { ...recordingStack(), stackSpec: () => SPEC, statusOf: () => goodStatus(pin, dir), stackEnv: () => stackEnvOf() }
   const context = {
@@ -3332,11 +3334,14 @@ test("a stale revision.json is refused: the live ledger and the fixture manifest
   symlinkSync(join(workdir, "revision.json"), join(workdir, "fixtures.json"))
   assert.throws(() => verifyProductInputs(c), /fixtures\.json is a link/)
   rmSync(join(workdir, "fixtures.json"))
-  // revision.json says no fixtures but a manifest is there: they disagree.
+  // spare6 reset without fixtures is refused, with or without a manifest beside it.
   revision({ fixtures: "none" })
   manifest({ stack: "spare6", loadedAt: world.revision.resetAt })
-  assert.throws(() => verifyProductInputs(c), /records no fixtures, but fixtures\.json exists/)
+  assert.throws(() => verifyProductInputs(c), /records no fixtures, yet fixtures\.json exists; reset it with its fixtures/)
   rmSync(join(workdir, "fixtures.json"))
+  assert.throws(() => verifyProductInputs(c), /records no fixtures; reset it with its fixtures/)
+  revision({})
+  manifest({ stack: "spare6", loadedAt: world.revision.resetAt })
   verifyProductInputs(c)
   // The B04 case: revision.json still names the pin's 49 migrations, the live database has 67 others.
   const live = [...c.pinned.versions, ...Array.from({ length: 65 }, (_, i) => `2026111100${String(i).padStart(4, "0")}`)]
@@ -3385,8 +3390,8 @@ test("budget gate: the under-lock recheck re-reads candidate.json, the harness, 
   writeFileSync(d.blockerPath, JSON.stringify({ state: "settlement_pending", phase: "b04", runnerPid: 1 }))
   await assert.rejects(again(), /lane blocker/)
   rmSync(d.blockerPath)
-  // The reset changed after the guards (another reset, or a failed one: fixtures.json gone).
-  writeFileSync(join(world.workdir, "revision.json"), JSON.stringify({ ...world.revision, resetAt: "2026-11-11T09:00:00.000Z" }))
+  // The reset record changed after the guards (its fixtures still consistent, so only the record's hash differs).
+  writeFileSync(join(world.workdir, "revision.json"), JSON.stringify({ ...world.revision, branch: "another-branch" }))
   await assert.rejects(again(), /revision\.json changed between the guards and the lock/)
   world.ledger.versions = [...world.ctx.pinned.versions, "20261111000001"]
   await assert.rejects(again(), /applied ledger has/)

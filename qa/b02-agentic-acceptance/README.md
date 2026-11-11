@@ -434,6 +434,13 @@ pinned hash. The check runs at `check`, at `list`, under the lock before the see
 suite's collection and launch; on any difference nothing is started. A journey change means review,
 then a pin update with the new hashes recorded.
 
+**Changes made outside stack.mjs.** The guards trust stack.mjs's records only where the live lane agrees: the
+live `supabase_migrations.schema_migrations` must be exactly the pin's versions, and `fixtures.json` must
+match `revision.json` (fixtures recorded, loaded within that reset). A database change made outside
+stack.mjs that leaves the migration ledger alone (rows edited, deleted or added by hand, or a restore of
+other data at the same 49 migrations) is not detected by the guards. It shows up only through the
+migration ledger. The per-run seed and the suites' own read-backs catch some of it; the coordinator owns
+keeping spare6 changed only through stack.mjs.
 Journey repair after run `b02-c467-20261111-001713`. Each change follows the governing contract, which
 decides what the app shows:
 
