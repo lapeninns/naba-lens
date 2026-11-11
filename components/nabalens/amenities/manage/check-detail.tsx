@@ -478,7 +478,11 @@ export function AmenityCheckDetail({
         />
       ) : null}
 
-      <CoverageSection id="amenity-status" title="Where it stands">
+      <CoverageSection
+        id="amenity-status"
+        title="Where it stands"
+        focusableTitle
+      >
         {SPORT_LINES[check.entry.key] ? (
           <p className="text-body-touch text-ink md:text-body">
             {SPORT_LINES[check.entry.key]}

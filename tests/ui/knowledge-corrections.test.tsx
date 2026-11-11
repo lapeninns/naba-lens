@@ -83,6 +83,54 @@ describe("Withdraw the answer", () => {
     ).toBeTruthy()
   })
 
+  it("closes the dialog, focuses Where it stands, then refreshes", async () => {
+    const user = userEvent.setup()
+    const order: string[] = []
+    nav.refresh.mockImplementation(() => {
+      order.push(
+        screen.queryByRole("dialog")
+          ? "refresh with the dialog open"
+          : document.activeElement === document.getElementById("status-title")
+            ? "refresh after focus"
+            : "refresh before focus"
+      )
+    })
+    render(
+      <>
+        <h2 id="status-title" tabIndex={-1}>
+          Where it stands
+        </h2>
+        <WithdrawControl
+          checkId={CHECK}
+          slotRevision={12}
+          value="Yes"
+          onWithdraw={vi.fn(async () => ({
+            ok: true as const,
+            decisionId: "d1",
+            slotRevision: 13,
+            replayed: false,
+          }))}
+          focusId="status-title"
+        />
+      </>
+    )
+    await user.click(
+      screen.getByRole("button", { name: "Withdraw the answer" })
+    )
+    const dialog = await screen.findByRole("dialog")
+    await user.type(within(dialog).getByLabelText(/Why\?/), "⟨Reason⟩")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Withdraw answer" })
+    )
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        document.getElementById("status-title")
+      )
+    )
+    await waitFor(() => expect(order).toEqual(["refresh after focus"]))
+  })
+
   it("says only a manager account or an admin can withdraw", async () => {
     const user = userEvent.setup()
     render(

@@ -121,6 +121,11 @@ describe("Correct the answer", () => {
         "Corrected. It needs confirming before it's used."
       )
     ).toBeTruthy()
+    // The form and its Save are gone: the saved notice has focus.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("status"))
+    )
+    expect(document.activeElement).not.toBe(document.body)
   })
 
   it("says a small change keeps the confirmation", async () => {

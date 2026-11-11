@@ -343,6 +343,10 @@ describe("the manager's Where it stands", () => {
     expect(row("Answer")).toMatch(/^Current answer: Yes, at Main entrance\./)
     expect(row("Checked on")).toBe("3 Nov 2026")
     expect(row("Recorded")).toBe("4 Nov 2026")
+    // Withdraw hands focus to this heading, so it must be able to take it.
+    expect(
+      section.querySelector("#amenity-status-title")?.getAttribute("tabindex")
+    ).toBe("-1")
     // Checked on and scope, without another staff name (§3.5, D3).
     expect(row("Answer")).toBe("Current answer: Yes, at Main entrance.")
     expect(section.textContent).not.toMatch(/Recorded by/)

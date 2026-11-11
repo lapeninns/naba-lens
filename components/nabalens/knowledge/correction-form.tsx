@@ -208,6 +208,12 @@ export function CorrectionForm({
   >(null)
   const today = londonToday()
   const scope = `correct:${checkId}`
+  // Saved: the form, and Save with it, are gone; the notice takes focus.
+  const doneRef = React.useRef<HTMLDivElement>(null)
+  const done = outcome?.kind === "done"
+  React.useEffect(() => {
+    if (done) doneRef.current?.focus()
+  }, [done])
 
   const afterDetail = detailForm
     ? detailToSend(detailForm, parts, headline)
@@ -297,7 +303,7 @@ export function CorrectionForm({
   if (outcome?.kind === "done")
     return (
       <div className="grid gap-3">
-        <Notice tone="positive" role="status">
+        <Notice ref={doneRef} tabIndex={-1} tone="positive" role="status">
           {outcome.text}
         </Notice>
         <div>

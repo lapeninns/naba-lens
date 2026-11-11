@@ -72,6 +72,15 @@ export function WithdrawControl({
   const requests = useRequestIds()
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState<CoverageNoticeValue | null>(null)
+  // Refreshed once the dialog has closed and handed focus to `focusId` (a
+  // microtask on close), so the re-render never races that focus move.
+  const refreshOnClose = React.useRef(false)
+  React.useEffect(() => {
+    if (open || !refreshOnClose.current) return
+    refreshOnClose.current = false
+    const timer = setTimeout(() => router.refresh(), 0)
+    return () => clearTimeout(timer)
+  }, [open, router])
   const scope = `withdraw:${checkId}`
   return (
     <>
@@ -120,7 +129,7 @@ export function WithdrawControl({
                   : result.message,
             }
           setNotice({ tone: "success", text: WITHDRAW_COPY.done })
-          router.refresh()
+          refreshOnClose.current = true
           return { ok: true }
         }}
       />
