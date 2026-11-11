@@ -812,17 +812,19 @@ describe("rules that count from the day it was checked (owner decision, 11 Nov 2
   const tag = () => randomUUID().replace(/-/g, "").slice(0, 16)
   const step = (name: string, sql: string): Step => ({ name, sql })
   /** A rule version for one use. */
+  /** A rule version for one use, in force from `createdAt` (SQL). */
   const rule = (
     name: string,
     id: string,
     version: number,
     basis: Basis,
-    use = "internal"
+    use = "internal",
+    createdAt = "now()"
   ) =>
     step(
       name,
-      `insert into public.knowledge_freshness_policies (id, version, claim_class, use, max_age, recheck_lead, basis)
-  values ('${id}', ${version}, '${CLAIM[basis]}', '${use}', ${basis === "event_end" ? "null, null" : "interval '30 days', interval '7 days'"}, '${basis}')`
+      `insert into public.knowledge_freshness_policies (id, version, claim_class, use, max_age, recheck_lead, basis, created_at)
+  values ('${id}', ${version}, '${CLAIM[basis]}', '${use}', ${basis === "event_end" ? "null, null" : "interval '30 days', interval '7 days'"}, '${basis}', ${createdAt})`
     )
   /**
    * A new guest_toilets version (presence@1 in force) with this form and
@@ -986,6 +988,51 @@ rollback;`)
       )
     ).toBe("f")
   })
+
+  it("count a rule from the check day while that version is in force or dated ahead", async () => {
+    const id = tag()
+    const leaving = `test_leaving_${id}`
+    const coming = `test_coming_${id}`
+    const named = `test_named_${id}`
+    const inAWeek = "now() + interval '7 days'"
+    expect(
+      await outcomes("kn-b03-basis-dated", [
+        // observed_on in force, stated_on dated a week ahead: freshness reads
+        // observed_on until then.
+        rule("leavingObserved", leaving, 1, "observed_on"),
+        rule("leavingStated", leaving, 2, "stated_on", "internal", inAWeek),
+        // The reverse: stated_on now, observed_on dated a week ahead.
+        rule("comingStated", coming, 1, "stated_on"),
+        rule("comingObserved", coming, 2, "observed_on", "internal", inAWeek),
+        preview("previewLeaving", { internal: leaving }),
+        preview("previewComing", { internal: coming }),
+        version("presenceNamesLeaving", "presence", { internal: leaving }),
+        version("presenceNamesComing", "presence", { internal: coming }),
+        // A rule already named can't gain an observed_on version dated ahead.
+        rule("namedStated", named, 1, "stated_on"),
+        version("presenceNamesNamed", "presence", { internal: named }),
+        rule("namedObserved", named, 2, "observed_on", "internal", inAWeek),
+        // facility@1 asks Checked on, so both bind there.
+        version("facilityNamesLeaving", "facility", { internal: leaving }),
+        version("facilityNamesComing", "facility", { internal: coming }),
+      ])
+    ).toEqual({
+      leavingObserved: "ok",
+      leavingStated: "ok",
+      comingStated: "ok",
+      comingObserved: "ok",
+      previewLeaving: REFUSED,
+      previewComing: REFUSED,
+      presenceNamesLeaving: REFUSED,
+      presenceNamesComing: REFUSED,
+      namedStated: "ok",
+      presenceNamesNamed: "ok",
+      namedObserved: REFUSED,
+      facilityNamesLeaving: "ok",
+      facilityNamesComing: "ok",
+    })
+  })
+
   it("keep the date on the form while a rule counting from it is in force (scheduled versions)", async () => {
     const id = tag()
     const obs = `test_obs_${id}`

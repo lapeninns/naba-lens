@@ -8,9 +8,13 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import {
-  asksCheckedOn,
+  usesCheckedOn,
+  type DetailForm,
+} from "@/components/nabalens/knowledge/detail-form"
+import {
   CHECKED_ON_FORMS,
   questionForm,
+  type QuestionForm,
 } from "@/components/nabalens/knowledge/question-form"
 import type {
   RegistryQuestion,
@@ -27,6 +31,25 @@ const SCHEMAS: ValueSchemaName[] = [
   "schedule_event",
   "connectivity.wifi",
 ]
+
+/**
+ * Whether the capture screen asks Checked on for a form: the detail form it
+ * builds (screen.tsx: its schema is the form's kind, for these kinds only),
+ * read by the renderer's own usesCheckedOn.
+ */
+const DETAIL_FORM_KINDS: ReadonlySet<QuestionForm["kind"]> = new Set([
+  "facility",
+  "accessibility",
+  "policy",
+  "service",
+  "schedule_event",
+])
+const asksCheckedOn = (form: QuestionForm) =>
+  usesCheckedOn(
+    DETAIL_FORM_KINDS.has(form.kind)
+      ? ({ schema: form.kind } as DetailForm)
+      : null
+  )
 
 function question(name: ValueSchemaName, version: number): RegistryQuestion {
   return {

@@ -52,12 +52,6 @@ export const CHECKED_ON_FORMS: ReadonlySet<string> = new Set([
   "service@1",
 ])
 
-/** Whether this form asks Checked on (its detail form's usesCheckedOn). */
-export const asksCheckedOn = (form: QuestionForm) =>
-  form.kind === "facility" ||
-  form.kind === "accessibility" ||
-  form.kind === "service"
-
 const ASKED: ReadonlySet<QuestionLifecycle> = new Set([
   "supported",
   "presence_only",

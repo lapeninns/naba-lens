@@ -11,8 +11,10 @@
 --   two together). A later version of those schemas, which the registry
 --   accepts, has no form here and so no Checked on.
 -- * private.knowledge_policy_counts_from_check(id, use): whether a rule
---   counts from the check day, read from its latest version for that use, the
---   one the preview's forecast and freshness now read.
+--   counts from the check day: its version in force for that use
+--   (knowledge_policy_as_of, as freshness reads it; the latest, as the
+--   preview's forecast reads it, unless a later one is dated ahead), or any
+--   version dated to take effect later.
 -- * private.knowledge_basis_conflict(key): the first way a question breaks
 --   the decision, or null:
 --   - a version whose own form has no Checked on names such a rule; or
@@ -50,11 +52,11 @@ language sql
 stable
 set search_path = ''
 as $$
-  select coalesce((
-    select p.basis = 'observed_on' from public.knowledge_freshness_policies p
-    where p.id = p_id and p.use = p_use
-    order by p.version desc
-    limit 1), false);
+  select coalesce((private.knowledge_policy_as_of(p_id, p_use, now())).basis = 'observed_on', false)
+    or exists (
+      select 1 from public.knowledge_freshness_policies p
+      where p.id = p_id and p.use = p_use and p.created_at > now() and p.basis = 'observed_on'
+    );
 $$;
 
 create function private.knowledge_basis_conflict(p_key text)
