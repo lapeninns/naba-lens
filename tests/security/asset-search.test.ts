@@ -9,13 +9,21 @@ import { beforeAll, describe, expect, it } from "vitest"
 import { searchAssets } from "../../lib/server/media/search"
 import { actorFor } from "../slice/media-actor"
 import { markReady } from "../support/identities"
-import { insertAsset, insertSubmittedItem, psql } from "./coverage-fixtures"
+import {
+  createRequirement,
+  insertAsset,
+  insertSubmittedItem,
+  ok,
+  psql,
+} from "./coverage-fixtures"
 import {
   call,
   json,
   photo,
   refused,
   service,
+  submit,
+  video,
   world,
   type World,
 } from "./knowledge-fixtures"
@@ -39,7 +47,7 @@ type Row = {
   groupId: string | null
   subjects: {
     menuItems: { itemId: string; itemName: string }[]
-    checks: unknown[]
+    checks: { checkId: string; questionKey: string; source: string }[]
     tasks: { requirementId: string | null; submissionId: string }[]
     group: { kind: string; id: string | null } | null
   }
@@ -49,7 +57,11 @@ type Row = {
     withdrawn: number
     destinations: { destinationKey: string; state: string }[]
   }
-  menuDecisions: unknown[]
+  menuDecisions: {
+    itemId: string
+    variantId: string | null
+    state: string
+  }[]
 }
 type Page = { hasMore: boolean; items: Row[] }
 type Who = World["staffA"]
@@ -330,6 +342,18 @@ describe("asset search (B05-06)", () => {
     expect(await open(w.admin, a.otherCommunity)).toBe(false)
   })
 
+  it("answers can_open for a legacy staff grant holder as its search does", async () => {
+    // The thumbnail gate asks can_open for every active non-admin after a 404;
+    // a grant holder gets true exactly for what its search lists.
+    const open = async (id: string) =>
+      (await call(w.staffManager, "asset_search_can_open", { p_asset_id: id }))
+        .data
+    expect(ids(await searchAll(w.staffManager, {}))).toContain(a.evidence)
+    expect(await open(a.evidence)).toBe(true)
+    expect(await open(a.otherVenue)).toBe(false)
+    expect(await open(a.communityOnly)).toBe(false)
+  })
+
   it("filters by subject, group and submission and reports them", async () => {
     const byItem = await search(w.manager, { p_filters: { item: pieItem } })
     expect(ids(byItem.items)).toEqual([a.dish])
@@ -538,5 +562,338 @@ describe("asset search (B05-06)", () => {
         `select md5(pg_get_functiondef('private.monthly_venue_completion_counts(uuid,uuid,date)'::regprocedure))`
       )
     ).toBe("b78b9daeb8ede1fec0b7224d99348659")
+  })
+})
+
+// Filter arms and outputs at the database (review R3, R4). Every assertion is
+// scoped to assets this block created: other files leave rows in the shared
+// world (L-B05-Q1).
+describe("asset search filters at the database (B05-06b)", () => {
+  let f: World
+  const mine: Record<string, string> = {}
+  let outdoorCheck: string
+  let requirement: string
+  let reqSubmission: string
+  let pie: { itemId: string }
+  let tart: { itemId: string }
+  let korma: { itemId: string; variants: { variantId: string }[] }
+  const T0 = "2021-06-01T10:00:00.000Z"
+  const T1 = "2021-06-01T10:00:01.000Z"
+  const TM = "2021-06-01T09:59:59.000Z"
+
+  const own = (rows: Row[]) =>
+    ids(rows).filter((id) => Object.values(mine).includes(id))
+  const adminFind = async (filters: Record<string, unknown>) =>
+    own(await searchAll(f.admin, { venue: f.venue, ...filters }))
+  const adminRow = async (id: string, filters: Record<string, unknown> = {}) =>
+    (await searchAll(f.admin, { venue: f.venue, ...filters })).find(
+      (r) => r.id === id
+    )!
+
+  async function revisionOf(checkId: string): Promise<number> {
+    const { data, error } = await service
+      .from("venue_amenity_checks")
+      .select("revision")
+      .eq("id", checkId)
+      .single()
+    if (error) throw error
+    return data!.revision
+  }
+
+  async function itemHead(itemId: string) {
+    const { data, error } = await service
+      .from("menu_item_photo_heads")
+      .select("revision")
+      .eq("item_id", itemId)
+      .maybeSingle()
+    if (error) throw error
+    return data?.revision ?? 1
+  }
+
+  async function decide(
+    asset: string,
+    itemId: string,
+    variantId: string | null,
+    decision: "accepted" | "better_photo_requested"
+  ) {
+    await ok(
+      f.staffManager.client.rpc("review_menu_item_photo", {
+        p_asset_id: asset,
+        p_item_id: itemId,
+        p_variant_id: variantId as string,
+        p_decision: decision,
+        p_expected_revision: await itemHead(itemId),
+        ...(decision === "better_photo_requested"
+          ? { p_reason: "TEST too dark" }
+          : {}),
+        p_make_primary: false,
+      })
+    )
+  }
+
+  beforeAll(async () => {
+    f = await world("b05-srch-f", { extra: ["outdoor_seating"] })
+    outdoorCheck = f.checks.outdoor_seating!
+
+    // Amenity arm only: a legacy finding on a check off the working list.
+    await ok(
+      f.manager.client.rpc("amenity_assign_check", {
+        p_check_id: outdoorCheck,
+        p_assignee_id: f.staffA.id,
+        p_revision: await revisionOf(outdoorCheck),
+      })
+    )
+    mine.amenity = await photo(f.staffA.id, f.venue)
+    await ok(
+      f.staffA.client.rpc("amenity_submit_finding", {
+        p_check_id: outdoorCheck,
+        p_revision: await revisionOf(outdoorCheck),
+        p_idempotency_key: randomUUID(),
+        p_answer: "yes",
+        p_finding: null as unknown as string,
+        p_limitations: null as unknown as string,
+        p_reason: null as unknown as string,
+        p_asset_ids: [mine.amenity],
+        p_internal_metadata: null as never,
+        p_redaction_confirmed: false,
+      })
+    )
+
+    // Knowledge arm only: a proposal awaiting confirmation is never adopted
+    // into an amenity submission.
+    await submit(f.staffA, f, "guest_toilets", { answer: "no" })
+    mine.knowledge = await photo(f.staffB.id, f.venue)
+    const proposal = await submit(f.staffB, f, "guest_toilets", {
+      kind: "change_report",
+      answer: "yes",
+      assets: [mine.knowledge],
+    })
+    expect(proposal.outcome).toBe("awaiting_confirmation")
+
+    // Coverage arm: a submission item for a requirement.
+    requirement = await createRequirement(f.admin, f.venue, {
+      title: "TEST search requirement",
+    })
+    const covered = await insertAsset(service, {
+      uploader: f.staffA.id,
+      venue: f.venue,
+    })
+    mine.coverage = covered.id
+    const itemId = await insertSubmittedItem(service, {
+      asset: covered,
+      venue: f.venue,
+      author: f.staffA.id,
+      submittedAt: new Date().toISOString(),
+      requirement,
+    })
+    reqSubmission = psql(
+      `select submission_id from public.coverage_submission_items where id = '${itemId}'`
+    )
+
+    // Menu decisions: two items on one asset, decided differently.
+    const version = await publishMenu(
+      f.admin,
+      f.venue,
+      menu("TEST search filters", [
+        section("mains", "Mains", [
+          item(`mains--pie-${run}`, "TEST Pie"),
+          item(`mains--tart-${run}`, "TEST Tart"),
+          item(`mains--korma-${run}`, "TEST Korma", {
+            variants: ["Chicken", "Lamb"],
+          }),
+        ]),
+      ])
+    )
+    const doc = (await readDocument(service, version)).byKey
+    pie = doc[`mains--pie-${run}`]!
+    tart = doc[`mains--tart-${run}`]!
+    korma = doc[`mains--korma-${run}`]!
+    const two = await reserveReady(service, f.staffB)
+    await saveOk(f.staffB, {
+      asset: two.id,
+      revision: 0,
+      items: [
+        { itemId: pie.itemId, variantId: null },
+        { itemId: tart.itemId, variantId: null },
+      ],
+      catalogue: version,
+    })
+    mine.twoDecisions = two.id
+    await decide(two.id, pie.itemId, null, "accepted")
+    await decide(two.id, tart.itemId, null, "better_photo_requested")
+    // Labelled with Tart, never decided.
+    const labelOnly = await reserveReady(service, f.staffB)
+    await saveOk(f.staffB, {
+      asset: labelOnly.id,
+      revision: 0,
+      items: [{ itemId: tart.itemId, variantId: null }],
+      catalogue: version,
+    })
+    mine.labelOnly = labelOnly.id
+    // Accepted for Korma/Chicken, then relabelled to Lamb: the Chicken
+    // decision (now invalidated) is the only Chicken link left.
+    const chicken = korma.variants[0]!.variantId
+    const lamb = korma.variants[1]!.variantId
+    const relabelled = await reserveReady(service, f.staffB)
+    const saved = await saveOk(f.staffB, {
+      asset: relabelled.id,
+      revision: 0,
+      items: [{ itemId: korma.itemId, variantId: chicken }],
+      catalogue: version,
+    })
+    await decide(relabelled.id, korma.itemId, chicken, "accepted")
+    await saveOk(f.staffB, {
+      asset: relabelled.id,
+      revision: saved!.revision,
+      items: [{ itemId: korma.itemId, variantId: lamb }],
+      catalogue: version,
+    })
+    mine.relabelled = relabelled.id
+
+    // Media type and upload bounds.
+    mine.video = await video(f.staffA.id, f.venue)
+    for (const [key, at] of [
+      ["atT0", T0],
+      ["atT1", T1],
+      ["beforeT0", TM],
+    ] as const)
+      mine[key] = (
+        await insertAsset(service, {
+          uploader: f.staffA.id,
+          venue: f.venue,
+          createdAt: at,
+        })
+      ).id
+  })
+
+  it("matches each arm of the check filter and reports checks and tasks", async () => {
+    expect(await adminFind({ check: outdoorCheck })).toEqual([mine.amenity])
+    expect(await adminFind({ check: f.checks.guest_toilets })).toEqual([
+      mine.knowledge,
+    ])
+    expect(await adminFind({ check: requirement })).toEqual([mine.coverage])
+    expect((await adminRow(mine.amenity)).subjects.checks).toEqual([
+      {
+        checkId: outdoorCheck,
+        questionKey: "outdoor_seating",
+        source: "amenity",
+      },
+    ])
+    expect((await adminRow(mine.knowledge)).subjects.checks).toEqual([
+      {
+        checkId: f.checks.guest_toilets,
+        questionKey: "guest_toilets",
+        source: "knowledge",
+      },
+    ])
+    const covered = await adminRow(mine.coverage)
+    expect(covered.subjects.tasks).toEqual([
+      { requirementId: requirement, submissionId: reqSubmission },
+    ])
+    expect(covered.subjects.checks).toEqual([])
+  })
+
+  it("shows a manager amenity and knowledge evidence through the amenity gate", async () => {
+    // Neither asset is a manager-era upload, a menu photo or task evidence:
+    // only the amenity_evidence_asset arm of the predicate admits them.
+    for (const who of [f.manager, f.staffManager]) {
+      const found = own(await searchAll(who, {}))
+      expect(found).toEqual(
+        expect.arrayContaining([mine.amenity, mine.knowledge])
+      )
+      for (const id of [mine.amenity, mine.knowledge])
+        expect(
+          (await call(who, "asset_search_can_open", { p_asset_id: id })).data
+        ).toBe(true)
+    }
+    expect(
+      (
+        await call(f.manager, "asset_search_can_open", {
+          p_asset_id: mine.atT0,
+        })
+      ).data
+    ).toBe(false)
+  })
+
+  it("matches item and variant through menu decisions as well as labels", async () => {
+    const chicken = korma.variants[0]!.variantId
+    const lamb = korma.variants[1]!.variantId
+    expect(await adminFind({ item: korma.itemId, variant: chicken })).toEqual([
+      mine.relabelled,
+    ])
+    expect(await adminFind({ variant: lamb })).toEqual([mine.relabelled])
+    expect((await adminFind({ item: tart.itemId })).sort()).toEqual(
+      [mine.twoDecisions, mine.labelOnly].sort()
+    )
+    const row = await adminRow(mine.relabelled)
+    expect(row.menuDecisions).toEqual([
+      expect.objectContaining({
+        itemId: korma.itemId,
+        variantId: chicken,
+        state: "invalidated",
+      }),
+    ])
+  })
+
+  it("needs one decision row for menuState together with item or variant", async () => {
+    expect(
+      await adminFind({ item: tart.itemId, menuState: "accepted" })
+    ).toEqual([])
+    expect(
+      await adminFind({ item: pie.itemId, menuState: "accepted" })
+    ).toEqual([mine.twoDecisions])
+    expect(
+      await adminFind({
+        item: tart.itemId,
+        menuState: "better_photo_requested",
+      })
+    ).toEqual([mine.twoDecisions])
+    expect(
+      await adminFind({ item: pie.itemId, menuState: "better_photo_requested" })
+    ).toEqual([])
+    // Labels never satisfy a menuState request.
+    expect(
+      await adminFind({
+        variant: korma.variants[1]!.variantId,
+        menuState: "invalidated",
+      })
+    ).toEqual([])
+    expect(
+      await adminFind({
+        variant: korma.variants[0]!.variantId,
+        menuState: "invalidated",
+      })
+    ).toEqual([mine.relabelled])
+    expect((await adminFind({ menuState: "accepted" })).sort()).toEqual(
+      [mine.twoDecisions].sort()
+    )
+    const row = await adminRow(mine.twoDecisions)
+    expect(
+      row.menuDecisions
+        .map((d) => [d.itemId, d.variantId, d.state].join("|"))
+        .sort()
+    ).toEqual(
+      [
+        `${pie.itemId}||accepted`,
+        `${tart.itemId}||better_photo_requested`,
+      ].sort()
+    )
+  })
+
+  it("filters by media type and by inclusive and exclusive upload bounds", async () => {
+    expect(await adminFind({ mediaType: "video" })).toEqual([mine.video])
+    expect(await adminFind({ mediaType: "image" })).not.toContain(mine.video)
+    expect(await adminFind({ uploadedFrom: T0, uploadedBefore: T1 })).toEqual([
+      mine.atT0,
+    ])
+    expect((await adminFind({ uploadedBefore: T1 })).sort()).toEqual(
+      [mine.atT0, mine.beforeT0].sort()
+    )
+    expect(
+      await adminFind({
+        uploadedFrom: T1,
+        uploadedBefore: "2021-06-02T00:00:00Z",
+      })
+    ).toEqual([mine.atT1])
   })
 })

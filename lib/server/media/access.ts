@@ -138,8 +138,9 @@ type CanOpenClient = {
 }
 
 /**
- * Manager arm of the thumbnail gate (B05-m4): a manager account may see the
- * thumbnail of an asset that asset search lists for it. The database answers
+ * Search arm of the thumbnail gate (B05-m4): the venue's effective manager
+ * (manager accounts and legacy staff grant holders) may see the thumbnail of an
+ * asset that asset search lists for it. The database answers
  * with the search predicate itself (`asset_search_can_open`, as the caller);
  * only then does the service role read the storage paths. Thumbnails only:
  * originals, previews and downloads keep the rules of `getReadableAsset`.
@@ -199,8 +200,12 @@ export function signedUrlTtlSeconds(): number {
  * derivative. Signed with the service role only after `getReadableAsset` has
  * authorised the caller and the asset: end users have no storage read policy, so
  * they cannot mint signed URLs (of any lifetime) themselves (wave 3 finding 1).
- * A manager's thumbnail that `getReadableAsset` refuses is retried through the
- * asset-search arm (`getSearchThumbnailAsset`); the same TTL applies.
+ * A thumbnail that `getReadableAsset` refuses (404) for an active non-admin is
+ * retried through the asset-search arm (`getSearchThumbnailAsset`), which lets
+ * `asset_search_can_open` decide: the venue's effective manager, including a
+ * legacy staff account holding an open manager grant, gets the thumbnails its
+ * search lists; anyone search refuses gets false and keeps the 404. Only that
+ * 404 path costs the extra call; the same TTL applies.
  */
 export async function signDerivative(
   actor: MediaActor,
@@ -212,7 +217,9 @@ export async function signDerivative(
     !found.ok &&
     found.status === 404 &&
     which === "thumbnail" &&
-    actor.profile.role === "manager"
+    actor.profile.active &&
+    actor.profile.role !== "admin" &&
+    UUID.test(assetId)
   )
     found = await getSearchThumbnailAsset(actor, assetId)
   if (!found.ok) return found

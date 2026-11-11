@@ -33,10 +33,17 @@ function choice<T extends string>(
     : undefined
 }
 
+// Both bounds of the day must be ISO instants with a four-digit year from 0001
+// (the database rejects '+010000-…' and year 0): 9999-12-31 ends in year 10000.
+const INSTANT_YEAR = /^(?!0000)\d{4}-/
+
 /** A valid London calendar day, YYYY-MM-DD; undefined when invalid. */
 function day(v: unknown): string | undefined {
   if (typeof v !== "string" || !DAY.test(v)) return undefined
-  return londonDayRange(v, null).start ? v : undefined
+  const { start, end } = londonDayRange(v, v)
+  return start && end && INSTANT_YEAR.test(start) && INSTANT_YEAR.test(end)
+    ? v
+    : undefined
 }
 
 /**

@@ -144,10 +144,32 @@ describe("parseSearchFilters", () => {
     [{ uploadedFrom: "2026-02-30" }, "uploadedFrom"],
     [{ uploadedTo: "11/11/2026" }, "uploadedTo"],
     [{ uploadedFrom: "2026-11-12", uploadedTo: "2026-11-11" }, "uploadedTo"],
+    [{ uploadedFrom: "9999-12-31" }, "uploadedFrom"],
+    [{ uploadedTo: "9999-12-31" }, "uploadedTo"],
+    [{ uploadedFrom: "0000-01-01" }, "uploadedFrom"],
   ])("refuses %j on %s", (input, field) => {
     const parsed = parseSearchFilters(input)
     expect(parsed.ok).toBe(false)
     if (!parsed.ok) expect(Object.keys(parsed.fieldErrors)).toEqual([field])
+  })
+
+  it("refuses a day whose bounds leave four-digit years, with the date wording", () => {
+    expect(
+      parseSearchFilters({
+        uploadedFrom: "9999-12-31",
+        uploadedTo: "9999-12-31",
+      })
+    ).toEqual({
+      ok: false,
+      fieldErrors: {
+        uploadedFrom: "Enter a valid date.",
+        uploadedTo: "Enter a valid date.",
+      },
+    })
+    expect(parseSearchFilters({ uploadedTo: "9999-12-30" })).toMatchObject({
+      ok: true,
+      db: { uploadedBefore: "9999-12-31T00:00:00.000Z" },
+    })
   })
 
   it("refuses a filter value that is not an object", () => {
@@ -316,7 +338,7 @@ describe("searchAssets", () => {
   })
 })
 
-describe("thumbnail gate: manager arm", () => {
+describe("thumbnail gate: search arm", () => {
   const THUMB = `u/${ASSET}/thumb.webp`
 
   function gateActor(
@@ -400,7 +422,7 @@ describe("thumbnail gate: manager arm", () => {
     ).toMatchObject({ ok: false, status: 503 })
   })
 
-  it("never asks for previews, staff or admins", async () => {
+  it("never asks for previews or admins", async () => {
     const preview = gateActor("manager", true)
     expect(await signDerivative(preview.actor, ASSET, "preview")).toMatchObject(
       { ok: false, status: 404 }
@@ -412,11 +434,43 @@ describe("thumbnail gate: manager arm", () => {
       "asset_search_can_open",
       expect.anything()
     )
-    const staff = gateActor("staff", true)
-    await signDerivative(staff.actor, ASSET, "thumbnail")
-    expect(staff.rpc).not.toHaveBeenCalledWith(
-      "asset_search_can_open",
-      expect.anything()
+  })
+
+  it("lets the search predicate decide for staff accounts", async () => {
+    // Plain staff: asset_search refuses them, so can_open answers false.
+    const plain = gateActor("staff", false)
+    expect(await signDerivative(plain.actor, ASSET, "thumbnail")).toMatchObject(
+      { ok: false, status: 404 }
     )
+    expect(plain.rpc).toHaveBeenCalledWith("asset_search_can_open", {
+      p_asset_id: ASSET,
+    })
+    expect(plain.createSignedUrl).not.toHaveBeenCalled()
+    // A legacy staff account holding an open venue-manager grant.
+    const grant = gateActor("staff", true)
+    expect(await signDerivative(grant.actor, ASSET, "thumbnail")).toEqual({
+      ok: true,
+      url: "https://signed.example/thumb",
+    })
+    expect(grant.createSignedUrl).toHaveBeenCalledWith(THUMB, 60)
+  })
+
+  it("asks once, only after a 404, and never for inactive or malformed ids", async () => {
+    const grant = gateActor("staff", true)
+    await signDerivative(grant.actor, ASSET, "thumbnail")
+    expect(
+      grant.rpc.mock.calls.filter(([fn]) => fn === "asset_search_can_open")
+    ).toHaveLength(1)
+    const bad = gateActor("staff", true)
+    expect(
+      await signDerivative(bad.actor, "not-a-uuid", "thumbnail")
+    ).toMatchObject({ ok: false, status: 404 })
+    expect(bad.rpc).not.toHaveBeenCalled()
+    const inactive = gateActor("staff", true)
+    ;(inactive.actor.profile as { active: boolean }).active = false
+    expect(
+      await signDerivative(inactive.actor, ASSET, "thumbnail")
+    ).toMatchObject({ ok: false, status: 404 })
+    expect(inactive.rpc).not.toHaveBeenCalled()
   })
 })

@@ -176,7 +176,8 @@ $$;
 --   rights ('legacy_unknown'|'not_granted'|'in_force'|'expired'|'withdrawn'),
 --   destination (narrows in_force to a grant in force there), uploadedFrom
 --   (inclusive instant), uploadedBefore (exclusive instant), menuState (a
---   menu_item_photos state).
+--   menu_item_photos state; with item/variant, one decision row must match
+--   the state and the item/variant together).
 create function public.asset_search(
   p_filters jsonb default '{}'::jsonb,
   p_after_created_at timestamptz default null,
@@ -290,10 +291,15 @@ begin
       and (v_group is null or exists (
         select 1 from public.media_contribution_group_members gm
         where gm.asset_id = a.id and gm.group_id = v_group))
+      -- menuState with item and/or variant needs ONE decision row matching
+      -- all of them; labels never satisfy a menuState request.
       and (v_menu_state is null or exists (
         select 1 from public.menu_item_photos mp
-        where mp.asset_id = a.id and mp.state = v_menu_state))
-      and ((v_item is null and v_variant is null)
+        where mp.asset_id = a.id and mp.state = v_menu_state
+          and (v_item is null or mp.item_id = v_item)
+          and (v_variant is null or mp.variant_id = v_variant)))
+      and (v_menu_state is not null
+        or (v_item is null and v_variant is null)
         or exists (
           select 1 from public.media_label_items li
           where li.asset_id = a.id
