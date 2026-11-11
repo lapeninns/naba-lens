@@ -193,7 +193,9 @@ describe("SearchResults follows page one (R1)", () => {
     )
     const card = cards()[2] as HTMLElement
     expect(document.activeElement).toBe(card)
-    // The user switches tab or app: the card blurs with no new target.
+    // The user switches tab or app: the document loses focus and the card
+    // blurs with no new target, while staying the page's active element.
+    vi.spyOn(document, "hasFocus").mockReturnValue(false)
     act(() => {
       card.dispatchEvent(
         new FocusEvent("focusout", { bubbles: true, relatedTarget: null })
@@ -202,6 +204,29 @@ describe("SearchResults follows page one (R1)", () => {
     rerender(<List initialPage={okPage(1)} onLostFocus={onLostFocus} />)
     expect(cards()).toHaveLength(1)
     expect(onLostFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not take focus back after the user dropped it on blank space", async () => {
+    fetchMock.fetchSearchPage.mockResolvedValue({
+      ok: true,
+      page: { items: [item(10), item(11)], nextCursor: null },
+    })
+    const onLostFocus = vi.fn()
+    const { rerender } = render(
+      <List initialPage={okPage(2, "c1")} onLostFocus={onLostFocus} />
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    const card = cards()[2] as HTMLElement
+    expect(document.activeElement).toBe(card)
+    // A click on blank space: the document keeps focus, the card loses it.
+    vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    act(() => card.blur())
+    expect(document.activeElement).toBe(document.body)
+    rerender(<List initialPage={okPage(1)} onLostFocus={onLostFocus} />)
+    expect(cards()).toHaveLength(1)
+    expect(onLostFocus).not.toHaveBeenCalled()
   })
 
   it("leaves focus alone when a new page one arrives while focus is elsewhere", () => {

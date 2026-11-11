@@ -251,11 +251,17 @@ export function SearchResults({
           focusedInList.current = event.target
         }}
         onBlur={(event) => {
-          // Focus moved to another element outside the list: forget it. No
-          // new target means the window lost focus; the card keeps it.
+          // Forget the element when focus left it on purpose: moved to
+          // something outside the list, or dropped to nothing within the
+          // page (a click on blank space). Keep it when the window or tab
+          // lost focus (the card is still the page's focus), or when the
+          // card itself is being removed (a reset should recover from that).
           const next = event.relatedTarget
-          if (next instanceof Node && !event.currentTarget.contains(next))
-            focusedInList.current = null
+          const left =
+            next instanceof Node
+              ? !event.currentTarget.contains(next)
+              : document.hasFocus() && event.target.isConnected
+          if (left) focusedInList.current = null
         }}
       >
         {items.map((item) => (
