@@ -458,7 +458,13 @@ only when all of these hold:
   fresh table, read just before each signal, shows every one of its members
   proven owned. Proven owned means the child's leader while it is still this
   runner's own child (a live child's pid cannot be anyone else's), a process
-  carrying its private path, or a current child of a proven process. Sharing
+  whose own environment holds the exact entry `TMPDIR=<its private path>`, or
+  a current child of a proven process. The environment is separated from the
+  arguments by comparing a plain `ps` read with the `ps -E` read, so a
+  command that merely names a scratch path in its arguments (`tail`, `du`,
+  `lsof`) is never proof. The broader match (the path anywhere in the text)
+  is used only to find lingering processes, never to signal.
+  Process groups 0 and 1 are never signalled. Sharing
   the child's group id proves nothing on its own, and a pid recorded earlier
   proves nothing by itself. Once the child's own group is proven empty, its id
   may be reused, so it is never signalled again.
@@ -733,7 +739,17 @@ any mismatch.
   only in the coordinator's environment.
 - A process that clears its environment and leaves this child's group is not
   proven this run's, so a signal to its group is withheld and the run is
-  uncertain (receipt blocked) rather than killing something unproven.
+  uncertain (receipt blocked) rather than killing something unproven. macOS
+  hides the environment of platform binaries (`/bin/sh`, `sleep`) from
+  `ps -E`, so such a process is provable only through ancestry. Playwright's
+  Chromium (build 1248, ad-hoc signed) and Node do show it: a real headless
+  Chromium launched with a marker `TMPDIR` had all four browser processes
+  proven.
+- Accepted residual risks: the lane blocker is checked before each phase,
+  not during a suite (up to 30 minutes later). A process group could empty and
+  its id be reused in the instant between the `ps` proof and the signal. The
+  receipt identity check (inode) cannot stop the same user deliberately
+  replacing it. Only the same user can race the lane directory.
 - Fixture sign-in mints a local magic-link token with the service key and
   posts it to the app's real `/auth/confirm/verify`. Inbox delivery and
   interactive sign-in are outside the run.
