@@ -82,7 +82,9 @@ async function settled(page: Page) {
 
 /** The capture form on a page, and its one submit control (label changes). */
 function capture(page: Page) {
-  const form = page.locator('form[aria-label^="Capture:"]')
+  // In main: right after a load, React's hidden streaming copy (S:n) of the
+  // page can still hold a second form.
+  const form = page.getByRole("main").locator('form[aria-label^="Capture:"]')
   const entrance = (label: string) =>
     form.getByRole("group", { name: label, exact: true })
   return {
@@ -173,6 +175,7 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     // ---- 320 px: wrapped labels, the action dock, errors and focus --------
     const narrow = await signedInPage(browser, w.staffA2, PHONE(320, 640))
     await narrow.goto(staffCaptureHref(id))
+    await settled(narrow)
     const n = capture(narrow)
     await n.answer("Yes")
     // The fixed key's form: each listed entrance with its own result, and
@@ -222,6 +225,7 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     const emptyDecisionsBefore = decisionsAt(w.venueB, emptyId)
     const empty = await signedInPage(browser, w.staffB, PHONE(375, 812))
     await empty.goto(staffCaptureHref(emptyId))
+    await settled(empty)
     const e = capture(empty)
     await e.answer("No")
     await expect(e.entrances).toContainText(
@@ -322,6 +326,7 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     // ---- 1280 px: the manager confirms the valid finding -------------------
     const manager = await signedInPage(browser, w.managerA, DESKTOP)
     await manager.goto(MANAGER.check(id))
+    await settled(manager)
     const card = manager.getByRole("article", {
       name: new RegExp(`from ${escape(w.staffA.name)}`),
     })
@@ -352,9 +357,11 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
 
     // ---- Staff Home and the check page after confirmation ------------------
     await staff.goto("/staff/tasks")
+    await settled(staff)
     const home = staff.getByRole("listitem").filter({ hasText: ask })
     await expect(home).toContainText("Current answer: Yes.")
     await staff.goto(staffCaptureHref(id))
+    await settled(staff)
     await expect(staff.getByText(/Current answer: Yes\./).first()).toBeVisible()
     // Neither page renders the answer in use's entrances or Checked on date
     // at this head (answerInUseLines gives the value and Recorded date only;
@@ -500,6 +507,7 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     })
     const staff = await signedInPage(browser, w.staffA, PHONE(390, 844))
     await staff.goto(staffCaptureHref(id))
+    await settled(staff)
     const s = capture(staff)
     const seen = group(staff, POLICY_COPY.ruleSeen)
     await expect(seen).toContainText(POLICY_COPY.staffContext)
@@ -549,6 +557,7 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     })
     const manager = await signedInPage(browser, w.managerA, DESKTOP)
     await manager.goto(MANAGER.check(id))
+    await settled(manager)
     await expect(
       manager.getByRole("link", { name: POLICY_COPY.statePolicy })
     ).toBeVisible()
@@ -816,6 +825,7 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     const checkBefore = storedCheck(id)
     const admin = await signedInPage(browser, w.admin, DESKTOP)
     await admin.goto(ADMIN(w.venueA).capture(id))
+    await settled(admin)
     const a = capture(admin)
     await group(admin, POLICY_COPY.rule)
       .getByRole("radio", {

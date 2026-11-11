@@ -120,48 +120,77 @@ const checkDatesQuery = (f: {
   ])}`
 
 /**
- * The Check dates page as it still is while its document request is held,
- * read in one evaluate. Web-first assertions and locator reads first wait for
- * a pending main-frame navigation, so they can't observe the held state. The
- * reads mirror the locators used after the release: each select by its exact
- * label, the preview's list items naming the venue, and the one item naming
- * the venue and the use with its own lines.
+ * After a document load, until React moves a streamed boundary into the page:
+ * meanwhile the boundary sits both in the page and in a hidden `<div id="S:n">`
+ * (tests/e2e/visual.spec.ts), so strict locators would match twice.
  */
-async function heldCheckDates(
+async function settled(page: Page) {
+  await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
+}
+
+/**
+ * Records the Check dates page at the moment its form submits, for reading
+ * while the document request is held. Nothing can be evaluated in the page
+ * during the hold (the renderer answers no evaluation until the navigation
+ * settles), and the page has no submit script, so the page as it submits is
+ * the page as it stays while held. The snapshot leaves through a binding, sent
+ * before the request exists. The reads mirror the locators used after the
+ * release: each select by its exact label, the preview's list items naming
+ * the venue, and the one item naming the venue and the use with its own lines.
+ */
+async function recordOnSubmit(
   page: Page,
   venueName: string,
   use: "internal" | "public"
 ) {
-  return page.evaluate(
-    ({ labels, venueName, useText }) => {
-      const text = (el: Element) =>
-        (el.textContent ?? "").replace(/\s+/g, " ").trim()
-      const field = (label: string) => {
-        const named = [...document.querySelectorAll("label")].filter(
-          (l) => text(l) === label
-        )
-        const el =
-          named.length === 1 ? document.getElementById(named[0]!.htmlFor) : null
-        return el instanceof HTMLSelectElement ? el.value : null
+  const name = `__b03dHeld${Date.now()}`
+  let recorded!: (snapshot: unknown) => void
+  const snapshot = new Promise<unknown>((resolve) => (recorded = resolve))
+  const binding = await page.exposeBinding(name, (_source, s: unknown) =>
+    recorded(s)
+  )
+  await page.evaluate(
+    ({ name, labels, venueName, useText }) => {
+      const read = () => {
+        const text = (el: Element) =>
+          (el.textContent ?? "").replace(/\s+/g, " ").trim()
+        const field = (label: string) => {
+          const named = [...document.querySelectorAll("label")].filter(
+            (l) => text(l) === label
+          )
+          const el =
+            named.length === 1
+              ? document.getElementById(named[0]!.htmlFor)
+              : null
+          return el instanceof HTMLSelectElement ? el.value : null
+        }
+        const previews = document.querySelectorAll("#check-dates-preview")
+        const items = [...document.querySelectorAll("#check-dates-preview li")]
+        const venueRows = items.filter((li) => text(li).includes(venueName))
+        const rows = venueRows.filter((li) => text(li).includes(useText))
+        return {
+          path: location.pathname + location.search,
+          previews: previews.length,
+          question: field(labels.question),
+          internal: field(labels.internal),
+          guests: field(labels.public),
+          venueRows: venueRows.length,
+          row:
+            rows.length === 1
+              ? [...rows[0]!.querySelectorAll("li")].map(text)
+              : { matches: rows.length },
+        }
       }
-      const previews = document.querySelectorAll("#check-dates-preview")
-      const items = [...document.querySelectorAll("#check-dates-preview li")]
-      const venueRows = items.filter((li) => text(li).includes(venueName))
-      const rows = venueRows.filter((li) => text(li).includes(useText))
-      return {
-        path: location.pathname + location.search,
-        previews: previews.length,
-        question: field(labels.question),
-        internal: field(labels.internal),
-        guests: field(labels.public),
-        venueRows: venueRows.length,
-        row:
-          rows.length === 1
-            ? [...rows[0]!.querySelectorAll("li")].map(text)
-            : { matches: rows.length },
-      }
+      const send = (window as unknown as Record<string, (s: unknown) => void>)[
+        name
+      ]!
+      addEventListener("submit", () => send(read()), {
+        capture: true,
+        once: true,
+      })
     },
     {
+      name,
       labels: {
         question: CHECK_DATES_TEXT.question,
         internal: CHECK_DATES_TEXT.internal,
@@ -171,6 +200,21 @@ async function heldCheckDates(
       useText: CHECK_DATES_TEXT.use[use],
     }
   )
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return {
+    /** The page as it submitted; fails if the form never submitted. */
+    read: () =>
+      Promise.race([
+        snapshot,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("the Check dates form never submitted")),
+            5_000
+          )
+        }),
+      ]).finally(() => clearTimeout(timer)),
+    dispose: () => binding.dispose(),
+  }
 }
 
 /**
@@ -508,7 +552,8 @@ test.describe("B03 browser charters C and D", () => {
     // ---- Manager, 1280: Overview and Amenities rechecks ------------------------
     const manager = await signedInPage(browser, w.managerA, DESKTOP)
     await manager.goto("/manager")
-    const triage = manager.locator('[data-triage="rechecks"]')
+    await settled(manager)
+    const triage = manager.getByRole("main").locator('[data-triage="rechecks"]')
     // The archived check's older task is neither counted nor the oldest.
     await expect(triage).toContainText(
       `Rechecks due: 2, oldest due ${longDate(staleTask!.dueAt)}`
@@ -542,6 +587,7 @@ test.describe("B03 browser charters C and D", () => {
       Array.from({ length: last + 1 }, (_, n) => occurrence(n))
 
     await manager.goto(MANAGER.check(id.service))
+    await settled(manager)
     const upcoming = manager.getByRole("region", {
       name: new RegExp(`^${SCHEDULE_COPY.upcoming}`),
     })
@@ -594,6 +640,7 @@ test.describe("B03 browser charters C and D", () => {
 
     // Upcoming ends on the last day and keeps the cancellation.
     await manager.goto(MANAGER.check(id.service))
+    await settled(manager)
     await expect(upcoming.getByRole("listitem")).toHaveText(upcomingLines(4))
     await expect(upcoming).not.toContainText(localDateWords(day(5)))
 
@@ -675,6 +722,7 @@ test.describe("B03 browser charters C and D", () => {
     // Manager only, so read at 1280: the stopped service reads No, with no
     // schedule-end recheck line, and is not among the rechecks.
     await manager.goto(MANAGER.check(id.stopped))
+    await settled(manager)
     await expect(
       manager.getByRole("main").getByText(/^Current answer: No\./)
     ).toBeVisible()
@@ -682,6 +730,7 @@ test.describe("B03 browser charters C and D", () => {
       manager.getByText(/Its last day offered was|Check whether it continues/)
     ).toHaveCount(0)
     await manager.goto(MANAGER.list)
+    await settled(manager)
     await expect(rows).toHaveCount(2)
     await expect(rechecks).not.toContainText(q.stopped)
     await expect(rechecks).not.toContainText(q.service)
@@ -724,6 +773,7 @@ test.describe("B03 browser charters C and D", () => {
 
     // ---- Manager confirms: the same task closes, by that decision ---------------
     await manager.goto(MANAGER.check(id.stale))
+    await settled(manager)
     const toConfirm = manager.getByRole("region", { name: /^To confirm/ })
     await toConfirm
       .getByRole("button", { name: "Confirm", exact: true })
@@ -747,6 +797,7 @@ test.describe("B03 browser charters C and D", () => {
 
     // ---- Staff A, 390: To do no longer offers the closed recheck ----------------
     await staff.goto("/staff/tasks")
+    await settled(staff)
     await expect(staff).toHaveURL(STAFF_LANDING)
     await expect(recheckLink).toHaveCount(0)
     await expect(todo).not.toContainText(
@@ -934,6 +985,7 @@ test.describe("B03 browser charters C and D", () => {
 
     const admin = await signedInPage(browser, w.admin, DESKTOP)
     await admin.goto(CHECK_DATES)
+    await settled(admin)
     await expect(
       admin.getByRole("heading", { name: CHECK_DATES_TEXT.title, level: 1 })
     ).toBeVisible()
@@ -979,6 +1031,7 @@ test.describe("B03 browser charters C and D", () => {
       internal: "",
       public: "",
     })
+    const heldFirst = await recordOnSubmit(admin, w.venueA.name, "internal")
     await showHeld(admin, q1, async (request) => {
       // The exact native GET the form sent, held before the server saw it.
       expect(request.method()).toBe("GET")
@@ -990,7 +1043,7 @@ test.describe("B03 browser charters C and D", () => {
       expect(new URL(admin.url()).pathname + new URL(admin.url()).search).toBe(
         CHECK_DATES
       )
-      expect(await heldCheckDates(admin, w.venueA.name, "internal")).toEqual({
+      expect(await heldFirst.read()).toEqual({
         path: CHECK_DATES,
         previews: 0,
         question: q1,
@@ -1001,6 +1054,8 @@ test.describe("B03 browser charters C and D", () => {
       })
       expect(registryRows()).toBe(registryBefore)
     })
+    await heldFirst.dispose()
+    await settled(admin)
     await expect(admin).toHaveURL(new RegExp(`${escape(firstQuery)}$`))
     await expect(question).toHaveValue(q1)
     // Version 1's rule, not the future version 3's, and no guest rule.
@@ -1033,6 +1088,7 @@ test.describe("B03 browser charters C and D", () => {
       internal: rule.v1.id,
       public: "",
     })
+    const heldSecond = await recordOnSubmit(admin, w.venueA.name, "internal")
     await showHeld(admin, q2, async (request) => {
       expect(request.method()).toBe("GET")
       expect(request.frame()).toBe(admin.mainFrame())
@@ -1043,7 +1099,7 @@ test.describe("B03 browser charters C and D", () => {
       expect(new URL(admin.url()).pathname + new URL(admin.url()).search).toBe(
         firstQuery
       )
-      expect(await heldCheckDates(admin, w.venueA.name, "internal")).toEqual({
+      expect(await heldSecond.read()).toEqual({
         path: firstQuery,
         previews: 1,
         question: q2,
@@ -1058,6 +1114,8 @@ test.describe("B03 browser charters C and D", () => {
         }),
       })
     })
+    await heldSecond.dispose()
+    await settled(admin)
     await expect(admin).toHaveURL(new RegExp(`${escape(secondQuery)}$`))
     await expect(question).toHaveValue(q2)
     await expect(internal).toHaveValue(rule.second.id)
@@ -1111,6 +1169,7 @@ test.describe("B03 browser charters C and D", () => {
     await admin.goto(
       checkDatesQuery({ for: q1, key: q1, internal: rule.v3.id, public: "" })
     )
+    await settled(admin)
     await expect(internal).toHaveValue(rule.v3.id)
     await expect(guests).toHaveValue("")
     await expect(venueRows).toHaveCount(1)
@@ -1148,6 +1207,7 @@ test.describe("B03 browser charters C and D", () => {
       expect(body).not.toContain(text1)
       expect(body).not.toContain(rule.v1.id)
       await page.goto(url)
+      await settled(page)
       await expect(page).toHaveURL(new RegExp(`${escape(home)}$`))
       await expect(
         page.getByRole("heading", { name: CHECK_DATES_TEXT.title, level: 1 })

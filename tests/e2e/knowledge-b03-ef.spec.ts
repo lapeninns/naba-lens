@@ -388,7 +388,7 @@ test.describe("knowledge B03 E and F", () => {
     await expect(facts).not.toContainText(PARKING_NOTE)
 
     // ---- 3. Conflict: the parking import card is held open in the manager's
-    // page while the admin, in their own context, records a competing answer.
+    // page while manager A, in another context, records a competing answer.
     await manager.goto(MANAGER.check(parking))
     await settled(manager)
     const parkingCard = cardWith(manager, PARKING_NOTE)
@@ -405,10 +405,14 @@ test.describe("knowledge B03 E and F", () => {
     // The revision the held-open card was rendered at.
     const staleRevision = slotRevision(w.venueA, "onsite_parking")
 
+    // The competing answer comes from manager A, not the admin who ran the
+    // import: under the one-undecided-finding-per-person rule, the importer's
+    // own later answer would replace their import, and no card would remain.
     const COMPETING_REASON = `DEV FIXTURE B03-E no guest parking now ${w.tag}`
-    await admin.goto(ADMIN.capture(parking))
-    await settled(admin)
-    const capture = captureForm(admin)
+    const competitor = await signedInPage(browser, w.managerA, DESK)
+    await competitor.goto(MANAGER.capture(parking))
+    await settled(competitor)
+    const capture = captureForm(competitor)
     await capture.answer("no")
     await capture.reason.fill(COMPETING_REASON)
     await capture.submit.click()
@@ -418,9 +422,10 @@ test.describe("knowledge B03 E and F", () => {
     const recorded = slotRead(w.venueA, parking)
     expect(recorded).toMatchObject({
       currentAnswer: "no",
-      submittedBy: w.admin.id,
+      submittedBy: w.managerA.id,
       progress: "complete",
     })
+    await competitor.context().close()
     expect(recorded.sourceContributionId).not.toBe(parkingImport.contributionId)
     expect(slotRevision(w.venueA, "onsite_parking")).not.toBe(staleRevision)
 
@@ -772,7 +777,9 @@ test.describe("knowledge B03 E and F", () => {
     const managerB = await signedInPage(browser, w.managerB, DESK)
     for (const path of [MANAGER.check(a), `${MANAGER.capture(a)}?correct=1`]) {
       await managerB.goto(path)
-      await settled(managerB)
+      // A refusal page, not settled(): notFound() thrown inside the capture
+      // route's own loading boundary leaves an empty hidden placeholder
+      // (S:n) that is never moved into the page.
       await expect(managerNotFound(managerB), `manager B ${path}`).toBeVisible()
       await expect(history(managerB)).toHaveCount(0)
       await expectNone(managerB, venueASecrets, `manager B ${path}`)
@@ -1149,7 +1156,9 @@ test.describe("knowledge B03 E and F", () => {
     // ---- 8. Still nothing for venue B's people, and venue B's answer stands.
     for (const path of [MANAGER.check(a), `${MANAGER.capture(a)}?correct=1`]) {
       await managerB.goto(path)
-      await settled(managerB)
+      // A refusal page, not settled(): notFound() thrown inside the capture
+      // route's own loading boundary leaves an empty hidden placeholder
+      // (S:n) that is never moved into the page.
       await expect(managerNotFound(managerB), `manager B ${path}`).toBeVisible()
       await expectNone(managerB, venueASecrets, `manager B ${path}`)
     }
