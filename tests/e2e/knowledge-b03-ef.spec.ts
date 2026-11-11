@@ -568,10 +568,12 @@ test.describe("knowledge B03 E and F", () => {
     // ---- 6. Admin Runs: hold the real dry-run response, then release it.
     await admin.goto("/admin/knowledge/runs")
     await settled(admin)
+    // The page title; the runs list below has its own "Runs" heading.
     await expect(
       admin.getByRole("heading", {
         name: RECONCILE_COPY.runsTitle,
         exact: true,
+        level: 1,
       })
     ).toBeVisible()
     const startForm = admin.getByRole("form", { name: RECONCILE_COPY.start })
@@ -918,10 +920,17 @@ test.describe("knowledge B03 E and F", () => {
     } finally {
       await heldCorrection.settle()
     }
+    const done = manager
+      .getByRole("status")
+      .filter({ hasText: CORRECT_COPY.doneMaterial })
     await expect(
       manager.getByText(CORRECT_COPY.doneMaterial, { exact: true })
     ).toBeVisible()
-    const back = manager.getByRole("link", { name: "Back to the check" })
+    // The completion panel's link, which follows its notice; the page's own
+    // "Back to the check" breadcrumb sits above the form.
+    const back = done.locator(
+      "xpath=following::a[normalize-space(.)='Back to the check'][1]"
+    )
     await expect(back).toBeVisible()
     // The saved form is gone: focus must land somewhere usable, not the body.
     // This is the app's own focus, before the test moves it anywhere.
