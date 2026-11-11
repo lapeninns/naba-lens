@@ -280,6 +280,35 @@ async function guards() {
   return ctx
 }
 
+/**
+ * The guards again, inside the held lock and before the build, as run.mjs's recheck does: the lock is
+ * this run's; the lane root is proven and the shared blocker absent; candidate.json, the harness and
+ * the candidate's Playwright are unchanged; spare6's spec and env are read fresh (and their secrets
+ * registered); the exact product inputs and the live ledger hold; the reset record is the one the guards
+ * saw; and the app port is free.
+ */
+export async function recheckUnderLock(ctx, label, d = {}) {
+  const lockDir = d.lockDir ?? LOCK_DIR
+  requireCanonicalRoot()
+  verifyLockOwner(label, lockDir)
+  requireLaneRoot(d.laneRoot ?? LANE_ROOT)
+  requireNoQualificationBlocker(d.blockerPath ?? QUALIFICATION_BLOCKER)
+  if (JSON.stringify((d.loadPin ?? loadPin)()) !== JSON.stringify(ctx.pin)) fail("candidate.json changed during the run.")
+  const harness = harnessState()
+  if (harness.commit !== ctx.harness.commit || harness.tree !== ctx.harness.tree || harness.clean !== ctx.harness.clean) fail("The harness changed during the run.")
+  const pw = requirePlaywright(ctx.checkout)
+  if (pw.bin !== ctx.playwright.bin || pw.version !== ctx.playwright.version) fail("The candidate's Playwright changed during the run.")
+  const spec = ctx.stack.stackSpec(STACK.name)
+  if (spec.workdir !== STACK.workdir) fail(`stack.mjs workdir for ${STACK.name} changed to ${spec.workdir}.`)
+  ;({ env: ctx.stackEnv, secrets: ctx.secrets } = validatedStackEnvironment(ctx.stack, spec, d.fresh ?? freshStackStatus, verifyPhysicalWorkdir(ctx.stackWorkdir, ctx.stackAnchor)))
+  registerSecrets(ctx.secrets)
+  verifyProductInputs(ctx)
+  const reset = resetManifest(verifyPhysicalWorkdir(ctx.stackWorkdir, ctx.stackAnchor))
+  if (reset.sha256 !== ctx.reset.sha256) fail("spare6's revision.json changed between the guards and the lock.")
+  await (d.requireFreePort ?? requireFreePort)()
+  say("guards, candidate, harness, Playwright, stack env, product inputs, live ledger and port rechecked under the lock")
+}
+
 async function runGate(ctx) {
   const id = budgetRunId()
   const label = `b02 budget gate ${id}`
@@ -300,9 +329,7 @@ async function runGate(ctx) {
     let error = null
     let runRoot = null
     try {
-      verifyProductInputs(ctx)
-      const reset = resetManifest(verifyPhysicalWorkdir(ctx.stackWorkdir))
-      if (reset.sha256 !== ctx.reset.sha256) fail("spare6's revision.json changed between the guards and the lock.")
+      await recheckUnderLock(ctx, label)
       ;({ runRoot } = prepareRunRoot(id, RESULTS))
       receipt.update({ runRoot })
       gate("build")

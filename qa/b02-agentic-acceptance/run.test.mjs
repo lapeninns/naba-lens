@@ -49,6 +49,7 @@ import {
   expectedInstances,
   freshOutput,
   gitEnv,
+  harnessState,
   HARNESS,
   isSuite,
   JOURNAL,
@@ -119,6 +120,7 @@ import {
   VIEWPORTS,
   writeSummary,
 } from "./run.mjs"
+import { recheckUnderLock, resetManifest as budgetResetManifest } from "./budget.mjs"
 
 const RUNNER = fileURLToPath(new URL("./run.mjs", import.meta.url))
 const FIXTURE = pathToFileURL(fileURLToPath(new URL("./fixture.ts", import.meta.url))).href
@@ -3345,4 +3347,44 @@ test("a stale revision.json is refused: the live ledger and the fixture manifest
 test("the budget gate's guards use the same live-lane check as run.mjs (verifyProductInputs), before the lock and again under it", () => {
   const source = readFileSync(fileURLToPath(new URL("./budget.mjs", import.meta.url)), "utf8")
   assert.equal((source.match(/verifyProductInputs\(ctx\)/g) ?? []).length, 2)
+})
+
+test("budget gate: the under-lock recheck re-reads candidate.json, the harness, Playwright, the stack env, the inputs, the reset and the port", async () => {
+  const world = productWorld()
+  fakePlaywright(world.dir).set({})
+  const root = temp("b02-budget-lock-")
+  chmodSync(root, 0o755)
+  const lockDir = join(root, "spare6.lock")
+  const label = "b02 budget gate budget-test"
+  mkdirSync(lockDir)
+  writeFileSync(join(lockDir, "owner.json"), JSON.stringify({ pid: process.pid, what: label, since: new Date().toISOString() }))
+  const ctx = { ...world.ctx, harness: harnessState(), playwright: requirePlaywright(world.dir), reset: budgetResetManifest(world.workdir) }
+  let ports = 0
+  const d = {
+    lockDir,
+    laneRoot: root,
+    blockerPath: join(root, "spare6.qualification.blocker.json"),
+    loadPin: () => world.ctx.pin,
+    fresh: () => freshOf(stackEnvOf()),
+    requireFreePort: async () => void ports++,
+  }
+  const again = (patch = {}, dd = {}) => recheckUnderLock({ ...ctx, ...patch }, label, { ...d, ...dd })
+  await again()
+  assert.equal(ports, 1, "the port is checked")
+  await assert.rejects(again({}, { loadPin: () => ({ ...world.ctx.pin, commit: "0".repeat(40) }) }), /candidate\.json changed during the run/)
+  await assert.rejects(again({ harness: { ...ctx.harness, commit: "f".repeat(40) } }), /The harness changed during the run/)
+  await assert.rejects(again({ playwright: { ...ctx.playwright, version: "0.0.1" } }), /Playwright changed during the run/)
+  await assert.rejects(recheckUnderLock(ctx, "another label", d), /lock/i)
+  await assert.rejects(again({}, { fresh: () => freshOf(stackEnvOf(), { SERVICE_ROLE_KEY: "rotated-service-role-value" }) }), /does not match a fresh supabase status/)
+  await assert.rejects(again({}, { requireFreePort: async () => { throw new Error("Port 3646 is in use") } }), /3646 is in use/)
+  writeFileSync(d.blockerPath, JSON.stringify({ state: "settlement_pending", phase: "b04", runnerPid: 1 }))
+  await assert.rejects(again(), /lane blocker/)
+  rmSync(d.blockerPath)
+  // The reset changed after the guards (another reset, or a failed one: fixtures.json gone).
+  writeFileSync(join(world.workdir, "revision.json"), JSON.stringify({ ...world.revision, resetAt: "2026-11-11T09:00:00.000Z" }))
+  await assert.rejects(again(), /revision\.json changed between the guards and the lock/)
+  world.ledger.versions = [...world.ctx.pinned.versions, "20261111000001"]
+  await assert.rejects(again(), /applied ledger has/)
+  world.cleanup()
+  rmSync(root, { recursive: true, force: true })
 })
