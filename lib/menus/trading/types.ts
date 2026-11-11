@@ -287,6 +287,39 @@ export type AvailabilityState =
     }
   | { state: "unknown"; reason: string; detail: string }
 
+/** One use's freshness of a confirmed value (A1-2, A1-6; B03's entry). */
+export type FreshnessEntry = {
+  use: "internal" | "public"
+  state: "current" | "due_soon" | "expired" | "basis_missing" | "unrated"
+  basis: "stated_on" | null
+  basisDate: string | null
+  nextCheckDue: string | null
+  policyId: string | null
+  policyVersion: number | null
+}
+
+/**
+ * A bound value whose internal freshness is expired or basis_missing: stale,
+ * with the value shown to admins and managers only (A1-6).
+ */
+type StaleRead<T> = {
+  reason: "stale"
+  detail: "expired" | "basis_missing"
+  nextCheckDue: string | null
+  freshness: FreshnessEntry[]
+  staleValue?: T
+}
+
+/** A line's price as read (S2's state; freshness only when bound). */
+export type PriceRead =
+  | (FieldState & { freshness?: FreshnessEntry[] })
+  | ({ status: "unavailable" } & StaleRead<FieldState>)
+
+/** A line's availability as read (S2's state; freshness only when bound). */
+export type AvailabilityRead =
+  | (AvailabilityState & { freshness?: FreshnessEntry[] })
+  | ({ state: "unknown" } & StaleRead<AvailabilityState>)
+
 export type TradingPortion = {
   label: string
   quantity?: number
@@ -302,8 +335,8 @@ export type TradingLineView = {
   portion: TradingPortion | null
   channel: TradingChannel
   retiredAt: string | null
-  price: FieldState
-  availability: AvailabilityState & Record<string, unknown>
+  price: PriceRead
+  availability: AvailabilityRead & Record<string, unknown>
   /** Admin and manager only. */
   pending?: {
     assertionId: string
