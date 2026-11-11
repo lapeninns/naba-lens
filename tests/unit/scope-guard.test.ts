@@ -121,6 +121,13 @@ const ALLOWED_PAGES = new Set([
   "/admin/coverage/[venueId]/amenities",
   "/admin/coverage/[venueId]/amenities/[checkId]",
   "/admin/coverage/[venueId]/amenities/[checkId]/capture",
+  // B05-06 asset search (contracts/b05-design.md §6; b05-search-screen-scope):
+  // find photos and videos by menu item, use, menu decision and upload day.
+  // Read-only cards, no viewer, download or reuse. Admins every venue; manager
+  // accounts and legacy grant holders their venue; staff refused (database).
+  "/admin/search",
+  "/manager/search",
+  "/staff/manage/search",
 ])
 
 const ALLOWED_HANDLERS = new Set([
@@ -180,6 +187,10 @@ const ALLOWED_HANDLERS = new Set([
   // (docs/knowledge/internal-reader-api.md).
   "/api/knowledge/v1/venues/[venueId]/answers",
   "/api/knowledge/v1/meta",
+  // B05-06 asset search (C/b05-design.md §6): abortable GET for the search
+  // screen; managers incl. legacy grant holders at their venue, admins all
+  // venues; staff refused by the database. Thumbnails via /api/media/[id]/thumb.
+  "/api/media/search",
 ])
 
 /** The dev-only preview must stay inside the `(dev)` route group. */

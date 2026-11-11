@@ -7,6 +7,7 @@ import {
   HourglassIcon,
   ImageSquareIcon,
   ImagesIcon,
+  MagnifyingGlassIcon,
   PencilSimpleIcon,
   ShieldCheckIcon,
   UserIcon,
@@ -21,6 +22,7 @@ import { Progress } from "@/components/ui/progress"
 
 import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
 import { Notice } from "@/components/nabalens/notice"
+import { SEARCH_COPY } from "@/components/nabalens/search/search-copy"
 import { amenityHrefs } from "@/lib/amenities/contract"
 import type { ManagerOverview } from "@/lib/server/menu-photos/types"
 
@@ -92,6 +94,21 @@ function NeedsLabelsRow({ count }: { count: number | null }) {
   )
 }
 
+/** B05-06: the venue's photos and videos, by item, use and decision. */
+function SearchRow() {
+  return (
+    <ul className={ROW_LIST}>
+      <li data-link="search">
+        <Row
+          href={managerHrefs.search}
+          icon={<MagnifyingGlassIcon />}
+          title={SEARCH_COPY.entry}
+        />
+      </li>
+    </ul>
+  )
+}
+
 export function OverviewBody({
   overview,
   now,
@@ -120,6 +137,8 @@ export function OverviewBody({
     <>
       {triage ?? <ConfirmRow count={confirmCount} />}
       <NeedsLabelsRow count={needsLabels} />
+      {/* Setup pending offers no action (the menu isn't there yet). */}
+      {overview.menuState !== "no_menu" ? <SearchRow /> : null}
     </>
   )
 

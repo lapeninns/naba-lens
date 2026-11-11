@@ -53,6 +53,11 @@ export const managerHrefs = {
   account: "/manager/account",
   /** The manager account's own uploads (B02-c); no nav tab. */
   uploads: "/manager/uploads",
+  /**
+   * B05-06 asset search, linked from Overview. No nav tab: a fifth tab beside
+   * Add does not fit the 390px phone bar.
+   */
+  search: "/manager/search",
   review: (q?: ReviewQuery) => withQuery("/manager/review", q),
   contributor: (id: string) =>
     `/manager/review/contributors/${encodeURIComponent(id)}`,
