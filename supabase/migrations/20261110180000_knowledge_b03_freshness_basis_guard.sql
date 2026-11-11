@@ -10,6 +10,9 @@
 --   components/nabalens/knowledge/question-form.ts; a unit test holds the
 --   two together). A later version of those schemas, which the registry
 --   accepts, has no form here and so no Checked on.
+-- * private.knowledge_policy_counts_from_check(id, use): whether a rule
+--   counts from the check day, read from its latest version for that use, the
+--   one the preview's forecast and freshness now read.
 -- * Refused with freshness_basis_unavailable (NLK15) wherever such a rule is
 --   bound to such a question:
 --   - a question version naming an observed_on rule for a use
@@ -29,6 +32,19 @@ as $$
   select coalesce(p_schema || '@' || p_version in ('facility@1', 'accessibility@1', 'service@1'), false);
 $$;
 
+create function private.knowledge_policy_counts_from_check(p_id text, p_use text)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce((
+    select p.basis = 'observed_on' from public.knowledge_freshness_policies p
+    where p.id = p_id and p.use = p_use
+    order by p.version desc
+    limit 1), false);
+$$;
+
 create function private.knowledge_question_version_basis_guard()
 returns trigger
 language plpgsql
@@ -43,10 +59,7 @@ begin
   end if;
   foreach v_use in array array['internal', 'public'] loop
     v_rule := new.freshness ->> v_use;
-    if v_rule is not null and exists (
-      select 1 from public.knowledge_freshness_policies p
-      where p.id = v_rule and p.use = v_use and p.basis = 'observed_on'
-    ) then
+    if private.knowledge_policy_counts_from_check(v_rule, v_use) then
       raise exception 'freshness_basis_unavailable' using errcode = 'NLK15',
         detail = jsonb_build_object('key', new.key, 'version', new.version, 'schema', new.value_schema,
           'schemaVersion', new.value_schema_version, 'use', v_use, 'policyId', v_rule)::text;
@@ -68,7 +81,11 @@ as $$
 declare
   v_version public.knowledge_question_versions;
 begin
-  if new.basis <> 'observed_on' then
+  -- Only the rule's latest version for the use counts.
+  if new.basis <> 'observed_on' or exists (
+    select 1 from public.knowledge_freshness_policies p
+    where p.id = new.id and p.use = new.use and p.version > new.version
+  ) then
     return new;
   end if;
   select v.* into v_version
@@ -93,6 +110,7 @@ create trigger knowledge_freshness_policies_basis_guard
 
 revoke all on function
   private.knowledge_schema_has_checked_on(text, integer),
+  private.knowledge_policy_counts_from_check(text, text),
   private.knowledge_question_version_basis_guard(),
   private.knowledge_freshness_policy_basis_guard()
 from public, anon, authenticated, service_role;
@@ -143,10 +161,7 @@ begin
   end if;
   if not private.knowledge_schema_has_checked_on(v_version.value_schema, v_version.value_schema_version) then
     foreach v_use in array array['internal', 'public'] loop
-      if exists (
-        select 1 from public.knowledge_freshness_policies p
-        where p.id = p_policy ->> v_use and p.use = v_use and p.basis = 'observed_on'
-      ) then
+      if private.knowledge_policy_counts_from_check(p_policy ->> v_use, v_use) then
         raise exception 'freshness_basis_unavailable' using errcode = 'NLK15',
           detail = jsonb_build_object('key', p_key, 'version', v_version.version,
             'schema', v_version.value_schema, 'schemaVersion', v_version.value_schema_version,

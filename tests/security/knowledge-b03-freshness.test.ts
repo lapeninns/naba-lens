@@ -951,4 +951,39 @@ rollback;`)
       )
     ).toBe("f")
   })
+  it("read a rule's latest version for the use, as the forecast does", async () => {
+    const id = tag()
+    const hist = `test_hist_${id}`
+    const now = `test_now_${id}`
+    expect(
+      await outcomes("kn-b03-basis-latest", [
+        // Counted from the check day once, from the stated day now.
+        rule("histObserved", hist, 1, "observed_on"),
+        rule("histStated", hist, 2, "stated_on"),
+        // The other way round.
+        rule("nowStated", now, 1, "stated_on"),
+        rule("nowObserved", now, 2, "observed_on"),
+        preview("previewHistorical", { internal: hist }),
+        preview("previewLatest", { internal: now }),
+        version("presenceNamesHistorical", "presence", { internal: hist }),
+        version("presenceNamesLatest", "presence", { internal: now }),
+        rule("histObservedAgain", hist, 3, "observed_on"),
+      ])
+    ).toEqual({
+      histObserved: "ok",
+      histStated: "ok",
+      nowStated: "ok",
+      nowObserved: "ok",
+      previewHistorical: "ok",
+      previewLatest: REFUSED,
+      presenceNamesHistorical: "ok",
+      presenceNamesLatest: REFUSED,
+      histObservedAgain: REFUSED,
+    })
+    expect(
+      psql(
+        `select has_function_privilege('authenticated', 'private.knowledge_policy_counts_from_check(text, text)', 'execute')`
+      )
+    ).toBe("f")
+  })
 })
