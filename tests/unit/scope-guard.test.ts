@@ -139,6 +139,12 @@ const ALLOWED_HANDLERS = new Set([
   "/api/media/[id]/stream",
   "/api/media/[id]/thumb",
   "/api/internal/cleanup",
+  // B05-m6 internal evidence documents (b05-design §2A): PDF allergen and
+  // recipe evidence for the venue's manager, admins and the allergen
+  // authority. Attachment-only download, never inline; staff have no access.
+  "/api/documents/[id]/finalise",
+  "/api/documents/[id]/download",
+  "/api/internal/document-cleanup",
   // Owner-approved indefinite original retention and authenticated health checks.
   "/api/internal/media-archive",
   "/api/internal/media-archive/status",
