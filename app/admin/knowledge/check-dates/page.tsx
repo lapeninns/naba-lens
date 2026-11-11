@@ -226,7 +226,9 @@ export default async function CheckDatesPreviewPage({
               ) : undefined
             }
           >
-            {COPY.failed}
+            {preview?.code === "freshness_basis_unavailable"
+              ? preview.message
+              : COPY.failed}
           </Notice>
         ) : null}
 

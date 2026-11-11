@@ -1176,6 +1176,11 @@ export type KnowledgeErrorCode =
   | "draft_already_sent"
   /** A43: NLK14, an import decided on a check that has a recorded answer. */
   | "import_slot_has_answer"
+  /**
+   * NLK15: a rule counting from the day it was checked, on a question whose
+   * form doesn't ask that (owner decision, 11 Nov 2026).
+   */
+  | "freshness_basis_unavailable"
 
 export type KnowledgeFailure = Omit<AmenityFailure, "code"> & {
   code: KnowledgeErrorCode
@@ -1204,6 +1209,7 @@ export const KNOWLEDGE_SQLSTATES = {
   NLK12: "reconcile_source_changed",
   NLK13: "place_exists",
   NLK14: "import_slot_has_answer",
+  NLK15: "freshness_basis_unavailable",
 } as const
 
 // ---- RPC signatures ------------------------------------------------------------

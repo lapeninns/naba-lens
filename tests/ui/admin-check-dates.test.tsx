@@ -188,6 +188,26 @@ describe("admin check dates preview", () => {
     expect(screen.queryByRole("link", { name: "Try again" })).toBeNull()
   })
 
+  it("says why a rule counting from the check day can't apply to this question", async () => {
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: false,
+      code: "freshness_basis_unavailable",
+      status: 400,
+      message:
+        "This rule counts from the day an answer was checked, but this question doesn't ask when it was checked. Choose a rule that doesn't need that date.",
+    })
+    await show({ key: "onsite_parking", internal: "offering_90" })
+    expect(
+      screen.getByText(
+        "This rule counts from the day an answer was checked, but this question doesn't ask when it was checked. Choose a rule that doesn't need that date."
+      )
+    ).toBeTruthy()
+    expect(
+      screen.queryByText("We couldn't work out what this rule would do.")
+    ).toBeNull()
+    expect(screen.queryByRole("link", { name: "Try again" })).toBeNull()
+  })
+
   it("offers only the rules the server lists, for each use (A42)", async () => {
     await show()
     const internal = screen.getByLabelText(

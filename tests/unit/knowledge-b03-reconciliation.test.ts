@@ -209,6 +209,19 @@ describe("reconciliation errors", () => {
         message:
           "This import can't be used: this question already has a recorded answer (in use, withdrawn or past its check date). Nothing was changed.",
       })
+    // Owner decision (11 Nov): NLK15, a Checked-on rule on a question whose
+    // form doesn't ask when it was checked.
+    for (const error of [
+      { code: "NLK15", message: "x" },
+      { code: "P0001", message: "freshness_basis_unavailable" },
+    ])
+      expect(knowledgeRpcFailure(error, "t")).toEqual({
+        ok: false,
+        code: "freshness_basis_unavailable",
+        status: 400,
+        message:
+          "This rule counts from the day an answer was checked, but this question doesn't ask when it was checked. Choose a rule that doesn't need that date.",
+      })
     expect(
       knowledgeRpcFailure(
         { code: "22023", message: "invalid_source_kind" },

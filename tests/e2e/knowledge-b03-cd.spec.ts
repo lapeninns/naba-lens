@@ -869,7 +869,9 @@ test.describe("B03 browser charters C and D", () => {
       },
     ])
     // The first question: version 1 in force, version 3 from ten years on
-    // and no version 2. The second: its own internal and guest rules.
+    // and no version 2. The second: its own internal and guest rules. Both
+    // are facility.v1: a rule counting from the day it was checked binds only
+    // to a question whose form asks that (NLK15).
     seedQuestions([
       {
         key: q1,
@@ -878,7 +880,7 @@ test.describe("B03 browser charters C and D", () => {
         versions: [
           {
             version: 1,
-            schema: "presence",
+            schema: "facility",
             confirmation: "none",
             freshness: { internal: rule.v1.id, public: null },
             effectiveFrom: null,
@@ -886,7 +888,7 @@ test.describe("B03 browser charters C and D", () => {
           },
           {
             version: 3,
-            schema: "presence",
+            schema: "facility",
             confirmation: "none",
             freshness: { internal: rule.v3.id, public: rule.event.id },
             effectiveFrom: "now() + interval '10 years'",
@@ -901,7 +903,7 @@ test.describe("B03 browser charters C and D", () => {
         versions: [
           {
             version: 1,
-            schema: "presence",
+            schema: "facility",
             confirmation: "none",
             freshness: { internal: rule.second.id, public: rule.event.id },
             effectiveFrom: null,

@@ -29,6 +29,7 @@ const STATUS: Record<KnowledgeErrorCode, KnowledgeFailure["status"]> = {
   draft_conflict: 409,
   draft_already_sent: 409,
   import_slot_has_answer: 409,
+  freshness_basis_unavailable: 400,
   unavailable: 503,
 }
 
@@ -136,6 +137,12 @@ const KNOWLEDGE: Record<string, Mapping> = {
     "import_slot_has_answer",
     "This import can't be used: this question already has a recorded answer (in use, withdrawn or past its check date). Nothing was changed.",
   ],
+  // Owner decision (11 Nov 2026): a rule counting from the day it was
+  // checked needs a question whose form asks that.
+  freshness_basis_unavailable: [
+    "freshness_basis_unavailable",
+    "This rule counts from the day an answer was checked, but this question doesn't ask when it was checked. Choose a rule that doesn't need that date.",
+  ],
   knowledge_source_not_found: ["not_found", "This source could not be found."],
   legacy_fact_not_found: [
     "not_found",
@@ -155,6 +162,7 @@ const BY_SQLSTATE: Record<string, string> = {
   NLK12: "reconcile_source_changed",
   NLK13: "place_exists",
   NLK14: "import_slot_has_answer",
+  NLK15: "freshness_basis_unavailable",
 }
 
 const FIELD_ERRORS: Record<string, [field: string, message: string]> = {

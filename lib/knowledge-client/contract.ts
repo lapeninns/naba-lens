@@ -635,7 +635,8 @@ export function knowledgeAssetsResult(
       code === "self_confirmation_not_permitted" ||
       code === "draft_conflict" ||
       code === "draft_already_sent" ||
-      code === "import_slot_has_answer"
+      code === "import_slot_has_answer" ||
+      code === "freshness_basis_unavailable"
         ? "state_conflict"
         : code,
   }

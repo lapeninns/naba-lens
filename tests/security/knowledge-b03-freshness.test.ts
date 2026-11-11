@@ -799,3 +799,102 @@ describe("guards", () => {
     ).toBe("cdcd2a00eb77d64e9ff9306b042a05d4")
   })
 })
+
+describe("rules that count from the day it was checked (owner decision, 11 Nov 2026)", () => {
+  it("bind only to questions whose form asks when it was checked (NLK15)", async () => {
+    const w = await world("kn-b03-basis-guard")
+    const id = randomUUID().replace(/-/g, "").slice(0, 16)
+    const obs = `test_obs_${id}`
+    const evt = `test_evt_${id}`
+    const late = `test_late_${id}`
+    const claims = `'${JSON.stringify({ sub: w.admin.id, role: "authenticated" })}'`
+    // A new guest_toilets version (rolled back below) with this schema and
+    // these rules.
+    const version = (
+      schema: string,
+      freshness: string
+    ) => `insert into public.knowledge_question_versions
+select (jsonb_populate_record(null::public.knowledge_question_versions, to_jsonb(v) || jsonb_build_object(
+  'version', (select max(m.version) + 1 from public.knowledge_question_versions m where m.key = v.key),
+  'value_schema', '${schema}', 'freshness', '${freshness}'::jsonb, 'change_kind', 'rule',
+  'change_note', 'TEST basis guard', 'upgrade_rules', '{}'::jsonb, 'created_at', now(),
+  'effective_from', null, 'created_by', null))).*
+from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.version = 1`
+    const attempt = (name: string, sql: string) => `do $$ begin
+  ${sql};
+  perform set_config('g.${name}', 'ok', true);
+exception when others then
+  perform set_config('g.${name}', sqlstate || ':' || sqlerrm, true);
+end $$;`
+    const asAdmin = (
+      name: string,
+      policy: string
+    ) => `set local "request.jwt.claims" to ${claims};
+set local role authenticated;
+${attempt(name, `perform public.knowledge_freshness_preview('guest_toilets', '${policy}'::jsonb)`)}
+reset role;`
+    // One transaction, rolled back: nothing reaches the shared stack.
+    const out = psql(`begin;
+insert into public.knowledge_freshness_policies (id, version, claim_class, use, max_age, recheck_lead, basis)
+values ('${obs}', 1, 'fixture', 'internal', interval '30 days', interval '7 days', 'observed_on'),
+       ('${evt}', 1, 'event', 'public', null, null, 'event_end');
+${asAdmin("previewPresenceObserved", `{"internal": "${obs}"}`)}
+${asAdmin("previewPresenceEvent", `{"public": "${evt}"}`)}
+${attempt("presenceObserved", version("presence", `{"internal": "${obs}", "public": null}`))}
+${attempt("presenceEvent", version("presence", `{"internal": null, "public": "${evt}"}`))}
+${attempt("facilityObserved", version("facility", `{"internal": "${obs}", "public": null}`))}
+${asAdmin("previewFacilityObserved", `{"internal": "${obs}"}`)}
+${attempt("presenceNamesLate", version("presence", `{"internal": "${late}", "public": null}`))}
+${attempt(
+  "lateObserved",
+  `insert into public.knowledge_freshness_policies (id, version, claim_class, use, max_age, recheck_lead, basis)
+  values ('${late}', 1, 'fixture', 'internal', interval '30 days', interval '7 days', 'observed_on')`
+)}
+${attempt(
+  "lateStated",
+  `insert into public.knowledge_freshness_policies (id, version, claim_class, use, max_age, recheck_lead, basis)
+  values ('${late}', 1, 'policy', 'internal', interval '30 days', interval '7 days', 'stated_on')`
+)}
+select jsonb_build_object(${[
+      "previewPresenceObserved",
+      "previewPresenceEvent",
+      "presenceObserved",
+      "presenceEvent",
+      "facilityObserved",
+      "previewFacilityObserved",
+      "presenceNamesLate",
+      "lateObserved",
+      "lateStated",
+    ]
+      .map((k) => `'${k}', current_setting('g.${k}')`)
+      .join(", ")});
+rollback;`)
+    const got = JSON.parse(out.split("\n").pop()!) as Record<string, string>
+    const refused = "NLK15:freshness_basis_unavailable"
+    expect(got).toEqual({
+      // guest_toilets is presence.v1 in force: no Checked on on its form.
+      previewPresenceObserved: refused,
+      previewPresenceEvent: "ok",
+      presenceObserved: refused,
+      presenceEvent: "ok",
+      // facility.v1 records Checked on, so the same rule binds and previews.
+      facilityObserved: "ok",
+      previewFacilityObserved: "ok",
+      // A rule a presence version already names can't later count from the
+      // check day; another basis can.
+      presenceNamesLate: "ok",
+      lateObserved: refused,
+      lateStated: "ok",
+    })
+    expect(
+      psql(
+        `select private.knowledge_schema_has_checked_on(s) from unnest(array['presence', 'connectivity.wifi', 'policy', 'schedule_event', 'facility', 'accessibility', 'service']) s`
+      ).split("\n")
+    ).toEqual(["f", "f", "f", "f", "t", "t", "t"])
+    expect(
+      psql(
+        `select has_function_privilege('authenticated', 'private.knowledge_schema_has_checked_on(text)', 'execute')`
+      )
+    ).toBe("f")
+  })
+})
