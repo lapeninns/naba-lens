@@ -104,7 +104,12 @@ export function addStaff(
   return person!
 }
 
-/** A finding in the sender's own session (the 16-argument knowledge_submit). */
+/**
+ * A finding in the sender's own session. Without structured detail or a
+ * Checked on date it is the legacy 16-argument knowledge_submit; with
+ * either, the 19-argument one that validates them against the registry
+ * version, as the capture form sends. `signature` says which was called.
+ */
 export async function sendFinding(
   db: Db,
   venue: Venue,
@@ -120,31 +125,39 @@ export async function sendFinding(
     observedOn?: string | null
   } = {}
 ) {
-  return knowledgeOk<{ contributionId: string; outcome: string }>(
+  const legacy = {
+    p_check_id: checkId,
+    p_slot_revision: slotRevision(venue, questionKey),
+    p_idempotency_key: randomUUID(),
+    p_kind: "finding",
+    p_answer: answer,
+    p_finding: null,
+    p_limitations: null,
+    p_reason: o.reason ?? null,
+    p_unknown_preset: null,
+    p_tried_text: null,
+    p_change_reason: null,
+    p_responds_to: null,
+    p_asset_ids: o.assets ?? [],
+    p_internal_metadata: null,
+    p_redaction_confirmed: null,
+    p_confirm_own: false,
+  }
+  const args =
+    o.detail || o.observedOn
+      ? {
+          ...legacy,
+          p_detail: o.detail ?? null,
+          p_observed_on: o.observedOn ?? null,
+          p_observed_on_source: o.observedOn ? "chosen" : null,
+        }
+      : legacy
+  const out = await knowledgeOk<{ contributionId: string; outcome: string }>(
     db,
     "knowledge_submit",
-    {
-      p_check_id: checkId,
-      p_slot_revision: slotRevision(venue, questionKey),
-      p_idempotency_key: randomUUID(),
-      p_kind: "finding",
-      p_answer: answer,
-      p_finding: null,
-      p_limitations: null,
-      p_reason: o.reason ?? null,
-      p_unknown_preset: null,
-      p_tried_text: null,
-      p_change_reason: null,
-      p_responds_to: null,
-      p_asset_ids: o.assets ?? [],
-      p_internal_metadata: null,
-      p_redaction_confirmed: null,
-      p_confirm_own: false,
-      p_detail: o.detail ?? null,
-      p_observed_on: o.observedOn ?? null,
-      p_observed_on_source: o.observedOn ? "chosen" : null,
-    }
+    args
   )
+  return { ...out, signature: Object.keys(args).length as 16 | 19 }
 }
 
 /** Confirms a finding in the decider's own session. */

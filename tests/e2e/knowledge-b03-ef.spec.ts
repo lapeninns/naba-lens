@@ -653,6 +653,13 @@ test.describe("knowledge B03 E and F", () => {
       { assets: [video] }
     )
     expect(sent.outcome).toBe("awaiting_confirmation")
+    // Venue A's Yes is the legacy answer: the 16-argument submit, so it
+    // isn't validated as accessibility.v1 and records no structured detail.
+    expect(sent.signature).toBe(16)
+    expect(
+      psql(`select count(*) from public.knowledge_contribution_details
+        where contribution_id = ${uuid(sent.contributionId)}`)
+    ).toBe("0")
     await confirmFinding(
       await sessionOf(w.managerA),
       w.venueA,
@@ -697,6 +704,7 @@ test.describe("knowledge B03 E and F", () => {
         observedOn: londonDaysAgo(0),
       }
     )
+    expect(sentB.signature).toBe(19)
     await confirmFinding(
       await sessionOf(w.managerB),
       w.venueB,
