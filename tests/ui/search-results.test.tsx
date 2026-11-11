@@ -179,6 +179,31 @@ describe("SearchResults follows page one (R1)", () => {
     expect(onLostFocus).toHaveBeenCalledTimes(1)
   })
 
+  it("still gives focus a home when the window lost focus before the reset", async () => {
+    fetchMock.fetchSearchPage.mockResolvedValue({
+      ok: true,
+      page: { items: [item(10), item(11)], nextCursor: null },
+    })
+    const onLostFocus = vi.fn()
+    const { rerender } = render(
+      <List initialPage={okPage(2, "c1")} onLostFocus={onLostFocus} />
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    const card = cards()[2] as HTMLElement
+    expect(document.activeElement).toBe(card)
+    // The user switches tab or app: the card blurs with no new target.
+    act(() => {
+      card.dispatchEvent(
+        new FocusEvent("focusout", { bubbles: true, relatedTarget: null })
+      )
+    })
+    rerender(<List initialPage={okPage(1)} onLostFocus={onLostFocus} />)
+    expect(cards()).toHaveLength(1)
+    expect(onLostFocus).toHaveBeenCalledTimes(1)
+  })
+
   it("leaves focus alone when a new page one arrives while focus is elsewhere", () => {
     const onLostFocus = vi.fn()
     const { rerender } = render(

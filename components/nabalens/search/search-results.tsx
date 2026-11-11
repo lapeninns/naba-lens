@@ -129,8 +129,10 @@ export function SearchResults({
   const lastFrom = React.useRef<string | null>(null)
   // The committed generation, for the parts of a settled page outside `list`.
   const committedGen = React.useRef(list.gen)
-  // Whether focus is on a card, so a reset that removes it can recover.
-  const focusInList = React.useRef(false)
+  // The element inside the list that last took focus, so a reset that
+  // removes it can recover. Kept while the window or tab loses focus (a blur
+  // with no new target): the element is still the page's focus then.
+  const focusedInList = React.useRef<Element | null>(null)
 
   // The committed list moved to a new page one: drop the page in flight now,
   // during the commit, and give focus a home if its card went with the reset.
@@ -138,15 +140,13 @@ export function SearchResults({
     if (committedGen.current === list.gen) return
     committedGen.current = list.gen
     abort.current?.abort()
-    const active = document.activeElement
-    if (
-      focusInList.current &&
-      (!active ||
-        active === document.body ||
-        !listRef.current?.contains(active))
-    ) {
-      focusInList.current = false
-      onLostFocus()
+    const lost = focusedInList.current
+    if (lost && !lost.isConnected) {
+      focusedInList.current = null
+      const active = document.activeElement
+      // Only when nothing else took focus meanwhile.
+      if (!active || active === document.body || !active.isConnected)
+        onLostFocus()
     }
   }, [list.gen, onLostFocus])
 
@@ -247,13 +247,15 @@ export function SearchResults({
       <ul
         ref={listRef}
         className={RESULTS_GRID}
-        onFocus={() => {
-          focusInList.current = true
+        onFocus={(event) => {
+          focusedInList.current = event.target
         }}
         onBlur={(event) => {
-          focusInList.current =
-            event.relatedTarget instanceof Node &&
-            event.currentTarget.contains(event.relatedTarget)
+          // Focus moved to another element outside the list: forget it. No
+          // new target means the window lost focus; the card keeps it.
+          const next = event.relatedTarget
+          if (next instanceof Node && !event.currentTarget.contains(next))
+            focusedInList.current = null
         }}
       >
         {items.map((item) => (
