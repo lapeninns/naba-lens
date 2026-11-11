@@ -13,14 +13,26 @@
 -- * private.knowledge_policy_counts_from_check(id, use): whether a rule
 --   counts from the check day, read from its latest version for that use, the
 --   one the preview's forecast and freshness now read.
--- * Refused with freshness_basis_unavailable (NLK15) wherever such a rule is
---   bound to such a question:
---   - a question version naming an observed_on rule for a use
---     (knowledge_question_versions, before insert);
---   - an observed_on version of a rule that a version of such a question
---     already names for that use (knowledge_freshness_policies, before insert);
---   - the admin Check dates preview proposing one for the question's version
---     in force (public.knowledge_freshness_preview, body otherwise unchanged).
+-- * private.knowledge_basis_conflict(key): the first way a question breaks
+--   the decision, or null:
+--   - a version whose own form has no Checked on names such a rule; or
+--   - the latest version's form has no Checked on while a version in force
+--     now, or from a scheduled date, names such a rule. Capture renders the
+--     latest version, and submit, correct, import and the detail checks
+--     validate against it, while freshness reads the version in force
+--     (knowledge_version_as_of): a successor scheduled without Checked on
+--     would take the date away while the earlier rule still needs it.
+--   Other scheduling is unchanged. To move a question with such a rule to a
+--   form without Checked on, a version first drops the rule, or the new form
+--   takes effect at once.
+-- * Refused with freshness_basis_unavailable (NLK15):
+--   - question versions that leave their question in conflict
+--     (knowledge_question_versions, after insert);
+--   - a rule version that leaves a question naming the rule in conflict
+--     (knowledge_freshness_policies, after insert);
+--   - the admin Check dates preview proposing such a rule for a question whose
+--     latest form has no Checked on (public.knowledge_freshness_preview, body
+--     otherwise unchanged).
 -- No existing row is affected: no registry version names a rule (OD-15).
 
 create function private.knowledge_schema_has_checked_on(p_schema text, p_version integer)
@@ -45,32 +57,83 @@ as $$
     limit 1), false);
 $$;
 
+create function private.knowledge_basis_conflict(p_key text)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_latest public.knowledge_question_versions;
+  v_found record;
+begin
+  -- A version whose own form has no Checked on.
+  select v.version, v.value_schema, v.value_schema_version, u.use, v.freshness ->> u.use as policy_id
+  into v_found
+  from public.knowledge_question_versions v
+  cross join (values ('internal'), ('public')) u(use)
+  where v.key = p_key
+    and not private.knowledge_schema_has_checked_on(v.value_schema, v.value_schema_version)
+    and private.knowledge_policy_counts_from_check(v.freshness ->> u.use, u.use)
+  order by v.version, u.use
+  limit 1;
+  if found then
+    return jsonb_build_object('key', p_key, 'version', v_found.version, 'schema', v_found.value_schema,
+      'schemaVersion', v_found.value_schema_version, 'use', v_found.use, 'policyId', v_found.policy_id);
+  end if;
+
+  -- The form staff are given has no Checked on, while a version in force now
+  -- or from a scheduled date names such a rule.
+  select v.* into v_latest from public.knowledge_question_versions v
+  where v.key = p_key order by v.version desc limit 1;
+  if not found
+     or private.knowledge_schema_has_checked_on(v_latest.value_schema, v_latest.value_schema_version) then
+    return null;
+  end if;
+  select f.version, f.value_schema, f.value_schema_version, u.use, f.freshness ->> u.use as policy_id
+  into v_found
+  from (
+    select now() as at
+    union
+    select greatest(x.created_at, coalesce(x.effective_from, x.created_at))
+    from public.knowledge_question_versions x
+    where x.key = p_key and greatest(x.created_at, coalesce(x.effective_from, x.created_at)) > now()
+  ) t
+  cross join lateral private.knowledge_version_as_of(p_key, t.at) f
+  cross join (values ('internal'), ('public')) u(use)
+  where f.key is not null
+    and private.knowledge_policy_counts_from_check(f.freshness ->> u.use, u.use)
+  order by t.at, u.use
+  limit 1;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object('key', p_key, 'version', v_found.version, 'schema', v_found.value_schema,
+    'schemaVersion', v_found.value_schema_version, 'use', v_found.use, 'policyId', v_found.policy_id,
+    'form', jsonb_build_object('version', v_latest.version, 'schema', v_latest.value_schema,
+      'schemaVersion', v_latest.value_schema_version));
+end;
+$$;
+
 create function private.knowledge_question_version_basis_guard()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 declare
-  v_use text;
-  v_rule text;
+  v_conflict jsonb;
 begin
-  if private.knowledge_schema_has_checked_on(new.value_schema, new.value_schema_version) then
-    return new;
+  v_conflict := private.knowledge_basis_conflict(new.key);
+  if v_conflict is not null then
+    raise exception 'freshness_basis_unavailable' using errcode = 'NLK15', detail = v_conflict::text;
   end if;
-  foreach v_use in array array['internal', 'public'] loop
-    v_rule := new.freshness ->> v_use;
-    if private.knowledge_policy_counts_from_check(v_rule, v_use) then
-      raise exception 'freshness_basis_unavailable' using errcode = 'NLK15',
-        detail = jsonb_build_object('key', new.key, 'version', new.version, 'schema', new.value_schema,
-          'schemaVersion', new.value_schema_version, 'use', v_use, 'policyId', v_rule)::text;
-    end if;
-  end loop;
-  return new;
+  return null;
 end;
 $$;
 
+-- After insert: the question as it stands with the new versions.
 create trigger knowledge_question_versions_basis_guard
-  before insert on public.knowledge_question_versions
+  after insert on public.knowledge_question_versions
   for each row execute function private.knowledge_question_version_basis_guard();
 
 create function private.knowledge_freshness_policy_basis_guard()
@@ -79,45 +142,42 @@ language plpgsql
 set search_path = ''
 as $$
 declare
-  v_version public.knowledge_question_versions;
+  v_key text;
+  v_conflict jsonb;
 begin
-  -- Only the rule's latest version for the use counts.
-  if new.basis <> 'observed_on' or exists (
-    select 1 from public.knowledge_freshness_policies p
-    where p.id = new.id and p.use = new.use and p.version > new.version
-  ) then
-    return new;
+  -- A version of another basis can't make a rule count from the check day.
+  if new.basis <> 'observed_on' then
+    return null;
   end if;
-  select v.* into v_version
-  from public.knowledge_question_versions v
-  where v.freshness ->> new.use = new.id
-    and not private.knowledge_schema_has_checked_on(v.value_schema, v.value_schema_version)
-  order by v.key, v.version
-  limit 1;
-  if found then
-    raise exception 'freshness_basis_unavailable' using errcode = 'NLK15',
-      detail = jsonb_build_object('key', v_version.key, 'version', v_version.version,
-        'schema', v_version.value_schema, 'schemaVersion', v_version.value_schema_version,
-        'use', new.use, 'policyId', new.id)::text;
-  end if;
-  return new;
+  for v_key in
+    select distinct v.key from public.knowledge_question_versions v
+    where v.freshness ->> new.use = new.id
+    order by v.key
+  loop
+    v_conflict := private.knowledge_basis_conflict(v_key);
+    if v_conflict is not null then
+      raise exception 'freshness_basis_unavailable' using errcode = 'NLK15', detail = v_conflict::text;
+    end if;
+  end loop;
+  return null;
 end;
 $$;
 
 create trigger knowledge_freshness_policies_basis_guard
-  before insert on public.knowledge_freshness_policies
+  after insert on public.knowledge_freshness_policies
   for each row execute function private.knowledge_freshness_policy_basis_guard();
 
 revoke all on function
   private.knowledge_schema_has_checked_on(text, integer),
   private.knowledge_policy_counts_from_check(text, text),
+  private.knowledge_basis_conflict(text),
   private.knowledge_question_version_basis_guard(),
   private.knowledge_freshness_policy_basis_guard()
 from public, anon, authenticated, service_role;
 
--- The b03e body, with the basis check after the field checks: the question's
--- version in force (else its latest) must record Checked on for an
--- observed_on rule.
+-- The b03e body, with the basis check after the field checks: the form staff
+-- are given (the question's latest version) must record Checked on for a rule
+-- counting from the check day.
 create or replace function public.knowledge_freshness_preview(p_key text, p_policy jsonb)
 returns jsonb
 language plpgsql
@@ -154,11 +214,8 @@ begin
     raise exception 'invalid_value' using errcode = '22023', detail = jsonb_build_object('fields', v_fields)::text;
   end if;
 
-  select * into v_version from private.knowledge_version_as_of(p_key, now());
-  if v_version.key is null then
-    select v.* into v_version from public.knowledge_question_versions v
-    where v.key = p_key order by v.version desc limit 1;
-  end if;
+  select v.* into v_version from public.knowledge_question_versions v
+  where v.key = p_key order by v.version desc limit 1;
   if not private.knowledge_schema_has_checked_on(v_version.value_schema, v_version.value_schema_version) then
     foreach v_use in array array['internal', 'public'] loop
       if private.knowledge_policy_counts_from_check(p_policy ->> v_use, v_use) then

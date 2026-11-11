@@ -986,4 +986,87 @@ rollback;`)
       )
     ).toBe("f")
   })
+  it("keep the date on the form while a rule counting from it is in force (scheduled versions)", async () => {
+    const id = tag()
+    const obs = `test_obs_${id}`
+    const stated = `test_stated_${id}`
+    const inAWeek = { effective: "now() + interval '7 days'" }
+    // facility@1 in force with the rule: capture renders the latest version,
+    // so a successor without Checked on can't be scheduled under it.
+    expect(
+      await outcomes("kn-b03-basis-scheduled", [
+        rule("obsRule", obs, 1, "observed_on"),
+        version("facilityObserved", "facility", { internal: obs }),
+        version("scheduledPresence", "presence", {}, inAWeek),
+        version(
+          "scheduledFacility2",
+          "facility",
+          {},
+          { schemaVersion: 2, ...inAWeek }
+        ),
+        // Supported scheduling: the next form keeps Checked on, or the form
+        // without it takes effect at once, which drops the rule.
+        version("scheduledFacility", "facility", {}, inAWeek),
+        version("presenceNow", "presence", {}),
+      ])
+    ).toEqual({
+      obsRule: "ok",
+      facilityObserved: "ok",
+      scheduledPresence: REFUSED,
+      scheduledFacility2: REFUSED,
+      scheduledFacility: "ok",
+      presenceNow: "ok",
+    })
+    // A rule in force can't start counting from the check day once a form
+    // without Checked on is scheduled, and the preview reads that form.
+    expect(
+      await outcomes("kn-b03-basis-scheduled-rule", [
+        rule("obsRule", obs, 1, "observed_on"),
+        rule("statedRule", stated, 1, "stated_on"),
+        version("facilityStated", "facility", { internal: stated }),
+        version("scheduledPresence", "presence", {}, inAWeek),
+        rule("statedBecomesObserved", stated, 2, "observed_on"),
+        preview("previewScheduledPresence", { internal: obs }),
+      ])
+    ).toEqual({
+      obsRule: "ok",
+      statedRule: "ok",
+      facilityStated: "ok",
+      scheduledPresence: "ok",
+      statedBecomesObserved: REFUSED,
+      previewScheduledPresence: REFUSED,
+    })
+    // presence@1 in force, facility@1 with the rule scheduled: fine until a
+    // later form without Checked on would follow it.
+    expect(
+      await outcomes("kn-b03-basis-scheduled-later", [
+        rule("obsRule", obs, 1, "observed_on"),
+        version(
+          "scheduledFacilityObserved",
+          "facility",
+          { internal: obs },
+          inAWeek
+        ),
+        preview("previewScheduledFacility", { internal: obs }),
+        version(
+          "laterPresence",
+          "presence",
+          {},
+          {
+            effective: "now() + interval '14 days'",
+          }
+        ),
+      ])
+    ).toEqual({
+      obsRule: "ok",
+      scheduledFacilityObserved: "ok",
+      previewScheduledFacility: "ok",
+      laterPresence: REFUSED,
+    })
+    expect(
+      psql(
+        `select has_function_privilege('authenticated', 'private.knowledge_basis_conflict(text)', 'execute')`
+      )
+    ).toBe("f")
+  })
 })
