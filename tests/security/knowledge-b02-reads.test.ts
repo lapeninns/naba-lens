@@ -199,6 +199,29 @@ describe("manager triage summary (R3)", () => {
 
     // A finding waiting for confirmation.
     await submit(w.staffA, w, "step_free_entrance", { answer: "no" })
+    // B03-f: an import waiting, proposed by the admin's legacy run onto the
+    // empty guest_toilets slot (the suggestions queue, never findings).
+    const fact = randomUUID()
+    psql(`insert into public.venue_amenity_facts (id, venue_id, amenity_key, presence, facts)
+      values ('${fact}', '${w.venue}', 'toilets', 'present', 'TEST triage toilets')`)
+    await json(w.admin, "knowledge_mapping_review", {
+      p_legacy_fact_id: fact,
+      p_legacy_revision: 1,
+      p_question_key: "guest_toilets",
+      p_kind: "exact",
+      p_reason: "TEST reviewed",
+      p_idempotency_key: randomUUID(),
+    })
+    for (const mode of ["dry_run", "apply"])
+      await json(w.admin, "knowledge_reconcile", {
+        p_kind: "legacy",
+        p_mode: mode,
+        p_venue_id: w.venue,
+      })
+    // B03-e: an open recheck on a check with no answer (no job closes it).
+    psql(`insert into public.knowledge_recheck_tasks (venue_id, check_id, question_key, cause, use, due_at)
+      values ('${w.venue}', '${w.checks.onsite_parking}', 'onsite_parking', 'scope_changed', 'internal',
+        '2026-10-01 00:00+00')`)
     // A checklist photo waiting for review.
     const asset = await insertAsset(service, {
       uploader: w.staffA.id,
@@ -315,6 +338,11 @@ describe("manager triage summary (R3)", () => {
     // The manager account's own photo is its own count, not in waiting.
     expect(mo.menu_photos).toMatchObject({ waiting: 1, own_waiting: 1 })
     expect(mo.findings.waiting).toBe(1)
+    // The import and the recheck each count once, apart from findings.
+    expect(mo.suggestions.waiting).toBe(1)
+    expect(mo.suggestions.oldest_waiting_at).not.toBeNull()
+    expect(mo.rechecks.waiting).toBe(1)
+    same(mo.rechecks.oldest_waiting_at, "2026-10-01T00:00:00+00:00")
     const sg = await expectMatchesReads(w.staffManager, null, true)
     expect(sg.menu_photos.waiting).toBeGreaterThanOrEqual(1)
     const ad = await expectMatchesReads(w.admin, w.venue, true)

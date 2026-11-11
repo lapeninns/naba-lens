@@ -100,6 +100,15 @@ async function settled(page: Page) {
   await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
 }
 
+/**
+ * Once the page has settled, the check page renders each of its sections
+ * once: the #main scoping below can't hide a duplicate rendered elsewhere.
+ */
+async function singleSections(page: Page) {
+  await expect(page.locator("#amenity-status")).toHaveCount(1)
+  await expect(page.locator("#amenity-history")).toHaveCount(1)
+}
+
 /** The To confirm panel (CoverageSection id amenity-to-confirm). */
 const toConfirm = (page: Page) => page.locator("#main #amenity-to-confirm")
 /** Where it stands (CoverageSection id amenity-status). */
@@ -681,6 +690,7 @@ test.describe("knowledge B03 E and F", () => {
     const manager = await signedInPage(browser, w.managerA, DESK)
     await manager.goto(MANAGER.check(a))
     await settled(manager)
+    await singleSections(manager)
     await expect(
       whereItStands(manager).getByRole("link", { name: CORRECT_COPY.open })
     ).toBeVisible()
@@ -693,6 +703,7 @@ test.describe("knowledge B03 E and F", () => {
     const admin = await signedInPage(browser, w.admin, DESK)
     await admin.goto(ADMIN.check(a))
     await settled(admin)
+    await singleSections(admin)
     await expect(
       whereItStands(admin).getByRole("link", { name: CORRECT_COPY.open })
     ).toBeVisible()
@@ -706,6 +717,7 @@ test.describe("knowledge B03 E and F", () => {
     const legacy = await signedInPage(browser, w.staffA2, DESK)
     await legacy.goto(LEGACY_MANAGE.check(a))
     await settled(legacy)
+    await singleSections(legacy)
     await expect(history(legacy)).toBeVisible()
     await expect(atDate(legacy)).toBeVisible()
     await expect(
@@ -1074,8 +1086,10 @@ test.describe("knowledge B03 E and F", () => {
     expect(Date.parse(earlier)).toBeLessThan(Date.parse(correctionRow.at))
     const later = secondAfter(withdrawal.at)
     for (const page of [manager, legacy]) {
-      if (page === legacy) await legacy.goto(LEGACY_MANAGE.check(a))
-      await settled(legacy)
+      if (page === legacy) {
+        await legacy.goto(LEGACY_MANAGE.check(a))
+        await settled(page)
+      }
       const then = await answerOn(page, earlier)
       await expect(
         atDate(page).getByText(AT_DATE_COPY.was(then, ANSWER_LABEL.yes), {
