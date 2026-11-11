@@ -14,10 +14,12 @@ import {
   budgetRunEnv,
   budgetRunId,
   EXPECTED_CASES,
+  FINALIZE_MS,
   groupArgs,
   judgeGroup,
   resetManifest,
   summariseBudget,
+  terminationHook,
   validateMeasurement,
   validateSelection,
 } from "./budget.mjs"
@@ -197,4 +199,20 @@ test("every guard and every child comes from run.mjs: no own signals, no stack.m
   // The only child spawned outside the supervisor is the offline list (spawnSync, killed only as its own unreaped child).
   assert.equal((SOURCE.match(/spawnSync\(/g) ?? []).length, 1)
   assert.match(SOURCE, /sup\.run\(`playwright \$\{group\.name\}`/)
+})
+
+test("on a signal the gate interrupts every group, waits for finalisation within the deadline, and blocks the receipt if it does not finish", async () => {
+  const calls = []
+  const sup = { interrupt: async (why) => calls.push(`interrupt ${why}`), report: () => ({ reasons: ["seed (process group 7): alive"] }) }
+  const receipt = { block: (reasons) => calls.push(["block", reasons]) }
+  // Finalised in time: nothing more.
+  await terminationHook(sup, receipt, Promise.resolve(), 50)()
+  assert.deepEqual(calls, ["interrupt signal"])
+  calls.length = 0
+  // Never finalised: the receipt is blocked with the reasons and the deadline.
+  await terminationHook(sup, receipt, new Promise(() => {}), 30)()
+  assert.deepEqual(calls, ["interrupt signal", ["block", ["seed (process group 7): alive", "the run did not finish settling and finalising before the signal handler's deadline"]]])
+  // A receipt that cannot be written still lets the hook return (the in-progress receipt already blocks).
+  await terminationHook(sup, { block: () => { throw new Error("EROFS") } }, new Promise(() => {}), 10)()
+  assert.equal(FINALIZE_MS, 120_000)
 })

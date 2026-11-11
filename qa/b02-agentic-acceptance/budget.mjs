@@ -95,6 +95,29 @@ export const EXPECTED_CASES = 6
 if (BUDGET_GROUPS.reduce((n, g) => n + Object.keys(g.cases).length, 0) !== EXPECTED_CASES) throw new Error("The budget plan is not exactly six cases.")
 
 const GROUP_MS = 8 * 60_000
+/** As run.mjs's FINALIZE_MS: how long a signal waits for settlement and the summary before blocking the receipt. */
+export const FINALIZE_MS = 120_000
+
+/**
+ * The stack.onTerminate hook, as run.mjs's underLock installs it: interrupt (no group or phase starts
+ * again, every running group is stopped and checked), then wait for the run to settle and finalise; if
+ * that does not happen within `ms`, block the receipt with the reasons and the deadline, so the lock is
+ * released only behind a blocking receipt.
+ */
+export function terminationHook(sup, receipt, final, ms = FINALIZE_MS) {
+  return async () => {
+    await sup.interrupt("signal")
+    let timer
+    const late = await Promise.race([final.then(() => false), new Promise((done) => (timer = setTimeout(() => done(true), ms)))])
+    clearTimeout(timer)
+    if (!late) return
+    try {
+      receipt.block([...sup.report().reasons, "the run did not finish settling and finalising before the signal handler's deadline"])
+    } catch {
+      // The in-progress receipt already blocks later runs.
+    }
+  }
+}
 const LOCK_SECONDS = 60
 
 /** Collection only: fixed loopback values and placeholders, so the config resolves nothing from any stack. */
@@ -323,7 +346,9 @@ async function runGate(ctx) {
       requireLaneRoot()
       requireNoQualificationBlocker()
     }
-    const unhook = ctx.stack.onTerminate(() => sup.interrupt("signal"))
+    let finalised
+    const final = new Promise((done) => (finalised = done))
+    const unhook = ctx.stack.onTerminate(terminationHook(sup, receipt, final))
     const groups = []
     const evidence = {}
     let error = null
@@ -373,11 +398,22 @@ async function runGate(ctx) {
     const verdict = summariseBudget(groups, settlement)
     const summary = { gate: "b02 owner budgets (E1, E2 at 360/412; J5)", runId: id, ...verdict, candidate: { commit: ctx.pin.commit, tree: ctx.pin.tree }, harness: { commit: ctx.harness.commit, tree: ctx.harness.tree }, reset: ctx.reset, specFiles: ctx.specFiles, playwright: ctx.playwright.version, app: APP, evidence, groups, settlement, scrub, error: error ? String(error.message ?? error) : null }
     const written = runRoot ? writeSummary(runRoot, summary, ctx.secrets ?? []) : { ok: false, problem: "no run directory was created" }
-    if (settlement.settled) receipt.clear()
-    else receipt.block(settlement.reasons)
+    let receiptState = "cleared"
+    try {
+      if (settlement.settled) receipt.clear()
+      else {
+        receipt.block(settlement.reasons)
+        receiptState = "blocked"
+      }
+    } catch (caught) {
+      receiptState = `left in place (${caught.code ?? caught.message})`
+    }
+    finalised()
     unhook()
+    if (!settlement.settled) say(`process settlement is uncertain; ${RECEIPT} is ${receiptState} and blocks ${STACK.name} until the coordinator clears it`)
     say(`${verdict.cases.passed}/${EXPECTED_CASES} budget cases passed; settled ${settlement.settled}; summary ${runRoot ? relative(HARNESS, join(runRoot, "summary.json")) : "none"}${written.ok ? "" : ` (${written.problem})`}`)
     if (error) say(`error: ${error.message ?? error}`)
+    if (sup.interrupted) return 130
     return summary.ok && written.ok ? 0 : 1
   })
 }
