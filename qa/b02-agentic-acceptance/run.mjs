@@ -1753,6 +1753,40 @@ export function verifyRevisionRecord(workdir, checkout, pin, pinned) {
   if (record.migrationsDigest !== pin.migrationsDigest) fail(`${STACK.name}'s revision.json migrations digest is not the pinned one.`)
 }
 
+/** A reset's fixture load takes minutes, never this long: a manifest older than this before resetAt is another reset's. */
+export const FIXTURE_LOAD_MAX_MS = 15 * 60_000
+
+/**
+ * spare6's fixture manifest agrees with revision.json. stack.mjs's reset deletes fixtures.json first,
+ * reloads fixtures (which rewrites it) and writes revision.json last, so a reset that failed part-way
+ * leaves the previous revision.json claiming a world the database no longer has, with fixtures.json
+ * gone. When revision.json names fixtures, fixtures.json must be a regular file for spare6, loaded
+ * within this reset (no later than resetAt, and no earlier than FIXTURE_LOAD_MAX_MS before it); when
+ * it says "none", there must be no fixtures.json.
+ */
+export function verifyFixtureManifest(workdir) {
+  const read = readJson(join(workdir, "revision.json"), 1024 * 1024)
+  if (read.problem) fail(`${STACK.name}'s revision.json is ${read.problem}.`)
+  const { fixtures, resetAt } = read.value
+  const path = join(workdir, "fixtures.json")
+  const stat = lstatSync(path, { throwIfNoEntry: false })
+  if (fixtures === "none") {
+    if (stat) fail(`${STACK.name}'s revision.json records no fixtures, but fixtures.json exists: the manifest and the reset disagree.`)
+    return { fixtures: "none" }
+  }
+  if (typeof fixtures !== "string" || !fixtures) fail(`${STACK.name}'s revision.json does not record its fixtures.`)
+  if (!stat) fail(`${STACK.name}'s revision.json records fixtures (${fixtures}) but fixtures.json is missing: a later reset failed part-way and revision.json is stale.`)
+  const manifest = readJson(path, 4 * 1024 * 1024)
+  if (manifest.problem) fail(`${STACK.name}'s fixtures.json is ${manifest.problem}.`)
+  const reset = Date.parse(resetAt)
+  const loaded = Date.parse(manifest.value?.loadedAt)
+  if (manifest.value?.stack !== STACK.name) fail(`${STACK.name}'s fixtures.json is for ${manifest.value?.stack ?? "no stack"}.`)
+  if (!Number.isFinite(reset) || !Number.isFinite(loaded) || loaded > reset + TIME_SLACK_MS || loaded < reset - FIXTURE_LOAD_MAX_MS) {
+    fail(`${STACK.name}'s fixtures.json (loaded ${manifest.value?.loadedAt}) is not from the reset revision.json records (${resetAt}).`)
+  }
+  return { fixtures, loadedAt: manifest.value.loadedAt }
+}
+
 /** The database's applied ledger is exactly the pinned ordered versions. */
 export function verifyLedger(versions, pinned) {
   if (!Array.isArray(versions)) fail(`${STACK.name}'s applied migration ledger could not be read.`)
@@ -1918,6 +1952,8 @@ export function verifyProductInputs(ctx) {
   const workdirMigrations = join(verifyPhysicalWorkdir(ctx.stackWorkdir, ctx.stackAnchor), "supabase", "migrations")
   compareMigrations(migrationDirectory(workdirMigrations, `${STACK.name}'s workdir migrations`), pinned, `${STACK.name}'s workdir migrations`)
   verifyRevisionRecord(dirname(dirname(workdirMigrations)), ctx.checkout, ctx.pin, pinned)
+  verifyFixtureManifest(dirname(dirname(workdirMigrations)))
+  // The live database decides, not revision.json: its applied versions must be exactly the pin's.
   verifyLedger(ctx.ledger(ctx), pinned)
   return pinned
 }

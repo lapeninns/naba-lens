@@ -109,6 +109,7 @@ import {
   validateListedPairs,
   validatePlaywrightReport,
   verifyCheckout,
+  verifyFixtureManifest,
   verifyLockOwner,
   verifyPhysicalWorkdir,
   verifyPinnedMigrations,
@@ -3292,4 +3293,56 @@ test("the receipt is replaced and cleared only while the path still holds the fi
   rmSync(path)
   assert.throws(() => receipt.clear(), /was replaced by something else/)
   rmSync(dir, { recursive: true, force: true })
+})
+
+test("a stale revision.json is refused: the live ledger and the fixture manifest decide, not the reset record", () => {
+  const world = productWorld()
+  const { ctx: c, workdir } = world
+  const revision = (patch) => writeFileSync(join(workdir, "revision.json"), JSON.stringify({ ...world.revision, ...patch }))
+  const manifest = (body) => writeFileSync(join(workdir, "fixtures.json"), JSON.stringify(body))
+  const resetAt = "2026-11-11T00:11:47.629Z"
+  // A reset that loaded fixtures: the manifest from the same reset agrees.
+  revision({ fixtures: "journey-world: 5 people, 2 venues", resetAt })
+  manifest({ stack: "spare6", loadedAt: "2026-11-11T00:11:46.000Z", menus: [], media: [] })
+  verifyProductInputs(c)
+  assert.deepEqual(verifyFixtureManifest(workdir), { fixtures: "journey-world: 5 people, 2 venues", loadedAt: "2026-11-11T00:11:46.000Z" })
+  // A later reset failed part-way: fixtures.json was cleared first and revision.json was never rewritten.
+  rmSync(join(workdir, "fixtures.json"))
+  assert.throws(() => verifyProductInputs(c), /records fixtures \(journey-world: 5 people, 2 venues\) but fixtures\.json is missing: a later reset failed part-way and revision\.json is stale/)
+  // A manifest from another reset, another stack, or after the record, or not JSON.
+  for (const [body, message] of [
+    [{ stack: "spare6", loadedAt: "2026-11-10T19:45:00.000Z" }, /is not from the reset revision\.json records/],
+    [{ stack: "spare6", loadedAt: "2026-11-11T00:20:00.000Z" }, /is not from the reset revision\.json records/],
+    [{ stack: "spare4", loadedAt: "2026-11-11T00:11:46.000Z" }, /fixtures\.json is for spare4/],
+    [{ stack: "spare6" }, /is not from the reset/],
+  ]) {
+    manifest(body)
+    assert.throws(() => verifyProductInputs(c), message, JSON.stringify(body))
+  }
+  writeFileSync(join(workdir, "fixtures.json"), "{not json")
+  assert.throws(() => verifyProductInputs(c), /fixtures\.json is malformed/)
+  rmSync(join(workdir, "fixtures.json"))
+  symlinkSync(join(workdir, "revision.json"), join(workdir, "fixtures.json"))
+  assert.throws(() => verifyProductInputs(c), /fixtures\.json is a link/)
+  rmSync(join(workdir, "fixtures.json"))
+  // revision.json says no fixtures but a manifest is there: they disagree.
+  revision({ fixtures: "none" })
+  manifest({ stack: "spare6", loadedAt: world.revision.resetAt })
+  assert.throws(() => verifyProductInputs(c), /records no fixtures, but fixtures\.json exists/)
+  rmSync(join(workdir, "fixtures.json"))
+  verifyProductInputs(c)
+  // The B04 case: revision.json still names the pin's 49 migrations, the live database has 67 others.
+  const live = [...c.pinned.versions, ...Array.from({ length: 65 }, (_, i) => `2026111100${String(i).padStart(4, "0")}`)]
+  world.ledger.versions = live
+  assert.throws(() => verifyProductInputs(c), new RegExp(`applied ledger has ${live.length} versions, not the pinned ${c.pinned.versions.length}`))
+  world.ledger.versions = ["20260101000000", "20261111000001"]
+  assert.throws(() => verifyProductInputs(c), /first difference at 1: 20261111000001 where the pin has 20260102000000/)
+  world.ledger.versions = [...c.pinned.versions]
+  verifyProductInputs(c)
+  world.cleanup()
+})
+
+test("the budget gate's guards use the same live-lane check as run.mjs (verifyProductInputs), before the lock and again under it", () => {
+  const source = readFileSync(fileURLToPath(new URL("./budget.mjs", import.meta.url)), "utf8")
+  assert.equal((source.match(/verifyProductInputs\(ctx\)/g) ?? []).length, 2)
 })
