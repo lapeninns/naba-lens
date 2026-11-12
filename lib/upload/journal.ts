@@ -276,6 +276,9 @@ export async function openCaptureJournal(
           : existing?.pendingLabels !== undefined
             ? { pendingLabels: existing.pendingLabels }
             : {}),
+        // The same key picked again keeps what it learned (OD-B5-05-5): a
+        // permanent failure fails again.
+        ...(existing?.failure ? { failure: existing.failure } : {}),
         ...(keepBytes ? { bytes: input.file as Blob } : {}),
       }
       const stored = await safe(async () => {
@@ -310,10 +313,7 @@ export async function openCaptureJournal(
       pending.delete(id)
       const entry = await find(id)
       if (entry)
-        await safe(
-          () => save({ ...entry, state: "transferring", transferredBytes }),
-          undefined
-        )
+        await safe(() => save(progressed(entry, transferredBytes)), undefined)
     },
     async flush() {
       for (const [id, transferredBytes] of [...pending]) {
@@ -321,10 +321,7 @@ export async function openCaptureJournal(
         lastWrite.set(id, now())
         const entry = await find(id)
         if (entry)
-          await safe(
-            () => save({ ...entry, state: "transferring", transferredBytes }),
-            undefined
-          )
+          await safe(() => save(progressed(entry, transferredBytes)), undefined)
       }
     },
     async fail(id, code, permanent) {
@@ -348,6 +345,22 @@ export async function openCaptureJournal(
       pending.clear()
       await safe(() => backend.clear(), undefined)
     },
+  }
+}
+
+/**
+ * Progress moves an entry to "transferring" only from an earlier step; a late
+ * tick never overwrites failed, finalising or needs_reselection (OD-B5-05-5).
+ */
+function progressed(
+  entry: JournalEntry,
+  transferredBytes: number
+): JournalEntry {
+  const moves: JournalState[] = ["picked", "reserved", "transferring"]
+  return {
+    ...entry,
+    transferredBytes,
+    ...(moves.includes(entry.state) ? { state: "transferring" as const } : {}),
   }
 }
 

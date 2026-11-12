@@ -15,7 +15,13 @@ export type CaptureCapabilities = {
   storeBytes: boolean
   /** Why bytes are not kept, for the explanation shown instead. */
   reason:
-    "no_indexeddb" | "write_refused" | "quota_zero" | "private_mode" | null
+    | "no_indexeddb"
+    | "write_refused"
+    | "quota_zero"
+    | "private_mode"
+    /** No storage estimate (OD-B5-05-3): free space can't be checked. */
+    | "no_estimate"
+    | null
   backgroundSync: "unsupported"
   backgroundFetch: "unsupported"
 }
@@ -120,6 +126,9 @@ export async function detectCaptureCapabilities(
   }
   if (!roundTrip) return result(false, "write_refused")
   if (quotaBytes === 0) return result(true, "quota_zero")
+  // Bytes are kept only with room to spare, which needs the estimate.
+  if (quotaBytes === null || usageBytes === null)
+    return result(true, "no_estimate")
   // Private windows report a small fixed quota (Safari, Firefox) and no
   // persistence; keeping photo bytes there would vanish with the window.
   if (
