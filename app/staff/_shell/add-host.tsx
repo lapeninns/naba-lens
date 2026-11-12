@@ -492,17 +492,20 @@ export function AddHost({
   // Each file as soon as it is ready: its own Add call hears it (a task
   // screen selects it), then every subscriber. False: the screen that picked
   // it is gone, so the sheet keeps it listed as not added there.
-  const handleReady = React.useCallback((ids: string[], files: File[]) => {
-    let kept = true
-    ids.forEach((id, i) => {
-      const owner = fileOwners.current.get(files[i])
-      // A photo the server failed, retried and finished, counts again.
-      if (owner?.set) photoSets.finished(owner.set, id)
-      if (owner?.onReady?.([id]) === false) kept = false
-    })
-    for (const listener of readyListeners.current) listener(ids)
-    return kept
-  }, [photoSets])
+  const handleReady = React.useCallback(
+    (ids: string[], files: File[]) => {
+      let kept = true
+      ids.forEach((id, i) => {
+        const owner = fileOwners.current.get(files[i])
+        // A photo the server failed, retried and finished, counts again.
+        if (owner?.set) photoSets.finished(owner.set, id)
+        if (owner?.onReady?.([id]) === false) kept = false
+      })
+      for (const listener of readyListeners.current) listener(ids)
+      return kept
+    },
+    [photoSets]
+  )
 
   // Me's Fix labels and Discard labels reach the sheet's rows (C6).
   const settleListeners = React.useRef(new Set<UploadLabelSettle>())
