@@ -624,6 +624,8 @@ export type ContributionGroupMember = {
   replacesAssetId?: string | null
   // B05-m5, the creator, the venue's manager and admins only:
   technical?: GroupMemberTechnical
+  /** Uploading for longer than the server's stopped window: replaceable. */
+  stopped?: boolean
   labels?: GroupMemberLabels
   review?: GroupReviewEntry[]
   /** Null while the asset has no use state. */

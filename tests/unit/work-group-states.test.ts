@@ -73,6 +73,7 @@ const creatorView = () => ({
       mine: true,
       replacesAssetId: null,
       technical: "failed",
+      stopped: false,
       labels: "none",
       review: [],
       use: { state: "not_granted", destinations: [] },
@@ -86,6 +87,7 @@ const creatorView = () => ({
       mine: true,
       replacesAssetId: null,
       technical: "ready",
+      stopped: false,
       labels: "needs_attention",
       review: [{ target: "menu_item", id: A3, state: "accepted" }],
       use: {
@@ -104,6 +106,7 @@ const creatorView = () => ({
       mine: true,
       replacesAssetId: A1,
       technical: "uploading",
+      stopped: true,
       labels: "labelled",
       review: [],
       use: null,
@@ -189,6 +192,7 @@ describe("parseGroupView (§1.6)", () => {
       mine: true,
       replacesAssetId: null,
       technical: "ready",
+      stopped: false,
     })
     expect(parsed.members[0]).toEqual(creatorView().members[0])
   })
@@ -204,6 +208,7 @@ describe("parseGroupView (§1.6)", () => {
           "removed"),
       (v) =>
         void ((v.members[0] as Record<string, unknown>).technical = "stopped"),
+      (v) => void ((v.members[0] as Record<string, unknown>).stopped = "yes"),
       (v) => void ((v.members[0] as Record<string, unknown>).position = 0),
       (v) => void ((v.members[0] as Record<string, unknown>).mine = "yes"),
       (v) =>

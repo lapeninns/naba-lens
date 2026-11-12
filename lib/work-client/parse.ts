@@ -394,6 +394,10 @@ function readMember(value: unknown): ContributionGroupMember | null {
     if (!technical) return null
     member.technical = technical
   }
+  if ("stopped" in raw) {
+    if (typeof raw.stopped !== "boolean") return null
+    member.stopped = raw.stopped
+  }
   const labels = oneOf(GROUP_MEMBER_LABELS, raw.labels)
   if (labels) member.labels = labels
   const review = readReview(raw.review)
