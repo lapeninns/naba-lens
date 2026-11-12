@@ -222,6 +222,121 @@ rollback;
 `
 }
 
+/** As the manager: propose a value on (item, variant) and confirm it today. */
+const stated = (
+  key: string,
+  item: string,
+  variant: string,
+  field: string,
+  value: string
+) => `set role authenticated;
+select set_config('request.jwt.claims', :'manager_claims', true);
+select p ->> 'assertionId' as ${key}_assertion, p ->> 'lineId' as ${key}_line, p ->> 'lineRevision' as ${key}_rev
+from (select public.menu_trading_propose(null, ${item}, ${variant}, null, null, ${q(field)}, ${q(value)}::jsonb,
+  null, null, null, null, null, gen_random_uuid()) as p) x \\gset
+select public.menu_trading_decide(:'${key}_assertion', :${key}_rev, 'confirmed', null, null,
+  gen_random_uuid()) is not null as ${key}_ok \\gset
+reset role;`
+
+/** One field of a line as the manager reads it now (history read). */
+const readNow = (line: string, field: string) =>
+  `(select public.menu_trading_history(:'${line}', now()) -> ${q(field)})`
+
+/** The fixture's trading lines' open and closed tasks, by key. */
+const lineTasks = `(select coalesce(json_agg(k.key || ':' || t.cause || ':' || t.use || ':' || t.state
+    order by k.key, t.cause), '[]'::json)
+  from public.menu_trading_recheck_tasks t
+  join (values ('G', :'g_line'::uuid), ('Dbean', :'dbean_line'::uuid), ('Dbeef', :'dbeef_line'::uuid),
+    ('E', :'e_line'::uuid)) k(key, line) on k.line = t.line_id)`
+
+/**
+ * A1-6 / A1-8 (B04-04c): before activation the manager confirms prices on
+ * G (v2 declares a portion change, item-wide), D's Bean and Beef options (v2
+ * declares Bean's meaning) and E (presentation: control), and G's
+ * availability. After activation G and Bean read not_confirmed / pending with
+ * one material_change task each; Beef and E keep their prices. A decision
+ * prepared on the old revision conflicts; re-stating G's price leaves its
+ * task open until its availability is re-stated too; withdrawing Bean's old
+ * price closes Bean's task.
+ */
+export function materialChangeScript(dir = FIXTURE_DIR) {
+  return `${head}
+${include(dir, "menu.sql")}
+${keys}
+select json_build_object('sub', :'fx_manager_id', 'role', 'authenticated')::text as manager_claims,
+  json_build_object('sub', :'fx_staff_id', 'role', 'authenticated')::text as staff_claims,
+  (select item_id from fx_menu_recheck where key = 'G') as g_item,
+  (select item_id from fx_menu_recheck where key = 'E') as e_item,
+  (select item_id from fx_menu_recheck where key = 'D') as d_item,
+  (select variant_id from fx_menu_recheck where key = 'D') as d_bean,
+  (select max(ev.variant_id::text) from public.menu_entry_variants ev join public.menu_entries e on e.id = ev.entry_id
+   where e.version_id = (select id from fx_menu_recheck where key = 'v1') and e.source_key = 'food--d' and ev.name = 'Beef') as d_beef \\gset
+${stated("g", ":'g_item'", "null", "price", '{"amount":"14.00"}')}
+${stated("ga", ":'g_item'", "null", "availability", '{"state":"always"}')}
+${stated("dbean", ":'d_item'", ":'d_bean'", "price", '{"amount":"7.00"}')}
+${stated("dbeef", ":'d_item'", ":'d_beef'", "price", '{"amount":"7.50"}')}
+${stated("e", ":'e_item'", "null", "price", '{"amount":"9.00"}')}
+select l.revision as g_rev_before from public.menu_trading_lines l where l.id = :'g_line' \\gset
+select set_config('request.jwt.claims', :'manager_claims', true) \\gset
+select 'MC_BEFORE ' || json_build_object('G', ${readNow("g_line", "price")} ->> 'status',
+  'Dbean', ${readNow("dbean_line", "price")} ->> 'status', 'tasks', ${lineTasks})::text;
+${include(dir, "menu-activate.sql")}
+select set_config('request.jwt.claims', :'manager_claims', true) \\gset
+select 'MC_AFTER ' || json_build_object(
+  'G', ${readNow("g_line", "price")}, 'Gavailability', ${readNow("g_line", "availability")},
+  'Dbean', ${readNow("dbean_line", "price")}, 'Dbeef', ${readNow("dbeef_line", "price")},
+  'E', ${readNow("e_line", "price")}, 'tasks', ${lineTasks},
+  'gAssertion', :'g_assertion', 'gRevision', (select l.revision from public.menu_trading_lines l where l.id = :'g_line'),
+  'gRevisionBefore', :g_rev_before,
+  'reviews', (select json_agg(json_build_object('line', case r.line_id when :'g_line'::uuid then 'G'
+      when :'dbean_line'::uuid then 'Dbean' else '?' end, 'kinds', r.kinds,
+      'version', r.version_id = :'fx_v2_id'::uuid, 'by', r.opened_by = :'fx_admin_id'::uuid,
+      'seqCoversConfirmation', r.last_decision_seq >= (select max(d.seq) from public.menu_trading_decisions d
+        where d.line_id = r.line_id)) order by r.line_id = :'dbean_line'::uuid)
+    from public.menu_trading_line_reviews r where r.venue_id = :'fx_venue_id'))::text;
+set role authenticated;
+select set_config('request.jwt.claims', :'staff_claims', true);
+select 'MC_STAFF ' || (select l from jsonb_array_elements(public.menu_trading_lines_for_item(:'g_item') -> 'lines') l
+  where l ->> 'lineId' = :'g_line')::text;
+reset role;
+set role authenticated;
+select set_config('request.jwt.claims', :'manager_claims', true);
+select p ->> 'assertionId' as g2_assertion, (p -> 'supersedes') as g2_supersedes
+from (select public.menu_trading_propose(:'g_line', null, null, null, null,
+  'price', '{"amount":"14.50"}'::jsonb, null, null, null, null, null, gen_random_uuid()) as p) x \\gset
+select set_config('fx.g2', :'g2_assertion', true), set_config('fx.grev', :'g_rev_before', true) \\gset
+do $probe$ begin
+  perform public.menu_trading_decide(current_setting('fx.g2')::uuid, current_setting('fx.grev')::integer,
+    'confirmed', null, null, gen_random_uuid());
+  perform set_config('fx.out', 'allowed', true);
+exception when others then perform set_config('fx.out', sqlerrm, true); end $probe$;
+reset role;
+select 'MC_STALE ' || to_json(current_setting('fx.out'))::text;
+select l.revision as g_rev_now from public.menu_trading_lines l where l.id = :'g_line' \\gset
+set role authenticated;
+select set_config('request.jwt.claims', :'manager_claims', true);
+select public.menu_trading_decide(:'g2_assertion', :g_rev_now, 'confirmed', null, null,
+  gen_random_uuid()) is not null as g2_ok \\gset
+reset role;
+select set_config('request.jwt.claims', :'manager_claims', true) \\gset
+select 'MC_PRICE_RESTATED ' || json_build_object('G', ${readNow("g_line", "price")},
+  'Gavailability', ${readNow("g_line", "availability")} ->> 'reason', 'tasks', ${lineTasks})::text;
+${stated("ga2", ":'g_item'", "null", "availability", '{"state":"always"}')}
+select l.revision as dbean_rev_now from public.menu_trading_lines l where l.id = :'dbean_line' \\gset
+set role authenticated;
+select set_config('request.jwt.claims', :'manager_claims', true);
+select public.menu_trading_decide(:'dbean_assertion', :dbean_rev_now, 'withdrawn', null, null,
+  gen_random_uuid()) is not null as dbean_withdrawn \\gset
+reset role;
+select set_config('request.jwt.claims', :'manager_claims', true) \\gset
+select 'MC_DONE ' || json_build_object('G', ${readNow("g_line", "price")} ->> 'status',
+  'Gavailability', ${readNow("g_line", "availability")} ->> 'state',
+  'Dbean', ${readNow("dbean_line", "price")} ->> 'reason', 'tasks', ${lineTasks},
+  'creditMd5', (select md5(pg_get_functiondef('private.monthly_venue_completion_counts(uuid,uuid,date)'::regprocedure))))::text;
+rollback;
+`
+}
+
 /** Parses `LABEL {json}` lines into a record. */
 export function checkpoints(lines: string[]): Record<string, unknown> {
   const out: Record<string, unknown> = {}

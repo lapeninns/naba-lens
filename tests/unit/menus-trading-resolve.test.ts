@@ -700,3 +700,86 @@ describe("availability resolution with schedules and a linked B03 service", () =
     expect(out).toEqual({ state: "not_offered", detail: "schedule_ended" })
   })
 })
+
+describe("a declared portion or variant-meaning change (A1-6, B04-d2)", () => {
+  const confirmedBefore = () => {
+    const a = assertion("p", price(1400))
+    const d = decision("p", "confirmed", "2026-11-10T09:00:00Z")
+    return { a, d }
+  }
+
+  it("reads a value confirmed before the review as not_confirmed / pending from the review on, and unchanged before it", () => {
+    const { a, d } = confirmedBefore()
+    const records: LineRecords = {
+      ...line([a], [d]),
+      reviews: [{ openedAt: "2026-11-10T12:00:00Z", lastDecisionSeq: d.seq }],
+    }
+    expect(amount(records, "2026-11-10T11:59:59Z")).toBe(1400)
+    expect(resolveField(records, "price", "2026-11-10T12:00:00Z")).toEqual({
+      status: "unavailable",
+      reason: "not_confirmed",
+      detail: "pending",
+      previousAssertionId: "p",
+      reviewSince: "2026-11-10T12:00:00.000Z",
+    })
+  })
+
+  it("orders by decision sequence, not the clock: a later confirmation at the same instant is current", () => {
+    const { a, d } = confirmedBefore()
+    const b = assertion("q", price(1450), { supersedes: "p" })
+    const review = { openedAt: "2026-11-10T09:00:00Z", lastDecisionSeq: d.seq }
+    const records: LineRecords = {
+      ...line([a, b], [d, decision("q", "confirmed", "2026-11-10T09:00:00Z")]),
+      reviews: [review],
+    }
+    expect(amount(records, "2026-11-10T09:00:00Z")).toBe(1450)
+  })
+
+  it("keeps withdrawn ahead of not_confirmed, and leaves temporary unavailability alone", () => {
+    const { a, d } = confirmedBefore()
+    const withdrawn: LineRecords = {
+      ...line([a], [d, decision("p", "withdrawn", "2026-11-10T13:00:00Z")]),
+      reviews: [{ openedAt: "2026-11-10T12:00:00Z", lastDecisionSeq: d.seq }],
+    }
+    expect(resolveField(withdrawn, "price", "2026-11-10T14:00:00Z")).toEqual({
+      status: "unavailable",
+      reason: "withdrawn",
+      detail: "value_withdrawn",
+    })
+    const off = assertion(
+      "t",
+      { state: "temporarily_unavailable", until: null },
+      {
+        field: "temporary_unavailability",
+      }
+    )
+    const offDecision = decision("t", "confirmed", "2026-11-10T09:00:00Z")
+    const temporary: LineRecords = {
+      ...line([off], [offDecision]),
+      reviews: [
+        { openedAt: "2026-11-10T12:00:00Z", lastDecisionSeq: offDecision.seq },
+      ],
+    }
+    expect(
+      resolveField(
+        temporary,
+        "temporary_unavailability",
+        "2026-11-10T13:00:00Z"
+      )
+    ).toMatchObject({ status: "available", assertionId: "t" })
+  })
+
+  it("reads availability as unknown / not_confirmed while it waits", () => {
+    const a = assertion("v", { state: "always" }, { field: "availability" })
+    const d = decision("v", "confirmed", "2026-11-10T09:00:00Z")
+    const records: LineRecords = {
+      ...line([a], [d]),
+      reviews: [{ openedAt: "2026-11-10T12:00:00Z", lastDecisionSeq: d.seq }],
+    }
+    expect(resolveAvailability(records, "2026-11-10T13:00:00Z")).toMatchObject({
+      state: "unknown",
+      reason: "not_confirmed",
+      detail: "pending",
+    })
+  })
+})

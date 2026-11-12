@@ -22,6 +22,7 @@ import {
   closedMonthScript,
   commandsScript,
   fixtureScript,
+  materialChangeScript,
   scopeScript,
 } from "./menus-recheck-fixtures"
 
@@ -267,6 +268,136 @@ describe("declarations and activation (b04-design §7.2, §7.3, §18 L5)", () =>
           and tgname in ('menu_versions_reconcile_item_photos', 'menu_versions_retire_trading_lines')`)
     ).toBe(
       "menu_versions_reconcile_item_photos,menu_versions_retire_trading_lines"
+    )
+  })
+})
+
+type Read = Record<string, unknown> & {
+  status?: string
+  state?: string
+  reason?: string
+  detail?: string
+}
+
+describe("material changes reach trading lines (b04-design §7.2, A1-6, A1-8; B04-04c)", () => {
+  let out: Record<string, unknown>
+  const at = (label: string) => out[label] as Record<string, unknown>
+
+  beforeAll(() => {
+    out = run(materialChangeScript())
+  })
+
+  it("reads a portion change's and a variant-meaning change's confirmed values as not_confirmed / pending, and keeps unaffected lines", () => {
+    expect(at("MC_BEFORE")).toEqual({
+      G: "available",
+      Dbean: "available",
+      tasks: [],
+    })
+    const after = at("MC_AFTER")
+    expect(after.G).toMatchObject({
+      status: "unavailable",
+      reason: "not_confirmed",
+      detail: "pending",
+      previousAssertionId: after.gAssertion,
+    })
+    expect(after.Gavailability).toMatchObject({
+      state: "unknown",
+      reason: "not_confirmed",
+      detail: "pending",
+    })
+    expect(after.Dbean).toMatchObject({
+      status: "unavailable",
+      reason: "not_confirmed",
+    })
+    // Another option of the same dish, and a presentation-only change, keep
+    // their confirmed prices.
+    expect(after.Dbeef as Read).toMatchObject({
+      status: "available",
+      value: { amountMinor: 750 },
+    })
+    expect(after.E as Read).toMatchObject({
+      status: "available",
+      value: { amountMinor: 900 },
+    })
+    expect(after.reviews).toEqual([
+      {
+        line: "G",
+        kinds: ["portion"],
+        version: true,
+        by: true,
+        seqCoversConfirmation: true,
+      },
+      {
+        line: "Dbean",
+        kinds: ["variant_meaning"],
+        version: true,
+        by: true,
+        seqCoversConfirmation: true,
+      },
+    ])
+    // Staff read the same outcome, never the earlier value.
+    const staff = at("MC_STAFF") as { price: Read; availability: Read }
+    expect(staff.price).toMatchObject({ reason: "not_confirmed" })
+    expect(staff.price).not.toHaveProperty("value")
+    expect(staff.availability).toMatchObject({ reason: "not_confirmed" })
+  })
+
+  it("opens one material_change task per line and moves its revision, so a decision prepared before activation conflicts", () => {
+    const after = at("MC_AFTER")
+    expect(after.tasks).toEqual([
+      "Dbean:material_change:internal:open",
+      "G:material_change:internal:open",
+    ])
+    expect(after.gRevision).toBe((after.gRevisionBefore as number) + 1)
+    expect(out.MC_STALE).toBe("menu_trading_conflict")
+  })
+
+  it("closes the task only once every affected field is decided again: a new confirmation or a withdrawal", () => {
+    const restated = at("MC_PRICE_RESTATED")
+    expect(restated.G as Read).toMatchObject({
+      status: "available",
+      value: { amountMinor: 1450 },
+    })
+    expect(restated.Gavailability).toBe("not_confirmed")
+    expect(restated.tasks).toEqual([
+      "Dbean:material_change:internal:open",
+      "G:material_change:internal:open",
+    ])
+    const done = at("MC_DONE")
+    expect(done).toMatchObject({ G: "available", Gavailability: "available" })
+    expect(done.Dbean).not.toBe("not_confirmed")
+    expect(done.tasks).toEqual([
+      "Dbean:material_change:internal:done",
+      "G:material_change:internal:done",
+    ])
+    expect(done.creditMd5).toBe(CREDIT_MD5)
+  })
+
+  it("keeps the review table append-only and private, and its trigger after the retirement trigger", () => {
+    expect(
+      psql(
+        `select has_table_privilege('authenticated', 'public.menu_trading_line_reviews', 'select') || ':' ||
+          has_table_privilege('anon', 'public.menu_trading_line_reviews', 'select') || ':' ||
+          (select relrowsecurity from pg_class where oid = 'public.menu_trading_line_reviews'::regclass)`
+      )
+    ).toBe("false:false:true")
+    expect(
+      psql(
+        `select has_function_privilege('authenticated', 'private.menu_versions_review_trading_lines()', 'execute')`
+      )
+    ).toBe("f")
+    expect(
+      psql(`select string_agg(tgname, ',' order by tgname) from pg_trigger
+        where tgrelid = 'public.menu_versions'::regclass and not tgisinternal
+          and tgname like 'menu_versions_re%_trading_lines'`)
+    ).toBe(
+      "menu_versions_retire_trading_lines,menu_versions_review_trading_lines"
+    )
+    expect(
+      psql(`select string_agg(tgname, ',' order by tgname) from pg_trigger
+        where tgrelid = 'public.menu_trading_line_reviews'::regclass and not tgisinternal`)
+    ).toBe(
+      "menu_trading_line_reviews_append_only,menu_trading_line_reviews_no_truncate"
     )
   })
 })

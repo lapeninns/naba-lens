@@ -214,6 +214,17 @@ export type TradingAssertionRecord = {
   effectiveTo: string | null
 }
 
+/**
+ * public.menu_trading_line_reviews (A1-6): a declared portion or
+ * variant-meaning change reached the line at activation. Confirmations with
+ * seq at most lastDecisionSeq precede it.
+ */
+export type TradingLineReviewRecord = {
+  /** ISO 8601 instant (activation). */
+  openedAt: string
+  lastDecisionSeq: number
+}
+
 export type TradingDecisionRecord = {
   assertionId: string
   decision: TradingDecision
@@ -251,6 +262,14 @@ export type FieldState =
       assertionIds: string[]
     }
   | { status: "unavailable"; reason: "withdrawn"; detail: "value_withdrawn" }
+  | {
+      /** A1-6: a declared portion or variant-meaning change since it was confirmed. */
+      status: "unavailable"
+      reason: "not_confirmed"
+      detail: "pending"
+      previousAssertionId: string
+      reviewSince: string
+    }
   | { status: "unavailable"; reason: "unknown"; detail: "not_recorded" }
 
 export type OccurrenceView = {

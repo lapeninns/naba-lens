@@ -12,7 +12,9 @@
 // correction replaces what it supersedes on its own dates, and a withdrawal
 // never brings an older value back. Of the rest, one unwithdrawn assertion is
 // the value; two or more read disputed / conflict; only withdrawn ones read
-// withdrawn / value_withdrawn; none reads unknown / not_recorded.
+// withdrawn / value_withdrawn; none reads unknown / not_recorded. A1-6
+// (B04-d2): a single live price or availability confirmed before a line
+// review opened at or before `at` reads not_confirmed / pending.
 
 import {
   addDays,
@@ -27,6 +29,7 @@ import type {
   TradingAssertionRecord,
   TradingDecisionRecord,
   TradingField,
+  TradingLineReviewRecord,
 } from "./types"
 
 export type LineRecords = {
@@ -34,6 +37,8 @@ export type LineRecords = {
   decisions: TradingDecisionRecord[]
   /** The venue's timezone (private.venue_timezone; Europe/London). */
   timeZone: string
+  /** public.menu_trading_line_reviews of the line (A1-6); none when absent. */
+  reviews?: TradingLineReviewRecord[]
 }
 
 type Confirmed = {
@@ -120,6 +125,25 @@ export function resolveField(
   const live = heads.filter((x) => x.withdrawnAt === null)
   if (live.length === 1) {
     const l = live[0]!
+    if (field !== "temporary_unavailability") {
+      const since = (records.reviews ?? [])
+        .filter(
+          (r) => ms(r.openedAt) <= atMs && r.lastDecisionSeq >= l.confirmedSeq
+        )
+        .reduce<number | null>(
+          (max, r) =>
+            max === null || ms(r.openedAt) > max ? ms(r.openedAt) : max,
+          null
+        )
+      if (since !== null)
+        return {
+          status: "unavailable",
+          reason: "not_confirmed",
+          detail: "pending",
+          previousAssertionId: l.a.id,
+          reviewSince: iso(since),
+        }
+    }
     return {
       status: "available",
       assertionId: l.a.id,
