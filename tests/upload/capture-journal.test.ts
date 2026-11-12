@@ -173,14 +173,18 @@ describe("capture journal lifecycle", () => {
     const first = await j.pick(
       pickOf(file, { pendingLabels: { types: ["dish"] } })
     )
-    await j.update(first!.id, { state: "reserved", assetId: "asset-1" })
     const again = await j.pick(pickOf(file))
     expect(again).toMatchObject({
       id: first!.id,
-      assetId: "asset-1",
-      state: "reserved",
+      state: "picked",
       pendingLabels: { types: ["dish"] },
     })
+    // Reserved: the labels are on the server now (stage), so they go here
+    // (K2): a later continue never brings back labels the person removed.
+    await j.update(first!.id, { state: "reserved", assetId: "asset-1" })
+    const reserved = await j.pick(pickOf(file))
+    expect(reserved).toMatchObject({ id: first!.id, assetId: "asset-1" })
+    expect(reserved).not.toHaveProperty("pendingLabels")
     expect(await j.unfinished()).toHaveLength(1)
   })
 

@@ -158,6 +158,14 @@ export async function openCaptureJournal(
   const randomId = options.randomId ?? (() => globalThis.crypto.randomUUID())
   const pending = new Map<string, number>()
   const lastWrite = new Map<string, number>()
+  // Every change reads an entry and writes it back: run them one at a time,
+  // so a fire-and-forget call never overwrites another's write (K11).
+  let chain: Promise<unknown> = Promise.resolve()
+  const serial = <T>(fn: () => Promise<T>): Promise<T> => {
+    const run = chain.then(fn, fn)
+    chain = run.catch(() => undefined)
+    return run
+  }
 
   const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
     try {
@@ -237,114 +245,151 @@ export async function openCaptureJournal(
     return (await mine()).find((e) => e.id === id) ?? null
   }
 
+  /**
+   * A patch as stored: a reserve (or later step) clears an earlier failure
+   * (K9), and labels typed before reservation once the server has them (K2);
+   * bytes go once finalising starts (K12).
+   */
+  function patched(
+    entry: JournalEntry,
+    patch: Partial<
+      Pick<JournalEntry, "state" | "assetId" | "pendingLabels" | "groupKey">
+    >
+  ): JournalEntry {
+    const next: JournalEntry = { ...entry, ...patch }
+    const moving =
+      patch.state === "reserved" ||
+      patch.state === "transferring" ||
+      patch.state === "finalising"
+    if (moving) delete next.failure
+    if (patch.state === "reserved") delete next.pendingLabels
+    if (patch.state === "finalising") delete next.bytes
+    return next
+  }
+
   return {
-    async pick(input) {
-      const existing = (await mine()).find(
-        (e) => e.uploadKey === input.uploadKey
-      )
-      const others = (await mine()).filter(
-        (e) => e.bytes && e.uploadKey !== input.uploadKey
-      )
-      const total = others.reduce((n, e) => n + (e.bytes?.size ?? 0), 0)
-      const keepBytes = bytesAllowed(input, total, others.length)
-      const t = now()
-      const entry: JournalEntry = {
-        id: existing?.id ?? randomId(),
-        accountHash: options.accountHash,
-        createdAt: existing?.createdAt ?? t,
-        touchedAt: t,
-        expiresAt: t + JOURNAL_LIMITS.expiryMs,
-        purpose: input.purpose,
-        subject: input.subject,
-        groupKey: input.groupKey,
-        uploadKey: input.uploadKey,
-        assetId: existing?.assetId ?? null,
-        fileFingerprint: input.fileFingerprint,
-        displayName: input.file.name,
-        mediaType: input.mediaType,
-        sizeBytes: input.file.size,
-        // §5.2 item 6: a photo whose bytes could not be kept must be picked
-        // again after a discard. Videos are never kept, so "picked" says enough.
-        state:
-          existing && existing.state !== "needs_reselection"
-            ? existing.state
-            : input.mediaType === "image" && !keepBytes
-              ? "needs_reselection"
-              : "picked",
-        ...(input.pendingLabels !== undefined
-          ? { pendingLabels: input.pendingLabels }
-          : existing?.pendingLabels !== undefined
-            ? { pendingLabels: existing.pendingLabels }
-            : {}),
-        // The same key picked again keeps what it learned (OD-B5-05-5): a
-        // permanent failure fails again.
-        ...(existing?.failure ? { failure: existing.failure } : {}),
-        ...(keepBytes ? { bytes: input.file as Blob } : {}),
-      }
-      const stored = await safe(async () => {
-        await save(entry)
-        return true
-      }, false)
-      if (!stored && entry.bytes) {
-        // A refused write with bytes (quota): keep the metadata only.
-        const { bytes: _b, ...meta } = entry
-        void _b
-        const ok = await safe(async () => {
-          await save({ ...meta, state: "needs_reselection" })
-          return true
-        }, false)
-        return ok ? { ...meta, state: "needs_reselection" } : null
-      }
-      if (!stored) return null
-      await safe(() => enforceLimits(entry.id), undefined)
-      return (await find(entry.id)) ?? entry
-    },
-    async update(id, patch) {
-      const entry = await find(id)
-      if (!entry) return
-      await safe(() => save({ ...entry, ...patch }), undefined)
-    },
-    async progress(id, transferredBytes) {
+    pick: (input) => serial(() => pickNow(input)),
+    update: (id, patch) =>
+      serial(async () => {
+        const entry = await find(id)
+        if (!entry) return
+        await safe(() => save(patched(entry, patch)), undefined)
+      }),
+    progress(id, transferredBytes) {
       pending.set(id, transferredBytes)
       const t = now()
       if (t - (lastWrite.get(id) ?? 0) < JOURNAL_LIMITS.progressThrottleMs)
-        return
+        return Promise.resolve()
       lastWrite.set(id, t)
       pending.delete(id)
-      const entry = await find(id)
-      if (entry)
-        await safe(() => save(progressed(entry, transferredBytes)), undefined)
-    },
-    async flush() {
-      for (const [id, transferredBytes] of [...pending]) {
-        pending.delete(id)
-        lastWrite.set(id, now())
+      return serial(async () => {
         const entry = await find(id)
         if (entry)
           await safe(() => save(progressed(entry, transferredBytes)), undefined)
-      }
+      })
     },
-    async fail(id, code, permanent) {
-      const entry = await find(id)
-      if (!entry) return
-      await safe(
-        () => save({ ...entry, state: "failed", failure: { code, permanent } }),
-        undefined
-      )
-    },
-    async done(id) {
-      pending.delete(id)
-      await safe(() => backend.delete(id), undefined)
-    },
+    flush: () =>
+      serial(async () => {
+        for (const [id, transferredBytes] of [...pending]) {
+          pending.delete(id)
+          lastWrite.set(id, now())
+          const entry = await find(id)
+          if (entry)
+            await safe(
+              () => save(progressed(entry, transferredBytes)),
+              undefined
+            )
+        }
+      }),
+    fail: (id, code, permanent) =>
+      serial(async () => {
+        const entry = await find(id)
+        if (!entry) return
+        const next: JournalEntry = {
+          ...entry,
+          state: "failed",
+          failure: { code, permanent },
+        }
+        // A permanent failure is never continued: its bytes go (K12).
+        if (permanent) delete next.bytes
+        await safe(() => save(next), undefined)
+      }),
+    done: (id) =>
+      serial(async () => {
+        pending.delete(id)
+        await safe(() => backend.delete(id), undefined)
+      }),
     async unfinished() {
+      await chain
       return (await mine())
         .filter((e) => e.state !== "done")
         .sort((a, b) => b.touchedAt - a.touchedAt)
     },
-    async clear() {
-      pending.clear()
-      await safe(() => backend.clear(), undefined)
-    },
+    clear: () =>
+      serial(async () => {
+        pending.clear()
+        await safe(() => backend.clear(), undefined)
+      }),
+  }
+
+  async function pickNow(input: PickInput): Promise<JournalEntry | null> {
+    const existing = (await mine()).find((e) => e.uploadKey === input.uploadKey)
+    const others = (await mine()).filter(
+      (e) => e.bytes && e.uploadKey !== input.uploadKey
+    )
+    const total = others.reduce((n, e) => n + (e.bytes?.size ?? 0), 0)
+    const keepBytes = bytesAllowed(input, total, others.length)
+    const t = now()
+    const entry: JournalEntry = {
+      id: existing?.id ?? randomId(),
+      accountHash: options.accountHash,
+      createdAt: existing?.createdAt ?? t,
+      touchedAt: t,
+      expiresAt: t + JOURNAL_LIMITS.expiryMs,
+      purpose: input.purpose,
+      subject: input.subject,
+      groupKey: input.groupKey,
+      uploadKey: input.uploadKey,
+      assetId: existing?.assetId ?? null,
+      fileFingerprint: input.fileFingerprint,
+      displayName: input.file.name,
+      mediaType: input.mediaType,
+      sizeBytes: input.file.size,
+      // §5.2 item 6: a photo whose bytes could not be kept must be picked
+      // again after a discard. Videos are never kept, so "picked" says enough.
+      state:
+        existing && existing.state !== "needs_reselection"
+          ? existing.state
+          : input.mediaType === "image" && !keepBytes
+            ? "needs_reselection"
+            : "picked",
+      ...(input.pendingLabels !== undefined
+        ? { pendingLabels: input.pendingLabels }
+        : existing?.pendingLabels !== undefined
+          ? { pendingLabels: existing.pendingLabels }
+          : {}),
+      // The same key picked again keeps what it learned (OD-B5-05-5): a
+      // permanent failure fails again.
+      ...(existing?.failure ? { failure: existing.failure } : {}),
+      ...(keepBytes ? { bytes: input.file as Blob } : {}),
+    }
+    const stored = await safe(async () => {
+      await save(entry)
+      return true
+    }, false)
+    if (!stored && entry.bytes) {
+      // A refused write with bytes (quota): keep the metadata only.
+      const { bytes: _b, ...meta } = entry
+      void _b
+      const ok = await safe(async () => {
+        await save({ ...meta, state: "needs_reselection" })
+        return true
+      }, false)
+      return ok ? { ...meta, state: "needs_reselection" } : null
+    }
+    if (!stored) return null
+    await safe(() => enforceLimits(entry.id), undefined)
+    return (await find(entry.id)) ?? entry
   }
 }
 
