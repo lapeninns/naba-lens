@@ -426,6 +426,8 @@ export type FeedPhotoItem = FeedKeys & {
   menuUseAccepted: boolean
   /** W1: the photo's contribution group; left out if it could not be read. */
   groupId?: string | null
+  /** B05-m5 S6: the uploader's use view (no granter, period or note). */
+  use?: { state: AssetUseState; destinations: string[] } | null
 }
 
 /** R5 `task_send`: one of the caller's own task photo sends. */
@@ -525,6 +527,103 @@ export type GroupSubjectKind = (typeof GROUP_SUBJECT_KINDS)[number]
 /** OD-7 default (owner to confirm): one group per asset, at most 10 members. */
 export const GROUP_LIMITS = { maxMembers: 10, maxLookup: 100 } as const
 
+/** B05-m5: a member's technical state; `removed` is a deleted asset. */
+export const GROUP_MEMBER_TECHNICAL = [
+  "uploading",
+  "processing",
+  "ready",
+  "failed",
+  "removed",
+] as const
+export type GroupMemberTechnical = (typeof GROUP_MEMBER_TECHNICAL)[number]
+
+/** B05-m5 (OD-B5-01-6): R1's label rule as one value. */
+export const GROUP_MEMBER_LABELS = [
+  "none",
+  "labelled",
+  "needs_attention",
+] as const
+export type GroupMemberLabels = (typeof GROUP_MEMBER_LABELS)[number]
+
+export const GROUP_REVIEW_TARGETS = ["menu_item", "question", "task"] as const
+export type GroupReviewTarget = (typeof GROUP_REVIEW_TARGETS)[number]
+
+/** What one review screen has decided for a member. No notes or reasons. */
+export type GroupReviewEntry = {
+  target: GroupReviewTarget
+  /** The menu item, check or task (coverage requirement) id. */
+  id: string | null
+  state: string
+}
+
+export const ASSET_USE_STATES = [
+  "granted",
+  "withdrawn",
+  "legacy_unknown",
+  "not_granted",
+] as const
+export type AssetUseState = (typeof ASSET_USE_STATES)[number]
+
+/**
+ * private.media_asset_use_summary (B05-m1). The uploader view has
+ * destination labels only; the full view (the venue's manager, an admin)
+ * adds counts and each grant's state and end.
+ */
+export type AssetUseSummary =
+  | { state: AssetUseState; destinations: string[] }
+  | {
+      state: AssetUseState
+      inForce: number
+      withdrawn: number
+      destinations: { label: string; state: string; until: string | null }[]
+    }
+
+export const GROUP_MEMBER_DERIVATIVES = [
+  "none",
+  "pending",
+  "ready",
+  "failed",
+] as const
+export type GroupMemberDerivative = (typeof GROUP_MEMBER_DERIVATIVES)[number]
+
+/**
+ * B05-m5 (OD-B5-01-2). Each member that is not replaced is in one bucket:
+ * removed, failed, inProgress (uploading or processing, stopped included) or
+ * ready. live = ready + inProgress + failed; replaced members count only in
+ * `replaced`. finished = live > 0 and ready = live.
+ */
+export type GroupSummary = {
+  live: number
+  ready: number
+  inProgress: number
+  failed: number
+  removed: number
+  replaced: number
+  finished: boolean
+}
+
+/** One member as contribution_group returns it. */
+export type ContributionGroupMember = {
+  assetId: string
+  position: number
+  mediaType: "image" | "video"
+  uploadState: "uploading" | "processing" | "ready" | "failed"
+  mine: boolean
+  /**
+   * B05-m5: the member this one replaced. Null when none, or when the viewer
+   * may not see that asset.
+   */
+  replacesAssetId?: string | null
+  // B05-m5, the creator, the venue's manager and admins only:
+  technical?: GroupMemberTechnical
+  labels?: GroupMemberLabels
+  review?: GroupReviewEntry[]
+  /** Null while the asset has no use state. */
+  use?: AssetUseSummary | null
+  /** Null until B05-m2's derivative helper exists. */
+  derivative?: GroupMemberDerivative | null
+}
+
 /**
  * One group with the members the viewer may already see, each with its own
  * state. A group adds no state, visibility or credit.
@@ -541,13 +640,19 @@ export type ContributionGroupView = {
     id: string | null
     name: string | null
   }
-  members: {
-    assetId: string
-    position: number
-    mediaType: "image" | "video"
-    uploadState: "uploading" | "processing" | "ready" | "failed"
-    mine: boolean
-  }[]
+  members: ContributionGroupMember[]
+  /** B05-m5: the creator, the venue's manager and admins; counts every member. */
+  summary?: GroupSummary
+  /** B05-m5: colleagues only. */
+  creatorFirstName?: string | null
+}
+
+/** B05-m5 contribution_group_replace: the new member and the one it replaces. */
+export type ContributionGroupReplaceResult = {
+  groupId: string
+  assetId: string
+  replacesAssetId: string
+  position: number
 }
 // ---- Command results -----------------------------------------------------------
 
@@ -768,6 +873,14 @@ export type KnowledgeRpcs = {
   contribution_group: {
     args: { p_group_id: string }
     returns: ContributionGroupView
+  }
+  contribution_group_replace: {
+    args: {
+      p_group_id: string
+      p_failed_asset_id: string
+      p_new_asset_id: string
+    }
+    returns: ContributionGroupReplaceResult
   }
 }
 export type KnowledgeRpcName = keyof KnowledgeRpcs

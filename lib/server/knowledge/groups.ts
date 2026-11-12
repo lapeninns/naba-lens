@@ -3,6 +3,7 @@ import "server-only"
 import {
   GROUP_LIMITS,
   GROUP_SUBJECT_KINDS,
+  type ContributionGroupReplaceResult,
   type ContributionGroupView,
   type GroupSubjectKind,
   type KnowledgeResult,
@@ -132,4 +133,30 @@ export async function getContributionGroup(
   })
   if (error) return knowledgeRpcFailure(error, "contribution group")
   return { ok: true, group: data }
+}
+
+/**
+ * B05-m5. Replaces a failed, stopped or deleted member of the caller's group
+ * with a new upload of their own, one for one; safe to repeat with the same
+ * pair. The database checks the group, both assets and the position limit.
+ */
+export async function replaceInContributionGroup(
+  actor: MediaActor,
+  input: unknown
+): Promise<KnowledgeResult<{ replaced: ContributionGroupReplaceResult }>> {
+  if (!isObject(input) || !isUuid(input.groupId)) return GROUP_NOT_FOUND
+  const { failedAssetId, newAssetId } = input
+  if (!isUuid(failedAssetId) || !isUuid(newAssetId))
+    return knowledgeInvalid({ assetIds: "Reload the page and try again." })
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "contribution_group_replace",
+    {
+      p_group_id: input.groupId,
+      p_failed_asset_id: failedAssetId,
+      p_new_asset_id: newAssetId,
+    }
+  )
+  if (error) return knowledgeRpcFailure(error, "contribution group replace")
+  return { ok: true, replaced: data }
 }

@@ -3,6 +3,8 @@ import "server-only"
 import {
   GROUP_LIMITS,
   GROUP_SUBJECT_KINDS,
+  type ContributionGroupReplaceResult,
+  type ContributionGroupView,
   type ContributionsFeedPage,
   type GroupSubjectKind,
   type KnowledgeFailure,
@@ -28,6 +30,8 @@ import {
   parseDeleteImpact,
   parseGroupId,
   parseGroupMembers,
+  parseGroupReplace,
+  parseGroupView,
   parseLabelWork,
   parseTriage,
 } from "./parse"
@@ -137,6 +141,23 @@ export type WorkServices = {
     actor: MediaActor,
     assetIds: string[]
   ): Promise<WorkRead<AssetGroup[]>>
+  /**
+   * B05-m5. One group as the caller may see it: per-member states and the
+   * summary for its creator, the venue's manager and admins; members and
+   * the creator's first name for colleagues.
+   */
+  getGroup(
+    actor: MediaActor,
+    groupId: string
+  ): Promise<WorkRead<ContributionGroupView>>
+  /**
+   * B05-m5. The creator replaces a failed, stopped or deleted member with a
+   * new upload of their own, one for one; safe to repeat with the same pair.
+   */
+  replaceInGroup(
+    actor: MediaActor,
+    input: { groupId: string; failedAssetId: string; newAssetId: string }
+  ): Promise<WorkRead<ContributionGroupReplaceResult>>
 }
 
 export const workServices: WorkServices = {
@@ -256,6 +277,38 @@ export const workServices: WorkServices = {
       { p_asset_ids: ids },
       "contribution groups",
       parseAssetGroups
+    )
+  },
+
+  getGroup(actor, groupId) {
+    if (typeof groupId !== "string" || !UUID.test(groupId))
+      return Promise.resolve(INVALID_GROUP)
+    return read(
+      actor,
+      "contribution_group",
+      { p_group_id: groupId },
+      "contribution group",
+      parseGroupView
+    )
+  },
+
+  replaceInGroup(actor, input) {
+    const ids = uuids(
+      [input?.groupId, input?.failedAssetId, input?.newAssetId],
+      3
+    )
+    if (!ids || ids.length !== 3) return Promise.resolve(INVALID_GROUP)
+    const [groupId, failedAssetId, newAssetId] = ids as [string, string, string]
+    return read(
+      actor,
+      "contribution_group_replace",
+      {
+        p_group_id: groupId,
+        p_failed_asset_id: failedAssetId,
+        p_new_asset_id: newAssetId,
+      },
+      "contribution group replace",
+      parseGroupReplace
     )
   },
 }

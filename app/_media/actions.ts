@@ -7,6 +7,10 @@ import { removeMediaAsset } from "@/lib/server/lifecycle/remove"
 import { getMediaActor } from "@/lib/server/media/context"
 import { UPLOADER_ROLES } from "@/lib/server/media/roles"
 import type {
+  ContributionGroupReplaceResult,
+  ContributionGroupView,
+} from "@/lib/knowledge/contract"
+import type {
   AssetGroup,
   DeleteImpact,
   GroupSubjectRef,
@@ -145,4 +149,41 @@ export async function readPhotoSets(
   return read.status === "ok"
     ? { status: "ok", groups: read.value }
     : setReply(read)
+}
+
+/**
+ * B05-m5. The caller's set as the database derives it (per-member states and
+ * the summary), for the acknowledgement after a set settles. Gated like Add's
+ * other set calls: the uploader, with groups on for their venue.
+ */
+export async function readPhotoSet(
+  input: unknown
+): Promise<PhotoSetReply<{ group: ContributionGroupView }>> {
+  const auth = await setUploader()
+  if (!auth.ok) return auth.reply
+  const read = await workServices.getGroup(
+    auth.actor,
+    field(input, "groupId") as string
+  )
+  return read.status === "ok"
+    ? { status: "ok", group: read.value }
+    : setReply(read)
+}
+
+/**
+ * B05-m5. Replaces a failed, stopped or deleted photo in the caller's set
+ * with a new upload of their own; safe to repeat with the same pair.
+ */
+export async function replaceInPhotoSet(
+  input: unknown
+): Promise<PhotoSetReply<ContributionGroupReplaceResult>> {
+  const auth = await setUploader()
+  if (!auth.ok) return auth.reply
+  return setReply(
+    await workServices.replaceInGroup(auth.actor, {
+      groupId: field(input, "groupId") as string,
+      failedAssetId: field(input, "failedAssetId") as string,
+      newAssetId: field(input, "newAssetId") as string,
+    })
+  )
 }
