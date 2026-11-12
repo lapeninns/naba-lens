@@ -306,6 +306,19 @@ async function record(
     .catch(() => null)
   if (!entry) return null
   bindCapture(file, session.journal, entry.id)
+  // What the screen learned while the pick ran (a label clear or a newer
+  // choice, a set key) goes to the entry now that it is bound (M4).
+  const now = captureAnnotation(file)
+  const patch: { pendingLabels?: unknown; groupKey?: string | null } = {}
+  if (
+    now &&
+    "pendingLabels" in now &&
+    now.pendingLabels !== entry.pendingLabels
+  )
+    patch.pendingLabels = now.pendingLabels
+  if (now?.groupKey !== undefined && now.groupKey !== entry.groupKey)
+    patch.groupKey = now.groupKey
+  if (Object.keys(patch).length) void session.journal.update(entry.id, patch)
   return entry.id
 }
 
