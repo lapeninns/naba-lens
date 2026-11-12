@@ -5,9 +5,12 @@ const browserName = (process.env.CI_BROWSER ?? 'chromium') as 'chromium' | 'fire
 if (!['chromium', 'firefox', 'webkit'].includes(browserName)) throw new Error('Invalid CI_BROWSER')
 // The root config's projects, unchanged (device settings, @core filters, Firefox
 // app-data fix), narrowed to the engine this CI job installed: chromium runs the
-// desktop suite and the phone-width project, firefox/webkit the @core journey.
+// desktop suite and the phone-width project, firefox/webkit the @core journey;
+// webkit also the WebKit-emulation phone project (capture journal only).
+const engineOf = (name?: string) =>
+  name === 'mobile-chromium' ? 'chromium' : name === 'webkit-phone' ? 'webkit' : name
 const projects = (base.projects ?? [])
-  .filter(p => (p.name === 'mobile-chromium' ? 'chromium' : p.name) === browserName)
+  .filter(p => engineOf(p.name) === browserName)
   .map(p => p.name === 'webkit' && process.env.CI_WEBKIT_HEADED === '1'
     ? { ...p, use: { ...p.use, headless: false } }
     : p)

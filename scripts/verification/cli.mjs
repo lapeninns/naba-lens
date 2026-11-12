@@ -182,7 +182,13 @@ function focused(args) {
       args.splice(grepIndex)
     }
     if (
-      !["chromium", "mobile-chromium", "firefox", "webkit"].includes(project) ||
+      ![
+        "chromium",
+        "mobile-chromium",
+        "firefox",
+        "webkit",
+        "webkit-phone",
+      ].includes(project) ||
       !args.length
     )
       throw Error("Select one browser project and explicit spec files")
