@@ -181,7 +181,7 @@ export async function tileOf(
   if (state === undefined) return tile
   const name =
     state === "ready"
-      ? /^(Photo|Video), uploaded (?!.*, (Uploading|Stopped|Processing|Failed)$)/
+      ? /^(Photo|Video), uploaded (?!.*, (Uploading|Stopped|Processing|Failed)(,|$))/
       : new RegExp(`^(Photo|Video), uploaded [^,]+, ${state}$`)
   return tile.and(page.getByRole("button", { name }))
 }

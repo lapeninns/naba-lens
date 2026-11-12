@@ -418,9 +418,12 @@ test.describe("media.reopen-states", () => {
     await page.unroute(TUS)
 
     const expectStates = async (p: typeof page) => {
-      // Tiles, not buttons: a ready photo without labels also has its own
-      // "Needs labels" button inside the list.
+      // Tiles, not buttons: the stopped video's tile also carries its own
+      // "Open Add" button inside the list (B02 UP-01). Exactly one.
       await expect(portfolio(p).locator("button[data-media-id]")).toHaveCount(3)
+      await expect(
+        portfolio(p).getByRole("button", { name: "Open Add" })
+      ).toHaveCount(1)
       await expect(await tileOf(p, staff.id, "photo.jpg", "ready")).toHaveCount(
         1
       )
