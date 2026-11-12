@@ -95,7 +95,9 @@ import { useAdd } from "@/components/nabalens/shell/add-context"
 import {
   CAPTURE_COPY,
   CaptureJournalContext,
+  createLabelJournal,
   journalLabels,
+  panelChoiceCounts,
   resumableEntries,
   sendClearsLabels,
 } from "@/components/nabalens/shell/capture-resume"
@@ -110,6 +112,7 @@ import {
 } from "@/lib/upload/capture-session"
 import type { CaptureSession } from "@/lib/upload/capture-session"
 import type { SaveLabelsInput } from "@/lib/menus/types"
+import { CATALOGUE } from "./labels-fixtures"
 import {
   memoryJournalBackend,
   openCaptureJournal,
@@ -636,5 +639,117 @@ describe("the latest label choice (M3)", () => {
     await waitFor(() => expect(uploaded).toHaveLength(1))
     await new Promise((r) => setTimeout(r, 50))
     expect(labelApi.saveUploadLabels).not.toHaveBeenCalled()
+  })
+})
+
+describe("the journal's label copy follows the server (N2, N3, N4)", () => {
+  const choice = (
+    note: string,
+    items: SaveLabelsInput["items"] = []
+  ): SaveLabelsInput => ({
+    assetId: "row-1",
+    expectedRevision: 0,
+    catalogueVersionId: null,
+    contentTypes: ["dish"],
+    note,
+    items,
+    missingItem: null,
+  })
+
+  function tracked() {
+    const held = new Map<File, unknown>()
+    const sync = createLabelJournal(
+      (file, patch) => held.set(file, patch.pendingLabels),
+      (file) => (held.has(file) ? { pendingLabels: held.get(file) } : undefined)
+    )
+    return { held, sync }
+  }
+
+  it("N3: a later confirmation still clears: confirming never forgets the file", () => {
+    const { held, sync } = tracked()
+    const file = jpeg("a.jpg")
+    sync.reserved("asset-a", file)
+    held.set(file, journalLabels("v", choice("X")))
+    sync.sending({ ...choice("X"), assetId: "asset-a" })
+    sync.confirmed({ ...choice("X"), assetId: "asset-a" })
+    expect(held.get(file)).toBeUndefined()
+    // Changed to B afterwards, then confirmed: cleared again.
+    held.set(file, journalLabels("v", choice("B")))
+    sync.sending({ ...choice("B"), assetId: "asset-a" })
+    sync.confirmed({ ...choice("B"), assetId: "asset-a" })
+    expect(held.get(file)).toBeUndefined()
+    expect(sync.size()).toBe(1)
+  })
+
+  it("N2: a discard clears only the choice it discarded", () => {
+    const { held, sync } = tracked()
+    const file = jpeg("a.jpg")
+    sync.reserved("asset-a", file)
+    sync.sending({ ...choice("X"), assetId: "asset-a" })
+    // A newer choice, not sent yet: the discard of X keeps it.
+    held.set(file, journalLabels("v", choice("B")))
+    sync.discarded("asset-a")
+    expect(held.get(file)).toEqual(journalLabels("v", choice("B")))
+    // Still X: the discard clears it.
+    held.set(file, journalLabels("v", choice("X")))
+    sync.discarded("asset-a")
+    expect(held.get(file)).toBeUndefined()
+  })
+
+  it("forgets files on upload end, remove and another account, within 100", () => {
+    const { held, sync } = tracked()
+    const a = jpeg("a.jpg")
+    sync.reserved("asset-a", a)
+    sync.forgetAsset("asset-a")
+    held.set(a, journalLabels("v", choice("X")))
+    sync.confirmed({ ...choice("X"), assetId: "asset-a" })
+    expect(held.get(a)).toBeDefined()
+    sync.reserved("asset-a", a)
+    sync.forgetFile(a)
+    expect(sync.size()).toBe(0)
+    for (let i = 0; i < 120; i++) sync.reserved(`asset-${i}`, jpeg(`${i}.jpg`))
+    expect(sync.size()).toBe(100)
+    sync.clear()
+    expect(sync.size()).toBe(0)
+  })
+
+  it("N4: a continued row's empty first panel choice doesn't count until its seed is in", () => {
+    const empty = { ...choice(""), contentTypes: [] }
+    expect(panelChoiceCounts(empty, true, undefined)).toBe(false)
+    expect(panelChoiceCounts(empty, true, choice("X"))).toBe(true)
+    expect(panelChoiceCounts(choice("X"), true, undefined)).toBe(true)
+    expect(panelChoiceCounts(empty, false, undefined)).toBe(true)
+  })
+
+  it("N4 through Add: the panel mounting for a continued row keeps its labels in the journal", async () => {
+    labelApi.loadUploadLabelContext.mockResolvedValue({
+      ok: true,
+      catalogue: CATALOGUE,
+      focus: null,
+    } as never)
+    // The send never answers: only the panel could clear the journal's copy.
+    labelApi.saveUploadLabels.mockImplementation(() => new Promise(() => {}))
+    const kept = jpeg("kept.jpg")
+    const x = choice("TEST X", [{ itemId: "item-bhaji", variantId: null }])
+    const entry = (await pick(kept, {
+      pendingLabels: { venueId: "venue-1", input: x },
+    }))!
+    uploads.current = (async (file, context) => {
+      bindCapture(file, journal, entry.id)
+      context.onReserved?.(`asset-${file.name}`)
+      return { assetId: `asset-${file.name}` }
+    }) satisfies Uploader
+    const sheet = await openSheet()
+    fireEvent.click(
+      await within(sheet).findByRole("button", {
+        name: CAPTURE_COPY.continueLabel("kept.jpg"),
+      })
+    )
+    await waitFor(() => expect(labelApi.saveUploadLabels).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 100))
+    const stored = (await journal.unfinished()).find((e) => e.id === entry.id)
+    expect(stored?.pendingLabels).toMatchObject({
+      input: { note: "TEST X", items: [{ itemId: "item-bhaji" }] },
+    })
   })
 })
