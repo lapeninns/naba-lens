@@ -49,6 +49,10 @@ const STATE_CONFLICT: Record<string, string> = {
     "This suggestion was already handled. Reload the page to see it.",
   menu_review_pending:
     "Resolve every uncertain match and save the draft before activating it.",
+  // B04-e activation guard (b04-design §13.2): prices for this venue are
+  // kept in NabaLens, so the menu is activated with its reviewed release.
+  menu_release_required:
+    "This venue's prices are kept in NabaLens. Activate this menu with its confirmed price release.",
 }
 
 const INVALID: Record<string, string> = {
