@@ -171,6 +171,11 @@ type UploadDialogProps = {
   replace?: SetReplace
   /** Once per file the server could not process (failed there for good). */
   onServerFailed?: (file: File, assetId: string) => void
+  /**
+   * Shown above the pickers while no file is queued (B05-05, J2: Add's
+   * uploads that didn't finish in an earlier tab, and the probe line).
+   */
+  idle?: React.ReactNode
 }
 
 /** Where a replacement asked for from a row stands. */
@@ -749,6 +754,7 @@ export function UploadDialog({
   readSet,
   replace,
   onServerFailed,
+  idle,
 }: UploadDialogProps) {
   const guard = useSessionGuard()
   const isSignedIn = guard?.isSignedIn
@@ -1463,6 +1469,7 @@ export function UploadDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {items.length === 0 && idle ? idle : null}
         <div className={cn(items.length > 0 && startOnPick && "hidden")}>
           <PhotoSourceActions
             layout="row"

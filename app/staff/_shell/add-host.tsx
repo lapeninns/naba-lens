@@ -458,8 +458,10 @@ export function AddHost({
     return () => {
       live = false
     }
-  }, [capture, resumeRead, sheetOpen, heldIds])
+  }, [capture, resumeRead, sheetOpen, uploadOpen, heldIds])
   const resumable = unfinishedEntries
+  const keepOpenNote =
+    capture && !capture.capabilities.storeBytes ? CAPTURE_COPY.keepOpen : null
   // Labels typed before reservation in the earlier tab, by continued file.
   const resumedLabels = React.useRef(
     new WeakMap<File, { venueId: string; input: SaveLabelsInput }>()
@@ -500,6 +502,12 @@ export function AddHost({
     queueFiles([file])
     setResumeRead((n) => n + 1)
   }
+  const resumeBlock = (
+    <CaptureResumeBlock
+      entries={resumable}
+      onContinue={(entry) => void continueEntry(entry)}
+    />
+  )
 
   // Add's own pickers, for openAdd({ source }). Outside any dialog, so a
   // click on them never lands on content a modal has made inert.
@@ -670,15 +678,13 @@ export function AddHost({
     (dialog = false) => {
       const phone = !window.matchMedia("(min-width: 48rem)").matches
       if (waiting > 0 && !blocked) setUploadOpen(true)
-      // What didn't finish earlier is said in the sheet (OD-B5-05-11).
-      else if (blocked || (phone && !dialog) || resumable.length > 0)
-        setSheetOpen(true)
+      else if (blocked || (phone && !dialog)) setSheetOpen(true)
       else {
         setPickedFiles(undefined)
         setUploadOpen(true)
       }
     },
-    [waiting, blocked, resumable.length]
+    [waiting, blocked]
   )
 
   // The shared entry's step, while it is open (B02-02).
@@ -989,17 +995,8 @@ export function AddHost({
                 maxFiles={MEDIA_LIMITS.maxBatchFiles}
                 imagesOnly={imagesOnly}
                 onFiles={queueFiles}
-                resume={
-                  <CaptureResumeBlock
-                    entries={resumable}
-                    onContinue={(entry) => void continueEntry(entry)}
-                  />
-                }
-                keepOpenNote={
-                  capture && !capture.capabilities.storeBytes
-                    ? CAPTURE_COPY.keepOpen
-                    : null
-                }
+                resume={resumeBlock}
+                keepOpenNote={keepOpenNote}
               />
               <UploadDialog
                 open={uploadOpen}
@@ -1030,6 +1027,23 @@ export function AddHost({
                 readSet={groupsOn ? readSet : undefined}
                 replace={groupsOn ? replace : undefined}
                 onServerFailed={serverFailed}
+                idle={
+                  // From md, idle Add is this dialog: the same block and line
+                  // as the phone sheet, above its pickers (J2).
+                  resumable.length > 0 || keepOpenNote ? (
+                    <div className="grid gap-2">
+                      {resumeBlock}
+                      {keepOpenNote ? (
+                        <p
+                          data-capture-keep-open=""
+                          className="text-meta text-ink-muted"
+                        >
+                          {keepOpenNote}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null
+                }
                 addMoreLabel={
                   groupsOn && addingToSet ? ENTRY_COPY.addMoreToSet : undefined
                 }
