@@ -25,12 +25,23 @@ type ListState = {
   gen: number
   items: AssetSearchItem[]
   cursor: string | null
+  /** Focus was in the results when this page one replaced them. */
+  recoverFocus: boolean
 }
 
-function listFrom(first: SearchPageResult, gen: number): ListState {
+function listFrom(
+  first: SearchPageResult,
+  gen: number,
+  recoverFocus = false
+): ListState {
   return first.ok
-    ? { gen, items: first.page.items, cursor: first.page.nextCursor }
-    : { gen, items: [], cursor: null }
+    ? {
+        gen,
+        items: first.page.items,
+        cursor: first.page.nextCursor,
+        recoverFocus,
+      }
+    : { gen, items: [], cursor: null, recoverFocus }
 }
 
 /** The field errors a first page carries (a missing venue is the Venue's). */
@@ -113,10 +124,24 @@ export function SearchResults({
   const [more, setMore] = React.useState<MoreState>(null)
   // A new server render of page one (router.refresh, a retry, a corrected
   // URL with the same key) replaces whatever this list had loaded since.
+  const resultsId = React.useId()
   const [seenFirst, setSeenFirst] = React.useState(first)
   if (first !== seenFirst) {
+    // Where focus is now, before the reset's commit removes anything: inside
+    // the results (a card or a pager control, also while the window is away,
+    // since the element stays the page's focus), or on nothing while this
+    // list's own request was running (its control had just been replaced).
+    // Read once, here, so recovery depends on no focus or blur event (React
+    // ignores events during its commit; Chromium and WebKit differ on
+    // removal). An abandoned render reads it again; nothing is written.
+    const active = document.activeElement
+    const onNothing = !active || active === document.body
+    const recoverFocus =
+      (!onNothing &&
+        document.getElementById(resultsId)?.contains(active) === true) ||
+      (onNothing && loading)
     setSeenFirst(first)
-    setList((current) => listFrom(first, current.gen + 1))
+    setList((current) => listFrom(first, current.gen + 1, recoverFocus))
     setLoading(false)
     setMore(null)
   }
@@ -129,37 +154,22 @@ export function SearchResults({
   const lastFrom = React.useRef<string | null>(null)
   // The committed generation, for the parts of a settled page outside `list`.
   const committedGen = React.useRef(list.gen)
-  // The element inside the results (a card or a pager control) that last took
-  // focus, so a reset that removes it can recover. Browsers differ on a
-  // focused element's removal (Chromium blurs it while still connected,
-  // WebKit fires nothing), and React 19 ignores events during its own commit.
-  // So a blur with no new target is judged after the commit (see onBlur).
-  const focusedInList = React.useRef<Element | null>(null)
-
-  // Every commit. When the committed list moved to a new page one: drop the
-  // page in flight now and give focus a home if the reset removed the focused
-  // element. Any other commit that removed it (React ignores the blur during
-  // its own commit) forgets it, so only a reset's own removal can recover.
+  // The committed list moved to a new page one: drop the page in flight now,
+  // during the commit, and give focus a home if it was in the results before
+  // the reset and the reset left it on nothing.
   const lostFocus = React.useRef(onLostFocus)
   React.useLayoutEffect(() => {
     lostFocus.current = onLostFocus
   })
   React.useLayoutEffect(() => {
-    const lost = focusedInList.current
-    if (committedGen.current === list.gen) {
-      if (lost && !lost.isConnected) focusedInList.current = null
-      return
-    }
+    if (committedGen.current === list.gen) return
     committedGen.current = list.gen
     abort.current?.abort()
-    if (lost && !lost.isConnected) {
-      focusedInList.current = null
-      const active = document.activeElement
-      // Only when nothing else took focus meanwhile.
-      if (!active || active === document.body || !active.isConnected)
-        lostFocus.current()
-    }
-  })
+    if (!list.recoverFocus) return
+    const active = document.activeElement
+    if (!active || active === document.body || !active.isConnected)
+      lostFocus.current()
+  }, [list.gen, list.recoverFocus])
 
   // The list itself unmounting drops its page in flight.
   React.useEffect(() => () => abort.current?.abort(), [])
@@ -236,12 +246,13 @@ export function SearchResults({
     setList((current) => {
       if (current.gen !== gen) return current // a newer page one won
       if (from === null) {
-        // Search again: page one replaces the list.
-        return { gen, items: page.items, cursor: page.nextCursor }
+        // Search again: page one replaces the list (same generation; focus
+        // goes to its first card through focusIndex).
+        return { ...current, items: page.items, cursor: page.nextCursor }
       }
       const seen = new Set(current.items.map((i) => i.id))
       return {
-        gen,
+        ...current,
         items: [...current.items, ...page.items.filter((i) => !seen.has(i.id))],
         cursor: page.nextCursor,
       }
@@ -254,31 +265,7 @@ export function SearchResults({
   if (items.length === 0 && !loading && !more) return <>{empty}</>
 
   return (
-    <div
-      className="grid min-w-0 gap-(--gutter)"
-      onFocus={(event) => {
-        focusedInList.current = event.target
-      }}
-      onBlur={(event) => {
-        const next = event.relatedTarget
-        if (next instanceof Node) {
-          // Focus moved to another element: forget it if that is outside.
-          if (!event.currentTarget.contains(next)) focusedInList.current = null
-          return
-        }
-        // No new target: the window lost focus, the user dropped focus on
-        // blank space, or the element is being removed. A reset's removal is
-        // handled by the layout effect in the same commit, before this
-        // microtask runs. What is left to decide here is a deliberate drop
-        // (the document still has focus): forget it. While the window is
-        // away, the element stays the page's focus.
-        const target = event.target
-        queueMicrotask(() => {
-          if (focusedInList.current === target && document.hasFocus())
-            focusedInList.current = null
-        })
-      }}
-    >
+    <div id={resultsId} className="grid min-w-0 gap-(--gutter)">
       <ul ref={listRef} className={RESULTS_GRID}>
         {items.map((item) => (
           <li key={item.id} className="min-w-0">

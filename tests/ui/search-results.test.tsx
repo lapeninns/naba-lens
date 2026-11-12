@@ -343,6 +343,68 @@ describe("SearchResults follows page one (R1)", () => {
     expect(onLostFocus).toHaveBeenCalledTimes(1)
   })
 
+  it("recovers focus the list placed while no focus event reached it (window away)", async () => {
+    // Chromium sets focus without firing focus events while the window is not
+    // focused. Model that by stopping every focus event before React sees it.
+    fetchMock.fetchSearchPage.mockResolvedValue({
+      ok: true,
+      page: { items: [item(10), item(11)], nextCursor: null },
+    })
+    const stop = (event: Event) => event.stopImmediatePropagation()
+    const onLostFocus = vi.fn()
+    const { rerender } = render(
+      <List initialPage={okPage(2, "c1")} onLostFocus={onLostFocus} />
+    )
+    for (const type of ["focus", "focusin", "blur", "focusout"])
+      window.addEventListener(type, stop, true)
+    try {
+      await userEvent.click(
+        screen.getByRole("button", { name: SEARCH_COPY.showMore })
+      )
+      expect(document.activeElement).toBe(cards()[2])
+      await act(async () => {
+        rerender(<List initialPage={okPage(1)} onLostFocus={onLostFocus} />)
+      })
+    } finally {
+      for (const type of ["focus", "focusin", "blur", "focusout"])
+        window.removeEventListener(type, stop, true)
+    }
+    expect(cards()).toHaveLength(1)
+    expect(onLostFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it("recovers focus when a reset lands while Search again is still loading", async () => {
+    fetchMock.fetchSearchPage
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        code: "invalid_input",
+        message: "",
+        fieldErrors: { cursor: "expired" },
+      })
+      .mockReturnValueOnce(new Promise(() => {})) // Search again never settles
+    const onLostFocus = vi.fn()
+    const { rerender } = render(
+      <List initialPage={okPage(2, "c1")} onLostFocus={onLostFocus} />
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.searchAgain })
+    )
+    // Search again's own commit replaced the focused button.
+    expect(
+      screen.queryByRole("button", { name: SEARCH_COPY.searchAgain })
+    ).toBeNull()
+    expect(onLostFocus).not.toHaveBeenCalled()
+    await act(async () => {
+      rerender(<List initialPage={okPage(1)} onLostFocus={onLostFocus} />)
+    })
+    expect(cards()).toHaveLength(1)
+    expect(onLostFocus).toHaveBeenCalledTimes(1)
+  })
+
   it("leaves focus alone when a new page one arrives while focus is elsewhere", () => {
     const onLostFocus = vi.fn()
     const { rerender } = render(
