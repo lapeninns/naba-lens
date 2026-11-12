@@ -143,25 +143,61 @@ export function createCaptureSessions(deps: CaptureSessionDeps = {}) {
     })
   }
 
+  /**
+   * The account marker on this device now. Undefined when storage can't be
+   * read at all (then only the storage event can tell another tab's
+   * sign-out); null when there is none.
+   */
+  function marker(): string | null | undefined {
+    try {
+      const storage =
+        deps.cleanup?.().storage ??
+        (typeof window === "undefined" ? undefined : window.localStorage)
+      if (!storage) return undefined
+      return storage.getItem(JOURNAL_ACCOUNT_STORAGE_KEY)
+    } catch {
+      return undefined
+    }
+  }
+
   async function open(
     hash: string,
     entry: Live
   ): Promise<CaptureSession | null> {
+    // Hear another tab's sign-out from the start, even during this open (K1).
+    listen()
     // Before any upload key is read or anything is shown (§5.2 item 4).
     claimCaptureDataForAccount(hash, deps.cleanup?.())
+    // Alive while not invalidated and the device is still this account's,
+    // checked before every write (K6): a dead session never writes, so it
+    // never reopens a deleted database either.
+    const alive = () => {
+      const now = marker()
+      return entry.alive && (now === undefined || now === hash)
+    }
     const capabilities = await (deps.probe ?? detectCaptureCapabilities)()
-    const backend = deps.backend
+    const raw = deps.backend
       ? deps.backend(capabilities)
       : capabilities.indexedDb && (deps.indexedDB ?? browserIndexedDb)()
         ? indexedDbJournalBackend((deps.indexedDB ?? browserIndexedDb)()!)
         : memoryJournalBackend()
+    const backend: JournalBackend = {
+      getAll: () => (alive() ? raw.getAll() : Promise.resolve([])),
+      put: (e) => (alive() ? raw.put(e) : Promise.resolve()),
+      delete: (id) => (alive() ? raw.delete(id) : Promise.resolve()),
+      clear: () => (alive() ? raw.clear() : Promise.resolve()),
+    }
+    if (!alive()) return null
     const journal = await openCaptureJournal({
       backend,
       accountHash: hash,
       capabilities,
     })
-    listen()
-    const alive = () => entry.alive
+    // Signed out (or switched) in another tab while this opened.
+    if (!alive()) {
+      entry.alive = false
+      return null
+    }
     return {
       accountHash: hash,
       capabilities,
@@ -182,8 +218,9 @@ export function createCaptureSessions(deps: CaptureSessionDeps = {}) {
       if (live?.hash === hash && live.alive) return live.session
       invalidate()
       const entry: Live = { hash, alive: true, session: Promise.resolve(null) }
-      entry.session = open(hash, entry).catch(() => null)
+      // Live before the open starts, so a storage event during it counts.
       live = entry
+      entry.session = open(hash, entry).catch(() => null)
       return entry.session
     },
     /** Drops the current journal (tests; an explicit sign-out here). */
@@ -203,6 +240,8 @@ export function getCaptureJournal(
 // ---- Files and their entries -----------------------------------------------
 
 const annotations = new WeakMap<File, CaptureAnnotation>()
+/** Rows removed before their entry existed: the entry goes when it does (K10). */
+const forgotten = new WeakSet<File>()
 const bindings = new WeakMap<File, { journal: CaptureJournal; id: string }>()
 
 /** What the screen knows about `file` so far (read by the transport at pick). */
@@ -231,6 +270,11 @@ export function bindCapture(
   journal: CaptureJournal,
   id: string
 ): void {
+  if (forgotten.has(file)) {
+    forgotten.delete(file)
+    void journal.done(id)
+    return
+  }
   bindings.set(file, { journal, id })
 }
 
@@ -243,7 +287,11 @@ export function captureEntryId(file: File): string | null {
 export function forgetCapture(file: File): void {
   const bound = bindings.get(file)
   annotations.delete(file)
-  if (!bound) return
+  if (!bound) {
+    // Its pick may still be on its way.
+    forgotten.add(file)
+    return
+  }
   bindings.delete(file)
   void bound.journal.done(bound.id)
 }

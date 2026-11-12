@@ -75,6 +75,9 @@ export function toQueueUploader(
   // on (aborted, e.g. a finalise retried after its stale window) frees its key
   // at once, so the retry is not refused while the old reply is still out.
   const inUse = new Map<string, AbortSignal>()
+  // The page's first identity (as the session guard keeps it): the journal
+  // is that account's only; an upload under another account skips it (K7).
+  let journalAccount: string | undefined
 
   return async (
     file: File,
@@ -88,9 +91,13 @@ export function toQueueUploader(
         ? ((await signedIn().catch(() => null)) ?? undefined)
         : undefined)
     const scope = { purpose: context.purpose, account }
-    // Claims the device for this account before any key is read (OD-B5-05-1).
+    // Claims the device for this account before any key is read (OD-B5-05-1),
+    // within a deadline: the journal never holds up an upload (K4).
+    if (account) journalAccount ??= account
     const session =
-      capture && account ? await capture(account).catch(() => null) : null
+      capture && account && account === journalAccount
+        ? await withDeadline(capture(account), null)
+        : null
     let token = readToken(context.resumeToken)
     // The same file picked again (another visit): its stored key reserves
     // the earlier upload.
@@ -119,7 +126,12 @@ export function toQueueUploader(
     context.signal?.addEventListener("abort", release, { once: true })
     await keys?.set(file, idempotencyKey, scope).catch(() => {})
     const entryId = session
-      ? await record(session, file, idempotencyKey, context, scope)
+      ? await withDeadline(
+          record(session, file, idempotencyKey, context, scope),
+          null,
+          // Recorded too late to follow: nothing would ever end it.
+          (id) => void (id && session.journal.done(id))
+        )
       : null
     const journal = entryId ? session!.journal : null
 
@@ -172,7 +184,8 @@ export function toQueueUploader(
       context.setResumeToken(null)
     }
 
-    if (journal && entryId) await settleEntry(journal, entryId, result)
+    if (journal && entryId)
+      await withDeadline(settleEntry(journal, entryId, result), undefined)
 
     if (result.state === "failed") {
       throw new QueueUploadError(
@@ -190,6 +203,38 @@ export function toQueueUploader(
       ? { assetId: result.assetId, labels: result.labels }
       : { assetId: result.assetId }
   }
+}
+
+/**
+ * How long an upload waits for the capture journal at each step (K4). After
+ * that it carries on without it; a late journal answer is ignored.
+ */
+export const JOURNAL_DEADLINE_MS = 2000
+
+function withDeadline<T>(
+  work: Promise<T>,
+  fallback: T,
+  /** The answer that came after the deadline (to undo it). */
+  onLate?: (value: T) => void
+): Promise<T> {
+  return new Promise((resolve) => {
+    let late = false
+    const timer = setTimeout(() => {
+      late = true
+      resolve(fallback)
+    }, JOURNAL_DEADLINE_MS)
+    work.then(
+      (value) => {
+        clearTimeout(timer)
+        if (late) onLate?.(value)
+        resolve(value)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(fallback)
+      }
+    )
+  })
 }
 
 /** The file's journal entry at its key point (OD-B5-05-4); its id, or null. */
