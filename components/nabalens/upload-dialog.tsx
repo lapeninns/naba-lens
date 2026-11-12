@@ -199,6 +199,8 @@ export type SetNotice = { id: string; text: string; unfinished: string[] }
 
 /** How long a set read that failed waits before it is asked once more. */
 export const SET_READ_AGAIN_MS = 3_000
+/** After a photo's stoppedAt, how long before its set is read again. */
+export const STOPPED_MARGIN_MS = 5_000
 
 /** The server's read of a settled set: undefined while it is on its way. */
 export type SetRead = (
@@ -984,15 +986,30 @@ export function UploadDialog({
     >
   >(new Map())
   const asked = React.useRef(new Map<string, string>())
-  // The 3 s re-read of each set, cleared when the set changes or on unmount.
-  const again = React.useRef(new Map<string, number>())
+  // The 3 s re-read of each set, by the signature it was for: cleared when
+  // the set changes (a row retried or gone) or on unmount.
+  const again = React.useRef(
+    new Map<string, { signature: string; timer: number }>()
+  )
   React.useEffect(() => {
     const timers = again.current
     return () => {
-      for (const timer of timers.values()) window.clearTimeout(timer)
+      for (const { timer } of timers.values()) window.clearTimeout(timer)
       timers.clear()
     }
   }, [])
+  // S15: a set is read again when one of its photos becomes stopped on the
+  // server; each wake makes a new signature, so a new read.
+  const [wakes, setWakes] = React.useState<ReadonlyMap<string, number>>(
+    new Map()
+  )
+  const wake = React.useCallback(
+    (id: string) =>
+      setWakes((current) =>
+        new Map(current).set(id, (current.get(id) ?? 0) + 1)
+      ),
+    []
+  )
   const setSignatures = new Map<
     string,
     { signature: string; settled: boolean }
@@ -1002,7 +1019,7 @@ export function UploadDialog({
       const set = setOf(item.file)
       if (!set) continue
       const entry = setSignatures.get(set.id) ?? {
-        signature: "",
+        signature: `#${wakes.get(set.id) ?? 0};`,
         settled: true,
       }
       entry.signature += `${item.id}:${item.status}:${
@@ -1019,6 +1036,24 @@ export function UploadDialog({
     .filter(([, entry]) => entry.settled)
     .map(([id, entry]) => `${id}=${entry.signature}`)
     .join("|")
+  const allSets = [...setSignatures]
+    .map(([id, entry]) => `${id}=${entry.signature}`)
+    .join("|")
+  React.useEffect(() => {
+    const now = new Map(
+      allSets
+        ? allSets.split("|").map((pair) => {
+            const at = pair.indexOf("=")
+            return [pair.slice(0, at), pair.slice(at + 1)] as const
+          })
+        : []
+    )
+    for (const [id, entry] of again.current)
+      if (now.get(id) !== entry.signature) {
+        window.clearTimeout(entry.timer)
+        again.current.delete(id)
+      }
+  }, [allSets])
   React.useEffect(() => {
     if (!readSet || !settledSets) return
     for (const pair of settledSets.split("|")) {
@@ -1027,7 +1062,7 @@ export function UploadDialog({
       const signature = pair.slice(at + 1)
       if (asked.current.get(id) === signature) continue
       asked.current.set(id, signature)
-      window.clearTimeout(again.current.get(id))
+      window.clearTimeout(again.current.get(id)?.timer)
       again.current.delete(id)
       // A read that failed is asked once more a little later; meanwhile,
       // and if that fails too, the queue words the set.
@@ -1040,13 +1075,13 @@ export function UploadDialog({
               new Map(current).set(id, { signature, view, at: Date.now() })
             )
             if (!view && retry)
-              again.current.set(
-                id,
-                window.setTimeout(() => {
+              again.current.set(id, {
+                signature,
+                timer: window.setTimeout(() => {
                   again.current.delete(id)
                   ask(false)
-                }, SET_READ_AGAIN_MS)
-              )
+                }, SET_READ_AGAIN_MS),
+              })
           })
       ask(true)
     }
@@ -1058,6 +1093,59 @@ export function UploadDialog({
       ? entry.view
       : undefined
   }
+  // S15: when to read each set again: the earliest stoppedAt of a member
+  // still uploading on the server, not yet stopped, whose row didn't finish
+  // here (failed, stopped or cancelled). A timer fires then (with a margin);
+  // coming back to the page past it reads at once.
+  const wakeAts: string[] = []
+  for (const [id, now] of setSignatures) {
+    const entry = setReads.get(id)
+    if (!entry?.view || entry.signature !== now.signature) continue
+    const replaced = new Set(
+      entry.view.members.flatMap((m) =>
+        m.replacesAssetId ? [m.replacesAssetId] : []
+      )
+    )
+    let at = Infinity
+    for (const m of entry.view.members) {
+      if (m.technical !== "uploading" || m.stopped || !m.stoppedAt) continue
+      if (replaced.has(m.assetId)) continue
+      const row = items.find((i) => i.assetId === m.assetId)
+      if (!row || (row.status !== "failed" && row.status !== "cancelled"))
+        continue
+      const when = Date.parse(m.stoppedAt)
+      if (Number.isFinite(when)) at = Math.min(at, when)
+    }
+    // A read taken after stoppedAt that still says not stopped (this clock
+    // is ahead of the server's): try again a minute after it, not at once.
+    if (Number.isFinite(at))
+      wakeAts.push(`${id}@${at > entry.at ? at : entry.at + 60_000}`)
+  }
+  const wakeKey = wakeAts.join("|")
+  React.useEffect(() => {
+    if (!wakeKey) return
+    const due = wakeKey.split("|").map((pair) => {
+      const at = pair.lastIndexOf("@")
+      return { id: pair.slice(0, at), at: Number(pair.slice(at + 1)) }
+    })
+    const timers = due.map(({ id, at }) =>
+      window.setTimeout(
+        () => wake(id),
+        Math.min(2 ** 31 - 1, Math.max(0, at - Date.now()) + STOPPED_MARGIN_MS)
+      )
+    )
+    const back = () => {
+      if (document.visibilityState === "hidden") return
+      for (const { id, at } of due) if (at <= Date.now()) wake(id)
+    }
+    document.addEventListener("visibilitychange", back)
+    window.addEventListener("focus", back)
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer)
+      document.removeEventListener("visibilitychange", back)
+      window.removeEventListener("focus", back)
+    }
+  }, [wakeKey, wake])
   /** The latest read of a row's set, settled or not. */
   const readOf = (item: QueueItem) => {
     const set = setOf?.(item.file)

@@ -4,6 +4,7 @@
 // fails), and a photo the server failed offers Replace beside Retry, which
 // swaps a different photo in instead of adding it.
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -74,6 +75,7 @@ import { ENTRY_COPY } from "@/components/nabalens/shell/entry-copy"
 import {
   serverSetNotice,
   setNotices,
+  STOPPED_MARGIN_MS,
 } from "@/components/nabalens/upload-dialog"
 import type {
   QueueItem,
@@ -789,6 +791,125 @@ describe("Replace: the review repairs (S1 to S13)", () => {
     await waitFor(() => expect(onUnfinished).toHaveBeenCalledTimes(1))
     fireEvent.click(within(dialog).getByRole("button", { name: "Retry x.jpg" }))
     await waitFor(() => expect(onUnfinished).toHaveBeenCalledTimes(2))
+  })
+})
+
+describe("a photo that stops later gets Replace then (S15)", () => {
+  const HOUR = 3_600_000
+  let stoppedAt = 0
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    // The transfer dies here; the server still has it uploading, fresh.
+    uploads.current = (async (file, context) => {
+      context.onReserved?.(`asset-${file.name}`)
+      if (file.name === "lost.jpg") throw new Error("The upload failed. Retry.")
+      return { assetId: `asset-${file.name}` }
+    }) satisfies Uploader
+    server.technical.set("asset-lost.jpg", "uploading")
+    stoppedAt = Date.now() + HOUR
+    // The server's rule: stopped once its clock passes stoppedAt.
+    sets.readPhotoSet.mockImplementation(async () => {
+      const v = view()
+      return {
+        status: "ok",
+        group: {
+          ...v,
+          members: v.members.map((m) =>
+            m.assetId === "asset-lost.jpg"
+              ? {
+                  ...m,
+                  stopped: Date.now() >= stoppedAt,
+                  stoppedAt: new Date(stoppedAt).toISOString(),
+                }
+              : { ...m, stopped: false, stoppedAt: null }
+          ),
+        },
+      }
+    })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function lostSet() {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    await host()
+    fireEvent.click(screen.getByRole("button", { name: "Tandoor photos" }))
+    await user.upload(libraryInput(), [jpeg("one.jpg"), jpeg("lost.jpg")])
+    const dialog = await screen.findByRole("dialog")
+    expect(await within(dialog).findByText(saved(1))).toBeTruthy()
+    // Fresh on the server: Retry here, no Replace yet.
+    expect(
+      within(dialog).getByRole("button", { name: "Retry lost.jpg" })
+    ).toBeTruthy()
+    expect(replaceButton(dialog, "lost.jpg")).toBeNull()
+    return dialog
+  }
+
+  it("reads the set again at stoppedAt, and offers Replace", async () => {
+    const dialog = await lostSet()
+    const reads = sets.readPhotoSet.mock.calls.length
+    // Not before its time.
+    await act(async () => {
+      vi.advanceTimersByTime(HOUR - 60_000)
+    })
+    expect(sets.readPhotoSet.mock.calls.length).toBe(reads)
+    await act(async () => {
+      vi.advanceTimersByTime(60_000 + STOPPED_MARGIN_MS)
+    })
+    expect(
+      await within(dialog).findByRole("button", {
+        name: ENTRY_COPY.replaceLabel("lost.jpg"),
+      })
+    ).toBeTruthy()
+    expect(sets.readPhotoSet.mock.calls.length).toBe(reads + 1)
+  })
+
+  it("reads it on coming back to the page once stoppedAt has passed", async () => {
+    const dialog = await lostSet()
+    const reads = sets.readPhotoSet.mock.calls.length
+    // Asleep past it: the clock moved, no timer ran.
+    vi.setSystemTime(Date.now() + 2 * HOUR)
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+    expect(
+      await within(dialog).findByRole("button", {
+        name: ENTRY_COPY.replaceLabel("lost.jpg"),
+      })
+    ).toBeTruthy()
+    expect(sets.readPhotoSet.mock.calls.length).toBe(reads + 1)
+  })
+
+  it("reads nothing more once the sheet is gone", async () => {
+    await lostSet()
+    const reads = sets.readPhotoSet.mock.calls.length
+    cleanup()
+    await act(async () => {
+      vi.advanceTimersByTime(2 * HOUR)
+    })
+    document.dispatchEvent(new Event("visibilitychange"))
+    expect(sets.readPhotoSet.mock.calls.length).toBe(reads)
+  })
+
+  it("stops waiting when the row is retried", async () => {
+    const dialog = await lostSet()
+    // The retry fails again at once; a fresh settle reads the set again.
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Retry lost.jpg" })
+    )
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Retry lost.jpg" })
+      ).toBeTruthy()
+    )
+    const reads = sets.readPhotoSet.mock.calls.length
+    await act(async () => {
+      vi.advanceTimersByTime(HOUR + STOPPED_MARGIN_MS)
+    })
+    // One timer for the latest read only, not one per settle.
+    expect(sets.readPhotoSet.mock.calls.length).toBeLessThanOrEqual(reads + 1)
   })
 })
 
