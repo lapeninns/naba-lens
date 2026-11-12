@@ -133,15 +133,21 @@ export type CaptureJournalOptions = {
   >
   now?: () => number
   randomId?: () => string
-  /** Each operation's deadline (default JOURNAL_OP_DEADLINE_MS). */
-  opDeadlineMs?: number
+  /** When a running operation counts as stuck (default JOURNAL_STUCK_MS). */
+  stuckMs?: number
+  /** How long unfinished() waits for running operations (default JOURNAL_READ_WAIT_MS). */
+  readWaitMs?: number
 }
 
 /**
- * How long one journal operation may take (L2b). A storage call that never
- * answers is given up ("not kept") and the next operation runs.
+ * An operation still running after this long marks the journal degraded
+ * (M1): from then on every call answers its fallback at once and nothing
+ * touches storage again on this page. The stuck operation may still finish;
+ * nothing runs after it, so it can't overwrite a newer write.
  */
-export const JOURNAL_OP_DEADLINE_MS = 1500
+export const JOURNAL_STUCK_MS = 5000
+/** How long unfinished() waits for running operations before answering []. */
+export const JOURNAL_READ_WAIT_MS = 2000
 
 /** SHA-256 of the user id; the raw id is never stored. */
 export async function accountHash(userId: string): Promise<string> {
@@ -168,28 +174,42 @@ export async function openCaptureJournal(
   const lastWrite = new Map<string, number>()
   // Every change reads an entry and writes it back: run them one at a time,
   // so a fire-and-forget call never overwrites another's write (K11).
+  // Strict order: operation N+1 never starts while N is still running
+  // against storage. A stuck one degrades the journal instead (M1).
   let chain: Promise<unknown> = Promise.resolve()
-  const opDeadline = options.opDeadlineMs ?? JOURNAL_OP_DEADLINE_MS
-  /** `work`, or `fallback` once the operation's deadline passes or it fails. */
-  const bounded = <T>(work: () => Promise<T>, fallback: T): Promise<T> =>
-    new Promise<T>((resolve) => {
-      const timer = setTimeout(() => resolve(fallback), opDeadline)
-      work().then(
-        (value) => {
-          clearTimeout(timer)
-          resolve(value)
-        },
-        () => {
-          clearTimeout(timer)
-          resolve(fallback)
-        }
-      )
-    })
-  const serial = <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
-    const run = chain.then(() => bounded(fn, fallback))
-    chain = run
-    return run
+  let degraded = false
+  const stuckMs = options.stuckMs ?? JOURNAL_STUCK_MS
+  /** Callers waiting behind a running operation, answered if it gets stuck. */
+  const waiting = new Set<() => void>()
+  const degrade = () => {
+    degraded = true
+    for (const answer of [...waiting]) answer()
+    waiting.clear()
   }
+  const serial = <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+    if (degraded) return Promise.resolve(fallback)
+    const run = chain.then(async () => {
+      if (degraded) return fallback
+      const timer = setTimeout(degrade, stuckMs)
+      try {
+        return await fn()
+      } catch {
+        return fallback
+      } finally {
+        clearTimeout(timer)
+      }
+    })
+    chain = run
+    return new Promise<T>((resolve) => {
+      const answer = () => resolve(fallback)
+      waiting.add(answer)
+      void run.then((value) => {
+        waiting.delete(answer)
+        resolve(value)
+      })
+    })
+  }
+  const readWait = options.readWaitMs ?? JOURNAL_READ_WAIT_MS
 
   const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
     try {
@@ -347,14 +367,34 @@ export async function openCaptureJournal(
         await safe(() => backend.delete(id), undefined)
       }, undefined),
     async unfinished() {
-      await chain
-      return bounded(
-        async () =>
-          (await mine())
-            .filter((e) => e.state !== "done")
-            .sort((a, b) => b.touchedAt - a.touchedAt),
-        [] as JournalEntry[]
-      )
+      // Waits a while for running operations, never moves past them.
+      const idle = await new Promise<boolean>((resolve) => {
+        if (degraded) return resolve(false)
+        const timer = setTimeout(() => resolve(false), readWait)
+        void chain.then(() => {
+          clearTimeout(timer)
+          resolve(!degraded)
+        })
+      })
+      if (!idle) return []
+      // A read that never answers is not waited for either (it changes
+      // nothing, so it may run beside the chain).
+      const entries = await new Promise<JournalEntry[]>((resolve) => {
+        const timer = setTimeout(() => resolve([]), readWait)
+        void mine().then(
+          (all) => {
+            clearTimeout(timer)
+            resolve(all)
+          },
+          () => {
+            clearTimeout(timer)
+            resolve([])
+          }
+        )
+      })
+      return entries
+        .filter((e) => e.state !== "done")
+        .sort((a, b) => b.touchedAt - a.touchedAt)
     },
     clear: () =>
       serial(async () => {
