@@ -17,12 +17,14 @@ import {
   accountHash,
   JOURNAL_ACCOUNT_STORAGE_KEY,
   JOURNAL_LIMITS,
+  JOURNAL_OP_DEADLINE_MS,
   memoryJournalBackend,
   openCaptureJournal,
   type JournalEntry,
 } from "@/lib/upload/journal"
 import {
   JOURNAL_DEADLINE_MS,
+  JOURNAL_OPEN_DEADLINE_MS,
   toQueueUploader,
 } from "@/lib/upload/queue-adapter"
 import type {
@@ -447,12 +449,15 @@ describe("the adapter's journal writes (OD-B5-05-4, 6, 7)", () => {
       groupKey: "set-key",
       bytes: file,
     })
-    // Picked with the labels; reserved, they live on the server (K2).
+    // Picked with the labels, and kept until the label store says the server
+    // took them (L1).
     expect(firstPut?.pendingLabels).toEqual({
       venueId: "v1",
       input: { note: "x" },
     })
-    expect(entry).not.toHaveProperty("pendingLabels")
+    expect(entry).toMatchObject({
+      pendingLabels: { venueId: "v1", input: { note: "x" } },
+    })
     expect(captureEntryId(file)).toBe(entry!.id)
     // Removing the row ends it.
     forgetCapture(file)
@@ -597,7 +602,8 @@ describe("review repairs (K1, K4, K6, K7, K9 to K12)", () => {
         capture: () => new Promise(() => {}),
       })
       const done = stalled(photo(), context())
-      await vi.advanceTimersByTimeAsync(JOURNAL_DEADLINE_MS + 10)
+      // The open has its own budget, above the probe's timeout (L2c).
+      await vi.advanceTimersByTimeAsync(JOURNAL_OPEN_DEADLINE_MS + 10)
       await expect(done).resolves.toMatchObject({ assetId: "asset-1" })
 
       // A journal that opens but whose pick stalls.
@@ -701,5 +707,178 @@ describe("review repairs (K1, K4, K6, K7, K9 to K12)", () => {
       assetId: "asset-1",
       state: "transferring",
     })
+  })
+})
+
+describe("late and hung journal operations (L2)", () => {
+  // Timers are faked; crypto digests and the like still need real turns.
+  const fake = () =>
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+  const turn = () => new Promise((r) => setImmediate(r))
+  async function tick(ms: number) {
+    for (let t = 0; t < ms; t += 100) {
+      for (let i = 0; i < 3; i++) await turn()
+      await vi.advanceTimersByTimeAsync(100)
+    }
+    for (let i = 0; i < 3; i++) await turn()
+  }
+
+  const delayedPick = (
+    session: CaptureSession,
+    ms: number
+  ): CaptureSession => ({
+    ...session,
+    journal: {
+      ...session.journal,
+      pick: (input) =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve(session.journal.pick(input)), ms)
+        ),
+    },
+  })
+
+  /** An upload that reserves, sends half, then waits for `release`. */
+  function gatedUpload(result: Omit<UploadResult, "assetId">) {
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    const fn: UploadFn = async (_file, options) => {
+      options.onReserved?.({ assetId: "asset-1", resumable: true })
+      options.onProgress?.(0.5)
+      await gate
+      return { assetId: "asset-1", ...result } as UploadResult
+    }
+    return { fn, release: () => release() }
+  }
+
+  it("a late pick binds, catches up, and the upload's end then removes it", async () => {
+    fake()
+    try {
+      const { s, backend } = sessions()
+      const session = (await s.get("user-1"))!
+      const up = gatedUpload({ state: "ready" })
+      const upload = toQueueUploader(up.fn, {
+        keys: memKeys(),
+        capture: async () => delayedPick(session, JOURNAL_DEADLINE_MS + 1000),
+      })
+      const run = upload(photo(1000), context())
+      await tick(JOURNAL_DEADLINE_MS + 1500)
+      // Still running: the entry is there, caught up with the upload.
+      expect(await backend.getAll()).toMatchObject([
+        { state: "transferring", assetId: "asset-1", transferredBytes: 500 },
+      ])
+      up.release()
+      await run
+      await tick(10)
+      expect(await backend.getAll()).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("a late pick of an earlier tab's entry being continued never removes it", async () => {
+    fake()
+    try {
+      const { s, backend } = sessions()
+      const session = (await s.get("user-1"))!
+      const file = photo(1000, "kept.jpg")
+      // The earlier tab's entry, under the key the file still has.
+      const earlier = (await session.journal.pick({
+        purpose: "general",
+        subject: { kind: "none", id: null },
+        groupKey: null,
+        uploadKey: "earlier-key",
+        fileFingerprint: "f",
+        file,
+        mediaType: "image",
+      }))!
+      const keys = memKeys()
+      await keys.set(file, "earlier-key")
+      const up = gatedUpload({
+        state: "failed",
+        error: { code: "transfer_failed", message: "x", retryable: true },
+      })
+      const upload = toQueueUploader(up.fn, {
+        keys,
+        capture: async () => delayedPick(session, JOURNAL_DEADLINE_MS + 1000),
+      })
+      const run = upload(file, context()).catch(() => {})
+      // The upload ends before the pick answers.
+      up.release()
+      await tick(JOURNAL_DEADLINE_MS + 1500)
+      await run
+      await tick(10)
+      expect(await backend.getAll()).toMatchObject([
+        {
+          id: earlier.id,
+          state: "failed",
+          failure: { code: "transfer_failed", permanent: false },
+        },
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("a hung storage call doesn't hold the next journal operation past its deadline", async () => {
+    fake()
+    try {
+      const base = memoryJournalBackend()
+      let hang = false
+      const backend = {
+        ...base,
+        put: (e: JournalEntry) =>
+          hang ? new Promise<void>(() => {}) : base.put(e),
+      }
+      const j = await openCaptureJournal({
+        backend,
+        accountHash: "a",
+        capabilities: roomy,
+      })
+      const e = (await j.pick({
+        purpose: "general",
+        subject: { kind: "none", id: null },
+        groupKey: null,
+        uploadKey: "k",
+        fileFingerprint: "f",
+        file: photo(),
+        mediaType: "image",
+      }))!
+      hang = true
+      const stuck = j.update(e.id, { groupKey: "g" })
+      const listed = j.unfinished()
+      await tick(JOURNAL_OP_DEADLINE_MS + 10)
+      await expect(stuck).resolves.toBeUndefined()
+      await expect(listed).resolves.toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("the first upload after the page loads is journalled though the probe takes 2.5 s", async () => {
+    fake()
+    try {
+      const storage = memStorage()
+      const backend = memoryJournalBackend()
+      const s = createCaptureSessions({
+        probe: () => new Promise((r) => setTimeout(() => r(roomy), 2500)),
+        backend: () => backend,
+        cleanup: () => ({ storage }),
+        events: () => null,
+      })
+      const upload = toQueueUploader(
+        fakeUpload({
+          state: "failed",
+          error: { code: "transfer_failed", message: "x", retryable: true },
+        }),
+        { keys: memKeys(), capture: s.get }
+      )
+      const run = upload(photo(), context()).catch(() => {})
+      await tick(2600)
+      await run
+      await tick(10)
+      expect(await backend.getAll()).toMatchObject([{ state: "failed" }])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

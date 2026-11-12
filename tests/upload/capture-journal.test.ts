@@ -179,12 +179,17 @@ describe("capture journal lifecycle", () => {
       state: "picked",
       pendingLabels: { types: ["dish"] },
     })
-    // Reserved: the labels are on the server now (stage), so they go here
-    // (K2): a later continue never brings back labels the person removed.
+    // Reserved, they stay until the server took them (L1)...
     await j.update(first!.id, { state: "reserved", assetId: "asset-1" })
     const reserved = await j.pick(pickOf(file))
-    expect(reserved).toMatchObject({ id: first!.id, assetId: "asset-1" })
-    expect(reserved).not.toHaveProperty("pendingLabels")
+    expect(reserved).toMatchObject({
+      id: first!.id,
+      assetId: "asset-1",
+      pendingLabels: { types: ["dish"] },
+    })
+    // ...and go when the label store says so.
+    await j.update(first!.id, { pendingLabels: undefined })
+    expect(await j.pick(pickOf(file))).not.toHaveProperty("pendingLabels")
     expect(await j.unfinished()).toHaveLength(1)
   })
 

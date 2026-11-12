@@ -101,7 +101,7 @@ import type {
   UploadContext,
   Uploader,
 } from "@/components/nabalens/upload-queue"
-import { captureAnnotation } from "@/lib/upload/capture-session"
+import { bindCapture, captureAnnotation } from "@/lib/upload/capture-session"
 import type { CaptureSession } from "@/lib/upload/capture-session"
 import {
   memoryJournalBackend,
@@ -413,24 +413,22 @@ describe("review repairs (K2, K3, K8, K13)", () => {
     expect(uploaded[0]!.keysSet).toBe(1)
   })
 
-  it("K2: an entry that was reserved is continued without its old labels", async () => {
+  const typed = {
+    venueId: "venue-1",
+    input: {
+      assetId: "old-row",
+      expectedRevision: 0,
+      catalogueVersionId: null,
+      contentTypes: ["dish"],
+      note: "TEST typed before",
+      items: [],
+      missingItem: null,
+    },
+  }
+
+  it("L1: reserved, then the tab died before the label send answered: Continue sends them once", async () => {
     const kept = jpeg("kept.jpg")
-    const entry = (await pick(kept, {
-      pendingLabels: {
-        venueId: "venue-1",
-        input: {
-          assetId: "old-row",
-          expectedRevision: 0,
-          catalogueVersionId: null,
-          contentTypes: ["dish"],
-          note: "TEST removed later",
-          items: [],
-          missingItem: null,
-        },
-      },
-    }))!
-    // Reserved in the earlier tab; the journal keeps no labels from then on,
-    // and Continue seeds none even if an old entry still had them.
+    const entry = (await pick(kept, { pendingLabels: typed }))!
     await journal.update(entry.id, { state: "transferring", assetId: "a-1" })
     const sheet = await openSheet()
     fireEvent.click(
@@ -439,9 +437,53 @@ describe("review repairs (K2, K3, K8, K13)", () => {
       })
     )
     await waitFor(() => expect(uploaded).toHaveLength(1))
+    await waitFor(() =>
+      expect(labelApi.saveUploadLabels).toHaveBeenCalledWith(
+        "venue-1",
+        expect.objectContaining({
+          assetId: "asset-kept.jpg",
+          note: "TEST typed before",
+        })
+      )
+    )
     await new Promise((r) => setTimeout(r, 50))
-    expect(labelApi.saveUploadLabels).not.toHaveBeenCalled()
-    expect(captureAnnotation(kept)).not.toHaveProperty("pendingLabels")
+    expect(labelApi.saveUploadLabels).toHaveBeenCalledTimes(1)
+  })
+
+  it("L1: once the server took them, the entry drops them and Continue sends nothing again", async () => {
+    const kept = jpeg("kept.jpg")
+    const entry = (await pick(kept, { pendingLabels: typed }))!
+    // The transport records the continued file as this entry (as the
+    // adapter does: same upload key, same entry).
+    uploads.current = (async (file, context) => {
+      bindCapture(file, journal, entry.id)
+      context.onReserved?.(`asset-${file.name}`)
+      return { assetId: `asset-${file.name}` }
+    }) satisfies Uploader
+    let sheet = await openSheet()
+    fireEvent.click(
+      await within(sheet).findByRole("button", {
+        name: CAPTURE_COPY.continueLabel("kept.jpg"),
+      })
+    )
+    await waitFor(() =>
+      expect(labelApi.saveUploadLabels).toHaveBeenCalledTimes(1)
+    )
+    await waitFor(async () =>
+      expect(
+        (await journal.unfinished()).find((e) => e.id === entry.id)
+      ).not.toHaveProperty("pendingLabels")
+    )
+    // Another visit: the entry is still there (not finished), with no labels.
+    cleanup()
+    sheet = await openSheet()
+    fireEvent.click(
+      await within(sheet).findByRole("button", {
+        name: CAPTURE_COPY.continueLabel("kept.jpg"),
+      })
+    )
+    await new Promise((r) => setTimeout(r, 50))
+    expect(labelApi.saveUploadLabels).toHaveBeenCalledTimes(1)
   })
 
   it("K3: task and question uploads are not Add's to continue", async () => {
