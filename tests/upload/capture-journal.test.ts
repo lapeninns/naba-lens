@@ -218,7 +218,9 @@ describe("capture journal lifecycle", () => {
 })
 
 /** A minimal IndexedDB: enough for the probe's Blob round trip. */
-function fakeIdb(opts: { failOpen?: boolean; corrupt?: boolean } = {}) {
+function fakeIdb(
+  opts: { failOpen?: boolean; corrupt?: boolean; refuseBlob?: boolean } = {}
+) {
   const data = new Map<string, unknown>()
   const deleted: string[] = []
   const later = (fn: () => void) => queueMicrotask(fn)
@@ -241,6 +243,13 @@ function fakeIdb(opts: { failOpen?: boolean; corrupt?: boolean } = {}) {
             const tx: Record<string, unknown> = {}
             const store = {
               put(v: unknown, k: string) {
+                // WebKit private windows: the Blob's transaction errors, with
+                // a null error (J1).
+                if (opts.refuseBlob && v instanceof Blob) {
+                  tx.error = null
+                  later(() => (tx.onerror as () => void)?.())
+                  return
+                }
                 data.set(k, opts.corrupt ? "not a blob" : v)
                 later(() => (tx.oncomplete as () => void)?.())
               },
@@ -303,6 +312,21 @@ describe("detectCaptureCapabilities", () => {
         storage: storage(100 * MiB, false),
       })
     ).toMatchObject({ storeBytes: false, reason: "private_mode" })
+  })
+
+  it("keeps the journal but no bytes where a Blob write is refused (J1)", async () => {
+    const idb = fakeIdb({ refuseBlob: true })
+    expect(
+      await detectCaptureCapabilities({
+        indexedDB: idb.factory,
+        storage: storage(1000 * MiB, false),
+      })
+    ).toMatchObject({
+      indexedDb: true,
+      storeBytes: false,
+      reason: "blob_refused",
+    })
+    expect(idb.deleted).toContain("nabalens-capture-probe")
   })
 
   it("allows bytes after a round trip with room, and never offers background upload", async () => {

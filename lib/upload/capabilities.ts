@@ -4,7 +4,7 @@
 // upload that continues while the page is closed.
 
 export type CaptureCapabilities = {
-  /** IndexedDB opened and a Blob round-tripped. */
+  /** IndexedDB opened and a plain object round-tripped (the journal may live there). */
   indexedDb: boolean
   /** navigator.storage.persisted(); null when the API is missing. */
   persisted: boolean | null
@@ -21,6 +21,8 @@ export type CaptureCapabilities = {
     | "private_mode"
     /** No storage estimate (OD-B5-05-3): free space can't be checked. */
     | "no_estimate"
+    /** Metadata is kept but a Blob write is refused: no photo bytes. */
+    | "blob_refused"
     | null
   backgroundSync: "unsupported"
   backgroundFetch: "unsupported"
@@ -35,11 +37,17 @@ export type ProbeEnvironment = {
 
 const PROBE_DB = "nabalens-capture-probe"
 
-/** Opens a scratch database, writes and reads back a Blob, then deletes it. */
-async function blobRoundTrip(
+/**
+ * Opens a scratch database, then writes and reads back a small object (what
+ * the journal's metadata needs) and, separately, a Blob (what photo bytes
+ * need), then deletes it. WebKit in a private window takes the object and
+ * refuses the Blob (its transaction errors): that browser can still keep the
+ * journal, without bytes.
+ */
+async function writeRoundTrips(
   idb: IDBFactory,
   timeoutMs: number
-): Promise<boolean> {
+): Promise<{ object: boolean; blob: boolean }> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs)
     const req = idb.open(PROBE_DB, 1)
@@ -53,21 +61,33 @@ async function blobRoundTrip(
       reject(req.error)
     }
   })
+  const roundTrip = async (value: unknown, key: string) => {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction("p", "readwrite")
+        tx.objectStore("p").put(value, key)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
+      })
+      return await new Promise<unknown>((resolve, reject) => {
+        const req = db.transaction("p").objectStore("p").get(key)
+        req.onsuccess = () => resolve(req.result)
+        req.onerror = () => reject(req.error)
+      })
+    } catch {
+      return undefined
+    }
+  }
   try {
-    const blob = new Blob([new Uint8Array([1, 2, 3])])
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction("p", "readwrite")
-      tx.objectStore("p").put(blob, "b")
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error)
-      tx.onabort = () => reject(tx.error)
-    })
-    const back = await new Promise<unknown>((resolve, reject) => {
-      const req = db.transaction("p").objectStore("p").get("b")
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    return back instanceof Blob && back.size === 3
+    const object = await roundTrip({ probe: 1 }, "m")
+    const objectOk =
+      typeof object === "object" &&
+      object !== null &&
+      (object as { probe?: unknown }).probe === 1
+    if (!objectOk) return { object: false, blob: false }
+    const blob = await roundTrip(new Blob([new Uint8Array([1, 2, 3])]), "b")
+    return { object: true, blob: blob instanceof Blob && blob.size === 3 }
   } finally {
     db.close()
     try {
@@ -118,13 +138,16 @@ export async function detectCaptureCapabilities(
     reason,
   })
   if (!env.indexedDB) return result(false, "no_indexeddb")
-  let roundTrip = false
+  let writes = { object: false, blob: false }
   try {
-    roundTrip = await blobRoundTrip(env.indexedDB, env.timeoutMs ?? 3000)
+    writes = await writeRoundTrips(env.indexedDB, env.timeoutMs ?? 3000)
   } catch {
-    roundTrip = false
+    writes = { object: false, blob: false }
   }
-  if (!roundTrip) return result(false, "write_refused")
+  // Nothing can be kept: the journal lives in memory for this page only.
+  if (!writes.object) return result(false, "write_refused")
+  // The journal is kept, photo bytes are not (J1: WebKit private windows).
+  if (!writes.blob) return result(true, "blob_refused")
   if (quotaBytes === 0) return result(true, "quota_zero")
   // Bytes are kept only with room to spare, which needs the estimate.
   if (quotaBytes === null || usageBytes === null)

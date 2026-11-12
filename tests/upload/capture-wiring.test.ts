@@ -457,6 +457,47 @@ describe("the adapter's journal writes (OD-B5-05-4, 6, 7)", () => {
   })
 })
 
+describe("blob_refused (J1: WebKit private windows)", () => {
+  it("keeps the journal in IndexedDB, entries with no bytes field at all", async () => {
+    const { IDBFactory } = await import("fake-indexeddb")
+    const { indexedDbJournalBackend } = await import("@/lib/upload/journal")
+    const idb = new IDBFactory()
+    const storage = memStorage()
+    const s = createCaptureSessions({
+      probe: async () => ({
+        ...roomy,
+        indexedDb: true,
+        storeBytes: false,
+        reason: "blob_refused",
+      }),
+      indexedDB: () => idb,
+      cleanup: () => ({ storage }),
+      events: () => null,
+    })
+    const session = (await s.get("user-1"))!
+    expect(session.capabilities.reason).toBe("blob_refused")
+    const entry = (await session.journal.pick({
+      purpose: "general",
+      subject: { kind: "none", id: null },
+      groupKey: null,
+      uploadKey: "k",
+      fileFingerprint: "f",
+      file: photo(1000, "kept.jpg"),
+      mediaType: "image",
+    }))!
+    expect(entry.state).toBe("needs_reselection")
+    await session.journal.update(entry.id, { state: "reserved", assetId: "a1" })
+    // Read back through another connection: it is in IndexedDB, not memory.
+    const [stored] = await indexedDbJournalBackend(idb).getAll()
+    expect(stored).toMatchObject({
+      displayName: "kept.jpg",
+      assetId: "a1",
+      state: "reserved",
+    })
+    expect("bytes" in stored!).toBe(false)
+  })
+})
+
 describe("privacy (§5.8)", () => {
   it("never logs journal content from the files that handle it", async () => {
     const { readFileSync } = await import("node:fs")
