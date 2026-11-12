@@ -7,8 +7,8 @@ import { randomUUID } from "node:crypto"
 
 import { beforeAll, describe, expect, it } from "vitest"
 
-import { markReady } from "../support/identities"
-import { insertAsset, ok, psql } from "./coverage-fixtures"
+import { markReady, type TestIdentity } from "../support/identities"
+import { insertAsset, makeManager, ok, psql } from "./coverage-fixtures"
 import {
   call,
   count,
@@ -18,6 +18,16 @@ import {
   world,
   type World,
 } from "./knowledge-fixtures"
+import {
+  item,
+  menu,
+  publishMenu,
+  readDocument,
+  reserveReady,
+  saveOk,
+  section,
+  type CatalogueRow,
+} from "./menus-fixtures"
 
 type Who = World["staffA"]
 
@@ -176,6 +186,58 @@ async function eligible(
   expect(JSON.parse(e.details!)).toEqual({ assetId, reason })
 }
 
+// Menu photo fixtures, as in knowledge-b02-feed.test.ts.
+type Tuple = { itemId: string; variantId: string | null }
+const tuple = (row: CatalogueRow): Tuple => ({
+  itemId: row.itemId,
+  variantId: null,
+})
+
+const REVIEW_MENU = () =>
+  menu("TEST group review", [
+    section("mains", "Mains", [
+      item("mains--tikka", "Tikka"),
+      item("mains--bhaji", "Bhaji"),
+    ]),
+  ])
+
+/** A ready upload with a saved label for these menu items. */
+async function labelled(who: TestIdentity, version: string, tuples: Tuple[]) {
+  const asset = await reserveReady(service, who)
+  await saveOk(who, {
+    asset: asset.id,
+    revision: 0,
+    types: ["dish"],
+    items: tuples,
+    catalogue: version,
+  })
+  return asset.id
+}
+
+async function head(itemId: string) {
+  const { data, error } = await service
+    .from("menu_item_photo_heads")
+    .select("revision")
+    .eq("item_id", itemId)
+    .maybeSingle()
+  if (error) throw error
+  return data?.revision ?? 1
+}
+
+async function reviewPhoto(who: TestIdentity, asset: string, t: Tuple) {
+  const [row] = await ok(
+    who.client.rpc("review_menu_item_photo", {
+      p_asset_id: asset,
+      p_item_id: t.itemId,
+      p_variant_id: t.variantId as string,
+      p_decision: "accepted",
+      p_expected_revision: await head(t.itemId),
+      p_make_primary: false,
+    })
+  )
+  return row! as { photo_id: string }
+}
+
 describe("group states, replacement and the live cap (B05-m5)", () => {
   let w: World
   let other: World
@@ -241,26 +303,138 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
     )
   })
 
-  it("swaps one for one even when the live cap is already reached (OD-B5-01-1)", async () => {
+  it("checks the live cap after the swap (OD-B5-01-1 revised)", async () => {
+    // A photo added into the failed member's freed slot: the swap would make
+    // 11 live members, so it is refused and nothing is written.
     const g = await start(w.staffA)
     const failed = await asset(w.staffA.id, w.venue, "failed")
     await add(w.staffA, g, [
       failed,
       ...(await many(9, w.staffA.id, w.venue, "ready")),
     ])
-    // Live 9: Add more fills the tenth live slot.
     expect(await add(w.staffA, g, [await asset(w.staffA.id, w.venue)])).toBe(11)
-    // Live 10, yet the failed member's replacement is accepted (live 11).
     const fresh = await asset(w.staffA.id, w.venue, "uploading")
-    expect((await replace(w.staffA, g, failed, fresh)).position).toBe(12)
-    const s = (await view(w.staffA, g)).summary!
-    expect(s).toMatchObject({ live: 11, ready: 10, inProgress: 1, replaced: 1 })
+    const before = fingerprint([failed, fresh])
+    await refused(
+      w.staffA,
+      "contribution_group_replace",
+      replaceArgs(g, failed, fresh),
+      "contribution_group_full",
+      "P0001"
+    )
+    expect(members(g)).toBe(11)
+    expect(links(g)).toBe(0)
+    expect(fingerprint([failed, fresh])).toBe(before)
+    expect((await view(w.staffA, g)).summary).toMatchObject({
+      live: 11,
+      failed: 1,
+      replaced: 0,
+    })
+
+    // A stopped member is live: at live 10 its swap is net zero, accepted.
+    const h = await start(w.staffA)
+    const stopped = await asset(w.staffA.id, w.venue, "stopped")
+    await add(w.staffA, h, [
+      stopped,
+      ...(await many(9, w.staffA.id, w.venue, "ready")),
+    ])
+    const swap = await asset(w.staffA.id, w.venue, "uploading")
+    expect((await replace(w.staffA, h, stopped, swap)).position).toBe(11)
+    expect((await view(w.staffA, h)).summary).toMatchObject({
+      live: 10,
+      replaced: 1,
+    })
+    await refused(
+      w.staffA,
+      "contribution_group_add",
+      { p_group_id: h, p_asset_ids: [await asset(w.staffA.id, w.venue)] },
+      "contribution_group_full"
+    )
+
+    // Delete-k, add-k, replace-k never passes 10 live.
+    const k = await start(w.staffA)
+    const gone = await many(3, w.staffA.id, w.venue, "ready")
+    await add(w.staffA, k, [
+      ...gone,
+      ...(await many(7, w.staffA.id, w.venue, "ready")),
+    ])
+    for (const id of gone)
+      await ok(call(w.staffA, "delete_media_asset", { p_asset_id: id }))
+    await add(w.staffA, k, await many(3, w.staffA.id, w.venue, "ready"))
+    await refused(
+      w.staffA,
+      "contribution_group_replace",
+      replaceArgs(k, gone[0]!, await asset(w.staffA.id, w.venue, "uploading")),
+      "contribution_group_full"
+    )
+    expect((await view(w.staffA, k)).summary).toMatchObject({
+      live: 10,
+      removed: 3,
+      replaced: 0,
+    })
+  })
+
+  it("rule (c): a replaced member stays out of the cap and the summary after it finishes (R5)", async () => {
+    const g = await start(w.staffA)
+    const old = await asset(w.staffA.id, w.venue, "failed")
+    await add(w.staffA, g, [
+      ...(await many(8, w.staffA.id, w.venue, "ready")),
+      old,
+    ])
+    const fresh = await asset(w.staffA.id, w.venue, "uploading")
+    await replace(w.staffA, g, old, fresh)
+    // The old upload finishes after it was replaced.
+    await markReady(service, old, "image/jpeg")
+    // Live 8 + fresh = 9, so one more fits; counting the old member (11)
+    // would refuse it.
+    expect(await add(w.staffA, g, [await asset(w.staffA.id, w.venue)])).toBe(11)
+    const v = await view(w.staffA, g)
+    expect(byId(v)[old]!.technical).toBe("ready")
+    expect(v.summary).toEqual({
+      live: 10,
+      ready: 9,
+      inProgress: 1,
+      failed: 0,
+      removed: 0,
+      replaced: 1,
+      finished: false,
+    })
     await refused(
       w.staffA,
       "contribution_group_add",
       { p_group_id: g, p_asset_ids: [await asset(w.staffA.id, w.venue)] },
       "contribution_group_full"
     )
+  })
+
+  it("replaces a member that was ready and then deleted (S4 ii)", async () => {
+    const g = await start(w.staffA)
+    const [kept, deleted] = await many(2, w.staffA.id, w.venue, "ready")
+    await add(w.staffA, g, [kept!, deleted!])
+    await eligible(
+      w.staffA,
+      "contribution_group_replace",
+      replaceArgs(g, deleted!, await asset(w.staffA.id, w.venue, "uploading")),
+      "not_replaceable",
+      deleted!
+    )
+    await ok(call(w.staffA, "delete_media_asset", { p_asset_id: deleted }))
+    const fresh = await asset(w.staffA.id, w.venue, "uploading")
+    expect(await replace(w.staffA, g, deleted!, fresh)).toEqual({
+      groupId: g,
+      assetId: fresh,
+      replacesAssetId: deleted,
+      position: 3,
+    })
+    const v = await view(w.staffA, g)
+    expect(byId(v)[deleted!]!.technical).toBe("removed")
+    expect(v.summary).toMatchObject({
+      live: 2,
+      ready: 1,
+      inProgress: 1,
+      removed: 0,
+      replaced: 1,
+    })
   })
 
   it("stops positions at 30, for adds and replacements alike", async () => {
@@ -293,13 +467,15 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
     )
     expect(members(g)).toBe(30)
     expect(links(g)).toBe(0)
-    // The table check backs the function.
+    // The table check backs the function: a real ungrouped asset of the
+    // venue, so only the position check can refuse it.
+    const loose = await asset(w.staffA.id, w.venue, "failed")
     expect(() =>
       psql(
         `insert into public.media_contribution_group_members (group_id, venue_id, asset_id, position)
-         values ('${g}', '${w.venue}', '${randomUUID()}', 31)`
+         values ('${g}', '${w.venue}', '${loose}', 31)`
       )
-    ).toThrow(/position_check|foreign key/)
+    ).toThrow(/media_contribution_group_members_position_check/)
   })
 
   it("stopped-upload case (M1): a failed or stopped member is replaced, stops counting at once and never counts again (§1.10.9)", async () => {
@@ -677,10 +853,12 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
     expect(
       (await view(w.staffManager, g)).members.map((m) => m.assetId)
     ).toEqual([ready, fresh])
-    // The replaced member is not visible to the manager, so neither is its id.
-    expect(
-      byId(await view(w.staffManager, g))[fresh]!.replacesAssetId
-    ).toBeNull()
+    // A manager or admin who is not the creator always gets the id, even of
+    // a replaced member it is not shown (OD-B5-01-8 is for colleagues).
+    expect(byId(await view(w.staffManager, g))[fresh]!.replacesAssetId).toBe(
+      failed
+    )
+    expect(byId(await view(w.admin, g))[fresh]!.replacesAssetId).toBe(failed)
     expect(
       (await view(w.admin, g)).members.map((m) => m.assetId).sort()
     ).toEqual([ready, uploading, attention, failed, fresh].sort())
@@ -872,6 +1050,101 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
       )
     ).toBe(0)
     expect(links(g)).toBe(1)
+  })
+
+  it("counts the creator's summary over the members it is shown, a converted account included (OD-B5-01-7)", async () => {
+    // A staff creator who later becomes a manager account: its staff-era
+    // members are hidden from it, so its summary leaves them out; an admin's
+    // summary still counts every member.
+    const cv = await world("b05m5-convert")
+    const g = await start(cv.staffA)
+    const staffReady = await asset(cv.staffA.id, cv.venue, "ready")
+    const staffFailed = await asset(cv.staffA.id, cv.venue, "failed")
+    await add(cv.staffA, g, [staffReady, staffFailed])
+    await makeManager(cv.admin, cv.staffA, cv.venue)
+    const managerEra = await reserved(cv.staffA, "ready")
+    await add(cv.staffA, g, [managerEra])
+
+    const mine = await view(cv.staffA, g)
+    expect(mine.members.map((m) => m.assetId)).toEqual([managerEra])
+    expect(mine.summary).toEqual({
+      live: 1,
+      ready: 1,
+      inProgress: 0,
+      failed: 0,
+      removed: 0,
+      replaced: 0,
+      finished: true,
+    })
+    expect(JSON.stringify(mine)).not.toContain(staffReady)
+    expect(JSON.stringify(mine)).not.toContain(staffFailed)
+    const theirs = await view(cv.admin, g)
+    expect(theirs.members.map((m) => m.assetId)).toEqual([
+      staffReady,
+      staffFailed,
+      managerEra,
+    ])
+    expect(theirs.summary).toEqual({
+      live: 3,
+      ready: 2,
+      inProgress: 0,
+      failed: 1,
+      removed: 0,
+      replaced: 0,
+      finished: false,
+    })
+  })
+
+  it("lists real review rows and labels, without withdrawn decisions (R6, R8)", async () => {
+    const mw = await world("b05m5-review")
+    const version = await publishMenu(mw.admin, mw.venue, REVIEW_MENU())
+    const items = (await readDocument(service, version)).byKey
+    const tikka = tuple(items["mains--tikka"]!)
+    const bhaji = tuple(items["mains--bhaji"]!)
+    const accepted = await labelled(mw.staffA, version, [tikka])
+    const withdrawn = await labelled(mw.staffA, version, [bhaji])
+    await reviewPhoto(mw.manager, accepted, tikka)
+    const gone = await reviewPhoto(mw.manager, withdrawn, bhaji)
+    await ok(
+      mw.manager.client.rpc("withdraw_menu_item_photo", {
+        p_photo_id: gone.photo_id,
+        p_expected_revision: await head(bhaji.itemId),
+        p_reason: "TEST blurry",
+      })
+    )
+    const processing = await asset(mw.staffA.id, mw.venue, "processing")
+    const g = await start(mw.staffA)
+    await add(mw.staffA, g, [accepted, withdrawn, processing])
+
+    const states = byId(await view(mw.staffA, g))
+    expect(states[accepted]).toMatchObject({
+      technical: "ready",
+      // A saved label (media_labels.has_labels), not a pending one.
+      labels: "labelled",
+      review: [{ target: "menu_item", id: tikka.itemId, state: "accepted" }],
+    })
+    expect(
+      count(
+        `select count(*) from public.media_labels where asset_id = '${accepted}' and has_labels`
+      )
+    ).toBe(1)
+    // The withdrawn decision is history.
+    expect(
+      count(
+        `select count(*) from public.menu_item_photos where asset_id = '${withdrawn}' and state = 'withdrawn'`
+      )
+    ).toBe(1)
+    expect(states[withdrawn]).toMatchObject({ labels: "labelled", review: [] })
+    expect(states[processing]).toMatchObject({
+      technical: "processing",
+      uploadState: "processing",
+      labels: "none",
+      review: [],
+    })
+    // An admin reads the same review rows.
+    expect(byId(await view(mw.admin, g))[accepted]!.review).toEqual([
+      { target: "menu_item", id: tikka.itemId, state: "accepted" },
+    ])
   })
 
   it("keeps credit unchanged: the hash, and no credit or completion function reads the group tables (§1.10.6)", () => {
