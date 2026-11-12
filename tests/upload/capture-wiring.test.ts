@@ -6,6 +6,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { detectCaptureCapabilities } from "@/lib/upload/capabilities"
+import { clearCaptureDataOnDevice } from "@/lib/upload/device-cleanup"
 import {
   annotateCapture,
   captureEntryId,
@@ -19,6 +20,8 @@ import {
   JOURNAL_LIMITS,
   JOURNAL_READ_WAIT_MS,
   JOURNAL_STUCK_MS,
+  JOURNAL_UNTRUSTED_STORAGE_KEY,
+  type JournalBackend,
   memoryJournalBackend,
   openCaptureJournal,
   type JournalEntry,
@@ -1032,5 +1035,90 @@ describe("late and hung journal operations (L2)", () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe("an untrusted store after degrading (N1)", () => {
+  const fake = () =>
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+  const turn = () => new Promise((r) => setImmediate(r))
+  async function tick(ms: number) {
+    for (let t = 0; t < ms; t += 100) {
+      for (let i = 0; i < 3; i++) await turn()
+      await vi.advanceTimersByTimeAsync(100)
+    }
+    for (let i = 0; i < 3; i++) await turn()
+  }
+  const input = (file: File, key: string) => ({
+    purpose: "general" as const,
+    subject: { kind: "none" as const, id: null },
+    groupKey: null,
+    uploadKey: key,
+    fileFingerprint: key,
+    file,
+    mediaType: "image" as const,
+  })
+
+  function page(
+    backend: JournalBackend,
+    storage: ReturnType<typeof memStorage>
+  ) {
+    return createCaptureSessions({
+      probe: async () => roomy,
+      backend: () => backend,
+      cleanup: () => ({ storage }),
+      events: () => null,
+    })
+  }
+
+  it("a degraded journal marks the store; the next page clears it before listing", async () => {
+    fake()
+    try {
+      const base = memoryJournalBackend()
+      let hang = false
+      const backend: JournalBackend = {
+        ...base,
+        getAll: () => base.getAll(),
+        // The finished upload's done() never answers.
+        delete: (id) => (hang ? new Promise<void>(() => {}) : base.delete(id)),
+        clear: () => base.clear(),
+        put: (e) => (hang ? new Promise<void>(() => {}) : base.put(e)),
+      }
+      const storage = memStorage()
+      const first = (await page(backend, storage).get("user-1"))!
+      const e = (await first.journal.pick(input(photo(), "a")))!
+      await first.journal.pick(input(photo(), "b"))
+      hang = true
+      void first.journal.done(e.id)
+      void first.journal.update(e.id, { groupKey: "g" })
+      await tick(JOURNAL_STUCK_MS + 200)
+      expect(storage.getItem(JOURNAL_UNTRUSTED_STORAGE_KEY)).toBe("1")
+      // A frozen snapshot is still stored...
+      expect(await base.getAll()).toHaveLength(2)
+      // ...and the next page load trusts none of it.
+      hang = false
+      const next = (await page(backend, storage).get("user-1"))!
+      expect(await next.journal.unfinished()).toEqual([])
+      expect(await base.getAll()).toEqual([])
+      expect(storage.getItem(JOURNAL_UNTRUSTED_STORAGE_KEY)).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("without the mark, the next page lists entries as before", async () => {
+    const backend = memoryJournalBackend()
+    const storage = memStorage()
+    const first = (await page(backend, storage).get("user-1"))!
+    await first.journal.pick(input(photo(), "a"))
+    const next = (await page(backend, storage).get("user-1"))!
+    expect(await next.journal.unfinished()).toHaveLength(1)
+  })
+
+  it("sign-out removes the mark", async () => {
+    const storage = memStorage()
+    storage.setItem(JOURNAL_UNTRUSTED_STORAGE_KEY, "1")
+    await clearCaptureDataOnDevice({ storage })
+    expect(storage.getItem(JOURNAL_UNTRUSTED_STORAGE_KEY)).toBeNull()
   })
 })
