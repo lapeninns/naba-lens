@@ -192,6 +192,10 @@ const CODES: Record<string, [MenuFailure["status"], string]> = {
     409,
     "This policy does not fit that field: it must age from the stated date and suit the field.",
   ],
+  freshness_field_not_supported: [
+    409,
+    "Freshness can be set for prices and availability only for now.",
+  ],
   invalid_value: [400, "The schedule is invalid."],
 }
 

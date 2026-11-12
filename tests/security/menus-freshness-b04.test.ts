@@ -145,6 +145,9 @@ describe("freshness bindings and the preview (A1-3)", () => {
     expect(out.BIND_RETRO).toBe("invalid_effective_from")
     expect(out.BIND_FIELD).toBe("invalid_freshness_binding")
     expect(out.BIND_MANAGER).toBe("not_active_admin")
+    // S3 L3: fields no read applies yet are refused, bound or unbound.
+    expect(out.BIND_TEMPORARY).toBe("freshness_field_not_supported")
+    expect(out.BIND_ALLERGENS).toBe("freshness_field_not_supported")
     expect(out.BINDING_UPDATE).toBe("audit_append_only")
   })
 
@@ -153,6 +156,16 @@ describe("freshness bindings and the preview (A1-3)", () => {
       field: "price",
       counts: {
         internal: { current: 1, due_soon: 1, expired: 1, basis_missing: 0 },
+      },
+    })
+    expect(out.PREVIEW).toMatchObject({ linkedService: 0 })
+    // S3 L5: availability that follows a linked B03 service is left out of
+    // the counts (as the job and the reads do) and reported.
+    expect(out.PREVIEW_AVAILABILITY).toMatchObject({
+      field: "availability",
+      linkedService: 1,
+      counts: {
+        internal: { current: 0, due_soon: 0, expired: 1, basis_missing: 0 },
       },
     })
     expect(out.PREVIEW_MANAGER).toBe("not_active_admin")
@@ -191,6 +204,16 @@ describe("freshness rechecks and C-B04-4 (A1-4, A1-8)", () => {
     expect(out.TASKS_AFTER_RESTATE).toContain(
       "A:price:due_soon:internal:cancelled"
     )
+  })
+
+  it("cancels a freshness task once no policy is in force for its field and use (S3 L2)", () => {
+    expect(out.OPENED_AFTER_UNBIND).toBe(0)
+    expect(out.TASKS_AFTER_UNBIND).toEqual([
+      "A:price:due_soon:internal:cancelled",
+      "A:price:expired:internal:cancelled",
+      "C:price:expired:internal:done",
+      "D:availability:expired:internal:open",
+    ])
   })
 
   it("C-B04-4: expiry and two job runs leave photos, photo events, counts and the credit function unchanged", () => {

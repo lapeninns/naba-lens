@@ -438,6 +438,11 @@ describe("tradingRpcFailure", () => {
       409,
       "stated date",
     ],
+    [
+      { message: "freshness_field_not_supported", code: "P0001" },
+      409,
+      "prices and availability only",
+    ],
     [{ message: "invalid_effective_from", code: "22023" }, 400, "from now on"],
     [{ message: "not_active_admin", code: "42501" }, 403, "admin"],
     [{ message: "something_else", code: "40001" }, 409, "changed elsewhere"],

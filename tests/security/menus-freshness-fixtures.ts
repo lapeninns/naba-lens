@@ -125,6 +125,8 @@ ${refused("BIND_WRONG_USE", "admin_claims", `public.menu_freshness_binding_add($
 ${refused("BIND_UNKNOWN", "admin_claims", `public.menu_freshness_binding_add(${V}, 'price', 'internal', 'fx_menu_no_such_policy', 1, null)`)}
 ${refused("BIND_RETRO", "admin_claims", `public.menu_freshness_binding_add(${V}, 'price', 'internal', ${S("pol")}, 1, now() - interval '1 day')`)}
 ${refused("BIND_FIELD", "admin_claims", `public.menu_freshness_binding_add(${V}, 'photo', 'internal', ${S("pol")}, 1, null)`)}
+${refused("BIND_TEMPORARY", "admin_claims", `public.menu_freshness_binding_add(${V}, 'temporary_unavailability', 'internal', ${S("pol")}, 1, null)`)}
+${refused("BIND_ALLERGENS", "admin_claims", `public.menu_freshness_binding_add(${V}, 'allergens', 'internal', null, null, null)`)}
 ${refused("BIND_MANAGER", "manager_claims", `public.menu_freshness_binding_add(${V}, 'price', 'internal', ${S("pol")}, 1, null)`)}
 select ((:'today'::date - 9)::timestamp + interval '10 days') at time zone 'Europe/London' as a_due \\gset
 select 'A_DUE ' || to_json(:'a_due'::timestamptz)::text;
@@ -145,6 +147,28 @@ ${as(
   `(select l from jsonb_array_elements(public.menu_trading_lines_for_item(:'item_d') -> 'lines') l
   where l ->> 'lineId' = :'d_line') -> 'availability'`
 )}
+-- L5: B's availability follows a linked B03 service (a same-venue check;
+-- the schedule row is seeded directly, the assertion goes through the
+-- commands). The preview leaves it out of the counts.
+with c as (
+  insert into public.venue_amenity_checks (venue_id, template_key)
+  select :'fx_venue_id', k.key from public.amenity_catalogue k order by k.key limit 1
+  returning id
+)
+insert into public.menu_availability_schedules (venue_id, knowledge_check_id, effective_from, created_by, command_key)
+select :'fx_venue_id', c.id, :'today'::date, (select id from fx_menu_recheck where key = 'manager'), gen_random_uuid()
+from c
+returning id as linked_schedule \\gset
+set role authenticated;
+select set_config('request.jwt.claims', :'manager_claims', true);
+select p ->> 'assertionId' as bl_assertion, p ->> 'lineRevision' as bl_rev
+from (select public.menu_trading_propose(null, :'item_b', null, null, null, 'availability',
+  jsonb_build_object('state', 'scheduled', 'scheduleId', :'linked_schedule'), null, null, null, null, null,
+  gen_random_uuid()) as p) x \\gset
+select public.menu_trading_decide(:'bl_assertion', :bl_rev, 'confirmed', null, (:'today'::date - 12),
+  gen_random_uuid()) is not null as bl_ok \\gset
+reset role;
+${as("PREVIEW_AVAILABILITY", "admin_claims", `public.menu_freshness_preview(:'fx_venue_id', 'availability', jsonb_build_object('internal', :'pol'))`)}
 select 'BASIS_MISSING ' || private.menu_trading_freshness(:'fx_venue_id', 'price', '{"status":"available"}'::jsonb, now())::text;
 select 'TASKS_STOPPED ' || ${tasks}::text;
 ${as("PREVIEW", "admin_claims", `public.menu_freshness_preview(:'fx_venue_id', 'price', jsonb_build_object('internal', :'pol'))`)}
@@ -168,6 +192,8 @@ select 'TASKS_AFTER_RESTATE ' || ${tasks}::text;
 select 'INVARIANTS_AFTER ' || ${invariants}::text;
 ${as("UNBIND", "admin_claims", `public.menu_freshness_binding_add(:'fx_venue_id', 'price', 'internal', null, null, now() + interval '1 second')`)}
 ${as("A_UNBOUND", "manager_claims", `${history("a_line", "now() + interval '2 seconds'")} -> 'price'`)}
+select 'OPENED_AFTER_UNBIND ' || private.menu_open_rechecks(now() + interval '2 seconds', array[:'fx_venue_id']::uuid[]);
+select 'TASKS_AFTER_UNBIND ' || ${tasks}::text;
 savepoint fx_append;
 do $probe$ begin
   update public.menu_freshness_bindings set policy_version = 1;
