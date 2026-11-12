@@ -15,6 +15,7 @@ import type {
   Uploader,
   UploadError,
   UploadFn,
+  UploadResult,
 } from "./types"
 import { fileIdentity, type UploadKeyStore } from "./upload-keys"
 
@@ -96,7 +97,7 @@ export function toQueueUploader(
     if (account) journalAccount ??= account
     const session =
       capture && account && account === journalAccount
-        ? await withDeadline(capture(account), null)
+        ? await withDeadline(capture(account), null, JOURNAL_OPEN_DEADLINE_MS)
         : null
     let token = readToken(context.resumeToken)
     // The same file picked again (another visit): its stored key reserves
@@ -125,15 +126,38 @@ export function toQueueUploader(
     }
     context.signal?.addEventListener("abort", release, { once: true })
     await keys?.set(file, idempotencyKey, scope).catch(() => {})
-    const entryId = session
-      ? await withDeadline(
-          record(session, file, idempotencyKey, context, scope),
-          null,
-          // Recorded too late to follow: nothing would ever end it.
-          (id) => void (id && session.journal.done(id))
-        )
-      : null
-    const journal = entryId ? session!.journal : null
+    // What this upload has done so far, for the journal entry whenever its id
+    // is known: a pick that answers late catches up with it (L2a), and never
+    // ends an entry the upload hasn't finished.
+    const live: {
+      id: string | null
+      assetId: string | null
+      state: "reserved" | "finalising" | null
+      bytes: number | null
+      result: UploadResult | null
+    } = { id: null, assetId: null, state: null, bytes: null, result: null }
+    const journal = session?.journal ?? null
+    const catchUp = (id: string | null) => {
+      if (!id || !journal) return
+      live.id = id
+      if (live.result) {
+        void settleEntry(journal, id, live.result)
+        return
+      }
+      if (live.state)
+        void journal.update(id, {
+          state: live.state,
+          ...(live.assetId ? { assetId: live.assetId } : {}),
+        })
+      if (live.bytes !== null) void journal.progress(id, live.bytes)
+    }
+    if (session)
+      live.id = await withDeadline(
+        record(session, file, idempotencyKey, context, scope),
+        null,
+        JOURNAL_DEADLINE_MS,
+        catchUp
+      )
 
     let result: Awaited<ReturnType<UploadFn>>
     try {
@@ -143,14 +167,15 @@ export function toQueueUploader(
         signal: context.signal,
         onProgress: (fraction) => {
           context.onProgress(fraction)
-          if (journal && entryId)
-            void journal.progress(entryId, Math.round(fraction * file.size))
+          live.bytes = Math.round(fraction * file.size)
+          if (journal && live.id) void journal.progress(live.id, live.bytes)
         },
         onStateChange: (state) => {
           if (state === "processing") {
             context.onProcessing()
-            if (journal && entryId)
-              void journal.update(entryId, { state: "finalising" })
+            live.state = "finalising"
+            if (journal && live.id)
+              void journal.update(live.id, { state: "finalising" })
           }
         },
         onReserved: ({ assetId, resumable }) => {
@@ -161,8 +186,10 @@ export function toQueueUploader(
           } satisfies QueueResumeToken)
           // Labels can be sent for the asset from now on.
           context.onReserved?.(assetId, resumed)
-          if (journal && entryId)
-            void journal.update(entryId, { state: "reserved", assetId })
+          live.assetId = assetId
+          live.state = "reserved"
+          if (journal && live.id)
+            void journal.update(live.id, { state: "reserved", assetId })
         },
       })
     } finally {
@@ -184,8 +211,13 @@ export function toQueueUploader(
       context.setResumeToken(null)
     }
 
-    if (journal && entryId)
-      await withDeadline(settleEntry(journal, entryId, result), undefined)
+    live.result = result
+    if (journal && live.id)
+      await withDeadline(
+        settleEntry(journal, live.id, result),
+        undefined,
+        JOURNAL_DEADLINE_MS
+      )
 
     if (result.state === "failed") {
       throw new QueueUploadError(
@@ -210,11 +242,18 @@ export function toQueueUploader(
  * that it carries on without it; a late journal answer is ignored.
  */
 export const JOURNAL_DEADLINE_MS = 2000
+/**
+ * The first open runs the capability probe, which may take its own 3 s
+ * timeout: the open gets a budget above it (L2c), so the first upload after
+ * the page loads is journalled too. Still bounded: it never waits longer.
+ */
+export const JOURNAL_OPEN_DEADLINE_MS = 5000
 
 function withDeadline<T>(
   work: Promise<T>,
   fallback: T,
-  /** The answer that came after the deadline (to undo it). */
+  ms: number,
+  /** The answer that came after the deadline (to catch up with it). */
   onLate?: (value: T) => void
 ): Promise<T> {
   return new Promise((resolve) => {
@@ -222,7 +261,7 @@ function withDeadline<T>(
     const timer = setTimeout(() => {
       late = true
       resolve(fallback)
-    }, JOURNAL_DEADLINE_MS)
+    }, ms)
     work.then(
       (value) => {
         clearTimeout(timer)

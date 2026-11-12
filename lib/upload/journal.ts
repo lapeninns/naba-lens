@@ -133,7 +133,15 @@ export type CaptureJournalOptions = {
   >
   now?: () => number
   randomId?: () => string
+  /** Each operation's deadline (default JOURNAL_OP_DEADLINE_MS). */
+  opDeadlineMs?: number
 }
+
+/**
+ * How long one journal operation may take (L2b). A storage call that never
+ * answers is given up ("not kept") and the next operation runs.
+ */
+export const JOURNAL_OP_DEADLINE_MS = 1500
 
 /** SHA-256 of the user id; the raw id is never stored. */
 export async function accountHash(userId: string): Promise<string> {
@@ -161,9 +169,25 @@ export async function openCaptureJournal(
   // Every change reads an entry and writes it back: run them one at a time,
   // so a fire-and-forget call never overwrites another's write (K11).
   let chain: Promise<unknown> = Promise.resolve()
-  const serial = <T>(fn: () => Promise<T>): Promise<T> => {
-    const run = chain.then(fn, fn)
-    chain = run.catch(() => undefined)
+  const opDeadline = options.opDeadlineMs ?? JOURNAL_OP_DEADLINE_MS
+  /** `work`, or `fallback` once the operation's deadline passes or it fails. */
+  const bounded = <T>(work: () => Promise<T>, fallback: T): Promise<T> =>
+    new Promise<T>((resolve) => {
+      const timer = setTimeout(() => resolve(fallback), opDeadline)
+      work().then(
+        (value) => {
+          clearTimeout(timer)
+          resolve(value)
+        },
+        () => {
+          clearTimeout(timer)
+          resolve(fallback)
+        }
+      )
+    })
+  const serial = <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+    const run = chain.then(() => bounded(fn, fallback))
+    chain = run
     return run
   }
 
@@ -247,8 +271,9 @@ export async function openCaptureJournal(
 
   /**
    * A patch as stored: a reserve (or later step) clears an earlier failure
-   * (K9), and labels typed before reservation once the server has them (K2);
-   * bytes go once finalising starts (K12).
+   * (K9); `pendingLabels: undefined` clears the labels typed before
+   * reservation, once the label store says the server took them (L1); bytes
+   * go once finalising starts (K12).
    */
   function patched(
     entry: JournalEntry,
@@ -262,19 +287,21 @@ export async function openCaptureJournal(
       patch.state === "transferring" ||
       patch.state === "finalising"
     if (moving) delete next.failure
-    if (patch.state === "reserved") delete next.pendingLabels
+    // Cleared once the server took the labels (L1: the label store says so).
+    if ("pendingLabels" in patch && patch.pendingLabels === undefined)
+      delete next.pendingLabels
     if (patch.state === "finalising") delete next.bytes
     return next
   }
 
   return {
-    pick: (input) => serial(() => pickNow(input)),
+    pick: (input) => serial(() => pickNow(input), null),
     update: (id, patch) =>
       serial(async () => {
         const entry = await find(id)
         if (!entry) return
         await safe(() => save(patched(entry, patch)), undefined)
-      }),
+      }, undefined),
     progress(id, transferredBytes) {
       pending.set(id, transferredBytes)
       const t = now()
@@ -286,7 +313,7 @@ export async function openCaptureJournal(
         const entry = await find(id)
         if (entry)
           await safe(() => save(progressed(entry, transferredBytes)), undefined)
-      })
+      }, undefined)
     },
     flush: () =>
       serial(async () => {
@@ -300,7 +327,7 @@ export async function openCaptureJournal(
               undefined
             )
         }
-      }),
+      }, undefined),
     fail: (id, code, permanent) =>
       serial(async () => {
         const entry = await find(id)
@@ -313,23 +340,27 @@ export async function openCaptureJournal(
         // A permanent failure is never continued: its bytes go (K12).
         if (permanent) delete next.bytes
         await safe(() => save(next), undefined)
-      }),
+      }, undefined),
     done: (id) =>
       serial(async () => {
         pending.delete(id)
         await safe(() => backend.delete(id), undefined)
-      }),
+      }, undefined),
     async unfinished() {
       await chain
-      return (await mine())
-        .filter((e) => e.state !== "done")
-        .sort((a, b) => b.touchedAt - a.touchedAt)
+      return bounded(
+        async () =>
+          (await mine())
+            .filter((e) => e.state !== "done")
+            .sort((a, b) => b.touchedAt - a.touchedAt),
+        [] as JournalEntry[]
+      )
     },
     clear: () =>
       serial(async () => {
         pending.clear()
         await safe(() => backend.clear(), undefined)
-      }),
+      }, undefined),
   }
 
   async function pickNow(input: PickInput): Promise<JournalEntry | null> {
