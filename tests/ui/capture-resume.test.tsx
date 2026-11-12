@@ -16,52 +16,59 @@ import {
 import * as React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const { refresh, supabase, uploads, sets, labelApi } = vi.hoisted(() => ({
-  refresh: vi.fn(),
-  supabase: {
-    auth: {
-      // The signed-in account, as supabase-js reports it on subscribe.
-      onAuthStateChange: vi.fn(
-        (listener: (event: string, session: unknown) => void) => {
-          queueMicrotask(() =>
-            listener("INITIAL_SESSION", { user: { id: "u1", email: null } })
-          )
-          return { data: { subscription: { unsubscribe: vi.fn() } } }
-        }
-      ),
-      getSession: vi.fn(async () => ({
-        data: { session: { user: { id: "u1" } } },
-        error: null,
-      })),
+const { refresh, supabase, uploads, sets, labelApi, keyStore } = vi.hoisted(
+  () => ({
+    keyStore: {
+      get: vi.fn(async () => null),
+      set: vi.fn(async () => {}),
+      delete: vi.fn(async () => {}),
     },
-  },
-  uploads: { current: null as unknown },
-  sets: {
-    startPhotoSet: vi.fn(async () => ({ status: "missing" })),
-    addToPhotoSet: vi.fn(async () => ({ status: "missing" })),
-    readPhotoSet: vi.fn(async () => ({ status: "missing" })),
-    replaceInPhotoSet: vi.fn(async () => ({ status: "missing" })),
-    readPhotoSets: vi.fn(async () => ({ status: "missing" })),
-    readDeleteEvidence: vi.fn(async () => ({ status: "missing" })),
-    deleteMedia: vi.fn(),
-  },
-  labelApi: {
-    loadUploadLabelContext: vi.fn(async () => ({
-      ok: false,
-      message: "The menu could not be loaded. Try again.",
-    })),
-    saveUploadLabels: vi.fn(
-      async (_venue: string, input: { assetId: string }) => ({
-        ok: true,
-        assetId: input.assetId,
-        state: "pending",
-      })
-    ),
-    discardUploadLabels: vi.fn(),
-    loadLabelAttention: vi.fn(async () => []),
-    loadPhotoLabels: vi.fn(async () => null),
-  },
-}))
+    refresh: vi.fn(),
+    supabase: {
+      auth: {
+        // The signed-in account, as supabase-js reports it on subscribe.
+        onAuthStateChange: vi.fn(
+          (listener: (event: string, session: unknown) => void) => {
+            queueMicrotask(() =>
+              listener("INITIAL_SESSION", { user: { id: "u1", email: null } })
+            )
+            return { data: { subscription: { unsubscribe: vi.fn() } } }
+          }
+        ),
+        getSession: vi.fn(async () => ({
+          data: { session: { user: { id: "u1" } } },
+          error: null,
+        })),
+      },
+    },
+    uploads: { current: null as unknown },
+    sets: {
+      startPhotoSet: vi.fn(async () => ({ status: "missing" })),
+      addToPhotoSet: vi.fn(async () => ({ status: "missing" })),
+      readPhotoSet: vi.fn(async () => ({ status: "missing" })),
+      replaceInPhotoSet: vi.fn(async () => ({ status: "missing" })),
+      readPhotoSets: vi.fn(async () => ({ status: "missing" })),
+      readDeleteEvidence: vi.fn(async () => ({ status: "missing" })),
+      deleteMedia: vi.fn(),
+    },
+    labelApi: {
+      loadUploadLabelContext: vi.fn(async () => ({
+        ok: false,
+        message: "The menu could not be loaded. Try again.",
+      })),
+      saveUploadLabels: vi.fn(
+        async (_venue: string, input: { assetId: string }) => ({
+          ok: true,
+          assetId: input.assetId,
+          state: "pending",
+        })
+      ),
+      discardUploadLabels: vi.fn(),
+      loadLabelAttention: vi.fn(async () => []),
+      loadPhotoLabels: vi.fn(async () => null),
+    },
+  })
+)
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh, push: vi.fn(), replace: vi.fn() }),
@@ -78,12 +85,17 @@ vi.mock("@/app/_labels/actions", () => ({
 }))
 vi.mock("@/app/_media/actions", () => sets)
 vi.mock("@/app/staff/_shell/upload-label-api", () => labelApi)
+vi.mock("@/lib/upload/upload-keys", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/upload/upload-keys")>()),
+  localUploadKeyStore: () => keyStore,
+}))
 
 import { AddHost } from "@/app/staff/_shell/add-host"
 import { useAdd } from "@/components/nabalens/shell/add-context"
 import {
   CAPTURE_COPY,
   CaptureJournalContext,
+  resumableEntries,
 } from "@/components/nabalens/shell/capture-resume"
 import type {
   UploadContext,
@@ -95,6 +107,7 @@ import {
   memoryJournalBackend,
   openCaptureJournal,
   type CaptureJournal,
+  type JournalEntry,
   type PickInput,
 } from "@/lib/upload/journal"
 
@@ -123,7 +136,9 @@ let journal: CaptureJournal
 let session: CaptureSession
 const opened = vi.fn()
 
+let alive = true
 async function makeSession(storeBytes = true) {
+  alive = true
   journal = await openCaptureJournal({
     backend: memoryJournalBackend(),
     accountHash: "hash-u1",
@@ -133,7 +148,7 @@ async function makeSession(storeBytes = true) {
     accountHash: "hash-u1",
     capabilities: caps(storeBytes),
     journal,
-    alive: () => true,
+    alive: () => alive,
   }
 }
 
@@ -186,9 +201,9 @@ async function openSheet() {
   return screen.findByRole("dialog", { name: "Add photos" })
 }
 
-const uploaded: { file: File; context: UploadContext }[] = []
+const uploaded: { file: File; context: UploadContext; keysSet: number }[] = []
 const uploader: Uploader = async (file, context) => {
-  uploaded.push({ file, context })
+  uploaded.push({ file, context, keysSet: keyStore.set.mock.calls.length })
   const assetId = `asset-${file.name}`
   context.onReserved?.(assetId)
   return { assetId }
@@ -376,5 +391,116 @@ describe("from md, the upload dialog (J2)", () => {
     await makeSession(false)
     const dialog = await openDialog()
     expect(await within(dialog).findByText(CAPTURE_COPY.keepOpen)).toBeTruthy()
+  })
+})
+
+describe("review repairs (K2, K3, K8, K13)", () => {
+  it("K13: Continue gives the stored File its earlier upload key back", async () => {
+    const kept = jpeg("kept.jpg")
+    const entry = (await pick(kept))!
+    const sheet = await openSheet()
+    fireEvent.click(
+      await within(sheet).findByRole("button", {
+        name: CAPTURE_COPY.continueLabel("kept.jpg"),
+      })
+    )
+    await waitFor(() => expect(uploaded).toHaveLength(1))
+    expect(keyStore.set).toHaveBeenCalledWith(kept, entry.uploadKey, {
+      purpose: "general",
+      account: "u1",
+    })
+    // Set before the file reached the transport (which reads it).
+    expect(uploaded[0]!.keysSet).toBe(1)
+  })
+
+  it("K2: an entry that was reserved is continued without its old labels", async () => {
+    const kept = jpeg("kept.jpg")
+    const entry = (await pick(kept, {
+      pendingLabels: {
+        venueId: "venue-1",
+        input: {
+          assetId: "old-row",
+          expectedRevision: 0,
+          catalogueVersionId: null,
+          contentTypes: ["dish"],
+          note: "TEST removed later",
+          items: [],
+          missingItem: null,
+        },
+      },
+    }))!
+    // Reserved in the earlier tab; the journal keeps no labels from then on,
+    // and Continue seeds none even if an old entry still had them.
+    await journal.update(entry.id, { state: "transferring", assetId: "a-1" })
+    const sheet = await openSheet()
+    fireEvent.click(
+      await within(sheet).findByRole("button", {
+        name: CAPTURE_COPY.continueLabel("kept.jpg"),
+      })
+    )
+    await waitFor(() => expect(uploaded).toHaveLength(1))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(labelApi.saveUploadLabels).not.toHaveBeenCalled()
+    expect(captureAnnotation(kept)).not.toHaveProperty("pendingLabels")
+  })
+
+  it("K3: task and question uploads are not Add's to continue", async () => {
+    await pick(jpeg("task.jpg"), { subject: { kind: "task", id: "t-1" } })
+    await pick(jpeg("evidence.jpg"), {
+      purpose: "amenity",
+      subject: { kind: "question", id: "q-1" },
+    })
+    await pick(jpeg("dish.jpg"))
+    const sheet = await openSheet()
+    expect(
+      await within(sheet).findByText(CAPTURE_COPY.continueLine("dish.jpg"))
+    ).toBeTruthy()
+    expect(within(sheet).queryByText(/task\.jpg/)).toBeNull()
+    expect(within(sheet).queryByText(/evidence\.jpg/)).toBeNull()
+  })
+
+  it("K8: a journal signed out in another tab shows nothing and writes no key", async () => {
+    await pick(jpeg("kept.jpg"))
+    const sheet = await openSheet()
+    await within(sheet).findByText(CAPTURE_COPY.continueLine("kept.jpg"))
+    alive = false
+    // Any re-render (here: closing and opening the sheet) drops the block.
+    fireEvent.keyDown(sheet, { key: "Escape" })
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Add photos" })).toBeNull()
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Add" }))
+    const again = await screen.findByRole("dialog", { name: "Add photos" })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(again.querySelector("[data-capture-resume]")).toBeNull()
+    expect(keyStore.set).not.toHaveBeenCalled()
+  })
+
+  it("K13: lists neither what this tab's queue holds nor what it picked", () => {
+    const entry = (id: string, over: Partial<JournalEntry> = {}) =>
+      ({
+        id,
+        purpose: "general",
+        subject: { kind: "none", id: null },
+        assetId: null,
+        state: "reserved",
+        ...over,
+      }) as JournalEntry
+    const all = [
+      entry("held", { assetId: "asset-held" }),
+      entry("picked-here"),
+      entry("finalising", { state: "finalising" }),
+      entry("other"),
+    ]
+    expect(
+      resumableEntries(
+        all,
+        new Set(["asset-held"]),
+        new Set(["picked-here"])
+      ).map((e) => e.id)
+    ).toEqual(["other"])
+    expect(
+      resumableEntries(all, new Set(), new Set()).map((e) => e.id)
+    ).toEqual(["held", "picked-here", "other"])
   })
 })

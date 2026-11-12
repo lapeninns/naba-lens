@@ -3,7 +3,7 @@
 // claim before keys, storage-event invalidation, flush on pagehide) and the
 // upload adapter's journal writes (OD-B5-05-4, 6, 7), over the memory
 // backend with Node Files.
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { detectCaptureCapabilities } from "@/lib/upload/capabilities"
 import {
@@ -11,6 +11,7 @@ import {
   captureEntryId,
   createCaptureSessions,
   forgetCapture,
+  type CaptureSession,
 } from "@/lib/upload/capture-session"
 import {
   accountHash,
@@ -20,7 +21,10 @@ import {
   openCaptureJournal,
   type JournalEntry,
 } from "@/lib/upload/journal"
-import { toQueueUploader } from "@/lib/upload/queue-adapter"
+import {
+  JOURNAL_DEADLINE_MS,
+  toQueueUploader,
+} from "@/lib/upload/queue-adapter"
 import type {
   UploadContext,
   UploadFn,
@@ -408,6 +412,12 @@ describe("the adapter's journal writes (OD-B5-05-4, 6, 7)", () => {
 
   it("records what the screen knew before the pick, and after", async () => {
     const { s, backend } = sessions()
+    let firstPut: JournalEntry | undefined
+    const put = backend.put
+    backend.put = async (e) => {
+      firstPut ??= e
+      return put(e)
+    }
     const file = photo()
     annotateCapture(file, {
       subject: { kind: "menu_item", id: "item-1" },
@@ -435,9 +445,14 @@ describe("the adapter's journal writes (OD-B5-05-4, 6, 7)", () => {
     expect(entry).toMatchObject({
       subject: { kind: "menu_item", id: "item-1" },
       groupKey: "set-key",
-      pendingLabels: { venueId: "v1", input: { note: "x" } },
       bytes: file,
     })
+    // Picked with the labels; reserved, they live on the server (K2).
+    expect(firstPut?.pendingLabels).toEqual({
+      venueId: "v1",
+      input: { note: "x" },
+    })
+    expect(entry).not.toHaveProperty("pendingLabels")
     expect(captureEntryId(file)).toBe(entry!.id)
     // Removing the row ends it.
     forgetCapture(file)
@@ -511,5 +526,180 @@ describe("privacy (§5.8)", () => {
       "app/staff/_shell/add-host.tsx",
     ])
       expect(readFileSync(path, "utf8"), path).not.toMatch(/\bconsole\./)
+  })
+})
+
+describe("review repairs (K1, K4, K6, K7, K9 to K12)", () => {
+  const input = (file: File, key = file.name) => ({
+    purpose: "general" as const,
+    subject: { kind: "none" as const, id: null },
+    groupKey: null,
+    uploadKey: key,
+    fileFingerprint: key,
+    file,
+    mediaType: "image" as const,
+  })
+
+  it("K1: a sign-out in another tab during the first open is not missed", async () => {
+    const storage = memStorage()
+    const target = new EventTarget()
+    const backend = memoryJournalBackend()
+    const s = createCaptureSessions({
+      probe: async () => {
+        // Another tab signs out while this one probes (only the event is
+        // seen here: this tab's marker read still says the account).
+        target.dispatchEvent(
+          Object.assign(new Event("storage"), {
+            key: JOURNAL_ACCOUNT_STORAGE_KEY,
+            newValue: null,
+          })
+        )
+        return roomy
+      },
+      backend: () => backend,
+      cleanup: () => ({ storage }),
+      events: () => target as unknown as Window,
+      document: () => ({ visibilityState: "visible" }),
+    })
+    expect(await s.get("user-1")).toBeNull()
+    expect(await backend.getAll()).toEqual([])
+  })
+
+  it("K1: another account's marker written during the open (no event) is caught after it", async () => {
+    const storage = memStorage()
+    const s = createCaptureSessions({
+      probe: async () => {
+        storage.setItem(JOURNAL_ACCOUNT_STORAGE_KEY, "someone-else")
+        return roomy
+      },
+      backend: () => memoryJournalBackend(),
+      cleanup: () => ({ storage }),
+      events: () => null,
+    })
+    expect(await s.get("user-1")).toBeNull()
+  })
+
+  it("K6: once the marker is gone, no write reaches the backend", async () => {
+    const { s, storage, backend } = sessions()
+    const session = (await s.get("user-1"))!
+    const put = vi.spyOn(backend, "put")
+    storage.removeItem(JOURNAL_ACCOUNT_STORAGE_KEY)
+    expect(session.alive()).toBe(false)
+    expect(await session.journal.pick(input(photo()))).toBeNull()
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it("K4: a journal that never answers never holds up an upload", async () => {
+    vi.useFakeTimers()
+    try {
+      const stalled = toQueueUploader(fakeUpload({ state: "ready" }), {
+        keys: memKeys(),
+        capture: () => new Promise(() => {}),
+      })
+      const done = stalled(photo(), context())
+      await vi.advanceTimersByTimeAsync(JOURNAL_DEADLINE_MS + 10)
+      await expect(done).resolves.toMatchObject({ assetId: "asset-1" })
+
+      // A journal that opens but whose pick stalls.
+      const { s } = sessions()
+      const session = (await s.get("user-1"))!
+      const hung: CaptureSession = {
+        ...session,
+        journal: { ...session.journal, pick: () => new Promise(() => {}) },
+      }
+      const slow = toQueueUploader(fakeUpload({ state: "ready" }), {
+        keys: memKeys(),
+        capture: async () => hung,
+      })
+      const second = slow(photo(), context())
+      await vi.advanceTimersByTimeAsync(JOURNAL_DEADLINE_MS + 10)
+      await expect(second).resolves.toMatchObject({ assetId: "asset-1" })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("K7: the journal is the page's first account's only", async () => {
+    const { s, backend } = sessions()
+    const upload = toQueueUploader(
+      fakeUpload({
+        state: "failed",
+        error: { code: "transfer_failed", message: "x", retryable: true },
+      }),
+      { keys: memKeys(), capture: s.get }
+    )
+    await upload(photo(), context({ account: "user-1" })).catch(() => {})
+    await upload(photo(), context({ account: "user-2" })).catch(() => {})
+    await flush()
+    expect(await backend.getAll()).toHaveLength(1)
+  })
+
+  it("K9 and K12: a reserve clears a failure; permanent fail and finalising drop the bytes", async () => {
+    const j = await openCaptureJournal({
+      backend: memoryJournalBackend(),
+      accountHash: "a",
+      capabilities: roomy,
+    })
+    const a = (await j.pick(input(photo())))!
+    expect(a.bytes).toBeDefined()
+    await j.fail(a.id, "processing_failed", true)
+    let [stored] = await j.unfinished()
+    expect(stored).not.toHaveProperty("bytes")
+    await j.update(a.id, { state: "reserved", assetId: "x" })
+    ;[stored] = await j.unfinished()
+    expect(stored).not.toHaveProperty("failure")
+    const b = (await j.pick(input(photo())))!
+    await j.update(b.id, { state: "finalising" })
+    expect(
+      (await j.unfinished()).find((e) => e.id === b.id)
+    ).not.toHaveProperty("bytes")
+  })
+
+  it("K10: a row removed before its entry existed has the entry removed when it does", async () => {
+    const { s, backend } = sessions()
+    const file = photo()
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    const keys = memKeys()
+    const slowKeys: UploadKeyStore = {
+      ...keys,
+      set: async (f, k, sc) => {
+        await gate
+        return keys.set(f, k, sc)
+      },
+    }
+    const upload = toQueueUploader(
+      fakeUpload({
+        state: "failed",
+        error: { code: "aborted", message: "x", retryable: true },
+      }),
+      { keys: slowKeys, capture: s.get }
+    )
+    const run = upload(file, context()).catch(() => {})
+    await flush()
+    forgetCapture(file)
+    release()
+    await run
+    await flush()
+    expect(await backend.getAll()).toEqual([])
+  })
+
+  it("K11: changes fired together don't overwrite each other", async () => {
+    const j = await openCaptureJournal({
+      backend: memoryJournalBackend(),
+      accountHash: "a",
+      capabilities: roomy,
+    })
+    const e = (await j.pick(input(photo())))!
+    void j.update(e.id, { groupKey: "g" })
+    void j.progress(e.id, 300)
+    void j.update(e.id, { assetId: "asset-1" })
+    const [stored] = await j.unfinished()
+    expect(stored).toMatchObject({
+      groupKey: "g",
+      transferredBytes: 300,
+      assetId: "asset-1",
+      state: "transferring",
+    })
   })
 })
