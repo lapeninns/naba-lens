@@ -374,6 +374,44 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
     })
   })
 
+  it("accepts a net-zero stopped swap above 10 live, and refuses one that adds a live member (R9)", async () => {
+    const g = await start(w.staffA)
+    const retried = await asset(w.staffA.id, w.venue, "failed")
+    const stopped = await asset(w.staffA.id, w.venue, "uploading")
+    const failed = await asset(w.staffA.id, w.venue, "failed")
+    // Live 9: the stopped upload and 8 ready; neither failed one counts.
+    await add(w.staffA, g, [
+      retried,
+      stopped,
+      failed,
+      ...(await many(8, w.staffA.id, w.venue, "ready")),
+    ])
+    expect(await add(w.staffA, g, [await asset(w.staffA.id, w.venue)])).toBe(12)
+    // Live 10, then 11 once a failed member is retried to ready (S2 allows).
+    await markReady(service, retried, "image/jpeg")
+    backdate(stopped, 120)
+    expect((await view(w.staffA, g)).summary).toMatchObject({
+      live: 12,
+      ready: 10,
+      inProgress: 1,
+      failed: 1,
+    })
+    // The stopped member's swap is net zero: accepted at live 11.
+    const fresh = await asset(w.staffA.id, w.venue, "uploading")
+    expect((await replace(w.staffA, g, stopped, fresh)).position).toBe(13)
+    // The failed member's would make 12: refused, nothing written.
+    const more = await asset(w.staffA.id, w.venue, "uploading")
+    await refused(
+      w.staffA,
+      "contribution_group_replace",
+      replaceArgs(g, failed, more),
+      "contribution_group_full",
+      "P0001"
+    )
+    expect(members(g)).toBe(13)
+    expect(links(g)).toBe(1)
+  })
+
   it("rule (c): a replaced member stays out of the cap and the summary after it finishes (R5)", async () => {
     const g = await start(w.staffA)
     const old = await asset(w.staffA.id, w.venue, "failed")

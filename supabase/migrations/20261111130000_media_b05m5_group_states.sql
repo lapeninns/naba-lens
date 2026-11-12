@@ -19,9 +19,9 @@
 --   new. The creator swaps a failed, stopped or deleted member for a new own
 --   upload, one for one, in one transaction (OD-B5-01-1 as revised on
 --   12 Nov, OD-B5-01-4). The live cap is checked after the swap: it is
---   refused with contribution_group_full when the live count would pass 10
---   or the next position would pass 30. A stopped member is live, so its
---   swap is net zero.
+--   refused with contribution_group_full when the swap raises the live
+--   count past 10, or the next position would pass 30. A stopped member is
+--   live, so its swap is net zero and always passes the live check.
 --   private.group_stopped_upload_window() names the stopped window, 1 hour
 --   (OD-B5-01-3): a member is stopped while uploading with updated_at older
 --   than it.
@@ -333,13 +333,14 @@ $$;
 -- member and a replaces_failed_member link names the old one, in one
 -- transaction, so the old member stops counting at once and never counts
 -- again. The old member stays in the group.
--- Cap (OD-B5-01-1, revised): after the swap, the S2 live count (see
--- contribution_group_add) must not pass 10 and the new position must not
--- pass 30, or the swap is refused with contribution_group_full and nothing
--- is written. A stopped old member is live, so its swap is net zero and is
--- accepted; a failed or deleted one's adds one live member, so it is
--- accepted while the set has room (always for a set of 10 with one failed
--- member, unless a photo was added into the freed slot since).
+-- Cap (OD-B5-01-1, revised): the new position must not pass 30, and a swap
+-- that raises the S2 live count (see contribution_group_add) past 10 is
+-- refused; either refusal is contribution_group_full and writes nothing. A
+-- stopped old member is live, so its swap is net zero and is accepted, even
+-- when retried members have left the set above 10 (which S2 allows); a
+-- failed or deleted one's adds one live member, so it is accepted while the
+-- set has room (always for a set of 10 with one failed member, unless a
+-- photo was added into the freed slot since).
 -- Idempotent per (old, new): a repeat returns the first result before any
 -- state check; another new asset for a replaced member is
 -- idempotency_key_reused. Returns {groupId, assetId, replacesAssetId,
@@ -363,6 +364,7 @@ declare
   v_new public.media_assets;
   v_member uuid;
   v_next integer;
+  v_before integer;
   v_live integer;
 begin
   -- Creator only, at their upload venue; serialises writes to the group.
@@ -447,6 +449,18 @@ begin
   if v_next > 30 then
     raise exception 'contribution_group_full' using errcode = 'P0001';
   end if;
+  -- The S2 live count before the swap.
+  select count(*)::integer into v_before
+  from public.media_contribution_group_members m
+  join public.media_assets a on a.id = m.asset_id
+  where m.group_id = v_group.id
+    and a.deleted_at is null
+    and a.upload_state <> 'failed'
+    and not exists (
+      select 1 from public.media_asset_links l
+      where l.group_id = v_group.id and l.related_asset_id = m.asset_id
+        and l.kind = 'replaces_failed_member'
+    );
   insert into public.media_contribution_group_members (group_id, venue_id, asset_id, position)
   values (v_group.id, v_group.venue_id, p_new_asset_id, v_next);
   insert into public.media_asset_links (asset_id, venue_id, related_asset_id, kind, group_id, created_by)
@@ -463,7 +477,9 @@ begin
       where l.group_id = v_group.id and l.related_asset_id = m.asset_id
         and l.kind = 'replaces_failed_member'
     );
-  if v_live > 10 then
+  -- Refused only when the swap adds a live member past 10: a net-zero swap
+  -- (a stopped member) is accepted even when retries left more than 10.
+  if v_live > 10 and v_live > v_before then
     raise exception 'contribution_group_full' using errcode = 'P0001';
   end if;
   return jsonb_build_object(
