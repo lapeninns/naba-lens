@@ -17,7 +17,8 @@ import {
   accountHash,
   JOURNAL_ACCOUNT_STORAGE_KEY,
   JOURNAL_LIMITS,
-  JOURNAL_OP_DEADLINE_MS,
+  JOURNAL_READ_WAIT_MS,
+  JOURNAL_STUCK_MS,
   memoryJournalBackend,
   openCaptureJournal,
   type JournalEntry,
@@ -819,36 +820,187 @@ describe("late and hung journal operations (L2)", () => {
     }
   })
 
-  it("a hung storage call doesn't hold the next journal operation past its deadline", async () => {
+  const pickInput = (file: File, key = "k") => ({
+    purpose: "general" as const,
+    subject: { kind: "none" as const, id: null },
+    groupKey: null,
+    uploadKey: key,
+    fileFingerprint: key,
+    file,
+    mediaType: "image" as const,
+  })
+
+  /** A memory backend whose next `put` waits `ms` (forever when Infinity). */
+  function slowBackend() {
+    const base = memoryJournalBackend()
+    const log: string[] = []
+    let next: number | null = null
+    return {
+      log,
+      slowNext: (ms: number) => void (next = ms),
+      getAll: () => base.getAll(),
+      delete: (id: string) => base.delete(id),
+      clear: () => base.clear(),
+      put: async (e: JournalEntry) => {
+        const ms = next
+        next = null
+        log.push(`start:${e.groupKey ?? e.state}`)
+        if (ms === Infinity) return new Promise<void>(() => {})
+        if (ms) await new Promise((r) => setTimeout(r, ms))
+        await base.put(e)
+        log.push(`end:${e.groupKey ?? e.state}`)
+      },
+    }
+  }
+
+  it("M1: a hung storage call degrades the journal; later calls answer at once, untouched", async () => {
     fake()
     try {
-      const base = memoryJournalBackend()
-      let hang = false
-      const backend = {
-        ...base,
-        put: (e: JournalEntry) =>
-          hang ? new Promise<void>(() => {}) : base.put(e),
-      }
+      const backend = slowBackend()
       const j = await openCaptureJournal({
         backend,
         accountHash: "a",
         capabilities: roomy,
       })
-      const e = (await j.pick({
-        purpose: "general",
-        subject: { kind: "none", id: null },
-        groupKey: null,
-        uploadKey: "k",
-        fileFingerprint: "f",
-        file: photo(),
-        mediaType: "image",
-      }))!
-      hang = true
-      const stuck = j.update(e.id, { groupKey: "g" })
-      const listed = j.unfinished()
-      await tick(JOURNAL_OP_DEADLINE_MS + 10)
+      const e = (await j.pick(pickInput(photo())))!
+      backend.slowNext(Infinity)
+      const stuck = j.update(e.id, { groupKey: "g1" })
+      const queued = j.update(e.id, { groupKey: "g2" })
+      await tick(JOURNAL_STUCK_MS + 100)
       await expect(stuck).resolves.toBeUndefined()
-      await expect(listed).resolves.toHaveLength(1)
+      await expect(queued).resolves.toBeUndefined()
+      const writes = backend.log.length
+      // Degraded: no queueing, no storage.
+      await expect(j.pick(pickInput(photo(), "k2"))).resolves.toBeNull()
+      await expect(j.unfinished()).resolves.toEqual([])
+      expect(backend.log).toHaveLength(writes)
+      // The queued call never ran after the stuck one.
+      expect(backend.log.filter((l) => l.includes("g2"))).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("M1: a slow operation still completes, and the next runs after it, in order", async () => {
+    fake()
+    try {
+      const backend = slowBackend()
+      const j = await openCaptureJournal({
+        backend,
+        accountHash: "a",
+        capabilities: roomy,
+      })
+      const e = (await j.pick(pickInput(photo())))!
+      backend.slowNext(2000)
+      const first = j.update(e.id, { groupKey: "g1" })
+      const second = j.update(e.id, { groupKey: "g2" })
+      await tick(2200)
+      await first
+      await second
+      expect(backend.log.slice(-4)).toEqual([
+        "start:g1",
+        "end:g1",
+        "start:g2",
+        "end:g2",
+      ])
+      expect((await j.unfinished())[0]!.groupKey).toBe("g2")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("M1: unfinished() is bounded while an operation runs, and doesn't move past it", async () => {
+    fake()
+    try {
+      const backend = slowBackend()
+      const j = await openCaptureJournal({
+        backend,
+        accountHash: "a",
+        capabilities: roomy,
+      })
+      const e = (await j.pick(pickInput(photo())))!
+      backend.slowNext(4000)
+      const slow = j.update(e.id, { groupKey: "g1" })
+      const listed = j.unfinished()
+      await tick(JOURNAL_READ_WAIT_MS + 100)
+      await expect(listed).resolves.toEqual([])
+      await tick(2000)
+      await slow
+      expect((await j.unfinished())[0]!.groupKey).toBe("g1")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("M2: a pick that takes 3 s binds, catches up, and the upload's end is applied", async () => {
+    fake()
+    try {
+      const raw = slowBackend()
+      const storage = memStorage()
+      const s = createCaptureSessions({
+        probe: async () => roomy,
+        backend: () => raw,
+        cleanup: () => ({ storage }),
+        events: () => null,
+      })
+      const up = gatedUpload({
+        state: "failed",
+        error: { code: "transfer_failed", message: "x", retryable: true },
+      })
+      const upload = toQueueUploader(up.fn, {
+        keys: memKeys(),
+        capture: s.get,
+      })
+      await s.get("user-1")
+      raw.slowNext(3000)
+      const run = upload(photo(1000), context()).catch(() => {})
+      await tick(3500)
+      expect(await raw.getAll()).toMatchObject([
+        { state: "transferring", assetId: "asset-1" },
+      ])
+      up.release()
+      await run
+      await tick(100)
+      expect(await raw.getAll()).toMatchObject([
+        { state: "failed", failure: { code: "transfer_failed" } },
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("M4: a label clear made while the pick ran reaches the entry once bound", async () => {
+    fake()
+    try {
+      const raw = slowBackend()
+      const storage = memStorage()
+      const s = createCaptureSessions({
+        probe: async () => roomy,
+        backend: () => raw,
+        cleanup: () => ({ storage }),
+        events: () => null,
+      })
+      await s.get("user-1")
+      const file = photo(1000)
+      annotateCapture(file, {
+        pendingLabels: { venueId: "v", input: { x: 1 } },
+      })
+      const up = gatedUpload({ state: "ready" })
+      const upload = toQueueUploader(up.fn, {
+        keys: memKeys(),
+        capture: s.get,
+      })
+      raw.slowNext(3000)
+      const run = upload(file, context()).catch(() => {})
+      await tick(500)
+      // The server confirmed the labels before the entry was bound.
+      annotateCapture(file, { pendingLabels: undefined })
+      await tick(3000)
+      const [entry] = await raw.getAll()
+      expect(entry).toBeDefined()
+      expect(entry).not.toHaveProperty("pendingLabels")
+      up.release()
+      await run
     } finally {
       vi.useRealTimers()
     }

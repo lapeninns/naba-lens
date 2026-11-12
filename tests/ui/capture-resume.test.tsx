@@ -95,14 +95,21 @@ import { useAdd } from "@/components/nabalens/shell/add-context"
 import {
   CAPTURE_COPY,
   CaptureJournalContext,
+  journalLabels,
   resumableEntries,
+  sendClearsLabels,
 } from "@/components/nabalens/shell/capture-resume"
 import type {
   UploadContext,
   Uploader,
 } from "@/components/nabalens/upload-queue"
-import { bindCapture, captureAnnotation } from "@/lib/upload/capture-session"
+import {
+  annotateCapture,
+  bindCapture,
+  captureAnnotation,
+} from "@/lib/upload/capture-session"
 import type { CaptureSession } from "@/lib/upload/capture-session"
+import type { SaveLabelsInput } from "@/lib/menus/types"
 import {
   memoryJournalBackend,
   openCaptureJournal,
@@ -544,5 +551,90 @@ describe("review repairs (K2, K3, K8, K13)", () => {
     expect(
       resumableEntries(all, new Set(), new Set()).map((e) => e.id)
     ).toEqual(["held", "picked-here", "other"])
+  })
+})
+
+describe("the latest label choice (M3)", () => {
+  const choice = (
+    note: string | null,
+    contentTypes: SaveLabelsInput["contentTypes"] = []
+  ): SaveLabelsInput => ({
+    assetId: "row-1",
+    expectedRevision: 0,
+    catalogueVersionId: null,
+    contentTypes,
+    note,
+    items: [],
+    missingItem: null,
+  })
+
+  it("keeps the latest choice, nothing for an empty one, and clears only on its own confirmation", () => {
+    expect(journalLabels("v", choice("x", ["dish"]))).toEqual({
+      venueId: "v",
+      input: choice("x", ["dish"]),
+    })
+    expect(journalLabels("v", choice(null))).toBeUndefined()
+    const heldB = journalLabels("v", choice("B", ["dish"]))
+    // X's late confirmation must not clear B; B's own does.
+    expect(
+      sendClearsLabels(heldB, { ...choice("X", ["dish"]), assetId: "a" })
+    ).toBe(false)
+    expect(
+      sendClearsLabels(heldB, { ...choice("B", ["dish"]), assetId: "a" })
+    ).toBe(true)
+    expect(sendClearsLabels(undefined, choice("X"))).toBe(true)
+  })
+
+  async function reservedWithX() {
+    const kept = jpeg("kept.jpg")
+    const entry = (await pick(kept, {
+      pendingLabels: { venueId: "venue-1", input: choice("TEST X", ["dish"]) },
+    }))!
+    await journal.update(entry.id, { state: "transferring", assetId: "a-1" })
+    // The earlier tab's file, bound to its entry (as the transport does);
+    // its first send got no answer.
+    const earlier = jpeg("kept.jpg")
+    bindCapture(earlier, journal, entry.id)
+    return { earlier }
+  }
+
+  it("changed to B after reserve, then reopened: B is sent, never X", async () => {
+    const { earlier } = await reservedWithX()
+    annotateCapture(earlier, {
+      pendingLabels: journalLabels("venue-1", choice("TEST B", ["dish"])),
+    })
+    const sheet = await openSheet()
+    fireEvent.click(
+      await within(sheet).findByRole("button", {
+        name: CAPTURE_COPY.continueLabel("kept.jpg"),
+      })
+    )
+    await waitFor(() =>
+      expect(labelApi.saveUploadLabels).toHaveBeenCalledWith(
+        "venue-1",
+        expect.objectContaining({ note: "TEST B" })
+      )
+    )
+    expect(
+      labelApi.saveUploadLabels.mock.calls.some(
+        ([, input]) => (input as { note?: string }).note === "TEST X"
+      )
+    ).toBe(false)
+  })
+
+  it("X removed after reserve, then reopened: nothing is sent", async () => {
+    const { earlier } = await reservedWithX()
+    annotateCapture(earlier, {
+      pendingLabels: journalLabels("venue-1", choice(null)),
+    })
+    const sheet = await openSheet()
+    fireEvent.click(
+      await within(sheet).findByRole("button", {
+        name: CAPTURE_COPY.continueLabel("kept.jpg"),
+      })
+    )
+    await waitFor(() => expect(uploaded).toHaveLength(1))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(labelApi.saveUploadLabels).not.toHaveBeenCalled()
   })
 })
