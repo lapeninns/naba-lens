@@ -18,10 +18,19 @@
 //   with the pre-B05 worktree as the working directory, so the app code under
 //   test is that tree's.
 // --part new: B05-only paths (asset search, the 30-position group read,
-//   contribution_group_add at 29 to 30, contribution_group_replace).
+//   contribution_group_add at 29 to 30, contribution_group_replace). With
+//   tests/perf/b05-diff-world.sql loaded as well, also the check and
+//   submission filters on real evidence and the constructed worst cases of
+//   the B05 perf fix: a manager venue where nothing is visible (73,600
+//   assets) and a staff grantee with 500 own unlabelled uploads and no
+//   active check.
+// --part explain: EXPLAIN (ANALYZE, BUFFERS) of the chunk statement
+//   asset_search runs (cut from the migration, values substituted) and of
+//   whole calls; --v1-inner adds the pre-fix row query (search-inner-*).
 // Writes consume PERF fixture groups and fresh PERF uploads of
 // perf-b05-creator (23 per case); nothing else is changed.
-import { mkdirSync, writeFileSync } from "node:fs"
+import { createHash } from "node:crypto"
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { loadavg } from "node:os"
 import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -52,6 +61,7 @@ const WARM = Number(arg("warm", 3))
 const only = arg("only", null)
 const TAG = arg("tag", null)
 const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
+const V1_INNER = argv.includes("--v1-inner")
 
 const env = requireWorkstreamStack()
 const lib = (p) => import(pathToFileURL(resolve(p)).href)
@@ -91,6 +101,28 @@ const person = (key) => {
     email: `perf-b05-${key}@perf.nabalens.test`,
   }
 }
+// Fixed rows of tests/perf/b05-diff-world.sql: md5('perfb05d:<key>')::uuid.
+const did = (k) => {
+  const h = createHash("md5").update(`perfb05d:${k}`).digest("hex")
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
+const diffWorld =
+  one(
+    `select count(*) from public.venues where id = '${did("venue-reject")}'`
+  )[0] === "1"
+const personD = (key) => {
+  const [id, venueId, role, displayName] = one(
+    `select p.id, p.venue_id, p.role, p.display_name from public.profiles p join auth.users u on u.id = p.id
+     where u.email = 'perf-b05d-${key}@perf.nabalens.test'`
+  )
+  return {
+    id,
+    venueId,
+    role,
+    displayName,
+    email: `perf-b05d-${key}@perf.nabalens.test`,
+  }
+}
 const P = {
   admin: t.admin,
   heavy: t.staffHeavy,
@@ -99,6 +131,9 @@ const P = {
   managerSmall: person("manager-small"),
   creator: person("creator"),
   colleague: person("colleague"),
+  ...(diffWorld
+    ? { grantee: personD("grantee"), rejectManager: personD("reject-manager") }
+    : {}),
 }
 const sessions = {}
 const actors = {}
@@ -472,6 +507,34 @@ try {
         "menu decision = accepted + item",
         { menuState: "accepted", item: acceptedItem(venueId) },
       ],
+      ...(diffWorld
+        ? (() => {
+            const k = venueId === P.managerSmall.venueId ? "small" : "big"
+            return [
+              [
+                "check / amenity, real evidence",
+                { check: did(`chk-${k}-out`) },
+              ],
+              [
+                "check / knowledge, real evidence",
+                { check: did(`chk-${k}-toil`) },
+              ],
+              [
+                "check / coverage requirement, real evidence",
+                { check: did(`req-${k}-vs`) },
+              ],
+              [
+                "submission (amenity), real evidence",
+                {
+                  submission: {
+                    source: "amenity",
+                    id: did(`asub-${k}-out-1`),
+                  },
+                },
+              ],
+            ]
+          })()
+        : []),
     ]
 
     for (const [who, venueId] of [
@@ -557,6 +620,31 @@ try {
         a,
         run(a, { filters: { item: rareWorld, ...days(m18, m12) } })
       )
+      if (diffWorld) {
+        const worst = [
+          ["no filters", { filters: {} }],
+          ["no filters, 48 a page", { filters: {}, limit: 48 }],
+          ["type = video", { filters: { mediaType: "video" } }],
+          ["use = legacy_unknown", { filters: { rights: "legacy_unknown" } }],
+          ["date range, last 90 days", { filters: days(d90, today) }],
+        ]
+        const r = await actorFor("rejectManager")
+        for (const [label, input] of worst)
+          await measure(
+            `reject venue (73,600 assets, none visible): ${label}`,
+            "search-worst",
+            r,
+            run(r, input)
+          )
+        const g = await actorFor("grantee")
+        for (const [label, input] of worst)
+          await measure(
+            `staff grantee, 500 own unlabelled uploads, no active check: ${label}`,
+            "search-worst",
+            g,
+            run(g, input)
+          )
+      }
       // Thumbnail gate's search arm alone (asset_search_can_open), visible and vetoed.
       const vis = ids(
         `select a.id from public.media_assets a where a.venue_id = '${P.managerBig.venueId}' and a.uploader_id <> '${P.managerBig.id}' and a.${READY} and exists (select 1 from public.media_label_items li where li.asset_id = a.id) order by a.created_at desc limit 1`
@@ -746,7 +834,7 @@ try {
       `select id from public.media_assets where uploader_id = '${t.staffHeavy.id}' and purpose = 'general' and deleted_at is null order by created_at desc, id desc limit 1`
     )[0]
     /** [name, person id, role (postgres = as the definer), sql] */
-    const S = [
+    const S0 = [
       [
         "search-inner-manager-rare-item",
         P.managerBig.id,
@@ -888,6 +976,196 @@ try {
         `select case when bool_or(st.state = 'in_force') then 'granted' when bool_or(st.state = 'withdrawn') then 'withdrawn' when a.use_baseline = 'legacy_unknown' then 'legacy_unknown' else 'not_granted' end from public.media_assets a left join lateral (select private.media_use_grant_state(g, now()) as state from public.media_use_grants g where g.asset_id = a.id) st on true where a.id = '${feedPhoto}' group by a.id, a.use_baseline`,
       ],
     ]
+    // The chunk statement of the fixed public.asset_search, cut from the
+    // migration, with its plpgsql variables as constants (force_custom_plan
+    // plans it that way). Caller constants as asset_search computes them.
+    const mig = readFileSync(
+      "supabase/migrations/20261111120000_media_b05m4_asset_search.sql",
+      "utf8"
+    )
+    const chunkFrom = mig.indexOf("      for v_row in\n")
+    const chunkTo = mig.indexOf(
+      "\n      loop\n        v_seen := v_seen + 1;",
+      chunkFrom
+    )
+    if (chunkFrom < 0 || chunkTo < 0)
+      throw new Error("no chunk statement in the migration")
+    const chunkText = mig
+      .slice(chunkFrom + "      for v_row in\n".length, chunkTo)
+      .replace(/--[^\n]*/g, "")
+    const arr = (v) =>
+      v == null ? "null::uuid[]" : `'{${v.join(",")}}'::uuid[]`
+    const bool = (b) => (b ? "true" : "false")
+    const chunkSql = (c) => {
+      const vals = {
+        v_admin: bool(c.admin),
+        v_venue: lit(c.venue, "uuid"),
+        v_type: lit(c.type, "public.media_type"),
+        v_from: lit(c.from, "timestamptz"),
+        v_before: lit(c.before, "timestamptz"),
+        v_scan_at: lit(c.afterAt, "timestamptz"),
+        v_scan_id: lit(c.afterId, "uuid"),
+        v_check_ids: arr(c.checkIds),
+        v_submission_ids: arr(c.submissionIds),
+        v_group_ids: arr(c.groupIds),
+        v_group: lit(c.group, "uuid"),
+        v_menu_state: lit(c.menuState, "text"),
+        v_item: lit(c.item, "uuid"),
+        v_variant: lit(c.variant, "uuid"),
+        v_check: lit(c.check, "uuid"),
+        v_submission_id: lit(c.submissionId, "uuid"),
+        v_submission_source: lit(c.submissionSource, "text"),
+        v_rights: lit(c.rights, "text"),
+        v_destination: lit(c.destination, "text"),
+        v_now: "now()",
+        v_is_manager: bool(c.isManager),
+        v_uid: lit(c.uid, "uuid"),
+        v_has_active_check: bool(c.activeCheck),
+        v_can_review: bool(c.canReview),
+        v_chunk: String(c.chunk ?? 25),
+      }
+      return chunkText.replace(/\bv_[a-z_]+\b/g, (m) => {
+        if (!(m in vals)) throw new Error(`chunk statement: unmapped ${m}`)
+        return vals[m]
+      })
+    }
+    const callerConst = (p) => ({
+      admin: false,
+      venue: p.venueId,
+      uid: p.id,
+      isManager: p.role === "manager",
+      canReview: p.role === "manager",
+      activeCheck:
+        one(
+          `select exists (select 1 from public.venue_amenity_checks c where c.venue_id = '${p.venueId}' and c.status = 'active')`
+        )[0] === "t",
+    })
+    const admC = { admin: true, venue: null }
+    const checkIds = (check) =>
+      ids(`select distinct x.asset_id from (
+        select sa.asset_id from public.amenity_submission_assets sa
+        join public.amenity_submissions s on s.id = sa.submission_id where s.check_id = '${check}'
+        union all
+        select ka.asset_id from public.knowledge_contribution_assets ka
+        join public.knowledge_contributions kc on kc.id = ka.contribution_id where kc.check_id = '${check}'
+        union all
+        select ci.asset_id from public.coverage_submission_items ci where ci.requirement_id = '${check}') x`)
+    const mB = callerConst(P.managerBig)
+    const mS = callerConst(P.managerSmall)
+    const call = (name, who, filters, limit = 24) => [
+      name,
+      who.id,
+      "authenticated",
+      rpcCall("asset_search", {
+        p_filters: filters,
+        p_after_created_at: null,
+        p_after_id: null,
+        p_limit: limit,
+      }),
+    ]
+    const chunk = [
+      [
+        "chunk-manager-big-no-filter",
+        P.managerBig.id,
+        "postgres",
+        chunkSql(mB),
+      ],
+      [
+        "chunk-manager-big-no-filter-48",
+        P.managerBig.id,
+        "postgres",
+        chunkSql({ ...mB, chunk: 49 }),
+      ],
+      [
+        "chunk-manager-big-use-legacy",
+        P.managerBig.id,
+        "postgres",
+        chunkSql({ ...mB, rights: "legacy_unknown" }),
+      ],
+      [
+        "chunk-manager-big-use-not-granted",
+        P.managerBig.id,
+        "postgres",
+        chunkSql({ ...mB, rights: "not_granted" }),
+      ],
+      [
+        "chunk-manager-big-rare-item",
+        P.managerBig.id,
+        "postgres",
+        chunkSql({ ...mB, item: rareWorld }),
+      ],
+      [
+        "chunk-manager-small-use-legacy",
+        P.managerSmall.id,
+        "postgres",
+        chunkSql({ ...mS, rights: "legacy_unknown" }),
+      ],
+      [
+        "chunk-manager-small-use-in-force",
+        P.managerSmall.id,
+        "postgres",
+        chunkSql({ ...mS, rights: "in_force" }),
+      ],
+      ["chunk-admin-no-filter", t.admin.id, "postgres", chunkSql(admC)],
+      [
+        "chunk-admin-use-not-granted",
+        t.admin.id,
+        "postgres",
+        chunkSql({ ...admC, rights: "not_granted" }),
+      ],
+      [
+        "chunk-admin-use-expired",
+        t.admin.id,
+        "postgres",
+        chunkSql({ ...admC, rights: "expired" }),
+      ],
+      call("search-call-manager-no-filter", P.managerBig, {}),
+      call("search-call-manager-check-nomatch", P.managerBig, {
+        check: NOMATCH,
+      }),
+      call("search-call-manager-small-use-legacy", P.managerSmall, {
+        rights: "legacy_unknown",
+      }),
+    ]
+    if (diffWorld) {
+      const chk = did("chk-big-out")
+      const cids = checkIds(chk)
+      chunk.push(
+        [
+          "chunk-manager-big-check-amenity",
+          P.managerBig.id,
+          "postgres",
+          chunkSql({ ...mB, check: chk, checkIds: cids }),
+        ],
+        [
+          "chunk-admin-check-amenity",
+          t.admin.id,
+          "postgres",
+          chunkSql({ ...admC, check: chk, checkIds: cids }),
+        ],
+        [
+          "chunk-reject-no-filter",
+          P.rejectManager.id,
+          "postgres",
+          chunkSql(callerConst(P.rejectManager)),
+        ],
+        [
+          "chunk-grantee-no-filter",
+          P.grantee.id,
+          "postgres",
+          chunkSql(callerConst(P.grantee)),
+        ],
+        call("search-call-manager-check-amenity", P.managerBig, { check: chk }),
+        call("search-call-reject-no-filter", P.rejectManager, {}),
+        call("search-call-grantee-no-filter", P.grantee, {})
+      )
+    }
+    const S = [
+      ...S0.filter(([n]) => V1_INNER || !n.startsWith("search-inner-")),
+      ...chunk,
+    ]
+    const label = (sub) =>
+      Object.entries(P).find(([, p]) => p.id === sub)?.[0] ?? sub
     const summary = []
     for (const [name, sub, role, sql] of S) {
       const script = `begin;
@@ -908,7 +1186,7 @@ rollback;
       }
       writeFileSync(
         join(dir, `${name}.txt`),
-        `-- ${name}\n-- run as ${role}, jwt sub ${sub === t.admin.id ? "(admin)" : sub === P.managerBig.id ? "(manager big)" : "(staff heaviest)"}\n-- statement:\n${sql}\n\n${text}\n`
+        `-- ${name}\n-- run as ${role}, jwt sub (${label(sub)})\n-- statement:\n${sql}\n\n${text}\n`
       )
       const seq = [
         ...(text ?? "").matchAll(/(?:Parallel )?Seq Scan on (\w+)/g),
