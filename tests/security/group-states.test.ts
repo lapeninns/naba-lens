@@ -44,6 +44,7 @@ type Member = {
   use?: Record<string, unknown> | null
   derivative?: string | null
   stopped?: boolean
+  stoppedAt?: string | null
 }
 type Summary = {
   live: number
@@ -84,6 +85,7 @@ const STATE_KEYS = [
   "labels",
   "review",
   "stopped",
+  "stoppedAt",
   "technical",
   "use",
 ]
@@ -543,6 +545,22 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
     expect(stopped(await view(w.staffA, g))).toEqual(expected)
     // Admin sees every member (not deleted), with the same flag.
     expect(stopped(await view(w.admin, g))).toEqual(expected)
+    // stoppedAt: when an uploading member becomes stopped (S15), else null.
+    const at = (id: string) =>
+      Date.parse(
+        psql(
+          `select to_json(updated_at + private.group_stopped_upload_window())#>>'{}' from public.media_assets where id = '${id}'`
+        )
+      )
+    for (const who of [w.staffA, w.admin]) {
+      const byAsset = byId(await view(who, g))
+      expect(Date.parse(byAsset[fresh]!.stoppedAt!)).toBe(at(fresh))
+      expect(Date.parse(byAsset[old]!.stoppedAt!)).toBe(at(old))
+      expect(Date.parse(byAsset[fresh]!.stoppedAt!)).toBeGreaterThan(Date.now())
+      expect(Date.parse(byAsset[old]!.stoppedAt!)).toBeLessThan(Date.now())
+      expect(byAsset[ready]!.stoppedAt).toBeNull()
+      expect(byAsset[failed]!.stoppedAt).toBeNull()
+    }
     // The flag is what S4 accepts: the stopped one swaps, the fresh one not.
     await replace(
       w.staffA,
@@ -558,11 +576,14 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
       fresh
     )
     // A colleague's members carry no such key.
-    for (const m of (await view(w.staffB, g)).members)
+    for (const m of (await view(w.staffB, g)).members) {
       expect(m).not.toHaveProperty("stopped")
-    // Removed: not stopped.
+      expect(m).not.toHaveProperty("stoppedAt")
+    }
+    // Removed: not stopped, and never will be.
     await ok(call(w.staffA, "delete_media_asset", { p_asset_id: fresh }))
     expect(stopped(await view(w.staffA, g))[fresh]).toBe(false)
+    expect(byId(await view(w.staffA, g))[fresh]!.stoppedAt).toBeNull()
   })
 
   it("stopped-upload case (M1): a failed or stopped member is replaced, stops counting at once and never counts again (§1.10.9)", async () => {

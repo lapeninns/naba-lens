@@ -28,7 +28,8 @@
 -- * S5 public.contribution_group (20261110095910 body): every member gains
 --   replacesAssetId. The creator, the venue's effective manager and an active
 --   admin also get, per member, technical, stopped (uploading for longer than
---   the stopped window, as S4 replaces it), labels, review, use and
+--   the stopped window, as S4 replaces it), stoppedAt (when an uploading
+--   member becomes stopped), labels, review, use and
 --   derivative, and the group gains summary (OD-B5-01-2). The creator also
 --   sees removed (deleted) members, except a manager account's staff-era
 --   uploads (OD-B5-01-7); the creator's summary counts exactly the members
@@ -499,7 +500,8 @@ $$;
 --   account's own staff-era uploads (the private.viewer_sees_asset veto).
 -- * Anyone else sees the members private.viewer_sees_asset admits.
 -- * Privileged viewers (the creator, the venue's effective manager, an active
---   admin) also get technical, stopped, labels, review, use and derivative
+--   admin) also get technical, stopped, stoppedAt, labels, review, use and
+--   derivative
 --   per member,
 --   and the summary. The creator's summary counts exactly the members the
 --   creator is shown; a manager's or admin's counts every member, seen or
@@ -577,6 +579,10 @@ begin
           -- S4's stopped rule, so a screen offers Replace where it is taken.
           'stopped', r.deleted_at is null and r.upload_state = 'uploading'
             and r.updated_at < now() - private.group_stopped_upload_window(),
+          -- When an uploading member becomes stopped (null otherwise), so a
+          -- screen can read the set again then.
+          'stoppedAt', case when r.deleted_at is null and r.upload_state = 'uploading'
+            then r.updated_at + private.group_stopped_upload_window() end,
           'labels', case
             when exists (
                 select 1 from public.media_pending_labels pl
