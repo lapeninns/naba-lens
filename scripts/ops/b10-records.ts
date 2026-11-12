@@ -1,12 +1,17 @@
-// B10 programme records: create the identity-only onboarding records, empty
-// observation logs and the destination checklist, or lint existing ones.
-// Records live outside this repository (they carry production venue IDs).
+// B10 programme records: create identity-only onboarding records and empty
+// observation logs, carry schema-1 records to schema 2, fill records from an
+// aggregate read, or lint existing records. Records live outside this
+// repository (they carry production venue IDs).
 //
-//   pnpm exec tsx scripts/ops/b10-records.ts init --roster <file> --crosswalk <file> --out <dir>
+//   pnpm exec tsx scripts/ops/b10-records.ts init --roster <file> --out <dir>
+//   pnpm exec tsx scripts/ops/b10-records.ts upgrade --roster <file> --from <dir> --out <dir>
+//   pnpm exec tsx scripts/ops/b10-records.ts apply-aggregate --from <dir> --aggregate <file> --source <text> --out <dir>
 //   pnpm exec tsx scripts/ops/b10-records.ts lint --roster <file> --dir <dir>
 //
-// init never overwrites a file: it stops if any target exists. lint exits 1
-// when any record has a problem.
+// Every writing command refuses to overwrite a file. lint exits 1 when any
+// record has a problem. The B10-07 destination checklist is out of scope
+// (owner correction, 11 Nov 2026): init no longer creates it, and lint only
+// checks an existing one.
 import {
   existsSync,
   mkdirSync,
@@ -16,28 +21,20 @@ import {
 } from "node:fs"
 import { basename, join } from "node:path"
 
-import {
-  initialChecklist,
-  lintDestinationChecklist,
-  websiteDestinationFor,
-} from "../../lib/ops/destinations"
+import { lintDestinationChecklist } from "../../lib/ops/destinations"
 import {
   emptyObservationLog,
   lintObservationLog,
 } from "../../lib/ops/observations"
 import {
-  CROSSWALK_STATUSES,
+  applyAggregate,
   identityOnlyRecord,
   lintOnboardingRecord,
+  upgradeV1Record,
+  type OnboardingRecord,
+  type VenueAggregate,
 } from "../../lib/ops/onboarding"
 import { parseRoster, type LintProblem } from "../../lib/ops/roster"
-
-type CrosswalkRow = {
-  venueId: string
-  siteRepository: string
-  status: (typeof CROSSWALK_STATUSES)[number]
-  source: string
-}
 
 function arg(name: string) {
   const i = process.argv.indexOf(name)
@@ -50,37 +47,32 @@ const readJson = (path: string): unknown =>
   JSON.parse(readFileSync(path, "utf8"))
 const write = (path: string, value: unknown) =>
   writeFileSync(path, JSON.stringify(value, null, 2) + "\n", { flag: "wx" })
+const now = () => new Date().toISOString().replace(/\.\d+Z$/, "Z")
+
+function refuseExisting(targets: string[]) {
+  const existing = targets.filter((t) => existsSync(t))
+  if (existing.length)
+    throw new Error(`Refusing to overwrite: ${existing.join(", ")}`)
+}
 
 function init() {
   const rosterPath = arg("--roster")
   const roster = parseRoster(readFileSync(rosterPath, "utf8"))
-  const crosswalk = readJson(arg("--crosswalk")) as CrosswalkRow[]
   const out = arg("--out")
   const targets = [
     ...roster.map((v) => join(out, "onboarding", `${v.id}.json`)),
     ...roster.map((v) => join(out, "observations", `${v.id}.json`)),
-    join(out, "destinations.json"),
   ]
-  const existing = targets.filter((t) => existsSync(t))
-  if (existing.length)
-    throw new Error(`Refusing to overwrite: ${existing.join(", ")}`)
+  refuseExisting(targets)
   mkdirSync(join(out, "onboarding"), { recursive: true })
   mkdirSync(join(out, "observations"), { recursive: true })
-  const updatedAt = new Date().toISOString().replace(/\.\d+Z$/, "Z")
+  const updatedAt = now()
   for (const venue of roster) {
-    const row = crosswalk.find((c) => c.venueId === venue.id)
-    const site = row ? websiteDestinationFor(row.siteRepository) : undefined
-    if (!row || !site?.generation)
-      throw new Error(`No crosswalk proposal with a known site for ${venue.id}`)
     write(
       join(out, "onboarding", `${venue.id}.json`),
       identityOnlyRecord({
         venue,
         rosterSource: basename(rosterPath),
-        crosswalkStatus: row.status,
-        crosswalkSource: row.source,
-        generation: site.generation,
-        generationSource: `${row.source}; b10-design §9.3 ${site.id}`,
         updatedAt,
       })
     )
@@ -89,8 +81,50 @@ function init() {
       emptyObservationLog(venue.id)
     )
   }
-  write(join(out, "destinations.json"), initialChecklist(roster))
   console.log(`created ${targets.length} files under ${out}`)
+}
+
+function upgrade() {
+  const rosterPath = arg("--roster")
+  const roster = parseRoster(readFileSync(rosterPath, "utf8"))
+  const from = arg("--from")
+  const out = arg("--out")
+  const targets = roster.map((v) => join(out, `${v.id}.json`))
+  refuseExisting(targets)
+  mkdirSync(out, { recursive: true })
+  const updatedAt = now()
+  for (const venue of roster) {
+    const { record, dropped } = upgradeV1Record(
+      readJson(join(from, `${venue.id}.json`)) as Record<string, unknown>,
+      { venue, rosterSource: basename(rosterPath), updatedAt }
+    )
+    write(join(out, `${venue.id}.json`), record)
+    console.log(`${venue.id}: dropped ${dropped.join(", ") || "nothing"}`)
+  }
+}
+
+function applyAggregateCommand() {
+  const from = arg("--from")
+  const out = arg("--out")
+  const source = arg("--source")
+  const rows = readJson(arg("--aggregate"))
+  if (!Array.isArray(rows)) throw new Error("aggregate must be a JSON array")
+  const targets = (rows as VenueAggregate[]).map((r) =>
+    join(out, `${r.venueId}.json`)
+  )
+  refuseExisting(targets)
+  mkdirSync(out, { recursive: true })
+  const updatedAt = now()
+  for (const row of rows as VenueAggregate[]) {
+    const record = readJson(
+      join(from, `${row.venueId}.json`)
+    ) as OnboardingRecord
+    write(
+      join(out, `${row.venueId}.json`),
+      applyAggregate(record, row, { source, updatedAt })
+    )
+  }
+  console.log(`filled ${rows.length} records under ${out}`)
 }
 
 function lint() {
@@ -133,8 +167,10 @@ function lint() {
 
 const command = process.argv[2]
 if (command === "init") init()
+else if (command === "upgrade") upgrade()
+else if (command === "apply-aggregate") applyAggregateCommand()
 else if (command === "lint") lint()
 else {
-  console.error("Use init or lint")
+  console.error("Use init, upgrade, apply-aggregate or lint")
   process.exitCode = 2
 }

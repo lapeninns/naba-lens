@@ -12,9 +12,15 @@ import {
   type ObservationRow,
 } from "@/lib/ops/observations"
 import {
+  AGGREGATE_FIELDS,
+  aggregateProblems,
+  applyAggregate,
+  EXTERNAL_DESTINATIONS_OUT_OF_SCOPE,
   identityOnlyRecord,
   lintOnboardingRecord,
   ONBOARDING_FIELDS,
+  upgradeV1Record,
+  type VenueAggregate,
 } from "@/lib/ops/onboarding"
 import { parseRoster } from "@/lib/ops/roster"
 
@@ -35,10 +41,6 @@ const record = () =>
     identityOnlyRecord({
       venue,
       rosterSource: "roster.txt",
-      crosswalkStatus: "probable",
-      crosswalkSource: "crosswalk proposal",
-      generation: "A",
-      generationSource: "inventory",
       updatedAt: "2026-11-10T12:00:00Z",
     })
   )
@@ -76,9 +78,22 @@ describe("T-B10-11 onboarding records", () => {
       "identity.venue_id",
       "identity.slug",
       "identity.name",
-      "identity.crosswalk_status",
-      "identity.generation",
+      "identity.active",
     ])
+    expect(r.schema).toBe("b10-onboarding/2")
+    expect(r.fields["scope.external_destinations"]).toEqual({
+      notApplicable: EXTERNAL_DESTINATIONS_OUT_OF_SCOPE,
+    })
+  })
+
+  it("has no website, NabaPresence, crosswalk or generation field (owner correction, 11 Nov 2026)", () => {
+    for (const f of ONBOARDING_FIELDS)
+      expect(f.key, f.key).not.toMatch(
+        /website|nabapresence|crosswalk|generation|destination(?!s$)/
+      )
+    expect(ONBOARDING_FIELDS.map((f) => f.key)).toContain(
+      "scope.external_destinations"
+    )
   })
 
   it("refuses an identity value that differs from the roster", () => {
@@ -138,17 +153,138 @@ describe("T-B10-11 onboarding records", () => {
     )
   })
 
-  it("accepts only probable or verified crosswalk rows and generations A to D", () => {
+  it("requires the out-of-scope boundary exactly, and an active flag that matches the roster", () => {
     const r = record()
-    r.fields["identity.crosswalk_status"] = { value: "maybe", source: "x" }
-    r.fields["identity.generation"] = { value: "E", source: "x" }
+    r.fields["scope.external_destinations"] = {
+      notRecorded: { owner: "PO", dueBy: "b10_exit" },
+    }
+    r.fields["identity.active"] = { value: "no", source: "typed" }
     const found = messages(lintOnboardingRecord(r, roster))
     expect(found).toContain(
-      "$.fields.identity.crosswalk_status: must be probable or verified"
+      "$.fields.scope.external_destinations: must state the owner's out-of-scope boundary exactly"
     )
-    expect(found).toContain(
-      "$.fields.identity.generation: must be A, B, C or D"
+    expect(found).toContain("$.fields.identity.active: differs from the roster")
+  })
+
+  it("refuses a schema-1 record", () => {
+    const r = { ...record(), schema: "b10-onboarding/1" }
+    expect(messages(lintOnboardingRecord(r, roster))).toContain(
+      "$.schema: must be b10-onboarding/2"
     )
+  })
+})
+
+describe("B10-03 schema 1 to 2", () => {
+  const v1 = () => ({
+    schema: "b10-onboarding/1",
+    venueId: venue.id,
+    recordVersion: 1,
+    updatedAt: "2026-11-10T12:17:44Z",
+    updatedByRole: "WS6",
+    fields: {
+      "identity.venue_id": { value: venue.id, source: "roster.txt" },
+      "identity.crosswalk_status": { value: "probable", source: "inv" },
+      "identity.website": {
+        notRecorded: { owner: "WS5", dueBy: "wave_entry" },
+      },
+      "consumers.nabapresence": {
+        notRecorded: { owner: "WS5", dueBy: "b10_exit" },
+      },
+      "review.to_confirm_cadence": { value: "weekly", source: "VM note" },
+      "accounts.staff": {
+        notRecorded: { owner: "COORD", dueBy: "wave_entry" },
+      },
+    },
+  })
+
+  it("keeps shared entries, drops external fields and passes the lint", () => {
+    const { record: r, dropped } = upgradeV1Record(v1(), {
+      venue,
+      rosterSource: "roster.txt",
+      updatedAt: "2026-11-12T13:30:00Z",
+    })
+    expect(lintOnboardingRecord(r, roster, venue.id)).toEqual([])
+    expect(r.recordVersion).toBe(2)
+    expect(r.fields["review.to_confirm_cadence"]).toEqual({
+      value: "weekly",
+      source: "VM note",
+    })
+    expect(dropped).toEqual([
+      "identity.crosswalk_status",
+      "identity.website",
+      "consumers.nabapresence",
+    ])
+  })
+
+  it("refuses another schema or another venue", () => {
+    const input = {
+      venue,
+      rosterSource: "roster.txt",
+      updatedAt: "2026-11-12T13:30:00Z",
+    }
+    expect(() => upgradeV1Record({ ...v1(), schema: "x" }, input)).toThrow()
+    expect(() =>
+      upgradeV1Record({ ...v1(), venueId: roster[1].id }, input)
+    ).toThrow()
+  })
+})
+
+describe("B10-03c aggregate read", () => {
+  const row = (): VenueAggregate => ({
+    venueId: venue.id,
+    active: true,
+    managerAccounts: 1,
+    staff: { foh: 3, boh: 2, unassigned: 1 },
+    staffWithLegacyGrant: 0,
+    amenitiesEnabledOn: "2026-11-07",
+    amenityChecks: { complete: 2, needs_capture: 3 },
+    workingListKeys: ["onsite_parking", "guest_wifi"],
+    activeMenuVersions: 1,
+    activeMenuActivatedOn: "2026-11-01",
+    coverageRequirements: { active: 4, needs_setup: 1 },
+    venueMonthlyTarget: null,
+    staffTargetsThisMonth: { set: 5, needsSetup: 1 },
+    londonMonth: "2026-11",
+  })
+  const input = {
+    source: "aggregate 2026-11-12",
+    updatedAt: "2026-11-12T14:00:00Z",
+  }
+
+  it("fills only the aggregate fields, each with its source, and still passes", () => {
+    const before = record()
+    const after = applyAggregate(before, row(), input)
+    expect(lintOnboardingRecord(after, roster, venue.id)).toEqual([])
+    expect(after.recordVersion).toBe(2)
+    for (const f of ONBOARDING_FIELDS)
+      if ((AGGREGATE_FIELDS as readonly string[]).includes(f.key))
+        expect(after.fields[f.key], f.key).toMatchObject({
+          source: input.source,
+        })
+      else expect(after.fields[f.key], f.key).toEqual(before.fields[f.key])
+    expect(after.fields["accounts.staff"]).toEqual({
+      value: "6 (FOH 3, BOH 2, unassigned 1)",
+      source: input.source,
+    })
+    expect(after.fields["knowledge.working_list"]).toMatchObject({
+      value: "guest_wifi, onsite_parking",
+    })
+    expect(after.fields["targets.venue_monthly"]).toMatchObject({
+      value: "none in force for 2026-11",
+    })
+  })
+
+  it("refuses a row with free text, extra keys or another venue", () => {
+    expect(aggregateProblems({ ...row(), note: "x" })).not.toEqual([])
+    expect(
+      aggregateProblems({ ...row(), workingListKeys: ["Ask Sam at the bar"] })
+    ).toContain("workingListKeys")
+    expect(
+      aggregateProblems({ ...row(), amenityChecks: { complete: "two" } })
+    ).toContain("amenityChecks")
+    expect(() =>
+      applyAggregate(record(), { ...row(), venueId: roster[1].id }, input)
+    ).toThrow("another venue")
   })
 })
 

@@ -4,6 +4,10 @@
  * owner's own record (OD-B10-3). Every field is a sourced value, "not
  * applicable" with a reason, or "not recorded" with the owner role and the
  * milestone it is due by. Nothing is filled by inference.
+ *
+ * Schema 2 follows the owner scope correction of 11 Nov 2026: it records
+ * NabaLens's own data model only. Website, NabaPresence and other external
+ * destination fields are gone, and one fixed field states that boundary.
  */
 
 import { OWNER_ROLES, type OwnerRole } from "./metrics"
@@ -15,11 +19,14 @@ import {
   type RosterVenue,
 } from "./roster"
 
-export const ONBOARDING_SCHEMA = "b10-onboarding/1"
+export const ONBOARDING_SCHEMA = "b10-onboarding/2"
+export const ONBOARDING_SCHEMA_V1 = "b10-onboarding/1"
 export const DUE_BY = ["wave_entry", "wave_exit", "b10_exit"] as const
 export type DueBy = (typeof DUE_BY)[number]
-export const SITE_GENERATIONS = ["A", "B", "C", "D"] as const
-export const CROSSWALK_STATUSES = ["probable", "verified"] as const
+
+/** The fixed boundary every schema-2 record states (plan §15 exit gate, item 5). */
+export const EXTERNAL_DESTINATIONS_OUT_OF_SCOPE =
+  "Out of scope: owner scope correction of 11 Nov 2026 (OWNER-SCOPE-CORRECTION-20261111.md). No website, NabaPresence or other external destination is onboarded in B10."
 
 export type OnboardingField = {
   key: string
@@ -52,52 +59,32 @@ export const ONBOARDING_FIELDS: readonly OnboardingField[] = [
     dueBy: "wave_entry",
   },
   {
-    key: "identity.crosswalk_status",
+    key: "identity.active",
     section: "A",
-    label: "Crosswalk row status (probable or verified, X8)",
-    owner: "PO",
+    label: "Venue active in NabaLens (venues.active)",
+    owner: "COORD",
     dueBy: "wave_entry",
-  },
-  {
-    key: "identity.website",
-    section: "A",
-    label: "Website repository, Vercel project and live guest domain",
-    owner: "WS5",
-    dueBy: "wave_entry",
-  },
-  {
-    key: "identity.generation",
-    section: "A",
-    label: "Agent-surface generation (A to D)",
-    owner: "WS5",
-    dueBy: "wave_entry",
-  },
-  {
-    key: "identity.nabapresence_location",
-    section: "A",
-    label:
-      "NabaPresence organisation, location and google_location_name, or none intended (X6)",
-    owner: "WS5",
-    dueBy: "b10_exit",
   },
   {
     key: "accounts.manager_accounts",
     section: "B",
-    label: "Manager accounts (count)",
+    label: "Active manager accounts (count)",
     owner: "COORD",
     dueBy: "wave_entry",
   },
   {
     key: "accounts.staff",
     section: "B",
-    label: "Staff accounts (count, by department only)",
+    label:
+      "Active staff accounts (count, by department only: FOH, BOH, unassigned)",
     owner: "COORD",
     dueBy: "wave_entry",
   },
   {
     key: "accounts.staff_with_legacy_grant",
     section: "B",
-    label: "Staff accounts with a legacy manager grant (count)",
+    label:
+      "Active staff accounts holding an open venue-manager grant (count, R28)",
     owner: "COORD",
     dueBy: "wave_entry",
   },
@@ -105,7 +92,7 @@ export const ONBOARDING_FIELDS: readonly OnboardingField[] = [
     key: "accounts.admins",
     section: "B",
     label: "Admins acting for the venue (count)",
-    owner: "COORD",
+    owner: "PO",
     dueBy: "wave_entry",
   },
   {
@@ -121,6 +108,27 @@ export const ONBOARDING_FIELDS: readonly OnboardingField[] = [
     section: "B",
     label: "One-account gaps OA1 to OA9 that apply, with the owner's answers",
     owner: "PO",
+    dueBy: "wave_entry",
+  },
+  {
+    key: "knowledge.amenities_enabled",
+    section: "C",
+    label: "Amenities enabled for the venue (date; enabling is one-way)",
+    owner: "COORD",
+    dueBy: "wave_entry",
+  },
+  {
+    key: "knowledge.amenity_checks",
+    section: "C",
+    label: "Active amenity checks (count, by progress)",
+    owner: "COORD",
+    dueBy: "wave_entry",
+  },
+  {
+    key: "knowledge.working_list",
+    section: "C",
+    label: "Question keys open on the knowledge working list now",
+    owner: "COORD",
     dueBy: "wave_entry",
   },
   {
@@ -163,8 +171,8 @@ export const ONBOARDING_FIELDS: readonly OnboardingField[] = [
   {
     key: "menus.active_version",
     section: "E",
-    label: "Active menu version and activation date",
-    owner: "WS3",
+    label: "Active menu versions (count) and latest activation date",
+    owner: "COORD",
     dueBy: "wave_entry",
   },
   {
@@ -175,10 +183,38 @@ export const ONBOARDING_FIELDS: readonly OnboardingField[] = [
     dueBy: "wave_entry",
   },
   {
+    key: "coverage.requirements",
+    section: "E",
+    label: "Coverage checklist items (count, by status)",
+    owner: "COORD",
+    dueBy: "wave_entry",
+  },
+  {
     key: "targets.policy",
     section: "E",
     label: "Monthly target policy and start month",
     owner: "PO",
+    dueBy: "wave_entry",
+  },
+  {
+    key: "targets.venue_monthly",
+    section: "E",
+    label: "Venue monthly completion target in force this London month",
+    owner: "COORD",
+    dueBy: "wave_entry",
+  },
+  {
+    key: "targets.staff_this_month",
+    section: "E",
+    label: "Staff targets this London month (set, needs setup)",
+    owner: "COORD",
+    dueBy: "wave_entry",
+  },
+  {
+    key: "switches.b01_fallback",
+    section: "E",
+    label: "Venue held on the B01 Home or Add entry (SW-04, SW-05)",
+    owner: "OPS",
     dueBy: "wave_entry",
   },
   {
@@ -196,23 +232,9 @@ export const ONBOARDING_FIELDS: readonly OnboardingField[] = [
     dueBy: "wave_entry",
   },
   {
-    key: "consumers.website",
+    key: "scope.external_destinations",
     section: "G",
-    label: "Website destination and its manifest (B10-07 row)",
-    owner: "WS5",
-    dueBy: "b10_exit",
-  },
-  {
-    key: "consumers.nabapresence",
-    section: "G",
-    label: "NabaPresence destination (B10-07 row)",
-    owner: "WS5",
-    dueBy: "b10_exit",
-  },
-  {
-    key: "consumers.boundary",
-    section: "G",
-    label: "Recorded boundary when no external destination is intended",
+    label: "External destinations (websites, NabaPresence)",
     owner: "PO",
     dueBy: "b10_exit",
   },
@@ -260,6 +282,21 @@ export const ONBOARDING_FIELDS: readonly OnboardingField[] = [
   },
 ]
 
+/** Fields an aggregate read (scripts/ops/b10-onboarding-aggregate.sql) fills. */
+export const AGGREGATE_FIELDS = [
+  "identity.active",
+  "accounts.manager_accounts",
+  "accounts.staff",
+  "accounts.staff_with_legacy_grant",
+  "knowledge.amenities_enabled",
+  "knowledge.amenity_checks",
+  "knowledge.working_list",
+  "menus.active_version",
+  "coverage.requirements",
+  "targets.venue_monthly",
+  "targets.staff_this_month",
+] as const
+
 export type FieldEntry =
   | { value: string | number; source: string }
   | { notApplicable: string }
@@ -274,32 +311,29 @@ export type OnboardingRecord = {
   fields: Record<string, FieldEntry>
 }
 
-/** A record with the identity fields copied from the roster and crosswalk; all else not recorded. */
+const notRecordedFor = (field: OnboardingField): FieldEntry => ({
+  notRecorded: { owner: field.owner, dueBy: field.dueBy },
+})
+
+/** A record with the identity fields copied from the roster; all else not recorded. */
 export function identityOnlyRecord(input: {
   venue: RosterVenue
   rosterSource: string
-  crosswalkStatus: (typeof CROSSWALK_STATUSES)[number]
-  crosswalkSource: string
-  generation: (typeof SITE_GENERATIONS)[number]
-  generationSource: string
   updatedAt: string
 }): OnboardingRecord {
   const fields: Record<string, FieldEntry> = {}
   for (const field of ONBOARDING_FIELDS)
-    fields[field.key] = {
-      notRecorded: { owner: field.owner, dueBy: field.dueBy },
-    }
+    fields[field.key] = notRecordedFor(field)
   const { venue, rosterSource } = input
   fields["identity.venue_id"] = { value: venue.id, source: rosterSource }
   fields["identity.slug"] = { value: venue.slug, source: rosterSource }
   fields["identity.name"] = { value: venue.name, source: rosterSource }
-  fields["identity.crosswalk_status"] = {
-    value: input.crosswalkStatus,
-    source: input.crosswalkSource,
+  fields["identity.active"] = {
+    value: venue.active ? "yes" : "no",
+    source: rosterSource,
   }
-  fields["identity.generation"] = {
-    value: input.generation,
-    source: input.generationSource,
+  fields["scope.external_destinations"] = {
+    notApplicable: EXTERNAL_DESTINATIONS_OUT_OF_SCOPE,
   }
   return {
     schema: ONBOARDING_SCHEMA,
@@ -307,6 +341,158 @@ export function identityOnlyRecord(input: {
     recordVersion: 1,
     updatedAt: input.updatedAt,
     updatedByRole: "WS6",
+    fields,
+  }
+}
+
+/**
+ * Carries a schema-1 record to schema 2: every field both schemas share keeps
+ * its entry as recorded; the website, NabaPresence, crosswalk and generation
+ * fields are dropped (out of scope, not complete); new fields start not
+ * recorded, except the fixed boundary. The record version goes up by one.
+ */
+export function upgradeV1Record(
+  v1: OnboardingRecord | Record<string, unknown>,
+  input: { venue: RosterVenue; rosterSource: string; updatedAt: string }
+): { record: OnboardingRecord; dropped: string[] } {
+  if (!isObject(v1) || v1.schema !== ONBOARDING_SCHEMA_V1)
+    throw new Error(`not a ${ONBOARDING_SCHEMA_V1} record`)
+  if (v1.venueId !== input.venue.id)
+    throw new Error("record venue differs from the roster venue")
+  const old = (isObject(v1.fields) ? v1.fields : {}) as Record<string, unknown>
+  const record = identityOnlyRecord(input)
+  const kept = new Set(ONBOARDING_FIELDS.map((f) => f.key))
+  for (const [key, entry] of Object.entries(old))
+    if (kept.has(key) && !key.startsWith("identity."))
+      record.fields[key] = entry as FieldEntry
+  record.recordVersion =
+    (typeof v1.recordVersion === "number" ? v1.recordVersion : 0) + 1
+  return {
+    record,
+    dropped: Object.keys(old).filter((key) => !kept.has(key)),
+  }
+}
+
+export type VenueAggregate = {
+  venueId: string
+  active: boolean
+  managerAccounts: number
+  staff: { foh: number; boh: number; unassigned: number }
+  staffWithLegacyGrant: number
+  amenitiesEnabledOn: string | null
+  amenityChecks: Record<string, number>
+  workingListKeys: string[]
+  activeMenuVersions: number
+  activeMenuActivatedOn: string | null
+  coverageRequirements: Record<string, number>
+  venueMonthlyTarget: number | null
+  staffTargetsThisMonth: { set: number; needsSetup: number }
+  londonMonth: string
+}
+
+const count = (n: unknown) =>
+  typeof n === "number" && Number.isInteger(n) && n >= 0
+const counts = (o: unknown) => isObject(o) && Object.values(o).every(count)
+const dateOrNull = (d: unknown) =>
+  d === null || (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))
+
+/** Problems in one venue's aggregate row; it must hold IDs, counts, keys and dates only. */
+export function aggregateProblems(row: unknown): string[] {
+  if (!isObject(row)) return ["is not an object"]
+  const problems: string[] = []
+  const expected =
+    "active,activeMenuActivatedOn,activeMenuVersions,amenitiesEnabledOn,amenityChecks,coverageRequirements,londonMonth,managerAccounts,staff,staffTargetsThisMonth,staffWithLegacyGrant,venueId,venueMonthlyTarget,workingListKeys"
+  if (Object.keys(row).sort().join(",") !== expected)
+    problems.push(`keys must be ${expected}`)
+  if (typeof row.active !== "boolean") problems.push("active")
+  for (const k of [
+    "managerAccounts",
+    "staffWithLegacyGrant",
+    "activeMenuVersions",
+  ] as const)
+    if (!count(row[k])) problems.push(k)
+  if (
+    !isObject(row.staff) ||
+    Object.keys(row.staff).sort().join(",") !== "boh,foh,unassigned" ||
+    !counts(row.staff)
+  )
+    problems.push("staff")
+  if (
+    !isObject(row.staffTargetsThisMonth) ||
+    Object.keys(row.staffTargetsThisMonth).sort().join(",") !==
+      "needsSetup,set" ||
+    !counts(row.staffTargetsThisMonth)
+  )
+    problems.push("staffTargetsThisMonth")
+  for (const k of ["amenityChecks", "coverageRequirements"] as const)
+    if (!counts(row[k])) problems.push(k)
+  for (const k of ["amenitiesEnabledOn", "activeMenuActivatedOn"] as const)
+    if (!dateOrNull(row[k])) problems.push(k)
+  if (!(row.venueMonthlyTarget === null || count(row.venueMonthlyTarget)))
+    problems.push("venueMonthlyTarget")
+  if (
+    !Array.isArray(row.workingListKeys) ||
+    !row.workingListKeys.every(
+      (k) => typeof k === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(k)
+    )
+  )
+    problems.push("workingListKeys")
+  if (
+    typeof row.londonMonth !== "string" ||
+    !/^\d{4}-\d{2}$/.test(row.londonMonth)
+  )
+    problems.push("londonMonth")
+  return problems
+}
+
+const breakdown = (o: Record<string, number>) => {
+  const parts = Object.entries(o)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, n]) => `${k} ${n}`)
+  return parts.length ? parts.join(", ") : "none"
+}
+
+/**
+ * Fills the aggregate fields of a record from one venue's aggregate row. Only
+ * the AGGREGATE_FIELDS change; every value carries the aggregate's source.
+ */
+export function applyAggregate(
+  record: OnboardingRecord,
+  row: VenueAggregate,
+  input: { source: string; updatedAt: string }
+): OnboardingRecord {
+  const problems = aggregateProblems(row)
+  if (problems.length)
+    throw new Error(`aggregate row is malformed: ${problems.join(", ")}`)
+  if (row.venueId !== record.venueId)
+    throw new Error("aggregate row is for another venue")
+  const total = row.staff.foh + row.staff.boh + row.staff.unassigned
+  const values: Record<(typeof AGGREGATE_FIELDS)[number], string | number> = {
+    "identity.active": row.active ? "yes" : "no",
+    "accounts.manager_accounts": row.managerAccounts,
+    "accounts.staff": `${total} (FOH ${row.staff.foh}, BOH ${row.staff.boh}, unassigned ${row.staff.unassigned})`,
+    "accounts.staff_with_legacy_grant": row.staffWithLegacyGrant,
+    "knowledge.amenities_enabled": row.amenitiesEnabledOn ?? "no",
+    "knowledge.amenity_checks": breakdown(row.amenityChecks),
+    "knowledge.working_list": row.workingListKeys.length
+      ? [...row.workingListKeys].sort().join(", ")
+      : "none",
+    "menus.active_version": `${row.activeMenuVersions} active; latest activation ${row.activeMenuActivatedOn ?? "none"}`,
+    "coverage.requirements": breakdown(row.coverageRequirements),
+    "targets.venue_monthly":
+      row.venueMonthlyTarget === null
+        ? `none in force for ${row.londonMonth}`
+        : `${row.venueMonthlyTarget} for ${row.londonMonth}`,
+    "targets.staff_this_month": `${row.londonMonth}: set ${row.staffTargetsThisMonth.set}, needs setup ${row.staffTargetsThisMonth.needsSetup}`,
+  }
+  const fields = { ...record.fields }
+  for (const key of AGGREGATE_FIELDS)
+    fields[key] = { value: values[key], source: input.source }
+  return {
+    ...record,
+    recordVersion: record.recordVersion + 1,
+    updatedAt: input.updatedAt,
+    updatedByRole: "COORD",
     fields,
   }
 }
@@ -431,23 +617,20 @@ export function lintOnboardingRecord(
         })
     }
   }
-  const crosswalk = value("identity.crosswalk_status")
+  const scopeEntry = fields["scope.external_destinations"]
   if (
-    crosswalk !== undefined &&
-    !(CROSSWALK_STATUSES as readonly unknown[]).includes(crosswalk)
+    !isObject(scopeEntry) ||
+    scopeEntry.notApplicable !== EXTERNAL_DESTINATIONS_OUT_OF_SCOPE
   )
     problems.push({
-      path: "$.fields.identity.crosswalk_status",
-      message: "must be probable or verified",
+      path: "$.fields.scope.external_destinations",
+      message: "must state the owner's out-of-scope boundary exactly",
     })
-  const generation = value("identity.generation")
-  if (
-    generation !== undefined &&
-    !(SITE_GENERATIONS as readonly unknown[]).includes(generation)
-  )
+  const active = value("identity.active")
+  if (active !== undefined && venue && active !== (venue.active ? "yes" : "no"))
     problems.push({
-      path: "$.fields.identity.generation",
-      message: "must be A, B, C or D",
+      path: "$.fields.identity.active",
+      message: "differs from the roster",
     })
   problems.push(...personalDataProblems(record, "$"))
   return problems
