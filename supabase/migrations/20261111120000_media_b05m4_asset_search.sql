@@ -19,6 +19,16 @@
 --   manager-era upload or passes menu_item_photo_asset, task_evidence_asset
 --   or amenity_evidence_asset. The colleague portfolio arm is left out:
 --   managers find nothing that only the portfolio would show.
+-- * Evaluation (B05 perf fix, contracts/b05-perf-search-fix-scope.md): after
+--   every validation, the check, submission and group filters become
+--   candidate id lists (an empty list returns an empty page without a scan).
+--   Rows are then read in keyset chunks (limit + 1, x4, at most 4000) whose
+--   query carries the filters, the conditions each rights value implies and,
+--   for a manager, a necessary condition P of the gate built from caller
+--   constants and one existence probe per evidence or label table. The exact
+--   use state and private.asset_search_admits still run on every row read,
+--   in feed order, until limit + 1 rows are admitted. P only drops rows the
+--   gate would refuse; the gate itself and can_open are unchanged.
 -- * Results: asset id, media type, thumbnail flag, venue name, uploader first
 --   name, upload time (created_at; never an observation time), subjects,
 --   group id, the use summary with destination keys, menu decision states.
@@ -212,6 +222,19 @@ declare
   v_now timestamptz := now();
   v_ids uuid[];
   v_more boolean;
+  -- Evaluation state (B05 perf fix, OD-B5-PERF-5..7).
+  v_uid uuid;
+  v_is_manager boolean := false;
+  v_can_review boolean := false;
+  v_has_active_check boolean := false;
+  v_check_ids uuid[];
+  v_submission_ids uuid[];
+  v_group_ids uuid[];
+  v_row public.media_assets;
+  v_scan_at timestamptz;
+  v_scan_id uuid;
+  v_chunk integer;
+  v_seen integer;
 begin
   perform private.amenity_assert_active_user();
   select c.is_admin, c.venue_id into v_admin, v_manager_venue from private.asset_search_caller() c;
@@ -275,81 +298,197 @@ begin
     v_venue := v_manager_venue;
   end if;
 
-  -- Cheap filters first; the gate predicate (cost 10000) runs last, on the
-  -- feed index order, and the page stops at limit + 1 rows.
-  select array_agg(x.id order by x.created_at desc, x.id desc) into v_ids
-  from (
-    select a.id, a.created_at
-    from public.media_assets a
-    where a.deleted_at is null
-      and a.upload_state = 'ready'
-      and (v_venue is null or a.venue_id = v_venue)
-      and (v_type is null or a.media_type = v_type)
-      and (v_from is null or a.created_at >= v_from)
-      and (v_before is null or a.created_at < v_before)
-      and (p_after_created_at is null or (a.created_at, a.id) < (p_after_created_at, p_after_id))
-      and (v_group is null or exists (
-        select 1 from public.media_contribution_group_members gm
-        where gm.asset_id = a.id and gm.group_id = v_group))
-      -- menuState with item and/or variant needs ONE decision row matching
-      -- all of them; labels never satisfy a menuState request.
-      and (v_menu_state is null or exists (
-        select 1 from public.menu_item_photos mp
-        where mp.asset_id = a.id and mp.state = v_menu_state
-          and (v_item is null or mp.item_id = v_item)
-          and (v_variant is null or mp.variant_id = v_variant)))
-      and (v_menu_state is not null
-        or (v_item is null and v_variant is null)
-        or exists (
-          select 1 from public.media_label_items li
-          where li.asset_id = a.id
-            and (v_item is null or li.item_id = v_item)
-            and (v_variant is null or li.variant_id = v_variant))
-        or exists (
-          select 1 from public.menu_item_photos mp
-          where mp.asset_id = a.id
-            and (v_item is null or mp.item_id = v_item)
-            and (v_variant is null or mp.variant_id = v_variant)))
-      and (v_check is null
-        or exists (
-          select 1 from public.amenity_submission_assets sa
-          join public.amenity_submissions s on s.id = sa.submission_id
-          where sa.asset_id = a.id and s.check_id = v_check)
-        or exists (
-          select 1 from public.knowledge_contribution_assets ka
-          join public.knowledge_contributions kc on kc.id = ka.contribution_id
-          where ka.asset_id = a.id and kc.check_id = v_check)
-        or exists (
-          select 1 from public.coverage_submission_items ci
-          where ci.asset_id = a.id and ci.requirement_id = v_check))
-      and (v_submission_id is null
-        or (v_submission_source = 'coverage' and exists (
-          select 1 from public.coverage_submission_items ci
-          where ci.asset_id = a.id and ci.submission_id = v_submission_id))
-        or (v_submission_source = 'amenity' and exists (
-          select 1 from public.amenity_submission_assets sa
-          where sa.asset_id = a.id and sa.submission_id = v_submission_id))
-        or (v_submission_source = 'knowledge' and exists (
-          select 1 from public.knowledge_contribution_assets ka
-          where ka.asset_id = a.id and ka.contribution_id = v_submission_id)))
-      and (v_rights is null
-        or (v_rights in ('legacy_unknown', 'not_granted', 'withdrawn')
-          and private.media_asset_use_state(a.id, v_now) = v_rights)
-        or (v_rights = 'in_force'
-          and private.media_asset_use_state(a.id, v_now) = 'granted'
-          and (v_destination is null or exists (
-            select 1 from public.media_use_grants g
-            where g.asset_id = a.id and g.destination_key = v_destination
-              and private.media_use_grant_state(g, v_now) = 'in_force')))
-        or (v_rights = 'expired'
-          and private.media_asset_use_state(a.id, v_now) in ('legacy_unknown', 'not_granted')
-          and exists (
-            select 1 from public.media_use_grants g
-            where g.asset_id = a.id and private.media_use_grant_state(g, v_now) = 'expired')))
-      and private.asset_search_admits(a, v_admin, v_manager_venue)
-    order by a.created_at desc, a.id desc
-    limit v_limit + 1
-  ) x;
+  -- Caller constants for the gate prefilter below, read once under the same
+  -- snapshot as every per-row call of the same functions in
+  -- private.asset_search_admits.
+  if not v_admin then
+    v_uid := (select auth.uid());
+    v_is_manager := private.is_active_manager();
+    v_can_review := private.menu_photo_can_review_unlabelled();
+    v_has_active_check := exists (
+      select 1 from public.venue_amenity_checks c
+      where c.venue_id = v_manager_venue and c.status = 'active');
+  end if;
+
+  -- Candidate ids of the selective filters: the same joins and predicates as
+  -- the matching EXISTS in the scan (which stay too). Null when the filter is
+  -- absent; an empty array means no row can match.
+  if v_check is not null then
+    select coalesce(array_agg(distinct x.asset_id), '{}') into v_check_ids
+    from (
+      select sa.asset_id from public.amenity_submission_assets sa
+      join public.amenity_submissions s on s.id = sa.submission_id
+      where s.check_id = v_check
+      union all
+      select ka.asset_id from public.knowledge_contribution_assets ka
+      join public.knowledge_contributions kc on kc.id = ka.contribution_id
+      where kc.check_id = v_check
+      union all
+      select ci.asset_id from public.coverage_submission_items ci
+      where ci.requirement_id = v_check
+    ) x;
+  end if;
+  if v_submission_id is not null then
+    select coalesce(array_agg(distinct x.asset_id), '{}') into v_submission_ids
+    from (
+      select ci.asset_id from public.coverage_submission_items ci
+      where v_submission_source = 'coverage' and ci.submission_id = v_submission_id
+      union all
+      select sa.asset_id from public.amenity_submission_assets sa
+      where v_submission_source = 'amenity' and sa.submission_id = v_submission_id
+      union all
+      select ka.asset_id from public.knowledge_contribution_assets ka
+      where v_submission_source = 'knowledge' and ka.contribution_id = v_submission_id
+    ) x;
+  end if;
+  if v_group is not null then
+    select coalesce(array_agg(distinct gm.asset_id), '{}') into v_group_ids
+    from public.media_contribution_group_members gm
+    where gm.group_id = v_group;
+  end if;
+
+  -- Keyset chunks in feed order (limit + 1 rows, then x4, at most 4000). The
+  -- chunk query holds the original filters, conditions the rights filter
+  -- implies and a necessary condition P of the gate; the exact use state and
+  -- private.asset_search_admits run per consumed row, in order, until
+  -- limit + 1 rows are admitted. Every chunk resumes after the last row read,
+  -- admitted or not, under the one snapshot of this STABLE function.
+  v_ids := '{}';
+  v_scan_at := p_after_created_at;
+  v_scan_id := p_after_id;
+  if coalesce(cardinality(v_check_ids), 1) > 0
+     and coalesce(cardinality(v_submission_ids), 1) > 0
+     and coalesce(cardinality(v_group_ids), 1) > 0 then
+    v_chunk := v_limit + 1;
+    <<scan>>
+    loop
+      v_seen := 0;
+      for v_row in
+        select a.*
+        from public.media_assets a
+        where a.deleted_at is null
+          and a.upload_state = 'ready'
+          and (v_venue is null or a.venue_id = v_venue)
+          and (v_type is null or a.media_type = v_type)
+          and (v_from is null or a.created_at >= v_from)
+          and (v_before is null or a.created_at < v_before)
+          and (v_scan_at is null or (a.created_at, a.id) < (v_scan_at, v_scan_id))
+          and (v_check_ids is null or a.id = any (v_check_ids))
+          and (v_submission_ids is null or a.id = any (v_submission_ids))
+          and (v_group_ids is null or a.id = any (v_group_ids))
+          and (v_group is null or exists (
+            select 1 from public.media_contribution_group_members gm
+            where gm.asset_id = a.id and gm.group_id = v_group))
+          -- menuState with item and/or variant needs ONE decision row matching
+          -- all of them; labels never satisfy a menuState request.
+          and (v_menu_state is null or exists (
+            select 1 from public.menu_item_photos mp
+            where mp.asset_id = a.id and mp.state = v_menu_state
+              and (v_item is null or mp.item_id = v_item)
+              and (v_variant is null or mp.variant_id = v_variant)))
+          and (v_menu_state is not null
+            or (v_item is null and v_variant is null)
+            or exists (
+              select 1 from public.media_label_items li
+              where li.asset_id = a.id
+                and (v_item is null or li.item_id = v_item)
+                and (v_variant is null or li.variant_id = v_variant))
+            or exists (
+              select 1 from public.menu_item_photos mp
+              where mp.asset_id = a.id
+                and (v_item is null or mp.item_id = v_item)
+                and (v_variant is null or mp.variant_id = v_variant)))
+          and (v_check is null
+            or exists (
+              select 1 from public.amenity_submission_assets sa
+              join public.amenity_submissions s on s.id = sa.submission_id
+              where sa.asset_id = a.id and s.check_id = v_check)
+            or exists (
+              select 1 from public.knowledge_contribution_assets ka
+              join public.knowledge_contributions kc on kc.id = ka.contribution_id
+              where ka.asset_id = a.id and kc.check_id = v_check)
+            or exists (
+              select 1 from public.coverage_submission_items ci
+              where ci.asset_id = a.id and ci.requirement_id = v_check))
+          and (v_submission_id is null
+            or (v_submission_source = 'coverage' and exists (
+              select 1 from public.coverage_submission_items ci
+              where ci.asset_id = a.id and ci.submission_id = v_submission_id))
+            or (v_submission_source = 'amenity' and exists (
+              select 1 from public.amenity_submission_assets sa
+              where sa.asset_id = a.id and sa.submission_id = v_submission_id))
+            or (v_submission_source = 'knowledge' and exists (
+              select 1 from public.knowledge_contribution_assets ka
+              where ka.asset_id = a.id and ka.contribution_id = v_submission_id)))
+          -- Rights, part 1: what each asked use state implies of the row
+          -- (private.media_asset_use_state: granted needs a grant, withdrawn a
+          -- withdrawn grant, legacy_unknown that baseline, not_granted the
+          -- other baseline), plus the destination and expired EXISTS as they
+          -- were. Part 2, the exact use state, runs per row below.
+          and (v_rights is null
+            or (v_rights = 'legacy_unknown' and a.use_baseline = 'legacy_unknown')
+            or (v_rights = 'not_granted' and a.use_baseline <> 'legacy_unknown')
+            or (v_rights = 'withdrawn' and exists (
+              select 1 from public.media_use_grants g
+              join public.media_use_grant_withdrawals w on w.grant_id = g.id
+              where g.asset_id = a.id))
+            or (v_rights = 'in_force'
+              and exists (select 1 from public.media_use_grants g where g.asset_id = a.id)
+              and (v_destination is null or exists (
+                select 1 from public.media_use_grants g
+                where g.asset_id = a.id and g.destination_key = v_destination
+                  and private.media_use_grant_state(g, v_now) = 'in_force')))
+            or (v_rights = 'expired' and exists (
+              select 1 from public.media_use_grants g
+              where g.asset_id = a.id and private.media_use_grant_state(g, v_now) = 'expired')))
+          -- Gate prefilter P: true for every row private.asset_search_admits
+          -- admits for this manager (it may keep rows the gate then refuses,
+          -- never the reverse). The veto is the gate's own; the rest is one
+          -- probe per table an arm of menu_item_photo_asset,
+          -- menu_photo_unlabelled_eligible, task_evidence_asset,
+          -- amenity_evidence_asset or amenity_is_legacy_media needs. Scalar
+          -- sublinks on purpose (never hashed). A new gate arm needs a term
+          -- here: tests/security/asset-search.test.ts pins those helpers.
+          and (v_admin or (
+            not (v_is_manager and a.uploader_id = v_uid and a.uploader_role is distinct from 'manager')
+            and (
+              (a.uploader_id = v_uid
+                and (a.uploader_role is not distinct from 'manager' or v_has_active_check))
+              or (select 1 from public.media_label_items li where li.asset_id = a.id limit 1) is not null
+              or (select 1 from public.menu_item_photos mp where mp.asset_id = a.id limit 1) is not null
+              or (v_can_review and a.media_type = 'image'
+                and (select 1 from public.media_labels ml where ml.asset_id = a.id
+                       and ml.content_types && array['dish', 'preparation', 'plating', 'drinks']::text[]
+                     limit 1) is not null)
+              or (select 1 from public.coverage_submission_items ci where ci.asset_id = a.id limit 1) is not null
+              or (select 1 from public.venue_amenity_fact_media fm where fm.asset_id = a.id limit 1) is not null
+              or (select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id limit 1) is not null
+              or (select 1 from public.knowledge_contribution_assets ka where ka.asset_id = a.id limit 1) is not null
+            )))
+        order by a.created_at desc, a.id desc
+        limit v_chunk
+      loop
+        v_seen := v_seen + 1;
+        v_scan_at := v_row.created_at;
+        v_scan_id := v_row.id;
+        -- Rights, part 2, then the gate. A simple expression (no subquery),
+        -- so its plan is cached across rows.
+        if (v_rights is null
+            or (v_rights in ('legacy_unknown', 'not_granted', 'withdrawn')
+              and private.media_asset_use_state(v_row.id, v_now) = v_rights)
+            or (v_rights = 'in_force'
+              and private.media_asset_use_state(v_row.id, v_now) = 'granted')
+            or (v_rights = 'expired'
+              and private.media_asset_use_state(v_row.id, v_now) in ('legacy_unknown', 'not_granted')))
+           and private.asset_search_admits(v_row, v_admin, v_manager_venue) then
+          v_ids := v_ids || v_row.id;
+          exit scan when cardinality(v_ids) > v_limit;
+        end if;
+      end loop;
+      exit scan when v_seen < v_chunk;
+      v_chunk := least(v_chunk * 4, 4000);
+    end loop scan;
+  end if;
 
   v_ids := coalesce(v_ids, '{}');
   v_more := cardinality(v_ids) > v_limit;
