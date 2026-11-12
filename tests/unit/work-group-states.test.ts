@@ -365,7 +365,60 @@ describe("set Server Functions (B05-m5)", () => {
         failedAssetId: A1,
         newAssetId: A3,
       })
-    ).toEqual({ status: "failed", retry: false })
+    ).toEqual({
+      status: "failed",
+      retry: false,
+      refusal: { code: "state_conflict", message: "failed" },
+    })
+    // The server's refusal reaches the screen with its reason.
+    for (const failure of [
+      { code: "asset_ineligible", assetId: A1, assetReason: "not_replaceable" },
+      { code: "asset_ineligible", assetId: A3, assetReason: "in_group" },
+      { code: "state_conflict", setReason: "already_replaced" },
+      { code: "state_conflict", setReason: "set_full" },
+    ]) {
+      server.knowledgeRpcFailure.mockReturnValueOnce({
+        ok: false,
+        status: 409,
+        message: "refused",
+        ...failure,
+      } as never)
+      rpc.knowledgeRpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: "P0001" },
+      })
+      const reply = await replaceInPhotoSet({
+        groupId: GROUP,
+        failedAssetId: A1,
+        newAssetId: A3,
+      })
+      expect(reply).toEqual({
+        status: "failed",
+        retry: false,
+        refusal: {
+          code: failure.code,
+          message: "refused",
+          reason: failure.assetReason ?? failure.setReason,
+          ...(failure.assetId ? { assetId: failure.assetId } : {}),
+        },
+      })
+    }
+    // A read that may work later says so, with its code.
+    server.knowledgeRpcFailure.mockReturnValueOnce({
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "down",
+    } as never)
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "08006" },
+    })
+    expect(await readPhotoSet({ groupId: GROUP })).toEqual({
+      status: "failed",
+      retry: true,
+      refusal: { code: "unavailable", message: "down" },
+    })
   })
 
   it("never reads or replaces for a non-uploader, or with the entry off", async () => {
@@ -408,5 +461,48 @@ describe("replacement refusals", () => {
         assetId: A1,
         assetReason: reason,
       })
+  })
+
+  it("tells the set refusals that share state_conflict apart, with set wording", () => {
+    const full = knowledgeRpcFailure(
+      { code: "P0001", message: "contribution_group_full" },
+      "contribution group replace"
+    )
+    expect(full).toMatchObject({
+      code: "state_conflict",
+      status: 409,
+      setReason: "set_full",
+    })
+    // True for the live cap and the 30-position limit alike.
+    expect(full.message).not.toMatch(/10|30/)
+    expect(
+      knowledgeRpcFailure(
+        { code: "P0001", message: "contribution_group_full" },
+        "contribution group add"
+      )
+    ).toEqual(full)
+    expect(
+      knowledgeRpcFailure(
+        { code: "P0001", message: "asset_in_other_group", details: "{}" },
+        "contribution group replace"
+      )
+    ).toMatchObject({ code: "state_conflict", setReason: "in_other_group" })
+    const replaced = knowledgeRpcFailure(
+      { code: "P0001", message: "idempotency_key_reused" },
+      "contribution group replace"
+    )
+    expect(replaced).toMatchObject({
+      code: "state_conflict",
+      setReason: "already_replaced",
+    })
+    expect(replaced.message).toMatch(/already replaced/)
+    // Elsewhere the code keeps its own mapping.
+    const elsewhere = knowledgeRpcFailure(
+      { code: "P0001", message: "idempotency_key_reused" },
+      "knowledge submit"
+    )
+    expect(elsewhere.code).toBe("state_conflict")
+    expect(elsewhere).not.toHaveProperty("setReason")
+    expect(elsewhere.message).not.toBe(replaced.message)
   })
 })

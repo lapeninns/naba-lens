@@ -709,7 +709,20 @@ export type KnowledgeFailure = Omit<AmenityFailure, "code"> & {
   /** draft_already_sent: why, and the send time (the next draft base). */
   sentReason?: DraftSentReason
   sentAt?: string | null
+  /**
+   * B05-m5 set refusals that share state_conflict: the set has no room
+   * (live cap or position limit), the photo is already in another set, or
+   * the member was already replaced with a different photo.
+   */
+  setReason?: GroupSetReason
 }
+
+export const GROUP_SET_REASONS = [
+  "set_full",
+  "in_other_group",
+  "already_replaced",
+] as const
+export type GroupSetReason = (typeof GROUP_SET_REASONS)[number]
 
 export type KnowledgeResult<T> = ({ ok: true } & T) | KnowledgeFailure
 

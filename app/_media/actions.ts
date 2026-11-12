@@ -78,6 +78,23 @@ function setReply<T extends object>(read: WorkRead<T>): PhotoSetReply<T> {
   return { status: "failed", retry: RETRYABLE.has(read.failure.code) }
 }
 
+/** setReply, keeping the server's refusal for the screen to word (B05-m5). */
+function refusalReply<T extends object>(read: WorkRead<T>): PhotoSetReply<T> {
+  if (read.status !== "failed") return setReply(read)
+  const f = read.failure
+  const reason = f.assetReason ?? f.setReason
+  return {
+    status: "failed",
+    retry: RETRYABLE.has(f.code),
+    refusal: {
+      code: f.code,
+      message: f.message,
+      ...(reason ? { reason } : {}),
+      ...(f.assetId ? { assetId: f.assetId } : {}),
+    },
+  }
+}
+
 const field = (input: unknown, key: string): unknown =>
   typeof input === "object" && input !== null
     ? (input as Record<string, unknown>)[key]
@@ -167,7 +184,7 @@ export async function readPhotoSet(
   )
   return read.status === "ok"
     ? { status: "ok", group: read.value }
-    : setReply(read)
+    : refusalReply(read)
 }
 
 /**
@@ -179,7 +196,7 @@ export async function replaceInPhotoSet(
 ): Promise<PhotoSetReply<ContributionGroupReplaceResult>> {
   const auth = await setUploader()
   if (!auth.ok) return auth.reply
-  return setReply(
+  return refusalReply(
     await workServices.replaceInGroup(auth.actor, {
       groupId: field(input, "groupId") as string,
       failedAssetId: field(input, "failedAssetId") as string,
