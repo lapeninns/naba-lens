@@ -2,6 +2,12 @@
 // (components/nabalens/upload-queue.ts). The types are copied into ./types so
 // lib/ never imports from components/.
 
+import {
+  bindCapture,
+  captureAnnotation,
+  type CaptureSession,
+} from "./capture-session"
+import { guessContentType } from "./preflight"
 import { tusFingerprint } from "./tus"
 import type {
   FinaliseLabels,
@@ -10,7 +16,7 @@ import type {
   UploadError,
   UploadFn,
 } from "./types"
-import type { UploadKeyStore } from "./upload-keys"
+import { fileIdentity, type UploadKeyStore } from "./upload-keys"
 
 /**
  * What the adapter stores with `setResumeToken`. The queue hands it back on
@@ -39,6 +45,12 @@ export type QueueUploaderOptions = {
    * resume key is kept for that account only. Null: not scoped.
    */
   account?: () => Promise<string | null>
+  /**
+   * The capture journal for the signed-in account (B05-05c), or null. Asked
+   * before the file's upload key is read, so the account has claimed this
+   * device's capture data first.
+   */
+  capture?: (account: string) => Promise<CaptureSession | null>
 }
 
 /** Rejection reason of a queue upload; `error` carries the code. */
@@ -55,6 +67,7 @@ export function toQueueUploader(
     newKey = () => crypto.randomUUID(),
     keys,
     account: signedIn,
+    capture,
   }: QueueUploaderOptions = {}
 ): Uploader {
   // Keys of files in flight in this tab, with the run holding each: the same
@@ -75,6 +88,9 @@ export function toQueueUploader(
         ? ((await signedIn().catch(() => null)) ?? undefined)
         : undefined)
     const scope = { purpose: context.purpose, account }
+    // Claims the device for this account before any key is read (OD-B5-05-1).
+    const session =
+      capture && account ? await capture(account).catch(() => null) : null
     let token = readToken(context.resumeToken)
     // The same file picked again (another visit): its stored key reserves
     // the earlier upload.
@@ -102,6 +118,10 @@ export function toQueueUploader(
     }
     context.signal?.addEventListener("abort", release, { once: true })
     await keys?.set(file, idempotencyKey, scope).catch(() => {})
+    const entryId = session
+      ? await record(session, file, idempotencyKey, context, scope)
+      : null
+    const journal = entryId ? session!.journal : null
 
     let result: Awaited<ReturnType<UploadFn>>
     try {
@@ -109,9 +129,17 @@ export function toQueueUploader(
         idempotencyKey,
         ...(context.purpose ? { purpose: context.purpose } : {}),
         signal: context.signal,
-        onProgress: context.onProgress,
+        onProgress: (fraction) => {
+          context.onProgress(fraction)
+          if (journal && entryId)
+            void journal.progress(entryId, Math.round(fraction * file.size))
+        },
         onStateChange: (state) => {
-          if (state === "processing") context.onProcessing()
+          if (state === "processing") {
+            context.onProcessing()
+            if (journal && entryId)
+              void journal.update(entryId, { state: "finalising" })
+          }
         },
         onReserved: ({ assetId, resumable }) => {
           context.setResumeToken({
@@ -121,6 +149,8 @@ export function toQueueUploader(
           } satisfies QueueResumeToken)
           // Labels can be sent for the asset from now on.
           context.onReserved?.(assetId, resumed)
+          if (journal && entryId)
+            void journal.update(entryId, { state: "reserved", assetId })
         },
       })
     } finally {
@@ -142,6 +172,8 @@ export function toQueueUploader(
       context.setResumeToken(null)
     }
 
+    if (journal && entryId) await settleEntry(journal, entryId, result)
+
     if (result.state === "failed") {
       throw new QueueUploadError(
         result.error ?? {
@@ -158,6 +190,61 @@ export function toQueueUploader(
       ? { assetId: result.assetId, labels: result.labels }
       : { assetId: result.assetId }
   }
+}
+
+/** The file's journal entry at its key point (OD-B5-05-4); its id, or null. */
+async function record(
+  session: CaptureSession,
+  file: File,
+  uploadKey: string,
+  context: UploadContext,
+  scope: { purpose?: UploadContext["purpose"]; account?: string }
+): Promise<string | null> {
+  const known = captureAnnotation(file)
+  const entry = await session.journal
+    .pick({
+      purpose: context.purpose ?? "general",
+      subject: known?.subject ?? { kind: "none", id: null },
+      groupKey: known?.groupKey ?? null,
+      uploadKey,
+      fileFingerprint:
+        (await fileIdentity(file, scope).catch(() => null)) ?? "",
+      // The File itself: IndexedDB keeps its name, type and lastModified, so
+      // a continued file has the same identity (and upload key).
+      file,
+      mediaType: guessContentType(file).startsWith("video/")
+        ? "video"
+        : "image",
+      ...(known?.pendingLabels !== undefined
+        ? { pendingLabels: known.pendingLabels }
+        : {}),
+    })
+    .catch(() => null)
+  if (!entry) return null
+  bindCapture(file, session.journal, entry.id)
+  return entry.id
+}
+
+/** How an upload's end changes its entry (OD-B5-05-6). */
+async function settleEntry(
+  journal: CaptureSession["journal"],
+  id: string,
+  result: Awaited<ReturnType<UploadFn>>
+) {
+  if (result.state === "ready") return journal.done(id)
+  const error = result.error
+  if (!error || error.code === "aborted") return
+  // The retry makes a new key, so a new entry.
+  if (error.code === "reservation_gone") return journal.done(id)
+  // Picking the same file fails again; access ended (worded as sign in again).
+  if (
+    (error.code === "processing_failed" && !error.retryable) ||
+    error.code === "finalise_refused"
+  )
+    return journal.fail(id, error.code, true)
+  // Offline: the state stays, the queue waits for the signal.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return
+  return journal.fail(id, error.code, false)
 }
 
 function readToken(value: unknown): QueueResumeToken | null {

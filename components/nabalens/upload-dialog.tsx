@@ -39,6 +39,7 @@ import type {
   ContributionGroupView,
 } from "@/lib/knowledge/contract"
 import { guardBeforeUnload } from "@/lib/upload/before-unload"
+import { forgetCapture } from "@/lib/upload/capture-session"
 import { unconfirmedMessage } from "@/lib/upload/uploader"
 import { cn } from "@/lib/utils"
 
@@ -1307,6 +1308,8 @@ export function UploadDialog({
 
   function remove(item: QueueItem) {
     abandonReplacement(item.file)
+    // Removed here: its capture journal entry goes (OD-B5-05-7).
+    if (item.status !== "done") forgetCapture(item.file)
     unfinished(item, "removed")
     labels.discard(item)
     reported.current.delete(item.id)
@@ -1329,6 +1332,8 @@ export function UploadDialog({
   function clearQueue() {
     for (const file of [...replacementOf.current.keys()])
       abandonReplacement(file)
+    for (const item of items)
+      if (item.status !== "done") forgetCapture(item.file)
     for (const item of items) unfinished(item, "removed")
     ended.current.clear()
     reservedSeen.current.clear()

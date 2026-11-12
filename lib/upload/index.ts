@@ -58,4 +58,16 @@ export {
   claimCaptureDataForAccount,
   clearCaptureDataOnDevice,
 } from "./device-cleanup"
+export {
+  annotateCapture,
+  captureEntryId,
+  createCaptureSessions,
+  forgetCapture,
+  getCaptureJournal,
+} from "./capture-session"
+export type {
+  CaptureAnnotation,
+  CaptureSession,
+  CaptureSessionDeps,
+} from "./capture-session"
 export type * from "./types"
