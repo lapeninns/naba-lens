@@ -1,0 +1,966 @@
+// B05 paths, measured through the app's own server code against the local
+// workstream stack (PERF_STACK, default spare6), as signed-in PERF people, so
+// PostgREST, RLS and the API statement timeout apply as in production (the
+// same-call-shape rule of docs/perf/after.md: every function is called the way
+// the app calls it, never with literals).
+//
+// Needs a generated volume plus tests/perf/b05-world.sql:
+//   source /tmp/nabalens-ws/<stack>/env.sh
+//   node tests/perf/generate.mjs --volume high
+//   psql "$SUPABASE_DB_URL" -v seed=0.42 -f tests/perf/b05-world.sql
+//   node --conditions=react-server --import tsx tests/perf/b05-bench.mjs \
+//     --part ab|new --volume high [--n 20] [--warm 3] [--out docs/perf/raw]
+//
+// --part ab: paths B05 changed that exist before B05 too (feeds with the use
+//   key, contribution_groups_for_assets, the group read, contribution_group_add
+//   at 9 to 10, the thumbnail route's authorisation and signing, a manager's
+//   portfolio). Runs on a pre-B05 tree as well: run this file by absolute path
+//   with the pre-B05 worktree as the working directory, so the app code under
+//   test is that tree's.
+// --part new: B05-only paths (asset search, the 30-position group read,
+//   contribution_group_add at 29 to 30, contribution_group_replace).
+// Writes consume PERF fixture groups and fresh PERF uploads of
+// perf-b05-creator (23 per case); nothing else is changed.
+import { mkdirSync, writeFileSync } from "node:fs"
+import { loadavg } from "node:os"
+import { join, resolve } from "node:path"
+import { pathToFileURL } from "node:url"
+
+import { createClient } from "@supabase/supabase-js"
+
+import { makeActor, signIn, timeIt } from "./actors.mjs"
+import {
+  gitHead,
+  psql,
+  query,
+  requireWorkstreamStack,
+  summarise,
+} from "./lib.mjs"
+import { pickTargets } from "./targets.mjs"
+
+const argv = process.argv.slice(2)
+const arg = (k, d) => {
+  const i = argv.indexOf(`--${k}`)
+  return i >= 0 ? argv[i + 1] : d
+}
+const PART = arg("part", "ab")
+if (!["ab", "new", "explain"].includes(PART))
+  throw new Error("--part ab|new|explain")
+const VOLUME = arg("volume", "high")
+const N = Number(arg("n", 20))
+const WARM = Number(arg("warm", 3))
+const only = arg("only", null)
+const TAG = arg("tag", null)
+const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
+
+const env = requireWorkstreamStack()
+const lib = (p) => import(pathToFileURL(resolve(p)).href)
+// reads.ts and groups.ts, not the index: the index re-exports the request
+// context (next/navigation), which does not load outside Next.
+const knowledge = {
+  ...(await lib("lib/server/knowledge/reads.ts")),
+  ...(await lib("lib/server/knowledge/groups.ts")),
+}
+const access = await lib("lib/server/media/access.ts")
+const search =
+  PART === "new" ? await lib("lib/server/media/search/search.ts") : null
+
+const one = (sql) => query(env.dbUrl, sql)[0] ?? []
+const onB05 =
+  one(`select to_regclass('public.media_asset_links') is not null`)[0] === "t"
+if (PART !== "ab" && !onB05)
+  throw new Error(`--part ${PART} needs the B05 schema`)
+if (
+  one(`select count(*) from auth.users where email like 'perf-b05-%'`)[0] !==
+  "4"
+)
+  throw new Error("Load tests/perf/b05-world.sql first.")
+
+const loadStart = loadavg()
+const t = pickTargets(env.dbUrl)
+const person = (key) => {
+  const [id, venueId, role, displayName] = one(
+    `select p.id, p.venue_id, p.role, p.display_name from public.profiles p join auth.users u on u.id = p.id
+     where u.email = 'perf-b05-${key}@perf.nabalens.test'`
+  )
+  return {
+    id,
+    venueId,
+    role,
+    displayName,
+    email: `perf-b05-${key}@perf.nabalens.test`,
+  }
+}
+const P = {
+  admin: t.admin,
+  heavy: t.staffHeavy,
+  median: t.staffMedian,
+  managerBig: person("manager-big"),
+  managerSmall: person("manager-small"),
+  creator: person("creator"),
+  colleague: person("colleague"),
+}
+const sessions = {}
+const actors = {}
+async function actorFor(key) {
+  const p = P[key]
+  sessions[p.email] ??= await signIn(env, p.email)
+  actors[key] ??= makeActor(env, sessions[p.email], p)
+  return actors[key]
+}
+
+const results = []
+function record(name, group, rows, extra = {}) {
+  const failed = rows.filter((r) => r.result?.ok === false || r.result?.threw)
+  const errs = new Map()
+  for (const r of rows) {
+    const k = r.result?.threw
+      ? `threw ${r.result.threw}`
+      : r.result?.ok === false
+        ? `${r.result.status ?? ""} ${r.result.code ?? ""} ${r.result.message ?? ""}`
+        : null
+    if (k) errs.set(k.slice(0, 200), (errs.get(k.slice(0, 200)) ?? 0) + 1)
+    for (const e of r.errors ?? []) {
+      const m = `${e.status} ${e.path} ${e.body ?? ""}`.slice(0, 200)
+      errs.set(m, (errs.get(m) ?? 0) + 1)
+    }
+  }
+  const med = (f) => {
+    const v = rows.map(f).sort((a, b) => a - b)
+    return v[Math.floor(v.length / 2)]
+  }
+  const ok = rows.find((r) => r.result?.ok !== false && !r.result?.threw)
+  const entry = {
+    name,
+    group,
+    volume: VOLUME,
+    wallMs: summarise(rows.map((r) => r.ms)),
+    requestsP50: med((r) => r.requests ?? 0),
+    requestMsP50: Math.round(med((r) => r.requestMs ?? 0) * 10) / 10,
+    rows: ok?.result?.rows ?? null,
+    failures: failed.length,
+    errors: [...errs].map(([message, count]) => ({ message, count })),
+    ...extra,
+  }
+  results.push(entry)
+  console.error(
+    `${group.padEnd(14)} ${name.padEnd(58)} p50 ${String(entry.wallMs.p50).padStart(8)} p95 ${String(entry.wallMs.p95).padStart(8)} ms  req ${entry.requestsP50}  rows ${entry.rows}  fail ${entry.failures}`
+  )
+}
+
+async function measure(name, group, actor, fn, extra = {}, opts = {}) {
+  if (only && !`${group}:${name}`.includes(only)) return
+  const first = await timeIt(fn, { warm: 0, n: 1, log: actor.log })
+  const slow = first[0].ms > 3000
+  const rows = await timeIt(fn, {
+    warm: opts.warm ?? (slow ? 1 : WARM),
+    n: opts.n ?? (slow ? Math.min(N, 8) : N),
+    log: actor.log,
+  })
+  record(name, group, rows, {
+    sampled: rows.length,
+    firstMs: Math.round(first[0].ms * 10) / 10,
+    ...extra,
+  })
+}
+
+/** Writes: no probe call, each iteration consumes one prepared input. */
+async function measureWrites(name, group, actor, inputs, fn, extra = {}) {
+  if (only && !`${group}:${name}`.includes(only)) return
+  if (inputs.length < WARM + N) {
+    console.error(
+      `${group} ${name}: only ${inputs.length} fixtures left, skipped`
+    )
+    results.push({
+      name,
+      group,
+      skipped: `only ${inputs.length} fixtures left`,
+    })
+    return
+  }
+  let i = 0
+  const rows = await timeIt(() => fn(inputs[i++]), {
+    warm: WARM,
+    n: N,
+    log: actor.log,
+  })
+  record(name, group, rows, { sampled: rows.length, ...extra })
+}
+
+const ids = (sql) => query(env.dbUrl, sql).map(([id]) => id)
+const READY = "upload_state = 'ready' and deleted_at is null"
+const groupId = (key) =>
+  one(
+    `select id from public.media_contribution_groups where client_group_key = '${key}'`
+  )[0]
+
+/** Fresh own uploads of the creator in no group, newest first. */
+const freshAssets = () =>
+  ids(`select a.id from public.media_assets a
+       where a.uploader_id = '${P.creator.id}' and a.${READY}
+         and a.original_filename like 'PERFB05_FRESH_%'
+         and not exists (select 1 from public.media_contribution_group_members m where m.asset_id = a.id)
+       order by a.created_at, a.id`)
+/** Write fixtures still in their prepared state (member count unchanged). */
+const writeGroups = (kind, members) =>
+  query(
+    env.dbUrl,
+    `select g.id, (select m.asset_id from public.media_contribution_group_members m
+                   join public.media_assets a on a.id = m.asset_id
+                   where m.group_id = g.id and m.position = ${kind === "rep29" ? 20 : 9}) as failed
+     from public.media_contribution_groups g
+     where g.client_group_key like 'perfb05-${kind}-%'
+       and (select count(*) from public.media_contribution_group_members m where m.group_id = g.id) = ${members}
+     order by g.client_group_key`
+  ).map(([id, failed]) => ({ groupId: id, failed }))
+
+// Storage objects for the thumbnails the access cases sign (removed at the end).
+const service = createClient(env.apiUrl, env.serviceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+})
+const bucket = service.storage.from("media")
+const uploaded = []
+async function ensureThumb(assetId) {
+  const [path] = one(
+    `select thumbnail_path from public.media_assets where id = '${assetId}'`
+  )
+  if (!path) throw new Error(`no thumbnail path for ${assetId}`)
+  const { error } = await bucket.upload(path, new Uint8Array(64), {
+    contentType: "image/webp",
+    upsert: true,
+  })
+  if (error) throw new Error(`upload ${error.message}`)
+  uploaded.push(path)
+}
+
+const ok = (r, rows) => (r.ok ? { ok: true, rows } : r)
+const facts = {}
+
+try {
+  if (PART === "ab") {
+    // ---------------------------------------------------------- feeds (S6 use key)
+    const feed = async (key, label, pages = 1) => {
+      const a = await actorFor(key)
+      let cursor = null
+      for (let p = 1; p < pages; p++) {
+        const r = await knowledge.listMyContributions(a.actor, { cursor })
+        if (!r.ok || !r.page.nextCursor)
+          throw new Error(
+            `feed walk ${label}: ${JSON.stringify(r).slice(0, 200)}`
+          )
+        cursor = r.page.nextCursor
+      }
+      await measure(
+        `my contributions, ${label}${pages > 1 ? `, page ${pages}` : ""}`,
+        "feed",
+        a,
+        async () => {
+          const r = await knowledge.listMyContributions(a.actor, { cursor })
+          return ok(r, r.ok ? r.page.items.length : 0)
+        }
+      )
+    }
+    await feed("heavy", `staff heaviest (${t.staffHeavy.media} assets)`)
+    await feed("heavy", "staff heaviest", 5)
+    await feed("median", `staff median (${t.staffMedian.media} assets)`)
+    await feed("managerBig", "manager (big venue)")
+    await feed("creator", "group creator")
+
+    // ---------------------------------------------------------- contribution_groups_for_assets
+    const heavyFeedPhotos = ids(
+      `select id from public.media_assets where uploader_id = '${t.staffHeavy.id}' and purpose = 'general' and deleted_at is null order by created_at desc, id desc limit 20`
+    )
+    const heavy100 = ids(
+      `select id from public.media_assets where uploader_id = '${t.staffHeavy.id}' and ${READY} order by created_at desc, id desc limit 100`
+    )
+    const bigVenue100 = ids(
+      `select id from public.media_assets where venue_id = '${P.managerBig.venueId}' and ${READY} order by created_at desc, id desc limit 100`
+    )
+    const groupsFor = (key, label, assetIds) => async () => {
+      const a = await actorFor(key)
+      await measure(
+        `groups for assets, ${label} (${assetIds.length} ids)`,
+        "groups-lookup",
+        a,
+        async () => {
+          const r = await knowledge.listGroupsForAssets(a.actor, { assetIds })
+          return ok(r, r.ok ? r.groups.length : 0)
+        }
+      )
+    }
+    await groupsFor(
+      "heavy",
+      "staff heaviest, feed page photos",
+      heavyFeedPhotos
+    )()
+    await groupsFor("heavy", "staff heaviest, own", heavy100)()
+    await groupsFor("managerBig", "manager, venue latest", bigVenue100)()
+    await groupsFor("admin", "admin, big venue latest", bigVenue100)()
+
+    // ---------------------------------------------------------- group read (S5)
+    for (const key of ["perfb05-g3", "perfb05-g10"]) {
+      const id = groupId(key)
+      for (const who of ["creator", "managerBig", "colleague", "admin"]) {
+        const a = await actorFor(who)
+        await measure(
+          `contribution_group ${key.slice(8)} as ${who}`,
+          "group-read",
+          a,
+          async () => {
+            const r = await knowledge.getContributionGroup(a.actor, {
+              groupId: id,
+            })
+            return ok(r, r.ok ? r.group.members.length : 0)
+          }
+        )
+      }
+    }
+
+    // ---------------------------------------------------------- access (thumbnail arm)
+    const asset = (sql) => ids(sql)[0]
+    const heavyOwn = asset(
+      `select id from public.media_assets where uploader_id = '${t.staffHeavy.id}' and ${READY} and thumbnail_path is not null order by created_at desc limit 1`
+    )
+    // A manager-era upload: no colleague may read it
+    // (community_readable_assets), so a staff caller gets 404.
+    const otherVenue = asset(
+      `select id from public.media_assets where uploader_id = '${P.managerBig.id}' and uploader_role = 'manager' and ${READY} and thumbnail_path is not null order by created_at asc limit 1`
+    )
+    const mgrOwnManagerEra = asset(
+      `select id from public.media_assets where uploader_id = '${P.managerBig.id}' and uploader_role = 'manager' and ${READY} and thumbnail_path is not null order by created_at desc limit 1`
+    )
+    const mgrOwnStaffEra = asset(
+      `select id from public.media_assets where uploader_id = '${P.managerBig.id}' and uploader_role is null and ${READY} and thumbnail_path is not null order by created_at desc limit 1`
+    )
+    const venueLabelled = asset(
+      `select a.id from public.media_assets a where a.venue_id = '${P.managerBig.venueId}' and a.uploader_id <> '${P.managerBig.id}' and a.${READY} and a.thumbnail_path is not null and exists (select 1 from public.media_label_items li where li.asset_id = a.id) order by a.created_at desc limit 1`
+    )
+    const creatorG3 = asset(
+      `select m.asset_id from public.media_contribution_group_members m join public.media_contribution_groups g on g.id = m.group_id where g.client_group_key = 'perfb05-g3' order by m.position limit 1`
+    )
+    for (const id of [
+      heavyOwn,
+      otherVenue,
+      mgrOwnManagerEra,
+      mgrOwnStaffEra,
+      venueLabelled,
+      creatorG3,
+    ])
+      await ensureThumb(id)
+    const thumb = async (who, label, id) => {
+      const a = await actorFor(who)
+      await measure(
+        `thumbnail, ${label}`,
+        "access",
+        a,
+        async () => {
+          const r = await access.signDerivative(a.actor, id, "thumbnail")
+          return r.ok
+            ? { ok: true, rows: 1 }
+            : { ok: true, rows: 0, status: r.status }
+        },
+        { outcomeNote: "rows 1 = signed URL (302), rows 0 = refused (404)" }
+      )
+    }
+    await thumb("admin", "admin, any asset", heavyOwn)
+    await thumb("heavy", "staff owner", heavyOwn)
+    await thumb("colleague", "staff colleague, group member photo", creatorG3)
+    await thumb("heavy", "staff, a manager's upload (404 path)", otherVenue)
+    await thumb(
+      "managerBig",
+      "manager, own manager-era upload",
+      mgrOwnManagerEra
+    )
+    await thumb(
+      "managerBig",
+      "manager, own staff-era upload (vetoed)",
+      mgrOwnStaffEra
+    )
+    await thumb(
+      "managerBig",
+      "manager, venue labelled asset (search arm on B05)",
+      venueLabelled
+    )
+    facts.access = {
+      heavyOwn,
+      otherVenue,
+      mgrOwnManagerEra,
+      mgrOwnStaffEra,
+      venueLabelled,
+      creatorG3,
+    }
+
+    // ---------------------------------------------------------- contribution_group_add 9 -> 10
+    {
+      const a = await actorFor("creator")
+      const groups = writeGroups("add9", 9)
+      const fresh = freshAssets()
+      const inputs = groups
+        .map((g, i) => ({ groupId: g.groupId, assetIds: [fresh[i]] }))
+        .filter((x) => x.assetIds[0])
+      await measureWrites(
+        "contribution_group_add, 9 -> 10 members",
+        "group-write",
+        a,
+        inputs,
+        async (input) => {
+          const r = await knowledge.addToContributionGroup(a.actor, input)
+          return ok(r, r.ok ? r.members : 0)
+        }
+      )
+    }
+  }
+
+  if (PART === "new") {
+    // ---------------------------------------------------------- asset search
+    const run = (a, input) => async () => {
+      const r = await search.searchAssets(a.actor, input)
+      return r.ok
+        ? { ok: true, rows: r.items.length, more: r.nextCursor !== null }
+        : r
+    }
+    const days = (from, to) => ({ uploadedFrom: from, uploadedTo: to })
+    const [d7, d90, today, m18, m12] = one(
+      `select to_char(current_date - 7, 'YYYY-MM-DD'), to_char(current_date - 90, 'YYYY-MM-DD'),
+              to_char(current_date, 'YYYY-MM-DD'), to_char(current_date - 548, 'YYYY-MM-DD'),
+              to_char(current_date - 365, 'YYYY-MM-DD')`
+    )
+    const popularItem = (venueId) =>
+      one(
+        `select item_id from public.media_label_items where venue_id = '${venueId}' group by 1 order by count(*) desc, 1 limit 1`
+      )[0]
+    const variantOf = (venueId) =>
+      one(
+        `select variant_id from public.media_label_items where venue_id = '${venueId}' and variant_id is not null group by 1 order by count(*) desc, 1 limit 1`
+      )[0]
+    const rareWorld = one(
+      `select li.item_id from public.media_label_items li join public.media_assets a on a.id = li.asset_id
+       where a.uploader_id = '${P.managerBig.id}' and a.uploader_role is null group by 1 order by count(*) desc limit 1`
+    )[0]
+    const acceptedItem = (venueId) =>
+      one(
+        `select item_id from public.menu_item_photos where venue_id = '${venueId}' and state = 'accepted' group by 1 order by count(*) desc, 1 limit 1`
+      )[0]
+    const NOMATCH = "b05b05b0-5b05-4b05-8b05-b05b05b05b05"
+    const g10 = groupId("perfb05-g10")
+
+    const cases = (venueId) => [
+      ["no filters", {}],
+      ["type = video", { mediaType: "video" }],
+      ["date range, last 7 days", days(d7, today)],
+      ["date range, last 90 days", days(d90, today)],
+      ["date range, 18 to 12 months ago", days(m18, m12)],
+      ["item, popular", { item: popularItem(venueId) }],
+      ["variant, popular", { variant: variantOf(venueId) }],
+      ["check / task, no evidence anywhere", { check: NOMATCH }],
+      [
+        "submission (coverage), unknown id",
+        { submission: { source: "coverage", id: NOMATCH } },
+      ],
+      ["group (10 members, big venue)", { group: g10 }],
+      ["use = legacy_unknown", { rights: "legacy_unknown" }],
+      ["use = not_granted", { rights: "not_granted" }],
+      ["use = in_force", { rights: "in_force" }],
+      [
+        "use = in_force + destination",
+        { rights: "in_force", destination: "perf_menu_web" },
+      ],
+      ["use = expired", { rights: "expired" }],
+      ["use = withdrawn", { rights: "withdrawn" }],
+      ["menu decision = accepted", { menuState: "accepted" }],
+      [
+        "menu decision = accepted + item",
+        { menuState: "accepted", item: acceptedItem(venueId) },
+      ],
+    ]
+
+    for (const [who, venueId] of [
+      ["admin", null],
+      ["managerBig", P.managerBig.venueId],
+      ["managerSmall", P.managerSmall.venueId],
+    ]) {
+      const a = await actorFor(who)
+      const v = venueId ?? P.managerBig.venueId
+      for (const [label, filters] of cases(v)) {
+        await measure(`${who}: ${label}`, "search", a, run(a, { filters }))
+      }
+      if (who === "admin") {
+        await measure(
+          "admin: venue = big",
+          "search",
+          a,
+          run(a, { filters: { venue: P.managerBig.venueId } })
+        )
+        await measure(
+          "admin: venue = small",
+          "search",
+          a,
+          run(a, { filters: { venue: P.managerSmall.venueId } })
+        )
+        await measure(
+          "admin: venue = big + use = withdrawn",
+          "search",
+          a,
+          run(a, {
+            filters: { venue: P.managerBig.venueId, rights: "withdrawn" },
+          })
+        )
+      }
+      // Deep page: the 10th page of the unfiltered search, by the cursor.
+      let cursor = null
+      for (let p = 1; p < 10; p++) {
+        const r = await search.searchAssets(a.actor, { filters: {}, cursor })
+        if (!r.ok || !r.nextCursor)
+          throw new Error(
+            `search walk ${who}: ${JSON.stringify(r).slice(0, 200)}`
+          )
+        cursor = r.nextCursor
+      }
+      await measure(
+        `${who}: no filters, page 10 by cursor`,
+        "search",
+        a,
+        run(a, { filters: {}, cursor })
+      )
+      await measure(
+        `${who}: no filters, 48 a page`,
+        "search",
+        a,
+        run(a, { filters: {}, limit: 48 })
+      )
+    }
+
+    // Worst cases: matches the manager may not see, among many it may.
+    {
+      const a = await actorFor("managerBig")
+      await measure(
+        "manager big: rare item labelled on 2,000 own staff-era uploads",
+        "search-worst",
+        a,
+        run(a, { filters: { item: rareWorld } })
+      )
+      await measure(
+        "manager big: use = withdrawn (1,500 vetoed + 2 visible)",
+        "search-worst",
+        a,
+        run(a, { filters: { rights: "withdrawn" } })
+      )
+      await measure(
+        "manager big: use = withdrawn + type = video",
+        "search-worst",
+        a,
+        run(a, { filters: { rights: "withdrawn", mediaType: "video" } })
+      )
+      await measure(
+        "manager big: rare item + date range 18 to 12 months",
+        "search-worst",
+        a,
+        run(a, { filters: { item: rareWorld, ...days(m18, m12) } })
+      )
+      // Thumbnail gate's search arm alone (asset_search_can_open), visible and vetoed.
+      const vis = ids(
+        `select a.id from public.media_assets a where a.venue_id = '${P.managerBig.venueId}' and a.uploader_id <> '${P.managerBig.id}' and a.${READY} and exists (select 1 from public.media_label_items li where li.asset_id = a.id) order by a.created_at desc limit 1`
+      )[0]
+      const vetoed = ids(
+        `select id from public.media_assets where uploader_id = '${P.managerBig.id}' and uploader_role is null and ${READY} order by created_at desc limit 1`
+      )[0]
+      for (const [label, id] of [
+        ["visible", vis],
+        ["vetoed staff-era", vetoed],
+      ]) {
+        await measure(
+          `asset_search_can_open, manager big, ${label}`,
+          "search-gate",
+          a,
+          async () => {
+            const { data, error } = await a.actor.db.rpc(
+              "asset_search_can_open",
+              { p_asset_id: id }
+            )
+            return error
+              ? { ok: false, message: error.message }
+              : { ok: true, rows: data ? 1 : 0 }
+          }
+        )
+      }
+    }
+    facts.search = { rareWorld, g10 }
+
+    // ---------------------------------------------------------- group read, 30 positions
+    const g30 = groupId("perfb05-g30")
+    for (const key of ["perfb05-g3", "perfb05-g10", "perfb05-g30"]) {
+      const id = key === "perfb05-g30" ? g30 : groupId(key)
+      for (const who of ["creator", "managerBig", "colleague"]) {
+        const a = await actorFor(who)
+        await measure(
+          `contribution_group ${key.slice(8)} as ${who}`,
+          "group-read",
+          a,
+          async () => {
+            const r = await knowledge.getContributionGroup(a.actor, {
+              groupId: id,
+            })
+            return ok(r, r.ok ? r.group.members.length : 0)
+          }
+        )
+      }
+    }
+
+    // ---------------------------------------------------------- writes
+    const a = await actorFor("creator")
+    const fresh = freshAssets()
+    let f = 0
+    const take = (groups) =>
+      groups.map((g) => ({ ...g, fresh: fresh[f++] })).filter((x) => x.fresh)
+    const add = (x) =>
+      knowledge.addToContributionGroup(a.actor, {
+        groupId: x.groupId,
+        assetIds: [x.fresh],
+      })
+    const replace = (x) =>
+      knowledge.replaceInContributionGroup(a.actor, {
+        groupId: x.groupId,
+        failedAssetId: x.failed,
+        newAssetId: x.fresh,
+      })
+    await measureWrites(
+      "contribution_group_add, position 29 -> 30",
+      "group-write",
+      a,
+      take(writeGroups("add29", 29)),
+      async (x) => {
+        const r = await add(x)
+        return ok(r, r.ok ? r.members : 0)
+      }
+    )
+    await measureWrites(
+      "contribution_group_replace, position 9 -> 10",
+      "group-write",
+      a,
+      take(writeGroups("rep9", 9)),
+      async (x) => {
+        const r = await replace(x)
+        return ok(r, r.ok ? r.replaced.position : 0)
+      }
+    )
+    await measureWrites(
+      "contribution_group_replace, position 29 -> 30",
+      "group-write",
+      a,
+      take(writeGroups("rep29", 29)),
+      async (x) => {
+        const r = await replace(x)
+        return ok(r, r.ok ? r.replaced.position : 0)
+      }
+    )
+  }
+
+  if (PART === "explain") {
+    // EXPLAIN (ANALYZE, BUFFERS) of what the B05 functions run. asset_search is
+    // plpgsql with plan_cache_mode = force_custom_plan, so its row query is
+    // planned with the variables as constants: the statement below is that
+    // query with the values substituted, run as the function owner (postgres,
+    // as security definer) with the caller's JWT claims (auth.uid()). The whole
+    // calls are also explained in PostgREST's json_to_record shape, as the
+    // caller (authenticated), for their total time and buffers.
+    const dir = join(OUT, "b05-explain")
+    mkdirSync(dir, { recursive: true })
+    const lit = (v, type) =>
+      v === null || v === undefined ? `null::${type}` : `'${v}'::${type}`
+    const searchSql = (c) => `select a.id, a.created_at
+    from public.media_assets a
+    where a.deleted_at is null
+      and a.upload_state = 'ready'
+      and (${lit(c.venue, "uuid")} is null or a.venue_id = ${lit(c.venue, "uuid")})
+      and (${lit(c.type, "public.media_type")} is null or a.media_type = ${lit(c.type, "public.media_type")})
+      and (${lit(c.from, "timestamptz")} is null or a.created_at >= ${lit(c.from, "timestamptz")})
+      and (${lit(c.before, "timestamptz")} is null or a.created_at < ${lit(c.before, "timestamptz")})
+      and (${lit(c.afterAt, "timestamptz")} is null or (a.created_at, a.id) < (${lit(c.afterAt, "timestamptz")}, ${lit(c.afterId, "uuid")}))
+      and (${lit(c.group, "uuid")} is null or exists (
+        select 1 from public.media_contribution_group_members gm
+        where gm.asset_id = a.id and gm.group_id = ${lit(c.group, "uuid")}))
+      and (${lit(c.menuState, "text")} is null or exists (
+        select 1 from public.menu_item_photos mp
+        where mp.asset_id = a.id and mp.state = ${lit(c.menuState, "text")}
+          and (${lit(c.item, "uuid")} is null or mp.item_id = ${lit(c.item, "uuid")})
+          and (${lit(c.variant, "uuid")} is null or mp.variant_id = ${lit(c.variant, "uuid")})))
+      and (${lit(c.menuState, "text")} is not null
+        or (${lit(c.item, "uuid")} is null and ${lit(c.variant, "uuid")} is null)
+        or exists (
+          select 1 from public.media_label_items li
+          where li.asset_id = a.id
+            and (${lit(c.item, "uuid")} is null or li.item_id = ${lit(c.item, "uuid")})
+            and (${lit(c.variant, "uuid")} is null or li.variant_id = ${lit(c.variant, "uuid")}))
+        or exists (
+          select 1 from public.menu_item_photos mp
+          where mp.asset_id = a.id
+            and (${lit(c.item, "uuid")} is null or mp.item_id = ${lit(c.item, "uuid")})
+            and (${lit(c.variant, "uuid")} is null or mp.variant_id = ${lit(c.variant, "uuid")})))
+      and (${lit(c.check, "uuid")} is null
+        or exists (
+          select 1 from public.amenity_submission_assets sa
+          join public.amenity_submissions s on s.id = sa.submission_id
+          where sa.asset_id = a.id and s.check_id = ${lit(c.check, "uuid")})
+        or exists (
+          select 1 from public.knowledge_contribution_assets ka
+          join public.knowledge_contributions kc on kc.id = ka.contribution_id
+          where ka.asset_id = a.id and kc.check_id = ${lit(c.check, "uuid")})
+        or exists (
+          select 1 from public.coverage_submission_items ci
+          where ci.asset_id = a.id and ci.requirement_id = ${lit(c.check, "uuid")}))
+      and (${lit(c.rights, "text")} is null
+        or (${lit(c.rights, "text")} in ('legacy_unknown', 'not_granted', 'withdrawn')
+          and private.media_asset_use_state(a.id, now()) = ${lit(c.rights, "text")})
+        or (${lit(c.rights, "text")} = 'in_force'
+          and private.media_asset_use_state(a.id, now()) = 'granted')
+        or (${lit(c.rights, "text")} = 'expired'
+          and private.media_asset_use_state(a.id, now()) in ('legacy_unknown', 'not_granted')
+          and exists (
+            select 1 from public.media_use_grants g
+            where g.asset_id = a.id and private.media_use_grant_state(g, now()) = 'expired')))
+      and private.asset_search_admits(a, ${c.admin}, ${lit(c.managerVenue, "uuid")})
+    order by a.created_at desc, a.id desc
+    limit 25`
+    const rpcCall = (fn, params) => {
+      const names = Object.keys(params)
+      const types = {
+        p_filters: "jsonb",
+        p_after_created_at: "timestamptz",
+        p_after_id: "uuid",
+        p_limit: "integer",
+        p_cursor: "text",
+      }
+      return `select "public"."${fn}"(${names.map((n) => `"${n}" := pgrst_body."${n}"`).join(", ")}) "${fn}"
+      from (select '${JSON.stringify(params).replace(/'/g, "''")}'::json as json_data) pgrst_payload,
+      lateral (select ${names.map((n) => `"${n}"`).join(", ")} from json_to_record(pgrst_payload.json_data) as _(${names.map((n) => `"${n}" ${types[n]}`).join(", ")}) limit 1) pgrst_body`
+    }
+    const rareWorld = one(
+      `select li.item_id from public.media_label_items li join public.media_assets a on a.id = li.asset_id
+       where a.uploader_id = '${P.managerBig.id}' and a.uploader_role is null group by 1 order by count(*) desc limit 1`
+    )[0]
+    const NOMATCH = "b05b05b0-5b05-4b05-8b05-b05b05b05b05"
+    const big = P.managerBig.venueId
+    const mgr = { admin: false, managerVenue: big, venue: big }
+    const adm = { admin: true, managerVenue: null, venue: null }
+    const feedPhoto = ids(
+      `select id from public.media_assets where uploader_id = '${t.staffHeavy.id}' and purpose = 'general' and deleted_at is null order by created_at desc, id desc limit 1`
+    )[0]
+    /** [name, person id, role (postgres = as the definer), sql] */
+    const S = [
+      [
+        "search-inner-manager-rare-item",
+        P.managerBig.id,
+        "postgres",
+        searchSql({ ...mgr, item: rareWorld }),
+      ],
+      [
+        "search-inner-manager-use-withdrawn",
+        P.managerBig.id,
+        "postgres",
+        searchSql({ ...mgr, rights: "withdrawn" }),
+      ],
+      [
+        "search-inner-manager-use-not-granted",
+        P.managerBig.id,
+        "postgres",
+        searchSql({ ...mgr, rights: "not_granted" }),
+      ],
+      [
+        "search-inner-manager-check-nomatch",
+        P.managerBig.id,
+        "postgres",
+        searchSql({ ...mgr, check: NOMATCH }),
+      ],
+      [
+        "search-inner-manager-no-filter",
+        P.managerBig.id,
+        "postgres",
+        searchSql(mgr),
+      ],
+      [
+        "search-inner-manager-small-use-legacy",
+        P.managerSmall.id,
+        "postgres",
+        searchSql({
+          admin: false,
+          managerVenue: P.managerSmall.venueId,
+          venue: P.managerSmall.venueId,
+          rights: "legacy_unknown",
+        }),
+      ],
+      ["search-inner-admin-no-filter", t.admin.id, "postgres", searchSql(adm)],
+      [
+        "search-inner-admin-use-not-granted",
+        t.admin.id,
+        "postgres",
+        searchSql({ ...adm, rights: "not_granted" }),
+      ],
+      [
+        "search-inner-admin-use-withdrawn",
+        t.admin.id,
+        "postgres",
+        searchSql({ ...adm, rights: "withdrawn" }),
+      ],
+      [
+        "search-inner-admin-check-nomatch",
+        t.admin.id,
+        "postgres",
+        searchSql({ ...adm, check: NOMATCH }),
+      ],
+      [
+        "search-call-manager-rare-item",
+        P.managerBig.id,
+        "authenticated",
+        rpcCall("asset_search", {
+          p_filters: { item: rareWorld },
+          p_after_created_at: null,
+          p_after_id: null,
+          p_limit: 24,
+        }),
+      ],
+      [
+        "search-call-manager-use-not-granted",
+        P.managerBig.id,
+        "authenticated",
+        rpcCall("asset_search", {
+          p_filters: { rights: "not_granted" },
+          p_after_created_at: null,
+          p_after_id: null,
+          p_limit: 24,
+        }),
+      ],
+      [
+        "search-call-admin-use-not-granted",
+        t.admin.id,
+        "authenticated",
+        rpcCall("asset_search", {
+          p_filters: { rights: "not_granted" },
+          p_after_created_at: null,
+          p_after_id: null,
+          p_limit: 24,
+        }),
+      ],
+      [
+        "search-call-admin-check-nomatch",
+        t.admin.id,
+        "authenticated",
+        rpcCall("asset_search", {
+          p_filters: { check: NOMATCH },
+          p_after_created_at: null,
+          p_after_id: null,
+          p_limit: 24,
+        }),
+      ],
+      [
+        "feed-call-staff-heaviest",
+        t.staffHeavy.id,
+        "authenticated",
+        rpcCall("my_contributions_feed", { p_cursor: null, p_limit: 20 }),
+      ],
+      [
+        "feed-call-manager-big",
+        P.managerBig.id,
+        "authenticated",
+        rpcCall("my_contributions_feed", { p_cursor: null, p_limit: 20 }),
+      ],
+      [
+        "feed-photo-json-one",
+        t.staffHeavy.id,
+        "postgres",
+        `select private.feed_photo_json('${feedPhoto}')`,
+      ],
+      [
+        "feed-use-summary-one",
+        t.staffHeavy.id,
+        "postgres",
+        `select private.media_asset_use_summary('${feedPhoto}', 'uploader')`,
+      ],
+      [
+        "feed-use-summary-inner",
+        t.staffHeavy.id,
+        "postgres",
+        `select distinct d.label from public.media_use_grants g join public.media_use_destinations d on d.key = g.destination_key where g.asset_id = '${feedPhoto}' and private.media_use_grant_state(g, now()) = 'in_force'`,
+      ],
+      [
+        "use-state-inner",
+        t.staffHeavy.id,
+        "postgres",
+        `select case when bool_or(st.state = 'in_force') then 'granted' when bool_or(st.state = 'withdrawn') then 'withdrawn' when a.use_baseline = 'legacy_unknown' then 'legacy_unknown' else 'not_granted' end from public.media_assets a left join lateral (select private.media_use_grant_state(g, now()) as state from public.media_use_grants g where g.asset_id = a.id) st on true where a.id = '${feedPhoto}' group by a.id, a.use_baseline`,
+      ],
+    ]
+    const summary = []
+    for (const [name, sub, role, sql] of S) {
+      const script = `begin;
+${role === "authenticated" ? "set local role authenticated;" : ""}
+set local statement_timeout = '120s';
+select set_config('request.jwt.claims', '{"sub":"${sub}","role":"authenticated","aud":"authenticated"}', true) \\gset
+select set_config('request.jwt.claim.sub', '${sub}', true) \\gset
+explain (analyze, buffers, settings, verbose false) ${sql};
+rollback;
+`
+      let text
+      let error = null
+      try {
+        text = psql(env.dbUrl, ["-At"], { input: script })
+      } catch (e) {
+        error = String(e.message)
+        text = error
+      }
+      writeFileSync(
+        join(dir, `${name}.txt`),
+        `-- ${name}\n-- run as ${role}, jwt sub ${sub === t.admin.id ? "(admin)" : sub === P.managerBig.id ? "(manager big)" : "(staff heaviest)"}\n-- statement:\n${sql}\n\n${text}\n`
+      )
+      const seq = [
+        ...(text ?? "").matchAll(/(?:Parallel )?Seq Scan on (\w+)/g),
+      ].map((m) => m[1])
+      const idx = [
+        ...(text ?? "").matchAll(
+          /(?:Index Only Scan|Index Scan|Bitmap Heap Scan) (?:Backward )?(?:using \w+ )?on (\w+)/g
+        ),
+      ].map((m) => m[1])
+      const entry = {
+        name,
+        executionMs: Number(
+          /Execution Time: ([\d.]+) ms/.exec(text ?? "")?.[1] ?? NaN
+        ),
+        planningMs: Number(
+          /Planning Time: ([\d.]+) ms/.exec(text ?? "")?.[1] ?? NaN
+        ),
+        seqScans: [...new Set(seq)],
+        indexScans: [...new Set(idx)],
+        rootBuffers: /Buffers: ([^\n]*)/.exec(text ?? "")?.[1] ?? null,
+        error,
+      }
+      summary.push(entry)
+      console.error(
+        `${name.padEnd(42)} exec ${String(entry.executionMs).padStart(10)} ms  seq: ${entry.seqScans.join(",") || "-"}  idx: ${entry.indexScans.join(",") || "-"}${error ? "  ERROR " + error.slice(0, 160) : ""}`
+      )
+    }
+    writeFileSync(join(dir, "summary.json"), JSON.stringify(summary, null, 2))
+  }
+} finally {
+  if (uploaded.length) await bucket.remove(uploaded)
+}
+
+mkdirSync(OUT, { recursive: true })
+const doc = {
+  part: PART,
+  volume: VOLUME,
+  at: new Date().toISOString(),
+  cwd: resolve("."),
+  revision: gitHead(),
+  schema: onB05 ? "b05" : "pre-b05",
+  repetitions: { warm: WARM, n: N },
+  loadAverage: { start: loadStart, end: loadavg() },
+  people: Object.fromEntries(
+    Object.entries(P).map(([k, p]) => [
+      k,
+      { role: p.role, media: p.media ?? null },
+    ])
+  ),
+  facts,
+  results,
+}
+const file = join(OUT, `b05-${PART}${TAG ? `-${TAG}` : ""}.json`)
+writeFileSync(file, JSON.stringify(doc, null, 2))
+console.error(`wrote ${file}`)
