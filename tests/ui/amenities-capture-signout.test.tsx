@@ -28,6 +28,18 @@ describe("amenity drafts at sign-out", () => {
     expect(Object.keys(window.localStorage)).toEqual(["nabalens.other"])
   })
 
+  it("J-1: removes upload resume keys, tus resume URLs and the journal marker", () => {
+    window.localStorage.setItem("nabalens-upload-keys", "{}")
+    window.localStorage.setItem("tus::nabalens-media:asset-1::1", "u")
+    window.localStorage.setItem("nabalens-capture-account", "hash")
+    window.localStorage.setItem("tus::someone-else::1", "kept")
+    render(host(true))
+    expect(Object.keys(window.localStorage).sort()).toEqual([
+      "nabalens.other",
+      "tus::someone-else::1",
+    ])
+  })
+
   it("keeps drafts on a plain visit to sign in (an expired session)", () => {
     render(host(false))
     expect(window.localStorage.getItem(DRAFT)).toBe("{}")

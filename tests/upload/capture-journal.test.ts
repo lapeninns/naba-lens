@@ -389,12 +389,8 @@ describe("device clean-up (J-1, review C1 and C2)", () => {
     expect(s.map.get(JOURNAL_ACCOUNT_STORAGE_KEY)).toBe("acct-b")
   })
 
-  it("is wired into the signed-out login page", async () => {
-    const { readFileSync } = await import("node:fs")
-    const src = readFileSync("app/login/login-card-host.tsx", "utf8")
-    expect(src).toMatch(/clearCaptureDataOnDevice\(\)/)
-    expect(src).toMatch(/clearAllDrafts\(\)/)
-  })
+  // The signed-out login page's wiring is tested by behaviour in
+  // tests/ui/amenities-capture-signout.test.tsx (J-1).
 
   it("matches the fingerprint lib/upload/tus.ts gives tus-js-client", () => {
     expect(
