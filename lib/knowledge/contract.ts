@@ -626,6 +626,8 @@ export type ContributionGroupMember = {
   technical?: GroupMemberTechnical
   /** Uploading for longer than the server's stopped window: replaceable. */
   stopped?: boolean
+  /** When a member still uploading becomes stopped; null otherwise. */
+  stoppedAt?: string | null
   labels?: GroupMemberLabels
   review?: GroupReviewEntry[]
   /** Null while the asset has no use state. */

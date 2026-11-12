@@ -74,6 +74,7 @@ const creatorView = () => ({
       replacesAssetId: null,
       technical: "failed",
       stopped: false,
+      stoppedAt: null,
       labels: "none",
       review: [],
       use: { state: "not_granted", destinations: [] },
@@ -88,6 +89,7 @@ const creatorView = () => ({
       replacesAssetId: null,
       technical: "ready",
       stopped: false,
+      stoppedAt: null,
       labels: "needs_attention",
       review: [{ target: "menu_item", id: A3, state: "accepted" }],
       use: {
@@ -107,6 +109,7 @@ const creatorView = () => ({
       replacesAssetId: A1,
       technical: "uploading",
       stopped: true,
+      stoppedAt: "2026-11-12T11:00:00.123456+00:00",
       labels: "labelled",
       review: [],
       use: null,
@@ -183,6 +186,7 @@ describe("parseGroupView (§1.6)", () => {
     member.review = "none"
     member.use = { state: "sold" }
     member.derivative = "queued"
+    member.stoppedAt = "soon"
     const parsed = parseGroupView(raw)!
     expect(parsed.members[1]).toEqual({
       assetId: A2,

@@ -398,6 +398,10 @@ function readMember(value: unknown): ContributionGroupMember | null {
     if (typeof raw.stopped !== "boolean") return null
     member.stopped = raw.stopped
   }
+  // Only schedules a later read: one that can't be read is left out.
+  if (raw.stoppedAt === null) member.stoppedAt = null
+  else if (instant(raw.stoppedAt) !== null)
+    member.stoppedAt = raw.stoppedAt as string
   const labels = oneOf(GROUP_MEMBER_LABELS, raw.labels)
   if (labels) member.labels = labels
   const review = readReview(raw.review)
