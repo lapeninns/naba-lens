@@ -64,6 +64,7 @@ import {
   CAPTURE_COPY,
   CaptureJournalContext,
   CaptureResumeBlock,
+  resumableEntries,
 } from "@/components/nabalens/shell/capture-resume"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import {
@@ -445,21 +446,17 @@ export function AddHost({
     let live = true
     void capture.journal.unfinished().then((entries) => {
       if (!live) return
-      setUnfinishedEntries(
-        entries.filter((entry) => {
-          if (entry.state === "finalising") return false
-          if (entry.assetId && heldIds.has(entry.assetId)) return false
-          return !tabFiles.current.some(
-            (file) => captureEntryId(file) === entry.id
-          )
-        })
+      const tabEntryIds = new Set(
+        tabFiles.current.flatMap((file) => captureEntryId(file) ?? [])
       )
+      setUnfinishedEntries(resumableEntries(entries, heldIds, tabEntryIds))
     })
     return () => {
       live = false
     }
   }, [capture, resumeRead, sheetOpen, uploadOpen, heldIds])
-  const resumable = unfinishedEntries
+  // Signed out or switched in another tab: nothing of that journal shows (K8).
+  const resumable = capture?.alive() ? unfinishedEntries : []
   const keepOpenNote =
     capture && !capture.capabilities.storeBytes ? CAPTURE_COPY.keepOpen : null
   // Labels typed before reservation in the earlier tab, by continued file.
@@ -472,7 +469,8 @@ export function AddHost({
    */
   const continueEntry = async (entry: JournalEntry) => {
     const bytes = entry.bytes
-    if (!(bytes instanceof Blob) || !userId) return
+    // A dead session (another tab signed out) writes no upload key (K8).
+    if (!(bytes instanceof Blob) || !userId || !capture?.alive()) return
     const file =
       bytes instanceof File
         ? bytes
@@ -481,7 +479,10 @@ export function AddHost({
     await localUploadKeyStore()
       .set(file, entry.uploadKey, { purpose: entry.purpose, account: userId })
       .catch(() => {})
-    const labels = pendingLabelsOf(entry.pendingLabels)
+    // Only for an upload never reserved: once reserved its labels are kept on
+    // the server, and seeding these would bring back what was removed (K2).
+    const labels =
+      entry.assetId === null ? pendingLabelsOf(entry.pendingLabels) : null
     if (labels) resumedLabels.current.set(file, labels)
     const owner: PickOwner = {
       onReady: null,

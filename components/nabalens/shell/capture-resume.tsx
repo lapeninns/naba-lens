@@ -38,6 +38,28 @@ export const CAPTURE_COPY = {
   heading: "Didn't finish",
 } as const
 
+/**
+ * What Add's resume block lists (OD-B5-05-10, K3/K5): Add's own uploads only
+ * (general purpose, a dish or no subject; task and question uploads belong
+ * to their screens and are left out, to expire or go at sign-out), less those
+ * the server is finalising (it finishes them), those whose asset this tab's
+ * queue holds, and those this tab picked.
+ */
+export function resumableEntries(
+  entries: readonly JournalEntry[],
+  heldAssetIds: ReadonlySet<string>,
+  tabEntryIds: ReadonlySet<string>
+): JournalEntry[] {
+  return entries.filter(
+    (entry) =>
+      entry.purpose === "general" &&
+      (entry.subject.kind === "menu_item" || entry.subject.kind === "none") &&
+      entry.state !== "finalising" &&
+      !(entry.assetId && heldAssetIds.has(entry.assetId)) &&
+      !tabEntryIds.has(entry.id)
+  )
+}
+
 /** The line for one entry, from resumeAction (§5.4). */
 export function resumeLine(entry: JournalEntry): string {
   const action = resumeAction(entry)
