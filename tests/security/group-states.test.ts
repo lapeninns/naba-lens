@@ -43,6 +43,7 @@ type Member = {
   review?: { target: string; id: string | null; state: string }[]
   use?: Record<string, unknown> | null
   derivative?: string | null
+  stopped?: boolean
 }
 type Summary = {
   live: number
@@ -78,7 +79,14 @@ const BASE_MEMBER_KEYS = [
   "replacesAssetId",
   "uploadState",
 ]
-const STATE_KEYS = ["derivative", "labels", "review", "technical", "use"]
+const STATE_KEYS = [
+  "derivative",
+  "labels",
+  "review",
+  "stopped",
+  "technical",
+  "use",
+]
 const DIMENSION_KEYS = [...STATE_KEYS, "summary"]
 
 const key = () => `TEST-${randomUUID()}`
@@ -511,6 +519,50 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
          values ('${g}', '${w.venue}', '${loose}', 31)`
       )
     ).toThrow(/media_contribution_group_members_position_check/)
+  })
+
+  it("marks a member stopped only past the window, and only to privileged viewers (S5)", async () => {
+    const g = await start(w.staffA)
+    const [ready, fresh, old, failed] = [
+      await asset(w.staffA.id, w.venue, "ready"),
+      await asset(w.staffA.id, w.venue, "uploading"),
+      await asset(w.staffA.id, w.venue, "uploading"),
+      await asset(w.staffA.id, w.venue, "failed"),
+    ]
+    await add(w.staffA, g, [ready, fresh, old, failed])
+    backdate(fresh, 59)
+    backdate(old, 61)
+    const stopped = (v: GroupView) =>
+      Object.fromEntries(v.members.map((m) => [m.assetId, m.stopped]))
+    const expected = {
+      [ready]: false,
+      [fresh]: false,
+      [old]: true,
+      [failed]: false,
+    }
+    expect(stopped(await view(w.staffA, g))).toEqual(expected)
+    // Admin sees every member (not deleted), with the same flag.
+    expect(stopped(await view(w.admin, g))).toEqual(expected)
+    // The flag is what S4 accepts: the stopped one swaps, the fresh one not.
+    await replace(
+      w.staffA,
+      g,
+      old,
+      await asset(w.staffA.id, w.venue, "uploading")
+    )
+    await eligible(
+      w.staffA,
+      "contribution_group_replace",
+      replaceArgs(g, fresh, await asset(w.staffA.id, w.venue, "uploading")),
+      "not_replaceable",
+      fresh
+    )
+    // A colleague's members carry no such key.
+    for (const m of (await view(w.staffB, g)).members)
+      expect(m).not.toHaveProperty("stopped")
+    // Removed: not stopped.
+    await ok(call(w.staffA, "delete_media_asset", { p_asset_id: fresh }))
+    expect(stopped(await view(w.staffA, g))[fresh]).toBe(false)
   })
 
   it("stopped-upload case (M1): a failed or stopped member is replaced, stops counting at once and never counts again (§1.10.9)", async () => {

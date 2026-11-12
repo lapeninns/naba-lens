@@ -27,7 +27,8 @@
 --   than it.
 -- * S5 public.contribution_group (20261110095910 body): every member gains
 --   replacesAssetId. The creator, the venue's effective manager and an active
---   admin also get, per member, technical, labels, review, use and
+--   admin also get, per member, technical, stopped (uploading for longer than
+--   the stopped window, as S4 replaces it), labels, review, use and
 --   derivative, and the group gains summary (OD-B5-01-2). The creator also
 --   sees removed (deleted) members, except a manager account's staff-era
 --   uploads (OD-B5-01-7); the creator's summary counts exactly the members
@@ -449,7 +450,10 @@ begin
   if v_next > 30 then
     raise exception 'contribution_group_full' using errcode = 'P0001';
   end if;
-  -- The S2 live count before the swap.
+  -- The S2 live count before the swap, in one statement. The count after
+  -- follows from the two locked rows by the same predicate: the old member
+  -- stops counting (it is not replaced yet), the new one starts unless it
+  -- failed (it is not deleted and in no group).
   select count(*)::integer into v_before
   from public.media_contribution_group_members m
   join public.media_assets a on a.id = m.asset_id
@@ -461,27 +465,18 @@ begin
       where l.group_id = v_group.id and l.related_asset_id = m.asset_id
         and l.kind = 'replaces_failed_member'
     );
-  insert into public.media_contribution_group_members (group_id, venue_id, asset_id, position)
-  values (v_group.id, v_group.venue_id, p_new_asset_id, v_next);
-  insert into public.media_asset_links (asset_id, venue_id, related_asset_id, kind, group_id, created_by)
-  values (p_new_asset_id, v_group.venue_id, p_failed_asset_id, 'replaces_failed_member', v_group.id, v_uid);
-  -- The S2 live count after the swap; the exception undoes both inserts.
-  select count(*)::integer into v_live
-  from public.media_contribution_group_members m
-  join public.media_assets a on a.id = m.asset_id
-  where m.group_id = v_group.id
-    and a.deleted_at is null
-    and a.upload_state <> 'failed'
-    and not exists (
-      select 1 from public.media_asset_links l
-      where l.group_id = v_group.id and l.related_asset_id = m.asset_id
-        and l.kind = 'replaces_failed_member'
-    );
+  v_live := v_before
+    - (case when v_old.deleted_at is null and v_old.upload_state <> 'failed' then 1 else 0 end)
+    + (case when v_new.upload_state <> 'failed' then 1 else 0 end);
   -- Refused only when the swap adds a live member past 10: a net-zero swap
   -- (a stopped member) is accepted even when retries left more than 10.
   if v_live > 10 and v_live > v_before then
     raise exception 'contribution_group_full' using errcode = 'P0001';
   end if;
+  insert into public.media_contribution_group_members (group_id, venue_id, asset_id, position)
+  values (v_group.id, v_group.venue_id, p_new_asset_id, v_next);
+  insert into public.media_asset_links (asset_id, venue_id, related_asset_id, kind, group_id, created_by)
+  values (p_new_asset_id, v_group.venue_id, p_failed_asset_id, 'replaces_failed_member', v_group.id, v_uid);
   return jsonb_build_object(
     'groupId', v_group.id,
     'assetId', p_new_asset_id,
@@ -504,7 +499,8 @@ $$;
 --   account's own staff-era uploads (the private.viewer_sees_asset veto).
 -- * Anyone else sees the members private.viewer_sees_asset admits.
 -- * Privileged viewers (the creator, the venue's effective manager, an active
---   admin) also get technical, labels, review, use and derivative per member,
+--   admin) also get technical, stopped, labels, review, use and derivative
+--   per member,
 --   and the summary. The creator's summary counts exactly the members the
 --   creator is shown; a manager's or admin's counts every member, seen or
 --   not.
@@ -547,7 +543,7 @@ begin
     v_use_view := case when private.can_manage_venue(v_group.venue_id) then 'full' else 'uploader' end;
     v_privileged := v_creator or v_use_view = 'full';
     for r in
-      select m.position, a.id, a.media_type, a.upload_state, a.uploader_id, a.deleted_at,
+      select m.position, a.id, a.media_type, a.upload_state, a.uploader_id, a.deleted_at, a.updated_at,
         coalesce(lb.has_labels, false) as has_labels,
         l.related_asset_id,
         (l.related_asset_id is not null and (
@@ -578,6 +574,9 @@ begin
         end if;
         v_member := v_member || jsonb_build_object(
           'technical', case when r.deleted_at is not null then 'removed' else r.upload_state::text end,
+          -- S4's stopped rule, so a screen offers Replace where it is taken.
+          'stopped', r.deleted_at is null and r.upload_state = 'uploading'
+            and r.updated_at < now() - private.group_stopped_upload_window(),
           'labels', case
             when exists (
                 select 1 from public.media_pending_labels pl
