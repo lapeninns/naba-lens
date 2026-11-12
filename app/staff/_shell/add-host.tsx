@@ -64,11 +64,14 @@ import {
   CAPTURE_COPY,
   CaptureJournalContext,
   CaptureResumeBlock,
+  journalLabels,
   resumableEntries,
+  sendClearsLabels,
 } from "@/components/nabalens/shell/capture-resume"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import {
   annotateCapture,
+  captureAnnotation,
   captureEntryId,
   type CaptureSession,
 } from "@/lib/upload/capture-session"
@@ -428,6 +431,11 @@ export function AddHost({
   // holds or picked and those the server is finalising (it finishes them).
   const openJournal = React.useContext(CaptureJournalContext)
   const [capture, setCapture] = React.useState<CaptureSession | null>(null)
+  // Another account (or none): this page's asset files are not its (M5).
+  React.useEffect(() => {
+    const files = assetFiles.current
+    return () => files.clear()
+  }, [userId])
   React.useEffect(() => {
     if (!userId) return
     let live = true
@@ -586,7 +594,11 @@ export function AddHost({
   // a replacement swaps in for the photo it replaces instead.
   const reservedForSet = React.useCallback(
     (file: File, assetId: string) => {
-      assetFiles.current.set(assetId, file)
+      const files = assetFiles.current
+      files.set(assetId, file)
+      // Bounded, oldest first (M5): an entry is only needed until its
+      // labels are confirmed or its upload ends.
+      while (files.size > 100) files.delete(files.keys().next().value!)
       const swap = replacements.current.get(file)
       if (swap) {
         replacements.current.delete(file)
@@ -651,6 +663,8 @@ export function AddHost({
       let kept = true
       ids.forEach((id, i) => {
         const owner = fileOwners.current.get(files[i])
+        // Saved: nothing left for its labels to clear (M5).
+        assetFiles.current.delete(id)
         // A photo the server failed, retried and finished, counts again.
         if (owner?.set) photoSets.finished(owner.set, id)
         if (owner?.onReady?.([id]) === false) kept = false
@@ -893,11 +907,26 @@ export function AddHost({
       save: async (venueId, input) => {
         const result = await saveUploadLabels(venueId, input)
         const file = assetFiles.current.get(input.assetId)
-        if (result.ok && file)
+        if (
+          result.ok &&
+          file &&
+          sendClearsLabels(captureAnnotation(file)?.pendingLabels, input)
+        ) {
           annotateCapture(file, { pendingLabels: undefined })
+          assetFiles.current.delete(input.assetId)
+        }
         return result
       },
-      discard: discardUploadLabels,
+      // Discarded on the server: nothing for the journal to keep (M3).
+      discard: async (assetId) => {
+        const result = await discardUploadLabels(assetId)
+        const file = assetFiles.current.get(assetId)
+        if (result && file) {
+          annotateCapture(file, { pendingLabels: undefined })
+          assetFiles.current.delete(assetId)
+        }
+        return result
+      },
       attention: loadLabelAttention,
       summary: loadPhotoLabels,
       settled,
@@ -934,13 +963,14 @@ export function AddHost({
         <PanelHost
           {...props}
           onChange={(venueId, inputs) => {
-            // UP-04: labels of a row not reserved yet go to its journal
-            // entry, so they survive a closed tab (OD-B5-05-8).
+            // UP-04: each row's latest label choice goes to its journal
+            // entry until the server confirms it, so it survives a closed
+            // tab (OD-B5-05-8, M3); an empty choice clears it.
             for (const input of inputs) {
               const item = props.items.find((i) => i.id === input.assetId)
-              if (item && !item.assetId)
+              if (item)
                 annotateCapture(item.file, {
-                  pendingLabels: { venueId, input },
+                  pendingLabels: journalLabels(venueId, input),
                 })
             }
             props.onChange(venueId, inputs)
@@ -1033,9 +1063,13 @@ export function AddHost({
                 keepRunningWhenClosed
                 onBusyChange={setBusy}
                 onHoldsChange={holdsChanged}
-                onUnfinished={(file, reason) =>
+                onUnfinished={(file, reason) => {
+                  // Removed or cancelled: its asset needs no label clear (M5).
+                  if (reason !== "failed")
+                    for (const [assetId, f] of assetFiles.current)
+                      if (f === file) assetFiles.current.delete(assetId)
                   fileOwners.current.get(file)?.onUnfinished?.(reason, file)
-                }
+                }}
                 onReserved={reservedForSet}
                 setOf={groupsOn ? setOf : undefined}
                 readSet={groupsOn ? readSet : undefined}

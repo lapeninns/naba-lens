@@ -11,6 +11,8 @@ import {
   getCaptureJournal,
   type CaptureSession,
 } from "@/lib/upload/capture-session"
+import { sameLabelChoice } from "@/components/nabalens/upload-label-drafts"
+import type { SaveLabelsInput } from "@/lib/menus/types"
 import { resumeAction, type JournalEntry } from "@/lib/upload/journal"
 
 /** Opens the signed-in account's capture journal (null: none on this page). */
@@ -110,4 +112,31 @@ export function CaptureResumeBlock({
       </ul>
     </section>
   )
+}
+
+/** Labels kept for an entry until the server confirms them. */
+export type JournalLabels = { venueId: string; input: SaveLabelsInput }
+
+/**
+ * M3: what the journal keeps for a file's label choice now: the latest
+ * choice, or nothing once the choice is empty.
+ */
+export function journalLabels(
+  venueId: string,
+  input: SaveLabelsInput
+): JournalLabels | undefined {
+  return sameLabelChoice(input, undefined) ? undefined : { venueId, input }
+}
+
+/**
+ * M3: whether a confirmed send clears the journal's labels: only when what
+ * the server took is the choice the journal holds (a later choice still
+ * waits for its own confirmation).
+ */
+export function sendClearsLabels(
+  held: unknown,
+  sent: SaveLabelsInput
+): boolean {
+  const input = (held as JournalLabels | undefined)?.input
+  return !input || sameLabelChoice(input, sent)
 }
