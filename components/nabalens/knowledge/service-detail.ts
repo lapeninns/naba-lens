@@ -22,6 +22,8 @@ import {
 
 export type ServiceDraft = {
   schedule: ScheduleDraft
+  /** The last-day field edits an existing deliberate stop, with or without a schedule. */
+  deliberateStop?: true
   /** takeaway_service: how guests order (internal), b03-design §6.3. */
   channels: string[]
   /** sports_subscription: codes from the broadcasters list (A9). */
@@ -57,9 +59,16 @@ export function emptyService(): ServiceDraft {
   return { schedule: emptySchedule(), channels: [], broadcasters: [] }
 }
 
+function serviceScheduleTouched(d: ServiceDraft): boolean {
+  return scheduleTouched(
+    d.deliberateStop ? { ...d.schedule, effectiveTo: "" } : d.schedule
+  )
+}
+
 export function serviceTouched(d: ServiceDraft): boolean {
   return (
-    scheduleTouched(d.schedule) ||
+    serviceScheduleTouched(d) ||
+    Boolean(d.deliberateStop && d.schedule.effectiveTo) ||
     d.channels.some((c) => c.trim()) ||
     d.broadcasters.length > 0
   )
@@ -72,8 +81,8 @@ export function serviceErrors(
   d: ServiceDraft,
   ctx: Ctx
 ): Partial<Record<ServiceField, string>> {
-  const errors: Partial<Record<ServiceField, string>> = scheduleTouched(
-    d.schedule
+  const errors: Partial<Record<ServiceField, string>> = serviceScheduleTouched(
+    d
   )
     ? scheduleErrors(d.schedule)
     : {}
@@ -94,10 +103,12 @@ export function serviceDetail(
   ctx: Ctx
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {}
-  if (scheduleTouched(d.schedule)) {
+  if (serviceScheduleTouched(d)) {
     const schedule = scheduleShape(d.schedule)
     if (schedule) out.schedule = schedule
   }
+  if (d.deliberateStop && d.schedule.effectiveTo)
+    out.lastDayOffered = d.schedule.effectiveTo
   const channels = d.channels.map((c) => c.trim()).filter(Boolean)
   if (ctx.channels && channels.length) out.channels = channels
   if (ctx.broadcasters && d.broadcasters.length)
@@ -118,6 +129,10 @@ export function serviceFromDetail(
   if (!isRecord(detail)) return d
   if (isRecord(detail.schedule))
     d.schedule = scheduleFromDetail(detail.schedule, options)
+  if (typeof detail.lastDayOffered === "string" && detail.lastDayOffered) {
+    d.deliberateStop = true
+    d.schedule.effectiveTo = detail.lastDayOffered
+  }
   if (Array.isArray(detail.channels))
     d.channels = detail.channels.filter(
       (c): c is string => typeof c === "string"
@@ -137,6 +152,10 @@ export function serviceFieldErrors(
   }
   for (const [path, message] of Object.entries(fieldErrors ?? {})) {
     if (!message) continue
+    if (path === "detail.lastDayOffered") {
+      out.effectiveTo ??= message
+      continue
+    }
     const m = /^detail\.(channels|broadcasters)\b/.exec(path)
     if (m && !out[m[1] as ServiceField]) out[m[1] as ServiceField] = message
   }
@@ -175,6 +194,7 @@ export function serviceFromDraft(v: unknown): ServiceDraft {
         : base.windows,
     }
   }
+  if (v.deliberateStop === true) d.deliberateStop = true
   if (Array.isArray(v.channels))
     d.channels = v.channels.filter((c): c is string => typeof c === "string")
   if (Array.isArray(v.broadcasters))

@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process"
 
 import { describe, expect, it } from "vitest"
 
-import { psql } from "./coverage-fixtures"
+import { MONTHLY_COMPLETION_COUNTS_HASH, psql } from "./coverage-fixtures"
 
 /** Runs a psql script (several statements) and returns its output. */
 function psqlScript(sql: string): string {
@@ -179,7 +179,7 @@ describe("one snapshot per B02 read (T9b)", () => {
     expect(
       psql(`select md5(pg_get_functiondef(
         'private.monthly_venue_completion_counts(uuid,uuid,date)'::regprocedure))`)
-    ).toBe("b78b9daeb8ede1fec0b7224d99348659")
+    ).toBe(MONTHLY_COMPLETION_COUNTS_HASH)
   })
 })
 

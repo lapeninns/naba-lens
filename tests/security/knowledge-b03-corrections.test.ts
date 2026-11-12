@@ -1,14 +1,21 @@
 // B03-g corrections, withdrawals, upgrades and history (docs/knowledge/b03-design.md
 // §9, A1, A15, A16) with the C-B03 credit tests (§9.6). A material
 // correction is adopted through B01's path by a manager account or an admin
-// and needs confirmation again; a withdrawal is a decision only, so no credit
-// input moves; staff holding a legacy grant may do neither. Real signed-in
-// identities through PostgREST; psql reads state and credit counts back.
+// and needs confirmation again. Staff holding a legacy grant may do neither.
+// OD-20 keeps staff credit through corrections and removes it on withdrawal
+// or invalidation. Real signed-in identities through PostgREST; psql reads
+// state and credit counts back.
 import { randomUUID } from "node:crypto"
 
 import { describe, expect, it } from "vitest"
 
-import { psql } from "./coverage-fixtures"
+import {
+  currentMonth,
+  midMonth,
+  MONTHLY_COMPLETION_COUNTS_HASH,
+  monthOffset,
+  psql,
+} from "./coverage-fixtures"
 import {
   call,
   decide,
@@ -21,14 +28,18 @@ import {
 } from "./knowledge-fixtures"
 
 const MONTH = `date_trunc('month', now() at time zone 'Europe/London')::date`
-const units = (w: World, staff: string) =>
+const units = (w: World, staff: string, month = MONTH) =>
   Number(
     psql(`select amenity_checks_completed from private.monthly_venue_completion_counts(
-    '${w.venue}', '${staff}', ${MONTH})`)
+    '${w.venue}', '${staff}', ${month})`)
   )
-const participant = (w: World, id: string) =>
-  psql(`select count(*) from private.completion_staff_venue_memberships
-    where venue_id = '${w.venue}' and staff_id = '${id}'`) !== "0"
+const setTarget = (w: World, month = currentMonth()) =>
+  psql(`insert into private.venue_monthly_completion_targets(venue_id, starts_on, target_count)
+    values ('${w.venue}', '${month}', 5)`)
+const recognition = (submissionId: string) =>
+  JSON.parse(
+    psql(`select private.knowledge_submission_scored('${submissionId}')`)
+  ) as { kind: string; period?: string }
 
 const correct = (
   who: World["manager"],
@@ -98,9 +109,10 @@ describe("who may correct and withdraw (C-B03-2, A1)", () => {
 })
 
 describe("material corrections (§9.1, C-B03-1)", () => {
-  it("move the author's open-month unit to a corrector who never takes part, and record before and after", async () => {
+  it("preserve the author's open-month unit and record who made the correction", async () => {
     for (const corrector of ["manager", "admin"] as const) {
       const w = await world(`kn-b03-g-c1-${corrector}`)
+      setTarget(w)
       const sent = await yes(w.staffA, w, "guest_toilets")
       expect(sent.outcome).toBe("current")
       const before = units(w, w.staffA.id)
@@ -113,8 +125,15 @@ describe("material corrections (§9.1, C-B03-1)", () => {
       )
       expect(error).toBeNull()
       expect(data).toMatchObject({ material: true })
-      expect(units(w, w.staffA.id)).toBe(before - 1)
-      expect(participant(w, w[corrector].id)).toBe(false)
+      expect(units(w, w.staffA.id)).toBe(before)
+      expect(units(w, w[corrector].id)).toBe(0)
+      const correctionId = (data as { submissionId: string }).submissionId
+      expect(
+        psql(
+          `select submitted_by from public.amenity_submissions where id = '${correctionId}'`
+        )
+      ).toBe(w[corrector].id)
+      expect(recognition(correctionId).kind).toBe("none")
       expect(
         JSON.parse(
           psql(`select d.detail from public.knowledge_decisions d
@@ -132,6 +151,7 @@ describe("material corrections (§9.1, C-B03-1)", () => {
             findingRef: { id: string }
             stateReason: string
             managerNote: string
+            recognition: { kind: string; period?: string }
           }[]
         }>(w.staffA, "knowledge_my_contributions", {
           p_cursor: null,
@@ -141,8 +161,105 @@ describe("material corrections (§9.1, C-B03-1)", () => {
       expect(view).toMatchObject({
         stateReason: "corrected",
         managerNote: "TEST corrected",
+        recognition: { kind: "scored", period: currentMonth().slice(0, 7) },
       })
     }
+  })
+
+  it("removes credit for a withdrawn correction chain and lets a new answer earn it", async () => {
+    const w = await world("kn-b03-g-credit-chain")
+    setTarget(w)
+    const first = await yes(w.staffA, w, "guest_toilets")
+    expect(first.outcome).toBe("current")
+    expect(
+      (await correct(w.manager, w, "guest_toilets", "no")).error
+    ).toBeNull()
+    expect(
+      (await correct(w.admin, w, "guest_toilets", "not_applicable")).error
+    ).toBeNull()
+    expect(units(w, w.staffA.id)).toBe(1)
+    expect(recognition(first.submissionId!).kind).toBe("scored")
+
+    expect((await withdraw(w.manager, w, "guest_toilets")).error).toBeNull()
+    expect(units(w, w.staffA.id)).toBe(0)
+    expect(recognition(first.submissionId!).kind).toBe("not_scored")
+
+    const next = await yes(w.staffB, w, "guest_toilets")
+    if (next.outcome === "awaiting_confirmation") {
+      expect(
+        (
+          await decide(
+            w.manager,
+            w,
+            "guest_toilets",
+            {
+              type: "contribution",
+              id: next.contributionId,
+            },
+            "confirm"
+          )
+        ).error
+      ).toBeNull()
+    }
+    expect(units(w, w.staffA.id)).toBe(0)
+    expect(units(w, w.staffB.id)).toBe(1)
+  })
+
+  it("keeps closed-month credit and awards no new credit when corrected or withdrawn later", async () => {
+    const w = await world("kn-b03-g-credit-closed")
+    const previous = monthOffset(-1)
+    setTarget(w, previous)
+    const first = await yes(w.staffA, w, "guest_toilets")
+    const at = midMonth(previous)
+    psql(`begin;
+      set local session_replication_role = replica;
+      update public.amenity_submissions set created_at = '${at}' where id = '${first.submissionId}';
+      update public.amenity_check_events set created_at = '${at}'
+        where check_id = '${w.checks.guest_toilets}' and kind = 'submitted';
+      update private.completion_staff_venue_memberships set started_at = '${at}'
+        where venue_id = '${w.venue}' and staff_id = '${w.staffA.id}' and ended_at is null;
+      commit;`)
+    expect(units(w, w.staffA.id, `'${previous}'`)).toBe(1)
+    expect(
+      (await correct(w.manager, w, "guest_toilets", "no")).error
+    ).toBeNull()
+    expect((await withdraw(w.admin, w, "guest_toilets")).error).toBeNull()
+
+    expect(units(w, w.staffA.id, `'${previous}'`)).toBe(1)
+    expect(units(w, w.staffA.id)).toBe(0)
+    expect(units(w, w.manager.id)).toBe(0)
+    expect(recognition(first.submissionId!)).toEqual({
+      kind: "scored",
+      period: previous.slice(0, 7),
+    })
+  })
+
+  it("removes the credited answer when a manager reopens a corrected check", async () => {
+    const w = await world("kn-b03-g-credit-reopen")
+    setTarget(w)
+    const first = await yes(w.staffA, w, "guest_toilets")
+    expect(
+      (await correct(w.manager, w, "guest_toilets", "no")).error
+    ).toBeNull()
+    expect(units(w, w.staffA.id)).toBe(1)
+    const revision = Number(
+      psql(
+        `select revision from public.venue_amenity_checks where id = '${w.checks.guest_toilets}'`
+      )
+    )
+    expect(
+      (
+        await call(w.manager, "amenity_reopen_check", {
+          p_check_id: w.checks.guest_toilets,
+          p_revision: revision,
+          p_preset: "wrong_area",
+          p_reason: "TEST wrong area",
+          p_idempotency_key: randomUUID(),
+        })
+      ).error
+    ).toBeNull()
+    expect(units(w, w.staffA.id)).toBe(0)
+    expect(recognition(first.submissionId!).kind).toBe("not_scored")
   })
 
   it("drop the confirmation: the corrected answer needs confirming again", async () => {
@@ -204,7 +321,7 @@ describe("material corrections (§9.1, C-B03-1)", () => {
 })
 
 describe("withdrawals (§9.2, C-B03-3)", () => {
-  it("read withdrawn for every audience, move no credit input, and let a later answer replace it", async () => {
+  it("read withdrawn for every audience, remove credit, and let a later answer replace it", async () => {
     const w = await world("kn-b03-g-withdraw")
     const sent = await yes(w.staffA, w, "onsite_parking")
     const before = units(w, w.staffA.id)
@@ -231,7 +348,7 @@ describe("withdrawals (§9.2, C-B03-3)", () => {
         "The answer in use was withdrawn. Open the check to see why.",
       qualification: "withdrawn",
     })
-    expect(units(w, w.staffA.id)).toBe(before)
+    expect(units(w, w.staffA.id)).toBe(before - 1)
     const [row] = await json<
       { status: string; reason: string; detail: string; value: string | null }[]
     >({ client: service }, "knowledge_reader_answers_v1", {
@@ -510,10 +627,14 @@ describe("guards", () => {
   it("keep the overlay table append-only, and the hashes unchanged", async () => {
     expect(() => psql(`truncate public.knowledge_detail_corrections`)).toThrow()
     expect(
+      psql(`select has_function_privilege('authenticated',
+        'private.knowledge_credited_submission(uuid,date)', 'execute')`)
+    ).toBe("f")
+    expect(
       psql(
         `select md5(pg_get_functiondef('private.monthly_venue_completion_counts(uuid,uuid,date)'::regprocedure))`
       )
-    ).toBe("b78b9daeb8ede1fec0b7224d99348659")
+    ).toBe(MONTHLY_COMPLETION_COUNTS_HASH)
     expect(
       psql(`select string_agg(md5(pg_get_functiondef(t.tgfoid)), ',' order by t.tgname)
         from pg_trigger t where t.tgname in

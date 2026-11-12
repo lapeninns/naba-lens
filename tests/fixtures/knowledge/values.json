@@ -1462,6 +1462,45 @@
       }
     },
     {
+      "name": "committed event cannot omit detail",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "yes",
+      "detail": null,
+      "expect": {
+        "fields": [{ "path": "detail.event", "problem": "required" }]
+      }
+    },
+    {
+      "name": "committed event cannot have JSON null detail",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "yes",
+      "detail": null,
+      "jsonNull": true,
+      "expect": {
+        "fields": [{ "path": "detail.event", "problem": "required" }]
+      }
+    },
+    {
+      "name": "committed event cannot have empty detail",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "yes",
+      "detail": {},
+      "expect": {
+        "fields": [{ "path": "detail.event", "problem": "required" }]
+      }
+    },
+    {
+      "name": "not committed event can omit detail",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "no",
+      "detail": null,
+      "expect": { "ok": true, "detail": null }
+    },
+    {
       "name": "committed event needs the event",
       "schema": "schedule_event",
       "version": 1,

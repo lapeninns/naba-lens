@@ -69,6 +69,7 @@ const FIELD_LABEL: Record<string, string> = {
   policyScope: "Applies to",
   authority: "Who stated it",
   schedule: "When",
+  lastDayOffered: "Last day offered",
   channels: "How guests order",
   broadcasters: "Subscriptions",
   event: "Fixture",
@@ -107,6 +108,19 @@ export type Change = {
   material: boolean
 }
 
+/** Object key order can differ between a database read and a form payload. */
+function detailValueKey(value: unknown): string {
+  return JSON.stringify(value ?? null, (_key, item: unknown) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item
+    const record = item as Record<string, unknown>
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, record[key]])
+    )
+  })
+}
+
 /** Every field that differs, the headline first, marked when material. */
 export function whatChanges(
   before: { headline: SubmitAnswer; detail: Record<string, unknown> | null },
@@ -141,7 +155,7 @@ export function whatChanges(
   for (const key of keys) {
     const b = before.detail?.[key]
     const a = after.detail?.[key]
-    if (JSON.stringify(b ?? null) === JSON.stringify(a ?? null)) continue
+    if (detailValueKey(b) === detailValueKey(a)) continue
     out.push({
       field: key,
       label: FIELD_LABEL[key] ?? key,
@@ -221,7 +235,9 @@ export function CorrectionForm({
   const changes = whatChanges(
     before,
     { headline, detail: afterDetail },
-    materialFields
+    detailForm?.schema === "service"
+      ? [...materialFields, "schedule", "lastDayOffered"]
+      : materialFields
   )
   const material = changes.some((c) => c.material)
   const edit = (patch: Partial<DetailParts>) => {

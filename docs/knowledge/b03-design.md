@@ -24,9 +24,10 @@ B03 code or migration exists.
   - **Unknown is safer than invented certainty** (plan §8). A mapping,
     upgrade or expiry that cannot be made exactly produces Unknown, needs
     checking or a proposal, never a confident answer.
-  - **Credit is untouched.** No B03 function writes a credit input except
-    through B01's adoption path, unchanged. The credit-function hash
-    (`b78b9daeb8ede1fec0b7224d99348659`) and the C-tests run on every batch.
+  - **Credit follows the staff contribution.** OD-20 preserves same-month
+    staff credit through routine corrections and removes it on withdrawal or
+    invalidation. B01 adoption and the audit trail stay intact. The credit
+    function fingerprint and the C-tests run on every batch.
 
 Short names used below: D3 is the disclosure default (staff see their own
 data and first names only; managers and admins see attribution); OD-n are
@@ -868,7 +869,7 @@ public.knowledge_reconciliation_runs
   an agreeing one is recorded as seen.
 - A `none` mapping's legacy text is returned by
   `knowledge_legacy_narrative`.
-- Credit hash and C-tests unchanged (C-B03-4, §9.6).
+- Import credit behavior remains covered by C-B03-4 (§9.6).
 
 ---
 
@@ -901,8 +902,9 @@ public.knowledge_reconciliation_runs
   manager or admin. Records a `withdrawn` decision; the resolver reads the
   slot as `unavailable / withdrawn / answer_withdrawn` (B01's state) without
   changing `amenity_submissions`, the check's progress or
-  `amenity_check_events`, so no credit input moves (§9.6). The value stays in history. A later contribution can make a new
-  answer current.
+  `amenity_check_events`. The withdrawal decision removes the credit for
+  the open month (§9.6). The value stays in history. A later contribution
+  can make a new answer current.
 - Schema: `withdrawn` is an additive value in the `knowledge_decisions`
   decision check, and the resolver gains one branch for it, in a new
   migration.
@@ -939,48 +941,46 @@ public.knowledge_reconciliation_runs
   `amenity_conflict`; a retry with the same key replays.
 - Lock order is B01's (profile, key, assets, check).
 
-### 9.6 Credit effects (review M3)
+### 9.6 Credit effects (OD-20)
 
-The credit count gives one unit per check per London month to the
-`submitted_by` of the check's latest `submitted` answer in that month
-(`private.monthly_venue_completion_counts`, unchanged; hash
-`b78b9daeb8ede1fec0b7224d99348659`). Only staff with a venue membership in
-the month are participants. B03 does not change that function, so each path
-is designed around it:
+The approved rule preserves the staff member's progress credit through routine
+corrections in the same London month. A material correction still records a
+new submission under the corrector's own name, with before/after details, and
+follows the confirmation rule for the revised answer. Monthly progress and
+staff recognition both look back through the correction chain to the original
+submission. A correction never awards another unit or carries a past unit into
+the new month.
 
-| Path                                    | Creates a submission?                 | `submitted_by`                               | New unit for anyone                                                                                                 | Effect on the earlier answer's author                                                                                                                                                                                                                                                    |
-| --------------------------------------- | ------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Material correction (§9.1)              | Yes, through B01 adoption             | The corrector: a manager account or an admin | None: neither is a participant. Staff holding a legacy grant may not correct (§9.1), because they are participants. | Closed months unchanged. In the same London month the author's unit for that check moves to the corrector, who is not a participant, so the author loses it and the venue's participant total drops by one, as for any later answer today. **OD-20** decides whether that is acceptable. |
-| Non-material correction (§9.1)          | No (a decision and a detail row only) | —                                            | None                                                                                                                | None                                                                                                                                                                                                                                                                                     |
-| Withdrawal (§9.2)                       | No, and no `amenity_check_events` row | —                                            | None                                                                                                                | None: the author's unit stands                                                                                                                                                                                                                                                           |
-| Legacy or external import, adopted (§8) | Yes, through B01 adoption             | The admin who ran the import                 | None: admins are not participants                                                                                   | None: an import can be adopted only on a slot with no current answer (§8.2), so nobody is displaced                                                                                                                                                                                      |
-| Schema upgrade (§9.3)                   | No (a derived detail row)             | —                                            | None                                                                                                                | None                                                                                                                                                                                                                                                                                     |
+An explicit withdrawal removes credit from the original submission, even after
+several corrections. Reopening the check or losing evidence required for a
+Yes answer continues to invalidate the check for credit. The **Correct** action
+has no separate invalidation flag. If the underlying answer is invalid, the
+manager or admin must **Withdraw** it or reopen the check. Revoking a
+confirmation is a separate action that leaves the submission eligible for
+credit under the B01 rule.
 
-Edge case recorded for B08: a manager account converted from staff during a
-month can still count in that month (B02 F8), so its correction in that
-month could score. OD-20 covers it.
+Closed months continue to evaluate the decision history at the end of that
+London month. Non-material corrections and schema upgrades leave credit
+unchanged. A later accepted contribution can earn its own unit according to
+the existing rule, independently of the earlier correction chain.
 
-C-tests added (with the credit-function hash check on every batch):
-
-- **C-B03-1:** a material correction by a manager account and one by an
-  admin create no unit for the corrector; the author's unit in a closed
-  month is unchanged; in the open month it moves exactly as a manager
-  re-answer does today (pinned, so OD-20 can change it deliberately).
-- **C-B03-2:** a staff account with a legacy grant is refused
-  `knowledge_correct`.
-- **C-B03-3:** a non-material correction, a withdrawal and a schema upgrade
-  leave every participant's counts unchanged.
-- **C-B03-4:** an adopted import (legacy and external) creates no unit and
-  is refused (`import_slot_has_answer`) on a slot with a stored current
-  submission, including one whose answer was withdrawn (§9.2) and one whose
-  answer reads expired or `basis_missing` (§7.3).
+- **C-B03-1:** manager and admin corrections preserve the original unit and
+  staff recognition, with no unit for the corrector. Later corrections and
+  withdrawals do not affect the previous month's count.
+- **C-B03-2:** staff accounts with a legacy grant cannot correct or withdraw.
+- **C-B03-3:** withdrawal and reopening invalidate current-month credit.
+  A new accepted answer can earn credit after a withdrawal.
+- **C-B03-4:** an adopted import (legacy or external) earns no unit and is
+  refused with `import_slot_has_answer` on a slot with a stored current
+  submission, including one that is withdrawn, expired or `basis_missing`.
 
 ### 9.7 Tests
 
 - Before and after values and the selection rule are recorded for a
   correction; a material correction drops the confirmation, a non-material
   one keeps it.
-- A withdrawal reads withdrawn for every audience and moves no credit input.
+- A withdrawal reads withdrawn for every audience and removes the original
+  submission’s credit in the open month.
 - C-B03-1 to C-B03-4 (§9.6).
 - Lossless and needs-checking upgrades; an old answer still reads under its
   own version after a schema change.
@@ -1011,18 +1011,18 @@ WS1 supplies structure only. These come from people:
 
 ## 11. Owner decisions
 
-| #     | Decision                                                                                                                                                                                                                                                                                                      | Design default until decided                                                                                                                                                                                                                                      |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OD-11 | Add the five proposed keys; supersede `sports_screen`; mark `swimming_pool` unsupported; retire anything                                                                                                                                                                                                      | Registry version 1 only; no new key, no lifecycle change, nothing retired                                                                                                                                                                                         |
-| OD-12 | Per key: confirmation, sensitivity and family where §3.4 proposes a change from today; which presence-only keys get detail later                                                                                                                                                                              | §3.4 proposals stay unapplied; B01's seven rules unchanged. Registry version 1 records `ordinary` sensitivity for every key except `guest_wifi`; nothing may treat that as decided for the accessibility or dogs keys, for publication or redaction, before OD-12 |
-| OD-13 | Who creates subjects; whether any key needs independent per-subject answers                                                                                                                                                                                                                                   | Managers and admins create subjects; one answer per venue and key                                                                                                                                                                                                 |
-| OD-14 | Policy condition and exception types; who confirms venue and organisation policies; who commits schedules and fixture showings                                                                                                                                                                                | Venue manager confirms venue policies and schedules; admin for organisation scope                                                                                                                                                                                 |
-| OD-15 | Freshness durations per class and use; observation-date rules; when expiry may change v1 reader status                                                                                                                                                                                                        | No freshness policy on any key; pilot keys unrated                                                                                                                                                                                                                |
-| OD-16 | Venue timezone source (a venue column or a fixed estate timezone); the broadcaster list                                                                                                                                                                                                                       | `Europe/London` for every venue (the estate's helpers already use it); no broadcaster list                                                                                                                                                                        |
-| OD-17 | Which legacy mappings are exact; precedence order for suggestions; which external sources may be declared                                                                                                                                                                                                     | No exact mappings; precedence as §8.2 for ordering only; no sources                                                                                                                                                                                               |
-| OD-18 | Who may correct and withdraw; whether a withdrawal needs a second person                                                                                                                                                                                                                                      | Manager account or admin (not legacy grant holders), one person, reason required                                                                                                                                                                                  |
-| OD-19 | Whether an import may be chosen over a current answer                                                                                                                                                                                                                                                         | No: imports are adopted only onto an empty slot                                                                                                                                                                                                                   |
-| OD-20 | Whether a material correction in the same month should move the author's unit to the corrector, a non-participant, so the venue's participant total drops too (today's rule for any later answer). A material correction is also how a stale or changed answer is refreshed, so this happens in normal upkeep | Today's rule applies; B08 may change the credit policy                                                                                                                                                                                                            |
+| #     | Decision                                                                                                                         | Design default until decided                                                                                                                                                                                                                                      |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OD-11 | Add the five proposed keys; supersede `sports_screen`; mark `swimming_pool` unsupported; retire anything                         | Registry version 1 only; no new key, no lifecycle change, nothing retired                                                                                                                                                                                         |
+| OD-12 | Per key: confirmation, sensitivity and family where §3.4 proposes a change from today; which presence-only keys get detail later | §3.4 proposals stay unapplied; B01's seven rules unchanged. Registry version 1 records `ordinary` sensitivity for every key except `guest_wifi`; nothing may treat that as decided for the accessibility or dogs keys, for publication or redaction, before OD-12 |
+| OD-13 | Who creates subjects; whether any key needs independent per-subject answers                                                      | Managers and admins create subjects; one answer per venue and key                                                                                                                                                                                                 |
+| OD-14 | Policy condition and exception types; who confirms venue and organisation policies; who commits schedules and fixture showings   | Venue manager confirms venue policies and schedules; admin for organisation scope                                                                                                                                                                                 |
+| OD-15 | Freshness durations per class and use; observation-date rules; when expiry may change v1 reader status                           | No freshness policy on any key; pilot keys unrated                                                                                                                                                                                                                |
+| OD-16 | Venue timezone source (a venue column or a fixed estate timezone); the broadcaster list                                          | `Europe/London` for every venue (the estate's helpers already use it); no broadcaster list                                                                                                                                                                        |
+| OD-17 | Which legacy mappings are exact; precedence order for suggestions; which external sources may be declared                        | No exact mappings; precedence as §8.2 for ordering only; no sources                                                                                                                                                                                               |
+| OD-18 | Who may correct and withdraw; whether a withdrawal needs a second person                                                         | Approved: a venue manager account or an admin may act alone, with a recorded reason.                                                                                                                                                                              |
+| OD-19 | Whether an import may be chosen over a current answer                                                                            | No: imports are adopted only onto an empty slot                                                                                                                                                                                                                   |
+| OD-20 | Same-month staff progress after a manager or admin corrects, withdraws or invalidates an answer.                                 | Approved: preserve the original unit on routine corrections. Remove it on withdrawal or invalidation.                                                                                                                                                             |
 
 B02's open decisions (OD-2 to OD-10) and the matrix questions (Q1 to Q14) are
 unchanged by this design.
@@ -1055,21 +1055,21 @@ check reads `amenity_venue_state`, `amenity_checks_for_venue`,
 `amenity_check` and `amenity_check_submissions` (presented value only,
 §3.8; B03-c); `knowledge_decide` and `knowledge_resolve_conflict` (admin
 rule value, B03-c); B02's `manager_triage_summary` (rechecks queue,
-B03-e). Never
-re-created: the credit trigger `media_assets_amenity_evidence_lost`, the
-credit functions, the menu and coverage write paths.
+B03-e); and the monthly progress and contribution recognition functions
+(OD-20). The credit trigger `media_assets_amenity_evidence_lost` and the
+menu and coverage write paths stay as they were.
 
 ### 12.1 Owner decisions by batch
 
-| Batch | Needs before it is enabled                                        |
-| ----- | ----------------------------------------------------------------- |
-| B03-a | Nothing                                                           |
-| B03-b | OD-12, OD-13                                                      |
-| B03-c | OD-14 (and OD-12 for the keys moved to a policy version)          |
-| B03-d | OD-11, OD-16, OD-14                                               |
-| B03-e | OD-15, and WS5's agreement for v1 reader changes                  |
-| B03-f | OD-17 (and OD-19 for imports)                                     |
-| B03-g | Nothing to build; OD-18 and OD-20 before the commands are enabled |
+| Batch | Needs before it is enabled                                                                                              |
+| ----- | ----------------------------------------------------------------------------------------------------------------------- |
+| B03-a | Nothing                                                                                                                 |
+| B03-b | OD-12, OD-13                                                                                                            |
+| B03-c | OD-14 (and OD-12 for the keys moved to a policy version)                                                                |
+| B03-d | OD-11, OD-16, OD-14                                                                                                     |
+| B03-e | OD-15, and WS5's agreement for v1 reader changes                                                                        |
+| B03-f | OD-17 (and OD-19 for imports)                                                                                           |
+| B03-g | OD-18 and OD-20 approved: managers and admins act with a recorded reason. Routine corrections preserve original credit. |
 
 Building on fixtures never waits for an owner decision: every batch is
 built and tested with its defaults inert, and a decision is needed only to

@@ -10,7 +10,7 @@ import { join } from "node:path"
 import { beforeAll, describe, expect, it } from "vitest"
 
 import { anonClient } from "../support/identities"
-import { psql } from "./coverage-fixtures"
+import { MONTHLY_COMPLETION_COUNTS_HASH, psql } from "./coverage-fixtures"
 import { call, json, refused, world, type World } from "./knowledge-fixtures"
 
 type Question = Record<string, unknown> & {
@@ -114,7 +114,7 @@ describe("version 1 restates today (no behaviour change)", () => {
     expect(
       psql(`select md5(pg_get_functiondef(
         'private.monthly_venue_completion_counts(uuid,uuid,date)'::regprocedure))`)
-    ).toBe("b78b9daeb8ede1fec0b7224d99348659")
+    ).toBe(MONTHLY_COMPLETION_COUNTS_HASH)
   })
 })
 

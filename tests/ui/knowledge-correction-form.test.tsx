@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 // B03 UI design §8.1: Correct the answer.
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -32,21 +38,26 @@ const ok = (material: boolean) => ({
   replayed: false,
 })
 
-type Correct = React.ComponentProps<typeof CorrectionForm>["correct"]
+type FormProps = React.ComponentProps<typeof CorrectionForm>
+type Correct = FormProps["correct"]
 
 function setup(
   correct: ReturnType<typeof vi.fn<Correct>> = vi.fn<Correct>(async () =>
     ok(true)
-  )
+  ),
+  {
+    before = { headline: "yes", detail: { fees: { kind: "free" } } },
+    detailForm = facility,
+  }: Partial<Pick<FormProps, "before" | "detailForm">> = {}
 ) {
   render(
     <CorrectionForm
       checkId={CHECK}
       slotRevision={12}
       venueName="The Old Crown"
-      before={{ headline: "yes", detail: { fees: { kind: "free" } } }}
+      before={before}
       materialFields={["headline"]}
-      detailForm={facility}
+      detailForm={detailForm}
       correct={correct}
       doneHref="/manager/amenities/c1"
     />
@@ -197,4 +208,102 @@ describe("Correct the answer", () => {
       ).value
     ).toBe("⟨Reason⟩")
   })
+})
+
+describe("a deliberate service stop", () => {
+  const lastDayOffered = "2099-12-20"
+  const schedule = {
+    windows: [{ end: "15:00", start: "12:00" }],
+    recurrence: { days: ["sun"], kind: "weekly" },
+    effectiveTo: lastDayOffered,
+    effectiveFrom: "2099-12-01",
+  }
+  const service = {
+    schema: "service" as const,
+    timezone: "Europe/London",
+    channels: false,
+    broadcasters: null,
+  }
+
+  it.each([undefined, schedule])(
+    "keeps the stop when saving an unrelated correction (%j)",
+    async (currentSchedule) => {
+      const before = {
+        lastDayOffered,
+        ...(currentSchedule ? { schedule: currentSchedule } : {}),
+        fees: { kind: "free" },
+      }
+      const { user, correct } = setup(
+        vi.fn<Correct>(async () => ok(false)),
+        {
+          before: { headline: "yes", detail: before },
+          detailForm: service,
+        }
+      )
+
+      expect(screen.getByText("Nothing has changed yet.")).toBeTruthy()
+      expect(
+        (
+          screen.getByLabelText(
+            "Last day offered (optional)"
+          ) as HTMLInputElement
+        ).value
+      ).toBe(lastDayOffered)
+      await user.click(screen.getByText("Fees", { selector: "summary" }))
+      await user.click(screen.getByRole("radio", { name: "Charged" }))
+      expect(
+        screen.getByText("Small change: the confirmation stays.")
+      ).toBeTruthy()
+      await user.type(
+        screen.getByLabelText(/Why are you correcting it/),
+        "Fee added"
+      )
+      await user.click(screen.getByRole("button", { name: "Save correction" }))
+      await waitFor(() =>
+        expect(correct).toHaveBeenCalledWith(
+          expect.objectContaining({
+            detail: { ...before, fees: { kind: "charged" } },
+          })
+        )
+      )
+    }
+  )
+
+  it.each(["2099-12-27", ""])(
+    "saves an explicit change to the scheduled stop (%j)",
+    async (lastDay) => {
+      const { user, correct } = setup(undefined, {
+        before: { headline: "yes", detail: { lastDayOffered, schedule } },
+        detailForm: service,
+      })
+      fireEvent.change(screen.getByLabelText("Last day offered (optional)"), {
+        target: { value: lastDay },
+      })
+      expect(
+        screen.getByText("Last day offered · Needs confirming again")
+      ).toBeTruthy()
+      await user.type(
+        screen.getByLabelText(/Why are you correcting it/),
+        "New end date"
+      )
+      await user.click(screen.getByRole("button", { name: "Save correction" }))
+      const openSchedule = {
+        effectiveFrom: schedule.effectiveFrom,
+        recurrence: schedule.recurrence,
+        windows: schedule.windows,
+      }
+      await waitFor(() =>
+        expect(correct).toHaveBeenCalledWith(
+          expect.objectContaining({
+            detail: lastDay
+              ? {
+                  lastDayOffered: lastDay,
+                  schedule: { ...openSchedule, effectiveTo: lastDay },
+                }
+              : { schedule: openSchedule },
+          })
+        )
+      )
+    }
+  )
 })

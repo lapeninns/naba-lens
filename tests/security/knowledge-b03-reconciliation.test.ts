@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto"
 
 import { beforeAll, describe, expect, it } from "vitest"
 
-import { psql } from "./coverage-fixtures"
+import { MONTHLY_COMPLETION_COUNTS_HASH, psql } from "./coverage-fixtures"
 import {
   call,
   decide,
@@ -436,6 +436,83 @@ describe("external sources (§8.2)", () => {
       (await resolve(v.manager, v, "onsite_parking", null)).error
     ).toBeNull()
   })
+
+  it.each(["changed", "cleared"] as const)(
+    "review a matching headline when the answer's detail was %s since the dry run",
+    async (change) => {
+      const v = await world(`kn-b03-reconcile-${change}`)
+      const key = "onsite_parking"
+      const sent = await yes(v.staffA, v, key)
+      expect(sent.outcome).toBe("current")
+      const original = { availability: { state: "available" } }
+      const corrected = { availability: { state: "on_request" } }
+      const sources = [
+        { label: "TEST headline only", detail: null },
+        { label: "TEST original detail", detail: original },
+        ...(change === "changed"
+          ? [{ label: "TEST corrected detail", detail: corrected }]
+          : []),
+      ]
+      // Attach structured fixtures without publishing a question version to
+      // the shared test registry. Reconciliation itself runs as a signed-in admin.
+      psql(`insert into public.knowledge_contribution_details
+        (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
+        values ('${sent.contributionId}', '${v.venue}', 1, 'facility', 1,
+          '${JSON.stringify(original)}'::jsonb, repeat('a', 64))`)
+      for (const { label, detail } of sources) {
+        const { sourceId } = await json<{ sourceId: string }>(
+          v.admin,
+          "knowledge_source_declare",
+          {
+            p_kind: "venue_website",
+            p_label: label,
+            p_venue_id: v.venue,
+            p_idempotency_key: randomUUID(),
+          }
+        )
+        psql(`insert into public.knowledge_source_assertions
+          (source_id, venue_id, question_key, headline, detail, retrieved_at, source_revision, created_by)
+          values ('${sourceId}', '${v.venue}', '${key}', 'yes',
+            ${detail === null ? "null" : `'${JSON.stringify(detail)}'::jsonb`}, now(), 'r1', '${v.admin.id}')`)
+      }
+      expect(
+        (await reconcile(v.admin, "external", "dry_run", v.venue)).data
+      ).toMatchObject({
+        counts: { corroborating: 2, conflicting: sources.length - 2 },
+      })
+      psql(`with correction as (
+        insert into public.knowledge_decisions
+          (venue_id, check_id, question_key, submission_id, decision, decided_by, decider_basis, detail)
+        values ('${v.venue}', '${v.checks[key]}', '${key}', '${sent.submissionId}', 'corrected',
+          '${v.manager.id}', 'venue_manager', '{"material":false}') returning id
+      )
+      insert into public.knowledge_detail_corrections (contribution_id, venue_id, detail, decision_id)
+      select '${sent.contributionId}', '${v.venue}',
+        ${change === "cleared" ? "null" : `'${JSON.stringify(corrected)}'::jsonb`}, id from correction`)
+
+      expect(
+        (await reconcile(v.admin, "external", "apply", v.venue)).data
+      ).toMatchObject({
+        created: sources.length,
+        counts: { corroborating: sources.length - 1, conflicting: 1 },
+        conflicts: [{ source: "TEST original detail" }],
+      })
+      const { pending } = await json<{ pending: Record<string, unknown>[] }>(
+        v.manager,
+        "knowledge_check",
+        { p_check_id: v.checks[key] }
+      )
+      expect(pending).toMatchObject([
+        {
+          answer: "yes",
+          source: "external_source",
+          sourceLabel: "TEST original detail",
+          detail: original,
+          adoptable: false,
+        },
+      ])
+    }
+  )
 })
 
 describe("guards", () => {
@@ -495,7 +572,7 @@ describe("guards", () => {
       psql(
         `select md5(pg_get_functiondef('private.monthly_venue_completion_counts(uuid,uuid,date)'::regprocedure))`
       )
-    ).toBe("b78b9daeb8ede1fec0b7224d99348659")
+    ).toBe(MONTHLY_COMPLETION_COUNTS_HASH)
     expect(
       psql(`select string_agg(md5(pg_get_functiondef(t.tgfoid)), ',' order by t.tgname)
         from pg_trigger t where t.tgname in

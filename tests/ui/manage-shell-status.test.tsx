@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Legacy /staff/manage keeps the same staff shell status as every other staff
 // page, read alongside the page's own reads rather than after them.
-import { render } from "@testing-library/react"
+import { cleanup, render } from "@testing-library/react"
 import type * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -67,6 +67,10 @@ function heldStatus() {
   )
 }
 
+// Unmount between tests: vitest globals are off, so RTL does not clean up
+// itself, and a tree left mounted can commit after jsdom has gone (hosted
+// run 43072631782: "window is not defined" from React's scheduler).
+afterEach(cleanup)
 afterEach(() => {
   vi.clearAllMocks()
   appShell.props = null

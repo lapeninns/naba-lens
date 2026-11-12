@@ -600,7 +600,10 @@ export function validateKnowledgeValue(
 
   const given = isEmptyDetail(detail) ? null : detail
   let normalised: WifiMetadata | Record<string, unknown> | null = null
-  if (given !== null) {
+  if (given === null && schema === "schedule_event" && headline === "yes") {
+    // A commitment needs a fixture even when the whole detail is absent.
+    fields.push(...scheduleEventProblems(headline, {}))
+  } else if (given !== null) {
     if (schema === "presence")
       fields.push({ path: "detail", problem: "not_allowed" })
     else if (schema === "connectivity.wifi") {

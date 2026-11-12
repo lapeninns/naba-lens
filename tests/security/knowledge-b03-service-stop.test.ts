@@ -20,7 +20,7 @@ import { randomUUID } from "node:crypto"
 
 import { describe, expect, it } from "vitest"
 
-import { psql } from "./coverage-fixtures"
+import { MONTHLY_COMPLETION_COUNTS_HASH, psql } from "./coverage-fixtures"
 import {
   call,
   decide,
@@ -872,7 +872,7 @@ describe("guards (A40)", () => {
       psql(
         `select md5(pg_get_functiondef('private.monthly_venue_completion_counts(uuid,uuid,date)'::regprocedure))`
       )
-    ).toBe("b78b9daeb8ede1fec0b7224d99348659")
+    ).toBe(MONTHLY_COMPLETION_COUNTS_HASH)
     expect(
       psql(`select string_agg(md5(pg_get_functiondef(t.tgfoid)), ',' order by t.tgname)
         from pg_trigger t where t.tgname in
