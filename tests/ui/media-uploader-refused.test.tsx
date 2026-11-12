@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 // useMediaUploader turns finaliseUpload's 403 into a refusal the queue won't
 // retry; its 503 stays retryable.
-import { renderHook } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { cleanup, renderHook } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { UploadContext } from "@/components/nabalens/upload-queue"
 
@@ -46,6 +46,9 @@ function context(): UploadContext {
     attempt: 1,
   }
 }
+
+// Unmount each hook's tree: vitest globals are off, so RTL won't do it.
+afterEach(cleanup)
 
 beforeEach(() => {
   localStorage.clear()

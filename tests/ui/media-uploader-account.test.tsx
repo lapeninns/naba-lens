@@ -3,8 +3,8 @@
 // the account: their resume keys are still kept for the signed-in person
 // only, as Add's are (audit finding 15), so another account signed in on the
 // same phone never resumes them.
-import { renderHook } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { cleanup, renderHook } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { UploadContext } from "@/components/nabalens/upload-queue"
 import type { UploadKeyStore } from "@/lib/upload"
@@ -64,6 +64,9 @@ function context(overrides: Partial<UploadContext> = {}): UploadContext {
 
 const photo = () =>
   new File([new Uint8Array(8)], "a.jpg", { type: "image/jpeg" })
+
+// Unmount each hook's tree: vitest globals are off, so RTL won't do it.
+afterEach(cleanup)
 
 beforeEach(() => {
   mocks.userId = "user-1"
