@@ -60,7 +60,19 @@ import {
   type AddBlocked,
 } from "@/components/nabalens/shell/add-sheet"
 import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
+import {
+  CAPTURE_COPY,
+  CaptureJournalContext,
+  CaptureResumeBlock,
+} from "@/components/nabalens/shell/capture-resume"
 import { MEDIA_LIMITS } from "@/lib/config/media"
+import {
+  annotateCapture,
+  captureEntryId,
+  type CaptureSession,
+} from "@/lib/upload/capture-session"
+import type { JournalEntry } from "@/lib/upload/journal"
+import { localUploadKeyStore } from "@/lib/upload/upload-keys"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
 import type { EntryIntent, EntryMenu } from "@/lib/work-client/entry"
@@ -219,6 +231,10 @@ export function AddHost({
   React.useLayoutEffect(() => {
     groupsOnRef.current = groupsOn
   }, [groupsOn])
+  // B05-05c: each set's start key (the journal's groupKey), and the files
+  // this tab picked, newest last (bounded).
+  const setKeys = React.useRef(new Map<string, string>())
+  const tabFiles = React.useRef<File[]>([])
   const [photoSets] = React.useState(
     () =>
       new PhotoSets(
@@ -229,8 +245,20 @@ export function AddHost({
           replace: replaceInPhotoSet,
         },
         sessionSetKeys(),
-        { onMissing: () => setSetsMissing(true) }
+        {
+          onMissing: () => setSetsMissing(true),
+        }
       )
+  )
+  React.useEffect(
+    () =>
+      photoSets.listenKeys((setId, key) => {
+        setKeys.current.set(setId, key)
+        for (const file of tabFiles.current)
+          if (fileOwners.current.get(file)?.set === setId)
+            annotateCapture(file, { groupKey: key })
+      }),
+    [photoSets]
   )
   // Files that have been through claim, with an owner or none.
   const claimedFiles = React.useRef(new WeakSet<File>())
@@ -332,6 +360,19 @@ export function AddHost({
       ? { state: "ready", catalogue: labelContext.catalogue }
       : { state: "error", message: labelContext.message }
 
+  /** B05-05c: what the journal records for a file this tab picked. */
+  const noteCapture = (file: File, owner: PickOwner) => {
+    tabFiles.current = [...tabFiles.current.slice(-49), file]
+    annotateCapture(file, {
+      ...(owner.subject
+        ? { subject: { kind: owner.subject.kind, id: owner.subject.id } }
+        : {}),
+      ...(owner.set && setKeys.current.has(owner.set)
+        ? { groupKey: setKeys.current.get(owner.set)! }
+        : {}),
+    })
+  }
+
   /** These files were picked for `owner`'s Add call. */
   const claim = React.useCallback(
     (files: File[], owner: PickOwner | null) => {
@@ -351,6 +392,7 @@ export function AddHost({
         owner.set
       )
         for (const file of files) fileOwners.current.set(file, owner)
+      for (const file of files) noteCapture(file, owner)
       owner.onPicked?.(files)
     },
     [photoSets]
@@ -376,6 +418,88 @@ export function AddHost({
     setPickedFiles(files)
     setUploadOpen(true)
   }, [])
+
+  // B05-05d: the account's capture journal, and what didn't finish in an
+  // earlier tab (OD-B5-05-10): its unfinished entries, less those this tab
+  // holds or picked and those the server is finalising (it finishes them).
+  const openJournal = React.useContext(CaptureJournalContext)
+  const [capture, setCapture] = React.useState<CaptureSession | null>(null)
+  React.useEffect(() => {
+    if (!userId) return
+    let live = true
+    void openJournal(userId)
+      .catch(() => null)
+      .then((session) => {
+        if (live) setCapture(session)
+      })
+    return () => {
+      live = false
+    }
+  }, [openJournal, userId])
+  const [unfinishedEntries, setUnfinishedEntries] = React.useState<
+    readonly JournalEntry[]
+  >([])
+  const [resumeRead, setResumeRead] = React.useState(0)
+  React.useEffect(() => {
+    if (!capture) return
+    let live = true
+    void capture.journal.unfinished().then((entries) => {
+      if (!live) return
+      setUnfinishedEntries(
+        entries.filter((entry) => {
+          if (entry.state === "finalising") return false
+          if (entry.assetId && heldIds.has(entry.assetId)) return false
+          return !tabFiles.current.some(
+            (file) => captureEntryId(file) === entry.id
+          )
+        })
+      )
+    })
+    return () => {
+      live = false
+    }
+  }, [capture, resumeRead, sheetOpen, heldIds])
+  const resumable = unfinishedEntries
+  // Labels typed before reservation in the earlier tab, by continued file.
+  const resumedLabels = React.useRef(
+    new WeakMap<File, { venueId: string; input: SaveLabelsInput }>()
+  )
+  /**
+   * Continue (OD-B5-05-11): the stored File gets its upload key back, then
+   * goes to the queue under its subject, in no set (OD-B5-05-9).
+   */
+  const continueEntry = async (entry: JournalEntry) => {
+    const bytes = entry.bytes
+    if (!(bytes instanceof Blob) || !userId) return
+    const file =
+      bytes instanceof File
+        ? bytes
+        : new File([bytes], entry.displayName, { type: bytes.type })
+    setUnfinishedEntries((list) => list.filter((e) => e.id !== entry.id))
+    await localUploadKeyStore()
+      .set(file, entry.uploadKey, { purpose: entry.purpose, account: userId })
+      .catch(() => {})
+    const labels = pendingLabelsOf(entry.pendingLabels)
+    if (labels) resumedLabels.current.set(file, labels)
+    const owner: PickOwner = {
+      onReady: null,
+      onPicked: null,
+      onUnfinished: null,
+      preset: null,
+      purpose: entry.purpose,
+      subject: null,
+      set: null,
+    }
+    claim([file], owner)
+    annotateCapture(file, {
+      subject: entry.subject,
+      groupKey: entry.groupKey,
+      ...(labels ? { pendingLabels: labels } : {}),
+    })
+    fileOwners.current.set(file, owner)
+    queueFiles([file])
+    setResumeRead((n) => n + 1)
+  }
 
   // Add's own pickers, for openAdd({ source }). Outside any dialog, so a
   // click on them never lands on content a modal has made inert.
@@ -426,6 +550,7 @@ export function AddHost({
         // latest pick's).
         claimedFiles.current.add(file)
         fileOwners.current.set(file, owner)
+        noteCapture(file, owner)
         replacements.current.set(file, {
           set: owner.set,
           assetId: item.assetId,
@@ -545,13 +670,15 @@ export function AddHost({
     (dialog = false) => {
       const phone = !window.matchMedia("(min-width: 48rem)").matches
       if (waiting > 0 && !blocked) setUploadOpen(true)
-      else if (blocked || (phone && !dialog)) setSheetOpen(true)
+      // What didn't finish earlier is said in the sheet (OD-B5-05-11).
+      else if (blocked || (phone && !dialog) || resumable.length > 0)
+        setSheetOpen(true)
       else {
         setPickedFiles(undefined)
         setUploadOpen(true)
       }
     },
-    [waiting, blocked]
+    [waiting, blocked, resumable.length]
   )
 
   // The shared entry's step, while it is open (B02-02).
@@ -720,6 +847,14 @@ export function AddHost({
       },
       // Our menu's dish is applied by default, once the menu is known.
       seed: (item) => {
+        // Labels typed before reservation in an earlier tab (OD-B5-05-8),
+        // addressed to this row.
+        const resumed = resumedLabels.current.get(item.file)
+        if (resumed)
+          return {
+            venueId: resumed.venueId,
+            input: { ...resumed.input, assetId: item.id },
+          }
         const preset = fileOwners.current.get(item.file)?.preset
         if (!preset) return null
         if (labelContext && !labelContext.ok) return "unavailable"
@@ -778,6 +913,18 @@ export function AddHost({
       renderPanel: (props) => (
         <PanelHost
           {...props}
+          onChange={(venueId, inputs) => {
+            // UP-04: labels of a row not reserved yet go to its journal
+            // entry, so they survive a closed tab (OD-B5-05-8).
+            for (const input of inputs) {
+              const item = props.items.find((i) => i.id === input.assetId)
+              if (item && !item.assetId)
+                annotateCapture(item.file, {
+                  pendingLabels: { venueId, input },
+                })
+            }
+            props.onChange(venueId, inputs)
+          }}
           catalogue={catalogueProp}
           venueId={catalogue?.venueId ?? null}
           focus={focus}
@@ -842,6 +989,17 @@ export function AddHost({
                 maxFiles={MEDIA_LIMITS.maxBatchFiles}
                 imagesOnly={imagesOnly}
                 onFiles={queueFiles}
+                resume={
+                  <CaptureResumeBlock
+                    entries={resumable}
+                    onContinue={(entry) => void continueEntry(entry)}
+                  />
+                }
+                keepOpenNote={
+                  capture && !capture.capabilities.storeBytes
+                    ? CAPTURE_COPY.keepOpen
+                    : null
+                }
               />
               <UploadDialog
                 open={uploadOpen}
@@ -903,6 +1061,17 @@ function replaceState(outcome: ReplaceOutcome): ReplaceState {
         : (refusal?.message ?? copy.other),
     at: Date.now(),
   }
+}
+
+/** A journal entry's labels typed before reservation, if well formed. */
+function pendingLabelsOf(
+  value: unknown
+): { venueId: string; input: SaveLabelsInput } | null {
+  if (!value || typeof value !== "object") return null
+  const { venueId, input } = value as { venueId?: unknown; input?: unknown }
+  return typeof venueId === "string" && input && typeof input === "object"
+    ? { venueId, input: input as SaveLabelsInput }
+    : null
 }
 
 /** What an Add call's files show: Our menu's dish, or the call's subject. */

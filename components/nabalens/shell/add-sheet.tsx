@@ -40,6 +40,8 @@ export function AddSheet({
   maxFiles,
   imagesOnly = false,
   context = null,
+  resume = null,
+  keepOpenNote = null,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -51,6 +53,10 @@ export function AddSheet({
   imagesOnly?: boolean
   /** With the shared entry on: the venue and who sees the photos (§4.2). */
   context?: { venueName: string; audience: string } | null
+  /** B05-05d: uploads that didn't finish in an earlier tab. */
+  resume?: React.ReactNode
+  /** B05-05 (OD-B5-05-3): this browser can't keep photos if the page closes. */
+  keepOpenNote?: string | null
 }) {
   // The inputs live inside the sheet, so the click that opens a picker is on
   // the open dialog's own content.
@@ -85,6 +91,7 @@ export function AddSheet({
                 audience={context.audience}
               />
             ) : null}
+            {resume}
             <div className="grid gap-3">
               <AddOption
                 icon={<ImageIcon aria-hidden className="size-7" />}
@@ -104,6 +111,15 @@ export function AddSheet({
               <InfoIcon aria-hidden className="mt-0.5 size-4 flex-none" />
               Photos start saving as soon as you pick them.
             </p>
+            {keepOpenNote ? (
+              <p
+                data-capture-keep-open=""
+                className="flex gap-2 text-meta-touch text-ink-muted md:text-meta"
+              >
+                <InfoIcon aria-hidden className="mt-0.5 size-4 flex-none" />
+                {keepOpenNote}
+              </p>
+            ) : null}
           </>
         )}
         <DialogFooter>

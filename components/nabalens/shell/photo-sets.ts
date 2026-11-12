@@ -123,6 +123,7 @@ export function sessionSetKeys(): SetKeyStore {
 export const SET_RETRY_DELAYS = [2_000, 8_000, 30_000]
 
 type SetState = {
+  id: string
   subject: SetSubject
   /**
    * Reserved photos in arrival order: at most GROUP_LIMITS.maxMembers live
@@ -158,13 +159,26 @@ export class PhotoSets {
       /** The database has no groups (or they are off): sets end here. */
       onMissing?: () => void
       later?: (run: () => void, ms: number) => void
+      /** B05-05c: the set's start key, once it has one (the journal's groupKey). */
+      onKey?: (setId: string, key: string) => void
     } = {}
   ) {}
+
+  private keyListeners = new Set<(setId: string, key: string) => void>()
+
+  /** Hear each set's start key (B05-05c); returns the unsubscribe. */
+  listenKeys(listener: (setId: string, key: string) => void): () => void {
+    this.keyListeners.add(listener)
+    return () => {
+      this.keyListeners.delete(listener)
+    }
+  }
 
   /** A new set for one pick; photos join it with `reserved`. */
   open(subject: SetSubject): string {
     const id = `set-${++this.next}`
     this.sets.set(id, {
+      id,
       subject,
       assets: [],
       added: new Set(),
@@ -332,8 +346,11 @@ export class PhotoSets {
     try {
       if (!set.groupId) {
         const scope = `${set.subject.kind}:${set.subject.id ?? ""}:${set.assets[0]}`
+        const key = this.keys.keyFor(scope)
+        this.options.onKey?.(set.id, key)
+        for (const listener of this.keyListeners) listener(set.id, key)
         const reply = await this.transport.start({
-          key: this.keys.keyFor(scope),
+          key,
           subject: { kind: set.subject.kind, id: set.subject.id },
         })
         outcome = this.outcome(reply)
