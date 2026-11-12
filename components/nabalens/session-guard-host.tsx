@@ -23,6 +23,8 @@ import {
 const CHECK_EVERY_MS = 30_000
 /** A signed-out reading is confirmed once before the sheet opens. */
 const CONFIRM_AFTER_MS = 1_000
+/** The sheet's exit (--duration-sheet, 260 ms) with room to spare. */
+const REFRESH_FALLBACK_MS = 1_000
 
 /**
  * The browser side of a session guard: who is signed in (kept through expiry
@@ -267,13 +269,49 @@ export function SessionGuardHost({
     }
   }, [])
 
+  // Server data for the new session; client state (form input) is kept. The
+  // refresh waits until the sheet has closed and handed focus back, so a
+  // refreshed page cannot remove the element focus is returning to first.
+  // A fallback runs it anyway if the close never completes (an exit
+  // animation stalled in a hidden tab), and at once if no sheet was open.
+  const refreshPending = React.useRef(false)
+  const refreshFallback = React.useRef<number | null>(null)
+  const openRef = React.useRef(open)
+  React.useEffect(() => {
+    openRef.current = open
+  }, [open])
+  const runPendingRefresh = React.useCallback(() => {
+    if (refreshFallback.current !== null) {
+      window.clearTimeout(refreshFallback.current)
+      refreshFallback.current = null
+    }
+    if (!refreshPending.current) return
+    refreshPending.current = false
+    router.refresh()
+  }, [router])
+  React.useEffect(
+    () => () => {
+      if (refreshFallback.current !== null)
+        window.clearTimeout(refreshFallback.current)
+    },
+    []
+  )
+
   const signedInAgain = React.useCallback(() => {
     shown.current = false
     quiet.current = false
+    refreshPending.current = true
+    if (!openRef.current) {
+      runPendingRefresh()
+      return
+    }
     setOpen(false)
-    // Server data for the new session; client state (form input) is kept.
-    router.refresh()
-  }, [router])
+    if (refreshFallback.current === null)
+      refreshFallback.current = window.setTimeout(
+        runPendingRefresh,
+        REFRESH_FALLBACK_MS
+      )
+  }, [runPendingRefresh])
   useSignedInAgain(open, guard.isSignedInAgain, signedInAgain)
 
   const onOpenChange = React.useCallback((next: boolean) => {
@@ -296,6 +334,12 @@ export function SessionGuardHost({
           guard={guard}
           variant="page"
           onSignedIn={signedInAgain}
+          onClosed={() => {
+            // Base UI reports the close complete while the popup is still
+            // mounted; it unmounts and returns focus (commit + microtask)
+            // right after. One task later, focus is back where it came from.
+            window.setTimeout(runPendingRefresh, 0)
+          }}
         />
       </ReportSessionEnded.Provider>
     </SessionGuardProvider>

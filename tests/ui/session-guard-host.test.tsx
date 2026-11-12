@@ -185,6 +185,27 @@ describe("SessionGuardHost", () => {
     expect(refresh).toHaveBeenCalledOnce()
   })
 
+  it("refreshes only after the sheet has closed, so focus goes back first", async () => {
+    // A refreshed page may remove the element the sheet hands focus back to.
+    // At the moment of the refresh the sheet must already be gone.
+    const seenAtRefresh: { dialogOpen: boolean }[] = []
+    refresh.mockImplementation(() => {
+      seenAtRefresh.push({ dialogOpen: screen.queryByRole("dialog") !== null })
+    })
+    const user = renderHost()
+    await signedInFirst()
+    auth.session = null
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await sheet()
+    auth.session = ME
+    act(() => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
+    expect(seenAtRefresh).toEqual([{ dialogOpen: false }])
+    expect(screen.queryByRole("dialog")).toBeNull()
+  })
+
   it("stays open, without refreshing, while offline or unsure", async () => {
     const user = renderHost()
     await signedInFirst()
