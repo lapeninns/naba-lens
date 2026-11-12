@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url"
 
 import { describe, expect, it } from "vitest"
 
-import { renderMetricsDoc, renderRunbookIndex } from "@/lib/ops/docs"
+import {
+  renderMetricsDoc,
+  renderRunbook,
+  renderRunbookIndex,
+} from "@/lib/ops/docs"
 import { formattedOpsDocs } from "@/scripts/ops/docs-format"
 import {
   OPS_BYTES_MAX,
@@ -169,6 +173,8 @@ describe("T-B10-02 generated documents", () => {
     expect(docs.map(([path]) => path)).toEqual([
       "docs/operations/metrics.md",
       "docs/operations/runbooks/README.md",
+      ...RUNBOOKS.map((rb) => `docs/operations/runbooks/${rb.id}.md`),
+      "docs/operations/switches.md",
     ])
     for (const [path, text] of docs)
       expect(readFileSync(join(root, path), "utf8"), path).toBe(text)
@@ -178,7 +184,10 @@ describe("T-B10-02 generated documents", () => {
     const metricsDoc = renderMetricsDoc()
     for (const m of METRICS) expect(metricsDoc).toContain(`| ${m.id} |`)
     const runbookDoc = renderRunbookIndex()
-    for (const rb of RUNBOOKS) expect(runbookDoc).toContain(`## ${rb.id} `)
+    for (const rb of RUNBOOKS) {
+      expect(runbookDoc).toContain(`| [${rb.id}](${rb.id}.md) |`)
+      expect(renderRunbook(rb)).toContain(`# ${rb.id} ${rb.title}`)
+    }
   })
 })
 

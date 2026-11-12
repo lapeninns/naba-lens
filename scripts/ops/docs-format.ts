@@ -2,7 +2,13 @@ import { join } from "node:path"
 
 import { format, resolveConfig } from "prettier"
 
-import { renderMetricsDoc, renderRunbookIndex } from "../../lib/ops/docs"
+import {
+  renderMetricsDoc,
+  renderRunbook,
+  renderRunbookIndex,
+  renderSwitchCatalogue,
+} from "../../lib/ops/docs"
+import { RUNBOOKS } from "../../lib/ops/runbooks"
 
 /** The generated operations documents, formatted as the repository formats Markdown. */
 export async function formattedOpsDocs(
@@ -11,6 +17,11 @@ export async function formattedOpsDocs(
   const docs: [string, string][] = [
     ["docs/operations/metrics.md", renderMetricsDoc()],
     ["docs/operations/runbooks/README.md", renderRunbookIndex()],
+    ...RUNBOOKS.map((rb): [string, string] => [
+      `docs/operations/runbooks/${rb.id}.md`,
+      renderRunbook(rb),
+    ]),
+    ["docs/operations/switches.md", renderSwitchCatalogue()],
   ]
   return Promise.all(
     docs.map(async ([path, text]): Promise<[string, string]> => {

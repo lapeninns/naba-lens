@@ -13,7 +13,8 @@ import {
   type MetricDefinition,
   type SourceBatch,
 } from "./metrics"
-import { RUNBOOKS } from "./runbooks"
+import { RUNBOOKS, type RunbookDefinition } from "./runbooks"
+import { ONE_WAY_SETTINGS, SWITCHES, switchById } from "./switches"
 
 const GENERATED =
   "<!-- Generated from lib/ops by scripts/ops/write-docs.ts. Do not edit by hand. -->"
@@ -90,35 +91,108 @@ export function renderMetricsDoc(
   return lines.join("\n")
 }
 
+const switchText = (rb: RunbookDefinition) =>
+  rb.switches.length
+    ? rb.switches
+        .map((id) => `${id} (${switchById(id)?.title ?? "unknown"})`)
+        .join(", ")
+    : "none"
+
 export function renderRunbookIndex(): string {
   const lines = [
     GENERATED,
     "",
     "# Runbooks",
     "",
-    "The B10-02 runbook index. Each runbook has the fields plan §19 requires and one recovery drill, run only on an owned isolated stack. A drill that has not run reads not_exercised; one that waits names what it needs. Write a full runbook from RB-00-template.md.",
+    "The B10-02 runbook index. Each runbook has the fields plan §19 requires and one recovery drill, run only on an owned isolated stack. A drill that has not run reads not_exercised; queued means it is requested from the coordinator; one that waits names what it needs. No drill is passed until an owned-stack run is recorded. Start with [RB-17 Incident triage](RB-17.md). Switches: [switch catalogue](../switches.md).",
     "",
-    "| ID | Situation | Triggers | Operator | Narrowest switch | Drill readiness | Waiting for | Drill status |",
+    "Runbooks marked out_of_scope serve external destinations (websites, NabaPresence), which the owner scope correction of 11 Nov 2026 removed from the current goal. They are kept for the record and are not complete.",
+    "",
+    "| ID | Situation | Triggers | Operator | Scope | Drill readiness | Waiting for | Drill status |",
     "|---|---|---|---|---|---|---|---|",
   ]
   for (const rb of RUNBOOKS)
     lines.push(
-      `| ${rb.id} | ${cell(rb.title)} | ${cell([...rb.triggerMetrics, ...rb.otherTriggers].join(", "))} | ${rb.operatorRole} | ${cell(rb.narrowestSwitch)} | ${rb.drill.readiness} | ${rb.drill.waitingFor.join(", ") || "none"} | ${rb.drill.status} |`
+      `| [${rb.id}](${rb.id}.md) | ${cell(rb.title)} | ${cell([...rb.triggerMetrics, ...rb.otherTriggers].join(", "))} | ${rb.operatorRole} | ${rb.scope} | ${rb.drill.readiness} | ${rb.drill.waitingFor.join(", ") || "none"} | ${rb.drill.status} |`
     )
   lines.push("")
-  for (const rb of RUNBOOKS) {
+  return lines.join("\n")
+}
+
+export function renderRunbook(rb: RunbookDefinition): string {
+  const lines = [
+    GENERATED,
+    "",
+    `# ${rb.id} ${rb.title}`,
+    "",
+    `Scope: ${rb.scope === "internal" ? "NabaLens internal" : "out of scope (external destination; owner scope correction, 11 Nov 2026). Kept for the record, not complete"}. Back to the [index](README.md).`,
+    "",
+    "| Field | Content |",
+    "|---|---|",
+    `| Trigger | ${cell([...rb.triggerMetrics, ...rb.otherTriggers].join(", "))} |`,
+    `| Operator role | ${rb.operatorRole} |`,
+    `| First checks | ${cell(rb.firstChecks)} |`,
+    `| Steps | ${cell(rb.steps)} |`,
+    `| Narrowest switch | ${cell(rb.narrowestSwitch)} |`,
+    `| Switches in the catalogue | ${cell(switchText(rb))} |`,
+    `| Data implications | ${cell(rb.dataImplications)} |`,
+    `| Pending delivery | ${cell(rb.pendingDelivery)} |`,
+    `| Readback that proves recovery | ${cell(rb.readbackProof)} |`,
+    "",
+    "## Checks without a database",
+    "",
+  ]
+  if (rb.checks.length)
+    for (const c of rb.checks)
+      lines.push(`- ${c.kind}: \`${c.ref}\`: ${c.proves}`)
+  else lines.push("- None. The claims need a database; see the drill.")
+  lines.push(
+    "",
+    "## Drill",
+    "",
+    `- Description: ${rb.drill.description}`,
+    `- Readiness: ${rb.drill.readiness}${rb.drill.waitingFor.length ? ` (waiting for ${rb.drill.waitingFor.join(", ")})` : ""}`,
+    `- Status: ${rb.drill.status}`,
+    "- Environment: an owned isolated stack only, never production or a shared database.",
+    `- Evidence: \`${rb.evidencePath}\``,
+    ""
+  )
+  return lines.join("\n")
+}
+
+export function renderSwitchCatalogue(): string {
+  const lines = [
+    GENERATED,
+    "",
+    "# Switch catalogue",
+    "",
+    "B10-02b. Every NabaLens disable switch, its scope, and what keeps running while it is off. Use the narrowest one that stops harm. A switch marked owner-gated changes production configuration (an environment variable, a schedule or reviewed SQL) and needs the owner's approval (X1) first. External destinations are out of scope and have no switch here.",
+    "",
+    "| ID | Switch | Scope | Mechanism | Owner-gated | Used by |",
+    "|---|---|---|---|---|---|",
+  ]
+  for (const s of SWITCHES) {
+    const usedBy = RUNBOOKS.filter((rb) => rb.switches.includes(s.id))
+      .map((rb) => rb.id)
+      .join(", ")
     lines.push(
-      `## ${rb.id} ${rb.title}`,
-      "",
-      `- First checks: ${rb.firstChecks}`,
-      `- Steps: ${rb.steps}`,
-      `- Data implications: ${rb.dataImplications}`,
-      `- Pending delivery: ${rb.pendingDelivery}`,
-      `- Readback that proves recovery: ${rb.readbackProof}`,
-      `- Drill: ${rb.drill.description}`,
-      `- Evidence: \`${rb.evidencePath}\``,
-      ""
+      `| ${s.id} | ${cell(s.title)} | ${s.scope} | ${s.mechanism} | ${s.ownerGated ? "yes" : "no"} | ${usedBy || "none"} |`
     )
   }
+  lines.push("")
+  for (const s of SWITCHES)
+    lines.push(
+      `## ${s.id} ${s.title}`,
+      "",
+      `- Turn off: ${s.howToTurnOff}`,
+      `- Stops: ${s.stops}`,
+      `- Keeps running: ${s.keepsRunning}`,
+      `- Restore: ${s.restore}`,
+      `- Operator: ${s.operatorRole}. Source: \`${s.source.file}\``,
+      ""
+    )
+  lines.push("## One-way settings (not switches)", "")
+  for (const o of ONE_WAY_SETTINGS) lines.push(`- ${o.title}: ${o.why}`)
+  lines.push("")
   return lines.join("\n")
 }

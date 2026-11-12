@@ -28,13 +28,40 @@ export type RunbookDefinition = {
     readiness: RunbookReadiness
     /** Batches or decisions the drill (or its waiting part) needs. */
     waitingFor: readonly (SourceBatch | string)[]
-    status: "not_exercised"
+    /**
+     * not_exercised: no drill has run. queued: the owned-stack drill is
+     * requested in the coordinator queue (lanes/QUEUE.md). Only a recorded
+     * owned-stack run may ever mark a drill passed.
+     */
+    status: "not_exercised" | "queued"
   }
   evidencePath: string
+  /**
+   * internal: a NabaLens runbook. out_of_scope: it serves an external
+   * destination (website, NabaPresence), out of scope since the owner scope
+   * correction of 11 Nov 2026; kept for the record, not complete.
+   */
+  scope: "internal" | "out_of_scope"
+  /** Switch IDs from lib/ops/switches.ts; empty when nothing narrower than per item exists. */
+  switches: readonly string[]
+  /**
+   * Checks that exercise the runbook's claims without a database: unit tests
+   * that run with pnpm test, or static source facts. They never replace the
+   * owned-stack drill.
+   */
+  checks: readonly RunbookCheck[]
+}
+
+export type RunbookCheck = {
+  kind: "unit" | "static"
+  /** A test file, a package script (pnpm …) or, for static, a source file. */
+  ref: string
+  proves: string
 }
 
 const evidence = (id: string) => `evidence/b10-02/${id}/`
 const NOT_EXERCISED = "not_exercised" as const
+const QUEUED = "queued" as const
 const NO_DELIVERY = "No consumer delivery is involved."
 
 export const RUNBOOKS: readonly RunbookDefinition[] = [
@@ -59,9 +86,12 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
         "An interrupted TUS transfer and a lost finalise response; expect one asset and one contribution (tests/integration/upload-recovery.test.ts cases as the base).",
       readiness: "ready_on_main",
       waitingFor: [],
-      status: NOT_EXERCISED,
+      status: QUEUED,
     },
     evidencePath: evidence("RB-01"),
+    scope: "internal",
+    switches: [],
+    checks: [],
   },
   {
     id: "RB-02",
@@ -82,9 +112,12 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
         "Seed a processing asset older than 30 min, run the cleanup route, expect failed, then a retry reaches ready.",
       readiness: "ready_on_main",
       waitingFor: [],
-      status: NOT_EXERCISED,
+      status: QUEUED,
     },
     evidencePath: evidence("RB-02"),
+    scope: "internal",
+    switches: [],
+    checks: [],
   },
   {
     id: "RB-03",
@@ -106,9 +139,12 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
         "Inject a storage removal failure; expect pending, then removed after a retry.",
       readiness: "ready_on_main",
       waitingFor: [],
-      status: NOT_EXERCISED,
+      status: QUEUED,
     },
     evidencePath: evidence("RB-03"),
+    scope: "internal",
+    switches: ["SW-08"],
+    checks: [],
   },
   {
     id: "RB-04",
@@ -136,6 +172,9 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
       status: NOT_EXERCISED,
     },
     evidencePath: evidence("RB-04"),
+    scope: "internal",
+    switches: ["SW-01"],
+    checks: [],
   },
   {
     id: "RB-05",
@@ -160,6 +199,9 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
       status: NOT_EXERCISED,
     },
     evidencePath: evidence("RB-05"),
+    scope: "internal",
+    switches: ["SW-01"],
+    checks: [],
   },
   {
     id: "RB-06",
@@ -182,9 +224,40 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
         "For each job: skip its calls and see the heartbeat breach; call it once; call it twice and confirm nothing doubles. The four main crons are drillable now; each later job when it ships.",
       readiness: "ready_on_main",
       waitingFor: [],
-      status: NOT_EXERCISED,
+      status: QUEUED,
     },
     evidencePath: evidence("RB-06"),
+    scope: "internal",
+    switches: ["SW-08", "SW-09", "SW-10", "SW-11"],
+    checks: [
+      {
+        kind: "unit",
+        ref: "tests/unit/ops-heartbeats.test.ts",
+        proves:
+          "Each of the four crons writes one terminal heartbeat per authorised run; a missed run breaches M-JB-1 after two intervals",
+      },
+      {
+        kind: "unit",
+        ref: "tests/unit/coverage-routes.test.ts",
+        proves:
+          "Monthly preparation refuses a missing or wrong bearer (401) and missing configuration (503)",
+      },
+      {
+        kind: "unit",
+        ref: "tests/unit/media-archive-routes.test.ts",
+        proves: "The media archive routes refuse a missing or wrong bearer",
+      },
+      {
+        kind: "unit",
+        ref: "tests/unit/archive-monitor-watchdog.test.ts",
+        proves: "The watchdog keeps its own dead-man state",
+      },
+      {
+        kind: "unit",
+        ref: "tests/unit/ops-switches.test.ts",
+        proves: "Each job switch (SW-08 to SW-11) exists in vercel.json",
+      },
+    ],
   },
   {
     id: "RB-07",
@@ -206,9 +279,25 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
         "Rotate a fixture consumer with overlap and no failed reads; an expired credential returns 401 and the consumer recovers after the update. The cleanup and monitor secrets are drillable now.",
       readiness: "partly_ready",
       waitingFor: ["B01"],
-      status: NOT_EXERCISED,
+      status: QUEUED,
     },
     evidencePath: evidence("RB-07"),
+    scope: "internal",
+    switches: ["SW-03", "SW-02"],
+    checks: [
+      {
+        kind: "unit",
+        ref: "tests/unit/knowledge-reader-credentials.test.ts",
+        proves:
+          "Two active credentials overlap during rotation; a disabled consumer and an unknown credential are refused",
+      },
+      {
+        kind: "unit",
+        ref: "tests/unit/ops-switches.test.ts",
+        proves:
+          "KNOWLEDGE_READER_ENABLED other than true disables the reader; disabled: true is read per consumer",
+      },
+    ],
   },
   {
     id: "RB-08",
@@ -234,6 +323,9 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
       status: NOT_EXERCISED,
     },
     evidencePath: evidence("RB-08"),
+    scope: "out_of_scope",
+    switches: [],
+    checks: [],
   },
   {
     id: "RB-09",
@@ -258,6 +350,9 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
       status: NOT_EXERCISED,
     },
     evidencePath: evidence("RB-09"),
+    scope: "out_of_scope",
+    switches: [],
+    checks: [],
   },
   {
     id: "RB-10",
@@ -282,6 +377,9 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
       status: NOT_EXERCISED,
     },
     evidencePath: evidence("RB-10"),
+    scope: "internal",
+    switches: [],
+    checks: [],
   },
   {
     id: "RB-11",
@@ -301,9 +399,19 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
         "Reuse the tests/archive controlled failures on the owned stack.",
       readiness: "ready_on_main",
       waitingFor: [],
-      status: NOT_EXERCISED,
+      status: QUEUED,
     },
     evidencePath: evidence("RB-11"),
+    scope: "internal",
+    switches: ["SW-09", "SW-10"],
+    checks: [
+      {
+        kind: "unit",
+        ref: "pnpm test:archive",
+        proves:
+          "The archive checker's controlled failures (unit suite: audit faults, lease, status, monitor checker)",
+      },
+    ],
   },
   {
     id: "RB-12",
@@ -326,9 +434,24 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
         "Full restore rehearsal on an owned stack with before and after counts. The replica-mode partial loads (one failing and one passing the B05 check) need B05-m1.",
       readiness: "partly_ready",
       waitingFor: ["B05", "OD-B10-13"],
-      status: NOT_EXERCISED,
+      status: QUEUED,
     },
     evidencePath: evidence("RB-12"),
+    scope: "internal",
+    switches: ["SW-02"],
+    checks: [
+      {
+        kind: "static",
+        ref: "scripts/db/verify-restore.ts",
+        proves: "The restore comparison script exists",
+      },
+      {
+        kind: "static",
+        ref: "scripts/db/restore-local.sh",
+        proves:
+          "The local restore loads with session_replication_role = replica, as the caveat says",
+      },
+    ],
   },
   {
     id: "RB-13",
@@ -348,9 +471,23 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
         "Deactivate a fixture staff account; its existing session is refused.",
       readiness: "ready_on_main",
       waitingFor: [],
-      status: NOT_EXERCISED,
+      status: QUEUED,
     },
     evidencePath: evidence("RB-13"),
+    scope: "internal",
+    switches: ["SW-12"],
+    checks: [
+      {
+        kind: "unit",
+        ref: "tests/ui/staff-account-controls.test.tsx",
+        proves: "Deactivate asks for confirmation in the named-person dialog",
+      },
+      {
+        kind: "unit",
+        ref: "tests/unit/ops-switches.test.ts",
+        proves: "SW-12 points at setStaffActive",
+      },
+    ],
   },
   {
     id: "RB-14",
@@ -372,6 +509,9 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
       status: NOT_EXERCISED,
     },
     evidencePath: evidence("RB-14"),
+    scope: "internal",
+    switches: [],
+    checks: [],
   },
   {
     id: "RB-15",
@@ -395,6 +535,9 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
       status: NOT_EXERCISED,
     },
     evidencePath: evidence("RB-15"),
+    scope: "out_of_scope",
+    switches: [],
+    checks: [],
   },
   {
     id: "RB-16",
@@ -418,5 +561,205 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
       status: NOT_EXERCISED,
     },
     evidencePath: evidence("RB-16"),
+    scope: "internal",
+    switches: [],
+    checks: [],
+  },
+  {
+    id: "RB-17",
+    title: "Incident triage",
+    triggerMetrics: [],
+    otherTriggers: [
+      "Any metric in breach",
+      "A staff or manager report",
+      "A failed check after a deploy",
+    ],
+    operatorRole: "OPS",
+    firstChecks:
+      "Record the UTC time, the venue UUID, the screen or route, the account kind (never a name in the ticket) and the deployment in production. Read the dashboard metrics, the last ops_job_runs rows and the cleanup and archive reports. Never ask for media, sign-in links or secrets.",
+    steps:
+      "Classify, highest first: (1) data exposure or cross-account access: escalate to the owner and security contact now and restrict access under the approved incident plan; (2) data loss: stop writes at the narrowest switch and go to RB-12; (3) a journey broken for everyone after a deploy: go to RB-18; (4) one venue, account, job or file: go to the runbook its trigger names (RB-01 to RB-21). If nothing matches, keep the incident open with the owner; never improvise a data change.",
+    narrowestSwitch:
+      "The one the matched runbook names; see docs/operations/switches.md",
+    dataImplications:
+      "Triage reads only. It changes no row, object, setting or credential.",
+    pendingDelivery: NO_DELIVERY,
+    readbackProof:
+      "The matched runbook's readback passes and the incident record names the runbook, the switch used (or none) and the times.",
+    drill: {
+      description:
+        "A tabletop walk: for each trigger metric and report, the index names exactly one runbook, and every switch a runbook names exists in the catalogue.",
+      readiness: "ready_on_main",
+      waitingFor: [],
+      status: NOT_EXERCISED,
+    },
+    evidencePath: evidence("RB-17"),
+    scope: "internal",
+    switches: [],
+    checks: [
+      {
+        kind: "unit",
+        ref: "tests/unit/ops-runbooks.test.ts",
+        proves:
+          "Every runbook has the plan §19 fields, and every switch it names exists",
+      },
+      {
+        kind: "unit",
+        ref: "tests/unit/ops-switches.test.ts",
+        proves: "Every switch in the catalogue exists in source",
+      },
+    ],
+  },
+  {
+    id: "RB-18",
+    title: "Release or migration rollback",
+    triggerMetrics: [],
+    otherTriggers: [
+      "A journey broken after a release",
+      "A migration that misbehaves in production",
+    ],
+    operatorRole: "OPS",
+    firstChecks:
+      "Confirm the production deployment and the last applied migration from a deploy readback. Find the change that caused it and read its rollback note: B01 design §16, B02 design §7 and the comment at the top of each migration.",
+    steps:
+      "Lightest first: (1) a UI switch back to the earlier behaviour (SW-04 to SW-07) or a narrower data switch (SW-01); (2) promote the previous deployment: the B01 and B02 migrations are additive and B02 re-created existing functions with the same signatures and only additive result keys (B02 design §7.1), so the earlier app keeps working; check the rollback note of any later release before relying on this; (3) a forward migration that restores earlier function bodies or grants, written from the rollback note, rehearsed on an owned stack and reviewed. Schema is forward-only: never drop a table that holds data, disable a trigger, or edit an applied migration. Coverage has its own withdrawal (SW-14). Every production step needs the owner's approval (X1).",
+    narrowestSwitch:
+      "A UI switch (SW-04 to SW-07) or the working list (SW-01) before any deployment change",
+    dataImplications:
+      "Rows written under the newer release are kept and stay readable by the earlier app; nothing is deleted or converted.",
+    pendingDelivery: NO_DELIVERY,
+    readbackProof:
+      "The deploy readback shows the intended deployment and migration list, and the broken journey works.",
+    drill: {
+      description:
+        "On an owned stack: apply the release's migrations, run the earlier app's focused tests against them, then apply the forward restore and run them again. The coverage withdrawal rehearsal (node tests/migrations/run.mjs <stack> withdraw) is the existing base.",
+      readiness: "ready_on_main",
+      waitingFor: [],
+      status: QUEUED,
+    },
+    evidencePath: evidence("RB-18"),
+    scope: "internal",
+    switches: ["SW-04", "SW-05", "SW-06", "SW-07", "SW-01", "SW-14"],
+    checks: [
+      {
+        kind: "unit",
+        ref: "tests/unit/ops-switches.test.ts",
+        proves:
+          "Each B02 switch falls back to b01 when set, per venue where it has a list, and defaults to b02",
+      },
+      {
+        kind: "static",
+        ref: "supabase/migrations",
+        proves:
+          "Every released migration since B01 carries a rollback note (checked in tests/unit/ops-runbooks.test.ts)",
+      },
+    ],
+  },
+  {
+    id: "RB-19",
+    title: "Data repair",
+    triggerMetrics: [],
+    otherTriggers: [
+      "A wrong answer, label, target, assignment or venue reported by a manager",
+    ],
+    operatorRole: "OPS",
+    firstChecks:
+      "Identify the row by venue, kind and time from the app, not by editing tables. Check whether the app has a path for the correction.",
+    steps:
+      "Use the app's own path: a staff member reports a change to a current answer and the confirmer decides; labels are corrected in admin labels; a target is changed by a manager or an admin correction; a person moves venue from Staff; a wrong check is rechecked. Every one keeps history. When no path exists, stop: a fix is a reviewed function or forward migration, rehearsed on an owned stack, approved by the owner. Never update or delete application rows by hand, bypass RLS or Storage policies, or delete a row without its object lifecycle.",
+    narrowestSwitch:
+      "Remove the affected question from the venue's working list (SW-01) while the repair waits",
+    dataImplications:
+      "The correction is a new event or revision; the earlier value stays in history.",
+    pendingDelivery: NO_DELIVERY,
+    readbackProof:
+      "The screen shows the corrected value, and its history shows both the earlier value and the correction.",
+    drill: {
+      description:
+        "On an owned stack: correct a fixture answer through a reported change and a decision, a fixture target through an admin correction, and a fixture label; each history keeps both values.",
+      readiness: "ready_on_main",
+      waitingFor: [],
+      status: QUEUED,
+    },
+    evidencePath: evidence("RB-19"),
+    scope: "internal",
+    switches: ["SW-01"],
+    checks: [
+      {
+        kind: "unit",
+        ref: "tests/unit/ops-runbooks.test.ts",
+        proves:
+          "No runbook step tells an operator to update, delete or truncate application rows by hand",
+      },
+    ],
+  },
+  {
+    id: "RB-20",
+    title: "Monthly credit query",
+    triggerMetrics: [],
+    otherTriggers: ["A person says their monthly count is wrong"],
+    operatorRole: "OPS",
+    firstChecks:
+      "Find the person's venue, month and target row (Needs setup means no target yet). Credit is computed when read from immutable history (private.monthly_venue_completion_counts); there is no stored count to inspect.",
+    steps:
+      "Explain with the documented rules (docs/usage-staff.md, What counts toward your monthly target): a photo counts once, after acceptance, when uploaded and sent at the venue in the same UK month; a photo deleted in its month stops counting; past months keep accepted totals; manager-added and attached photos count for the task only; after a move, past months stay with the old venue; a Couldn't establish answer gives no credit. If the rules give the count shown, close the query. If they do not, it is a defect: record it for WS1 with the venue, month and account kind. Counts are never edited; a past-month change waits for B08 corrections and the owner's decisions on credit.",
+    narrowestSwitch: "None: credit is derived, never switched",
+    dataImplications: "None: credit is never written by hand.",
+    pendingDelivery: NO_DELIVERY,
+    readbackProof:
+      "The count shown equals the documented rules applied to the person's history, or a defect is recorded.",
+    drill: {
+      description:
+        "The credit characterisation tests (tests/security/knowledge-credit.test.ts C1 to C23 and the completion-targets credit baseline) on an owned stack.",
+      readiness: "ready_on_main",
+      waitingFor: [],
+      status: QUEUED,
+    },
+    evidencePath: evidence("RB-20"),
+    scope: "internal",
+    switches: [],
+    checks: [],
+  },
+  {
+    id: "RB-21",
+    title: "Access changes",
+    triggerMetrics: [],
+    otherTriggers: [
+      "A joiner, leaver, venue move or manager change",
+      "Access that looks wrong",
+    ],
+    operatorRole: "OPS",
+    firstChecks:
+      "Confirm the request through an approved channel. Read the person's account kind, venue and grants in Staff and Coverage, Venue managers.",
+    steps:
+      "Joiner: invite from Staff. Leaver: Deactivate (SW-12). Venue move: edit the venue in Staff; past months stay with the old venue. Manager access: Make venue manager or Return to staff account in Staff, or grant and revoke under Coverage, Venue managers (SW-13), each with a reason. Never share an account, bypass the admin screens or edit profiles in SQL. Admin accounts are changed only by an authorised operator through the provider procedure.",
+    narrowestSwitch: "One account (SW-12) or one grant (SW-13)",
+    dataImplications:
+      "Every change is audited; the person's photos, credit and history stay with them.",
+    pendingDelivery: NO_DELIVERY,
+    readbackProof:
+      "The person sees exactly their venue's tools on next page load, and History lists the change.",
+    drill: {
+      description:
+        "On an owned stack: invite, move venue, grant and revoke manager access and deactivate a fixture account; each change shows in History and the access matches.",
+      readiness: "ready_on_main",
+      waitingFor: [],
+      status: QUEUED,
+    },
+    evidencePath: evidence("RB-21"),
+    scope: "internal",
+    switches: ["SW-12", "SW-13"],
+    checks: [
+      {
+        kind: "unit",
+        ref: "tests/ui/staff-account-controls.test.tsx",
+        proves: "The admin account controls confirm deactivation by name",
+      },
+      {
+        kind: "unit",
+        ref: "tests/unit/manager-grants-chunk.test.ts",
+        proves: "Grant listings are read in bounded chunks",
+      },
+    ],
   },
 ]

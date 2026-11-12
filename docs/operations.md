@@ -3,6 +3,14 @@
 Use this with [setup](setup.md) and the [release checklist](release-checklist.md).
 There is no operations dashboard or deployed scheduler implied by this guide.
 
+Runbooks for each operating situation are in
+[operations/runbooks](operations/runbooks/README.md); start an incident with
+[RB-17 Incident triage](operations/runbooks/RB-17.md). Every disable switch,
+its scope and what keeps running while it is off is in the
+[switch catalogue](operations/switches.md). Metrics and their thresholds are in
+[operations/metrics](operations/metrics.md). The archive alert runbooks stay in
+[archive monitoring](archive-monitoring.md).
+
 ## Capture safely; publishing is a separate decision
 
 - Capture only when safe. Do not interrupt service, distract colleagues, block
@@ -22,15 +30,15 @@ There is no operations dashboard or deployed scheduler implied by this guide.
 
 At each operating day, and after a deploy or reported failure:
 
-| Check | Action |
-| --- | --- |
+| Check                     | Action                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Failed/incomplete uploads | Ask for the affected filename, time and visible error, not private media or login links in a ticket. Check the per-file status and private server logs. Successful files must not be re-uploaded to fix one failure. Retry the affected file; investigate repeated `decoder_busy`, timeout, corrupt-content or Storage failures rather than weakening validation. |
-| Stuck processing | Check `media_assets.upload_state` and `updated_at` in authorised operator tools. `processing` is not abandonment-cleaned; retry finalisation through the upload UI where available, or escalate to the maintainer. There is no background processing-repair scheduler promised here. Never manually mark an unvalidated asset ready. |
-| Pending deletions | Inspect cleanup reports and tombstoned assets that still have Storage objects. Hidden does not mean physically erased. Retry cleanup and track unresolved failures. |
-| Storage/egress | Check Supabase project's usage/quota/billing, global and bucket upload caps, and growth of originals/derivatives/avatars. Include backup/export costs. No automatic storage budget or ready-media expiry is implemented. |
-| Auth/email | Verify an authorised invitation and sign-in path after configuration changes; inspect Auth/SMTP error codes, sender health and limits. A neutral “Check your email” screen is deliberately not proof of delivery. |
-| Coverage preparation | Early each month and after a deploy, confirm a successful run for the current month and no venue missing targets; see [monthly coverage preparation](#monthly-coverage-preparation). |
-| Privacy/access | Confirm buckets stay private, RLS remains enabled, private responses are not CDN-cached, and a second staff identity cannot access the first's media. Do not publish signed URLs in logs or tickets. |
+| Stuck processing          | Check `media_assets.upload_state` and `updated_at` in authorised operator tools. `processing` is not abandonment-cleaned; retry finalisation through the upload UI where available, or escalate to the maintainer. There is no background processing-repair scheduler promised here. Never manually mark an unvalidated asset ready.                              |
+| Pending deletions         | Inspect cleanup reports and tombstoned assets that still have Storage objects. Hidden does not mean physically erased. Retry cleanup and track unresolved failures.                                                                                                                                                                                               |
+| Storage/egress            | Check Supabase project's usage/quota/billing, global and bucket upload caps, and growth of originals/derivatives/avatars. Include backup/export costs. No automatic storage budget or ready-media expiry is implemented.                                                                                                                                          |
+| Auth/email                | Verify an authorised invitation and sign-in path after configuration changes; inspect Auth/SMTP error codes, sender health and limits. A neutral “Check your email” screen is deliberately not proof of delivery.                                                                                                                                                 |
+| Coverage preparation      | Early each month and after a deploy, confirm a successful run for the current month and no venue missing targets; see [monthly coverage preparation](#monthly-coverage-preparation).                                                                                                                                                                              |
+| Privacy/access            | Confirm buckets stay private, RLS remains enabled, private responses are not CDN-cached, and a second staff identity cannot access the first's media. Do not publish signed URLs in logs or tickets.                                                                                                                                                              |
 
 Useful **read-only** SQL for an authorised operator in the intended environment
 (source: `media_assets`, Storage policies and cleanup migration):
