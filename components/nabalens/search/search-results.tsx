@@ -125,12 +125,16 @@ export function SearchResults({
   // A new server render of page one (router.refresh, a retry, a corrected
   // URL with the same key) replaces whatever this list had loaded since.
   const resultsId = React.useId()
+  // Search again replaced the control that had focus, and its request is
+  // still running: focus is on nothing because of this list.
+  const replacedFocus = React.useRef(false)
   const [seenFirst, setSeenFirst] = React.useState(first)
   if (first !== seenFirst) {
     // Where focus is now, before the reset's commit removes anything: inside
-    // the results (a card or a pager control, also while the window is away,
-    // since the element stays the page's focus), or on nothing while this
-    // list's own request was running (its control had just been replaced).
+    // whatever this list renders (cards, pager controls, the failure notice
+    // or the empty state; also while the window is away, since the element
+    // stays the page's focus), or on nothing because this list replaced its
+    // own focused control (Search again) and that request is still running.
     // Read once, here, so recovery depends on no focus or blur event (React
     // ignores events during its commit; Chromium and WebKit differ on
     // removal). An abandoned render reads it again; nothing is written.
@@ -139,7 +143,7 @@ export function SearchResults({
     const recoverFocus =
       (!onNothing &&
         document.getElementById(resultsId)?.contains(active) === true) ||
-      (onNothing && loading)
+      (onNothing && replacedFocus.current)
     setSeenFirst(first)
     setList((current) => listFrom(first, current.gen + 1, recoverFocus))
     setLoading(false)
@@ -165,6 +169,7 @@ export function SearchResults({
     if (committedGen.current === list.gen) return
     committedGen.current = list.gen
     abort.current?.abort()
+    replacedFocus.current = false // that request was just dropped
     if (!list.recoverFocus) return
     const active = document.activeElement
     if (!active || active === document.body || !active.isConnected)
@@ -219,6 +224,13 @@ export function SearchResults({
     abort.current = controller
     const gen = list.gen
     lastFrom.current = from
+    // Search again's button is replaced by this request's own render; only
+    // then is "focus on nothing" this list's doing (a Show more keeps its
+    // button, and a non-focusing click or a blank-space click is not ours).
+    replacedFocus.current =
+      from === null &&
+      againRef.current !== null &&
+      document.activeElement === againRef.current
     setLoading(true)
     setMore(null)
     let result: SearchPageResult
@@ -230,6 +242,7 @@ export function SearchResults({
     }
     // This list moved on (a new page one, or unmounted) while it was asked.
     if (controller.signal.aborted || committedGen.current !== gen) return
+    replacedFocus.current = false // settled: focus goes where this page says
     setLoading(false)
     if (!result.ok) {
       setMore(
@@ -259,10 +272,22 @@ export function SearchResults({
     })
   }
 
+  // Each branch's root carries resultsId, so the reset snapshot sees focus on
+  // any control this list renders (one branch renders at a time). The
+  // failure and empty wrappers add no box: `contents` keeps their layout.
   if (!first.ok) {
-    return <PageFailure failure={first} onRetry={onRetry} onReload={onReload} />
+    return (
+      <div id={resultsId} className="contents">
+        <PageFailure failure={first} onRetry={onRetry} onReload={onReload} />
+      </div>
+    )
   }
-  if (items.length === 0 && !loading && !more) return <>{empty}</>
+  if (items.length === 0 && !loading && !more)
+    return (
+      <div id={resultsId} className="contents">
+        {empty}
+      </div>
+    )
 
   return (
     <div id={resultsId} className="grid min-w-0 gap-(--gutter)">

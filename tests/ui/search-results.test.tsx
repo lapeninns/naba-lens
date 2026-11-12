@@ -405,6 +405,48 @@ describe("SearchResults follows page one (R1)", () => {
     expect(onLostFocus).toHaveBeenCalledTimes(1)
   })
 
+  it("recovers focus from a failed page one's Sign in link when a refresh brings results", async () => {
+    const signedOut = settled({
+      ok: false,
+      status: 401,
+      code: "signed_out",
+      message: "",
+    })
+    const onLostFocus = vi.fn()
+    const { rerender } = render(
+      <List initialPage={signedOut} onLostFocus={onLostFocus} />
+    )
+    const link = screen.getByRole("link", { name: SEARCH_COPY.signIn })
+    link.focus()
+    expect(document.activeElement).toBe(link)
+    await act(async () => {
+      rerender(<List initialPage={okPage(2)} onLostFocus={onLostFocus} />)
+    })
+    expect(cards()).toHaveLength(2)
+    expect(onLostFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not take focus when Show more is loading and focus is on nothing", async () => {
+    // A Safari-style click (buttons do not take focus), or a click on blank
+    // space after pressing Show more: focus is on nothing, but this list did
+    // not put it there. A refresh during the load must not move focus.
+    fetchMock.fetchSearchPage.mockReturnValue(new Promise(() => {}))
+    const onLostFocus = vi.fn()
+    const { rerender } = render(
+      <List initialPage={okPage(2, "c1")} onLostFocus={onLostFocus} />
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    expect(document.activeElement).toBe(document.body)
+    await act(async () => {
+      rerender(<List initialPage={okPage(1)} onLostFocus={onLostFocus} />)
+    })
+    expect(cards()).toHaveLength(1)
+    expect(onLostFocus).not.toHaveBeenCalled()
+  })
+
   it("leaves focus alone when a new page one arrives while focus is elsewhere", () => {
     const onLostFocus = vi.fn()
     const { rerender } = render(
