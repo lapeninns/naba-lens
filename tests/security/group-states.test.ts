@@ -190,7 +190,7 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
       psql(`select pg_get_constraintdef(c.oid) from pg_constraint c
         where c.conname = 'media_contribution_group_members_position_check'
           and c.conrelid = 'public.media_contribution_group_members'::regclass`)
-    ).toMatch(/position >= 1\).*position <= 30\)/)
+    ).toMatch(/"?position"? >= 1\).*"?position"? <= 30\)/)
     expect(
       psql(`select c.contype || ':' || pg_get_constraintdef(c.oid) from pg_constraint c
         where c.conname = 'media_contribution_group_members_position'
