@@ -167,8 +167,9 @@ test("tandoor set: one forced failure, replaced; one acknowledgement from the se
     finished: false,
   })
 
-  await page.unroute(SIGNED_PUT)
+  // Release the held bytes before unrouting: unroute settles pending routes.
   for (const route of held.splice(0)) await route.continue()
+  await page.unroute(SIGNED_PUT)
 
   // One acknowledgement: three saved, no line for the replaced photo.
   await expect(notices).toContainText(ENTRY_COPY.setSaved(3, dish), {
