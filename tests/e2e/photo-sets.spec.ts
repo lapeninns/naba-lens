@@ -110,7 +110,7 @@ test("tandoor set: one forced failure, replaced; one acknowledgement from the se
   // "Saving 4 photos" while the replacement is listed beside the old row.
   const dialog = page.getByRole("dialog", { name: /^Saving \d photos$/ })
   await expect(dialog).toBeVisible()
-  const notices = dialog.locator("[aria-live=polite]")
+  const notices = dialog.locator("div[aria-live=polite]")
   await expect(notices).toContainText(ENTRY_COPY.setSaved(2, dish), {
     timeout: 90_000,
   })

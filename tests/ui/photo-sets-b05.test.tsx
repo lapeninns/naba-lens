@@ -85,6 +85,8 @@ import type {
   ContributionGroupView,
   GroupMemberTechnical,
 } from "@/lib/knowledge/contract"
+import { toQueueUploader } from "@/lib/upload/queue-adapter"
+import type { UploadFn } from "@/lib/upload/types"
 import type { EntryMenu } from "@/lib/work-client/entry"
 
 const jpeg = (name: string) =>
@@ -414,6 +416,64 @@ describe("Replace a photo that didn't finish (B05-01d)", () => {
         name: ENTRY_COPY.replaceLabel("lost.jpg"),
       })
     ).toBeNull()
+  })
+})
+
+describe("a join still on its way when the set settles (spare6 at 3c3141d0)", () => {
+  it("waits for the damaged photo to join before reading, so Replace is offered", async () => {
+    // The real adapter over an UploadFn shaped like createUploader's: a
+    // reservation, then finalise rejects the damaged file as
+    // processing_failed (not retryable), as the server pipeline does.
+    const upload: UploadFn = async (file, options) => {
+      const assetId = `asset-${file.name}`
+      options.onReserved?.({ assetId, resumable: false })
+      options.onStateChange?.("processing")
+      await new Promise((r) => setTimeout(r, 10))
+      return file.name === "bad.jpg"
+        ? {
+            assetId,
+            state: "failed",
+            error: {
+              code: "processing_failed",
+              message: DAMAGED,
+              retryable: false,
+            },
+          }
+        : { assetId, state: "ready" }
+    }
+    uploads.current = toQueueUploader(upload)
+    // The first join is slow (Server Functions run one after another), so
+    // the damaged photo is reserved while it runs and joins only after the
+    // set has settled in this tab.
+    let release!: () => void
+    const firstJoin = new Promise<void>((r) => (release = r))
+    const join = sets.addToPhotoSet.getMockImplementation()!
+    sets.addToPhotoSet.mockImplementationOnce(async (input) => {
+      await firstJoin
+      return join(input)
+    })
+    const { dialog } = await tandoorSet(["one.jpg", "two.jpg", "bad.jpg"])
+    // The row has failed here (finalise rejected it) while the join waits.
+    expect(
+      await within(dialog).findByText(
+        `This file can't be used: ${DAMAGED.replace(/\.$/, "")}.`
+      )
+    ).toBeTruthy()
+    // Not worded from the queue meanwhile: the read waits for the join.
+    expect(within(dialog).queryByText(badLine)).toBeNull()
+    release()
+    expect(
+      await within(dialog).findByRole("button", {
+        name: ENTRY_COPY.replaceLabel("bad.jpg"),
+      })
+    ).toBeTruthy()
+    expect(await within(dialog).findByText(saved(2))).toBeTruthy()
+    expect(within(dialog).getByText(badLine)).toBeTruthy()
+    // The read that worded the notice saw every member.
+    const reads = await Promise.all(
+      sets.readPhotoSet.mock.results.map((r) => r.value)
+    )
+    expect(reads.at(-1).group.members).toHaveLength(3)
   })
 })
 

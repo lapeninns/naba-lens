@@ -223,7 +223,7 @@ export class PhotoSets {
     const read = this.transport.read
     if (!set || !read) return null
     // A join still on its way would leave a photo out of the read.
-    for (let i = 0; set.running && i < 5; i++) await set.running
+    for (let i = 0; set.running && i < 10; i++) await set.running
     if (!set.groupId || !set.assets.every((id) => set.added.has(id)))
       return null
     try {
@@ -298,6 +298,11 @@ export class PhotoSets {
   }
 
   private run(set: SetState): Promise<void> {
+    // A run already going takes the new photo when its join returns. Its
+    // promise stays the one a read waits for: replacing it with this call's
+    // (which returns at once) let a read go out before that join, and word
+    // the set without the photo.
+    if (set.busy && set.running) return set.running
     const running = this.step(set)
     set.running = running
     void running.finally(() => {

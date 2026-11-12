@@ -118,6 +118,34 @@ describe("reading the set (B05-01e)", () => {
     expect(added(t)).toEqual(["a1", "a2"])
   })
 
+  it("waits for a photo reserved while an earlier join was still running", async () => {
+    let release!: () => void
+    const slow = new Promise<void>((r) => (release = r))
+    const t = transport()
+    const join = t.add.getMockImplementation()!
+    t.add.mockImplementationOnce(async (input) => {
+      await slow
+      return join(input)
+    })
+    const sets = new PhotoSets(t, keys())
+    const set = sets.open(DISH)
+    sets.reserved(set, "a1")
+    sets.reserved(set, "a2")
+    await flush()
+    // Reserved while the first join runs: it joins after it.
+    sets.reserved(set, "a3")
+    const read = sets.read(set)
+    await flush()
+    expect(t.read).not.toHaveBeenCalled()
+    release()
+    expect(await read).toEqual(VIEW)
+    expect(added(t)).toEqual(["a1", "a2", "a3"])
+    // The read went out after a3 joined.
+    expect(t.read.mock.invocationCallOrder[0]).toBeGreaterThan(
+      t.add.mock.invocationCallOrder[1]!
+    )
+  })
+
   it("is null when a photo never joined, or the read failed", async () => {
     const refused = transport({
       add: vi.fn(async () => ({ status: "failed" as const, retry: false })),
