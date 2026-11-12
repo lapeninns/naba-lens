@@ -140,3 +140,83 @@ export function sendClearsLabels(
   const input = (held as JournalLabels | undefined)?.input
   return !input || sameLabelChoice(input, sent)
 }
+
+/**
+ * Keeps the journal's label copy in step with the label store (M3, N2, N3):
+ * which file each reserved asset is, and what was last sent for it. A
+ * confirmed send or a discard clears the journal's copy only when it still
+ * holds that same choice. Files are forgotten when their upload ends, when
+ * removed, when the queue clears and on another account, never on a label
+ * confirmation (a later change or discard must still reach the entry).
+ */
+export function createLabelJournal(
+  annotate: (file: File, patch: { pendingLabels?: unknown }) => void,
+  read: (file: File) => { pendingLabels?: unknown } | undefined
+) {
+  const files = new Map<string, File>()
+  const sent = new Map<string, SaveLabelsInput>()
+  const clearIfHeld = (
+    assetId: string,
+    choice: SaveLabelsInput | undefined
+  ) => {
+    const file = files.get(assetId)
+    if (!file || !choice) return
+    if (sendClearsLabels(read(file)?.pendingLabels, choice))
+      annotate(file, { pendingLabels: undefined })
+  }
+  return {
+    reserved(assetId: string, file: File) {
+      files.set(assetId, file)
+      // Bounded, oldest first.
+      while (files.size > 100) {
+        const oldest = files.keys().next().value!
+        files.delete(oldest)
+        sent.delete(oldest)
+      }
+    },
+    /** A send to the server is about to go. */
+    sending(input: SaveLabelsInput) {
+      sent.set(input.assetId, input)
+    },
+    /** The server took `input` (staged, or on the photo). */
+    confirmed(input: SaveLabelsInput) {
+      clearIfHeld(input.assetId, input)
+    },
+    /** The server discarded what it kept for the asset (the last send). */
+    discarded(assetId: string) {
+      clearIfHeld(assetId, sent.get(assetId))
+    },
+    forgetAsset(assetId: string) {
+      files.delete(assetId)
+      sent.delete(assetId)
+    },
+    forgetFile(file: File) {
+      for (const [assetId, f] of files)
+        if (f === file) {
+          files.delete(assetId)
+          sent.delete(assetId)
+        }
+    },
+    clear() {
+      files.clear()
+      sent.clear()
+    },
+    size: () => files.size,
+  }
+}
+
+/**
+ * N4: whether the panel's emission for a row is its choice yet. A continued
+ * row's first emission is empty until its seed has reached the panel; that
+ * empty one must not clear the labels being sent.
+ */
+export function panelChoiceCounts(
+  input: SaveLabelsInput,
+  awaitingSeed: boolean,
+  seeded: SaveLabelsInput | undefined
+): boolean {
+  if (!awaitingSeed) return true
+  return (
+    !sameLabelChoice(input, undefined) || !sameLabelChoice(seeded, undefined)
+  )
+}

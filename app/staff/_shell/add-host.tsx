@@ -64,9 +64,10 @@ import {
   CAPTURE_COPY,
   CaptureJournalContext,
   CaptureResumeBlock,
+  createLabelJournal,
   journalLabels,
+  panelChoiceCounts,
   resumableEntries,
-  sendClearsLabels,
 } from "@/components/nabalens/shell/capture-resume"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import {
@@ -237,7 +238,11 @@ export function AddHost({
   }, [groupsOn])
   // B05-05 (L1): the File of each reserved asset, so a label send the
   // server took can clear that file's labels in the journal.
-  const assetFiles = React.useRef(new Map<string, File>())
+  const [labelJournal] = React.useState(() =>
+    createLabelJournal(annotateCapture, captureAnnotation)
+  )
+  // Continued files whose resumed labels haven't reached the panel yet (N4).
+  const awaitingSeed = React.useRef(new WeakSet<File>())
   // B05-05c: each set's start key (the journal's groupKey), and the files
   // this tab picked, newest last (bounded).
   const setKeys = React.useRef(new Map<string, string>())
@@ -432,10 +437,7 @@ export function AddHost({
   const openJournal = React.useContext(CaptureJournalContext)
   const [capture, setCapture] = React.useState<CaptureSession | null>(null)
   // Another account (or none): this page's asset files are not its (M5).
-  React.useEffect(() => {
-    const files = assetFiles.current
-    return () => files.clear()
-  }, [userId])
+  React.useEffect(() => () => labelJournal.clear(), [labelJournal, userId])
   React.useEffect(() => {
     if (!userId) return
     let live = true
@@ -495,7 +497,10 @@ export function AddHost({
     // replaces what the server keeps for the asset, so a send whose answer
     // was lost is harmless to repeat.
     const labels = pendingLabelsOf(entry.pendingLabels)
-    if (labels) resumedLabels.current.set(file, labels)
+    if (labels) {
+      resumedLabels.current.set(file, labels)
+      awaitingSeed.current.add(file)
+    }
     const owner: PickOwner = {
       onReady: null,
       onPicked: null,
@@ -594,11 +599,7 @@ export function AddHost({
   // a replacement swaps in for the photo it replaces instead.
   const reservedForSet = React.useCallback(
     (file: File, assetId: string) => {
-      const files = assetFiles.current
-      files.set(assetId, file)
-      // Bounded, oldest first (M5): an entry is only needed until its
-      // labels are confirmed or its upload ends.
-      while (files.size > 100) files.delete(files.keys().next().value!)
+      labelJournal.reserved(assetId, file)
       const swap = replacements.current.get(file)
       if (swap) {
         replacements.current.delete(file)
@@ -626,7 +627,7 @@ export function AddHost({
       const set = fileOwners.current.get(file)?.set
       if (set) photoSets.reserved(set, assetId)
     },
-    [photoSets, setReplaceState]
+    [photoSets, setReplaceState, labelJournal]
   )
   const readSet = React.useCallback(
     (setId: string) => photoSets.read(setId),
@@ -664,7 +665,7 @@ export function AddHost({
       ids.forEach((id, i) => {
         const owner = fileOwners.current.get(files[i])
         // Saved: nothing left for its labels to clear (M5).
-        assetFiles.current.delete(id)
+        labelJournal.forgetAsset(id)
         // A photo the server failed, retried and finished, counts again.
         if (owner?.set) photoSets.finished(owner.set, id)
         if (owner?.onReady?.([id]) === false) kept = false
@@ -672,7 +673,7 @@ export function AddHost({
       for (const listener of readyListeners.current) listener(ids)
       return kept
     },
-    [photoSets]
+    [photoSets, labelJournal]
   )
 
   // Me's Fix labels and Discard labels reach the sheet's rows (C6).
@@ -904,27 +905,16 @@ export function AddHost({
       onSeedWaiting: setDishWaiting,
       // The server took the labels (staged, or on the photo): the journal no
       // longer needs its copy (L1).
+      // The journal's copy follows the server's answers (M3, N2, N3).
       save: async (venueId, input) => {
+        labelJournal.sending(input)
         const result = await saveUploadLabels(venueId, input)
-        const file = assetFiles.current.get(input.assetId)
-        if (
-          result.ok &&
-          file &&
-          sendClearsLabels(captureAnnotation(file)?.pendingLabels, input)
-        ) {
-          annotateCapture(file, { pendingLabels: undefined })
-          assetFiles.current.delete(input.assetId)
-        }
+        if (result.ok) labelJournal.confirmed(input)
         return result
       },
-      // Discarded on the server: nothing for the journal to keep (M3).
       discard: async (assetId) => {
         const result = await discardUploadLabels(assetId)
-        const file = assetFiles.current.get(assetId)
-        if (result && file) {
-          annotateCapture(file, { pendingLabels: undefined })
-          assetFiles.current.delete(assetId)
-        }
+        if (result) labelJournal.discarded(assetId)
         return result
       },
       attention: loadLabelAttention,
@@ -968,10 +958,14 @@ export function AddHost({
             // tab (OD-B5-05-8, M3); an empty choice clears it.
             for (const input of inputs) {
               const item = props.items.find((i) => i.id === input.assetId)
-              if (item)
-                annotateCapture(item.file, {
-                  pendingLabels: journalLabels(venueId, input),
-                })
+              if (!item) continue
+              const waiting = awaitingSeed.current.has(item.file)
+              const seeded = props.initial.find((i) => i.assetId === item.id)
+              if (!panelChoiceCounts(input, waiting, seeded)) continue
+              awaitingSeed.current.delete(item.file)
+              annotateCapture(item.file, {
+                pendingLabels: journalLabels(venueId, input),
+              })
             }
             props.onChange(venueId, inputs)
           }}
@@ -1065,9 +1059,7 @@ export function AddHost({
                 onHoldsChange={holdsChanged}
                 onUnfinished={(file, reason) => {
                   // Removed or cancelled: its asset needs no label clear (M5).
-                  if (reason !== "failed")
-                    for (const [assetId, f] of assetFiles.current)
-                      if (f === file) assetFiles.current.delete(assetId)
+                  if (reason !== "failed") labelJournal.forgetFile(file)
                   fileOwners.current.get(file)?.onUnfinished?.(reason, file)
                 }}
                 onReserved={reservedForSet}
