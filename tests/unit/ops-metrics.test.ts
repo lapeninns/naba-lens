@@ -175,6 +175,11 @@ describe("T-B10-02 generated documents", () => {
       "docs/operations/runbooks/README.md",
       ...RUNBOOKS.map((rb) => `docs/operations/runbooks/${rb.id}.md`),
       "docs/operations/switches.md",
+      "docs/operations/training/README.md",
+      "docs/operations/training/guidance.md",
+      ...["T1", "T2", "T3", "T4", "T5", "T6"].map(
+        (id) => `docs/operations/training/${id}.md`
+      ),
     ])
     for (const [path, text] of docs)
       expect(readFileSync(join(root, path), "utf8"), path).toBe(text)

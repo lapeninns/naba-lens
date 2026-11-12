@@ -166,7 +166,7 @@ export function renderSwitchCatalogue(): string {
     "",
     "# Switch catalogue",
     "",
-    "B10-02b. Every NabaLens disable switch, its scope, and what keeps running while it is off. Use the narrowest one that stops harm. A switch marked owner-gated changes production configuration (an environment variable, a schedule or reviewed SQL) and needs the owner's approval (X1) first. External destinations are out of scope and have no switch here.",
+    "B10-02b. Every NabaLens disable switch, its scope, and what keeps running while it is off. Use the narrowest one that stops harm. A switch marked owner-gated changes production configuration (an environment variable, a schedule or reviewed SQL) and needs the owner's sign-off (X1) first. External destinations are out of scope and have no switch here.",
     "",
     "| ID | Switch | Scope | Mechanism | Owner-gated | Used by |",
     "|---|---|---|---|---|---|",

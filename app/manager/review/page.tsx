@@ -28,6 +28,8 @@ import {
   type ManagerPhotoCtx,
 } from "@/lib/server/menu-photos"
 import { mergeByWaiting, reviewKindOf } from "@/lib/work-client/triage"
+import { ScreenGuide } from "@/components/nabalens/guide/screen-guide"
+import { screenGuidance } from "@/lib/config/screen-guidance"
 
 import { failedRead } from "../load-overview"
 
@@ -112,9 +114,16 @@ export default async function ManagerReviewPage({
         summary={<p>{REVIEW_COPY.summary}</p>}
         className="pb-0 md:pb-0"
       />
+      {screenGuidance() === "on" ? (
+        <ScreenGuide screen="manager-review" />
+      ) : null}
       {triage ? <ReviewKindFilter active={kind} /> : null}
       {kind === "photos" ? (
-        <ReviewBody ctx={scope.ctx} scope={{ kind: "manager" }} search={search} />
+        <ReviewBody
+          ctx={scope.ctx}
+          scope={{ kind: "manager" }}
+          search={search}
+        />
       ) : (
         <TriageBody ctx={scope.ctx} kind={kind} />
       )}

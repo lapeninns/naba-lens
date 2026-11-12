@@ -9,6 +9,7 @@ import {
   renderSwitchCatalogue,
 } from "../../lib/ops/docs"
 import { RUNBOOKS } from "../../lib/ops/runbooks"
+import { TRAINING_DOCS } from "./training-docs"
 
 /** The generated operations documents, formatted as the repository formats Markdown. */
 export async function formattedOpsDocs(
@@ -22,6 +23,10 @@ export async function formattedOpsDocs(
       renderRunbook(rb),
     ]),
     ["docs/operations/switches.md", renderSwitchCatalogue()],
+    ...TRAINING_DOCS.map(([path, render]): [string, string] => [
+      path,
+      render(),
+    ]),
   ]
   return Promise.all(
     docs.map(async ([path, text]): Promise<[string, string]> => {

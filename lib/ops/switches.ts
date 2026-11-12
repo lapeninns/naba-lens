@@ -7,7 +7,7 @@
  * external destinations are out of scope (owner scope correction, 11 Nov 2026).
  *
  * A switch whose mechanism is an environment variable, a schedule or a
- * migration changes production configuration: it needs the owner's approval
+ * migration changes production configuration: it needs the owner's sign-off
  * (X1) and is never used by a lane on its own.
  */
 
@@ -33,7 +33,7 @@ export type SwitchDefinition = {
   /** How to turn it back on, and what that restores. */
   restore: string
   operatorRole: OwnerRole
-  /** Needs the owner's approval because it changes production configuration (X1). */
+  /** Needs the owner's sign-off because it changes production configuration (X1). */
   ownerGated: boolean
   /** A file and an exact string in it that prove the switch exists. */
   source: { file: string; contains: string }
@@ -297,6 +297,25 @@ export const SWITCHES: readonly SwitchDefinition[] = [
     source: {
       file: "tests/migrations/coverage-withdraw-access.sql",
       contains: "revoke",
+    },
+  },
+  {
+    id: "SW-15",
+    title: "In-app screen guidance (B10-05)",
+    scope: "feature",
+    mechanism: "env_var",
+    howToTurnOff: `Unset NABALENS_SCREEN_GUIDANCE, or set it to anything other than on. ${ENV_NOTE}`,
+    stops:
+      "The closed Tips for this screen panel on staff Home, staff question capture and manager Review.",
+    keepsRunning:
+      "Every screen and action; the panel only repeats existing copy.",
+    restore:
+      "Set NABALENS_SCREEN_GUIDANCE=on, only after the product owner signs off the guidance copy (b10-design §7.2).",
+    operatorRole: "PO",
+    ownerGated: true,
+    source: {
+      file: "lib/config/screen-guidance.ts",
+      contains: 'process.env.NABALENS_SCREEN_GUIDANCE?.trim() === "on"',
     },
   },
 ]

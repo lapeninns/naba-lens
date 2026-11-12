@@ -28,6 +28,8 @@ import { getCoverageActor, getOurMenu } from "@/lib/server/coverage"
 import type { MediaActor } from "@/lib/server/media/types"
 import { listCommunityMedia } from "@/lib/server/community"
 import { getMediaActor } from "@/lib/server/media/context"
+import { ScreenGuide } from "@/components/nabalens/guide/screen-guide"
+import { screenGuidance } from "@/lib/config/screen-guidance"
 
 import {
   myAmenityTasks,
@@ -268,6 +270,9 @@ export default async function TasksPage({
       userName={profile.displayName}
     >
       <OfflineNotice className="mb-3" />
+      {screenGuidance() === "on" ? (
+        <ScreenGuide screen="staff-home" className="mb-3" />
+      ) : null}
       {streamedPending ? (
         <HomeOverview
           {...common}

@@ -2,7 +2,7 @@
 
 # Switch catalogue
 
-B10-02b. Every NabaLens disable switch, its scope, and what keeps running while it is off. Use the narrowest one that stops harm. A switch marked owner-gated changes production configuration (an environment variable, a schedule or reviewed SQL) and needs the owner's approval (X1) first. External destinations are out of scope and have no switch here.
+B10-02b. Every NabaLens disable switch, its scope, and what keeps running while it is off. Use the narrowest one that stops harm. A switch marked owner-gated changes production configuration (an environment variable, a schedule or reviewed SQL) and needs the owner's sign-off (X1) first. External destinations are out of scope and have no switch here.
 
 | ID    | Switch                                          | Scope              | Mechanism    | Owner-gated | Used by                    |
 | ----- | ----------------------------------------------- | ------------------ | ------------ | ----------- | -------------------------- |
@@ -20,6 +20,7 @@ B10-02b. Every NabaLens disable switch, its scope, and what keeps running while 
 | SW-12 | One staff account                               | account            | app_ui       | no          | RB-13, RB-21               |
 | SW-13 | One venue-manager grant                         | account            | app_ui       | no          | RB-21                      |
 | SW-14 | Coverage access withdrawal                      | feature            | reviewed_sql | yes         | RB-18                      |
+| SW-15 | In-app screen guidance (B10-05)                 | feature            | env_var      | yes         | none                       |
 
 ## SW-01 Knowledge working list (per venue and question)
 
@@ -132,6 +133,14 @@ B10-02b. Every NabaLens disable switch, its scope, and what keeps running while 
 - Keeps running: Targets, photos sent, decisions, audit events, media, archive and monitoring are kept.
 - Restore: Re-run the grant statements of migrations 20261102130000 to 20261102150000 as a reviewed change.
 - Operator: OPS. Source: `tests/migrations/coverage-withdraw-access.sql`
+
+## SW-15 In-app screen guidance (B10-05)
+
+- Turn off: Unset NABALENS_SCREEN_GUIDANCE, or set it to anything other than on. An environment change in Vercel takes effect on the next deployment.
+- Stops: The closed Tips for this screen panel on staff Home, staff question capture and manager Review.
+- Keeps running: Every screen and action; the panel only repeats existing copy.
+- Restore: Set NABALENS_SCREEN_GUIDANCE=on, only after the product owner signs off the guidance copy (b10-design §7.2).
+- Operator: PO. Source: `lib/config/screen-guidance.ts`
 
 ## One-way settings (not switches)
 

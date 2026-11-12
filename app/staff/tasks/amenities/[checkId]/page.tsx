@@ -3,6 +3,8 @@ import { FROM_BACK_LABEL } from "@/components/nabalens/shell/entry-copy"
 import { requireActiveStaff } from "@/lib/auth"
 import { getCoverageActor } from "@/lib/server/coverage"
 import { ENTRY_FROM_PARAM, fromHref } from "@/lib/work-client/entry"
+import { ScreenGuide } from "@/components/nabalens/guide/screen-guide"
+import { screenGuidance } from "@/lib/config/screen-guidance"
 
 import { staffShellStatus } from "../../../_shell/shell-status"
 import { TASKS_PATH, unwrap } from "../../result"
@@ -62,6 +64,9 @@ export default async function AmenityCapturePage({
       {...shell}
       userName={profile.displayName}
     >
+      {screenGuidance() === "on" ? (
+        <ScreenGuide screen="staff-capture" className="mb-3" />
+      ) : null}
       {screen}
     </AppShell>
   )

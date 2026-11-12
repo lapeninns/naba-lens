@@ -112,6 +112,8 @@ vi.mock("@/lib/work-client/services", () => ({ workServices: work }))
 
 import TasksLoading from "@/app/staff/tasks/loading"
 import TasksPage from "@/app/staff/tasks/page"
+import { GUIDANCE_TITLE } from "@/components/nabalens/guide/screen-guidance"
+import { GUIDE_SAFETY } from "@/lib/guide/dish-guide"
 
 afterEach(() => {
   cleanup()
@@ -503,6 +505,19 @@ describe("Home switch (homeLayout)", () => {
     expect(work.getLabelWork).not.toHaveBeenCalled()
     expect(coverage.listMyMenuPhotoDecisions).not.toHaveBeenCalled()
     expect(shell.props).toMatchObject({ todoCount: 1 })
+  })
+
+  it("shows no B10-05 screen guidance by default", async () => {
+    await home()
+    expect(screen.queryByText(GUIDANCE_TITLE)).toBeNull()
+  })
+
+  it("shows the B10-05 screen guidance with NABALENS_SCREEN_GUIDANCE=on, closed", async () => {
+    vi.stubEnv("NABALENS_SCREEN_GUIDANCE", "on")
+    await home()
+    const summary = screen.getByText(GUIDANCE_TITLE)
+    expect(summary.closest("details")?.open).toBe(false)
+    expect(screen.getByText(GUIDE_SAFETY)).toBeTruthy()
   })
 
   it("names the task list in the loading skeleton to match", () => {

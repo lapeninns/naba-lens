@@ -578,7 +578,7 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
     firstChecks:
       "Record the UTC time, the venue UUID, the screen or route, the account kind (never a name in the ticket) and the deployment in production. Read the dashboard metrics, the last ops_job_runs rows and the cleanup and archive reports. Never ask for media, sign-in links or secrets.",
     steps:
-      "Classify, highest first: (1) data exposure or cross-account access: escalate to the owner and security contact now and restrict access under the approved incident plan; (2) data loss: stop writes at the narrowest switch and go to RB-12; (3) a journey broken for everyone after a deploy: go to RB-18; (4) one venue, account, job or file: go to the runbook its trigger names (RB-01 to RB-21). If nothing matches, keep the incident open with the owner; never improvise a data change.",
+      "Classify, highest first: (1) data exposure or cross-account access: escalate to the owner and security contact now and restrict access under the agreed incident plan; (2) data loss: stop writes at the narrowest switch and go to RB-12; (3) a journey broken for everyone after a deploy: go to RB-18; (4) one venue, account, job or file: go to the runbook its trigger names (RB-01 to RB-21). If nothing matches, keep the incident open with the owner; never improvise a data change.",
     narrowestSwitch:
       "The one the matched runbook names; see docs/operations/switches.md",
     dataImplications:
@@ -620,9 +620,9 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
     ],
     operatorRole: "OPS",
     firstChecks:
-      "Confirm the production deployment and the last applied migration from a deploy readback. Find the change that caused it and read its rollback note: B01 design §16, B02 design §7 and the comment at the top of each migration.",
+      "Confirm the production deployment and the last applied migration from a deploy readback. Find the change that caused it and read its rollback note: B01 design §16, B02 design §7 and the note at the top of each migration.",
     steps:
-      "Lightest first: (1) a UI switch back to the earlier behaviour (SW-04 to SW-07) or a narrower data switch (SW-01); (2) promote the previous deployment: the B01 and B02 migrations are additive and B02 re-created existing functions with the same signatures and only additive result keys (B02 design §7.1), so the earlier app keeps working; check the rollback note of any later release before relying on this; (3) a forward migration that restores earlier function bodies or grants, written from the rollback note, rehearsed on an owned stack and reviewed. Schema is forward-only: never drop a table that holds data, disable a trigger, or edit an applied migration. Coverage has its own withdrawal (SW-14). Every production step needs the owner's approval (X1).",
+      "Lightest first: (1) a UI switch back to the earlier behaviour (SW-04 to SW-07) or a narrower data switch (SW-01); (2) promote the previous deployment: the B01 and B02 migrations are additive and B02 re-created existing functions with the same signatures and only additive result keys (B02 design §7.1), so the earlier app keeps working; check the rollback note of any later release before relying on this; (3) a forward migration that restores earlier function bodies or grants, written from the rollback note, rehearsed on an owned stack and reviewed. Schema is forward-only: never drop a table that holds data, disable a trigger, or edit an applied migration. Coverage has its own withdrawal (SW-14). Every production step needs the owner's sign-off (X1).",
     narrowestSwitch:
       "A UI switch (SW-04 to SW-07) or the working list (SW-01) before any deployment change",
     dataImplications:
@@ -666,7 +666,7 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
     firstChecks:
       "Identify the row by venue, kind and time from the app, not by editing tables. Check whether the app has a path for the correction.",
     steps:
-      "Use the app's own path: a staff member reports a change to a current answer and the confirmer decides; labels are corrected in admin labels; a target is changed by a manager or an admin correction; a person moves venue from Staff; a wrong check is rechecked. Every one keeps history. When no path exists, stop: a fix is a reviewed function or forward migration, rehearsed on an owned stack, approved by the owner. Never update or delete application rows by hand, bypass RLS or Storage policies, or delete a row without its object lifecycle.",
+      "Use the app's own path: a staff member reports a change to a current answer and the confirmer decides; labels are corrected in admin labels; a target is changed by a manager or an admin correction; a person moves venue from Staff; a wrong check is rechecked. Every one keeps history. When no path exists, stop: a fix is a reviewed function or forward migration, rehearsed on an owned stack, signed off by the owner. Never update or delete application rows by hand, bypass RLS or Storage policies, or delete a row without its object lifecycle.",
     narrowestSwitch:
       "Remove the affected question from the venue's working list (SW-01) while the repair waits",
     dataImplications:
@@ -730,7 +730,7 @@ export const RUNBOOKS: readonly RunbookDefinition[] = [
     ],
     operatorRole: "OPS",
     firstChecks:
-      "Confirm the request through an approved channel. Read the person's account kind, venue and grants in Staff and Coverage, Venue managers.",
+      "Confirm the request through an authorised channel. Read the person's account kind, venue and grants in Staff and Coverage, Venue managers.",
     steps:
       "Joiner: invite from Staff. Leaver: Deactivate (SW-12). Venue move: edit the venue in Staff; past months stay with the old venue. Manager access: Make venue manager or Return to staff account in Staff, or grant and revoke under Coverage, Venue managers (SW-13), each with a reason. Never share an account, bypass the admin screens or edit profiles in SQL. Admin accounts are changed only by an authorised operator through the provider procedure.",
     narrowestSwitch: "One account (SW-12) or one grant (SW-13)",
