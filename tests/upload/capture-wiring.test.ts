@@ -456,3 +456,19 @@ describe("the adapter's journal writes (OD-B5-05-4, 6, 7)", () => {
     expect(await backend.getAll()).toEqual([])
   })
 })
+
+describe("privacy (§5.8)", () => {
+  it("never logs journal content from the files that handle it", async () => {
+    const { readFileSync } = await import("node:fs")
+    for (const path of [
+      "lib/upload/journal.ts",
+      "lib/upload/capture-session.ts",
+      "lib/upload/queue-adapter.ts",
+      "lib/upload/capabilities.ts",
+      "lib/upload/device-cleanup.ts",
+      "components/nabalens/shell/capture-resume.tsx",
+      "app/staff/_shell/add-host.tsx",
+    ])
+      expect(readFileSync(path, "utf8"), path).not.toMatch(/\bconsole\./)
+  })
+})
