@@ -32,6 +32,8 @@ const { refresh, supabase, uploads, sets, review } = vi.hoisted(() => ({
   sets: {
     startPhotoSet: vi.fn(),
     addToPhotoSet: vi.fn(),
+    readPhotoSet: vi.fn(),
+    replaceInPhotoSet: vi.fn(),
     readPhotoSets: vi.fn(),
     readDeleteEvidence: vi.fn(async () => ({ status: "missing" })),
     deleteMedia: vi.fn(),
@@ -184,6 +186,9 @@ beforeEach(() => {
     })
   )
   sets.readPhotoSets.mockResolvedValue({ status: "missing" })
+  // B05-m5: a set read that fails keeps the queue's own notice (B02 tests).
+  sets.readPhotoSet.mockResolvedValue({ status: "failed", retry: true })
+  sets.replaceInPhotoSet.mockResolvedValue({ status: "missing" })
 })
 
 afterEach(() => {

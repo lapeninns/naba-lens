@@ -40,6 +40,9 @@ vi.mock("@/app/_media/actions", () => ({
   readDeleteEvidence: vi.fn(async () => ({ status: "missing" })),
   startPhotoSet: vi.fn(async () => ({ status: "missing" })),
   addToPhotoSet: vi.fn(async () => ({ status: "missing" })),
+  // B05-m5: the set read and replacement Add's host now wires in.
+  readPhotoSet: vi.fn(async () => ({ status: "missing" })),
+  replaceInPhotoSet: vi.fn(async () => ({ status: "missing" })),
 }))
 vi.mock("@/app/_labels/actions", () => ({
   loadLabelEditorContext: vi.fn(),
