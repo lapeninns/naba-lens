@@ -524,8 +524,16 @@ export const GROUP_SUBJECT_KINDS = [
 ] as const
 export type GroupSubjectKind = (typeof GROUP_SUBJECT_KINDS)[number]
 
-/** OD-7 default (owner to confirm): one group per asset, at most 10 members. */
-export const GROUP_LIMITS = { maxMembers: 10, maxLookup: 100 } as const
+/**
+ * OD-7 default (owner to confirm): one group per asset, at most 10 live
+ * members. B05-m5: a member stops counting once it failed, was deleted or was
+ * replaced; positions stop at 30.
+ */
+export const GROUP_LIMITS = {
+  maxMembers: 10,
+  maxPositions: 30,
+  maxLookup: 100,
+} as const
 
 /** B05-m5: a member's technical state; `removed` is a deleted asset. */
 export const GROUP_MEMBER_TECHNICAL = [

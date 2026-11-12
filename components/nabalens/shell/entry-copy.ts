@@ -36,6 +36,25 @@ export const ENTRY_COPY = {
   addMoreToSet: "Add more to this set",
   setSaved: (n: number, subject: string) =>
     `${n} ${n === 1 ? "photo" : "photos"} of ${subject} saved. Each is reviewed on its own.`,
+  // B05-01e: a member this tab no longer holds (as on My contributions).
+  setDidntFinish: "Didn't finish",
+  // B05-01d: swapping a photo of a set that didn't finish for another.
+  replace: "Replace",
+  replaceLabel: (name: string) => `Replace ${name} with another photo`,
+  replacing: (name: string) => `Replacing with ${name}…`,
+  replaceSame:
+    "That is the same photo: it continues in its new row, nothing is sent twice.",
+  replaceRefused: {
+    not_replaceable:
+      "This photo is no longer failed, so it wasn't replaced. The new photo is saved on its own.",
+    in_group: "The new photo is already in this set.",
+    already_replaced:
+      "This photo was already replaced with another one. The new photo is saved on its own.",
+    set_full:
+      "This set has no room for another photo. The new photo is saved on its own.",
+    other:
+      "This photo couldn't be replaced. The new photo is saved on its own.",
+  },
 } as const
 
 /** The back link on a capture page opened with `from`. */

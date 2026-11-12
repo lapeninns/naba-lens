@@ -34,6 +34,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
+import type {
+  ContributionGroupMember,
+  ContributionGroupView,
+} from "@/lib/knowledge/contract"
 import { guardBeforeUnload } from "@/lib/upload/before-unload"
 import { unconfirmedMessage } from "@/lib/upload/uploader"
 import { cn } from "@/lib/utils"
@@ -153,6 +157,33 @@ type UploadDialogProps = {
   setOf?: (file: File) => PhotoSetRef | null
   /** The footer's "Add more", when the next pick joins a set. */
   addMoreLabel?: string
+  /**
+   * B05-01e: the server's view of a settled set, which its notice is worded
+   * from. Null: the set has no group or the read failed, so the notice is
+   * worded from this queue, as before.
+   */
+  readSet?: (setId: string) => Promise<ContributionGroupView | null>
+  /**
+   * B05-01d: Replace beside Retry, on a photo of a set that the server has
+   * as failed or removed.
+   */
+  replace?: SetReplace
+  /** Once per file the server could not process (failed there for good). */
+  onServerFailed?: (file: File, assetId: string) => void
+}
+
+/** Where a replacement asked for from a row stands. */
+export type ReplaceState =
+  | { kind: "pending"; with: string }
+  | { kind: "replaced" }
+  /** The same photo was picked again: it resumes, nothing is replaced. */
+  | { kind: "same" }
+  | { kind: "refused"; message: string }
+
+export type SetReplace = {
+  /** `file` was picked to replace `item`'s photo in its set. */
+  start: (item: QueueItem, file: File) => void
+  stateOf: (item: QueueItem) => ReplaceState | null
 }
 
 /** A set of files picked together, and the subject its notice names. */
@@ -160,18 +191,61 @@ export type PhotoSetRef = { id: string; subject: string }
 
 export type SetNotice = { id: string; text: string; unfinished: string[] }
 
+/** The server's read of a settled set: undefined while it is on its way. */
+export type SetRead = (
+  setId: string
+) => ContributionGroupView | null | undefined
+
+const SAVED_STATES = ["ready", "processing"]
+
+/**
+ * B05-01e: a set's notice from the server's read. Members replaced by
+ * another are left out; `{n}` counts members ready or processing; each other
+ * member gets a line, with what this tab's row says when it still holds the
+ * file, otherwise "Didn't finish". Undefined: the read can't word it (a
+ * member without its state), so the queue's notice is used.
+ */
+export function serverSetNotice(
+  id: string,
+  subject: string,
+  view: ContributionGroupView,
+  lineOf: (assetId: string) => string | null
+): SetNotice | null | undefined {
+  const replaced = new Set(
+    view.members.flatMap((m) => (m.replacesAssetId ? [m.replacesAssetId] : []))
+  )
+  const members: ContributionGroupMember[] = view.members.filter(
+    (m) => !replaced.has(m.assetId)
+  )
+  if (members.some((m) => !m.technical)) return undefined
+  const saved = members.filter((m) => SAVED_STATES.includes(m.technical!))
+  if (saved.length === 0) return null
+  return {
+    id,
+    text: ENTRY_COPY.setSaved(saved.length, subject),
+    unfinished: members
+      .filter((m) => !SAVED_STATES.includes(m.technical!))
+      .map((m) => lineOf(m.assetId) ?? ENTRY_COPY.setDidntFinish),
+  }
+}
+
 /**
  * One notice per set of two or more files once none is still saving: how
  * many were saved, then each file that didn't finish with what its row says.
- * A set with nothing saved has no notice; its rows say why.
+ * A set with nothing saved has no notice; its rows say why. With `server`,
+ * the notice is the server's (B05-01e): none while its read is on its way,
+ * and this queue's only when the read failed. `skip`: rows that are no
+ * longer the set's (replaced by another photo).
  */
 export function setNotices(
   items: readonly QueueItem[],
   setOf: (file: File) => PhotoSetRef | null,
-  detailOf: (item: QueueItem) => string | null
+  detailOf: (item: QueueItem) => string | null,
+  options: { server?: SetRead; skip?: (item: QueueItem) => boolean } = {}
 ): SetNotice[] {
   const sets = new Map<string, { subject: string; items: QueueItem[] }>()
   for (const item of items) {
+    if (options.skip?.(item)) continue
     const set = setOf(item.file)
     if (!set) continue
     const entry = sets.get(set.id) ?? { subject: set.subject, items: [] }
@@ -187,6 +261,22 @@ export function setNotices(
       )
     )
       continue
+    const lineOf = (item: QueueItem) => {
+      const detail = detailOf(item)
+      return detail ? `${item.file.name}: ${detail}` : item.file.name
+    }
+    if (options.server) {
+      const view = options.server(id)
+      if (view === undefined) continue
+      if (view) {
+        const notice = serverSetNotice(id, set.subject, view, (assetId) => {
+          const held = items.find((item) => item.assetId === assetId)
+          return held ? lineOf(held) : null
+        })
+        if (notice) notices.push(notice)
+        if (notice !== undefined) continue
+      }
+    }
     const saved = set.items.filter((item) => item.status === "done").length
     if (saved === 0) continue
     notices.push({
@@ -194,10 +284,7 @@ export function setNotices(
       text: ENTRY_COPY.setSaved(saved, set.subject),
       unfinished: set.items
         .filter((item) => item.status !== "done")
-        .map((item) => {
-          const detail = detailOf(item)
-          return detail ? `${item.file.name}: ${detail}` : item.file.name
-        }),
+        .map(lineOf),
     })
   }
   return notices
@@ -422,6 +509,8 @@ function QueueRow({
   onRetry,
   onRetryLabels,
   onFixLabels,
+  onReplace,
+  replaceState,
 }: {
   item: QueueItem
   state: RowState
@@ -431,6 +520,9 @@ function QueueRow({
   onRetry: () => void
   onRetryLabels: () => void
   onFixLabels: () => void
+  /** B05-01d: offered when the server will take a replacement. */
+  onReplace?: () => void
+  replaceState?: ReplaceState | null
 }) {
   const percent = Math.round(item.progress * 100)
   const statusId = `${item.id}-status`
@@ -445,17 +537,29 @@ function QueueRow({
   const labelsSlow = useStillWaiting(
     item.status === "done" && labels.kind === "saving"
   )
-  const detail = processingStalled
-    ? unconfirmedMessage(item.kind)
-    : processingLong
-      ? STILL_PROCESSING
-      : labelsSlow
-        ? STILL_SAVING_LABELS
-        : state.detail
+  const replaceNote =
+    replaceState?.kind === "pending"
+      ? ENTRY_COPY.replacing(replaceState.with)
+      : replaceState?.kind === "same"
+        ? ENTRY_COPY.replaceSame
+        : replaceState?.kind === "refused"
+          ? replaceState.message
+          : null
+  const detail = replaceNote
+    ? replaceNote
+    : processingStalled
+      ? unconfirmedMessage(item.kind)
+      : processingLong
+        ? STILL_PROCESSING
+        : labelsSlow
+          ? STILL_SAVING_LABELS
+          : state.detail
+  const replacing = replaceState?.kind === "pending"
   const retryable =
-    (item.status === "failed" && item.retryable !== false) ||
-    item.status === "cancelled" ||
-    processingStalled
+    !replacing &&
+    ((item.status === "failed" && item.retryable !== false) ||
+      item.status === "cancelled" ||
+      processingStalled)
   const removable =
     item.status === "selected" ||
     item.status === "failed" ||
@@ -539,7 +643,8 @@ function QueueRow({
         className={cn(
           "flex shrink-0 items-center gap-1",
           // Below 400 px two actions leave the name a sliver: own line.
-          retryable && "max-[25rem]:basis-full max-[25rem]:justify-end"
+          (retryable || onReplace) &&
+            "max-[25rem]:basis-full max-[25rem]:justify-end"
         )}
       >
         {item.status === "queued" || item.status === "uploading" ? (
@@ -561,6 +666,16 @@ function QueueRow({
           >
             <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
             Retry
+          </Button>
+        ) : null}
+        {onReplace && !replacing ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onReplace}
+            aria-label={ENTRY_COPY.replaceLabel(item.file.name)}
+          >
+            {ENTRY_COPY.replace}
           </Button>
         ) : null}
         {removable ? (
@@ -600,6 +715,9 @@ export function UploadDialog({
   onReserved,
   setOf,
   addMoreLabel = "Add more",
+  readSet,
+  replace,
+  onServerFailed,
 }: UploadDialogProps) {
   const guard = useSessionGuard()
   const isSignedIn = guard?.isSignedIn
@@ -827,6 +945,133 @@ export function UploadDialog({
         unfinished(item, item.status)
   }, [items, unfinished])
 
+  // B05-01e: each settled set read from the server, by what it settled as.
+  const [setReads, setSetReads] = React.useState<
+    ReadonlyMap<
+      string,
+      { signature: string; view: ContributionGroupView | null }
+    >
+  >(new Map())
+  const asked = React.useRef(new Map<string, string>())
+  const setSignatures = new Map<
+    string,
+    { signature: string; settled: boolean }
+  >()
+  if (setOf && readSet)
+    for (const item of items) {
+      const set = setOf(item.file)
+      if (!set) continue
+      const entry = setSignatures.get(set.id) ?? {
+        signature: "",
+        settled: true,
+      }
+      entry.signature += `${item.id}:${item.status}:${
+        replace?.stateOf(item)?.kind ?? ""
+      };`
+      if (
+        ["selected", "queued", "uploading", "processing"].includes(item.status)
+      )
+        entry.settled = false
+      setSignatures.set(set.id, entry)
+    }
+  const settledSets = [...setSignatures]
+    .filter(([, entry]) => entry.settled)
+    .map(([id, entry]) => `${id}=${entry.signature}`)
+    .join("|")
+  React.useEffect(() => {
+    if (!readSet || !settledSets) return
+    for (const pair of settledSets.split("|")) {
+      const at = pair.indexOf("=")
+      const id = pair.slice(0, at)
+      const signature = pair.slice(at + 1)
+      if (asked.current.get(id) === signature) continue
+      asked.current.set(id, signature)
+      void readSet(id)
+        .catch(() => null)
+        .then((view) => {
+          if (asked.current.get(id) !== signature) return
+          setSetReads((current) =>
+            new Map(current).set(id, { signature, view })
+          )
+        })
+    }
+  }, [readSet, settledSets])
+  const serverRead: SetRead = (id) => {
+    const entry = setReads.get(id)
+    const now = setSignatures.get(id)
+    return entry && now && entry.signature === now.signature
+      ? entry.view
+      : undefined
+  }
+  /** The latest read of a row's set, settled or not. */
+  const memberOf = (item: QueueItem) => {
+    const set = setOf?.(item.file)
+    const view = set ? setReads.get(set.id)?.view : null
+    if (!view || !item.assetId) return null
+    const replaced = view.members.some(
+      (m) => m.replacesAssetId === item.assetId
+    )
+    const member = view.members.find((m) => m.assetId === item.assetId)
+    return member && !replaced ? member : null
+  }
+  // B05-01d: Replace where the server will take it: a member it has as
+  // failed or removed, not replaced yet, on a row that didn't finish here.
+  const canReplace = (item: QueueItem) => {
+    if (!replace) return false
+    if (item.status !== "failed" && item.status !== "cancelled") return false
+    const state = replace.stateOf(item)
+    if (state && state.kind !== "refused") return false
+    const technical = memberOf(item)?.technical
+    return technical === "failed" || technical === "removed"
+  }
+  const replaceInput = React.useRef<HTMLInputElement>(null)
+  const replaceTarget = React.useRef<string | null>(null)
+  function pickReplacement(item: QueueItem) {
+    replaceTarget.current = item.id
+    replaceInput.current?.click()
+  }
+  function replacementPicked(input: HTMLInputElement) {
+    const file = input.files?.[0]
+    const target = items.find((item) => item.id === replaceTarget.current)
+    replaceTarget.current = null
+    input.value = ""
+    if (!file || !target || !replace) return
+    replace.start(target, file)
+    focusStatus(target.id)
+    addFiles([file], null)
+  }
+  // A replaced row is no longer the set's: it leaves the list.
+  const replacedRows = items
+    .filter((item) => replace?.stateOf(item)?.kind === "replaced")
+    .map((item) => item.id)
+    .join(" ")
+  React.useEffect(() => {
+    if (!replacedRows) return
+    for (const id of replacedRows.split(" ")) {
+      const item = items.find((i) => i.id === id)
+      if (item) remove(item)
+    }
+    // remove only touches the queue and this component's refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replacedRows])
+  // Each file the server could not process, once.
+  const serverFailedSeen = React.useRef(new Set<string>())
+  React.useEffect(() => {
+    if (!onServerFailed) return
+    for (const item of items) {
+      if (
+        item.status !== "failed" ||
+        item.retryable !== false ||
+        item.refused ||
+        !item.assetId ||
+        serverFailedSeen.current.has(item.id)
+      )
+        continue
+      serverFailedSeen.current.add(item.id)
+      onServerFailed(item.file, item.assetId)
+    }
+  }, [items, onServerFailed])
+
   const queuedInitial = React.useRef<File[] | null>(null)
   React.useEffect(() => {
     if (!open || !initialFiles?.length) return
@@ -948,7 +1193,11 @@ export function UploadDialog({
     ? setNotices(
         items,
         setOf,
-        (item) => rowState(item, viewOf(item), pause).detail
+        (item) => rowState(item, viewOf(item), pause).detail,
+        {
+          ...(readSet ? { server: serverRead } : {}),
+          skip: (item) => replace?.stateOf(item)?.kind === "replaced",
+        }
       )
     : []
   const attention = items.filter(
@@ -1153,6 +1402,10 @@ export function UploadDialog({
                     statusAfterFix.current = item.id
                     setFixing(item.id)
                   }}
+                  onReplace={
+                    canReplace(item) ? () => pickReplacement(item) : undefined
+                  }
+                  replaceState={replace?.stateOf(item) ?? null}
                 />
               )
             })}
@@ -1328,6 +1581,18 @@ export function UploadDialog({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        {replace ? (
+          <input
+            ref={replaceInput}
+            {...photoInputProps("library", { imagesOnly })}
+            multiple={false}
+            data-replace-input=""
+            className="sr-only"
+            tabIndex={-1}
+            aria-label="Choose a photo to replace it"
+            onChange={(e) => replacementPicked(e.currentTarget)}
+          />
+        ) : null}
         {guard ? (
           <SignInAgainSheet
             open={signInOpen}

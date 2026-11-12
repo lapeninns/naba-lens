@@ -3,7 +3,12 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 
-import { addToPhotoSet, startPhotoSet } from "@/app/_media/actions"
+import {
+  addToPhotoSet,
+  readPhotoSet,
+  replaceInPhotoSet,
+  startPhotoSet,
+} from "@/app/_media/actions"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import { UploadDialog } from "@/components/nabalens"
 import {
@@ -13,6 +18,8 @@ import {
 } from "@/components/nabalens/labels"
 import type {
   PhotoSetRef,
+  ReplaceState,
+  SetReplace,
   UploadBusy,
 } from "@/components/nabalens/upload-dialog"
 import {
@@ -43,6 +50,7 @@ import { EntrySheet } from "@/components/nabalens/shell/entry-sheet"
 import {
   PhotoSets,
   sessionSetKeys,
+  type ReplaceOutcome,
   type SetSubject,
 } from "@/components/nabalens/shell/photo-sets"
 import { LeaveGuard } from "@/components/nabalens/shell/leave-guard"
@@ -214,7 +222,12 @@ export function AddHost({
   const [photoSets] = React.useState(
     () =>
       new PhotoSets(
-        { start: startPhotoSet, add: addToPhotoSet },
+        {
+          start: startPhotoSet,
+          add: addToPhotoSet,
+          read: readPhotoSet,
+          replace: replaceInPhotoSet,
+        },
         sessionSetKeys(),
         { onMissing: () => setSetsMissing(true) }
       )
@@ -385,11 +398,78 @@ export function AddHost({
     setUploadOpen(open)
   }, [])
 
-  // Each photo of a set joins its group as soon as the server reserved it.
+  // B05-01d: files picked to replace a set's photo, and how each went, by
+  // the replaced row.
+  const replacements = React.useRef(
+    new Map<File, { set: string; assetId: string; row: string }>()
+  )
+  const [replaceStates, setReplaceStates] = React.useState<
+    ReadonlyMap<string, ReplaceState>
+  >(new Map())
+  const setReplaceState = React.useCallback(
+    (row: string, state: ReplaceState | null) =>
+      setReplaceStates((current) => {
+        const next = new Map(current)
+        if (state) next.set(row, state)
+        else next.delete(row)
+        return next
+      }),
+    []
+  )
+  const replace = React.useMemo<SetReplace>(
+    () => ({
+      start(item: QueueItem, file: File) {
+        const owner = fileOwners.current.get(item.file)
+        if (!owner?.set || !item.assetId) return
+        claim([file], owner)
+        replacements.current.set(file, {
+          set: owner.set,
+          assetId: item.assetId,
+          row: item.id,
+        })
+        setReplaceState(item.id, { kind: "pending", with: file.name })
+      },
+      stateOf: (item: QueueItem) => replaceStates.get(item.id) ?? null,
+    }),
+    [claim, replaceStates, setReplaceState]
+  )
+
+  // Each photo of a set joins its group as soon as the server reserved it;
+  // a replacement swaps in for the photo it replaces instead.
   const reservedForSet = React.useCallback(
     (file: File, assetId: string) => {
+      const swap = replacements.current.get(file)
+      if (swap) {
+        replacements.current.delete(file)
+        void photoSets
+          .replace(swap.set, swap.assetId, assetId)
+          .then((outcome) => setReplaceState(swap.row, replaceState(outcome)))
+        return
+      }
       const set = fileOwners.current.get(file)?.set
       if (set) photoSets.reserved(set, assetId)
+    },
+    [photoSets, setReplaceState]
+  )
+  // A replacement that ended before the server reserved it: the old row
+  // offers Replace again.
+  const replacementEnded = React.useCallback(
+    (file: File) => {
+      const swap = replacements.current.get(file)
+      if (!swap) return
+      replacements.current.delete(file)
+      setReplaceState(swap.row, null)
+    },
+    [setReplaceState]
+  )
+  const readSet = React.useCallback(
+    (setId: string) => photoSets.read(setId),
+    [photoSets]
+  )
+  const serverFailed = React.useCallback(
+    (file: File, assetId: string) => {
+      const set = fileOwners.current.get(file)?.set
+      if (set) photoSets.serverFailed(set, assetId)
     },
     [photoSets]
   )
@@ -416,11 +496,13 @@ export function AddHost({
     let kept = true
     ids.forEach((id, i) => {
       const owner = fileOwners.current.get(files[i])
+      // A photo the server failed, retried and finished, counts again.
+      if (owner?.set) photoSets.finished(owner.set, id)
       if (owner?.onReady?.([id]) === false) kept = false
     })
     for (const listener of readyListeners.current) listener(ids)
     return kept
-  }, [])
+  }, [photoSets])
 
   // Me's Fix labels and Discard labels reach the sheet's rows (C6).
   const settleListeners = React.useRef(new Set<UploadLabelSettle>())
@@ -764,11 +846,15 @@ export function AddHost({
                 keepRunningWhenClosed
                 onBusyChange={setBusy}
                 onHoldsChange={holdsChanged}
-                onUnfinished={(file, reason) =>
+                onUnfinished={(file, reason) => {
+                  replacementEnded(file)
                   fileOwners.current.get(file)?.onUnfinished?.(reason, file)
-                }
+                }}
                 onReserved={reservedForSet}
                 setOf={groupsOn ? setOf : undefined}
+                readSet={groupsOn ? readSet : undefined}
+                replace={groupsOn ? replace : undefined}
+                onServerFailed={serverFailed}
                 addMoreLabel={
                   groupsOn && addingToSet ? ENTRY_COPY.addMoreToSet : undefined
                 }
@@ -782,6 +868,19 @@ export function AddHost({
       </LeaveGuard>
     </SessionGuardProvider>
   )
+}
+
+/** A replacement's outcome as its old row says it (B05-01d). */
+function replaceState(outcome: ReplaceOutcome): ReplaceState {
+  if (outcome.status === "replaced") return { kind: "replaced" }
+  if (outcome.status === "same") return { kind: "same" }
+  const copy = ENTRY_COPY.replaceRefused
+  const reason = outcome.status === "refused" ? outcome.refusal?.reason : null
+  return {
+    kind: "refused",
+    message:
+      reason && reason in copy ? copy[reason as keyof typeof copy] : copy.other,
+  }
 }
 
 /** What an Add call's files show: Our menu's dish, or the call's subject. */
