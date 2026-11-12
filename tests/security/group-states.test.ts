@@ -380,12 +380,9 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
     const stopped = await asset(w.staffA.id, w.venue, "uploading")
     const failed = await asset(w.staffA.id, w.venue, "failed")
     // Live 9: the stopped upload and 8 ready; neither failed one counts.
-    await add(w.staffA, g, [
-      retried,
-      stopped,
-      failed,
-      ...(await many(8, w.staffA.id, w.venue, "ready")),
-    ])
+    // At most 10 per call (invalid_asset_list).
+    await add(w.staffA, g, [retried, stopped, failed])
+    await add(w.staffA, g, await many(8, w.staffA.id, w.venue, "ready"))
     expect(await add(w.staffA, g, [await asset(w.staffA.id, w.venue)])).toBe(12)
     // Live 10, then 11 once a failed member is retried to ready (S2 allows).
     await markReady(service, retried, "image/jpeg")
