@@ -191,6 +191,9 @@ export type PhotoSetRef = { id: string; subject: string }
 
 export type SetNotice = { id: string; text: string; unfinished: string[] }
 
+/** How long a set read that failed waits before it is asked once more. */
+export const SET_READ_AGAIN_MS = 3_000
+
 /** The server's read of a settled set: undefined while it is on its way. */
 export type SetRead = (
   setId: string
@@ -986,14 +989,20 @@ export function UploadDialog({
       const signature = pair.slice(at + 1)
       if (asked.current.get(id) === signature) continue
       asked.current.set(id, signature)
-      void readSet(id)
-        .catch(() => null)
-        .then((view) => {
-          if (asked.current.get(id) !== signature) return
-          setSetReads((current) =>
-            new Map(current).set(id, { signature, view })
-          )
-        })
+      // A read that failed is asked once more a little later; meanwhile,
+      // and if that fails too, the queue words the set.
+      const ask = (again: boolean) =>
+        void readSet(id)
+          .catch(() => null)
+          .then((view) => {
+            if (asked.current.get(id) !== signature) return
+            setSetReads((current) =>
+              new Map(current).set(id, { signature, view })
+            )
+            if (!view && again)
+              window.setTimeout(() => ask(false), SET_READ_AGAIN_MS)
+          })
+      ask(true)
     }
   }, [readSet, settledSets])
   const serverRead: SetRead = (id) => {

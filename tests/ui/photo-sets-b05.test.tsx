@@ -280,6 +280,22 @@ describe("the set's acknowledgement comes from the server (B05-01e)", () => {
     expect(within(dialog).getByText(badLine)).toBeTruthy()
   })
 
+  it("asks a failed read once more, and words the set from it", async () => {
+    sets.readPhotoSet.mockResolvedValueOnce({ status: "failed", retry: true })
+    server.extra = [member("asset-elsewhere", 9, "uploading")]
+    const { dialog } = await tandoorSet(["one.jpg", "two.jpg"])
+    // Meanwhile the queue's notice.
+    expect(await within(dialog).findByText(saved(2))).toBeTruthy()
+    expect(
+      await within(dialog).findByText(
+        ENTRY_COPY.setDidntFinish,
+        {},
+        { timeout: 6_000 }
+      )
+    ).toBeTruthy()
+    expect(sets.readPhotoSet).toHaveBeenCalledTimes(2)
+  }, 10_000)
+
   it("keeps the queue's notice when the read fails", async () => {
     sets.readPhotoSet.mockResolvedValue({ status: "failed", retry: true })
     server.extra = [member("asset-elsewhere", 9, "uploading")]
