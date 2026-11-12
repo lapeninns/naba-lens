@@ -165,7 +165,7 @@ const ASSET_MESSAGES: Record<AssetReason, string> = {
   not_own: "You can only attach your own photos and videos.",
   deleted: "A photo or video was deleted, so it cannot be used.",
   not_replaceable:
-    "Only a photo or video that didn't finish uploading can be replaced.",
+    "Only a photo or video that failed, stopped or was removed can be replaced.",
   in_group: "This photo or video is already in this set.",
 }
 

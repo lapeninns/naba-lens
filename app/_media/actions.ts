@@ -78,6 +78,20 @@ function setReply<T extends object>(read: WorkRead<T>): PhotoSetReply<T> {
   return { status: "failed", retry: RETRYABLE.has(read.failure.code) }
 }
 
+/**
+ * A set refusal with no reason of its own, in set words: the shared mapping's
+ * fallbacks name amenity checks.
+ */
+const SET_MESSAGES: Partial<Record<string, string>> & { other: string } = {
+  unavailable:
+    "This set of photos couldn't be loaded or changed right now. Try again shortly.",
+  unauthenticated: "Sign in again, then try again.",
+  account_inactive: "Your account is not active, so this set can't be changed.",
+  not_permitted: "You can't change this set of photos.",
+  not_found: "This set of photos could not be found. Reload the page.",
+  other: "This set of photos changed. Reload the page.",
+}
+
 /** setReply, keeping the server's refusal for the screen to word (B05-m5). */
 function refusalReply<T extends object>(read: WorkRead<T>): PhotoSetReply<T> {
   if (read.status !== "failed") return setReply(read)
@@ -88,7 +102,10 @@ function refusalReply<T extends object>(read: WorkRead<T>): PhotoSetReply<T> {
     retry: RETRYABLE.has(f.code),
     refusal: {
       code: f.code,
-      message: f.message,
+      // A reason has its own set or photo words; the rest get set words.
+      message: reason
+        ? f.message
+        : (SET_MESSAGES[f.code] ?? SET_MESSAGES.other),
       ...(reason ? { reason } : {}),
       ...(f.assetId ? { assetId: f.assetId } : {}),
     },

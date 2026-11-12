@@ -368,7 +368,11 @@ describe("set Server Functions (B05-m5)", () => {
     ).toEqual({
       status: "failed",
       retry: false,
-      refusal: { code: "state_conflict", message: "failed" },
+      // No reason: set words, not the shared mapping's fallback.
+      refusal: {
+        code: "state_conflict",
+        message: "This set of photos changed. Reload the page.",
+      },
     })
     // The server's refusal reaches the screen with its reason.
     for (const failure of [
@@ -417,7 +421,11 @@ describe("set Server Functions (B05-m5)", () => {
     expect(await readPhotoSet({ groupId: GROUP })).toEqual({
       status: "failed",
       retry: true,
-      refusal: { code: "unavailable", message: "down" },
+      refusal: {
+        code: "unavailable",
+        message:
+          "This set of photos couldn't be loaded or changed right now. Try again shortly.",
+      },
     })
   })
 
