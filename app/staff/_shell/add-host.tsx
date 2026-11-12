@@ -232,6 +232,9 @@ export function AddHost({
   React.useLayoutEffect(() => {
     groupsOnRef.current = groupsOn
   }, [groupsOn])
+  // B05-05 (L1): the File of each reserved asset, so a label send the
+  // server took can clear that file's labels in the journal.
+  const assetFiles = React.useRef(new Map<string, File>())
   // B05-05c: each set's start key (the journal's groupKey), and the files
   // this tab picked, newest last (bounded).
   const setKeys = React.useRef(new Map<string, string>())
@@ -479,10 +482,11 @@ export function AddHost({
     await localUploadKeyStore()
       .set(file, entry.uploadKey, { purpose: entry.purpose, account: userId })
       .catch(() => {})
-    // Only for an upload never reserved: once reserved its labels are kept on
-    // the server, and seeding these would bring back what was removed (K2).
-    const labels =
-      entry.assetId === null ? pendingLabelsOf(entry.pendingLabels) : null
+    // The entry keeps them only until the server took them (L1): still here,
+    // they never reached it, so they go with the continued file. Staging
+    // replaces what the server keeps for the asset, so a send whose answer
+    // was lost is harmless to repeat.
+    const labels = pendingLabelsOf(entry.pendingLabels)
     if (labels) resumedLabels.current.set(file, labels)
     const owner: PickOwner = {
       onReady: null,
@@ -582,6 +586,7 @@ export function AddHost({
   // a replacement swaps in for the photo it replaces instead.
   const reservedForSet = React.useCallback(
     (file: File, assetId: string) => {
+      assetFiles.current.set(assetId, file)
       const swap = replacements.current.get(file)
       if (swap) {
         replacements.current.delete(file)
@@ -883,7 +888,15 @@ export function AddHost({
       },
       retrySeed: reloadCatalogue,
       onSeedWaiting: setDishWaiting,
-      save: saveUploadLabels,
+      // The server took the labels (staged, or on the photo): the journal no
+      // longer needs its copy (L1).
+      save: async (venueId, input) => {
+        const result = await saveUploadLabels(venueId, input)
+        const file = assetFiles.current.get(input.assetId)
+        if (result.ok && file)
+          annotateCapture(file, { pendingLabels: undefined })
+        return result
+      },
       discard: discardUploadLabels,
       attention: loadLabelAttention,
       summary: loadPhotoLabels,
