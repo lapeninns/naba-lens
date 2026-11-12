@@ -221,24 +221,35 @@ test("capture-journal: a photo closed mid-TUS continues with one tap, the same a
   const sheet = addSheet(again)
   await expect(sheet).toBeVisible()
 
+  const storage = watchStorage(again)
   if (entry!.bytes === 0) {
-    // The probe refused bytes here (e.g. WebKit's small ephemeral quota):
-    // re-pick copy, recorded as such (OD-B5-05-12).
+    // J1: this browser keeps the journal but refuses Blob writes (WebKit
+    // private-mode behaviour; Playwright's WebKit does the same). Without
+    // bytes the screen names the file and where to pick it again, and the
+    // same file picked again continues the same asset (OD-B5-05-12).
     expect(webkit(info)).toBe(true)
     info.annotations.push({
       type: "capture-journal",
-      description: "WebKit emulation kept no photo bytes: re-pick copy shown",
+      description: "WebKit emulation kept no photo bytes: re-pick path",
     })
+    expect(["reserved", "transferring"]).toContain(entry!.state)
     await expect(sheet).toContainText(CAPTURE_COPY.reselectLine(PHOTO))
-    await again.context().close()
-    return
+    await expect(sheet).toContainText(CAPTURE_COPY.keepOpen)
+    await expect(
+      sheet.getByRole("button", { name: CAPTURE_COPY.continueLabel(PHOTO) })
+    ).toHaveCount(0)
+    const chooser = again.waitForEvent("filechooser")
+    await sheet
+      .getByRole("button", { name: /^Choose from your photos/ })
+      .click()
+    await (await chooser).setFiles([fixtureFile(PHOTO)])
+  } else {
+    expect(entry!.bytes).toBe(8 * MiB)
+    await expect(sheet).toContainText(CAPTURE_COPY.continueLine(PHOTO))
+    await sheet
+      .getByRole("button", { name: CAPTURE_COPY.continueLabel(PHOTO) })
+      .click()
   }
-  expect(entry!.bytes).toBe(8 * MiB)
-  await expect(sheet).toContainText(CAPTURE_COPY.continueLine(PHOTO))
-  const storage = watchStorage(again)
-  await sheet
-    .getByRole("button", { name: CAPTURE_COPY.continueLabel(PHOTO) })
-    .click()
   const queue = savingSheet(again, "Saving 1 photo")
   await expect(queue).toBeVisible()
   await expect(
