@@ -324,3 +324,57 @@ describe("the probe line (OD-B5-05-3)", () => {
     expect(within(sheet).queryByText(CAPTURE_COPY.keepOpen)).toBeNull()
   })
 })
+
+describe("from md, the upload dialog (J2)", () => {
+  async function openDialog() {
+    // Desktop: idle Add opens the upload dialog, as before.
+    vi.stubGlobal("matchMedia", () => ({ matches: true }))
+    host()
+    await waitFor(() => expect(opened).toHaveBeenCalledWith("u1"))
+    fireEvent.click(screen.getByRole("button", { name: "Add" }))
+    const dialog = await screen.findByRole("dialog", {
+      name: "Upload photos or videos",
+    })
+    expect(screen.queryByRole("dialog", { name: "Add photos" })).toBeNull()
+    return dialog
+  }
+
+  it("shows the block above the pickers, with Continue, until a file is queued", async () => {
+    await pick(jpeg("kept.jpg"))
+    await pick(video("clip.mp4"))
+    const dialog = await openDialog()
+    const block = await within(dialog).findByRole("region", {
+      name: CAPTURE_COPY.heading,
+    })
+    expect(
+      within(block).getByText(CAPTURE_COPY.reselectLine("clip.mp4"))
+    ).toBeTruthy()
+    fireEvent.click(
+      within(block).getByRole("button", {
+        name: CAPTURE_COPY.continueLabel("kept.jpg"),
+      })
+    )
+    await waitFor(() => expect(uploaded).toHaveLength(1))
+    // Queued: the dialog is the queue now, and the block is gone.
+    await waitFor(() =>
+      expect(dialog.querySelector("[data-capture-resume]")).toBeNull()
+    )
+  })
+
+  it("still takes a picked file in the same dialog", async () => {
+    await pick(video("clip.mp4"))
+    const dialog = await openDialog()
+    await within(dialog).findByRole("region", { name: CAPTURE_COPY.heading })
+    const input = within(dialog).getByLabelText("Choose photos or videos")
+    fireEvent.change(input, { target: { files: [jpeg("new.jpg")] } })
+    await waitFor(() =>
+      expect(uploaded.map((u) => u.file.name)).toEqual(["new.jpg"])
+    )
+  })
+
+  it("says to keep the page open there too", async () => {
+    await makeSession(false)
+    const dialog = await openDialog()
+    expect(await within(dialog).findByText(CAPTURE_COPY.keepOpen)).toBeTruthy()
+  })
+})
