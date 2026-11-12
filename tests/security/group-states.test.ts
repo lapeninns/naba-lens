@@ -192,7 +192,7 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
           and c.conrelid = 'public.media_contribution_group_members'::regclass`)
     ).toMatch(/"?position"? >= 1\).*"?position"? <= 30\)/)
     expect(
-      psql(`select c.contype || ':' || pg_get_constraintdef(c.oid) from pg_constraint c
+      psql(`select c.contype::text || ':' || pg_get_constraintdef(c.oid) from pg_constraint c
         where c.conname = 'media_contribution_group_members_position'
           and c.conrelid = 'public.media_contribution_group_members'::regclass`)
     ).toBe('u:UNIQUE (group_id, "position")')
@@ -591,6 +591,9 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
           uploader_id: w.staffA.id,
           venue_id: w.venue,
           input: {},
+          // A batch insert sends every key for every row: an absent one is
+          // null, not the column default.
+          status: "pending",
         },
         {
           asset_id: attention,
@@ -919,7 +922,7 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
       for (const role of ["anon", "authenticated", "service_role"])
         expect(can(role, fn), `${role} ${fn}`).toBe("f")
     expect(
-      psql(`select provolatile || prosecdef::text from pg_proc
+      psql(`select provolatile::text || prosecdef::text from pg_proc
         where oid = 'public.contribution_group_replace(uuid,uuid,uuid)'::regprocedure`)
     ).toBe("vtrue")
   })
