@@ -45,6 +45,8 @@ type GroupView = {
     position: number
     uploadState: string
     mine: boolean
+    /** B05-m5, privileged viewers only. */
+    technical?: string
   }[]
 }
 
@@ -562,7 +564,9 @@ describe("contribution groups (W1)", () => {
     }
   })
 
-  it("keeps each member's own state, and hides a deleted member", async () => {
+  // B05-m5 (OD-B5-01-7): the creator now also sees a deleted member, as
+  // removed; everyone else still never does.
+  it("keeps each member's own state, and shows a deleted member to its creator only", async () => {
     const ready = await photo(w.staffA.id, w.venue)
     const pending = (
       await insertAsset(service, {
@@ -585,7 +589,13 @@ describe("contribution groups (W1)", () => {
     expect(states).toEqual({ [ready]: "ready", [pending]: "failed" })
 
     await ok(call(w.staffA, "delete_media_asset", { p_asset_id: ready }))
-    expect((await view(w.staffA, g)).members.map((m) => m.assetId)).toEqual([
+    expect(
+      (await view(w.staffA, g)).members.map((m) => [m.assetId, m.technical])
+    ).toEqual([
+      [ready, "removed"],
+      [pending, "failed"],
+    ])
+    expect((await view(w.admin, g)).members.map((m) => m.assetId)).toEqual([
       pending,
     ])
     // Membership is kept.
