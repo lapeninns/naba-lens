@@ -10,6 +10,12 @@ import type { UploadPurpose } from "./types"
 export const JOURNAL_DB_NAME = "nabalens-capture-journal"
 /** Which account's entries the journal last held (a SHA-256, never the id). */
 export const JOURNAL_ACCOUNT_STORAGE_KEY = "nabalens-capture-account"
+/**
+ * Set when a journal degraded (N1): writes after that were dropped, so what
+ * is stored can't be trusted. The next open clears the whole store first.
+ */
+export const JOURNAL_UNTRUSTED_STORAGE_KEY =
+  "nabalens-capture-journal-untrusted"
 
 /** §5.3 technical defaults (reversible). */
 export const JOURNAL_LIMITS = {
@@ -137,6 +143,8 @@ export type CaptureJournalOptions = {
   stuckMs?: number
   /** How long unfinished() waits for running operations (default JOURNAL_READ_WAIT_MS). */
   readWaitMs?: number
+  /** Told once when the journal degrades (to mark the store untrusted). */
+  onDegrade?: () => void
 }
 
 /**
@@ -182,6 +190,7 @@ export async function openCaptureJournal(
   /** Callers waiting behind a running operation, answered if it gets stuck. */
   const waiting = new Set<() => void>()
   const degrade = () => {
+    if (!degraded) options.onDegrade?.()
     degraded = true
     for (const answer of [...waiting]) answer()
     waiting.clear()

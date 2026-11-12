@@ -3,7 +3,11 @@
 // and every upload resume key; a different account signing in removes the
 // previous account's journal and keys before anything is shown.
 
-import { JOURNAL_ACCOUNT_STORAGE_KEY, JOURNAL_DB_NAME } from "./journal"
+import {
+  JOURNAL_ACCOUNT_STORAGE_KEY,
+  JOURNAL_DB_NAME,
+  JOURNAL_UNTRUSTED_STORAGE_KEY,
+} from "./journal"
 import { UPLOAD_KEYS_STORAGE_KEY } from "./upload-keys"
 
 type DeviceStorage = Pick<
@@ -63,6 +67,7 @@ export function clearCaptureDataOnDevice(
       for (const key of keys) storage.removeItem(key)
       storage.removeItem(UPLOAD_KEYS_STORAGE_KEY)
       storage.removeItem(JOURNAL_ACCOUNT_STORAGE_KEY)
+      storage.removeItem(JOURNAL_UNTRUSTED_STORAGE_KEY)
     }
   } catch {
     // Nothing stored.

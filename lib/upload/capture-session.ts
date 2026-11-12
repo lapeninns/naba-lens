@@ -25,6 +25,7 @@ import {
   accountHash,
   indexedDbJournalBackend,
   JOURNAL_ACCOUNT_STORAGE_KEY,
+  JOURNAL_UNTRUSTED_STORAGE_KEY,
   memoryJournalBackend,
   openCaptureJournal,
   type CaptureJournal,
@@ -148,11 +149,20 @@ export function createCaptureSessions(deps: CaptureSessionDeps = {}) {
    * read at all (then only the storage event can tell another tab's
    * sign-out); null when there is none.
    */
-  function marker(): string | null | undefined {
+  function storageOf() {
     try {
-      const storage =
+      return (
         deps.cleanup?.().storage ??
         (typeof window === "undefined" ? undefined : window.localStorage)
+      )
+    } catch {
+      return undefined
+    }
+  }
+
+  function marker(): string | null | undefined {
+    try {
+      const storage = storageOf()
       if (!storage) return undefined
       return storage.getItem(JOURNAL_ACCOUNT_STORAGE_KEY)
     } catch {
@@ -188,10 +198,34 @@ export function createCaptureSessions(deps: CaptureSessionDeps = {}) {
       clear: () => (alive() ? raw.clear() : Promise.resolve()),
     }
     if (!alive()) return null
+    // A journal that degraded on an earlier page dropped writes (N1): clear
+    // the store before anything is listed, and trust it again.
+    const store = storageOf()
+    let untrusted = false
+    try {
+      untrusted = !!store?.getItem(JOURNAL_UNTRUSTED_STORAGE_KEY)
+    } catch {
+      untrusted = false
+    }
+    if (untrusted) {
+      await raw.clear().catch(() => {})
+      try {
+        store?.removeItem(JOURNAL_UNTRUSTED_STORAGE_KEY)
+      } catch {
+        // Kept: the next open clears again.
+      }
+    }
     const journal = await openCaptureJournal({
       backend,
       accountHash: hash,
       capabilities,
+      onDegrade: () => {
+        try {
+          store?.setItem(JOURNAL_UNTRUSTED_STORAGE_KEY, "1")
+        } catch {
+          // Storage blocked: nothing to mark, and nothing persisted there.
+        }
+      },
     })
     // Signed out (or switched) in another tab while this opened.
     if (!alive()) {
