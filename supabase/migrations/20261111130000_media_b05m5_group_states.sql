@@ -17,8 +17,11 @@
 --   policies.
 -- * S4 public.contribution_group_replace(group, failed asset, new asset):
 --   new. The creator swaps a failed, stopped or deleted member for a new own
---   upload, one for one, in one transaction (OD-B5-01-1, OD-B5-01-4). Only
---   the 30-position limit refuses it; the live cap does not.
+--   upload, one for one, in one transaction (OD-B5-01-1 as revised on
+--   12 Nov, OD-B5-01-4). The live cap is checked after the swap: it is
+--   refused with contribution_group_full when the live count would pass 10
+--   or the next position would pass 30. A stopped member is live, so its
+--   swap is net zero.
 --   private.group_stopped_upload_window() names the stopped window, 1 hour
 --   (OD-B5-01-3): a member is stopped while uploading with updated_at older
 --   than it.
@@ -27,9 +30,10 @@
 --   admin also get, per member, technical, labels, review, use and
 --   derivative, and the group gains summary (OD-B5-01-2). The creator also
 --   sees removed (deleted) members, except a manager account's staff-era
---   uploads (OD-B5-01-7). Colleagues get creatorFirstName and nothing else
---   new; their replacesAssetId is null unless they may see that asset
---   (OD-B5-01-8). The existing keys, the subject rules and the not-found rule
+--   uploads (OD-B5-01-7); the creator's summary counts exactly the members
+--   the creator is shown, a manager's or admin's counts every member.
+--   Colleagues get creatorFirstName and nothing else new; their
+--   replacesAssetId is null unless they may see that asset (OD-B5-01-8). The existing keys, the subject rules and the not-found rule
 --   are unchanged. private.media_asset_review_list is the per-asset review
 --   list. derivative is read only through to_regprocedure and a dynamic call,
 --   so it is null until B05-m2 adds private.media_asset_derivative_summary.
@@ -328,8 +332,14 @@ $$;
 -- with a new upload of their own, one for one: the new asset becomes the next
 -- member and a replaces_failed_member link names the old one, in one
 -- transaction, so the old member stops counting at once and never counts
--- again. The old member stays in the group. Only the 30-position limit
--- refuses a swap (OD-B5-01-1); the live cap does not.
+-- again. The old member stays in the group.
+-- Cap (OD-B5-01-1, revised): after the swap, the S2 live count (see
+-- contribution_group_add) must not pass 10 and the new position must not
+-- pass 30, or the swap is refused with contribution_group_full and nothing
+-- is written. A stopped old member is live, so its swap is net zero and is
+-- accepted; a failed or deleted one's adds one live member, so it is
+-- accepted while the set has room (always for a set of 10 with one failed
+-- member, unless a photo was added into the freed slot since).
 -- Idempotent per (old, new): a repeat returns the first result before any
 -- state check; another new asset for a replaced member is
 -- idempotency_key_reused. Returns {groupId, assetId, replacesAssetId,
@@ -353,6 +363,7 @@ declare
   v_new public.media_assets;
   v_member uuid;
   v_next integer;
+  v_live integer;
 begin
   -- Creator only, at their upload venue; serialises writes to the group.
   select g.* into v_group from public.media_contribution_groups g
@@ -440,6 +451,21 @@ begin
   values (v_group.id, v_group.venue_id, p_new_asset_id, v_next);
   insert into public.media_asset_links (asset_id, venue_id, related_asset_id, kind, group_id, created_by)
   values (p_new_asset_id, v_group.venue_id, p_failed_asset_id, 'replaces_failed_member', v_group.id, v_uid);
+  -- The S2 live count after the swap; the exception undoes both inserts.
+  select count(*)::integer into v_live
+  from public.media_contribution_group_members m
+  join public.media_assets a on a.id = m.asset_id
+  where m.group_id = v_group.id
+    and a.deleted_at is null
+    and a.upload_state <> 'failed'
+    and not exists (
+      select 1 from public.media_asset_links l
+      where l.group_id = v_group.id and l.related_asset_id = m.asset_id
+        and l.kind = 'replaces_failed_member'
+    );
+  if v_live > 10 then
+    raise exception 'contribution_group_full' using errcode = 'P0001';
+  end if;
   return jsonb_build_object(
     'groupId', v_group.id,
     'assetId', p_new_asset_id,
@@ -463,9 +489,12 @@ $$;
 -- * Anyone else sees the members private.viewer_sees_asset admits.
 -- * Privileged viewers (the creator, the venue's effective manager, an active
 --   admin) also get technical, labels, review, use and derivative per member,
---   and the summary, which counts every member, seen or not.
--- * Colleagues get creatorFirstName, and replacesAssetId only for an asset
---   they may see (OD-B5-01-8).
+--   and the summary. The creator's summary counts exactly the members the
+--   creator is shown; a manager's or admin's counts every member, seen or
+--   not.
+-- * replacesAssetId: a manager or admin who is not the creator always gets
+--   it; the creator gets it for a member it is shown; a colleague only for
+--   an asset it may see (OD-B5-01-8).
 --
 -- Summary live (OD-B5-01-2): each member that is not replaced is in one
 -- bucket, removed (deleted), failed, inProgress (uploading or processing,
@@ -506,7 +535,8 @@ begin
         coalesce(lb.has_labels, false) as has_labels,
         l.related_asset_id,
         (l.related_asset_id is not null and (
-          (v_creator and ra.uploader_id = v_uid and (ra.uploader_role = 'manager' or not v_is_manager))
+          (v_privileged and not v_creator)
+          or (v_creator and ra.uploader_id = v_uid and (ra.uploader_role = 'manager' or not v_is_manager))
           or private.viewer_sees_asset(l.related_asset_id))) as related_visible
       from public.media_contribution_group_members m
       join public.media_assets a on a.id = m.asset_id
@@ -587,6 +617,12 @@ begin
         from public.media_contribution_group_members m
         join public.media_assets a on a.id = m.asset_id
         where m.group_id = v_group.id
+          -- The creator: the members it is shown (the loop's rule).
+          and (
+            not v_creator
+            or (a.uploader_id = v_uid and (a.uploader_role = 'manager' or not v_is_manager))
+            or private.viewer_sees_asset(a.id)
+          )
       ) s
     ) c;
   end if;
