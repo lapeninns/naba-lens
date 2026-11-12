@@ -421,7 +421,11 @@ export function AddHost({
       start(item: QueueItem, file: File) {
         const owner = fileOwners.current.get(item.file)
         if (!owner?.set || !item.assetId) return
-        claim([file], owner)
+        // The old photo's owner and set, without claim(): a replacement
+        // never makes its set the one "Add more" joins (that stays the
+        // latest pick's).
+        claimedFiles.current.add(file)
+        fileOwners.current.set(file, owner)
         replacements.current.set(file, {
           set: owner.set,
           assetId: item.assetId,
@@ -429,9 +433,15 @@ export function AddHost({
         })
         setReplaceState(item.id, { kind: "pending", with: file.name })
       },
+      abandon(file: File) {
+        const swap = replacements.current.get(file)
+        if (!swap) return
+        replacements.current.delete(file)
+        setReplaceState(swap.row, null)
+      },
       stateOf: (item: QueueItem) => replaceStates.get(item.id) ?? null,
     }),
-    [claim, replaceStates, setReplaceState]
+    [replaceStates, setReplaceState]
   )
 
   // Each photo of a set joins its group as soon as the server reserved it;
@@ -443,24 +453,29 @@ export function AddHost({
         replacements.current.delete(file)
         void photoSets
           .replace(swap.set, swap.assetId, assetId)
-          .then((outcome) => setReplaceState(swap.row, replaceState(outcome)))
+          .then(async (outcome) => {
+            // No answer in the end: the server may have made the swap all
+            // the same, so the set is read before saying it didn't.
+            if (outcome.status === "unavailable") {
+              const view = await photoSets.read(swap.set)
+              if (
+                view?.members.some(
+                  (m) =>
+                    m.assetId === assetId && m.replacesAssetId === swap.assetId
+                )
+              ) {
+                photoSets.replacedOnServer(swap.set, swap.assetId, assetId)
+                outcome = { status: "replaced" }
+              }
+            }
+            setReplaceState(swap.row, replaceState(outcome))
+          })
         return
       }
       const set = fileOwners.current.get(file)?.set
       if (set) photoSets.reserved(set, assetId)
     },
     [photoSets, setReplaceState]
-  )
-  // A replacement that ended before the server reserved it: the old row
-  // offers Replace again.
-  const replacementEnded = React.useCallback(
-    (file: File) => {
-      const swap = replacements.current.get(file)
-      if (!swap) return
-      replacements.current.delete(file)
-      setReplaceState(swap.row, null)
-    },
-    [setReplaceState]
   )
   const readSet = React.useCallback(
     (setId: string) => photoSets.read(setId),
@@ -849,10 +864,9 @@ export function AddHost({
                 keepRunningWhenClosed
                 onBusyChange={setBusy}
                 onHoldsChange={holdsChanged}
-                onUnfinished={(file, reason) => {
-                  replacementEnded(file)
+                onUnfinished={(file, reason) =>
                   fileOwners.current.get(file)?.onUnfinished?.(reason, file)
-                }}
+                }
                 onReserved={reservedForSet}
                 setOf={groupsOn ? setOf : undefined}
                 readSet={groupsOn ? readSet : undefined}
@@ -878,11 +892,16 @@ function replaceState(outcome: ReplaceOutcome): ReplaceState {
   if (outcome.status === "replaced") return { kind: "replaced" }
   if (outcome.status === "same") return { kind: "same" }
   const copy = ENTRY_COPY.replaceRefused
-  const reason = outcome.status === "refused" ? outcome.refusal?.reason : null
+  const refusal = outcome.status === "refused" ? outcome.refusal : null
+  const reason = refusal?.reason
   return {
     kind: "refused",
+    // A refusal without set words of its own here says the server's.
     message:
-      reason && reason in copy ? copy[reason as keyof typeof copy] : copy.other,
+      reason && reason in copy
+        ? copy[reason as keyof typeof copy]
+        : (refusal?.message ?? copy.other),
+    at: Date.now(),
   }
 }
 

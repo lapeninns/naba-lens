@@ -208,6 +208,18 @@ export class PhotoSets {
     this.sets.get(setId)?.failed.delete(assetId)
   }
 
+  /**
+   * The server's read shows `newAssetId` replacing `failedAssetId` though the
+   * replace call never answered: record it as replace() would have.
+   */
+  replacedOnServer(setId: string, failedAssetId: string, newAssetId: string) {
+    const set = this.sets.get(setId)
+    if (!set) return
+    set.replaced.set(failedAssetId, newAssetId)
+    if (!set.assets.includes(newAssetId)) set.assets.push(newAssetId)
+    set.added.add(newAssetId)
+  }
+
   /** The photo's set has it as a member on the server. */
   isMember(setId: string, assetId: string): boolean {
     return this.sets.get(setId)?.added.has(assetId) ?? false

@@ -126,11 +126,26 @@ const DISH: OpenAddOptions = {
   },
 }
 
-function Opener() {
+const NAAN: OpenAddOptions = {
+  ...DISH,
+  preset: {
+    ...DISH.preset!,
+    itemId: "00000000-0000-4000-8000-0000000000c2",
+    itemName: "Naan",
+  },
+}
+
+function Opener({
+  opts = DISH,
+  label = "Tandoor photos",
+}: {
+  opts?: OpenAddOptions
+  label?: string
+}) {
   const openAdd = useAdd()
   return (
-    <button type="button" onClick={() => openAdd?.(DISH)}>
-      Tandoor photos
+    <button type="button" onClick={() => openAdd?.(opts)}>
+      {label}
     </button>
   )
 }
@@ -193,6 +208,7 @@ function host() {
       venueName="TEST Inn"
     >
       <Opener />
+      <Opener opts={NAAN} label="Naan photos" />
     </AddHost>
   )
   return menu
@@ -345,7 +361,8 @@ describe("Replace a photo that didn't finish (B05-01d)", () => {
     ["in_group", ENTRY_COPY.replaceRefused.in_group],
     ["already_replaced", ENTRY_COPY.replaceRefused.already_replaced],
     ["set_full", ENTRY_COPY.replaceRefused.set_full],
-    ["in_other_group", ENTRY_COPY.replaceRefused.other],
+    // No set words of its own: the server's message (R10, S12).
+    ["in_other_group", "refused"],
   ])(
     "says the refusal %s on the row, and keeps the new photo",
     async (reason, text) => {
@@ -490,6 +507,288 @@ describe("a join still on its way when the set settles (spare6 at 3c3141d0)", ()
       sets.readPhotoSet.mock.results.map((r) => r.value)
     )
     expect(reads.at(-1).group.members).toHaveLength(3)
+  })
+})
+
+const replaceInput = (dialog: HTMLElement) =>
+  dialog.querySelector<HTMLInputElement>("input[data-replace-input]")!
+const replaceButton = (dialog: HTMLElement, name = "bad.jpg") =>
+  within(dialog).queryByRole("button", { name: ENTRY_COPY.replaceLabel(name) })
+const refusedWith = (reason: string) => ({
+  status: "failed",
+  retry: false,
+  refusal: { code: "state_conflict", message: "refused", reason },
+})
+const joined = () =>
+  sets.addToPhotoSet.mock.calls.flatMap(([input]) => input.assetIds)
+
+describe("Replace: the review repairs (S1 to S13)", () => {
+  it("S1: a replacement whose reservation failed and was retried still swaps in", async () => {
+    let tries = 0
+    uploads.current = (async (file, context) => {
+      if (file.name === "good.jpg" && tries++ === 0)
+        throw new Error("The upload failed. Retry.")
+      return uploader(file, context)
+    }) satisfies Uploader
+    const { user, dialog } = await tandoorSet(["one.jpg", "two.jpg", "bad.jpg"])
+    fireEvent.click(
+      await within(dialog).findByRole("button", {
+        name: ENTRY_COPY.replaceLabel("bad.jpg"),
+      })
+    )
+    await user.upload(replaceInput(dialog), jpeg("good.jpg"))
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Retry good.jpg" })
+    )
+    await waitFor(() =>
+      expect(sets.replaceInPhotoSet).toHaveBeenCalledWith({
+        groupId: GROUP,
+        failedAssetId: "asset-bad.jpg",
+        newAssetId: "asset-good.jpg",
+      })
+    )
+    expect(joined()).not.toContain("asset-good.jpg")
+    expect(await within(dialog).findByText(saved(3))).toBeTruthy()
+  })
+
+  it("S2: replacing in an earlier set leaves Add more on the latest set", async () => {
+    const GROUP2 = "00000000-0000-4000-8000-000000006002"
+    sets.startPhotoSet
+      .mockResolvedValueOnce({ status: "ok", groupId: GROUP })
+      .mockResolvedValueOnce({ status: "ok", groupId: GROUP2 })
+    const { user, dialog } = await tandoorSet(["one.jpg", "bad.jpg"])
+    const replace = await within(dialog).findByRole("button", {
+      name: ENTRY_COPY.replaceLabel("bad.jpg"),
+    })
+    // A second set, of Naan, is the latest pick.
+    // Outside the open sheet (inert to assistive tech), as the page's own
+    // Add buttons are.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Naan photos", hidden: true })
+    )
+    await user.upload(libraryInput(), [jpeg("n1.jpg"), jpeg("n2.jpg")])
+    await waitFor(() => expect(sets.startPhotoSet).toHaveBeenCalledTimes(2))
+    fireEvent.click(replace)
+    await user.upload(replaceInput(dialog), jpeg("good.jpg"))
+    await waitFor(() => expect(sets.replaceInPhotoSet).toHaveBeenCalled())
+    await user.upload(
+      dialog.querySelector<HTMLInputElement>('input[type="file"]')!,
+      [jpeg("more.jpg")]
+    )
+    await waitFor(() =>
+      expect(sets.addToPhotoSet).toHaveBeenLastCalledWith({
+        groupId: GROUP2,
+        assetIds: ["asset-more.jpg"],
+      })
+    )
+  })
+
+  it("S3: a replacement the queue won't take ends, with the reason shown", async () => {
+    const { user, dialog } = await tandoorSet(["one.jpg", "two.jpg", "bad.jpg"])
+    fireEvent.click(
+      await within(dialog).findByRole("button", {
+        name: ENTRY_COPY.replaceLabel("bad.jpg"),
+      })
+    )
+    await user.upload(
+      replaceInput(dialog),
+      new File([], "empty.jpg", { type: "image/jpeg" })
+    )
+    expect(await within(dialog).findByText(/This file is empty/)).toBeTruthy()
+    expect(within(dialog).queryByText(/Replacing with/)).toBeNull()
+    expect(replaceButton(dialog)).toBeTruthy()
+    expect(sets.replaceInPhotoSet).not.toHaveBeenCalled()
+  })
+
+  it("S4: focus goes to the new row when the old one leaves", async () => {
+    const { user, dialog } = await tandoorSet(["one.jpg", "two.jpg", "bad.jpg"])
+    fireEvent.click(
+      await within(dialog).findByRole("button", {
+        name: ENTRY_COPY.replaceLabel("bad.jpg"),
+      })
+    )
+    await user.upload(replaceInput(dialog), jpeg("good.jpg"))
+    await waitFor(() =>
+      expect(within(dialog).queryByText("bad.jpg")).toBeNull()
+    )
+    const row = within(dialog).getByText("good.jpg").closest("li")!
+    await waitFor(() => expect(row.contains(document.activeElement)).toBe(true))
+  })
+
+  it("S7: a refusal is said in the polite region", async () => {
+    sets.replaceInPhotoSet.mockResolvedValue(refusedWith("set_full"))
+    const again = await tandoorSet(["one.jpg", "two.jpg", "bad.jpg"])
+    fireEvent.click(
+      await within(again.dialog).findByRole("button", {
+        name: ENTRY_COPY.replaceLabel("bad.jpg"),
+      })
+    )
+    await again.user.upload(replaceInput(again.dialog), jpeg("good.jpg"))
+    const said = await within(again.dialog).findByText(
+      `bad.jpg: ${ENTRY_COPY.replaceRefused.set_full}`
+    )
+    expect(said.closest("[aria-live=polite]")).toBeTruthy()
+  })
+
+  it("S5: a member the server has as stopped offers Replace on a row stopped here", async () => {
+    uploads.current = (async (file, context) => {
+      context.onReserved?.(`asset-${file.name}`)
+      if (file.name === "lost.jpg") throw new Error("The upload failed. Retry.")
+      return { assetId: `asset-${file.name}` }
+    }) satisfies Uploader
+    server.technical.set("asset-lost.jpg", "uploading")
+    sets.readPhotoSet.mockImplementation(async () => {
+      const v = view()
+      return {
+        status: "ok",
+        group: {
+          ...v,
+          members: v.members.map((m) =>
+            m.assetId === "asset-lost.jpg" ? { ...m, stopped: true } : m
+          ),
+        },
+      }
+    })
+    const { dialog } = await tandoorSet(["one.jpg", "lost.jpg"])
+    expect(
+      await within(dialog).findByRole("button", {
+        name: ENTRY_COPY.replaceLabel("lost.jpg"),
+      })
+    ).toBeTruthy()
+    // Retry still resumes the same asset.
+    expect(
+      within(dialog).getByRole("button", { name: "Retry lost.jpg" })
+    ).toBeTruthy()
+  })
+
+  it("S6: a set row that never became a member gets its line in the server's notice", async () => {
+    uploads.current = (async (file, context) => {
+      if (file.name === "early.jpg")
+        throw new Error("We couldn't reserve it. Retry.")
+      return uploader(file, context)
+    }) satisfies Uploader
+    const { dialog } = await tandoorSet(["one.jpg", "two.jpg", "early.jpg"])
+    expect(await within(dialog).findByText(saved(2))).toBeTruthy()
+    expect(
+      within(dialog).getByText("early.jpg: We couldn't reserve it. Retry.")
+    ).toBeTruthy()
+    expect(sets.readPhotoSet).toHaveBeenCalled()
+  })
+
+  it("S8: after a refusal, Replace waits for a read taken since", async () => {
+    sets.replaceInPhotoSet.mockResolvedValue(refusedWith("set_full"))
+    const { user, dialog } = await tandoorSet(["one.jpg", "two.jpg", "bad.jpg"])
+    fireEvent.click(
+      await within(dialog).findByRole("button", {
+        name: ENTRY_COPY.replaceLabel("bad.jpg"),
+      })
+    )
+    // Reads after this never answer.
+    sets.readPhotoSet.mockImplementation(() => new Promise(() => {}))
+    await user.upload(replaceInput(dialog), jpeg("good.jpg"))
+    expect(
+      await within(dialog).findAllByText(ENTRY_COPY.replaceRefused.set_full)
+    ).toBeTruthy()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(replaceButton(dialog)).toBeNull()
+  })
+
+  it("S10: no notice is worded while a replace is still pending", async () => {
+    let answer!: (v: unknown) => void
+    sets.replaceInPhotoSet.mockImplementation(
+      () => new Promise((r) => (answer = r))
+    )
+    const { user, dialog } = await tandoorSet(["one.jpg", "two.jpg", "bad.jpg"])
+    fireEvent.click(
+      await within(dialog).findByRole("button", {
+        name: ENTRY_COPY.replaceLabel("bad.jpg"),
+      })
+    )
+    const before = sets.readPhotoSet.mock.calls.length
+    await user.upload(replaceInput(dialog), jpeg("good.jpg"))
+    await within(dialog).findByText(/Replacing with good\.jpg/)
+    // good.jpg is saved, but the swap has no answer: not settled.
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText("good.jpg").closest("li")!.textContent
+      ).not.toMatch(/Uploading|Processing|Waiting/)
+    )
+    expect(within(dialog).queryByText(saved(2))).toBeNull()
+    expect(sets.readPhotoSet.mock.calls.length).toBe(before)
+    server.members.push("asset-good.jpg")
+    server.replaces.set("asset-good.jpg", "asset-bad.jpg")
+    answer({
+      status: "ok",
+      groupId: GROUP,
+      assetId: "asset-good.jpg",
+      replacesAssetId: "asset-bad.jpg",
+      position: 4,
+    })
+    expect(await within(dialog).findByText(saved(3))).toBeTruthy()
+  })
+
+  it("S11: with no answer from replace, a read that shows the swap counts as replaced", async () => {
+    sets.replaceInPhotoSet.mockImplementation(
+      async (input: { failedAssetId: string; newAssetId: string }) => {
+        // Committed, but the answer never came back.
+        server.members.push(input.newAssetId)
+        server.replaces.set(input.newAssetId, input.failedAssetId)
+        return { status: "missing" }
+      }
+    )
+    const { user, dialog } = await tandoorSet(["one.jpg", "two.jpg", "bad.jpg"])
+    fireEvent.click(
+      await within(dialog).findByRole("button", {
+        name: ENTRY_COPY.replaceLabel("bad.jpg"),
+      })
+    )
+    await user.upload(replaceInput(dialog), jpeg("good.jpg"))
+    await waitFor(() =>
+      expect(within(dialog).queryByText("bad.jpg")).toBeNull()
+    )
+    expect(
+      within(dialog).queryByText(ENTRY_COPY.replaceRefused.other)
+    ).toBeNull()
+    expect(await within(dialog).findByText(saved(3))).toBeTruthy()
+  })
+
+  it("S13: the server's read words the set with one row left in this tab", async () => {
+    const { user, dialog } = await tandoorSet(["one.jpg", "bad.jpg"])
+    expect(await within(dialog).findByText(saved(1))).toBeTruthy()
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove bad.jpg" })
+    )
+    expect(
+      await within(dialog).findByText(ENTRY_COPY.setDidntFinish)
+    ).toBeTruthy()
+    expect(within(dialog).getByText(saved(1))).toBeTruthy()
+  })
+
+  it("S1 (side): a retried file that fails again is told again", async () => {
+    const onUnfinished = vi.fn()
+    uploads.current = (async () => {
+      throw new Error("The upload failed. Retry.")
+    }) satisfies Uploader
+    const user = userEvent.setup()
+    const menu = Promise.resolve(MENU)
+    render(
+      <AddHost
+        blocked={null}
+        captchaRequired={false}
+        captchaSiteKey={null}
+        entry={menu}
+        venueName="TEST Inn"
+      >
+        <Opener opts={{ ...DISH, onUnfinished }} label="Told" />
+      </AddHost>
+    )
+    await menu
+    fireEvent.click(screen.getByRole("button", { name: "Told" }))
+    await user.upload(libraryInput(), [jpeg("x.jpg")])
+    const dialog = await screen.findByRole("dialog")
+    await waitFor(() => expect(onUnfinished).toHaveBeenCalledTimes(1))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retry x.jpg" }))
+    await waitFor(() => expect(onUnfinished).toHaveBeenCalledTimes(2))
   })
 })
 
