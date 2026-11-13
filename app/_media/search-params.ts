@@ -53,6 +53,7 @@ export function filtersToSearch(
     if (!value) continue
     if (key === "venue" && mode !== "admin") continue
     if (key === "destination" && filters.rights !== "in_force") continue
+    if (key === "answerUse" && !filters.answerFreshness) continue
     params.set(key, value)
   }
   return params.toString()

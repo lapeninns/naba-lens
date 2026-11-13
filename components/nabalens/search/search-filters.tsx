@@ -16,6 +16,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
+  ANSWER_FRESHNESS_STATES,
+  ANSWER_USES,
   MENU_DECISION_STATES,
   SEARCH_RIGHTS,
   type SearchFilterKey,
@@ -24,7 +26,13 @@ import { cn } from "@/lib/utils"
 
 import { OptionSelect } from "../option-select"
 import { CountBadge } from "../status-chip"
-import { DECISION_LABEL, RIGHTS_LABEL, SEARCH_COPY } from "./search-copy"
+import {
+  ANSWER_FRESHNESS_LABEL,
+  ANSWER_USE_LABEL,
+  DECISION_LABEL,
+  RIGHTS_LABEL,
+  SEARCH_COPY,
+} from "./search-copy"
 import type { SearchMenuOptions, SearchOption } from "./types"
 
 /** The id of a filter's control, for labels, errors and focus. */
@@ -40,6 +48,8 @@ export const CONTROL_ORDER: SearchFilterKey[] = [
   "variant",
   "destination",
   "menuState",
+  "answerFreshness",
+  "answerUse",
   "uploadedFrom",
   "uploadedTo",
 ]
@@ -49,6 +59,8 @@ const MORE_KEYS: SearchFilterKey[] = [
   "variant",
   "destination",
   "menuState",
+  "answerFreshness",
+  "answerUse",
   "uploadedFrom",
   "uploadedTo",
 ]
@@ -60,6 +72,14 @@ const RIGHTS_OPTIONS: SearchOption[] = SEARCH_RIGHTS.map((r) => ({
 const DECISION_OPTIONS: SearchOption[] = MENU_DECISION_STATES.map((s) => ({
   id: s,
   name: DECISION_LABEL[s],
+}))
+const ANSWER_OPTIONS: SearchOption[] = ANSWER_FRESHNESS_STATES.map((s) => ({
+  id: s,
+  name: ANSWER_FRESHNESS_LABEL[s],
+}))
+const ANSWER_USE_OPTIONS: SearchOption[] = ANSWER_USES.map((u) => ({
+  id: u,
+  name: ANSWER_USE_LABEL[u],
 }))
 const MEDIA_OPTIONS = [
   { value: "all", label: SEARCH_COPY.mediaBoth },
@@ -131,8 +151,12 @@ export function SearchFilters({
         : null
 
   const showDestination = v.rights === "in_force" && destinations.length > 0
+  // Answer freshness runs only with a venue (§11.2): a manager's is implicit.
+  const showAnswer = !admin || Boolean(v.venue)
   const moreCount = MORE_KEYS.filter((k) => {
     if (k === "destination") return showDestination && v.destination
+    if (k === "answerUse") return false
+    if (k === "answerFreshness") return showAnswer && v.answerFreshness
     return Boolean(v[k])
   }).length
   const moreHasError = MORE_KEYS.some((k) => fieldErrors[k])
@@ -177,7 +201,12 @@ export function SearchFilters({
               aria-describedby={describe("venue")}
               // Menu items and options belong to one venue's menu.
               onValueChange={(venue) =>
-                set({ venue, item: null, variant: null })
+                set({
+                  venue,
+                  item: null,
+                  variant: null,
+                  ...(venue ? {} : { answerFreshness: null, answerUse: null }),
+                })
               }
             />
           </Field>
@@ -333,6 +362,59 @@ export function SearchFilters({
             onValueChange={(menuState) => set({ menuState })}
           />
         </Field>
+        {showAnswer ? (
+          <div className="grid min-w-0 content-start gap-3">
+            <Field
+              label={SEARCH_COPY.answerFreshness}
+              htmlFor={fieldId("answerFreshness")}
+              error={err("answerFreshness")}
+              errorId={errorId("answerFreshness")}
+            >
+              <OptionSelect
+                id={fieldId("answerFreshness")}
+                options={ANSWER_OPTIONS}
+                value={v.answerFreshness}
+                emptyLabel={SEARCH_COPY.anyAnswerFreshness}
+                invalid={Boolean(err("answerFreshness"))}
+                aria-describedby={describe(
+                  "answerFreshness",
+                  `${fieldId("answerFreshness")}-hint`
+                )}
+                onValueChange={(answerFreshness) =>
+                  set({
+                    answerFreshness,
+                    answerUse: answerFreshness ? v.answerUse : null,
+                  })
+                }
+              />
+            </Field>
+            <p id={`${fieldId("answerFreshness")}-hint`} className={HINT}>
+              {SEARCH_COPY.answerFreshnessHint}
+            </p>
+            {v.answerFreshness ? (
+              <Field
+                label={SEARCH_COPY.answerUse}
+                htmlFor={fieldId("answerUse")}
+                error={err("answerUse")}
+                errorId={errorId("answerUse")}
+              >
+                <OptionSelect
+                  id={fieldId("answerUse")}
+                  options={ANSWER_USE_OPTIONS}
+                  value={v.answerUse ?? "internal"}
+                  emptyLabel={ANSWER_USE_LABEL.internal}
+                  invalid={Boolean(err("answerUse"))}
+                  aria-describedby={describe("answerUse")}
+                  onValueChange={(answerUse) =>
+                    set({
+                      answerUse: answerUse === "internal" ? null : answerUse,
+                    })
+                  }
+                />
+              </Field>
+            ) : null}
+          </div>
+        ) : null}
         <fieldset
           aria-describedby={`${fieldId("uploadedFrom")}-hint`}
           className="grid min-w-0 content-start gap-1.5 md:col-span-2 lg:col-span-1"

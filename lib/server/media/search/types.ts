@@ -34,6 +34,22 @@ export const MENU_DECISION_STATES = [
 ] as const
 export type MenuDecisionState = (typeof MENU_DECISION_STATES)[number]
 
+/**
+ * B03 answer freshness (K1, A10): the state of the answer an asset supports,
+ * per use. It describes the answer, never the photo (§11.2 signal 3).
+ */
+export const ANSWER_FRESHNESS_STATES = [
+  "current",
+  "due_soon",
+  "expired",
+  "basis_missing",
+  "unrated",
+] as const
+export type AnswerFreshnessState = (typeof ANSWER_FRESHNESS_STATES)[number]
+
+export const ANSWER_USES = ["internal", "public"] as const
+export type AnswerUse = (typeof ANSWER_USES)[number]
+
 /** Every filter key the search accepts; any other key is refused. */
 export const SEARCH_FILTER_KEYS = [
   "venue",
@@ -48,6 +64,8 @@ export const SEARCH_FILTER_KEYS = [
   "uploadedFrom",
   "uploadedTo",
   "menuState",
+  "answerFreshness",
+  "answerUse",
 ] as const
 export type SearchFilterKey = (typeof SEARCH_FILTER_KEYS)[number]
 
@@ -68,6 +86,10 @@ export type AssetSearchFilters = {
   uploadedFrom?: string
   uploadedTo?: string
   menuState?: MenuDecisionState
+  /** Runs only with a venue (a manager's is implicit). */
+  answerFreshness?: AnswerFreshnessState
+  /** Only with answerFreshness; the database defaults to internal. */
+  answerUse?: AnswerUse
 }
 
 /** The `p_filters` object sent to the database (upload days as instants). */
@@ -133,10 +155,30 @@ export type AssetSearchRow = {
   menuDecisions: SearchMenuDecision[]
 }
 
+/** One per-use freshness entry of an answer (B03 A10 shape). */
+export type AnswerFreshnessEntry = {
+  use: AnswerUse
+  state: AnswerFreshnessState
+  nextCheckDue: string | null
+  basis: "observed_on" | "stated_on" | "event_end" | null
+  basisDate: string | null
+}
+
+/** An answer in use that the asset is evidence for (K1 current_answer). */
+export type SearchAnswer = {
+  checkId: string
+  questionKey: string
+  /** The catalogue question; null for a key outside the catalogue. */
+  question: string | null
+  freshness: AnswerFreshnessEntry[]
+}
+
 /** One result: a single original asset id with its route and summaries. */
 export type AssetSearchItem = Omit<AssetSearchRow, "hasThumbnail"> & {
   /** Authorised route that signs a short-lived URL per request. */
   thumbnailUrl: string | null
+  /** Answers it supports, with their freshness (empty when none or unread). */
+  answers: SearchAnswer[]
 }
 
 export type AssetSearchPage = {
@@ -152,7 +194,16 @@ export type SearchRpcs = {
       p_after_id: string | null
       p_limit: number
     }
-    returns: { hasMore: boolean; items: AssetSearchRow[] }
+    returns: {
+      hasMore: boolean
+      items: AssetSearchRow[]
+      /** answerFreshness only: the page stopped after its 500 candidates. */
+      resumeAfter?: { uploadedAt: string; id: string }
+    }
+  }
+  asset_search_answers: {
+    args: { p_asset_ids: string[] }
+    returns: { items: { assetId: string; answers: SearchAnswer[] }[] }
   }
   asset_search_can_open: {
     args: { p_asset_id: string }

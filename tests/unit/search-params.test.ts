@@ -52,6 +52,13 @@ describe("asset search URL codec (B05-06)", () => {
     ).toBe("rights=in_force&destination=test_dest")
   })
 
+  it("drops an answer use without an answer freshness", () => {
+    expect(filtersToSearch({ answerUse: "public" })).toBe("")
+    expect(
+      filtersToSearch({ answerFreshness: "expired", answerUse: "public" })
+    ).toBe("answerFreshness=expired&answerUse=public")
+  })
+
   it("never sends a venue for a manager", () => {
     expect(filtersToSearch({ venue: OTHER, item: UUID }, "manager")).toBe(
       `item=${UUID}`

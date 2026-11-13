@@ -51,8 +51,13 @@ describe("asset search copy (B05-06)", () => {
     for (const text of all) {
       expect(text).not.toMatch(/approv/i)
       expect(text).not.toMatch(/\breuse\b|another destination/i)
-      expect(text).not.toMatch(/\btags?\b|comment|fresh|derivative/i)
+      expect(text).not.toMatch(/\btags?\b|comment|derivative/i)
+      // B05 follow-up: freshness is only ever the answer's (§11.2), never
+      // the photo's.
+      if (/fresh/i.test(text))
+        expect(text).toMatch(/^Answer freshness$|^Freshness for$/)
     }
+    expect(SEARCH_COPY.answerFreshnessHint).toMatch(/nothing about the photo/)
   })
 
   it("dates uploads in London time, dropping this year's year", () => {

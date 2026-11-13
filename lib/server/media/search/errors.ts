@@ -64,6 +64,12 @@ export function searchRpcFailure(
   const hit =
     MAPPING.find(([key]) => message === key) ??
     MAPPING.find(([key]) => message.includes(key))
+  // Answer freshness runs only with a venue (B05 follow-up, §11.2).
+  if (
+    hit?.[0] === "invalid_search_filter" &&
+    error?.details === "answerFreshness"
+  )
+    return searchInvalid({ answerFreshness: "Choose a venue first." })
   if (hit) return searchFailure(hit[1], hit[2])
   console.error(`[asset-search] ${context} failed`, {
     error: redactError(error),

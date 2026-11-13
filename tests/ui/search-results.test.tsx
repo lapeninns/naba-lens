@@ -53,6 +53,7 @@ function item(n: number): AssetSearchItem {
       destinations: [],
     },
     menuDecisions: [],
+    answers: [],
   }
 }
 

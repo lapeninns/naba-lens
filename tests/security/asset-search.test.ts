@@ -929,6 +929,11 @@ describe("asset search filters at the database (B05-06b)", () => {
 const BASE_COMMIT = "7d2a783c"
 const SEARCH_MIGRATION =
   "supabase/migrations/20261113140200_media_b05m4_asset_search.sql"
+// The shipped body: the newest migration that (re)defines public.asset_search
+// (B05 follow-up 20261113150000 adds the answer-freshness filter; its gate
+// prefilter P must stay the one this file evaluates).
+const SHIPPED_SEARCH_MIGRATION =
+  "supabase/migrations/20261113150000_media_b05_answer_freshness.sql"
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url))
 // The base body, frozen: the base commit is not on main after a squash merge.
 const REFERENCE_FIXTURE = fileURLToPath(
@@ -939,7 +944,9 @@ const REFERENCE_SHA256 =
 
 /** The function text `create function public.asset_search(` .. `$$;`. */
 function searchFunction(src: string, where: string): string {
-  const head = "create function public.asset_search("
+  const head = src.includes("create or replace function public.asset_search(")
+    ? "create or replace function public.asset_search("
+    : "create function public.asset_search("
   const start = src.indexOf(head)
   const end = src.indexOf("\n$$;", start)
   if (start < 0 || end < 0) throw new Error(`no asset_search in ${where}`)
@@ -963,7 +970,7 @@ function referenceDefinition(): string {
     )
   }
   return searchFunction(src, "the base").replace(
-    "create function public.asset_search(",
+    /create (or replace )?function public\.asset_search\(/,
     "create function pg_temp.asset_search_v1("
   )
 }
@@ -1075,7 +1082,7 @@ function compareBodies(user: string, cases: Case[], setup = ""): Diff {
 // migration is what this test evaluates.
 const shippedP = (() => {
   const body = searchFunction(
-    readFileSync(join(repoRoot, SEARCH_MIGRATION), "utf8"),
+    readFileSync(join(repoRoot, SHIPPED_SEARCH_MIGRATION), "utf8"),
     "the migration"
   )
   const from = "(v_admin or ("
@@ -2104,7 +2111,7 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
   const CHUNK_MARK = "      v_seen := 0;\n"
   const COUNTED_SEARCH = (() => {
     const fn = searchFunction(
-      readFileSync(join(repoRoot, SEARCH_MIGRATION), "utf8"),
+      readFileSync(join(repoRoot, SHIPPED_SEARCH_MIGRATION), "utf8"),
       "the migration"
     )
     const at = fn.indexOf(CHUNK_MARK)
