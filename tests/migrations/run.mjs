@@ -12,6 +12,8 @@
 //   node tests/migrations/run.mjs "$W" withdraw  # coverage access-withdrawal script
 //   node tests/migrations/run.mjs "$W" db-reset sibling-upgrade  # reset to SIBLING_BASE, no seed
 //   node tests/migrations/run.mjs "$W" sibling-upgrade  # seed sibling-era rows, migration up, verify
+//   node tests/migrations/run.mjs "$W" db-reset use-baseline  # reset to the migration before B05-m1, no seed
+//   node tests/migrations/run.mjs "$W" use-baseline  # seed media, migration up, verify legacy_unknown
 //
 // The resets are separate commands because one reset can take several minutes on
 // a loaded machine.
@@ -21,7 +23,17 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 
 const [workdirArg, phase] = process.argv.slice(2)
-const phases = ["upgrade", "reset", "lint", "withdraw", "sibling-upgrade"]
+const phases = [
+  "upgrade",
+  "reset",
+  "lint",
+  "withdraw",
+  "sibling-upgrade",
+  "use-baseline",
+]
+// B05-m1: `use-baseline` resets to the newest migration before it. Keep in
+// step with USE_BASELINE_FIRST in tests/migrations/helpers.ts.
+const USE_BASELINE_FIRST = "20261113140000"
 // Newest migration of the sibling base branch: `sibling-upgrade` resets to it
 // (without supabase/seed.sql, which needs the later manager migrations), seeds
 // data with that schema and applies the later migrations over the rows. Keep in
@@ -35,7 +47,7 @@ if (
   )
 )
   throw new Error(
-    "Usage: node tests/migrations/run.mjs <isolated Supabase workdir> upgrade|reset|lint|withdraw|sibling-upgrade|db-reset <phase>"
+    "Usage: node tests/migrations/run.mjs <isolated Supabase workdir> upgrade|reset|lint|withdraw|sibling-upgrade|use-baseline|db-reset <phase>"
   )
 const workdir = resolve(workdirArg)
 const state = join(workdir, ".drill")
@@ -67,6 +79,14 @@ if (phase === "db-reset") {
   const args = ["--workdir", workdir, "db", "reset", "--local"]
   if (target === "sibling-upgrade")
     args.push("--version", SIBLING_BASE, "--no-seed")
+  if (target === "use-baseline") {
+    const base = migrationFiles
+      .map((f) => f.split("_")[0])
+      .filter((v) => v < USE_BASELINE_FIRST)
+      .sort()
+      .at(-1)
+    args.push("--version", base, "--no-seed")
+  }
   console.log(`[${target}] supabase ${args.slice(2).join(" ")} (${workdir})`)
   // The CLI reports "Applying migration ..." on stderr; keep both streams.
   const result = spawnSync("supabase", args, {

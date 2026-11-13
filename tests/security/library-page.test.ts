@@ -79,6 +79,9 @@ function setCreatedAt(rows: [string, string][]) {
       return `('${id}'::uuid, '${iso}'::timestamptz)`
     })
     .join(", ")
+  // Replica mode skips every trigger. A row moved before the B05-m1 cutover
+  // gets the use baseline a real row from then has (legacy_unknown), so the
+  // shared world keeps the invariant scripts/db/check-use-baseline.sql checks.
   execFileSync(
     "psql",
     [
@@ -86,7 +89,7 @@ function setCreatedAt(rows: [string, string][]) {
       "-v",
       "ON_ERROR_STOP=1",
       "-qAtc",
-      `set session_replication_role = replica; update public.media_assets a set created_at = v.t from (values ${values}) as v(id, t) where a.id = v.id`,
+      `set session_replication_role = replica; update public.media_assets a set created_at = v.t, use_baseline = case when v.t < (select s.cutover_at from private.media_use_settings s) then 'legacy_unknown' else a.use_baseline end from (values ${values}) as v(id, t) where a.id = v.id`,
     ],
     { encoding: "utf8" }
   )

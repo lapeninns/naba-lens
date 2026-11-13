@@ -165,11 +165,19 @@ export function ReasonDialog({
   const [fieldError, setFieldError] = React.useState<string | null>(null)
   const sessionEnded = useSessionEndedCatch()
 
-  /** The reason field, once it shows its error (CA-13). */
+  // The reason field takes focus once it shows its error (CA-13). A request
+  // is served after React commits with the field enabled again: a frame
+  // scheduled while the request was pending could land on the disabled
+  // field and leave focus on the button.
+  const [focusRequest, setFocusRequest] = React.useState(0)
+  const focusServed = React.useRef(0)
+  React.useEffect(() => {
+    if (pending || focusRequest === focusServed.current) return
+    focusServed.current = focusRequest
+    document.getElementById(`${id}-reason`)?.focus()
+  }, [focusRequest, pending, id])
   function focusReason() {
-    requestAnimationFrame(() =>
-      document.getElementById(`${id}-reason`)?.focus()
-    )
+    setFocusRequest((n) => n + 1)
   }
 
   function close(next: boolean) {

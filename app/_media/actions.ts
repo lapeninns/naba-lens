@@ -7,6 +7,10 @@ import { removeMediaAsset } from "@/lib/server/lifecycle/remove"
 import { getMediaActor } from "@/lib/server/media/context"
 import { UPLOADER_ROLES } from "@/lib/server/media/roles"
 import type {
+  ContributionGroupReplaceResult,
+  ContributionGroupView,
+} from "@/lib/knowledge/contract"
+import type {
   AssetGroup,
   DeleteImpact,
   GroupSubjectRef,
@@ -72,6 +76,40 @@ function setReply<T extends object>(read: WorkRead<T>): PhotoSetReply<T> {
   if (read.status === "ok") return { status: "ok", ...read.value }
   if (read.status === "missing") return { status: "missing" }
   return { status: "failed", retry: RETRYABLE.has(read.failure.code) }
+}
+
+/**
+ * A set refusal with no reason of its own, in set words: the shared mapping's
+ * fallbacks name amenity checks.
+ */
+const SET_MESSAGES: Partial<Record<string, string>> & { other: string } = {
+  unavailable:
+    "This set of photos couldn't be loaded or changed right now. Try again shortly.",
+  unauthenticated: "Sign in again, then try again.",
+  account_inactive: "Your account is not active, so this set can't be changed.",
+  not_permitted: "You can't change this set of photos.",
+  not_found: "This set of photos could not be found. Reload the page.",
+  other: "This set of photos changed. Reload the page.",
+}
+
+/** setReply, keeping the server's refusal for the screen to word (B05-m5). */
+function refusalReply<T extends object>(read: WorkRead<T>): PhotoSetReply<T> {
+  if (read.status !== "failed") return setReply(read)
+  const f = read.failure
+  const reason = f.assetReason ?? f.setReason
+  return {
+    status: "failed",
+    retry: RETRYABLE.has(f.code),
+    refusal: {
+      code: f.code,
+      // A reason has its own set or photo words; the rest get set words.
+      message: reason
+        ? f.message
+        : (SET_MESSAGES[f.code] ?? SET_MESSAGES.other),
+      ...(reason ? { reason } : {}),
+      ...(f.assetId ? { assetId: f.assetId } : {}),
+    },
+  }
 }
 
 const field = (input: unknown, key: string): unknown =>
@@ -145,4 +183,41 @@ export async function readPhotoSets(
   return read.status === "ok"
     ? { status: "ok", groups: read.value }
     : setReply(read)
+}
+
+/**
+ * B05-m5. The caller's set as the database derives it (per-member states and
+ * the summary), for the acknowledgement after a set settles. Gated like Add's
+ * other set calls: the uploader, with groups on for their venue.
+ */
+export async function readPhotoSet(
+  input: unknown
+): Promise<PhotoSetReply<{ group: ContributionGroupView }>> {
+  const auth = await setUploader()
+  if (!auth.ok) return auth.reply
+  const read = await workServices.getGroup(
+    auth.actor,
+    field(input, "groupId") as string
+  )
+  return read.status === "ok"
+    ? { status: "ok", group: read.value }
+    : refusalReply(read)
+}
+
+/**
+ * B05-m5. Replaces a failed, stopped or deleted photo in the caller's set
+ * with a new upload of their own; safe to repeat with the same pair.
+ */
+export async function replaceInPhotoSet(
+  input: unknown
+): Promise<PhotoSetReply<ContributionGroupReplaceResult>> {
+  const auth = await setUploader()
+  if (!auth.ok) return auth.reply
+  return refusalReply(
+    await workServices.replaceInGroup(auth.actor, {
+      groupId: field(input, "groupId") as string,
+      failedAssetId: field(input, "failedAssetId") as string,
+      newAssetId: field(input, "newAssetId") as string,
+    })
+  )
 }

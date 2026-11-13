@@ -10,6 +10,7 @@ import { getSupabasePublicEnv } from "@/lib/supabase/env"
 import {
   createUploader,
   FinaliseRefusedError,
+  getCaptureJournal,
   guardBeforeUnload,
   localUploadKeyStore,
   ReservationGoneError,
@@ -72,6 +73,8 @@ export function useMediaUploader(): Uploader {
     () =>
       toQueueUploader(upload, {
         keys: localUploadKeyStore(),
+        // B05-05c: the capture journal of the signed-in account.
+        capture: getCaptureJournal,
         account: async () =>
           (await supabase.auth.getSession()).data.session?.user.id ?? null,
       }),

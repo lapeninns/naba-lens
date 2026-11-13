@@ -885,8 +885,10 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
   // Two unlabelled photos uploaded "ten days ago" (fixture time travel).
   // Fixture time travel on the owned stack only: the guard trigger keeps
   // created_at immutable for every app role, so bypass triggers for this one
-  // provisioning statement.
-  psql(`set session_replication_role = replica; update public.media_assets set created_at = now() - interval '10 days'
+  // provisioning statement. A row moved before the B05-m1 cutover gets the
+  // use baseline a real row from then has (legacy_unknown).
+  psql(`set session_replication_role = replica; update public.media_assets set created_at = now() - interval '10 days',
+    use_baseline = case when now() - interval '10 days' < (select s.cutover_at from private.media_use_settings s) then 'legacy_unknown' else use_baseline end
     where id in (${sql(aImg[28])}, ${sql(aImg[29])})`)
   const tenDaysAgo = psql(
     `select to_char((now() - interval '10 days') at time zone 'Europe/London', 'YYYY-MM-DD')`

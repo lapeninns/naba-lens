@@ -173,13 +173,15 @@ export async function tileOf(
   page: Page,
   uploaderId: string,
   fileName: string,
-  state?: "Uploading" | "Processing" | "Failed" | "ready"
+  // "Stopped": uploading on the server and not held by this tab (B02 UP-01),
+  // which is how any reload or other device sees an unfinished transfer.
+  state?: "Uploading" | "Stopped" | "Processing" | "Failed" | "ready"
 ) {
   const tile = await staffTile(portfolio(page), fileName, uploaderId)
   if (state === undefined) return tile
   const name =
     state === "ready"
-      ? /^(Photo|Video), uploaded (?!.*, (Uploading|Processing|Failed)$)/
+      ? /^(Photo|Video), uploaded (?!.*, (Uploading|Stopped|Processing|Failed)(,|$))/
       : new RegExp(`^(Photo|Video), uploaded [^,]+, ${state}$`)
   return tile.and(page.getByRole("button", { name }))
 }

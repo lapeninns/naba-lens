@@ -54,6 +54,8 @@ let managerB: TestIdentity
 /** Converted manager with staff-era media, an open reservation and a submitted item. */
 let managerC: TestIdentity
 let v1: string
+// An item of a third venue's active menu, never readable by venue A's people.
+let otherItem: string
 let soup: string
 let chefPhoto: string
 let chefBPhoto: string
@@ -135,6 +137,15 @@ beforeAll(async () => {
     ])
   )
   soup = (await readDocument(service, v1)).byKey["soup"]!.itemId
+  const other = (await createVenue(service, "mgr-deny-other")).id
+  const otherMenu = await publishMenu(
+    admin,
+    other,
+    menu("TEST mgr-deny other", [
+      section("starters", "Starters", [item("broth", "Broth")]),
+    ])
+  )
+  otherItem = (await readDocument(service, otherMenu)).byKey["broth"]!.itemId
   chefPhoto = (await reserveReady(service, chefA)).id
   await saveOk(chefA, {
     asset: chefPhoto,
@@ -408,8 +419,16 @@ describe("direct table reads", () => {
         expect(rows.length, table).toBeGreaterThan(0)
         for (const row of rows) expect(row.version_id, table).toBe(v1)
       }
-      const items = await ok(who.client.from("menu_items").select("venue_id"))
-      for (const row of items) expect(row.venue_id).toBe(venueA)
+      // By id: a whole-table read evaluates the per-row policy over every
+      // item other files leave in the shared database (about 7 s on a full
+      // suite run, against the 8 s statement timeout).
+      const items = await ok(
+        who.client
+          .from("menu_items")
+          .select("id, venue_id")
+          .in("id", [soup, otherItem])
+      )
+      expect(items).toEqual([{ id: soup, venue_id: venueA }])
     }
     // The other venue's manager reads none of venue A's menu.
     expect(
@@ -417,8 +436,10 @@ describe("direct table reads", () => {
     ).toEqual([])
     // Staff still read their venue's menu (regression).
     expect(
-      (await ok(chefA.client.from("menu_items").select("id"))).length
-    ).toBeGreaterThan(0)
+      await ok(
+        chefA.client.from("menu_items").select("id").in("id", [soup, otherItem])
+      )
+    ).toEqual([{ id: soup }])
   })
 
   it("updates to other profiles change nothing", async () => {

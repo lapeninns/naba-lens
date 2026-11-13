@@ -11,6 +11,11 @@ type SegmentedProps<Value extends string> = {
   "aria-labelledby"?: string
   /** The form field the checked value submits as. */
   name: string
+  /**
+   * Id of the checked radio (the first when none is), so a label, an error
+   * or focus can reach the group.
+   */
+  id?: string
   options: { value: Value; label: string }[]
   value: Value
   onValueChange: (value: Value) => void
@@ -25,6 +30,7 @@ type SegmentedProps<Value extends string> = {
 export function Segmented<Value extends string>({
   label,
   name,
+  id,
   options,
   value,
   onValueChange,
@@ -43,13 +49,20 @@ export function Segmented<Value extends string>({
         className
       )}
     >
-      {options.map((option) => (
+      {options.map((option, index) => (
         <label
           key={option.value}
           className="grid min-h-11 cursor-pointer place-items-center rounded-round px-3 py-1 text-center text-label [overflow-wrap:anywhere] text-ink-muted transition-colors duration-(--duration-quick) hover:text-ink has-checked:bg-surface has-checked:text-ink has-checked:shadow-[inset_0_0_0_1.5px_var(--border-strong)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus has-focus-visible:outline-solid"
         >
           <input
             type="radio"
+            id={
+              id &&
+              (value === option.value ||
+                (index === 0 && !options.some((o) => o.value === value)))
+                ? id
+                : undefined
+            }
             name={name}
             value={option.value}
             checked={value === option.value}

@@ -109,6 +109,9 @@ function setCreatedAt(assetId: string, iso: string) {
   if (!/^[0-9a-f-]{36}$/.test(assetId) || Number.isNaN(Date.parse(iso))) {
     throw new Error("bad fixture")
   }
+  // Replica mode skips every trigger. A row moved before the B05-m1 cutover
+  // gets the use baseline a real row from then has (legacy_unknown), so the
+  // shared world keeps the invariant scripts/db/check-use-baseline.sql checks.
   execFileSync(
     "psql",
     [
@@ -116,7 +119,7 @@ function setCreatedAt(assetId: string, iso: string) {
       "-v",
       "ON_ERROR_STOP=1",
       "-qAtc",
-      `set session_replication_role = replica; update public.media_assets set created_at = '${iso}' where id = '${assetId}'`,
+      `set session_replication_role = replica; update public.media_assets set created_at = '${iso}', use_baseline = case when '${iso}'::timestamptz < (select s.cutover_at from private.media_use_settings s) then 'legacy_unknown' else use_baseline end where id = '${assetId}'`,
     ],
     { encoding: "utf8" }
   )

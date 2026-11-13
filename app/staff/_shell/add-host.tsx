@@ -3,7 +3,12 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 
-import { addToPhotoSet, startPhotoSet } from "@/app/_media/actions"
+import {
+  addToPhotoSet,
+  readPhotoSet,
+  replaceInPhotoSet,
+  startPhotoSet,
+} from "@/app/_media/actions"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import { UploadDialog } from "@/components/nabalens"
 import {
@@ -13,6 +18,8 @@ import {
 } from "@/components/nabalens/labels"
 import type {
   PhotoSetRef,
+  ReplaceState,
+  SetReplace,
   UploadBusy,
 } from "@/components/nabalens/upload-dialog"
 import {
@@ -43,6 +50,7 @@ import { EntrySheet } from "@/components/nabalens/shell/entry-sheet"
 import {
   PhotoSets,
   sessionSetKeys,
+  type ReplaceOutcome,
   type SetSubject,
 } from "@/components/nabalens/shell/photo-sets"
 import { LeaveGuard } from "@/components/nabalens/shell/leave-guard"
@@ -52,7 +60,24 @@ import {
   type AddBlocked,
 } from "@/components/nabalens/shell/add-sheet"
 import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
+import {
+  CAPTURE_COPY,
+  CaptureJournalContext,
+  CaptureResumeBlock,
+  createLabelJournal,
+  journalLabels,
+  panelChoiceCounts,
+  resumableEntries,
+} from "@/components/nabalens/shell/capture-resume"
 import { MEDIA_LIMITS } from "@/lib/config/media"
+import {
+  annotateCapture,
+  captureAnnotation,
+  captureEntryId,
+  type CaptureSession,
+} from "@/lib/upload/capture-session"
+import type { JournalEntry } from "@/lib/upload/journal"
+import { localUploadKeyStore } from "@/lib/upload/upload-keys"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
 import type { EntryIntent, EntryMenu } from "@/lib/work-client/entry"
@@ -211,13 +236,41 @@ export function AddHost({
   React.useLayoutEffect(() => {
     groupsOnRef.current = groupsOn
   }, [groupsOn])
+  // B05-05 (L1): the File of each reserved asset, so a label send the
+  // server took can clear that file's labels in the journal.
+  const [labelJournal] = React.useState(() =>
+    createLabelJournal(annotateCapture, captureAnnotation)
+  )
+  // Continued files whose resumed labels haven't reached the panel yet (N4).
+  const awaitingSeed = React.useRef(new WeakSet<File>())
+  // B05-05c: each set's start key (the journal's groupKey), and the files
+  // this tab picked, newest last (bounded).
+  const setKeys = React.useRef(new Map<string, string>())
+  const tabFiles = React.useRef<File[]>([])
   const [photoSets] = React.useState(
     () =>
       new PhotoSets(
-        { start: startPhotoSet, add: addToPhotoSet },
+        {
+          start: startPhotoSet,
+          add: addToPhotoSet,
+          read: readPhotoSet,
+          replace: replaceInPhotoSet,
+        },
         sessionSetKeys(),
-        { onMissing: () => setSetsMissing(true) }
+        {
+          onMissing: () => setSetsMissing(true),
+        }
       )
+  )
+  React.useEffect(
+    () =>
+      photoSets.listenKeys((setId, key) => {
+        setKeys.current.set(setId, key)
+        for (const file of tabFiles.current)
+          if (fileOwners.current.get(file)?.set === setId)
+            annotateCapture(file, { groupKey: key })
+      }),
+    [photoSets]
   )
   // Files that have been through claim, with an owner or none.
   const claimedFiles = React.useRef(new WeakSet<File>())
@@ -319,6 +372,19 @@ export function AddHost({
       ? { state: "ready", catalogue: labelContext.catalogue }
       : { state: "error", message: labelContext.message }
 
+  /** B05-05c: what the journal records for a file this tab picked. */
+  const noteCapture = (file: File, owner: PickOwner) => {
+    tabFiles.current = [...tabFiles.current.slice(-49), file]
+    annotateCapture(file, {
+      ...(owner.subject
+        ? { subject: { kind: owner.subject.kind, id: owner.subject.id } }
+        : {}),
+      ...(owner.set && setKeys.current.has(owner.set)
+        ? { groupKey: setKeys.current.get(owner.set)! }
+        : {}),
+    })
+  }
+
   /** These files were picked for `owner`'s Add call. */
   const claim = React.useCallback(
     (files: File[], owner: PickOwner | null) => {
@@ -338,6 +404,7 @@ export function AddHost({
         owner.set
       )
         for (const file of files) fileOwners.current.set(file, owner)
+      for (const file of files) noteCapture(file, owner)
       owner.onPicked?.(files)
     },
     [photoSets]
@@ -364,6 +431,102 @@ export function AddHost({
     setUploadOpen(true)
   }, [])
 
+  // B05-05d: the account's capture journal, and what didn't finish in an
+  // earlier tab (OD-B5-05-10): its unfinished entries, less those this tab
+  // holds or picked and those the server is finalising (it finishes them).
+  const openJournal = React.useContext(CaptureJournalContext)
+  const [capture, setCapture] = React.useState<CaptureSession | null>(null)
+  // Another account (or none): this page's asset files are not its (M5).
+  React.useEffect(() => () => labelJournal.clear(), [labelJournal, userId])
+  React.useEffect(() => {
+    if (!userId) return
+    let live = true
+    void openJournal(userId)
+      .catch(() => null)
+      .then((session) => {
+        if (live) setCapture(session)
+      })
+    return () => {
+      live = false
+    }
+  }, [openJournal, userId])
+  const [unfinishedEntries, setUnfinishedEntries] = React.useState<
+    readonly JournalEntry[]
+  >([])
+  const [resumeRead, setResumeRead] = React.useState(0)
+  React.useEffect(() => {
+    if (!capture) return
+    let live = true
+    void capture.journal.unfinished().then((entries) => {
+      if (!live) return
+      const tabEntryIds = new Set(
+        tabFiles.current.flatMap((file) => captureEntryId(file) ?? [])
+      )
+      setUnfinishedEntries(resumableEntries(entries, heldIds, tabEntryIds))
+    })
+    return () => {
+      live = false
+    }
+  }, [capture, resumeRead, sheetOpen, uploadOpen, heldIds])
+  // Signed out or switched in another tab: nothing of that journal shows (K8).
+  const resumable = capture?.alive() ? unfinishedEntries : []
+  const keepOpenNote =
+    capture && !capture.capabilities.storeBytes ? CAPTURE_COPY.keepOpen : null
+  // Labels typed before reservation in the earlier tab, by continued file.
+  const resumedLabels = React.useRef(
+    new WeakMap<File, { venueId: string; input: SaveLabelsInput }>()
+  )
+  /**
+   * Continue (OD-B5-05-11): the stored File gets its upload key back, then
+   * goes to the queue under its subject, in no set (OD-B5-05-9).
+   */
+  const continueEntry = async (entry: JournalEntry) => {
+    const bytes = entry.bytes
+    // A dead session (another tab signed out) writes no upload key (K8).
+    if (!(bytes instanceof Blob) || !userId || !capture?.alive()) return
+    const file =
+      bytes instanceof File
+        ? bytes
+        : new File([bytes], entry.displayName, { type: bytes.type })
+    setUnfinishedEntries((list) => list.filter((e) => e.id !== entry.id))
+    await localUploadKeyStore()
+      .set(file, entry.uploadKey, { purpose: entry.purpose, account: userId })
+      .catch(() => {})
+    // The entry keeps them only until the server took them (L1): still here,
+    // they never reached it, so they go with the continued file. Staging
+    // replaces what the server keeps for the asset, so a send whose answer
+    // was lost is harmless to repeat.
+    const labels = pendingLabelsOf(entry.pendingLabels)
+    if (labels) {
+      resumedLabels.current.set(file, labels)
+      awaitingSeed.current.add(file)
+    }
+    const owner: PickOwner = {
+      onReady: null,
+      onPicked: null,
+      onUnfinished: null,
+      preset: null,
+      purpose: entry.purpose,
+      subject: null,
+      set: null,
+    }
+    claim([file], owner)
+    annotateCapture(file, {
+      subject: entry.subject,
+      groupKey: entry.groupKey,
+      ...(labels ? { pendingLabels: labels } : {}),
+    })
+    fileOwners.current.set(file, owner)
+    queueFiles([file])
+    setResumeRead((n) => n + 1)
+  }
+  const resumeBlock = (
+    <CaptureResumeBlock
+      entries={resumable}
+      onContinue={(entry) => void continueEntry(entry)}
+    />
+  )
+
   // Add's own pickers, for openAdd({ source }). Outside any dialog, so a
   // click on them never lands on content a modal has made inert.
   const picker = usePhotoSource({
@@ -385,11 +548,95 @@ export function AddHost({
     setUploadOpen(open)
   }, [])
 
-  // Each photo of a set joins its group as soon as the server reserved it.
+  // B05-01d: files picked to replace a set's photo, and how each went, by
+  // the replaced row.
+  const replacements = React.useRef(
+    new Map<File, { set: string; assetId: string; row: string }>()
+  )
+  const [replaceStates, setReplaceStates] = React.useState<
+    ReadonlyMap<string, ReplaceState>
+  >(new Map())
+  const setReplaceState = React.useCallback(
+    (row: string, state: ReplaceState | null) =>
+      setReplaceStates((current) => {
+        const next = new Map(current)
+        if (state) next.set(row, state)
+        else next.delete(row)
+        return next
+      }),
+    []
+  )
+  const replace = React.useMemo<SetReplace>(
+    () => ({
+      start(item: QueueItem, file: File) {
+        const owner = fileOwners.current.get(item.file)
+        if (!owner?.set || !item.assetId) return
+        // The old photo's owner and set, without claim(): a replacement
+        // never makes its set the one "Add more" joins (that stays the
+        // latest pick's).
+        claimedFiles.current.add(file)
+        fileOwners.current.set(file, owner)
+        noteCapture(file, owner)
+        replacements.current.set(file, {
+          set: owner.set,
+          assetId: item.assetId,
+          row: item.id,
+        })
+        setReplaceState(item.id, { kind: "pending", with: file.name })
+      },
+      abandon(file: File) {
+        const swap = replacements.current.get(file)
+        if (!swap) return
+        replacements.current.delete(file)
+        setReplaceState(swap.row, null)
+      },
+      stateOf: (item: QueueItem) => replaceStates.get(item.id) ?? null,
+    }),
+    [replaceStates, setReplaceState]
+  )
+
+  // Each photo of a set joins its group as soon as the server reserved it;
+  // a replacement swaps in for the photo it replaces instead.
   const reservedForSet = React.useCallback(
     (file: File, assetId: string) => {
+      labelJournal.reserved(assetId, file)
+      const swap = replacements.current.get(file)
+      if (swap) {
+        replacements.current.delete(file)
+        void photoSets
+          .replace(swap.set, swap.assetId, assetId)
+          .then(async (outcome) => {
+            // No answer in the end: the server may have made the swap all
+            // the same, so the set is read before saying it didn't.
+            if (outcome.status === "unavailable") {
+              const view = await photoSets.read(swap.set)
+              if (
+                view?.members.some(
+                  (m) =>
+                    m.assetId === assetId && m.replacesAssetId === swap.assetId
+                )
+              ) {
+                photoSets.replacedOnServer(swap.set, swap.assetId, assetId)
+                outcome = { status: "replaced" }
+              }
+            }
+            setReplaceState(swap.row, replaceState(outcome))
+          })
+        return
+      }
       const set = fileOwners.current.get(file)?.set
       if (set) photoSets.reserved(set, assetId)
+    },
+    [photoSets, setReplaceState, labelJournal]
+  )
+  const readSet = React.useCallback(
+    (setId: string) => photoSets.read(setId),
+    [photoSets]
+  )
+  const serverFailed = React.useCallback(
+    (file: File, assetId: string) => {
+      const set = fileOwners.current.get(file)?.set
+      if (set) photoSets.serverFailed(set, assetId)
     },
     [photoSets]
   )
@@ -412,15 +659,22 @@ export function AddHost({
   // Each file as soon as it is ready: its own Add call hears it (a task
   // screen selects it), then every subscriber. False: the screen that picked
   // it is gone, so the sheet keeps it listed as not added there.
-  const handleReady = React.useCallback((ids: string[], files: File[]) => {
-    let kept = true
-    ids.forEach((id, i) => {
-      const owner = fileOwners.current.get(files[i])
-      if (owner?.onReady?.([id]) === false) kept = false
-    })
-    for (const listener of readyListeners.current) listener(ids)
-    return kept
-  }, [])
+  const handleReady = React.useCallback(
+    (ids: string[], files: File[]) => {
+      let kept = true
+      ids.forEach((id, i) => {
+        const owner = fileOwners.current.get(files[i])
+        // Saved: nothing left for its labels to clear (M5).
+        labelJournal.forgetAsset(id)
+        // A photo the server failed, retried and finished, counts again.
+        if (owner?.set) photoSets.finished(owner.set, id)
+        if (owner?.onReady?.([id]) === false) kept = false
+      })
+      for (const listener of readyListeners.current) listener(ids)
+      return kept
+    },
+    [photoSets, labelJournal]
+  )
 
   // Me's Fix labels and Discard labels reach the sheet's rows (C6).
   const settleListeners = React.useRef(new Set<UploadLabelSettle>())
@@ -620,6 +874,14 @@ export function AddHost({
       },
       // Our menu's dish is applied by default, once the menu is known.
       seed: (item) => {
+        // Labels typed before reservation in an earlier tab (OD-B5-05-8),
+        // addressed to this row.
+        const resumed = resumedLabels.current.get(item.file)
+        if (resumed)
+          return {
+            venueId: resumed.venueId,
+            input: { ...resumed.input, assetId: item.id },
+          }
         const preset = fileOwners.current.get(item.file)?.preset
         if (!preset) return null
         if (labelContext && !labelContext.ok) return "unavailable"
@@ -641,8 +903,20 @@ export function AddHost({
       },
       retrySeed: reloadCatalogue,
       onSeedWaiting: setDishWaiting,
-      save: saveUploadLabels,
-      discard: discardUploadLabels,
+      // The server took the labels (staged, or on the photo): the journal no
+      // longer needs its copy (L1).
+      // The journal's copy follows the server's answers (M3, N2, N3).
+      save: async (venueId, input) => {
+        labelJournal.sending(input)
+        const result = await saveUploadLabels(venueId, input)
+        if (result.ok) labelJournal.confirmed(input)
+        return result
+      },
+      discard: async (assetId) => {
+        const result = await discardUploadLabels(assetId)
+        if (result) labelJournal.discarded(assetId)
+        return result
+      },
       attention: loadLabelAttention,
       summary: loadPhotoLabels,
       settled,
@@ -678,6 +952,23 @@ export function AddHost({
       renderPanel: (props) => (
         <PanelHost
           {...props}
+          onChange={(venueId, inputs) => {
+            // UP-04: each row's latest label choice goes to its journal
+            // entry until the server confirms it, so it survives a closed
+            // tab (OD-B5-05-8, M3); an empty choice clears it.
+            for (const input of inputs) {
+              const item = props.items.find((i) => i.id === input.assetId)
+              if (!item) continue
+              const waiting = awaitingSeed.current.has(item.file)
+              const seeded = props.initial.find((i) => i.assetId === item.id)
+              if (!panelChoiceCounts(input, waiting, seeded)) continue
+              awaitingSeed.current.delete(item.file)
+              annotateCapture(item.file, {
+                pendingLabels: journalLabels(venueId, input),
+              })
+            }
+            props.onChange(venueId, inputs)
+          }}
           catalogue={catalogueProp}
           venueId={catalogue?.venueId ?? null}
           focus={focus}
@@ -742,6 +1033,8 @@ export function AddHost({
                 maxFiles={MEDIA_LIMITS.maxBatchFiles}
                 imagesOnly={imagesOnly}
                 onFiles={queueFiles}
+                resume={resumeBlock}
+                keepOpenNote={keepOpenNote}
               />
               <UploadDialog
                 open={uploadOpen}
@@ -764,11 +1057,33 @@ export function AddHost({
                 keepRunningWhenClosed
                 onBusyChange={setBusy}
                 onHoldsChange={holdsChanged}
-                onUnfinished={(file, reason) =>
+                onUnfinished={(file, reason) => {
+                  // Removed or cancelled: its asset needs no label clear (M5).
+                  if (reason !== "failed") labelJournal.forgetFile(file)
                   fileOwners.current.get(file)?.onUnfinished?.(reason, file)
-                }
+                }}
                 onReserved={reservedForSet}
                 setOf={groupsOn ? setOf : undefined}
+                readSet={groupsOn ? readSet : undefined}
+                replace={groupsOn ? replace : undefined}
+                onServerFailed={serverFailed}
+                idle={
+                  // From md, idle Add is this dialog: the same block and line
+                  // as the phone sheet, above its pickers (J2).
+                  resumable.length > 0 || keepOpenNote ? (
+                    <div className="grid gap-2">
+                      {resumeBlock}
+                      {keepOpenNote ? (
+                        <p
+                          data-capture-keep-open=""
+                          className="text-meta text-ink-muted"
+                        >
+                          {keepOpenNote}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null
+                }
                 addMoreLabel={
                   groupsOn && addingToSet ? ENTRY_COPY.addMoreToSet : undefined
                 }
@@ -782,6 +1097,35 @@ export function AddHost({
       </LeaveGuard>
     </SessionGuardProvider>
   )
+}
+
+/** A replacement's outcome as its old row says it (B05-01d). */
+function replaceState(outcome: ReplaceOutcome): ReplaceState {
+  if (outcome.status === "replaced") return { kind: "replaced" }
+  if (outcome.status === "same") return { kind: "same" }
+  const copy = ENTRY_COPY.replaceRefused
+  const refusal = outcome.status === "refused" ? outcome.refusal : null
+  const reason = refusal?.reason
+  return {
+    kind: "refused",
+    // A refusal without set words of its own here says the server's.
+    message:
+      reason && reason in copy
+        ? copy[reason as keyof typeof copy]
+        : (refusal?.message ?? copy.other),
+    at: Date.now(),
+  }
+}
+
+/** A journal entry's labels typed before reservation, if well formed. */
+function pendingLabelsOf(
+  value: unknown
+): { venueId: string; input: SaveLabelsInput } | null {
+  if (!value || typeof value !== "object") return null
+  const { venueId, input } = value as { venueId?: unknown; input?: unknown }
+  return typeof venueId === "string" && input && typeof input === "object"
+    ? { venueId, input: input as SaveLabelsInput }
+    : null
 }
 
 /** What an Add call's files show: Our menu's dish, or the call's subject. */

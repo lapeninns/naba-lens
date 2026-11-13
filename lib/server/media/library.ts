@@ -458,6 +458,29 @@ export function listLibrary(
   )
 }
 
+function readVenues(actor: MediaActor) {
+  return readAllPages<{ id: string; name: string }>((from, to) =>
+    actor.db
+      .from("venues")
+      .select("id, name")
+      .order("name")
+      .order("id")
+      .range(from, to)
+  )
+}
+
+/**
+ * Every venue (admins only), read in pages, for screens that filter by venue
+ * alone (asset search). A failed read gives an empty list.
+ */
+export async function libraryVenueOptions(
+  actor: MediaActor
+): Promise<{ id: string; name: string }[]> {
+  if (actor.profile.role !== "admin") return []
+  const venues = await readVenues(actor)
+  return (venues.ok ? venues.rows : []).map((v) => ({ id: v.id, name: v.name }))
+}
+
 /**
  * Filter options for the admin library: every venue and every staff member,
  * read in pages (one request stops at `max_rows`). A failed read leaves that
@@ -466,14 +489,7 @@ export function listLibrary(
 export async function libraryFilterOptions(actor: MediaActor) {
   if (actor.profile.role !== "admin") return { venues: [], staff: [] }
   const [venues, staff] = await Promise.all([
-    readAllPages<{ id: string; name: string }>((from, to) =>
-      actor.db
-        .from("venues")
-        .select("id, name")
-        .order("name")
-        .order("id")
-        .range(from, to)
-    ),
+    readVenues(actor),
     readAllPages<{ id: string; display_name: string }>((from, to) =>
       actor.db
         .from("profiles")

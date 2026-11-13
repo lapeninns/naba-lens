@@ -12,8 +12,15 @@ export type ManageSection =
   | "menu_items"
   | "amenities"
   | "team"
+  | "search"
 
-const SECTIONS: { id: ManageSection; label: string; path: string }[] = [
+const SECTIONS: {
+  id: ManageSection
+  label: string
+  path: string
+  /** Only under /staff/manage: admins search from the library instead. */
+  managerOnly?: boolean
+}[] = [
   { id: "overview", label: "Overview", path: "" },
   { id: "review", label: "Review", path: "/review" },
   { id: "checklist", label: "Checklist", path: "/checklist" },
@@ -23,6 +30,8 @@ const SECTIONS: { id: ManageSection; label: string; path: string }[] = [
   // Amenities: per-venue evidence checks, never counted on the checklist.
   { id: "amenities", label: UI_TEXT.navTab, path: "/amenities" },
   { id: "team", label: "Team", path: "/team" },
+  // B05-06 asset search: the venue's photos and videos, read-only.
+  { id: "search", label: "Search", path: "/search", managerOnly: true },
 ]
 
 /** Hrefs of one venue's manager tools (`/staff/manage` or an admin venue). */
@@ -40,6 +49,7 @@ export function manageHrefs(basePath: string) {
     amenity: amenity.check,
     amenityCapture: amenity.capture,
     team: `${basePath}/team`,
+    search: `${basePath}/search`,
     staff: (id: string) => `${basePath}/team?staff=${encodeURIComponent(id)}`,
   }
 }
@@ -68,7 +78,9 @@ export function ManageNav({
     <SectionTabs
       label={label}
       active={active}
-      tabs={SECTIONS.map((section) => ({
+      tabs={SECTIONS.filter(
+        (section) => !section.managerOnly || !basePath.startsWith("/admin")
+      ).map((section) => ({
         id: section.id,
         label: section.label,
         href: `${basePath}${section.path}`,
@@ -76,7 +88,10 @@ export function ManageNav({
           section.id === "review" && pendingReview
             ? { value: pendingReview, label: "to review" }
             : section.id === "amenities" && confirmCount
-              ? { value: confirmCount, label: TO_CONFIRM_COPY.badge(confirmCount) }
+              ? {
+                  value: confirmCount,
+                  label: TO_CONFIRM_COPY.badge(confirmCount),
+                }
               : undefined,
       }))}
     />

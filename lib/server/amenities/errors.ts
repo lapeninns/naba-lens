@@ -109,6 +109,8 @@ const ASSET_REASONS: readonly AssetReason[] = [
   "other_venue",
   "not_own",
   "deleted",
+  "not_replaceable",
+  "in_group",
 ]
 
 const NOT_PERMITTED_MESSAGES: Record<string, string> = {
@@ -162,6 +164,9 @@ const ASSET_MESSAGES: Record<AssetReason, string> = {
   other_venue: "A photo or video was taken at a different venue.",
   not_own: "You can only attach your own photos and videos.",
   deleted: "A photo or video was deleted, so it cannot be used.",
+  not_replaceable:
+    "Only a photo or video that failed, stopped or was removed can be replaced.",
+  in_group: "This photo or video is already in this set.",
 }
 
 const RULE_MESSAGES: Record<EvidenceRule, string> = {
