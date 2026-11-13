@@ -90,6 +90,22 @@ if (
   throw new Error("Load tests/perf/b05-world.sql first.")
 
 const loadStart = loadavg()
+// Which public.asset_search is installed (the bench measures the database,
+// not the tree): md5 of its source and of its whole definition (the SET
+// clause included), and its settings.
+const installed = !onB05
+  ? { config: [] }
+  : (() => {
+      const [src, def, config] = one(
+        `select md5(p.prosrc), md5(pg_get_functiondef(p.oid)), array_to_json(coalesce(p.proconfig, '{}'))
+     from pg_proc p where p.oid = 'public.asset_search(jsonb,timestamptz,uuid,integer)'::regprocedure`
+      )
+      return {
+        assetSearchProsrcMd5: src,
+        assetSearchFunctiondefMd5: def,
+        config: JSON.parse(config),
+      }
+    })()
 const t = pickTargets(env.dbUrl)
 const person = (key) => {
   const [id, venueId, role, displayName] = one(
@@ -1154,6 +1170,24 @@ try {
         chunkSql({ ...mB, rights: "not_granted" }),
       ],
       [
+        "chunk-manager-big-use-in-force",
+        P.managerBig.id,
+        "postgres",
+        chunkSql({ ...mB, rights: "in_force" }),
+      ],
+      [
+        "chunk-manager-big-use-expired",
+        P.managerBig.id,
+        "postgres",
+        chunkSql({ ...mB, rights: "expired" }),
+      ],
+      [
+        "chunk-manager-big-use-withdrawn",
+        P.managerBig.id,
+        "postgres",
+        chunkSql({ ...mB, rights: "withdrawn" }),
+      ],
+      [
         "chunk-manager-big-rare-item",
         P.managerBig.id,
         "postgres",
@@ -1164,6 +1198,18 @@ try {
         P.managerSmall.id,
         "postgres",
         chunkSql({ ...mS, rights: "legacy_unknown" }),
+      ],
+      [
+        "chunk-manager-small-use-not-granted",
+        P.managerSmall.id,
+        "postgres",
+        chunkSql({ ...mS, rights: "not_granted" }),
+      ],
+      [
+        "chunk-manager-small-use-expired",
+        P.managerSmall.id,
+        "postgres",
+        chunkSql({ ...mS, rights: "expired" }),
       ],
       [
         "chunk-manager-small-use-in-force",
@@ -1183,6 +1229,12 @@ try {
         t.admin.id,
         "postgres",
         chunkSql({ ...admC, rights: "expired" }),
+      ],
+      [
+        "chunk-admin-use-legacy",
+        t.admin.id,
+        "postgres",
+        chunkSql({ ...admC, rights: "legacy_unknown" }),
       ],
       call("search-call-manager-no-filter", P.managerBig, {}),
       call("search-call-manager-check-nomatch", P.managerBig, {
@@ -1215,6 +1267,15 @@ try {
           chunkSql(callerConst(P.rejectManager)),
         ],
         [
+          "chunk-reject-use-legacy",
+          P.rejectManager.id,
+          "postgres",
+          chunkSql({
+            ...callerConst(P.rejectManager),
+            rights: "legacy_unknown",
+          }),
+        ],
+        [
           "chunk-grantee-no-filter",
           P.grantee.id,
           "postgres",
@@ -1231,11 +1292,22 @@ try {
     ]
     const label = (sub) =>
       Object.entries(P).find(([, p]) => p.id === sub)?.[0] ?? sub
+    // The chunk statements run inside public.asset_search, under its SET
+    // clause: the same planner settings (not search_path; the statement is
+    // schema-qualified) are set for their EXPLAIN.
+    const fnSettings = installed.config
+      .filter((c) => !c.startsWith("search_path="))
+      .map((c) => {
+        const i = c.indexOf("=")
+        return `set local ${c.slice(0, i)} = '${c.slice(i + 1)}';`
+      })
+      .join("\n")
     const summary = []
     for (const [name, sub, role, sql] of S) {
       const script = `begin;
 ${role === "authenticated" ? "set local role authenticated;" : ""}
 set local statement_timeout = '120s';
+${name.startsWith("chunk-") ? fnSettings : ""}
 select set_config('request.jwt.claims', '{"sub":"${sub}","role":"authenticated","aud":"authenticated"}', true) \\gset
 select set_config('request.jwt.claim.sub', '${sub}', true) \\gset
 explain (analyze, buffers, settings, verbose false) ${sql};
@@ -1272,6 +1344,9 @@ rollback;
         seqScans: [...new Set(seq)],
         indexScans: [...new Set(idx)],
         rootBuffers: /Buffers: ([^\n]*)/.exec(text ?? "")?.[1] ?? null,
+        // Acceptance: no Bitmap Heap Scan + Sort in a chunk plan.
+        bitmapHeapScan: /Bitmap Heap Scan/.test(text ?? ""),
+        sort: /\bSort\b/.test(text ?? ""),
         error,
       }
       summary.push(entry)
@@ -1279,7 +1354,19 @@ rollback;
         `${name.padEnd(42)} exec ${String(entry.executionMs).padStart(10)} ms  seq: ${entry.seqScans.join(",") || "-"}  idx: ${entry.indexScans.join(",") || "-"}${error ? "  ERROR " + error.slice(0, 160) : ""}`
       )
     }
-    writeFileSync(join(dir, "summary.json"), JSON.stringify(summary, null, 2))
+    writeFileSync(
+      join(dir, "summary.json"),
+      JSON.stringify(
+        {
+          at: new Date().toISOString(),
+          revision: gitHead(),
+          installed,
+          plans: summary,
+        },
+        null,
+        2
+      )
+    )
   }
 } finally {
   if (uploaded.length) await bucket.remove(uploaded)
@@ -1292,6 +1379,13 @@ const doc = {
   at: new Date().toISOString(),
   cwd: resolve("."),
   revision: gitHead(),
+  installed: onB05
+    ? {
+        assetSearchProsrcMd5: installed.assetSearchProsrcMd5,
+        assetSearchFunctiondefMd5: installed.assetSearchFunctiondefMd5,
+        assetSearchConfig: installed.config,
+      }
+    : null,
   schema: onB05 ? "b05" : "pre-b05",
   repetitions: { warm: WARM, n: N },
   loadAverage: { start: loadStart, end: loadavg() },

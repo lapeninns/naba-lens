@@ -190,6 +190,25 @@ $$;
 --   (inclusive instant), uploadedBefore (exclusive instant), menuState (a
 --   menu_item_photos state; with item/variant, one decision row must match
 --   the state and the item/variant together).
+--
+-- enable_seqscan and enable_bitmapscan = off (B05 perf repair 2): the chunk
+-- query below must walk media_assets in feed order (an index scan each
+-- chunk resumes at the cursor) and probe each row read through the asset_id
+-- indexes. Without these settings the planner chose, by table size and
+-- estimate alone:
+-- * on an evidence table of one or two pages (just after launch), a
+--   sequential scan of the whole table per row read, priced below the
+--   index probe (with 100 rows in each probed table, 1.5 s for a manager
+--   venue of 73,600 rows where nothing is visible, against 0.11 s);
+-- * where few rows are estimated ('none'-baseline rows are rare at launch,
+--   and they are the newest), a bitmap read of the whole venue and a sort
+--   on every call, where the walk in feed order meets the newest rows first
+--   (a manager's not_granted at 75,000 rows: 29 ms against 1 ms).
+-- A statement with no other plan keeps its sequential scan. The settings
+-- hold for this call only and apply to the item query too; where two grants
+-- of an asset share a destination label and a creation time, their order
+-- in "destinations" was never fixed (order by label, created_at) and may
+-- differ from a call planned with the defaults.
 create function public.asset_search(
   p_filters jsonb default '{}'::jsonb,
   p_after_created_at timestamptz default null,
@@ -202,6 +221,8 @@ stable
 security definer
 set search_path = ''
 set plan_cache_mode = force_custom_plan
+set enable_seqscan = off
+set enable_bitmapscan = off
 as $$
 declare
   v_filters jsonb := coalesce(p_filters, '{}'::jsonb);
@@ -463,20 +484,25 @@ begin
           -- force or withdrawn; the base body's destination and expired
           -- EXISTS are spelled the same way. Scalar sublinks on the asset's
           -- grants, never hashed (a hashed EXISTS computes every grant's
-          -- state). Part 2, the use state itself, still runs per row below.
+          -- state). "No such grant" is written "is distinct from 1" (the
+          -- probe yields 1 or null, so it equals "is null"): the planner
+          -- counts "is null" on a sublink as 0.5% of rows, which made the
+          -- not_granted chunk a full read of media_assets and a sort for the
+          -- admin; "is distinct from" counts as 99.5%, like the "is not null"
+          -- probes. Part 2, the use state itself, still runs per row below.
           and (v_rights is null
             or (v_rights = 'legacy_unknown' and a.use_baseline = 'legacy_unknown'
               and (select 1 from public.media_use_grants g where g.asset_id = a.id
                      and (exists (select 1 from public.media_use_grant_withdrawals w where w.grant_id = g.id)
                        or (g.effective_from <= v_now
                          and (g.effective_until is null or g.effective_until > v_now)))
-                   limit 1) is null)
+                   limit 1) is distinct from 1)
             or (v_rights = 'not_granted' and a.use_baseline <> 'legacy_unknown'
               and (select 1 from public.media_use_grants g where g.asset_id = a.id
                      and (exists (select 1 from public.media_use_grant_withdrawals w where w.grant_id = g.id)
                        or (g.effective_from <= v_now
                          and (g.effective_until is null or g.effective_until > v_now)))
-                   limit 1) is null)
+                   limit 1) is distinct from 1)
             or (v_rights = 'withdrawn'
               and (select 1 from public.media_use_grants g
                      join public.media_use_grant_withdrawals w on w.grant_id = g.id
@@ -485,7 +511,7 @@ begin
                      and g.effective_from <= v_now
                      and (g.effective_until is null or g.effective_until > v_now)
                      and not exists (select 1 from public.media_use_grant_withdrawals w where w.grant_id = g.id)
-                   limit 1) is null)
+                   limit 1) is distinct from 1)
             or (v_rights = 'in_force'
               and (select 1 from public.media_use_grants g where g.asset_id = a.id
                      and g.effective_from <= v_now
@@ -504,7 +530,7 @@ begin
                      and (exists (select 1 from public.media_use_grant_withdrawals w where w.grant_id = g.id)
                        or (g.effective_from <= v_now
                          and (g.effective_until is null or g.effective_until > v_now)))
-                   limit 1) is null
+                   limit 1) is distinct from 1
               and (select 1 from public.media_use_grants g
                    where g.asset_id = a.id
                      and g.effective_until is not null and g.effective_until <= v_now

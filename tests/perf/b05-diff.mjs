@@ -623,11 +623,26 @@ rollback;
     .map((l) => JSON.parse(l.slice(2)))
 }
 
+// Provenance of every record: the installed public.asset_search (md5 of its
+// source and of its whole definition, SET clause included) and the sha256 of
+// the reference text created as pg_temp.asset_search_v1.
+const [installedSrc, installedDef, installedConfig] = one(
+  `select md5(p.prosrc), md5(pg_get_functiondef(p.oid)), array_to_string(p.proconfig, ',')
+   from pg_proc p where p.oid = 'public.asset_search(jsonb,timestamptz,uuid,integer)'::regprocedure`
+)
 const doc = {
   part: PART,
   caller: CALLER,
   at: new Date().toISOString(),
   revision: gitHead(),
+  installed: {
+    assetSearchProsrcMd5: installedSrc,
+    assetSearchFunctiondefMd5: installedDef,
+    assetSearchConfig: installedConfig,
+  },
+  reference: {
+    sha256: createHash("sha256").update(REFERENCE).digest("hex"),
+  },
   base: BASE ?? `fixture ${FIXTURE}`,
   loadAverage: { start: loadavg() },
 }

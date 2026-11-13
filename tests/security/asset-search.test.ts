@@ -1107,6 +1107,8 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
   let otherGroup: string
   let outdoorCheck: string
   let rejectedCursor: { at: string; id: string }
+  // Chunk-world rows of the scheduled-grant fixtures (manager's).
+  const chunkFx: Record<string, string[]> = {}
   let deletedCursor: { at: string; id: string }
   const T0 = "2021-07-01T10:00:00.000Z"
   const T1 = "2021-07-01T10:00:01.000Z"
@@ -1306,7 +1308,11 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
     // staff grant holder's own 600 uploads share those instants (its own
     // upload arm, a check being active) with the same grant pattern by its
     // own rank, so its walks cross the same edges while the manager's rows
-    // are ones P drops for it, and the other way round.
+    // are ones P drops for it, and the other way round. Scheduled grants
+    // (effective_from tomorrow) settle nothing: alone on not_granted ranks at
+    // the edges, beside expired grants and beside one in force, and on
+    // legacy rows (created before the use cutover, 8 a caller), so the exact
+    // rights SQL's "settled" and expired probes depend on effective_from.
     c = await world("b05-srch-c")
     psql(`insert into public.media_use_destinations
         (key, label, audience, venue_id, owner_workstream, requires_derivative, active) values
@@ -1350,14 +1356,17 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
         from chunk_ranked r
         where r.rank not in (24, 25, 26, 124, 125, 126, 524, 525) and r.rank < 530;
       -- withdrawn: a withdrawn grant beside one in force (still granted), and alone.
+      -- A second grant of an asset gets its own created_at: "destinations"
+      -- orders by label and created_at only, so equal pairs have no fixed
+      -- order (it follows the plan) and could not be compared.
       insert into public.media_use_grants (asset_id, venue_id, destination_key, audience, purpose,
           subject_kind, effective_from, effective_until, authorised_by, authority_basis,
-          clearance_version, clearance, request_key)
+          clearance_version, clearance, request_key, created_at)
         select r.id, '${c.venue}', '${DEST_C}', 'internal', 'general_gallery', 'none',
           now() - interval '2 hours',
           case when r.rank between 200 and 205 or r.rank >= 534 then now() - interval '1 hour' end,
           '${c.admin.id}', 'admin', '${VERSION}', '{"a_ok": true}',
-          'TESTchunkw' || replace(r.id::text, '-', '')
+          'TESTchunkw' || replace(r.id::text, '-', ''), now() - interval '1 minute'
         from chunk_ranked r
         where r.rank between 100 and 110 or r.rank between 530 and 533
           or r.rank between 200 and 205 or r.rank between 534 and 537;
@@ -1366,7 +1375,97 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
         from public.media_use_grants g join chunk_ranked r on r.id = g.asset_id
         where g.request_key like 'TESTchunkw%'
           and (r.rank between 100 and 110 or r.rank between 530 and 533);
+      -- scheduled: alone (not_granted at the edges), beside an expired grant
+      -- (536, 537: expired), beside one in force (10: granted).
+      insert into public.media_use_grants (asset_id, venue_id, destination_key, audience, purpose,
+          subject_kind, effective_from, effective_until, authorised_by, authority_basis,
+          clearance_version, clearance, request_key, created_at)
+        select r.id, '${c.venue}', '${DEST_C}', 'internal', 'general_gallery', 'none',
+          now() + interval '1 day', null, '${c.admin.id}', 'admin', '${VERSION}', '{"a_ok": true}',
+          'TESTchunks' || replace(r.id::text, '-', ''), now() - interval '2 minutes'
+        from chunk_ranked r
+        where r.rank in (10, 25, 125, 525, 536, 537, 540, 541);
+      -- Legacy rows: n % 8 = 0-1 no grant, 2-3 scheduled only, 4-5 scheduled
+      -- and expired, 6-7 in force; 0-7 the manager's, 8-15 the grant holder's.
+      create temp table chunk_legacy as
+        select gen_random_uuid() as id, n,
+          (select s.cutover_at from private.media_use_settings s)
+            - interval '1 day' - ((n % 4) * interval '1 second') as created_at,
+          case when n >= 8 then '${c.staffManager.id}' else '${c.manager.id}' end::uuid as uploader,
+          case when n >= 8 then 'staff' else 'manager' end as role
+        from generate_series(0, 15) n;
+      insert into public.media_assets (id, uploader_id, venue_id, original_path, original_filename,
+          media_type, size_bytes, client_upload_key, uploader_role, created_at)
+        select r.id, r.uploader, '${c.venue}',
+          r.uploader || '/' || r.id || '/original.jpg', 'TEST chunk legacy.jpg', 'image', 4,
+          gen_random_uuid(), r.role::public.app_role, r.created_at
+        from chunk_legacy r;
+      update public.media_assets set upload_state = 'processing'
+        where id in (select id from chunk_legacy);
+      update public.media_assets set upload_state = 'ready', validated_mime_type = 'image/jpeg',
+          size_bytes = 4, width = 1, height = 1
+        where id in (select id from chunk_legacy);
+      insert into public.media_use_grants (asset_id, venue_id, destination_key, audience, purpose,
+          subject_kind, effective_from, effective_until, authorised_by, authority_basis,
+          clearance_version, clearance, request_key, created_at)
+        select r.id, '${c.venue}'::uuid, '${DEST_C}'::text, 'internal'::text,
+          'general_gallery'::text, 'none'::text,
+          case when r.n % 8 between 2 and 5 then now() + interval '1 day'
+            when r.n % 8 >= 6 then now() - interval '2 hours' end,
+          null::timestamptz, '${c.admin.id}'::uuid, 'admin'::text, '${VERSION}'::text,
+          '{"a_ok": true}'::jsonb,
+          'TESTchunkl' || replace(r.id::text, '-', ''), now()
+        from chunk_legacy r where r.n % 8 >= 2
+        union all
+        select r.id, '${c.venue}', '${DEST_C}', 'internal', 'general_gallery', 'none',
+          now() - interval '2 hours', now() - interval '1 hour', '${c.admin.id}', 'admin',
+          '${VERSION}', '{"a_ok": true}', 'TESTchunkx' || replace(r.id::text, '-', ''),
+          now() - interval '3 minutes'
+        from chunk_legacy r where r.n % 8 between 4 and 5;
       select 1`)
+    for (const [key, sql] of [
+      [
+        "scheduledNone",
+        `select string_agg(g.asset_id::text, ',' order by g.asset_id) from public.media_use_grants g
+          join public.media_assets a on a.id = g.asset_id
+          where g.request_key like 'TESTchunks%' and a.uploader_id = '${c.manager.id}'
+            and not exists (select 1 from public.media_use_grants o where o.asset_id = g.asset_id and o.id <> g.id)`,
+      ],
+      [
+        "scheduledExpired",
+        `select string_agg(g.asset_id::text, ',' order by g.asset_id) from public.media_use_grants g
+          join public.media_assets a on a.id = g.asset_id
+          where g.request_key like 'TESTchunks%' and a.uploader_id = '${c.manager.id}'
+            and exists (select 1 from public.media_use_grants o where o.asset_id = g.asset_id
+              and o.effective_until is not null and o.effective_until <= now())`,
+      ],
+      [
+        "legacyOpen",
+        `select string_agg(a.id::text, ',' order by a.id) from public.media_assets a
+          where a.original_filename = 'TEST chunk legacy.jpg' and a.uploader_id = '${c.manager.id}'
+            and a.use_baseline = 'legacy_unknown'
+            and not exists (select 1 from public.media_use_grants g where g.asset_id = a.id)`,
+      ],
+      [
+        "legacyScheduled",
+        `select string_agg(a.id::text, ',' order by a.id) from public.media_assets a
+          where a.original_filename = 'TEST chunk legacy.jpg' and a.uploader_id = '${c.manager.id}'
+            and a.use_baseline = 'legacy_unknown'
+            and exists (select 1 from public.media_use_grants g where g.asset_id = a.id
+              and g.effective_from > now())`,
+      ],
+      [
+        "legacyScheduledExpired",
+        `select string_agg(a.id::text, ',' order by a.id) from public.media_assets a
+          where a.original_filename = 'TEST chunk legacy.jpg' and a.uploader_id = '${c.manager.id}'
+            and a.use_baseline = 'legacy_unknown'
+            and exists (select 1 from public.media_use_grants g where g.asset_id = a.id
+              and g.effective_from > now())
+            and exists (select 1 from public.media_use_grants g where g.asset_id = a.id
+              and g.effective_until <= now())`,
+      ],
+    ] as const)
+      chunkFx[key] = (psql(sql) || "").split(",").filter(Boolean)
     const pick = (rank: number) =>
       psql(`select a.id || '|' || (to_json(a.created_at) #>> '{}')
         from public.media_assets a
@@ -1696,8 +1795,8 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
         }))
       )
     )
-    // The not_granted walk really reads past the third edge: the first
-    // admitted rows sit at ranks 24-26, 124-126, 524-525, then 538 on, for
+    // The not_granted pages hold the rows at ranks 24-26, 124-126, 524-525,
+    // then 538 on (the SQL rights terms skip the granted ranks between), for
     // the manager and for the grant holder alike.
     for (const who of [c.manager, c.staffManager]) {
       const page = (after: { at: string; id: string } | null, limit: number) =>
@@ -1721,6 +1820,143 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       expect(second.items).toHaveLength(5)
       expect(second.hasMore).toBe(true)
     }
+    // A scheduled grant settles nothing: rows whose only grants are
+    // scheduled stay not_granted or legacy_unknown, and one beside an
+    // expired grant stays expired (the walks above compare those filters
+    // with the base body; these check the fixtures really are in them).
+    const walk = (filters: unknown) => {
+      const out: string[] = []
+      let after: { at: string; id: string } | null = null
+      for (let i = 0; i < 20; i++) {
+        const p = JSON.parse(
+          asUser(
+            c.manager.id,
+            `select public.asset_search('${JSON.stringify(filters)}', ${
+              after ? `'${after.at}'` : "null"
+            }, ${after ? `'${after.id}'` : "null"}, 48)`
+          )
+        ) as Page
+        out.push(...p.items.map((x) => x.id))
+        if (!p.hasMore) return out
+        const last = p.items.at(-1)!
+        after = { at: last.uploadedAt, id: last.id }
+      }
+      throw new Error("walk did not end in 20 pages")
+    }
+    expect(chunkFx.scheduledNone).toHaveLength(5)
+    expect(chunkFx.scheduledExpired).toHaveLength(2)
+    expect(chunkFx.legacyOpen).toHaveLength(2)
+    expect(chunkFx.legacyScheduled).toHaveLength(4)
+    expect(chunkFx.legacyScheduledExpired).toHaveLength(2)
+    const notGranted = walk({ rights: "not_granted" })
+    expect(notGranted).toEqual(expect.arrayContaining(chunkFx.scheduledNone!))
+    const legacy = walk({ rights: "legacy_unknown" })
+    expect([...legacy].sort()).toEqual(
+      [...chunkFx.legacyOpen!, ...chunkFx.legacyScheduled!].sort()
+    )
+    const expired = walk({ rights: "expired" })
+    expect(expired).toEqual(
+      expect.arrayContaining([
+        ...chunkFx.scheduledExpired!,
+        ...chunkFx.legacyScheduledExpired!,
+      ])
+    )
+  }, 600_000)
+
+  // With the shipped helpers the gate refuses no row P keeps (P is the gate
+  // for these callers), so every page ends inside its first chunk. A
+  // stricter gate, installed as the owner in the rolled-back transaction,
+  // refuses three rows in four by id hash; both bodies call it, so the
+  // comparison stays exact while refused rows straddle every chunk edge:
+  // the x4 growth, the resume after the last row read and the exit on a
+  // short chunk all run.
+  const STRICT_GATE = `
+    set local track_functions = 'all';
+    alter function private.asset_search_admits(public.media_assets, boolean, uuid)
+      rename to asset_search_admits_shipped;
+    create function private.asset_search_admits(
+      p_asset public.media_assets, p_admin boolean, p_venue_id uuid)
+    returns boolean language sql stable security definer set search_path = '' cost 10000
+    as $g$
+      select private.asset_search_admits_shipped(p_asset, p_admin, p_venue_id)
+        and abs(hashtext(p_asset.id::text)::bigint) % 4 = 0
+    $g$;`
+
+  it("crosses chunk edges where the gate refuses rows P keeps", () => {
+    const cases: Case[] = [
+      { filters: {} },
+      ...["not_granted", "in_force", "legacy_unknown", "expired"].map((r) => ({
+        filters: { rights: r },
+      })),
+      {
+        filters: { rights: "not_granted" },
+        at: rejectedCursor.at,
+        id: rejectedCursor.id,
+      },
+      { filters: {}, at: deletedCursor.at, id: deletedCursor.id },
+    ].map((x) => ({ ...x, limits: [1, 2, 24, 48], max: 40 }))
+    for (const [who, list] of [
+      [c.manager, cases],
+      [c.staffManager, cases.map((x) => ({ ...x, limits: [24, 48], max: 25 }))],
+    ] as const) {
+      const d = compareBodies(who.id, list, STRICT_GATE)
+      expectSame(d)
+      expect(d.rows, who.id).toBeGreaterThan(100)
+    }
+    expectSame(
+      compareBodies(
+        c.admin.id,
+        cases.map((x) => ({
+          ...x,
+          filters: { venue: c.venue, ...(x.filters as object) },
+        })),
+        STRICT_GATE
+      )
+    )
+    // Rows each call read (one gate call per row read), page by page: a page
+    // of 24 reads past its first chunk of 25; walks at 1 a page (chunks of 2,
+    // 8, 32, ...) read past the second chunk (more than 10 rows) at least
+    // once.
+    const reads = (limit: number, pages: number) =>
+      JSON.parse(
+        psql(`begin;
+          ${STRICT_GATE}
+          create function pg_temp.reads(p_limit integer, p_pages integer)
+          returns jsonb language plpgsql as $f$
+          declare
+            v_page jsonb; v_at timestamptz; v_id uuid; v_out jsonb := '[]'; v_n bigint; v_m bigint;
+          begin
+            for i in 1 .. p_pages loop
+              select coalesce(sum(calls), 0) into v_n from pg_stat_xact_user_functions
+                where schemaname = 'private' and funcname = 'asset_search_admits';
+              v_page := public.asset_search('{}', v_at, v_id, p_limit);
+              select coalesce(sum(calls), 0) into v_m from pg_stat_xact_user_functions
+                where schemaname = 'private' and funcname = 'asset_search_admits';
+              v_out := v_out || jsonb_build_object('reads', v_m - v_n,
+                'items', jsonb_array_length(v_page -> 'items'));
+              exit when not (v_page ->> 'hasMore')::boolean;
+              v_at := (v_page -> 'items' -> -1 ->> 'uploadedAt')::timestamptz;
+              v_id := (v_page -> 'items' -> -1 ->> 'id')::uuid;
+            end loop;
+            return v_out;
+          end $f$;
+          grant execute on function pg_temp.reads(integer, integer) to authenticated;
+          select set_config('request.jwt.claims', '{"sub":"${c.manager.id}","role":"authenticated"}', true) is null;
+          set local role authenticated;
+          select pg_temp.reads(${limit}, ${pages});
+          rollback;`)
+          .split("\n")
+          .at(-1)!
+      ) as { reads: number; items: number }[]
+    const of24 = reads(24, 3)
+    expect(of24.length).toBe(3)
+    for (const p of of24) {
+      expect(p.items).toBe(24)
+      expect(p.reads).toBeGreaterThan(25)
+    }
+    const of1 = reads(1, 60)
+    expect(of1.length).toBe(60)
+    expect(Math.max(...of1.map((p) => p.reads))).toBeGreaterThan(10)
   }, 600_000)
 
   it("admits a row only where the prefilter holds, with a fixture for every gate arm", () => {
