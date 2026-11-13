@@ -1060,6 +1060,9 @@ function compareBodies(user: string, cases: Case[], setup = ""): Diff {
   )
   const out = psql(`begin;
     set local statement_timeout = 0;
+    -- Mirrors production (jit = off): hosted x86 Postgres has JIT, which
+    -- made these walks take minutes there against seconds locally.
+    set local jit = off;
     ${referenceDefinition()};
     ${HARNESS}
     ${setup}
@@ -2156,6 +2159,9 @@ ${fn.slice(at + CHUNK_MARK.length)};`
     JSON.parse(
       psql(`begin;
         set local statement_timeout = 0;
+        -- Mirrors production (jit = off): hosted x86 Postgres has JIT, which
+        -- made these walks take minutes there against seconds locally.
+        set local jit = off;
         set local track_functions = 'all';
         ${setup}
         ${COUNTED_SEARCH}

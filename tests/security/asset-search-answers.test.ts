@@ -200,6 +200,9 @@ describe("asset search answer freshness (B05 follow-up, §11.2)", () => {
     const run = randomUUID().slice(0, 8)
     const out = psql(`begin;
       set local statement_timeout = 0;
+      -- Mirrors production (jit = off): hosted x86 Postgres has JIT, which
+      -- made these walks take minutes there against seconds locally.
+      set local jit = off;
       create temp table cap_rows as
         select gen_random_uuid() as id, n,
           now() + interval '1 day' + n * interval '1 second' as created_at
