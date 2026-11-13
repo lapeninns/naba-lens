@@ -14,13 +14,31 @@ import {
   type AmenityResult,
 } from "@/lib/amenities/contract"
 import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
+import { stepFreeAnswerWords } from "@/components/nabalens/knowledge/entrance-answer"
 import { LatestFinding } from "@/components/nabalens/knowledge/latest-finding"
-import { ROUTES } from "@/lib/auth/routes"
 import {
+  questionForm,
+  type QuestionForm,
+} from "@/components/nabalens/knowledge/question-form"
+import { QuestionFormNotice } from "@/components/nabalens/knowledge/question-form-notice"
+import { ROUTES } from "@/lib/auth/routes"
+import { correctAnswerAction } from "@/app/_knowledge/actions"
+import { CorrectionForm } from "@/components/nabalens/knowledge/correction-form"
+import { CORRECT_COPY } from "@/components/nabalens/knowledge/corrections-copy"
+import { EVENT_COPY } from "@/components/nabalens/knowledge/event-detail"
+import { workServices } from "@/lib/work-client/services"
+import { policyFromDetail } from "@/components/nabalens/knowledge/policy-detail"
+import {
+  findingKey,
   knowledgeAssetsResult,
   type CaptureCheck,
   type QuestionView,
 } from "@/lib/knowledge-client/contract"
+import {
+  needsEntranceLabels,
+  withEntranceLabels,
+} from "@/lib/knowledge-client/adapt"
+import { venuePlacesOnce } from "@/lib/knowledge-client/entrances"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck, listSubmittableAssets } from "@/lib/server/amenities"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -38,8 +56,18 @@ async function knowledgeFor(
   actor: MediaActor,
   checkId: string,
   role: KnowledgeProps["role"],
-  venueName: string
-): Promise<{ props: KnowledgeProps; capture: CaptureCheck } | null> {
+  venueName: string,
+  /** An admin capturing: states a policy as admin (B03-c). */
+  admin = false,
+  /** "Complete the policy" (§4.4): the pending policy finding to start from. */
+  complete: string | null = null
+): Promise<{
+  props: KnowledgeProps
+  capture: CaptureCheck
+  form: QuestionForm
+  /** B03-g: the version's material fields (the headline always counts). */
+  materialFields?: string[]
+} | null> {
   const [view, draft] = await Promise.all([
     knowledgeServices
       .getKnowledgeCheck(actor, { checkId, venueName })
@@ -47,9 +75,214 @@ async function knowledgeFor(
     knowledgeServices.getDraft(actor, { checkId }).catch(() => null),
   ])
   if (!view?.ok || !view.view.inScope) return null
+  // Which form this build may render for the question's registry version.
+  const question = await knowledgeServices
+    .getQuestion(actor, { key: view.view.slot.key })
+    .catch(() => null)
+  const form = questionForm(question?.ok ? question.question : null)
+  const props = fromView(view.view, draft?.ok ? draft.draft : null, role)
+  const venuePlaces = venuePlacesOnce(actor, view.view.venue.id)
+  // B03-e: whether a recheck is open here, for the sent notice (§6.2). A
+  // failed read claims nothing either way.
+  props.openRechecks = await openRechecksAt(actor, checkId)
+  if (form.kind === "policy") {
+    // Places for Areas and the owner's lists for conditions and exceptions;
+    // each reads as none when it can't be read (the editor says so).
+    const [result, conditions, exceptions] = await Promise.all([
+      venuePlaces(),
+      knowledgeServices
+        .getValueList(actor, { list: "policy_condition_types" })
+        .catch(() => null),
+      knowledgeServices
+        .getValueList(actor, { list: "policy_exception_types" })
+        .catch(() => null),
+    ])
+    // A35: who states a policy, on which basis, from the venue's
+    // capabilities; unreadable, the role's default (the server checks the
+    // authority again, A37).
+    const caps = await policyCapabilities(actor, view.view.venue.id)
+    props.detailForm = {
+      schema: "policy",
+      places: result?.ok ? (result.places ?? []).filter((p) => p.active) : [],
+      conditionTypes: conditions?.ok ? conditions.items : [],
+      exceptionTypes: exceptions?.ok ? exceptions.items : [],
+      // A38: each list's retired items apart; codes are unique per list only.
+      retiredConditionTypes: (conditions?.ok ? conditions.retired : null) ?? [],
+      retiredExceptionTypes: (exceptions?.ok ? exceptions.retired : null) ?? [],
+      requiresZones: form.requiresZones,
+      basis: caps
+        ? caps.canStatePolicy
+          ? (caps.policyBasis ?? null)
+          : null
+        : admin
+          ? "admin"
+          : role === "manager"
+            ? "venue_manager"
+            : null,
+      canStateOrgPolicy: caps ? caps.canStateOrgPolicy === true : admin,
+    }
+    // A manager or an admin completing someone's policy finding starts from
+    // it; an id that isn't a pending policy finding here is ignored.
+    const from =
+      role === "manager" && complete
+        ? view.view.pending.find(
+            (p) =>
+              findingKey(p.findingRef) === complete &&
+              p.policyDetail !== undefined
+          )
+        : undefined
+    if (from)
+      props.prefill = {
+        answer: from.answer,
+        unknownPreset: from.unknownPreset,
+        policy: policyFromDetail(from.policyDetail, {
+          requiresZones: form.requiresZones,
+        }),
+        completesFrom:
+          from.sender?.displayName?.split(" ")[0] ?? "a former team member",
+      }
+  }
+  if (form.kind === "service") {
+    // Subscriptions read the owner's broadcasters list (A9); none when it
+    // can't be read, which the form says.
+    const key = view.view.slot.key
+    const broadcasters =
+      key === "sports_subscription"
+        ? await knowledgeServices
+            .getValueList(actor, { list: "broadcasters" })
+            .catch(() => null)
+        : null
+    props.detailForm = {
+      schema: "service",
+      timezone: view.view.timezone ?? "Europe/London",
+      channels: key === "takeaway_service",
+      broadcasters:
+        key === "sports_subscription"
+          ? broadcasters?.ok
+            ? broadcasters.items
+            : []
+          : null,
+    }
+  }
+  if (form.kind === "schedule_event") {
+    // Only a manager or an admin commits to a showing (§5.5); staff get the
+    // page without the form.
+    if (role === "staff")
+      return {
+        props,
+        capture: view.view.capture,
+        form: { kind: "read_only", line: EVENT_COPY.staffReadOnly },
+      }
+    props.detailForm = {
+      schema: "schedule_event",
+      committedBy: admin ? "You, as admin" : "You, as venue manager",
+    }
+  }
+  if (form.kind === "facility" || form.kind === "accessibility") {
+    // The venue's places for "Where is it?" and "What did you check?"; none
+    // when they can't be read (the person can still name a place, and
+    // step-free entrance says to add entrances under Places).
+    const result = await venuePlaces()
+    const places = result?.ok
+      ? (result.places ?? []).filter((p) => p.active)
+      : []
+    props.detailForm =
+      form.kind === "facility"
+        ? { schema: "facility", places }
+        : {
+            schema: "accessibility",
+            places,
+            features: form.features,
+            stepFree: view.view.slot.key === "step_free_entrance",
+            canManagePlaces: role !== "staff",
+          }
+  }
+  // A step-free Yes names its entrances (UI §3.5), from the read above when
+  // there was one; unreadable, it names no place.
+  if (needsEntranceLabels(props.slot.answerInUse)) {
+    const read = await venuePlaces()
+    props.slot = {
+      ...props.slot,
+      answerInUse: withEntranceLabels(
+        props.slot.answerInUse,
+        view.view.venue.id,
+        read?.ok ? read : null
+      ),
+    }
+  }
   return {
-    props: fromView(view.view, draft?.ok ? draft.draft : null, role),
+    props,
     capture: view.view.capture,
+    form,
+    materialFields:
+      question?.ok && question.question
+        ? question.question.materialFields
+        : ["headline"],
+  }
+}
+
+/** A35: the venue's policy capabilities; null when they can't be read. */
+async function policyCapabilities(actor: MediaActor, venueId: string) {
+  try {
+    const caps = await workServices.getCapabilities(actor, venueId)
+    return caps.status === "ok" ? caps.value : null
+  } catch {
+    return null
+  }
+}
+
+const CORRECTABLE = new Set(["yes", "no", "not_applicable"])
+
+/**
+ * Whether this person may correct here (venue capabilities, never a guess)
+ * and what they start from. A staff account, even with a grant, is told.
+ */
+async function correctionFor(
+  actor: MediaActor,
+  venueId: string | null,
+  knowledge: KnowledgeProps
+): Promise<
+  | {
+      kind: "form"
+      slotRevision: number
+      before: {
+        headline: "yes" | "no" | "not_applicable"
+        detail: Record<string, unknown> | null
+      }
+    }
+  | { kind: "notice"; line: string }
+> {
+  const answer = knowledge.slot.answerInUse
+  let allowed = false
+  try {
+    const caps = await workServices.getCapabilities(actor, venueId)
+    allowed = caps.status === "ok" && caps.value.canCorrect === true
+  } catch {
+    allowed = false
+  }
+  if (!allowed) return { kind: "notice", line: CORRECT_COPY.notPermitted }
+  if (
+    !answer.value ||
+    !CORRECTABLE.has(answer.value) ||
+    answer.detail === "answer_withdrawn"
+  )
+    return { kind: "notice", line: "There's no answer in use to correct." }
+  return {
+    kind: "form",
+    slotRevision: knowledge.slot.slotRevision,
+    before: {
+      headline: answer.value as "yes" | "no" | "not_applicable",
+      detail: answer.answerDetail ?? null,
+    },
+  }
+}
+
+async function openRechecksAt(actor: MediaActor, checkId: string) {
+  try {
+    const result = await knowledgeServices.getCheckRechecks(actor, { checkId })
+    return result.ok ? result.count : 0
+  } catch {
+    return 0
   }
 }
 
@@ -131,7 +364,13 @@ export async function CaptureScreen({
   backLabel,
   doneHref,
   announceSent = true,
+  complete = null,
+  correct = false,
 }: {
+  /** "Correct the answer" (B03-g §8.1): `?correct=1` from the check page. */
+  correct?: boolean
+  /** "Complete the policy" (B03-c §4.4): `?complete=` from To confirm. */
+  complete?: string | null
   actor: MediaActor
   checkId: string
   mode: "staff" | "manager" | "admin"
@@ -158,7 +397,14 @@ export async function CaptureScreen({
     mode === "staff"
       ? await staffReads(actor, checkId, venue)
       : await Promise.all([
-          knowledgeFor(actor, checkId, "manager", venue),
+          knowledgeFor(
+            actor,
+            checkId,
+            "manager",
+            venue,
+            mode === "admin",
+            complete
+          ),
           getCheck(actor, { checkId }),
           listSubmittableAssets(actor, { checkId }),
         ])
@@ -181,6 +427,11 @@ export async function CaptureScreen({
       ? knowledge.slot.myLatest
       : null
   const legacyAnswer = knowledge ? null : (detail?.check.answer ?? null)
+  // B03-g (§8.1): a manager account or an admin corrects the answer in use.
+  const correction =
+    correct && mode !== "staff" && knowledge
+      ? await correctionFor(actor, venueId, knowledge)
+      : null
   const form = (
     <CaptureClient
       check={check}
@@ -230,11 +481,38 @@ export async function CaptureScreen({
           </span>
         }
       />
-      {open ? (
+      {correction ? (
+        correction.kind === "form" ? (
+          <CorrectionForm
+            checkId={check.id}
+            slotRevision={correction.slotRevision}
+            venueName={venue}
+            before={correction.before}
+            materialFields={knowledgeRead?.materialFields ?? ["headline"]}
+            detailForm={knowledge?.detailForm ?? null}
+            correct={correctAnswerAction}
+            doneHref={doneHref}
+          />
+        ) : (
+          <Notice tone="plain">{correction.line}</Notice>
+        )
+      ) : open && knowledgeRead?.form.kind === "read_only" ? (
+        <Notice tone="plain">{knowledgeRead.form.line}</Notice>
+      ) : open &&
+        knowledgeRead &&
+        (knowledgeRead.form.kind === "unknown" ||
+          knowledgeRead.form.kind === "not_asked") ? (
+        <QuestionFormNotice form={knowledgeRead.form} />
+      ) : open ? (
         latest ? (
           <LatestFinding
             finding={latest}
             inUse={knowledge?.slot.answerInUse.value ?? null}
+            answerWords={
+              latest.state === "current" && knowledge
+                ? stepFreeAnswerWords(knowledge.slot.answerInUse)
+                : null
+            }
           >
             {form}
           </LatestFinding>

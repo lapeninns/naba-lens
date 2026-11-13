@@ -11,6 +11,9 @@ import { markReady, type Db, type TestIdentity } from "../support/identities"
 
 export const requestKey = () => `test-${randomUUID()}`
 
+// Guards against unintended changes to the approved B03 credit policy.
+export const MONTHLY_COMPLETION_COUNTS_HASH = "595b567b933705e692d2f801d750b3fb"
+
 type RpcResult<T> = {
   data: T | null
   error: { code: string; message: string; details?: string } | null

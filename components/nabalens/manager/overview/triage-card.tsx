@@ -1,13 +1,19 @@
 import {
+  ArrowsClockwiseIcon,
   ClipboardTextIcon,
+  DownloadSimpleIcon,
   ImagesIcon,
   ShieldCheckIcon,
   UserIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
 import { Row, SectionHeader } from "@/components/nabalens/common-room"
-import { dateAndTime } from "@/components/nabalens/knowledge/copy"
-import type { TriageQueue, TriageRow } from "@/lib/work-client/contract"
+import { dateAndTime, longDate } from "@/components/nabalens/knowledge/copy"
+import type {
+  TriageQueue,
+  TriageRow,
+  TriageRowQueue,
+} from "@/lib/work-client/contract"
 
 export const TRIAGE_HEADING_ID = "overview-triage"
 
@@ -18,14 +24,22 @@ export const TRIAGE_COPY = {
   findings: (n: number, oldest: string | null) =>
     `Findings to confirm: ${n}${oldest ? `, oldest ${dateAndTime(oldest)}` : ""}`,
   checklist: (n: number) => `Checklist photos to review: ${n}`,
+  rechecks: (n: number, oldest: string | null) =>
+    `Rechecks due: ${n}${oldest ? `, oldest due ${longDate(oldest)}` : ""}`,
+  suggestions: (n: number, oldest: string | null) =>
+    `Imports to decide: ${n}${oldest ? `, oldest ${dateAndTime(oldest)}` : ""}`,
 } as const
 
-export type TriageHrefs = Record<TriageQueue, string>
+/** B03 rows show only where the caller gives them a page to go to. */
+export type TriageHrefs = Record<TriageQueue, string> &
+  Partial<Record<Exclude<TriageRowQueue, TriageQueue>, string>>
 
-const ICON: Record<TriageQueue, React.ReactNode> = {
+const ICON: Record<TriageRowQueue, React.ReactNode> = {
   menu_photos: <ImagesIcon />,
   findings: <ShieldCheckIcon />,
   checklist: <ClipboardTextIcon />,
+  rechecks: <ArrowsClockwiseIcon />,
+  suggestions: <DownloadSimpleIcon />,
 }
 
 /** Rows grouped in one white card with hairlines. */
@@ -56,16 +70,22 @@ export function TriageCard({
   }[] = []
   for (const row of rows) {
     if (!row.available) continue
+    const href = hrefs[row.queue]
+    if (!href) continue
     const title =
       row.queue === "menu_photos"
         ? TRIAGE_COPY.menuPhotos(row.waiting, row.oldestWaitingAt)
         : row.queue === "findings"
           ? TRIAGE_COPY.findings(row.waiting, row.oldestWaitingAt)
-          : TRIAGE_COPY.checklist(row.waiting)
+          : row.queue === "rechecks"
+            ? TRIAGE_COPY.rechecks(row.waiting, row.oldestWaitingAt)
+            : row.queue === "suggestions"
+              ? TRIAGE_COPY.suggestions(row.waiting, row.oldestWaitingAt)
+              : TRIAGE_COPY.checklist(row.waiting)
     lines.push({
       key: row.queue,
       title,
-      href: hrefs[row.queue],
+      href,
       icon: ICON[row.queue],
     })
     if (row.queue === "menu_photos" && row.ownWaiting > 0 && ownWaiting) {

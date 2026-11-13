@@ -12,6 +12,8 @@ export type FindingSentCopy = {
   title: string
   /** After the question. */
   body: string
+  /** An open recheck this finding answers (B03 §6.2), on its own line. */
+  recheck?: string | null
   /** The recognition line, on its own line; never a promise. */
   extra?: string | null
   tone?: "positive" | "info" | "plain"
@@ -75,6 +77,7 @@ export function FindingSentNotice({
       }
     >
       <span className="[overflow-wrap:anywhere]">{question}</span> {copy.body}
+      {copy.recheck ? <span className="block">{copy.recheck}</span> : null}
       {copy.extra ? <span className="block">{copy.extra}</span> : null}
     </Notice>
   )

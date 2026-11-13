@@ -15,10 +15,18 @@ export const metadata: Metadata = {
  */
 export default async function AdminAmenityCapturePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ venueId: string; checkId: string }>
+  searchParams?: Promise<{
+    complete?: string | string[]
+    correct?: string | string[]
+  }>
 }) {
   const { venueId, checkId } = await params
+  // "Complete the policy" (B03-c §4.4): one finding, or none.
+  const search = await searchParams
+  const complete = search?.complete
   const ctx = await adminVenueContext(venueId)
   const checkHref = amenityHrefs(ctx.basePath).check(checkId)
   return (
@@ -32,6 +40,8 @@ export default async function AdminAmenityCapturePage({
         backHref={checkHref}
         backLabel="Back to the check"
         doneHref={checkHref}
+        complete={typeof complete === "string" ? complete : null}
+        correct={search?.correct === "1"}
       />
     </AppShell>
   )

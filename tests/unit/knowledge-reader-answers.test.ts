@@ -269,6 +269,24 @@ describe("snapshot ETag", () => {
     expect(etagMatches(b, a)).toBe(false)
     expect(etagMatches(null, a)).toBe(false)
   })
+
+  it("changes when a stopped service reads No at the same revision (B03 A40)", () => {
+    // Nothing is written on the stop date: the resolver reads the stored Yes
+    // as No and finding and limitations empty, revision unchanged.
+    const before = answer({ question_key: "sunday_roast" })!
+    const after = answer({
+      question_key: "sunday_roast",
+      value: "no",
+      finding: null,
+      limitations: null,
+    })!
+    expect(after.revision).toBe(before.revision)
+    expect(after.value).toEqual({ type: "yes_no_na", answer: "no" })
+    const a = snapshotEtag({ ...base, answers: [before] })
+    const b = snapshotEtag({ ...base, answers: [after] })
+    expect(a).not.toBe(b)
+    expect(etagMatches(a, b)).toBe(false)
+  })
 })
 
 describe("rows as knowledge_reader_answers_v1 returns them", () => {

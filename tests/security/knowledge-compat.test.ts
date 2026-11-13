@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process"
 
 import { describe, expect, it } from "vitest"
 
-import { psql } from "./coverage-fixtures"
+import { MONTHLY_COMPLETION_COUNTS_HASH, psql } from "./coverage-fixtures"
 
 /** Runs a psql script (several statements) and returns its output. */
 function psqlScript(sql: string): string {
@@ -179,7 +179,30 @@ describe("one snapshot per B02 read (T9b)", () => {
     expect(
       psql(`select md5(pg_get_functiondef(
         'private.monthly_venue_completion_counts(uuid,uuid,date)'::regprocedure))`)
-    ).toBe("b78b9daeb8ede1fec0b7224d99348659")
+    ).toBe(MONTHLY_COMPLETION_COUNTS_HASH)
+  })
+})
+
+describe("one snapshot per B03 read (T9b)", () => {
+  it("keeps the registry reads STABLE and definer", () => {
+    const rows = JSON.parse(
+      psql(`select json_agg(json_build_object(
+          'name', p.oid::regprocedure::text, 'volatility', p.provolatile, 'definer', p.prosecdef)
+          order by p.oid::regprocedure::text)
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        where (n.nspname = 'public' and p.proname in ('knowledge_question', 'knowledge_registry'))
+          or (n.nspname = 'private' and p.proname = 'knowledge_question_json')`)
+    ) as { name: string; volatility: string; definer: boolean }[]
+    expect(rows.map((r) => r.name)).toEqual([
+      "knowledge_question(text,integer)",
+      "knowledge_registry(text[])",
+      "private.knowledge_question_json(text,integer)",
+    ])
+    for (const fn of rows) {
+      expect(fn.volatility, fn.name).toBe("s")
+      expect(fn.definer, fn.name).toBe(true)
+    }
   })
 })
 

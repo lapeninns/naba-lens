@@ -499,10 +499,15 @@ function evidenceCheckbox(page: Page, assetId: string): Locator {
     createdAt: number
   }
   if (asset.kind === "image") {
+    // The amenity read serves thumbnails from the evidence route; a
+    // working-list (knowledge) capture lists the same photo from the media
+    // library's thumbnail route.
     return page
       .getByRole("listitem")
       .filter({
-        has: page.locator(`img[src^="${evidenceHref(assetId, "thumb")}"]`),
+        has: page.locator(
+          `img[src^="${evidenceHref(assetId, "thumb")}"], img[src^="/api/media/${assetId}/thumb"]`
+        ),
       })
       .getByRole("checkbox")
   }

@@ -81,7 +81,9 @@ export async function loadMoreContributionsAction(
     : {
         ok: false,
         message:
-          result.status === "failed" ? result.failure.message : "Reload the page.",
+          result.status === "failed"
+            ? result.failure.message
+            : "Reload the page.",
       }
 }
 
@@ -102,4 +104,83 @@ export async function decideFindingAction(input: unknown) {
 
 export async function resolveConflictAction(input: unknown) {
   return write(k.resolveConflict, input)
+}
+
+// ---- Places (B03-b) --------------------------------------------------------------
+
+/** A venue's manager or an admin; the database checks the venue. Keyed. */
+export async function addPlaceAction(input: unknown) {
+  return write(k.addPlace, input)
+}
+
+/** Retires a place with a reason; answers that named it keep it. Keyed. */
+export async function retirePlaceAction(input: unknown) {
+  return write(k.retirePlace, input)
+}
+
+// ---- Corrections and history (B03-g) -----------------------------------------------
+
+/** A manager account or an admin corrects the answer in use. Keyed. */
+export async function correctAnswerAction(input: unknown) {
+  return write(k.correctAnswer, input)
+}
+
+/** A manager account or an admin takes the answer out of use. Keyed. */
+export async function withdrawAnswerAction(input: unknown) {
+  return write(k.withdrawAnswer, input)
+}
+
+/** The next page of a question's history. */
+export async function slotEventsAction(input: unknown) {
+  return read(k.listSlotEvents, input)
+}
+
+/** The answer in use at a moment. */
+export async function slotHistoryAction(input: unknown) {
+  return read(k.getSlotHistory, input)
+}
+
+// ---- Reconciliation (B03-f, admins) ------------------------------------------------
+
+async function adminWrite<T>(service: Service<T>, input: unknown) {
+  const result = await write(service, input)
+  if (result.ok) revalidatePath("/admin/knowledge", "layout")
+  return result
+}
+
+/** Declares a source the owner approved. Keyed. */
+export async function declareSourceAction(input: unknown) {
+  return adminWrite(k.declareSource, input)
+}
+
+/** Retires a source with a reason. Keyed. */
+export async function retireSourceAction(input: unknown) {
+  return adminWrite(k.retireSource, input)
+}
+
+/** Appends a mapping review with its reason. Keyed. */
+export async function reviewMappingAction(input: unknown) {
+  return adminWrite(k.reviewMapping, input)
+}
+
+/** A dry run, or an apply that a fresh matching dry run allows. */
+export async function reconcileAction(input: unknown) {
+  return adminWrite(k.reconcile, input)
+}
+
+/** A schema upgrade dry run, or its apply (B03-g, §9.3). */
+export async function upgradeRunAction(input: unknown) {
+  return adminWrite(k.runSchemaUpgrade, input)
+}
+
+// ---- Schedules (B03-d) ------------------------------------------------------------
+
+/** The next dates a schedule being written would give; nothing is saved. */
+export async function previewScheduleAction(input: unknown) {
+  return read(k.previewSchedule, input)
+}
+
+/** A manager's or an admin's change for one date on the schedule in use. */
+export async function addScheduleExceptionAction(input: unknown) {
+  return write(k.addScheduleException, input)
 }

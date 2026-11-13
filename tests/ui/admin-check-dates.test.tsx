@@ -1,0 +1,549 @@
+// @vitest-environment jsdom
+// B03 UI design §6.4: what turning on a check-date rule would do, read only.
+import { cleanup, render, screen, within } from "@testing-library/react"
+import type { ReactNode } from "react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+vi.mock("server-only", () => ({}))
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/admin/knowledge/check-dates",
+  notFound: () => {
+    throw new Error("NEXT_NOT_FOUND")
+  },
+  redirect: (to: string) => {
+    throw new Error(`NEXT_REDIRECT ${to}`)
+  },
+}))
+vi.mock("@/components/nabalens/app-shell", () => ({
+  AppShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}))
+vi.mock("@/lib/auth", () => ({
+  requireActiveAdmin: vi.fn(async () => ({
+    id: "a1",
+    displayName: "TEST Admin",
+  })),
+}))
+const venues = vi.hoisted(() => ({
+  rows: [] as { id: string; name: string }[],
+}))
+vi.mock("@/lib/server/coverage", () => ({
+  getCoverageActor: vi.fn(async () => ({
+    ok: true,
+    actor: {
+      profile: { id: "a1" },
+      db: {
+        from: () => ({
+          select: () => ({
+            in: async () => ({ data: venues.rows, error: null }),
+          }),
+        }),
+      },
+    },
+  })),
+}))
+const knowledge = vi.hoisted(() => ({
+  listQuestionRegistry: vi.fn(),
+  getQuestion: vi.fn(),
+  listFreshnessPolicies: vi.fn(),
+  previewFreshness: vi.fn(),
+}))
+vi.mock("@/lib/knowledge-client/services", () => ({
+  knowledgeServices: knowledge,
+}))
+
+import CheckDatesPreviewPage from "@/app/admin/knowledge/check-dates/page"
+
+const VENUE = "9b000000-0000-4000-8000-000000000201"
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  venues.rows = [{ id: VENUE, name: "⟨Venue A⟩" }]
+  knowledge.listQuestionRegistry.mockResolvedValue({
+    ok: true,
+    questions: [
+      {
+        key: "onsite_parking",
+        guidance: { question: "⟨Parking question⟩" },
+        freshness: { internal: null, public: null },
+      },
+      {
+        key: "guest_wifi",
+        guidance: { question: "⟨Wi-Fi question⟩" },
+        freshness: { internal: "fixture_365", public: null },
+      },
+    ],
+  })
+  knowledge.listFreshnessPolicies.mockResolvedValue({
+    ok: true,
+    policies: [
+      policy({ policyId: "offering_90", use: "internal", maxAge: "P90D" }),
+      policy({ policyId: "fixture_365", use: "internal", maxAge: "P365D" }),
+      policy({ policyId: "offering_public", use: "public", maxAge: "P30D" }),
+    ],
+  })
+})
+
+function policy(over: Record<string, unknown>) {
+  return {
+    policyId: "x",
+    version: 1,
+    claimClass: "offering",
+    use: "internal",
+    maxAge: "P90D",
+    recheckLead: "P14D",
+    basis: "observed_on",
+    note: null,
+    createdAt: "2026-11-01T00:00:00.000Z",
+    ...over,
+  }
+}
+afterEach(cleanup)
+
+const NO_RULES_IN_FORCE =
+  "This question's rules in force couldn't be read. Choose the rules to preview, or reload the page."
+const internalRule = () =>
+  (
+    screen.getByLabelText(
+      "Rule for staff and internal tools (optional)"
+    ) as HTMLSelectElement
+  ).value
+const publicRule = () =>
+  (screen.getByLabelText("Rule for guests (optional)") as HTMLSelectElement)
+    .value
+
+async function show(search: Record<string, string> = {}) {
+  render(await CheckDatesPreviewPage({ searchParams: Promise.resolve(search) }))
+}
+
+describe("admin check dates preview", () => {
+  it("says it changes nothing, and reads nothing until a rule is named", async () => {
+    await show()
+    expect(
+      screen.getByText(
+        "This changes nothing. Turning a rule on is an owner decision and a release step."
+      )
+    ).toBeTruthy()
+    expect(
+      within(screen.getByLabelText("Question")).getByRole("option", {
+        name: "⟨Parking question⟩",
+      })
+    ).toBeTruthy()
+    expect(knowledge.previewFreshness).not.toHaveBeenCalled()
+  })
+
+  it("shows what the rule would do per venue and use, from the server", async () => {
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: true,
+      preview: {
+        key: "onsite_parking",
+        items: [
+          {
+            venueId: VENUE,
+            use: "internal",
+            answers: 5,
+            dueSoon: 1,
+            expired: 2,
+            basisMissing: 1,
+          },
+        ],
+      },
+    })
+    await show({ key: "onsite_parking", internal: "offering_90" })
+    expect(knowledge.previewFreshness).toHaveBeenCalledWith(expect.anything(), {
+      key: "onsite_parking",
+      policy: { internal: "offering_90", public: null },
+    })
+    expect(screen.getByText("⟨Venue A⟩")).toBeTruthy()
+    expect(screen.getByText("For staff and internal tools")).toBeTruthy()
+    expect(
+      screen.getByText("2 answers would be past their check date")
+    ).toBeTruthy()
+    expect(
+      screen.getByText("1 would be not in use because they have no check date")
+    ).toBeTruthy()
+    expect(screen.getByText("4 rechecks would open")).toBeTruthy()
+  })
+
+  it("offers Try again only when the read may work again", async () => {
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "down",
+    })
+    await show({ key: "onsite_parking", internal: "offering_90" })
+    expect(
+      screen.getByText("We couldn't work out what this rule would do.")
+    ).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Try again" })).toBeTruthy()
+    cleanup()
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: false,
+      code: "invalid_input",
+      status: 400,
+      message: "bad",
+    })
+    await show({ key: "onsite_parking", internal: "offering_90" })
+    expect(screen.queryByRole("link", { name: "Try again" })).toBeNull()
+  })
+
+  it("says why a rule counting from the check day can't apply to this question", async () => {
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: false,
+      code: "freshness_basis_unavailable",
+      status: 400,
+      message:
+        "This rule counts from the day an answer was checked, but this question doesn't ask when it was checked. Choose a rule that doesn't need that date.",
+    })
+    await show({ key: "onsite_parking", internal: "offering_90" })
+    expect(
+      screen.getByText(
+        "This rule counts from the day an answer was checked, but this question doesn't ask when it was checked. Choose a rule that doesn't need that date."
+      )
+    ).toBeTruthy()
+    expect(
+      screen.queryByText("We couldn't work out what this rule would do.")
+    ).toBeNull()
+    expect(screen.queryByRole("link", { name: "Try again" })).toBeNull()
+  })
+
+  it("offers only the rules the server lists, for each use (A42)", async () => {
+    await show()
+    const internal = screen.getByLabelText(
+      "Rule for staff and internal tools (optional)"
+    )
+    expect(
+      within(internal)
+        .getAllByRole("option")
+        .map((o) => o.textContent)
+    ).toEqual([
+      "None",
+      "offering_90 (due for a check after 90 days)",
+      "fixture_365 (due for a check after 365 days)",
+    ])
+    expect(
+      within(screen.getByLabelText("Rule for guests (optional)"))
+        .getAllByRole("option")
+        .map((o) => (o as HTMLOptionElement).value)
+    ).toEqual(["", "offering_public"])
+    expect(screen.queryByRole("textbox")).toBeNull()
+  })
+
+  it("starts from the question's rules in force until the form names others", async () => {
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: true,
+      preview: { key: "guest_wifi", items: [] },
+    })
+    await show({ key: "guest_wifi" })
+    expect(
+      (
+        screen.getByLabelText(
+          "Rule for staff and internal tools (optional)"
+        ) as HTMLSelectElement
+      ).value
+    ).toBe("fixture_365")
+    expect(knowledge.previewFreshness).toHaveBeenCalledWith(expect.anything(), {
+      key: "guest_wifi",
+      policy: { internal: "fixture_365", public: null },
+    })
+    cleanup()
+    vi.clearAllMocks()
+    // Named None for both: nothing to preview, and the rule in force isn't put back.
+    await show({ key: "guest_wifi", internal: "", public: "" })
+    expect(
+      (
+        screen.getByLabelText(
+          "Rule for staff and internal tools (optional)"
+        ) as HTMLSelectElement
+      ).value
+    ).toBe("")
+    expect(knowledge.previewFreshness).not.toHaveBeenCalled()
+  })
+
+  it("starts from the rules in force the registry names, in one read, under a far-future latest version", async () => {
+    // Versions may be sparse up to 2147483647: nothing is read per version.
+    knowledge.listQuestionRegistry.mockResolvedValue({
+      ok: true,
+      questions: [
+        {
+          key: "guest_wifi",
+          version: 2147483647,
+          latestVersion: 2147483647,
+          guidance: { question: "⟨Wi-Fi question⟩" },
+          effectiveFrom: "2999-01-01T00:00:00.000Z",
+          freshness: { internal: "offering_90", public: "offering_public" },
+          // Version 1's rules, in force now.
+          effectiveFreshness: { internal: "fixture_365", public: null },
+        },
+      ],
+    })
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: true,
+      preview: { key: "guest_wifi", items: [] },
+    })
+    await show({ key: "guest_wifi" })
+    expect(knowledge.listQuestionRegistry).toHaveBeenCalledTimes(1)
+    expect(knowledge.getQuestion).not.toHaveBeenCalled()
+    expect(internalRule()).toBe("fixture_365")
+    expect(publicRule()).toBe("")
+    expect(knowledge.previewFreshness).toHaveBeenCalledTimes(1)
+    expect(knowledge.previewFreshness).toHaveBeenCalledWith(expect.anything(), {
+      key: "guest_wifi",
+      policy: { internal: "fixture_365", public: null },
+    })
+    expect(screen.queryByText(NO_RULES_IN_FORCE)).toBeNull()
+    cleanup()
+    // Chosen for this question: the choice still wins, and Try again keeps it.
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "down",
+    })
+    await show({
+      key: "guest_wifi",
+      for: "guest_wifi",
+      internal: "offering_90",
+      public: "",
+    })
+    expect(internalRule()).toBe("offering_90")
+    expect(knowledge.previewFreshness).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { key: "guest_wifi", policy: { internal: "offering_90", public: null } }
+    )
+    const href = screen
+      .getByRole("link", { name: "Try again" })
+      .getAttribute("href")!
+    expect(Object.fromEntries(new URL(href, "http://x").searchParams)).toEqual({
+      key: "guest_wifi",
+      for: "guest_wifi",
+      internal: "offering_90",
+      public: "",
+    })
+    expect(knowledge.getQuestion).not.toHaveBeenCalled()
+  })
+
+  it("reads an explicit null as no rules in force, not as an older response", async () => {
+    knowledge.listQuestionRegistry.mockResolvedValue({
+      ok: true,
+      questions: [
+        {
+          key: "guest_wifi",
+          version: 1,
+          guidance: { question: "⟨Wi-Fi question⟩" },
+          // Absent, this would mean the latest version is in force.
+          effectiveFrom: null,
+          freshness: { internal: "fixture_365", public: null },
+          effectiveFreshness: null,
+        },
+      ],
+    })
+    await show({ key: "guest_wifi" })
+    expect(internalRule()).toBe("")
+    expect(publicRule()).toBe("")
+    expect(knowledge.previewFreshness).not.toHaveBeenCalled()
+    expect(screen.queryByText(NO_RULES_IN_FORCE)).toBeNull()
+    expect(knowledge.getQuestion).not.toHaveBeenCalled()
+  })
+
+  it("on an older database, keeps the latest version's rules only when they are in force", async () => {
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: true,
+      preview: { key: "guest_wifi", items: [] },
+    })
+    const older = (effectiveFrom: string | null) =>
+      knowledge.listQuestionRegistry.mockResolvedValue({
+        ok: true,
+        questions: [
+          {
+            key: "guest_wifi",
+            version: 2147483647,
+            guidance: { question: "⟨Wi-Fi question⟩" },
+            effectiveFrom,
+            freshness: { internal: "fixture_365", public: null },
+          },
+        ],
+      })
+    // No effective date, or one already passed: the latest is in force.
+    for (const from of [null, "2026-01-01T00:00:00.000Z"]) {
+      cleanup()
+      vi.clearAllMocks()
+      older(from)
+      await show({ key: "guest_wifi" })
+      expect(internalRule(), String(from)).toBe("fixture_365")
+      expect(knowledge.previewFreshness).toHaveBeenCalledWith(
+        expect.anything(),
+        { key: "guest_wifi", policy: { internal: "fixture_365", public: null } }
+      )
+      expect(screen.queryByText(NO_RULES_IN_FORCE)).toBeNull()
+      expect(knowledge.getQuestion).not.toHaveBeenCalled()
+    }
+    // A future or unreadable date: the rules in force can't be worked out.
+    for (const from of ["2999-01-01T00:00:00.000Z", "not a date"]) {
+      cleanup()
+      vi.clearAllMocks()
+      older(from)
+      await show({ key: "guest_wifi" })
+      expect(screen.getByText(NO_RULES_IN_FORCE)).toBeTruthy()
+      expect(internalRule(), from).toBe("")
+      expect(knowledge.previewFreshness).not.toHaveBeenCalled()
+      expect(knowledge.getQuestion).not.toHaveBeenCalled()
+    }
+  })
+
+  it("guesses no rules when they can't be read", async () => {
+    // A malformed projection is not a rule set.
+    knowledge.listQuestionRegistry.mockResolvedValue({
+      ok: true,
+      questions: [
+        {
+          key: "guest_wifi",
+          version: 2,
+          guidance: { question: "⟨Wi-Fi question⟩" },
+          effectiveFrom: null,
+          freshness: { internal: "fixture_365", public: null },
+          effectiveFreshness: "fixture_365",
+        },
+      ],
+    })
+    await show({ key: "guest_wifi" })
+    expect(screen.getByText(NO_RULES_IN_FORCE)).toBeTruthy()
+    expect(internalRule()).toBe("")
+    expect(knowledge.previewFreshness).not.toHaveBeenCalled()
+    // The registry itself unavailable (which it says) or the read throwing:
+    // no question to start from, and nothing is previewed or read per version.
+    for (const [failed, notice] of [
+      [
+        async () => ({
+          ok: false,
+          code: "unavailable",
+          status: 503,
+          message: "down",
+        }),
+        true,
+      ],
+      [() => Promise.reject(new Error("down")), false],
+    ] as const) {
+      cleanup()
+      vi.clearAllMocks()
+      knowledge.listQuestionRegistry.mockImplementation(failed)
+      await show({ key: "guest_wifi" })
+      expect(knowledge.listQuestionRegistry).toHaveBeenCalledTimes(1)
+      expect(
+        Boolean(screen.queryByText("The question list couldn't be read."))
+      ).toBe(notice)
+      expect(internalRule()).toBe("")
+      expect(knowledge.previewFreshness).not.toHaveBeenCalled()
+      expect(knowledge.getQuestion).not.toHaveBeenCalled()
+    }
+  })
+
+  it("starts a newly chosen question from its own rules, not the last one's (review 2)", async () => {
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: true,
+      preview: { key: "guest_wifi", items: [] },
+    })
+    const internal = () =>
+      (
+        screen.getByLabelText(
+          "Rule for staff and internal tools (optional)"
+        ) as HTMLSelectElement
+      ).value
+    // First choice: the form sent its empty rule controls with it.
+    await show({ key: "guest_wifi", for: "", internal: "", public: "" })
+    expect(internal()).toBe("fixture_365")
+    expect(knowledge.previewFreshness).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { key: "guest_wifi", policy: { internal: "fixture_365", public: null } }
+    )
+    expect(
+      (document.querySelector('input[name="for"]') as HTMLInputElement).value
+    ).toBe("guest_wifi")
+    cleanup()
+    // Changed from parking with offering_90 chosen there: not carried over.
+    await show({
+      key: "guest_wifi",
+      for: "onsite_parking",
+      internal: "offering_90",
+      public: "",
+    })
+    expect(internal()).toBe("fixture_365")
+    expect(knowledge.previewFreshness).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { key: "guest_wifi", policy: { internal: "fixture_365", public: null } }
+    )
+    cleanup()
+    // To parking, which has no rules in force: nothing carried, nothing read.
+    knowledge.previewFreshness.mockClear()
+    await show({
+      key: "onsite_parking",
+      for: "guest_wifi",
+      internal: "fixture_365",
+      public: "",
+    })
+    expect(internal()).toBe("")
+    expect(knowledge.previewFreshness).not.toHaveBeenCalled()
+    cleanup()
+    // Chosen for this question: the choice wins over the rules in force.
+    await show({
+      key: "guest_wifi",
+      for: "guest_wifi",
+      internal: "offering_90",
+      public: "",
+    })
+    expect(internal()).toBe("offering_90")
+    expect(knowledge.previewFreshness).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { key: "guest_wifi", policy: { internal: "offering_90", public: null } }
+    )
+    expect(knowledge.getQuestion).not.toHaveBeenCalled()
+  })
+
+  it("keeps the chosen rules on Try again", async () => {
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "down",
+    })
+    await show({
+      key: "guest_wifi",
+      for: "guest_wifi",
+      internal: "offering_90",
+    })
+    const href = screen
+      .getByRole("link", { name: "Try again" })
+      .getAttribute("href")!
+    expect(Object.fromEntries(new URL(href, "http://x").searchParams)).toEqual({
+      key: "guest_wifi",
+      for: "guest_wifi",
+      internal: "offering_90",
+      public: "",
+    })
+  })
+
+  it("says when no rules are set up, or they can't be read", async () => {
+    knowledge.listFreshnessPolicies.mockResolvedValue({
+      ok: true,
+      policies: [],
+    })
+    await show()
+    expect(
+      screen.getByText("No check-date rules have been set up yet.")
+    ).toBeTruthy()
+    cleanup()
+    knowledge.listFreshnessPolicies.mockResolvedValue({
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "down",
+    })
+    await show()
+    expect(
+      screen.getByText(
+        "The check-date rules couldn't be read. Reload the page to try again."
+      )
+    ).toBeTruthy()
+  })
+})

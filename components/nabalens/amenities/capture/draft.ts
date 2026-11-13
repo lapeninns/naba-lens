@@ -5,6 +5,25 @@ import {
   type UnknownPreset,
 } from "@/lib/knowledge-client/contract"
 
+import {
+  accessFromDraft,
+  type AccessDraft,
+} from "../../knowledge/accessibility-detail"
+import type { CheckedOn } from "../../knowledge/checked-on"
+import { eventFromDraft, type EventDraft } from "../../knowledge/event-detail"
+import {
+  serviceFromDraft,
+  type ServiceDraft,
+} from "../../knowledge/service-detail"
+import {
+  policyFromDraft,
+  type PolicyDraft,
+} from "../../knowledge/policy-detail"
+import {
+  emptyFacility,
+  type FacilityDraft,
+} from "../../knowledge/facility-detail"
+
 /**
  * One unsent finding per person and check, kept in localStorage so a failed
  * upload, a dropped connection or a reload never loses it. The idempotency key
@@ -68,6 +87,17 @@ export type CaptureDraft = {
    * finished after the person left (CA-10). This device only.
    */
   uploadsPending?: { count: number; after: string | null } | null
+  /**
+   * B03 detail forms only: the facility, accessibility and policy details as
+   * typed, and Checked on (the form's date is stamped at the first edit, so a
+   * later reopen can tell it from a chosen one). Absent on every other form.
+   */
+  facility?: FacilityDraft | null
+  access?: AccessDraft | null
+  policy?: PolicyDraft | null
+  service?: ServiceDraft | null
+  event?: EventDraft | null
+  checkedOn?: CheckedOn | null
 }
 
 /** A v4 UUID; falls back to getRandomValues where randomUUID is missing (http on a LAN). */
@@ -207,6 +237,22 @@ export function loadDraft(owner: DraftOwner): CaptureDraft | null {
       redactionConfirmed: d.redactionConfirmed === true,
       redactionAssetIds: strings(d.redactionAssetIds),
       ...uploadsPending(d.uploadsPending),
+      ...(d.facility && typeof d.facility === "object"
+        ? { facility: facilityFromDraft(d.facility) }
+        : {}),
+      ...(d.access && typeof d.access === "object"
+        ? { access: accessFromDraft(d.access) }
+        : {}),
+      ...(d.policy && typeof d.policy === "object"
+        ? { policy: policyFromDraft(d.policy) }
+        : {}),
+      ...(d.service && typeof d.service === "object"
+        ? { service: serviceFromDraft(d.service) }
+        : {}),
+      ...(d.event && typeof d.event === "object"
+        ? { event: eventFromDraft(d.event) }
+        : {}),
+      ...checkedOnOf(d.checkedOn),
     }
   } catch {
     return null
@@ -242,4 +288,57 @@ export function clearAllDrafts() {
   } catch {
     // Storage unavailable: nothing stored.
   }
+}
+
+/** A stored facility draft, field by field (the form's model, not the detail). */
+function facilityFromDraft(v: unknown): FacilityDraft {
+  const d = v as Record<string, unknown>
+  const base = emptyFacility()
+  const fees =
+    d.fees && typeof d.fees === "object"
+      ? (d.fees as Record<string, unknown>)
+      : {}
+  const kind = fees.kind
+  return {
+    locations: Array.isArray(d.locations)
+      ? (d.locations.filter(
+          (ref) =>
+            ref &&
+            typeof ref === "object" &&
+            (typeof (ref as Record<string, unknown>).subjectId === "string" ||
+              typeof (ref as Record<string, unknown>).label === "string")
+        ) as FacilityDraft["locations"])
+      : base.locations,
+    availability:
+      d.availability === "available" ||
+      d.availability === "on_request" ||
+      d.availability === "seasonal" ||
+      d.availability === "temporarily_unavailable"
+        ? d.availability
+        : null,
+    until: str(d.until),
+    availabilityNote: str(d.availabilityNote),
+    fees: {
+      kind:
+        kind === "free" || kind === "charged" || kind === "not_recorded"
+          ? kind
+          : "not_recorded",
+      amount: typeof fees.amount === "string" ? fees.amount : "",
+      unit: typeof fees.unit === "string" ? fees.unit : "",
+    },
+    limitations: str(d.limitations),
+    howToRequest: str(d.howToRequest),
+  }
+}
+
+function checkedOnOf(v: unknown): { checkedOn?: CheckedOn } {
+  if (!v || typeof v !== "object") return {}
+  const c = v as Record<string, unknown>
+  const date =
+    typeof c.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.date)
+      ? c.date
+      : null
+  const source =
+    c.source === "form_default" || c.source === "chosen" ? c.source : null
+  return { checkedOn: { date, source } }
 }

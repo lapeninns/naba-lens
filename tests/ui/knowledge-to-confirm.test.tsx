@@ -229,3 +229,36 @@ describe("manager Overview: findings to confirm", () => {
     )
   })
 })
+
+describe("Amenities overview: imports apart from findings (B03 UI §7.1)", () => {
+  it("offers Show: All, Findings or Imports when an import waits, in the server's order", async () => {
+    const user = (await import("@testing-library/user-event")).default.setup()
+    overview({
+      count: 2,
+      items: [
+        row(),
+        row({
+          checkId: STEP_FREE_CHECK.id,
+          question: STEP_FREE_CHECK.entry.question,
+          source: "external_source",
+          sourceLabel: "⟨Source⟩",
+        }),
+      ],
+    })
+    const section = document.getElementById("amenities-to-confirm")!
+    const links = () =>
+      within(section)
+        .getAllByRole("link")
+        .map((a) => a.getAttribute("href"))
+    expect(links()).toHaveLength(2)
+    await user.click(within(section).getByRole("radio", { name: "Imports" }))
+    expect(links()).toEqual([expect.stringContaining(STEP_FREE_CHECK.id)])
+    await user.click(within(section).getByRole("radio", { name: "Findings" }))
+    expect(links()).toEqual([expect.stringContaining(DARTS.id)])
+  })
+
+  it("offers no filter without an import", () => {
+    overview({ count: 1, items: [row()] })
+    expect(screen.queryByRole("radio", { name: "Imports" })).toBeNull()
+  })
+})

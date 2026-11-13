@@ -26,6 +26,12 @@ const CAPS = {
   canDecideOwnMenuPhoto: false,
   canReviewChecklist: false,
   canBeAssigned: true,
+  canCorrect: false,
+  canWithdraw: false,
+  canReadHistory: false,
+  canStatePolicy: false,
+  canStateOrgPolicy: false,
+  policyBasis: null,
 }
 
 describe("parseCapabilities (R8)", () => {
@@ -46,6 +52,32 @@ describe("parseCapabilities (R8)", () => {
       canLabel: false,
       canBeAssigned: false,
       canSelfConfirm: { wifi: false },
+    })
+  })
+
+  it("reads the B03-g flags, and only an exact true allows them", () => {
+    expect(
+      parseCapabilities({
+        ...CAPS,
+        accountKind: "manager",
+        canCorrect: true,
+        canWithdraw: "yes",
+        canReadHistory: true,
+      })
+    ).toMatchObject({
+      canCorrect: true,
+      canWithdraw: false,
+      canReadHistory: true,
+    })
+    // A server from before B03-g leaves them out.
+    const older: Record<string, unknown> = { ...CAPS }
+    delete older.canCorrect
+    delete older.canWithdraw
+    delete older.canReadHistory
+    expect(parseCapabilities(older)).toMatchObject({
+      canCorrect: false,
+      canWithdraw: false,
+      canReadHistory: false,
     })
   })
 
@@ -281,5 +313,30 @@ describe("entryIntents (§4.1)", () => {
 
   it("is null when capabilities couldn't be read", () => {
     expect(entryIntents(null, all)).toBeNull()
+  })
+})
+
+describe("A35 policy capabilities", () => {
+  it("reads who may state a policy, for every venue, and on which basis", () => {
+    expect(
+      parseCapabilities({
+        ...CAPS,
+        accountKind: "staff_with_grant",
+        canStatePolicy: true,
+        canStateOrgPolicy: false,
+        policyBasis: "venue_manager",
+      })
+    ).toMatchObject({
+      canStatePolicy: true,
+      canStateOrgPolicy: false,
+      policyBasis: "venue_manager",
+    })
+    expect(
+      parseCapabilities({
+        ...CAPS,
+        canStatePolicy: "yes",
+        policyBasis: "owner",
+      })
+    ).toMatchObject({ canStatePolicy: false, policyBasis: null })
   })
 })
