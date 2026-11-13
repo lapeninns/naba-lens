@@ -9,6 +9,15 @@ import {
 } from "@playwright/test"
 
 import { signIn } from "../support/identities"
+import {
+  amenityOk,
+  question,
+  readyCheck,
+  seedPhoto,
+  sessionOf,
+  submitArgs,
+  type AmenitiesWorld,
+} from "./helpers/amenities-world"
 import { legacyStaffGrant, setUploaderRole } from "./helpers/coverage-world"
 import {
   labelledPhoto,
@@ -126,7 +135,9 @@ async function thumbnailsLoad(page: Page, count: number) {
 }
 
 /**
- * No reuse, freshness, derivative, preview or download anywhere on screen.
+ * No reuse, photo freshness, derivative, preview or download anywhere on
+ * screen. Freshness may appear only as the answer's (B05 follow-up, §11.2):
+ * the Answer freshness filter and its "Freshness for" use.
  * Visible text only: a closed Venue select keeps every venue's name in the
  * page, and other specs on a shared stack name venues "e2e-lib-refresh-…".
  */
@@ -135,7 +146,13 @@ async function readOnly(page: Page) {
     page.getByText(/another destination|reuse/i).filter({ visible: true })
   ).toHaveCount(0)
   await expect(
-    page.getByText(/fresh|derivative/i).filter({ visible: true })
+    page.getByText(/derivative/i).filter({ visible: true })
+  ).toHaveCount(0)
+  await expect(
+    page
+      .getByText(/fresh/i)
+      .filter({ visible: true })
+      .filter({ hasNotText: /^(Answer freshness|Freshness for)$/ })
   ).toHaveCount(0)
   await expect(
     main(page).getByRole("link", { name: /\b(download|preview|open|view)\b/i })
@@ -587,4 +604,76 @@ test("(g) the screen passes axe and fits 390px", async ({ browser }, info) => {
       await page.context().close()
     }
   }
+})
+
+// Last: it adds an amenity answer at venue A, which the counts above don't
+// expect.
+test("(j) answer freshness finds the photo behind an answer, labelled as the answer's", async ({
+  browser,
+}, info) => {
+  const w = await searchWorld()
+  const check = await readyCheck(
+    { admin: w.admin } as unknown as AmenitiesWorld,
+    w.venueA,
+    "guest_toilets",
+    w.staffA1
+  )
+  const evidencePhoto = await seedPhoto(w.staffA1, w.venueA, `search-${w.tag}`)
+  await amenityOk(
+    await sessionOf(w.staffA1),
+    "amenity_submit_finding",
+    submitArgs(check, "yes", [evidencePhoto])
+  )
+  expect(
+    psql(`select count(*) from public.venue_amenity_checks c
+      join public.amenity_submission_assets sa on sa.submission_id = c.current_submission_id
+      where c.id = '${check}' and sa.asset_id = '${evidencePhoto}'`)
+  ).toBe("1")
+
+  for (const [who, path] of [
+    [w.admin, `/admin/search?venue=${w.venueA.id}`],
+    [w.mgrA, "/manager/search"],
+  ] as const) {
+    const page = await signedInPage(browser, who, view(info))
+    await page.goto(path)
+    await expect(cards(page).first()).toBeVisible()
+    await main(page)
+      .getByRole("button", { name: /More filters/ })
+      .click()
+    await choose(page, "Answer freshness", "Not rated yet")
+    await expect(page).toHaveURL(/answerFreshness=unrated/)
+    await expect(cards(page)).toHaveCount(1)
+    const card = cards(page).first()
+    await expect(card).toContainText(
+      `Supports \u201c${question("guest_toilets")}\u201d: not rated yet (internal and public)`
+    )
+    await expect(
+      main(page).getByRole("button", {
+        name: "Showing: Answer not rated yet (internal use). Remove filter",
+      })
+    ).toBeVisible()
+    // No freshness policy is set yet (OD-15): nothing is current.
+    await choose(page, "Answer freshness", "Current")
+    await expect(cards(page)).toHaveCount(0)
+    await choose(page, "Freshness for", "Public use")
+    await expect(page).toHaveURL(/answerUse=public/)
+    await readOnly(page)
+    await evidence(
+      page,
+      `answer-freshness-${who === w.admin ? "admin" : "manager"}-${phone(info) ? 390 : 1280}`
+    )
+    await page.context().close()
+  }
+
+  // An admin without a venue isn't offered it; a URL that asks is refused.
+  const page = await signedInPage(browser, w.admin, view(info))
+  await page.goto("/admin/search")
+  await main(page)
+    .getByRole("button", { name: /More filters/ })
+    .click()
+  await expect(
+    main(page).getByRole("combobox", { name: "Answer freshness" })
+  ).toHaveCount(0)
+  await page.goto("/admin/search?answerFreshness=unrated")
+  await expect(main(page)).toContainText("Choose a venue first.")
 })
