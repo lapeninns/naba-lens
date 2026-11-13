@@ -227,6 +227,7 @@ describe("asset search answer freshness (B05 follow-up, §11.2)", () => {
           ((select p from pages where n = 1) -> 'resumeAfter' ->> 'id')::uuid, 48);
       insert into pages select 3, public.asset_search(
           '{"venue":"${w.venue}","answerFreshness":"unrated"}'::jsonb, null, null, 48);
+      reset role;
       select json_build_object(
         'first', (select p from pages where n = 1),
         'second', (select p from pages where n = 2),
