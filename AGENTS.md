@@ -39,3 +39,26 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   no browser journey. Separate local checks, CI, deployment and live proof.
 - Operation: see `docs/verification-policy.md`. The ledger is workflow evidence,
   not a security boundary or permission to bypass required release checks.
+
+## Parallel local runs
+
+The dev Mac has 18 cores and Docker has all of them, while a single Postgres
+query uses one. Serial runs on one stack leave most of the machine idle.
+
+- Repeat runs (for example a suite run three times): reset one stack per run to
+  the same clean head and run them at once. Every run is then a first run on a
+  fresh database. Repeats on one stack get slower as rows build up (B05: 332,
+  451, then 590 s).
+- Independent suites (security, lifecycle, migrations lint, unit) can run at
+  once on different stacks.
+- Long compare or bench passes (`tests/perf/*`): split them into `--slice` runs
+  across stacks (`PERF_STACK`, `/tmp/nabalens-ws/<stack>/env.sh`), about 12 to
+  16 at once. Load another stack only when the pass is longer than loading its
+  world takes. Short passes can share one stack.
+- Keep the load average under about 16 so the desktop stays usable. Follow
+  each stack's lock and local-Docker guard. Keep each command in the
+  foreground and under about 8 minutes.
+- If one run fails with a socket or `fetch failed` error, rerun only that run on
+  a freshly reset stack, not the whole set.
+- Review and repair loops: after two repair rounds, stop and report to the owner
+  before starting another.
