@@ -220,6 +220,15 @@ const variantPair = (v) =>
   one(
     `select item_id, variant_id from public.media_label_items where venue_id = '${v}' and variant_id is not null group by 1, 2 order by count(*) desc, 1, 2 limit 1`
   )
+// The venue's least-labelled variant (labels plus menu decisions).
+const rareVariant = (v) =>
+  one(
+    `select x.v from (
+       select li.variant_id as v from public.media_label_items li where li.venue_id = '${v}' and li.variant_id is not null
+       union all
+       select mp.variant_id from public.menu_item_photos mp where mp.venue_id = '${v}' and mp.variant_id is not null) x
+     group by 1 order by count(*), 1 limit 1`
+  )[0]
 const accepted = (v) =>
   one(
     `select item_id from public.menu_item_photos where venue_id = '${v}' and state = 'accepted' group by 1 order by count(*) desc, 1 limit 1`
@@ -304,6 +313,8 @@ function matrix(venue) {
     ["item popular", { item: pop }],
     ["item rare (big staff-era)", { item: rareWorld }],
     ["variant popular", { variant: vVar ?? NOMATCH }],
+    ["variant rare", { variant: rareVariant(v) ?? NOMATCH }],
+    ["variant unknown", { variant: NOMATCH }],
     ["item + variant", { item: vItem ?? pop, variant: vVar ?? NOMATCH }],
     ["item popular + accepted", { item: pop, menuState: "accepted" }],
     ["item accepted + accepted", { item: acc, menuState: "accepted" }],
