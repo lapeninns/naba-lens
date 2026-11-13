@@ -5,6 +5,7 @@
 // backend with Node Files.
 import { describe, expect, it, vi } from "vitest"
 
+import { resumableEntries } from "@/components/nabalens/shell/capture-resume"
 import { detectCaptureCapabilities } from "@/lib/upload/capabilities"
 import { clearCaptureDataOnDevice } from "@/lib/upload/device-cleanup"
 import {
@@ -24,6 +25,7 @@ import {
   type JournalBackend,
   memoryJournalBackend,
   openCaptureJournal,
+  resumeAction,
   type JournalEntry,
 } from "@/lib/upload/journal"
 import {
@@ -133,6 +135,17 @@ function fakeUpload(
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 0))
+
+/** navigator.onLine === false; Node's navigator has no onLine of its own. */
+function goOffline() {
+  Object.defineProperty(navigator, "onLine", {
+    configurable: true,
+    get: () => false,
+  })
+  return {
+    restore: () => void Reflect.deleteProperty(navigator, "onLine"),
+  }
+}
 
 describe("library fixes", () => {
   it("OD-3: no storage estimate keeps no bytes, with a reason", async () => {
@@ -398,6 +411,56 @@ describe("the adapter's journal writes (OD-B5-05-4, 6, 7)", () => {
         failure: { code: "transfer_failed", permanent: false },
       },
     ])
+  })
+
+  it("offline after finalise started keeps a retryable failure, so Add lists it", async () => {
+    const online = goOffline()
+    try {
+      const { backend } = await run({
+        state: "failed",
+        error: { code: "transfer_failed", message: "x", retryable: true },
+      })
+      const entries = await backend.getAll()
+      expect(entries).toMatchObject([
+        {
+          state: "failed",
+          assetId: "asset-1",
+          failure: { code: "transfer_failed", permanent: false },
+        },
+      ])
+      // Not hidden as "finalising": the photo is offered again (its bytes went
+      // when finalise started, K12, so as a reselect of the same file).
+      const listed = resumableEntries(entries, new Set(), new Set())
+      expect(listed.map((e) => e.id)).toEqual([entries[0]!.id])
+      expect(resumeAction(listed[0]!)).toEqual({ kind: "reselect" })
+    } finally {
+      online.restore()
+    }
+  })
+
+  it("offline before finalise keeps the entry's state for the queue's retry", async () => {
+    const online = goOffline()
+    try {
+      const { s, backend } = sessions()
+      const upload = toQueueUploader(
+        async (_file, options: UploadOptions) => {
+          options.onReserved?.({ assetId: "asset-1", resumable: true })
+          return {
+            state: "failed",
+            assetId: "asset-1",
+            error: { code: "transfer_failed", message: "x", retryable: true },
+          } as UploadResult
+        },
+        { keys: memKeys(), capture: s.get }
+      )
+      await upload(photo(1000), context()).catch(() => {})
+      await flush()
+      const [entry] = await backend.getAll()
+      expect(entry).toMatchObject({ state: "reserved" })
+      expect(entry).not.toHaveProperty("failure")
+    } finally {
+      online.restore()
+    }
   })
 
   it("reservation_gone ends the entry (the retry makes a new one)", async () => {

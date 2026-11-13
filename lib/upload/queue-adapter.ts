@@ -141,7 +141,7 @@ export function toQueueUploader(
       if (!id || !journal) return
       live.id = id
       if (live.result) {
-        void settleEntry(journal, id, live.result)
+        void settleEntry(journal, id, live.result, live.state)
         return
       }
       if (live.state)
@@ -214,7 +214,7 @@ export function toQueueUploader(
     live.result = result
     if (journal && live.id)
       await withDeadline(
-        settleEntry(journal, live.id, result),
+        settleEntry(journal, live.id, result, live.state),
         undefined,
         JOURNAL_DEADLINE_MS
       )
@@ -326,7 +326,9 @@ async function record(
 async function settleEntry(
   journal: CaptureSession["journal"],
   id: string,
-  result: Awaited<ReturnType<UploadFn>>
+  result: Awaited<ReturnType<UploadFn>>,
+  /** How far this upload got: finalise had started once it is "finalising". */
+  phase: "reserved" | "finalising" | null = null
 ) {
   if (result.state === "ready") return journal.done(id)
   const error = result.error
@@ -339,8 +341,17 @@ async function settleEntry(
     error.code === "finalise_refused"
   )
     return journal.fail(id, error.code, true)
-  // Offline: the state stays, the queue waits for the signal.
-  if (typeof navigator !== "undefined" && navigator.onLine === false) return
+  // Offline: the state stays, the queue waits for the signal. Not once
+  // finalise has started, though: Add hides a "finalising" entry (another tab
+  // may be finishing it), so if this tab closed before the signal, the photo
+  // would be offered neither Continue nor reselect. A retryable failure keeps
+  // it listed, and the queue's own retry moves it on again.
+  if (
+    phase !== "finalising" &&
+    typeof navigator !== "undefined" &&
+    navigator.onLine === false
+  )
+    return
   return journal.fail(id, error.code, false)
 }
 
