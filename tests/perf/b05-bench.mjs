@@ -518,6 +518,35 @@ try {
            select mp.variant_id from public.menu_item_photos mp where mp.venue_id = '${venueId}' and mp.variant_id is not null) x
          group by 1 order by count(*), 1 limit 1`
       )[0]
+    // The venue's least-labelled item (labels plus menu decisions; ties by
+    // id), a menu item of the venue with neither (a new or never-photographed
+    // dish; NOMATCH if every item has one), and a variant of another item, so
+    // the pair with the popular item has no rows.
+    const rareItem = (venueId) =>
+      one(
+        `select x.i from (
+           select li.item_id as i from public.media_label_items li where li.venue_id = '${venueId}'
+           union all
+           select mp.item_id from public.menu_item_photos mp where mp.venue_id = '${venueId}') x
+         group by 1 order by count(*), 1 limit 1`
+      )[0]
+    const bareItem = (venueId) =>
+      one(
+        `select i.id from public.menu_items i where i.venue_id = '${venueId}'
+           and not exists (select 1 from public.media_label_items li where li.item_id = i.id)
+           and not exists (select 1 from public.menu_item_photos mp where mp.item_id = i.id)
+         order by i.id limit 1`
+      )[0] ?? NOMATCH
+    const foreignVariant = (venueId) =>
+      one(
+        `select variant_id from public.media_label_items where venue_id = '${venueId}'
+           and variant_id is not null and item_id <> '${popularItem(venueId)}'
+         group by 1 order by count(*) desc, 1 limit 1`
+      )[0]
+    const variantPair = (venueId) =>
+      one(
+        `select item_id, variant_id from public.media_label_items where venue_id = '${venueId}' and variant_id is not null group by 1, 2 order by count(*) desc, 1, 2 limit 1`
+      )
     const acceptedItem = (venueId) =>
       one(
         `select item_id from public.menu_item_photos where venue_id = '${venueId}' and state = 'accepted' group by 1 order by count(*) desc, 1 limit 1`
@@ -532,6 +561,16 @@ try {
       ["date range, last 90 days", days(d90, today)],
       ["date range, 18 to 12 months ago", days(m18, m12)],
       ["item, popular", { item: popularItem(venueId) }],
+      ["item, rare (fewest labels)", { item: rareItem(venueId) }],
+      ["item, no labels or decisions", { item: bareItem(venueId) }],
+      [
+        "item + variant, popular pair",
+        (([i, v]) => ({ item: i, variant: v }))(variantPair(venueId)),
+      ],
+      [
+        "item + variant, no rows",
+        { item: popularItem(venueId), variant: foreignVariant(venueId) },
+      ],
       ["variant, popular", { variant: variantOf(venueId) }],
       ["variant, rare (fewest labels)", { variant: rareVariant(venueId) }],
       ["check / task, no evidence anywhere", { check: NOMATCH }],
@@ -1288,7 +1327,12 @@ try {
         "chunk-manager-big-rare-item",
         P.managerBig.id,
         "postgres",
-        chunkSql({ ...mB, item: rareWorld }),
+        // Since repair round 4 an item filter reads a candidate list too.
+        chunkSql({
+          ...mB,
+          item: rareWorld,
+          menuIds: candIds("v_menu_ids", { ...mB, item: rareWorld }),
+        }),
       ],
       [
         "chunk-manager-small-use-legacy",
@@ -1471,6 +1515,46 @@ try {
             ],
           ]
         }),
+        // Item alone and item + variant (finding 1 of the repair 3 review):
+        // a menu item with no labels or decisions, the popular item, and the
+        // popular item with another item's variant (no rows).
+        ...(() => {
+          const pi = one(
+            `select item_id from public.media_label_items where venue_id = '${bigV}' group by 1 order by count(*) desc, 1 limit 1`
+          )[0]
+          const bare =
+            one(
+              `select i.id from public.menu_items i where i.venue_id = '${bigV}'
+                 and not exists (select 1 from public.media_label_items li where li.item_id = i.id)
+                 and not exists (select 1 from public.menu_item_photos mp where mp.item_id = i.id)
+               order by i.id limit 1`
+            )[0] ?? "b05b05b0-5b05-4b05-8b05-b05b05b05b05"
+          const fv = one(
+            `select variant_id from public.media_label_items where venue_id = '${bigV}'
+               and variant_id is not null and item_id <> '${pi}'
+             group by 1 order by count(*) desc, 1 limit 1`
+          )[0]
+          const shapes = [
+            ["admin-item-bare", t.admin.id, { ...admC, item: bare }],
+            ["admin-item-popular", t.admin.id, { ...admC, item: pi }],
+            [
+              "admin-item-variant-none",
+              t.admin.id,
+              { ...admC, item: pi, variant: fv },
+            ],
+            ["manager-big-item-bare", P.managerBig.id, { ...mB, item: bare }],
+            ["manager-big-item-popular", P.managerBig.id, { ...mB, item: pi }],
+          ]
+          return shapes.flatMap(([tag, uid, c]) => [
+            [`cand-${tag}`, uid, "postgres", candSql("v_menu_ids", c)],
+            [
+              `chunk-${tag}`,
+              uid,
+              "postgres",
+              chunkSql({ ...c, menuIds: candIds("v_menu_ids", c) }),
+            ],
+          ])
+        })(),
         call("search-call-admin-variant-rare", t.admin, { variant: rv }),
         call("search-call-admin-menu-state-withdrawn", t.admin, {
           menuState: "withdrawn",

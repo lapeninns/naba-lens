@@ -229,6 +229,36 @@ const rareVariant = (v) =>
        select mp.variant_id from public.menu_item_photos mp where mp.venue_id = '${v}' and mp.variant_id is not null) x
      group by 1 order by count(*), 1 limit 1`
   )[0]
+// The venue's least-labelled item (labels plus decisions), a menu item of the
+// venue with neither (a new or never-photographed dish), an item with
+// decisions and no label anywhere, and a variant of another item than pop.
+const rareItem = (v) =>
+  one(
+    `select x.i from (
+       select li.item_id as i from public.media_label_items li where li.venue_id = '${v}'
+       union all
+       select mp.item_id from public.menu_item_photos mp where mp.venue_id = '${v}') x
+     group by 1 order by count(*), 1 limit 1`
+  )[0]
+const bareItem = (v) =>
+  one(
+    `select i.id from public.menu_items i where i.venue_id = '${v}'
+       and not exists (select 1 from public.media_label_items li where li.item_id = i.id)
+       and not exists (select 1 from public.menu_item_photos mp where mp.item_id = i.id)
+     order by i.id limit 1`
+  )[0]
+const decisionOnlyItem = (v) =>
+  one(
+    `select mp.item_id from public.menu_item_photos mp where mp.venue_id = '${v}'
+       and not exists (select 1 from public.media_label_items li where li.item_id = mp.item_id)
+     group by 1 order by count(*) desc, 1 limit 1`
+  )[0]
+const foreignVariant = (v, item) =>
+  one(
+    `select variant_id from public.media_label_items where venue_id = '${v}'
+       and variant_id is not null and item_id <> '${item}'
+     group by 1 order by count(*) desc, 1 limit 1`
+  )[0]
 const accepted = (v) =>
   one(
     `select item_id from public.menu_item_photos where venue_id = '${v}' and state = 'accepted' group by 1 order by count(*) desc, 1 limit 1`
@@ -312,6 +342,14 @@ function matrix(venue) {
     ["date before = tie instant (exclusive)", { uploadedBefore: T2.at }],
     ["item popular", { item: pop }],
     ["item rare (big staff-era)", { item: rareWorld }],
+    ["item rare (fewest labels)", { item: rareItem(v) ?? NOMATCH }],
+    ["item no labels or decisions", { item: bareItem(v) ?? NOMATCH }],
+    ["item unknown", { item: NOMATCH }],
+    ["item decision only", { item: decisionOnlyItem(v) ?? NOMATCH }],
+    [
+      "item + variant, no rows",
+      { item: pop, variant: foreignVariant(v, pop) ?? NOMATCH },
+    ],
     ["variant popular", { variant: vVar ?? NOMATCH }],
     ["variant rare", { variant: rareVariant(v) ?? NOMATCH }],
     ["variant unknown", { variant: NOMATCH }],

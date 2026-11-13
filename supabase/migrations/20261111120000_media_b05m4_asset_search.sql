@@ -402,13 +402,15 @@ begin
       and (v_venue is null or gm.venue_id = v_venue);
   end if;
   -- menuState: the assets with a decision in that state (and on the item
-  -- and/or variant asked); a variant without item: the assets labelled with
-  -- it or with a decision on it. Without the list a rare state or variant
-  -- reads the whole feed, and menu_item_photos has no variant index, so
-  -- under this function's settings its EXISTS on variant alone could not be
-  -- hashed and probed every row read. Decisions are read at the searched
-  -- venue (a decision shares its venue with the asset by composite FK).
-  if v_menu_state is not null or (v_variant is not null and v_item is null) then
+  -- and/or variant asked); an item and/or variant without menuState: the
+  -- assets labelled with them or with a decision on them. Without the list a
+  -- rare (or unknown) state, item or variant reads the whole feed: the EXISTS
+  -- terms below can only refuse rows, never stop the scan, and menu_item_photos
+  -- has no variant index, so under this function's settings its EXISTS on
+  -- variant alone could not be hashed and probed every row read. Decisions
+  -- are read at the searched venue (a decision shares its venue with the
+  -- asset by composite FK); labels are not (the scan holds the venue).
+  if v_menu_state is not null or v_item is not null or v_variant is not null then
     select coalesce(array_agg(distinct x.asset_id), '{}') into v_menu_ids
     from (
       select mp.asset_id from public.menu_item_photos mp
@@ -418,7 +420,9 @@ begin
         and (v_variant is null or mp.variant_id = v_variant)
       union all
       select li.asset_id from public.media_label_items li
-      where v_menu_state is null and li.variant_id = v_variant
+      where v_menu_state is null
+        and (v_item is null or li.item_id = v_item)
+        and (v_variant is null or li.variant_id = v_variant)
     ) x;
   end if;
 

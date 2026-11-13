@@ -1556,6 +1556,13 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       { filters: { variant: korma.variants[1]!.variantId } },
       { filters: { variant: randomUUID() } },
       { filters: { item: korma.itemId, variant: chicken } },
+      // Item candidate list: label side only (Lamb), no rows for the pair,
+      // and an unknown item.
+      {
+        filters: { item: korma.itemId, variant: korma.variants[1]!.variantId },
+      },
+      { filters: { item: pie.itemId, variant: chicken } },
+      { filters: { item: randomUUID() } },
       { filters: { item: korma.itemId, menuState: "accepted" } },
       { filters: { item: korma.itemId, menuState: "invalidated" } },
       ...[
