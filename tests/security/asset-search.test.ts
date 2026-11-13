@@ -130,13 +130,19 @@ async function asset(
 }
 
 /** Coverage evidence: the task gate shows it to the venue's manager. */
-async function evidence(uploader: string, venue: string, createdAt?: string) {
+async function evidence(
+  uploader: string,
+  venue: string,
+  createdAt?: string,
+  requirement?: string
+) {
   const a = await insertAsset(service, { uploader, venue, createdAt })
   const itemId = await insertSubmittedItem(service, {
     asset: a,
     venue,
     author: uploader,
     submittedAt: new Date().toISOString(),
+    requirement,
   })
   const submission = psql(
     `select submission_id from public.coverage_submission_items where id = '${itemId}'`
@@ -557,6 +563,16 @@ describe("asset search (B05-06)", () => {
         join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'private' and p.proname like 'asset\\_search\\_%'`)
     ).toBe("5")
+    // B05 perf repair 2: the planner settings hold for every call (without
+    // them freshly packed evidence tables are read by a seq scan per row).
+    expect(
+      psql(
+        `select array_to_string(p.proconfig, '|') from pg_proc p
+          where p.oid = 'public.asset_search(jsonb,timestamptz,uuid,integer)'::regprocedure`
+      )
+    ).toBe(
+      'search_path=""|plan_cache_mode=force_custom_plan|enable_seqscan=off|enable_bitmapscan=off'
+    )
     expect(psql(`select count(*) from public.media_use_granters`)).toBe("0")
   })
 
@@ -1103,6 +1119,9 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
   let amenitySubmission: string
   let knowledgeContribution: string
   let otherSubmission: string
+  // A coverage requirement at o that o's evidence answers, so the cross-venue
+  // cost test passes a real requirement id to the check filter.
+  let otherRequirement: string
   // An amenity submission and a knowledge contribution with evidence at o,
   // so the cross-venue cost test passes real ids for those sources.
   let otherAmenitySubmission: string
@@ -1279,7 +1298,15 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
     )
 
     // Another venue's evidence and group (cross-venue filters).
-    const otherEvidence = await evidence(o.staffA.id, o.venue)
+    otherRequirement = await createRequirement(o.admin, o.venue, {
+      title: "TEST search o requirement",
+    })
+    const otherEvidence = await evidence(
+      o.staffA.id,
+      o.venue,
+      undefined,
+      otherRequirement
+    )
     fx.otherEvidence = otherEvidence.id
     otherSubmission = otherEvidence.submission
     const otherOutdoor = o.checks.outdoor_seating!
@@ -1804,9 +1831,6 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       ) as Record<string, number>
     const touched = (r: Record<string, number>, names: string[]) =>
       names.filter((n) => (r[n] ?? 0) > 0)
-    const otherRequirement = psql(
-      `select coalesce(requirement_id::text, '') from public.coverage_submission_items where asset_id = '${fx.otherEvidence}'`
-    )
     const foreign: [string, unknown, unknown][] = [
       ["check", { check: o.checks.guest_toilets }, { check: randomUUID() }],
       [
@@ -1830,13 +1854,12 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
         { check: randomUUID() },
       ],
       ["group", { group: otherGroup }, { group: randomUUID() }],
-    ]
-    if (otherRequirement)
-      foreign.push([
+      [
         "coverage requirement",
         { check: otherRequirement },
         { check: randomUUID() },
-      ])
+      ],
+    ]
     // The other venue really holds evidence for each of these ids (none of
     // them may become an unknown-id case).
     expect(
@@ -1848,10 +1871,13 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
             where s.check_id = '${o.checks.outdoor_seating}' and sa.venue_id = '${o.venue}'),
           (select count(*) from public.knowledge_contribution_assets ka join public.knowledge_contributions kc on kc.id = ka.contribution_id
             where kc.check_id = '${o.checks.guest_toilets}' and ka.venue_id = '${o.venue}'),
-          (select count(*) from public.media_contribution_group_members where group_id = '${otherGroup}'))`)
+          (select count(*) from public.media_contribution_group_members where group_id = '${otherGroup}'),
+          (select count(*) from public.coverage_submission_items ci join public.coverage_requirements r on r.id = ci.requirement_id
+            where ci.requirement_id = '${otherRequirement}' and ci.venue_id = '${o.venue}' and r.venue_id = '${o.venue}'))`)
         .split(",")
         .map((n) => Number(n) > 0)
-    ).toEqual([true, true, true, true, true, true])
+    ).toEqual([true, true, true, true, true, true, true])
+    expect(foreign).toHaveLength(7)
     const links = tables.slice(0, 4)
     for (const who of [e.manager, e.staffManager]) {
       for (const [label, theirs, unknown] of foreign) {
