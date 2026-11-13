@@ -97,6 +97,7 @@ import {
   CaptureJournalContext,
   createLabelJournal,
   journalLabels,
+  journalMemberLines,
   panelChoiceCounts,
   resumableEntries,
   sendClearsLabels,
@@ -112,6 +113,7 @@ import {
 } from "@/lib/upload/capture-session"
 import type { CaptureSession } from "@/lib/upload/capture-session"
 import type { SaveLabelsInput } from "@/lib/menus/types"
+import type { EntryMenu } from "@/lib/work-client/entry"
 import { CATALOGUE } from "./labels-fixtures"
 import {
   memoryJournalBackend,
@@ -183,7 +185,7 @@ function Opener() {
   )
 }
 
-function host() {
+function host(entry: Promise<EntryMenu | null> | null = null) {
   render(
     <CaptureJournalContext.Provider
       value={async (userId) => {
@@ -195,7 +197,7 @@ function host() {
         blocked={null}
         captchaRequired={false}
         captchaSiteKey={null}
-        entry={null}
+        entry={entry}
         venueName="TEST Inn"
       >
         <Opener />
@@ -204,8 +206,8 @@ function host() {
   )
 }
 
-async function openSheet() {
-  host()
+async function openSheet(entry: Promise<EntryMenu | null> | null = null) {
+  host(entry)
   await waitFor(() => expect(opened).toHaveBeenCalledWith("u1"))
   fireEvent.click(screen.getByRole("button", { name: "Add" }))
   return screen.findByRole("dialog", { name: "Add photos" })
@@ -264,12 +266,16 @@ describe("the resume block (OD-B5-05-11)", () => {
     expect(
       within(block).getByText(CAPTURE_COPY.continueLine("kept.jpg"))
     ).toBeTruthy()
-    // Continue only where the bytes are here.
+    // Continue only where the bytes are here; Dismiss on each.
     expect(
       within(block)
         .getAllByRole("button")
         .map((b) => b.getAttribute("aria-label"))
+        .filter((l) => !l?.startsWith("Dismiss"))
     ).toEqual([CAPTURE_COPY.continueLabel("kept.jpg")])
+    expect(
+      within(block).getAllByRole("button", { name: /^Dismiss / })
+    ).toHaveLength(5)
     // Nothing promises a background upload.
     expect(block.textContent).not.toMatch(
       /background|while (the page is )?closed/i
@@ -333,6 +339,99 @@ describe("the resume block (OD-B5-05-11)", () => {
         screen.queryByText(CAPTURE_COPY.continueLine("kept.jpg"))
       ).toBeNull()
     )
+  })
+})
+
+describe("B05-05 follow-ups: Dismiss and the rebuilt set", () => {
+  const MENU: EntryMenu = {
+    venueName: "TEST Inn",
+    intents: ["dish", "photos"],
+    tasks: [],
+    questions: [],
+    answered: [],
+  }
+
+  it("Dismiss drops the entry from the block and this device's journal", async () => {
+    await pick(jpeg("kept.jpg"))
+    const bad = (await pick(jpeg("bad.jpg")))!
+    await journal.fail(bad.id, "processing_failed", true)
+    const sheet = await openSheet()
+    fireEvent.click(
+      await within(sheet).findByRole("button", {
+        name: CAPTURE_COPY.dismissLabel("bad.jpg"),
+      })
+    )
+    await waitFor(() =>
+      expect(
+        within(sheet).queryByText(CAPTURE_COPY.chooseDifferentLine("bad.jpg"))
+      ).toBeNull()
+    )
+    expect(
+      within(sheet).getByText(CAPTURE_COPY.continueLine("kept.jpg"))
+    ).toBeTruthy()
+    await waitFor(async () =>
+      expect((await journal.unfinished()).map((e) => e.displayName)).toEqual([
+        "kept.jpg",
+      ])
+    )
+    // Nothing is uploaded or sent for it.
+    expect(uploaded).toHaveLength(0)
+    expect(keyStore.set).not.toHaveBeenCalled()
+  })
+
+  it("Continue rejoins the earlier tab's set under its key", async () => {
+    sets.startPhotoSet.mockResolvedValue({
+      status: "ok",
+      groupId: "g-1",
+    } as never)
+    sets.addToPhotoSet.mockResolvedValue({
+      status: "ok",
+      members: 2,
+    } as never)
+    const kept = jpeg("kept.jpg")
+    await pick(kept, {
+      subject: { kind: "menu_item", id: "item-1", name: "Naan" },
+    })
+    const sheet = await openSheet(Promise.resolve(MENU))
+    fireEvent.click(
+      await within(sheet).findByRole("button", {
+        name: CAPTURE_COPY.continueLabel("kept.jpg"),
+      })
+    )
+    await waitFor(() =>
+      expect(sets.addToPhotoSet).toHaveBeenCalledWith({
+        groupId: "g-1",
+        assetIds: ["asset-kept.jpg"],
+      })
+    )
+    expect(sets.startPhotoSet).toHaveBeenCalledWith({
+      key: "set-key-1",
+      subject: { kind: "menu_item", id: "item-1" },
+    })
+    expect(sets.startPhotoSet).toHaveBeenCalledTimes(1)
+  })
+
+  it("Continue joins no set without a set key, or where sets are off", async () => {
+    await pick(jpeg("single.jpg"), { groupKey: null })
+    const sheet = await openSheet(Promise.resolve(MENU))
+    fireEvent.click(
+      await within(sheet).findByRole("button", {
+        name: CAPTURE_COPY.continueLabel("single.jpg"),
+      })
+    )
+    await waitFor(() => expect(uploaded).toHaveLength(1))
+    expect(sets.startPhotoSet).not.toHaveBeenCalled()
+  })
+
+  it("words each unfinished asset for set notices from the journal", async () => {
+    const bad = (await pick(jpeg("bad.jpg")))!
+    await journal.update(bad.id, { state: "reserved", assetId: "asset-bad" })
+    await journal.fail(bad.id, "processing_failed", true)
+    await pick(jpeg("unreserved.jpg"))
+    const lines = journalMemberLines(await journal.unfinished())
+    expect([...lines]).toEqual([
+      ["asset-bad", CAPTURE_COPY.chooseDifferentLine("bad.jpg")],
+    ])
   })
 })
 

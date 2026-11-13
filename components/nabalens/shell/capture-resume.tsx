@@ -37,6 +37,9 @@ export const CAPTURE_COPY = {
     `${name} didn't finish. Sign in again here, then choose it again from Add.`,
   continue: "Continue",
   continueLabel: (name: string) => `Continue ${name}`,
+  /** Drops the entry from this device; the server clears the upload itself. */
+  dismiss: "Dismiss",
+  dismissLabel: (name: string) => `Dismiss ${name}`,
   heading: "Didn't finish",
 } as const
 
@@ -73,13 +76,33 @@ export function resumeLine(entry: JournalEntry): string {
     : CAPTURE_COPY.chooseDifferentLine(name)
 }
 
-/** One block in the Add sheet: each unfinished upload, with Continue where its bytes are here. */
+/**
+ * The set notice's line for a member this tab doesn't hold (B05-01e with
+ * OD-B5-01-9): the server stores no failure reason, but this device's
+ * journal kept what finalise said, worded as the resume block words it.
+ */
+export function journalMemberLines(
+  entries: readonly JournalEntry[]
+): ReadonlyMap<string, string> {
+  const lines = new Map<string, string>()
+  for (const entry of entries)
+    if (entry.assetId && !lines.has(entry.assetId))
+      lines.set(entry.assetId, resumeLine(entry))
+  return lines
+}
+
+/**
+ * One block in the Add sheet: each unfinished upload, with Continue where its
+ * bytes are here, and Dismiss to drop it from this device.
+ */
 export function CaptureResumeBlock({
   entries,
   onContinue,
+  onDismiss,
 }: {
   entries: readonly JournalEntry[]
   onContinue: (entry: JournalEntry) => void
+  onDismiss?: (entry: JournalEntry) => void
 }) {
   if (entries.length === 0) return null
   return (
@@ -105,6 +128,16 @@ export function CaptureResumeBlock({
                 onClick={() => onContinue(entry)}
               >
                 {CAPTURE_COPY.continue}
+              </Button>
+            ) : null}
+            {onDismiss ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={CAPTURE_COPY.dismissLabel(entry.displayName)}
+                onClick={() => onDismiss(entry)}
+              >
+                {CAPTURE_COPY.dismiss}
               </Button>
             ) : null}
           </li>

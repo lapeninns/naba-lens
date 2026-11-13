@@ -165,6 +165,12 @@ type UploadDialogProps = {
    */
   readSet?: (setId: string) => Promise<ContributionGroupView | null>
   /**
+   * B05-01e with OD-B5-01-9: a set member this tab doesn't hold, worded from
+   * this device's capture journal (what finalise said); null: "Didn't
+   * finish".
+   */
+  memberLine?: (assetId: string) => string | null
+  /**
    * B05-01d: Replace beside Retry, on a photo of a set that the server has
    * as failed or removed.
    */
@@ -264,6 +270,8 @@ export function setNotices(
     skip?: (item: QueueItem) => boolean
     /** Rows still waiting on something (a replacement): not settled yet. */
     busy?: (item: QueueItem) => boolean
+    /** A member no row here holds: this device's journal line, if any. */
+    memberLine?: (assetId: string) => string | null
   } = {}
 ): SetNotice[] {
   const sets = new Map<string, { subject: string; items: QueueItem[] }>()
@@ -293,7 +301,7 @@ export function setNotices(
       if (view) {
         const notice = serverSetNotice(id, set.subject, view, (assetId) => {
           const held = items.find((item) => item.assetId === assetId)
-          return held ? lineOf(held) : null
+          return held ? lineOf(held) : (options.memberLine?.(assetId) ?? null)
         })
         if (notice) {
           // Rows of the set that never became members (refused or failed
@@ -752,6 +760,7 @@ export function UploadDialog({
   setOf,
   addMoreLabel = "Add more",
   readSet,
+  memberLine,
   replace,
   onServerFailed,
   idle,
@@ -1407,6 +1416,7 @@ export function UploadDialog({
           ...(readSet ? { server: serverRead } : {}),
           skip: (item) => replace?.stateOf(item)?.kind === "replaced",
           busy: (item) => replace?.stateOf(item)?.kind === "pending",
+          ...(memberLine ? { memberLine } : {}),
         }
       )
     : []

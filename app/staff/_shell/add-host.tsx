@@ -67,6 +67,7 @@ import {
   createLabelJournal,
   journalLabels,
   panelChoiceCounts,
+  journalMemberLines,
   resumableEntries,
 } from "@/components/nabalens/shell/capture-resume"
 import { MEDIA_LIMITS } from "@/lib/config/media"
@@ -377,7 +378,14 @@ export function AddHost({
     tabFiles.current = [...tabFiles.current.slice(-49), file]
     annotateCapture(file, {
       ...(owner.subject
-        ? { subject: { kind: owner.subject.kind, id: owner.subject.id } }
+        ? {
+            subject: {
+              kind: owner.subject.kind,
+              id: owner.subject.id,
+              // For a set rebuilt in another tab (OD-B5-05-9 follow-up).
+              ...(owner.subject.name ? { name: owner.subject.name } : {}),
+            },
+          }
         : {}),
       ...(owner.set && setKeys.current.has(owner.set)
         ? { groupKey: setKeys.current.get(owner.set)! }
@@ -454,6 +462,11 @@ export function AddHost({
     readonly JournalEntry[]
   >([])
   const [resumeRead, setResumeRead] = React.useState(0)
+  // What this device's journal says of each unfinished asset, for set
+  // members this tab doesn't hold (OD-B5-01-9: the server keeps no reason).
+  const [memberLines, setMemberLines] = React.useState<
+    ReadonlyMap<string, string>
+  >(() => new Map())
   React.useEffect(() => {
     if (!capture) return
     let live = true
@@ -463,6 +476,7 @@ export function AddHost({
         tabFiles.current.flatMap((file) => captureEntryId(file) ?? [])
       )
       setUnfinishedEntries(resumableEntries(entries, heldIds, tabEntryIds))
+      setMemberLines(journalMemberLines(entries))
     })
     return () => {
       live = false
@@ -470,6 +484,11 @@ export function AddHost({
   }, [capture, resumeRead, sheetOpen, uploadOpen, heldIds])
   // Signed out or switched in another tab: nothing of that journal shows (K8).
   const resumable = capture?.alive() ? unfinishedEntries : []
+  const memberLine = React.useCallback(
+    (assetId: string) =>
+      capture?.alive() ? (memberLines.get(assetId) ?? null) : null,
+    [capture, memberLines]
+  )
   const keepOpenNote =
     capture && !capture.capabilities.storeBytes ? CAPTURE_COPY.keepOpen : null
   // Labels typed before reservation in the earlier tab, by continued file.
@@ -478,7 +497,9 @@ export function AddHost({
   )
   /**
    * Continue (OD-B5-05-11): the stored File gets its upload key back, then
-   * goes to the queue under its subject, in no set (OD-B5-05-9).
+   * goes to the queue under its subject. A file the earlier tab picked into
+   * a set rejoins that set (OD-B5-05-9 follow-up): the set is rebuilt here
+   * under the earlier tab's start key, so the server returns the same group.
    */
   const continueEntry = async (entry: JournalEntry) => {
     const bytes = entry.bytes
@@ -510,6 +531,21 @@ export function AddHost({
       subject: null,
       set: null,
     }
+    if (
+      entry.groupKey &&
+      entry.subject.kind === "menu_item" &&
+      groupsOnRef.current
+    ) {
+      const subject = {
+        kind: entry.subject.kind,
+        id: entry.subject.id,
+        name: entry.subject.name ?? "",
+      }
+      owner.set = photoSets.resume(subject, entry.groupKey)
+      setKeys.current.set(owner.set, entry.groupKey)
+      // Without the dish's name the set joins quietly: no notice to word.
+      owner.subject = subject.name ? subject : null
+    }
     claim([file], owner)
     annotateCapture(file, {
       subject: entry.subject,
@@ -520,10 +556,24 @@ export function AddHost({
     queueFiles([file])
     setResumeRead((n) => n + 1)
   }
+  /**
+   * Dismiss: the entry (and any bytes) leaves this device's journal and the
+   * block. The server's unfinished upload is left to its own clean-up (the
+   * 24 h abandoned-upload window), as for an expired entry (§5.2 item 5).
+   */
+  const dismissEntry = (entry: JournalEntry) => {
+    if (!capture?.alive()) return
+    setUnfinishedEntries((list) => list.filter((e) => e.id !== entry.id))
+    void capture.journal
+      .done(entry.id)
+      .catch(() => {})
+      .then(() => setResumeRead((n) => n + 1))
+  }
   const resumeBlock = (
     <CaptureResumeBlock
       entries={resumable}
       onContinue={(entry) => void continueEntry(entry)}
+      onDismiss={dismissEntry}
     />
   )
 
@@ -1065,6 +1115,7 @@ export function AddHost({
                 onReserved={reservedForSet}
                 setOf={groupsOn ? setOf : undefined}
                 readSet={groupsOn ? readSet : undefined}
+                memberLine={groupsOn ? memberLine : undefined}
                 replace={groupsOn ? replace : undefined}
                 onServerFailed={serverFailed}
                 idle={

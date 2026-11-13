@@ -72,6 +72,7 @@ import {
   type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { ENTRY_COPY } from "@/components/nabalens/shell/entry-copy"
+import { PhotoSets } from "@/components/nabalens/shell/photo-sets"
 import {
   serverSetNotice,
   setNotices,
@@ -1018,5 +1019,99 @@ describe("serverSetNotice and setNotices with a read", () => {
         unfinished: ["c: x"],
       },
     ])
+  })
+
+  it("words a member no row holds from this device's journal (OD-B5-01-9 follow-up)", () => {
+    const item = (name: string): QueueItem => ({
+      id: name,
+      file: jpeg(name),
+      kind: "image",
+      status: "done",
+      progress: 1,
+      error: null,
+      attempts: 1,
+      assetId: `asset-${name}`,
+    })
+    const setOf = () => ({ id: "set-1", subject: "Naan" })
+    const server = () => ({
+      ...view(),
+      members: [
+        member("asset-a", 1, "ready"),
+        member("asset-gone", 2, "failed"),
+        member("asset-unknown", 3, "failed"),
+      ],
+    })
+    expect(
+      setNotices([item("a")], setOf, () => null, {
+        server,
+        memberLine: (id) =>
+          id === "asset-gone"
+            ? "gone.jpg can't be used. Choose a different photo."
+            : null,
+      })
+    ).toEqual([
+      {
+        id: "set-1",
+        text: ENTRY_COPY.setSaved(1, "Naan"),
+        unfinished: [
+          "gone.jpg can't be used. Choose a different photo.",
+          ENTRY_COPY.setDidntFinish,
+        ],
+      },
+    ])
+  })
+})
+
+describe("PhotoSets.resume (OD-B5-05-9 follow-up)", () => {
+  const transport = () => ({
+    start: vi.fn(async () => ({ status: "ok" as const, groupId: "g-1" })),
+    add: vi.fn(async () => ({ status: "ok" as const, members: 1 })),
+  })
+  const keys = () => ({ keyFor: vi.fn(() => "fresh-key"), settle: vi.fn() })
+  const naan = { kind: "menu_item" as const, id: "item-1", name: "Naan" }
+
+  it("rejoins the earlier tab's group under its key with one photo", async () => {
+    const t = transport()
+    const k = keys()
+    const ps = new PhotoSets(t, k)
+    const id = ps.resume(naan, "earlier-key")
+    expect(ps.resume(naan, "earlier-key")).toBe(id)
+    ps.reserved(id, "asset-1")
+    await vi.waitFor(() => expect(t.add).toHaveBeenCalled())
+    expect(t.start).toHaveBeenCalledWith({
+      key: "earlier-key",
+      subject: { kind: "menu_item", id: "item-1" },
+    })
+    expect(t.add).toHaveBeenCalledWith({
+      groupId: "g-1",
+      assetIds: ["asset-1"],
+    })
+    expect(k.keyFor).not.toHaveBeenCalled()
+    expect(k.settle).not.toHaveBeenCalled()
+    expect(ps.isMember(id, "asset-1")).toBe(true)
+  })
+
+  it("leaves the photo single when the server refuses the key", async () => {
+    const t = transport()
+    t.start.mockResolvedValueOnce({
+      status: "failed",
+      retry: false,
+    } as never)
+    const ps = new PhotoSets(t, keys())
+    const id = ps.resume(naan, "earlier-key")
+    ps.reserved(id, "asset-1")
+    await vi.waitFor(() => expect(t.start).toHaveBeenCalled())
+    await Promise.resolve()
+    expect(t.add).not.toHaveBeenCalled()
+    expect(ps.groupOf(id)).toBeNull()
+  })
+
+  it("still waits for two photos in a set opened here", async () => {
+    const t = transport()
+    const ps = new PhotoSets(t, keys())
+    const id = ps.open(naan)
+    ps.reserved(id, "asset-1")
+    await Promise.resolve()
+    expect(t.start).not.toHaveBeenCalled()
   })
 })

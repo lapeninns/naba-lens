@@ -126,6 +126,12 @@ type SetState = {
   id: string
   subject: SetSubject
   /**
+   * A set rebuilt from another tab's journal (OD-B5-05-9 follow-up): its
+   * start key is the earlier tab's, so the server answers with the group it
+   * already made, and one photo is enough to join it.
+   */
+  key: string | null
+  /**
    * Reserved photos in arrival order: at most GROUP_LIMITS.maxMembers live
    * ones and GROUP_LIMITS.maxPositions in all.
    */
@@ -148,6 +154,8 @@ type Outcome = "ok" | "retry" | "stop"
 
 export class PhotoSets {
   private sets = new Map<string, SetState>()
+  /** Rebuilt sets by their start key: one per key in this tab. */
+  private resumed = new Map<string, string>()
   private off = false
   private next = 0
 
@@ -176,10 +184,32 @@ export class PhotoSets {
 
   /** A new set for one pick; photos join it with `reserved`. */
   open(subject: SetSubject): string {
+    return this.create(subject, null)
+  }
+
+  /**
+   * B05-05 follow-up (OD-B5-05-9): the set an earlier tab started with
+   * `key`, rebuilt here for photos continued from its journal. The same key
+   * makes the server return the same group (contribution_group_start
+   * replays a key per person), and a member it already holds is skipped by
+   * contribution_group_add, so no photo lands in a second group. A refusal
+   * (another subject under the key, a photo already in another group)
+   * leaves the photos single, as for any set.
+   */
+  resume(subject: SetSubject, key: string): string {
+    const known = this.resumed.get(key)
+    if (known && this.sets.has(known)) return known
+    const id = this.create(subject, key)
+    this.resumed.set(key, id)
+    return id
+  }
+
+  private create(subject: SetSubject, key: string | null): string {
     const id = `set-${++this.next}`
     this.sets.set(id, {
       id,
       subject,
+      key,
       assets: [],
       added: new Set(),
       failed: new Set(),
@@ -339,14 +369,14 @@ export class PhotoSets {
 
   private async step(set: SetState): Promise<void> {
     if (this.off || set.done || set.busy) return
-    if (!set.groupId && set.assets.length < 2) return
+    if (!set.groupId && set.assets.length < (set.key ? 1 : 2)) return
     if (set.groupId && set.assets.every((id) => set.added.has(id))) return
     set.busy = true
     let outcome: Outcome = "ok"
     try {
       if (!set.groupId) {
         const scope = `${set.subject.kind}:${set.subject.id ?? ""}:${set.assets[0]}`
-        const key = this.keys.keyFor(scope)
+        const key = set.key ?? this.keys.keyFor(scope)
         this.options.onKey?.(set.id, key)
         for (const listener of this.keyListeners) listener(set.id, key)
         const reply = await this.transport.start({
@@ -355,7 +385,7 @@ export class PhotoSets {
         })
         outcome = this.outcome(reply)
         if (reply.status === "ok") set.groupId = reply.groupId
-        if (outcome !== "retry") this.keys.settle(scope)
+        if (outcome !== "retry" && !set.key) this.keys.settle(scope)
       }
       if (outcome === "ok" && set.groupId) {
         // The server takes at most 10 a call; the rest go in the next run.
