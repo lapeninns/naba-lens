@@ -23,7 +23,10 @@
 //   submission filters on real evidence and the constructed worst cases of
 //   the B05 perf fix: a manager venue where nothing is visible (73,600
 //   assets) and a staff grantee with 500 own unlabelled uploads and no
-//   active check.
+//   active check. With tests/perf/b05-postlaunch-world.sql loaded too, group
+//   search-postlaunch: every rights value where grants settle most rows (a
+//   consent drive, renewals, lapsed grants) for the admin and both managers,
+//   and another venue's check, submission and group against unknown ids.
 // --part explain: EXPLAIN (ANALYZE, BUFFERS) of the chunk statement
 //   asset_search runs (cut from the migration, values substituted) and of
 //   whole calls; --v1-inner adds the pre-fix row query (search-inner-*).
@@ -110,6 +113,12 @@ const diffWorld =
   one(
     `select count(*) from public.venues where id = '${did("venue-reject")}'`
   )[0] === "1"
+// tests/perf/b05-postlaunch-world.sql (grant keys perfb05p*) loaded on top.
+const postLaunch =
+  diffWorld &&
+  one(
+    `select exists (select 1 from public.media_use_grants where request_key = 'perfb05p0000000001')`
+  )[0] === "t"
 const personD = (key) => {
   const [id, venueId, role, displayName] = one(
     `select p.id, p.venue_id, p.role, p.display_name from public.profiles p join auth.users u on u.id = p.id
@@ -643,6 +652,62 @@ try {
             "search-worst",
             g,
             run(g, input)
+          )
+      }
+      if (postLaunch) {
+        const rights = [
+          ["use = legacy_unknown", { rights: "legacy_unknown" }],
+          ["use = not_granted", { rights: "not_granted" }],
+          ["use = in_force", { rights: "in_force" }],
+          [
+            "use = in_force + destination",
+            { rights: "in_force", destination: "perf_social" },
+          ],
+          ["use = expired", { rights: "expired" }],
+          ["use = withdrawn", { rights: "withdrawn" }],
+        ]
+        for (const who of ["admin", "managerBig", "managerSmall"]) {
+          const x = await actorFor(who)
+          for (const [label, filters] of rights)
+            await measure(
+              `post-launch ${who}: ${label}`,
+              "search-postlaunch",
+              x,
+              run(x, { filters })
+            )
+        }
+        const x = await actorFor("admin")
+        await measure(
+          "post-launch admin: venue = big + use = not_granted",
+          "search-postlaunch",
+          x,
+          run(x, {
+            filters: { venue: P.managerBig.venueId, rights: "not_granted" },
+          })
+        )
+        // Another venue's ids (with evidence there) against unknown ones.
+        for (const [label, filters] of [
+          [
+            "check, other venue's (with evidence)",
+            { check: did("chk-other-out") },
+          ],
+          ["check, unknown", { check: NOMATCH }],
+          [
+            "submission (coverage), other venue's",
+            { submission: { source: "coverage", id: did("csub-other-vs") } },
+          ],
+          [
+            "submission (coverage), unknown",
+            { submission: { source: "coverage", id: NOMATCH } },
+          ],
+          ["group, other venue's", { group: did("group-other") }],
+          ["group, unknown", { group: NOMATCH }],
+        ])
+          await measure(
+            `post-launch managerBig: ${label}`,
+            "search-postlaunch",
+            a,
+            run(a, { filters })
           )
       }
       // Thumbnail gate's search arm alone (asset_search_can_open), visible and vetoed.

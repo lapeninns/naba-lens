@@ -3,7 +3,9 @@
 // PostgREST; the service role and psql only build fixtures (a manager-era
 // upload, a group, registry rows a migration would write) and read state back.
 import { execFileSync } from "node:child_process"
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
+import { existsSync, readFileSync } from "node:fs"
+import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { beforeAll, describe, expect, it } from "vitest"
@@ -903,30 +905,50 @@ describe("asset search filters at the database (B05-06b)", () => {
 // ---------------------------------------------------------------------------
 // B05 perf fix (contracts/b05-perf-search-fix-scope.md): the chunked search
 // with the gate prefilter P against the body it replaced. The reference is the
-// base commit's public.asset_search, created as pg_temp.asset_search_v1 inside
-// a transaction that is always rolled back, so nothing persists (the private
-// asset_search_% count stays 5).
+// base commit's public.asset_search (frozen in fixtures/asset-search-v1.sql),
+// created as pg_temp.asset_search_v1 inside a transaction that is always
+// rolled back, so nothing persists (the private asset_search_% count stays 5).
 // ---------------------------------------------------------------------------
 
 const BASE_COMMIT = "7d2a783c"
 const SEARCH_MIGRATION =
   "supabase/migrations/20261111120000_media_b05m4_asset_search.sql"
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url))
+// The base body, frozen: the base commit is not on main after a squash merge.
+const REFERENCE_FIXTURE = fileURLToPath(
+  new URL("./fixtures/asset-search-v1.sql", import.meta.url)
+)
+const REFERENCE_SHA256 =
+  "6e1dc93758b42cf835a010934cc58e97cf7b82e5892851d13110050ab0538f59"
 
-/** The base body of public.asset_search, renamed into pg_temp. */
-function referenceDefinition(): string {
-  const src = execFileSync(
-    "git",
-    ["-C", repoRoot, "show", `${BASE_COMMIT}:${SEARCH_MIGRATION}`],
-    { encoding: "utf8" }
-  )
+/** The function text `create function public.asset_search(` .. `$$;`. */
+function searchFunction(src: string, where: string): string {
   const head = "create function public.asset_search("
   const start = src.indexOf(head)
   const end = src.indexOf("\n$$;", start)
-  if (start < 0 || end < 0) throw new Error("no asset_search in the base")
-  return (
-    "create function pg_temp.asset_search_v1(" +
-    src.slice(start + head.length, end + 4)
+  if (start < 0 || end < 0) throw new Error(`no asset_search in ${where}`)
+  return src.slice(start, end + 4)
+}
+
+/** The base body of public.asset_search, renamed into pg_temp. Read from the
+ * committed fixture (sha256 pinned); git only when the fixture is absent. */
+function referenceDefinition(): string {
+  let src: string
+  if (existsSync(REFERENCE_FIXTURE)) {
+    src = readFileSync(REFERENCE_FIXTURE, "utf8")
+    const sha = createHash("sha256").update(src).digest("hex")
+    if (sha !== REFERENCE_SHA256)
+      throw new Error(`fixtures/asset-search-v1.sql changed (sha256 ${sha})`)
+  } else {
+    src = execFileSync(
+      "git",
+      ["-C", repoRoot, "show", `${BASE_COMMIT}:${SEARCH_MIGRATION}`],
+      { encoding: "utf8" }
+    )
+  }
+  return searchFunction(src, "the base").replace(
+    "create function public.asset_search(",
+    "create function pg_temp.asset_search_v1("
   )
 }
 
@@ -1031,8 +1053,33 @@ function compareBodies(user: string, cases: Case[], setup = ""): Diff {
   return JSON.parse(out.split("\n").at(-1)!) as Diff
 }
 
-// The gate prefilter P of public.asset_search, for one caller (constants as
-// asset_search computes them; the claims are set by the caller of this SQL).
+// The gate prefilter P as shipped: cut from public.asset_search in the
+// migration (from "(v_admin or (" to the chunk's order by), with the caller
+// constants substituted as asset_search computes them. A change to P in the
+// migration is what this test evaluates.
+const shippedP = (() => {
+  const body = searchFunction(
+    readFileSync(join(repoRoot, SEARCH_MIGRATION), "utf8"),
+    "the migration"
+  )
+  const from = "(v_admin or ("
+  const to =
+    "\n        order by a.created_at desc, a.id desc\n        limit v_chunk"
+  const s = body.indexOf(from)
+  const e = body.indexOf(to, s)
+  if (s < 0 || e < 0 || body.indexOf(from, s + 1) >= 0)
+    throw new Error("prefilter P not found once in public.asset_search")
+  return body
+    .slice(s, e)
+    .replaceAll("v_admin", "false")
+    .replaceAll("v_is_manager", "k.is_manager")
+    .replaceAll("v_uid", "k.uid")
+    .replaceAll("v_has_active_check", "k.active_check")
+    .replaceAll("v_can_review", "k.can_review")
+})()
+
+// P for one caller (constants as asset_search computes them; the claims are
+// set by the caller of this SQL).
 const prefilter = (venue: string) => `
   with k as (
     select (select auth.uid()) as uid, private.is_active_manager() as is_manager,
@@ -1040,22 +1087,7 @@ const prefilter = (venue: string) => `
       exists (select 1 from public.venue_amenity_checks c
         where c.venue_id = '${venue}' and c.status = 'active') as active_check)
   select a.id, private.asset_search_admits(a, false, '${venue}') as admitted,
-    coalesce(
-      not (k.is_manager and a.uploader_id = k.uid and a.uploader_role is distinct from 'manager')
-      and (
-        (a.uploader_id = k.uid
-          and (a.uploader_role is not distinct from 'manager' or k.active_check))
-        or (select 1 from public.media_label_items li where li.asset_id = a.id limit 1) is not null
-        or (select 1 from public.menu_item_photos mp where mp.asset_id = a.id limit 1) is not null
-        or (k.can_review and a.media_type = 'image'
-          and (select 1 from public.media_labels ml where ml.asset_id = a.id
-                 and ml.content_types && array['dish', 'preparation', 'plating', 'drinks']::text[]
-               limit 1) is not null)
-        or (select 1 from public.coverage_submission_items ci where ci.asset_id = a.id limit 1) is not null
-        or (select 1 from public.venue_amenity_fact_media fm where fm.asset_id = a.id limit 1) is not null
-        or (select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id limit 1) is not null
-        or (select 1 from public.knowledge_contribution_assets ka where ka.asset_id = a.id limit 1) is not null
-      ), false) as p
+    coalesce(${shippedP}, false) as p
   from public.media_assets a, k
   where a.venue_id = '${venue}'`
 
@@ -1270,7 +1302,11 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
     // Chunk world: 560 manager-era uploads in blocks of 60 equal times, 534
     // of them with a grant in force, so rights=not_granted reads past the
     // 25, 125 and 525 row chunk edges (ties straddle each). Staff-era
-    // uploads (vetoed), not-ready and deleted rows are interleaved.
+    // uploads (vetoed), not-ready and deleted rows are interleaved. The
+    // staff grant holder's own 600 uploads share those instants (its own
+    // upload arm, a check being active) with the same grant pattern by its
+    // own rank, so its walks cross the same edges while the manager's rows
+    // are ones P drops for it, and the other way round.
     c = await world("b05-srch-c")
     psql(`insert into public.media_use_destinations
         (key, label, audience, venue_id, owner_workstream, requires_derivative, active) values
@@ -1278,13 +1314,14 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
     psql(`
       create temp table chunk_rows as
         select gen_random_uuid() as id, n,
-          now() - ((n / 60) * interval '1 second') as created_at,
-          case when n % 37 = 5 then 'staff' else 'manager' end as role
-        from generate_series(0, 599) n;
+          now() - (((n % 600) / 60) * interval '1 second') as created_at,
+          case when n >= 600 then '${c.staffManager.id}' else '${c.manager.id}' end::uuid as uploader,
+          case when n >= 600 or n % 37 = 5 then 'staff' else 'manager' end as role
+        from generate_series(0, 1199) n;
       insert into public.media_assets (id, uploader_id, venue_id, original_path, original_filename,
           media_type, size_bytes, client_upload_key, uploader_role, created_at)
-        select r.id, '${c.manager.id}', '${c.venue}',
-          '${c.manager.id}/' || r.id || '/original.jpg', 'TEST chunk.jpg', 'image', 4,
+        select r.id, r.uploader, '${c.venue}',
+          r.uploader || '/' || r.id || '/original.jpg', 'TEST chunk.jpg', 'image', 4,
           gen_random_uuid(), r.role::public.app_role, r.created_at
         from chunk_rows r;
       update public.media_assets set upload_state = 'processing'
@@ -1294,12 +1331,16 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
         where id in (select id from chunk_rows where n % 53 <> 7);
       update public.media_assets set deleted_at = now()
         where id in (select id from chunk_rows where n % 41 = 3);
-      -- Ranks in feed order among the rows the manager can see.
+      -- Ranks in feed order among the rows the manager can see, and among
+      -- the grant holder's own.
       create temp table chunk_ranked as
-        select a.id, (row_number() over (order by a.created_at desc, a.id desc) - 1)::int as rank
+        select a.id, (row_number() over (partition by a.uploader_id
+            order by a.created_at desc, a.id desc) - 1)::int as rank
         from public.media_assets a
         where a.venue_id = '${c.venue}' and a.deleted_at is null and a.upload_state = 'ready'
-          and a.uploader_role = 'manager' and a.original_filename = 'TEST chunk.jpg';
+          and a.original_filename = 'TEST chunk.jpg'
+          and ((a.uploader_id = '${c.manager.id}' and a.uploader_role = 'manager')
+            or a.uploader_id = '${c.staffManager.id}');
       insert into public.media_use_grants (asset_id, venue_id, destination_key, audience, purpose,
           subject_kind, effective_from, effective_until, authorised_by, authority_basis,
           clearance_version, clearance, request_key)
@@ -1450,9 +1491,12 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       { filters: { check: randomUUID() }, id: randomUUID() },
     ].map((c) => ({ ...c, limits: [24] }))
 
-  const expectSame = (d: Diff) => {
+  // rows: whether the walks must return rows at all (refused callers and
+  // fault cases return none).
+  const expectSame = (d: Diff, rows = true) => {
     expect(d.bad).toEqual([])
     expect(d.pages).toBeGreaterThan(0)
+    if (rows) expect(d.rows).toBeGreaterThan(0)
   }
 
   it("returns what the base body returns for every caller, filter and page", () => {
@@ -1490,7 +1534,7 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       ],
     ] as const) {
       const d = compareBodies(who, cases, setup)
-      expectSame(d)
+      expectSame(d, false)
       expect(d.errors).toBe(d.pages)
     }
   }, 300_000)
@@ -1498,7 +1542,7 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
   it("keeps error precedence and lets validation win over an empty candidate list", () => {
     for (const who of [e.admin, e.manager, e.staffManager]) {
       const d = compareBodies(who.id, faults())
-      expectSame(d)
+      expectSame(d, false)
       expect(d.errors).toBe(faults().length)
     }
   }, 300_000)
@@ -1532,6 +1576,76 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
     )
   })
 
+  // Another venue's check, submission or group must cost what an unknown id
+  // costs: its candidate list reads no evidence or group rows (only the key
+  // lookup that finds it is not at the searched venue). Measured with this
+  // transaction's own table counters.
+  it("reads no evidence or group rows for another venue's check, submission or group", () => {
+    const tables = [
+      "amenity_submission_assets",
+      "knowledge_contribution_assets",
+      "coverage_submission_items",
+      "media_contribution_group_members",
+      "amenity_submissions",
+      "knowledge_contributions",
+    ]
+    const reads = (who: Who, filters: unknown) =>
+      JSON.parse(
+        asUser(
+          who.id,
+          `select public.asset_search('${JSON.stringify(filters)}'::jsonb, null, null, 24) is not null;
+          select json_object_agg(t.relname, coalesce(t.seq_scan, 0) + coalesce(t.idx_scan, 0)
+              order by t.relname)
+            from pg_stat_xact_user_tables t
+            where t.schemaname = 'public' and t.relname in (${tables.map((x) => `'${x}'`).join(", ")})`
+        ) || "{}"
+      ) as Record<string, number>
+    const touched = (r: Record<string, number>, names: string[]) =>
+      names.filter((n) => (r[n] ?? 0) > 0)
+    const otherRequirement = psql(
+      `select coalesce(requirement_id::text, '') from public.coverage_submission_items where asset_id = '${fx.otherEvidence}'`
+    )
+    const foreign: [string, unknown, unknown][] = [
+      ["check", { check: o.checks.guest_toilets }, { check: randomUUID() }],
+      [
+        "coverage submission",
+        { submission: { source: "coverage", id: otherSubmission } },
+        { submission: { source: "coverage", id: randomUUID() } },
+      ],
+      [
+        "amenity submission",
+        { submission: { source: "amenity", id: otherSubmission } },
+        { submission: { source: "amenity", id: randomUUID() } },
+      ],
+      ["group", { group: otherGroup }, { group: randomUUID() }],
+    ]
+    if (otherRequirement)
+      foreign.push([
+        "coverage requirement",
+        { check: otherRequirement },
+        { check: randomUUID() },
+      ])
+    // The other venue really holds evidence for these ids.
+    expect(
+      Number(
+        psql(`select (select count(*) from public.coverage_submission_items where submission_id = '${otherSubmission}')
+          + (select count(*) from public.media_contribution_group_members where group_id = '${otherGroup}')`)
+      )
+    ).toBeGreaterThanOrEqual(2)
+    const links = tables.slice(0, 4)
+    for (const who of [e.manager, e.staffManager]) {
+      for (const [label, theirs, unknown] of foreign) {
+        const r = reads(who, theirs)
+        expect(touched(r, links), `${label} (link tables)`).toEqual([])
+        expect(r, label).toEqual(reads(who, unknown))
+      }
+      // Sanity: the counters see the reads of an id at the caller's venue.
+      expect(
+        touched(reads(who, { check: requirement }), links).length
+      ).toBeGreaterThan(0)
+    }
+  })
+
   it("crosses chunk edges with equal times and cursors on rejected or deleted rows", () => {
     const cases: Case[] = [
       { filters: {} },
@@ -1561,8 +1675,18 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
         id: deletedCursor.id,
       },
     ].map((x) => ({ ...x, limits: [1, 2, 24, 48], max: 40 }))
-    for (const who of [c.manager, c.staffManager])
-      expectSame(compareBodies(who.id, cases))
+    // Each caller's walks return rows across the edges (the grant holder's
+    // through its own uploads, the manager's through its manager-era ones).
+    // The grant holder walks at 24 and 48 a page (22 pages of 24 pass the
+    // 525 edge); limit 1 and 2 are the manager's and the admin's.
+    for (const [who, list] of [
+      [c.manager, cases],
+      [c.staffManager, cases.map((x) => ({ ...x, limits: [24, 48], max: 25 }))],
+    ] as const) {
+      const d = compareBodies(who.id, list)
+      expectSame(d)
+      expect(d.rows, who.id).toBeGreaterThan(500)
+    }
     expectSame(
       compareBodies(
         c.admin.id,
@@ -1573,30 +1697,47 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       )
     )
     // The not_granted walk really reads past the third edge: the first
-    // admitted rows sit at ranks 24-26, 124-126, 524-525, then 538 on.
-    const page = (after: { at: string; id: string } | null, limit: number) =>
-      JSON.parse(
-        asUser(
-          c.manager.id,
-          `select public.asset_search('{"rights":"not_granted"}', ${
-            after ? `'${after.at}'` : "null"
-          }, ${after ? `'${after.id}'` : "null"}, ${limit})`
-        )
-      ) as Page
-    const first = page(null, 3)
-    expect(first.items).toHaveLength(3)
-    const second = page(
-      {
-        at: first.items[2]!.uploadedAt,
-        id: first.items[2]!.id,
-      },
-      5
-    )
-    expect(second.items).toHaveLength(5)
-    expect(second.hasMore).toBe(true)
+    // admitted rows sit at ranks 24-26, 124-126, 524-525, then 538 on, for
+    // the manager and for the grant holder alike.
+    for (const who of [c.manager, c.staffManager]) {
+      const page = (after: { at: string; id: string } | null, limit: number) =>
+        JSON.parse(
+          asUser(
+            who.id,
+            `select public.asset_search('{"rights":"not_granted"}', ${
+              after ? `'${after.at}'` : "null"
+            }, ${after ? `'${after.id}'` : "null"}, ${limit})`
+          )
+        ) as Page
+      const first = page(null, 3)
+      expect(first.items).toHaveLength(3)
+      const second = page(
+        {
+          at: first.items[2]!.uploadedAt,
+          id: first.items[2]!.id,
+        },
+        5
+      )
+      expect(second.items).toHaveLength(5)
+      expect(second.hasMore).toBe(true)
+    }
   }, 600_000)
 
   it("admits a row only where the prefilter holds, with a fixture for every gate arm", () => {
+    // P is the migration's own text (shippedP), with every probe present.
+    for (const probe of [
+      "k.is_manager",
+      "k.active_check",
+      "k.can_review",
+      "media_label_items",
+      "menu_item_photos",
+      "media_labels",
+      "coverage_submission_items",
+      "venue_amenity_fact_media",
+      "amenity_submission_assets",
+      "knowledge_contribution_assets",
+    ])
+      expect(shippedP).toContain(probe)
     const check = (who: Who, venue: string, setup = "") => {
       const out = psql(`begin;
         ${setup}
@@ -1686,17 +1827,24 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
   }, 300_000)
 
   it("answers can_open exactly for the rows unfiltered search lists", () => {
-    for (const who of [e.manager, e.staffManager, o.manager, c.manager]) {
+    for (const who of [
+      e.manager,
+      e.staffManager,
+      o.manager,
+      c.manager,
+      c.staffManager,
+    ]) {
       const out = asUser(
         who.id,
         `${HARNESS.replace(/grant execute[^;]*;/, "")}
+        with l as materialized (select pg_temp.search_ids('{}') as ids)
         select json_build_object(
-          'onlySearch', (select count(*) from unnest(pg_temp.search_ids('{}')) s(id)
+          'onlySearch', (select count(*) from l, unnest(l.ids) s(id)
             where not public.asset_search_can_open(s.id)),
-          'onlyOpen', (select count(*) from public.media_assets a
+          'onlyOpen', (select count(*) from public.media_assets a, l
             where public.asset_search_can_open(a.id)
-              and a.id <> all (pg_temp.search_ids('{}'))),
-          'listed', cardinality(pg_temp.search_ids('{}')))`
+              and a.id <> all (l.ids)),
+          'listed', (select cardinality(l.ids) from l))`
       )
       const r = JSON.parse(out) as {
         onlySearch: number

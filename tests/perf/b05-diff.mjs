@@ -3,7 +3,9 @@
 // perf volume plus tests/perf/b05-world.sql and tests/perf/b05-diff-world.sql.
 // Local workstream stacks only (PERF_STACK, default spare6).
 //
-// The reference (v1) is the base commit's public.asset_search, created as
+// The reference (v1) is the base commit's public.asset_search (frozen in
+// tests/security/fixtures/asset-search-v1.sql; --base <commit> reads it from
+// git instead), created as
 // pg_temp.asset_search_v1 inside a transaction that is always rolled back, so
 // nothing persists. Every call runs as the caller (role authenticated, its JWT
 // claims), and every page is compared as jsonb text, errors as
@@ -27,11 +29,12 @@
 //   node tests/perf/b05-diff.mjs --part invariants --caller managerSmall
 //   node tests/perf/b05-diff.mjs --part rights
 //   node tests/perf/b05-diff.mjs --part list --caller admin   (case names only)
-// Options: --base <commit> (default 7d2a783c), --cap <pages> (40), --slow <ms>
+// --only a|b keeps the cases whose name contains any of the parts.
+// Options: --base <commit> (default: the frozen fixture), --cap <pages> (40), --slow <ms>
 // (2000), --out <dir> (results appended as JSON lines to b05-diff.jsonl).
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs"
 import { loadavg } from "node:os"
 import { join, resolve } from "node:path"
 
@@ -44,7 +47,8 @@ const arg = (k, d) => {
 }
 const PART = arg("part", "compare")
 const CALLER = arg("caller", "admin")
-const BASE = arg("base", "7d2a783c")
+const BASE = arg("base", null)
+const FIXTURE = "tests/security/fixtures/asset-search-v1.sql"
 const CAP = Number(arg("cap", 40))
 const SLOW = Number(arg("slow", 2000))
 const SLICE = arg("slice", null)
@@ -68,9 +72,12 @@ if (
   throw new Error("Load tests/perf/b05-diff-world.sql first.")
 
 // ---------------------------------------------------------------- sources
-const base = execFileSync("git", ["show", `${BASE}:${MIGRATION}`], {
-  encoding: "utf8",
-})
+const base =
+  BASE || !existsSync(FIXTURE)
+    ? execFileSync("git", ["show", `${BASE ?? "7d2a783c"}:${MIGRATION}`], {
+        encoding: "utf8",
+      })
+    : readFileSync(FIXTURE, "utf8")
 const head = readFileSync(MIGRATION, "utf8")
 const fnBody = (src) => {
   const h = "create function public.asset_search("
@@ -621,7 +628,7 @@ const doc = {
   caller: CALLER,
   at: new Date().toISOString(),
   revision: gitHead(),
-  base: BASE,
+  base: BASE ?? `fixture ${FIXTURE}`,
   loadAverage: { start: loadavg() },
 }
 const t0 = Date.now()
@@ -652,7 +659,7 @@ if (PART === "list" || PART === "compare") {
           (CALLER === "managerBig" && c.filters.check ? "oracle0" : "v1"),
       }))
     )
-    .filter((c) => !ONLY || c.name.includes(ONLY))
+    .filter((c) => !ONLY || ONLY.split("|").some((o) => c.name.includes(o)))
   const [a, b] = SLICE ? SLICE.split(":").map(Number) : [0, expanded.length]
   const cases = expanded.slice(a, b)
   if (PART === "list") {
@@ -983,7 +990,9 @@ from (select s.id, public.asset_search_can_open(s.id) as o,
 
 if (PART === "rights") {
   // E3: v1's rights expression equals the new split (SQL part and per-row
-  // part) for every asset, rights value and destination.
+  // part) for every asset, rights value and destination; and the SQL part
+  // alone is already exact (sqlOnlyDiffer), so no row a grant settles is
+  // left to the per-row check.
   const subst = (s) =>
     s
       .replaceAll("v_rights", "rv.rights")
@@ -991,11 +1000,14 @@ if (PART === "rights") {
       .replaceAll("v_now", "k.now")
       .replaceAll("v_row.id", "a.id")
   const [r] = runScript(`
-select 'R|' || jsonb_agg(jsonb_build_object('rights', rights, 'destination', dest, 'v1', v1, 'split', split, 'differ', differ)
+select 'R|' || jsonb_agg(jsonb_build_object('rights', rights, 'destination', dest, 'v1', v1, 'split', split, 'differ', differ,
+    'sqlOnly', sql_only, 'sqlOnlyDiffer', sql_only_differ)
   order by rights, dest)::text
 from (
   select rv.rights, rv.dest, count(*) filter (where r1) as v1, count(*) filter (where rs and rl) as split,
-    count(*) filter (where r1 is distinct from (rs and rl)) as differ
+    count(*) filter (where r1 is distinct from (rs and rl)) as differ,
+    count(*) filter (where rs) as sql_only,
+    count(*) filter (where r1 is distinct from rs) as sql_only_differ
   from public.media_assets a
   cross join (values ('legacy_unknown', null), ('not_granted', null), ('in_force', null),
     ('in_force', 'perf_menu_web'), ('in_force', 'perf_social'), ('in_force', 'perf_nowhere'),
@@ -1006,6 +1018,7 @@ from (
 ) x;`)
   for (const x of r) console.error(`rights ${JSON.stringify(x)}`)
   const differ = r.reduce((s, x) => s + Number(x.differ), 0)
-  write({ summary: { differ }, results: r })
-  if (differ) process.exit(3)
+  const sqlOnlyDiffer = r.reduce((s, x) => s + Number(x.sqlOnlyDiffer), 0)
+  write({ summary: { differ, sqlOnlyDiffer }, results: r })
+  if (differ || sqlOnlyDiffer) process.exit(3)
 }

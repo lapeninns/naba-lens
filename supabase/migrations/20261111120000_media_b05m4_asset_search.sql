@@ -21,12 +21,14 @@
 --   managers find nothing that only the portfolio would show.
 -- * Evaluation (B05 perf fix, contracts/b05-perf-search-fix-scope.md): after
 --   every validation, the check, submission and group filters become
---   candidate id lists (an empty list returns an empty page without a scan).
---   Rows are then read in keyset chunks (limit + 1, x4, at most 4000) whose
---   query carries the filters, the conditions each rights value implies and,
---   for a manager, a necessary condition P of the gate built from caller
---   constants and one existence probe per evidence or label table. The exact
---   use state and private.asset_search_admits still run on every row read,
+--   candidate id lists, read only at the searched venue (a check,
+--   submission or group of another venue reads no evidence rows; an empty
+--   list returns an empty page without a scan). Rows are then read in keyset
+--   chunks (limit + 1, x4, at most 4000) whose query carries the filters, the
+--   exact grant side of each rights value and, for a manager, a necessary
+--   condition P of the gate built from caller constants and one existence
+--   probe per evidence or label table. The use state and
+--   private.asset_search_admits still run on every row read,
 --   in feed order, until limit + 1 rows are admitted. P only drops rows the
 --   gate would refuse; the gate itself and can_open are unchanged.
 -- * Results: asset id, media type, thumbnail flag, venue name, uploader first
@@ -230,6 +232,7 @@ declare
   v_check_ids uuid[];
   v_submission_ids uuid[];
   v_group_ids uuid[];
+  v_in_venue boolean;
   v_row public.media_assets;
   v_scan_at timestamptz;
   v_scan_id uuid;
@@ -312,39 +315,67 @@ begin
 
   -- Candidate ids of the selective filters: the same joins and predicates as
   -- the matching EXISTS in the scan (which stay too). Null when the filter is
-  -- absent; an empty array means no row can match.
+  -- absent; an empty array means no row can match. With a venue (always, for
+  -- a manager) only the searched venue is read: the check, requirement,
+  -- submission or group must belong to it (one key lookup each) before its
+  -- evidence is read, and the evidence rows are held to it too. Evidence and
+  -- group rows share their venue with the asset, the submission and the
+  -- check by composite FK, and the scan requires a.venue_id = v_venue, so no
+  -- row the scan could return is lost; another venue's id costs the same as
+  -- an unknown one.
   if v_check is not null then
+    v_in_venue := v_venue is null or exists (
+      select 1 from public.venue_amenity_checks c where c.id = v_check and c.venue_id = v_venue);
     select coalesce(array_agg(distinct x.asset_id), '{}') into v_check_ids
     from (
       select sa.asset_id from public.amenity_submission_assets sa
       join public.amenity_submissions s on s.id = sa.submission_id
-      where s.check_id = v_check
+      where v_in_venue and s.check_id = v_check
+        and (v_venue is null or (s.venue_id = v_venue and sa.venue_id = v_venue))
       union all
       select ka.asset_id from public.knowledge_contribution_assets ka
       join public.knowledge_contributions kc on kc.id = ka.contribution_id
-      where kc.check_id = v_check
+      where v_in_venue and kc.check_id = v_check
+        and (v_venue is null or (kc.venue_id = v_venue and ka.venue_id = v_venue))
       union all
       select ci.asset_id from public.coverage_submission_items ci
-      where ci.requirement_id = v_check
+      where (v_venue is null or exists (
+          select 1 from public.coverage_requirements r where r.id = v_check and r.venue_id = v_venue))
+        and ci.requirement_id = v_check
+        and (v_venue is null or ci.venue_id = v_venue)
     ) x;
   end if;
   if v_submission_id is not null then
+    v_in_venue := v_venue is null or case v_submission_source
+      when 'coverage' then exists (select 1 from public.coverage_submissions cs
+        where cs.id = v_submission_id and cs.venue_id = v_venue)
+      when 'amenity' then exists (select 1 from public.amenity_submissions s
+        where s.id = v_submission_id and s.venue_id = v_venue)
+      when 'knowledge' then exists (select 1 from public.knowledge_contributions kc
+        where kc.id = v_submission_id and kc.venue_id = v_venue)
+    end;
     select coalesce(array_agg(distinct x.asset_id), '{}') into v_submission_ids
     from (
       select ci.asset_id from public.coverage_submission_items ci
-      where v_submission_source = 'coverage' and ci.submission_id = v_submission_id
+      where v_in_venue and v_submission_source = 'coverage' and ci.submission_id = v_submission_id
+        and (v_venue is null or ci.venue_id = v_venue)
       union all
       select sa.asset_id from public.amenity_submission_assets sa
-      where v_submission_source = 'amenity' and sa.submission_id = v_submission_id
+      where v_in_venue and v_submission_source = 'amenity' and sa.submission_id = v_submission_id
+        and (v_venue is null or sa.venue_id = v_venue)
       union all
       select ka.asset_id from public.knowledge_contribution_assets ka
-      where v_submission_source = 'knowledge' and ka.contribution_id = v_submission_id
+      where v_in_venue and v_submission_source = 'knowledge' and ka.contribution_id = v_submission_id
+        and (v_venue is null or ka.venue_id = v_venue)
     ) x;
   end if;
   if v_group is not null then
+    v_in_venue := v_venue is null or exists (
+      select 1 from public.media_contribution_groups g where g.id = v_group and g.venue_id = v_venue);
     select coalesce(array_agg(distinct gm.asset_id), '{}') into v_group_ids
     from public.media_contribution_group_members gm
-    where gm.group_id = v_group;
+    where v_in_venue and gm.group_id = v_group
+      and (v_venue is null or gm.venue_id = v_venue);
   end if;
 
   -- Keyset chunks in feed order (limit + 1 rows, then x4, at most 4000). The
@@ -420,27 +451,65 @@ begin
             or (v_submission_source = 'knowledge' and exists (
               select 1 from public.knowledge_contribution_assets ka
               where ka.asset_id = a.id and ka.contribution_id = v_submission_id)))
-          -- Rights, part 1: what each asked use state implies of the row
-          -- (private.media_asset_use_state: granted needs a grant, withdrawn a
-          -- withdrawn grant, legacy_unknown that baseline, not_granted the
-          -- other baseline), plus the destination and expired EXISTS as they
-          -- were. Part 2, the exact use state, runs per row below.
+          -- Rights, part 1: the asked use state in SQL, exact, so rows a
+          -- grant settles never reach the loop
+          -- (private.media_asset_use_state: granted = a grant in force;
+          -- withdrawn = a withdrawn grant and none in force; otherwise the
+          -- baseline; use_baseline is NOT NULL, legacy_unknown or none). The
+          -- grant probes spell out private.media_use_grant_state (withdrawn
+          -- if a withdrawal exists, else expired once effective_until has
+          -- passed, else scheduled before effective_from, else in force;
+          -- pinned in tests/security/asset-search.test.ts): "settled" = in
+          -- force or withdrawn; the base body's destination and expired
+          -- EXISTS are spelled the same way. Scalar sublinks on the asset's
+          -- grants, never hashed (a hashed EXISTS computes every grant's
+          -- state). Part 2, the use state itself, still runs per row below.
           and (v_rights is null
-            or (v_rights = 'legacy_unknown' and a.use_baseline = 'legacy_unknown')
-            or (v_rights = 'not_granted' and a.use_baseline <> 'legacy_unknown')
-            or (v_rights = 'withdrawn' and exists (
-              select 1 from public.media_use_grants g
-              join public.media_use_grant_withdrawals w on w.grant_id = g.id
-              where g.asset_id = a.id))
+            or (v_rights = 'legacy_unknown' and a.use_baseline = 'legacy_unknown'
+              and (select 1 from public.media_use_grants g where g.asset_id = a.id
+                     and (exists (select 1 from public.media_use_grant_withdrawals w where w.grant_id = g.id)
+                       or (g.effective_from <= v_now
+                         and (g.effective_until is null or g.effective_until > v_now)))
+                   limit 1) is null)
+            or (v_rights = 'not_granted' and a.use_baseline <> 'legacy_unknown'
+              and (select 1 from public.media_use_grants g where g.asset_id = a.id
+                     and (exists (select 1 from public.media_use_grant_withdrawals w where w.grant_id = g.id)
+                       or (g.effective_from <= v_now
+                         and (g.effective_until is null or g.effective_until > v_now)))
+                   limit 1) is null)
+            or (v_rights = 'withdrawn'
+              and (select 1 from public.media_use_grants g
+                     join public.media_use_grant_withdrawals w on w.grant_id = g.id
+                   where g.asset_id = a.id limit 1) is not null
+              and (select 1 from public.media_use_grants g where g.asset_id = a.id
+                     and g.effective_from <= v_now
+                     and (g.effective_until is null or g.effective_until > v_now)
+                     and not exists (select 1 from public.media_use_grant_withdrawals w where w.grant_id = g.id)
+                   limit 1) is null)
             or (v_rights = 'in_force'
-              and exists (select 1 from public.media_use_grants g where g.asset_id = a.id)
-              and (v_destination is null or exists (
-                select 1 from public.media_use_grants g
-                where g.asset_id = a.id and g.destination_key = v_destination
-                  and private.media_use_grant_state(g, v_now) = 'in_force')))
-            or (v_rights = 'expired' and exists (
-              select 1 from public.media_use_grants g
-              where g.asset_id = a.id and private.media_use_grant_state(g, v_now) = 'expired')))
+              and (select 1 from public.media_use_grants g where g.asset_id = a.id
+                     and g.effective_from <= v_now
+                     and (g.effective_until is null or g.effective_until > v_now)
+                     and not exists (select 1 from public.media_use_grant_withdrawals w where w.grant_id = g.id)
+                   limit 1) is not null
+              and (v_destination is null
+                or (select 1 from public.media_use_grants g
+                    where g.asset_id = a.id and g.destination_key = v_destination
+                      and g.effective_from <= v_now
+                      and (g.effective_until is null or g.effective_until > v_now)
+                      and not exists (select 1 from public.media_use_grant_withdrawals w where w.grant_id = g.id)
+                    limit 1) is not null))
+            or (v_rights = 'expired'
+              and (select 1 from public.media_use_grants g where g.asset_id = a.id
+                     and (exists (select 1 from public.media_use_grant_withdrawals w where w.grant_id = g.id)
+                       or (g.effective_from <= v_now
+                         and (g.effective_until is null or g.effective_until > v_now)))
+                   limit 1) is null
+              and (select 1 from public.media_use_grants g
+                   where g.asset_id = a.id
+                     and g.effective_until is not null and g.effective_until <= v_now
+                     and not exists (select 1 from public.media_use_grant_withdrawals w where w.grant_id = g.id)
+                   limit 1) is not null))
           -- Gate prefilter P: true for every row private.asset_search_admits
           -- admits for this manager (it may keep rows the gate then refuses,
           -- never the reverse). The veto is the gate's own; the rest is one
