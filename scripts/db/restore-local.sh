@@ -15,7 +15,9 @@
 # blank-template schema-local extra default grants ->
 # schema.sql -> migrations-schema.sql -> storage-policies.sql -> data.sql and
 # migrations-data.sql with triggers off (session_replication_role = replica, as
-# the Supabase restore guide does) -> compare exact app/default ACLs, migration history and storage
+# the Supabase restore guide does) -> check that rows created before the B05
+# cutover read use_baseline 'legacy_unknown' (scripts/db/check-use-baseline.sql,
+# same transaction; triggers are off) -> compare exact app/default ACLs, migration history and storage
 # policies with the backup -> upload storage objects through the Storage API ->
 # verify keys and sha256 -> restore/compare app-owned managed-table triggers.
 set -euo pipefail
@@ -92,7 +94,8 @@ psql "$db_url" -X -q -v ON_ERROR_STOP=1 --single-transaction \
   --file "$backup/storage-policies.sql" \
   --command "set session_replication_role = replica" \
   --file "$backup/data.sql" \
-  --file "$backup/migrations-data.sql" >/dev/null
+  --file "$backup/migrations-data.sql" \
+  --file "$repo/scripts/db/check-use-baseline.sql" >/dev/null
 database_restored=1
 
 acls=$(psql "$db_url" -X -q -A -t -v ON_ERROR_STOP=1 \

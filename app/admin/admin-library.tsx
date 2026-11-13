@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { FolderSimpleIcon } from "@phosphor-icons/react"
+import { FolderSimpleIcon, MagnifyingGlassIcon } from "@phosphor-icons/react"
+import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
 import { fetchMediaPage } from "@/app/_media/fetch-page"
@@ -20,7 +21,8 @@ import {
   type LibraryMenuOptions,
 } from "@/components/nabalens/library-filters"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { Button } from "@/components/ui/button"
+import { SEARCH_COPY } from "@/components/nabalens/search/search-copy"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from "@/lib/menus/types"
 
 import { loadLibraryPage, type LibraryPageResult } from "./library-actions"
@@ -75,6 +77,15 @@ export function AdminLibrary({
         scope={[venueName ?? LIBRARY_COPY.allVenues, LIBRARY_COPY.order]}
         title={LIBRARY_COPY.title}
         summary={<p>{LIBRARY_COPY.summary}</p>}
+        actions={
+          <Link
+            href="/admin/search"
+            className={buttonVariants({ variant: "secondary", size: "touch" })}
+          >
+            <MagnifyingGlassIcon aria-hidden />
+            {SEARCH_COPY.entry}
+          </Link>
+        }
         className="pb-0 md:pb-0"
       />
       <LibraryFilters

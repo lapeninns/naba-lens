@@ -408,7 +408,15 @@ export type AmenityFailure = {
   /** asset_ineligible: which asset and why. */
   assetId?: string
   assetReason?:
-    "not_found" | "not_ready" | "other_venue" | "not_own" | "deleted"
+    | "not_found"
+    | "not_ready"
+    | "other_venue"
+    | "not_own"
+    | "deleted"
+    /** B05-m5 group replace: the member finished or is still uploading. */
+    | "not_replaceable"
+    /** B05-m5 group replace: the new asset is already in this group. */
+    | "in_group"
   /** evidence_rule_unmet: the rule that was not met. */
   rule?: EvidenceRule
 }

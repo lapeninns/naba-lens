@@ -149,10 +149,17 @@ export function SignInAgainSheet({
   done = 0,
   stopped = 0,
   onSignedIn,
+  onClosed,
   variant = "uploads",
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /**
+   * The sheet finished closing (its exit animation ended and focus went back
+   * to where it came from). Work that may replace the page under the sheet
+   * waits for this, so focus is returned before its target can go.
+   */
+  onClosed?: () => void
   guard: SessionGuard
   /**
    * The same person signed in again with a code: resume what was waiting. The
@@ -256,7 +263,13 @@ export function SignInAgainSheet({
         .join(" ")
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onOpenChangeComplete={(isOpen) => {
+        if (!isOpen) onClosed?.()
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>

@@ -474,4 +474,40 @@ describe("the reason field's error (CA-13)", () => {
       "Check the reason.",
     ])
   })
+
+  it("focuses the refused field even when a frame runs before the re-render", async () => {
+    // A slow render (a loaded device or test run) lets the next animation
+    // frame fire while the field is still disabled for the pending request.
+    // Focus must follow the re-enabled field, not that frame.
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb) => {
+        cb(performance.now())
+        return 0
+      })
+    try {
+      render(
+        <ReasonDialog
+          open
+          onOpenChange={vi.fn()}
+          title="Decline this photo?"
+          label="Reason"
+          confirmLabel="Decline"
+          pendingLabel="Declining…"
+          onConfirm={async () => ({
+            ok: false as const,
+            error: "Check the reason.",
+            fieldError: "Keep it under 500 characters.",
+          })}
+        />
+      )
+      const user = userEvent.setup()
+      await user.type(screen.getByRole("textbox", { name: "Reason" }), "x")
+      await user.click(screen.getByRole("button", { name: "Decline" }))
+      const field = screen.getByRole("textbox", { name: "Reason" })
+      await waitFor(() => expect(document.activeElement).toBe(field))
+    } finally {
+      raf.mockRestore()
+    }
+  })
 })

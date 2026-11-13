@@ -136,6 +136,13 @@ const ALLOWED_PAGES = new Set([
   "/admin/knowledge/runs/[runId]",
   // B03-g (§8.3): a question's schema upgrade, dry run first.
   "/admin/knowledge/upgrades",
+  // B05-06 asset search (contracts/b05-design.md §6; b05-search-screen-scope):
+  // find photos and videos by menu item, use, menu decision and upload day.
+  // Read-only cards, no viewer, download or reuse. Admins every venue; manager
+  // accounts and legacy grant holders their venue; staff refused (database).
+  "/admin/search",
+  "/manager/search",
+  "/staff/manage/search",
 ])
 
 const ALLOWED_HANDLERS = new Set([
@@ -154,6 +161,12 @@ const ALLOWED_HANDLERS = new Set([
   "/api/media/[id]/stream",
   "/api/media/[id]/thumb",
   "/api/internal/cleanup",
+  // B05-m6 internal evidence documents (b05-design §2A): PDF allergen and
+  // recipe evidence for the venue's manager, admins and the allergen
+  // authority. Attachment-only download, never inline; staff have no access.
+  "/api/documents/[id]/finalise",
+  "/api/documents/[id]/download",
+  "/api/internal/document-cleanup",
   // Owner-approved indefinite original retention and authenticated health checks.
   "/api/internal/media-archive",
   "/api/internal/media-archive/status",
@@ -189,6 +202,10 @@ const ALLOWED_HANDLERS = new Set([
   // (docs/knowledge/internal-reader-api.md).
   "/api/knowledge/v1/venues/[venueId]/answers",
   "/api/knowledge/v1/meta",
+  // B05-06 asset search (C/b05-design.md §6): abortable GET for the search
+  // screen; managers incl. legacy grant holders at their venue, admins all
+  // venues; staff refused by the database. Thumbnails via /api/media/[id]/thumb.
+  "/api/media/search",
 ])
 
 /** The dev-only preview must stay inside the `(dev)` route group. */

@@ -1,5 +1,14 @@
-import { GROUP_LIMITS, type GroupSubjectKind } from "@/lib/knowledge/contract"
-import type { GroupSubjectRef, PhotoSetReply } from "@/lib/work-client/contract"
+import {
+  GROUP_LIMITS,
+  type ContributionGroupReplaceResult,
+  type ContributionGroupView,
+  type GroupSubjectKind,
+} from "@/lib/knowledge/contract"
+import type {
+  GroupSubjectRef,
+  PhotoSetRefusal,
+  PhotoSetReply,
+} from "@/lib/work-client/contract"
 
 // Several photos of one subject picked together (B02-05, W1) become one
 // contribution group on the server. Grouping never holds back or fails an
@@ -24,7 +33,27 @@ export type SetTransport = {
     groupId: string
     assetIds: string[]
   }) => Promise<PhotoSetReply<{ members: number }>>
+  /** B05-m5: the set as the server derives it (per-member states). */
+  read?: (input: {
+    groupId: string
+  }) => Promise<PhotoSetReply<{ group: ContributionGroupView }>>
+  /** B05-m5: swaps a failed or removed member for a new photo, one for one. */
+  replace?: (input: {
+    groupId: string
+    failedAssetId: string
+    newAssetId: string
+  }) => Promise<PhotoSetReply<ContributionGroupReplaceResult>>
 }
+
+/**
+ * How a replacement ended. `refused` carries the server's refusal (its code
+ * and reason) for the screen to word; the new photo stays on its own.
+ */
+export type ReplaceOutcome =
+  | { status: "replaced" }
+  | { status: "same" }
+  | { status: "refused"; refusal: PhotoSetRefusal | null }
+  | { status: "unavailable" }
 
 /** One key per set start, kept until the server has answered it. */
 export type SetKeyStore = {
@@ -94,10 +123,20 @@ export function sessionSetKeys(): SetKeyStore {
 export const SET_RETRY_DELAYS = [2_000, 8_000, 30_000]
 
 type SetState = {
+  id: string
   subject: SetSubject
-  /** Reserved photos in arrival order, at most GROUP_LIMITS.maxMembers. */
+  /**
+   * Reserved photos in arrival order: at most GROUP_LIMITS.maxMembers live
+   * ones and GROUP_LIMITS.maxPositions in all.
+   */
   assets: string[]
   added: Set<string>
+  /** Photos the server failed (they no longer count towards the cap). */
+  failed: Set<string>
+  /** Replaced member -> the photo that replaced it. */
+  replaced: Map<string, string>
+  /** The run in progress, if any (a read waits for it). */
+  running: Promise<void> | null
   groupId: string | null
   busy: boolean
   /** Given up (refused, or out of retries): its photos stay as they are. */
@@ -120,16 +159,32 @@ export class PhotoSets {
       /** The database has no groups (or they are off): sets end here. */
       onMissing?: () => void
       later?: (run: () => void, ms: number) => void
+      /** B05-05c: the set's start key, once it has one (the journal's groupKey). */
+      onKey?: (setId: string, key: string) => void
     } = {}
   ) {}
+
+  private keyListeners = new Set<(setId: string, key: string) => void>()
+
+  /** Hear each set's start key (B05-05c); returns the unsubscribe. */
+  listenKeys(listener: (setId: string, key: string) => void): () => void {
+    this.keyListeners.add(listener)
+    return () => {
+      this.keyListeners.delete(listener)
+    }
+  }
 
   /** A new set for one pick; photos join it with `reserved`. */
   open(subject: SetSubject): string {
     const id = `set-${++this.next}`
     this.sets.set(id, {
+      id,
       subject,
       assets: [],
       added: new Set(),
+      failed: new Set(),
+      replaced: new Map(),
+      running: null,
       groupId: null,
       busy: false,
       done: false,
@@ -138,13 +193,114 @@ export class PhotoSets {
     return id
   }
 
-  /** The server reserved one of the set's photos. */
+  /**
+   * The server reserved one of the set's photos. Like the server's cap, a
+   * failed or replaced photo leaves room for another (B05-m5 S2).
+   */
   reserved(setId: string, assetId: string): void {
     const set = this.sets.get(setId)
     if (!set || set.assets.includes(assetId)) return
-    if (set.assets.length >= GROUP_LIMITS.maxMembers) return
+    if (
+      live(set) >= GROUP_LIMITS.maxMembers ||
+      set.assets.length >= GROUP_LIMITS.maxPositions
+    )
+      return
     set.assets.push(assetId)
     void this.run(set)
+  }
+
+  /**
+   * The server failed one of the set's photos (it could not be processed):
+   * it stays a member but no longer counts towards the cap.
+   */
+  serverFailed(setId: string, assetId: string): void {
+    this.sets.get(setId)?.failed.add(assetId)
+  }
+
+  /** A failed photo was retried and finished: it counts again. */
+  finished(setId: string, assetId: string): void {
+    this.sets.get(setId)?.failed.delete(assetId)
+  }
+
+  /**
+   * The server's read shows `newAssetId` replacing `failedAssetId` though the
+   * replace call never answered: record it as replace() would have.
+   */
+  replacedOnServer(setId: string, failedAssetId: string, newAssetId: string) {
+    const set = this.sets.get(setId)
+    if (!set) return
+    set.replaced.set(failedAssetId, newAssetId)
+    if (!set.assets.includes(newAssetId)) set.assets.push(newAssetId)
+    set.added.add(newAssetId)
+  }
+
+  /** The photo's set has it as a member on the server. */
+  isMember(setId: string, assetId: string): boolean {
+    return this.sets.get(setId)?.added.has(assetId) ?? false
+  }
+
+  /**
+   * B05-01e: the set as the server derives it, once every photo it took is
+   * a member. Null when the set has no group, a photo never joined it, or
+   * the read failed: the screen then words the set from its own queue.
+   */
+  async read(setId: string): Promise<ContributionGroupView | null> {
+    const set = this.sets.get(setId)
+    const read = this.transport.read
+    if (!set || !read) return null
+    // A join still on its way would leave a photo out of the read.
+    for (let i = 0; set.running && i < 10; i++) await set.running
+    if (!set.groupId || !set.assets.every((id) => set.added.has(id)))
+      return null
+    try {
+      const reply = await read({ groupId: set.groupId })
+      return reply.status === "ok" ? reply.group : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * B05-01d: `newAssetId` replaces the set's member `failedAssetId`, one for
+   * one, instead of joining as a new member. The same photo picked again
+   * (the same asset, resumed) is no replacement. Quiet retries as for adds.
+   */
+  async replace(
+    setId: string,
+    failedAssetId: string,
+    newAssetId: string
+  ): Promise<ReplaceOutcome> {
+    if (failedAssetId === newAssetId) return { status: "same" }
+    const set = this.sets.get(setId)
+    const replace = this.transport.replace
+    if (!set?.groupId || !replace || this.off) return { status: "unavailable" }
+    const delays = this.options.delays ?? SET_RETRY_DELAYS
+    for (let attempt = 0; ; attempt++) {
+      let reply: PhotoSetReply<ContributionGroupReplaceResult> | null = null
+      try {
+        reply = await replace({
+          groupId: set.groupId,
+          failedAssetId,
+          newAssetId,
+        })
+      } catch {
+        // No answer: try again below.
+      }
+      if (reply?.status === "ok") {
+        set.replaced.set(failedAssetId, newAssetId)
+        if (!set.assets.includes(newAssetId)) set.assets.push(newAssetId)
+        set.added.add(newAssetId)
+        return { status: "replaced" }
+      }
+      if (reply?.status === "missing") return { status: "unavailable" }
+      if (reply?.status === "failed" && !reply.retry)
+        return { status: "refused", refusal: reply.refusal ?? null }
+      if (attempt >= delays.length) return { status: "unavailable" }
+      const wait = delays[attempt]
+      const later =
+        this.options.later ?? ((run, ms) => void window.setTimeout(run, ms))
+      await new Promise<void>((resolve) => later(resolve, wait))
+    }
   }
 
   /** The set's group and grouped photos so far (null before it starts). */
@@ -167,7 +323,21 @@ export class PhotoSets {
     return reply.retry ? "retry" : "stop"
   }
 
-  private async run(set: SetState): Promise<void> {
+  private run(set: SetState): Promise<void> {
+    // A run already going takes the new photo when its join returns. Its
+    // promise stays the one a read waits for: replacing it with this call's
+    // (which returns at once) let a read go out before that join, and word
+    // the set without the photo.
+    if (set.busy && set.running) return set.running
+    const running = this.step(set)
+    set.running = running
+    void running.finally(() => {
+      if (set.running === running) set.running = null
+    })
+    return running
+  }
+
+  private async step(set: SetState): Promise<void> {
     if (this.off || set.done || set.busy) return
     if (!set.groupId && set.assets.length < 2) return
     if (set.groupId && set.assets.every((id) => set.added.has(id))) return
@@ -176,8 +346,11 @@ export class PhotoSets {
     try {
       if (!set.groupId) {
         const scope = `${set.subject.kind}:${set.subject.id ?? ""}:${set.assets[0]}`
+        const key = this.keys.keyFor(scope)
+        this.options.onKey?.(set.id, key)
+        for (const listener of this.keyListeners) listener(set.id, key)
         const reply = await this.transport.start({
-          key: this.keys.keyFor(scope),
+          key,
           subject: { kind: set.subject.kind, id: set.subject.id },
         })
         outcome = this.outcome(reply)
@@ -185,7 +358,10 @@ export class PhotoSets {
         if (outcome !== "retry") this.keys.settle(scope)
       }
       if (outcome === "ok" && set.groupId) {
-        const batch = set.assets.filter((id) => !set.added.has(id))
+        // The server takes at most 10 a call; the rest go in the next run.
+        const batch = set.assets
+          .filter((id) => !set.added.has(id))
+          .slice(0, GROUP_LIMITS.maxMembers)
         const reply = await this.transport.add({
           groupId: set.groupId,
           assetIds: batch,
@@ -217,6 +393,12 @@ export class PhotoSets {
     }
     set.attempts = 0
     // Photos reserved while this ran.
-    await this.run(set)
+    await this.step(set)
   }
+}
+
+/** Members that count towards the cap, as the server counts them (S2). */
+function live(set: SetState): number {
+  return set.assets.filter((id) => !set.failed.has(id) && !set.replaced.has(id))
+    .length
 }

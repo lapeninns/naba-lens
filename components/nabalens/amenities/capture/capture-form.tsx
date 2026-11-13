@@ -289,6 +289,9 @@ const ASSET_REASON_TEXT: Record<
   other_venue: "It was taken at another venue.",
   not_own: "Only your own uploads can be sent.",
   deleted: "It was deleted.",
+  // Group replacement reasons; a check send never sees them.
+  not_replaceable: "It can't be replaced.",
+  in_group: "It's already in this set.",
 }
 
 const RETRYABLE = new Set<AmenityFailure["code"]>(["unavailable"])

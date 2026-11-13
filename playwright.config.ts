@@ -65,7 +65,7 @@ const CORE = /@core/
 // phone width before the release suite (`grep` sees the project name, the file
 // name and the test title, so file names select whole files here).
 const PHONE =
-  /@core|\b(auth|slice|staff-accounts|library|gaps|menus-labels|manager-workspace|amenities-mobile)\.spec\.ts\b/
+  /@core|\b(auth|slice|staff-accounts|library|gaps|menus-labels|manager-workspace|amenities-mobile|search|photo-sets|capture-journal)\.spec\.ts\b/
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -114,6 +114,14 @@ export default defineConfig({
       name: "mobile-chromium",
       grep: PHONE,
       use: { ...devices["Pixel 7"] },
+    },
+    {
+      // WebKit emulation at iPhone width (B05-05, OD-B5-05-12), for the capture
+      // journal only. Playwright's WebKit is not Safari on an iPhone: it never
+      // counts as device evidence (X3 stays outstanding).
+      name: "webkit-phone",
+      grep: /\bcapture-journal\.spec\.ts\b/,
+      use: { ...devices["iPhone 13"] },
     },
   ],
   webServer: {

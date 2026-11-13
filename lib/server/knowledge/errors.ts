@@ -5,6 +5,7 @@
 
 import type {
   DraftSentReason,
+  GroupSetReason,
   KnowledgeErrorCode,
   KnowledgeFailure,
 } from "@/lib/knowledge/contract"
@@ -83,9 +84,10 @@ const KNOWLEDGE: Record<string, Mapping> = {
     "state_conflict",
     "A photo is already in another group. Reload the page.",
   ],
+  // True for both refusals: the live cap (10) and the position limit (30).
   contribution_group_full: [
     "state_conflict",
-    "A group holds at most 10 photos or videos.",
+    "This set can't take more photos or videos. Start a new set for the rest.",
   ],
   media_asset_not_found: [
     "not_found",
@@ -149,6 +151,12 @@ const KNOWLEDGE: Record<string, Mapping> = {
     "This legacy record could not be found.",
   ],
   knowledge_run_not_found: ["not_found", "This run could not be found."],
+}
+
+/** B05-m5: which set refusal a shared state_conflict is. */
+const SET_REASONS: Record<string, GroupSetReason> = {
+  contribution_group_full: "set_full",
+  asset_in_other_group: "in_other_group",
 }
 
 const BY_SQLSTATE: Record<string, string> = {
@@ -273,6 +281,17 @@ export function knowledgeRpcFailure(
   const raw = error?.message ?? ""
   const code = error?.code ?? ""
   const message = raw in KNOWLEDGE ? raw : (BY_SQLSTATE[code] ?? raw)
+  // A replacement repeated with a different photo (B05-m5), not the
+  // amenities finding text this code otherwise maps to.
+  if (
+    message === "idempotency_key_reused" &&
+    context === "contribution group replace"
+  )
+    return knowledgeFailure(
+      "state_conflict",
+      "This photo was already replaced with another one. Reload the page.",
+      { setReason: "already_replaced" }
+    )
   if (message in KNOWLEDGE) {
     const [mapped, text] = KNOWLEDGE[message]!
     return knowledgeFailure(
@@ -284,7 +303,9 @@ export function knowledgeRpcFailure(
           ? alreadySentOf(error)
           : message === "place_exists"
             ? existingPlaceOf(error)
-            : {}
+            : message in SET_REASONS
+              ? { setReason: SET_REASONS[message] }
+              : {}
     )
   }
   if (message === "invalid_value")

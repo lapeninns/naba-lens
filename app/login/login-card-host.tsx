@@ -4,6 +4,7 @@ import * as React from "react"
 
 import { LoginCard } from "@/components/nabalens"
 import { clearAllDrafts } from "@/components/nabalens/amenities/capture/draft"
+import { clearCaptureDataOnDevice } from "@/lib/upload/device-cleanup"
 import { normaliseEmail, signInWithCode } from "@/lib/auth/magic-link"
 import { createClient } from "@/lib/supabase/browser"
 
@@ -28,7 +29,8 @@ type LoginCardHostProps = Omit<
  * to `returnTo` (remembered by the link request) if the role allows it.
  *
  * Every sign-out (app shell, Me, the blocked page) lands here with
- * `signed_out`, so unsent amenity drafts on a shared device go with it.
+ * `signed_out`, so unsent amenity drafts, upload resume keys and the capture
+ * journal on a shared device go with it.
  */
 export function LoginCardHost({
   onSubmit,
@@ -38,7 +40,11 @@ export function LoginCardHost({
   const supabase = React.useMemo(() => createClient(), [])
   const { signedOut } = props
   React.useEffect(() => {
-    if (signedOut) clearAllDrafts()
+    if (!signedOut) return
+    clearAllDrafts()
+    // J-1: upload resume keys and the capture journal (with any photo bytes)
+    // go too.
+    clearCaptureDataOnDevice()
   }, [signedOut])
   const verify = React.useCallback(
     async (rawEmail: string, code: string) => {

@@ -221,14 +221,19 @@ export function setUploaderRole(assetIds: string[], role: "staff" | "manager") {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/
 
-/** Moves the immutable upload time of fixture assets (fixture setup only). */
+/**
+ * Moves the immutable upload time of fixture assets (fixture setup only). A row
+ * moved before the B05-m1 cutover gets the use baseline a real row from then
+ * has (legacy_unknown), since replica mode skips the insert trigger.
+ */
 export function setUploadedAt(assetIds: string[], instant: string) {
   if (!assetIds.every((id) => UUID.test(id))) throw new Error("not a uuid")
   if (!INSTANT.test(instant)) throw new Error("instant must be UTC ISO")
   psql(`
     begin;
     set local session_replication_role = replica;
-    update public.media_assets set created_at = '${instant}'::timestamptz
+    update public.media_assets set created_at = '${instant}'::timestamptz,
+      use_baseline = case when '${instant}'::timestamptz < (select s.cutover_at from private.media_use_settings s) then 'legacy_unknown' else use_baseline end
     where id in (${assetIds.map((id) => `'${id}'`).join(", ")});
     commit;
   `)

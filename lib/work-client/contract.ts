@@ -5,11 +5,15 @@
 // read becomes null and the screen keeps its B01 behaviour. The server's own
 // shapes are lib/knowledge/contract's and are re-exported here.
 
+import type { AmenityFailure } from "@/lib/amenities/contract"
 import {
   TRIAGE_QUEUES,
   type DeleteImpactEffect,
   type DeleteImpactKind,
+  type GroupSetReason,
   type GroupSubjectKind,
+  type KnowledgeErrorCode,
+  type TriageQueue,
 } from "@/lib/knowledge/contract"
 
 export { TRIAGE_QUEUES }
@@ -99,4 +103,18 @@ export type GroupSubjectRef = {
 export type PhotoSetReply<T> =
   | ({ status: "ok" } & T)
   | { status: "missing" }
-  | { status: "failed"; retry: boolean }
+  | { status: "failed"; retry: boolean; refusal?: PhotoSetRefusal }
+
+/**
+ * B05-m5: why the database refused a set read or replacement, from the
+ * server's mapping, so the screen can word it. `reason` tells apart refusals
+ * that share a code: asset_ineligible's asset reason (not_replaceable,
+ * in_group, not_own, ...) or state_conflict's set reason (set_full,
+ * in_other_group, already_replaced).
+ */
+export type PhotoSetRefusal = {
+  code: KnowledgeErrorCode
+  message: string
+  reason?: NonNullable<AmenityFailure["assetReason"]> | GroupSetReason
+  assetId?: string
+}

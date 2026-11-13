@@ -294,6 +294,23 @@ select d.id, d.uploader_id, d.venue_id,
        case when d.state = 'ready' and d.r_del < 0.005 then d.created_at + interval '10 days' end
 from md d;
 
+-- Replica mode skips the use-baseline insert trigger, so every row above has
+-- the column default ('none'). A row from before the B05-m1 cutover gets the
+-- baseline a real row from then has (legacy_unknown), the invariant
+-- scripts/db/check-use-baseline.sql checks. Dynamic SQL keeps the generator
+-- working on schemas from before B05-m1 (no settings table, no column).
+do $baseline$
+begin
+  if to_regclass('private.media_use_settings') is not null then
+    execute $q$
+      update public.media_assets a set use_baseline = 'legacy_unknown'
+      where a.id in (select d.id from md d)
+        and a.created_at < (select s.cutover_at from private.media_use_settings s)
+    $q$;
+  end if;
+end
+$baseline$;
+
 -- A handful of fresh in-flight uploads, as a live system has.
 update public.media_assets set upload_state = 'uploading', validated_mime_type = null, preview_path = null,
   thumbnail_path = null, width = null, height = null, duration_seconds = null

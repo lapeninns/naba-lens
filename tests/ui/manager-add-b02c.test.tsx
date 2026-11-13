@@ -32,6 +32,9 @@ const { refresh, supabase, uploads, sets } = vi.hoisted(() => ({
   sets: {
     startPhotoSet: vi.fn(async () => ({ status: "missing" })),
     addToPhotoSet: vi.fn(async () => ({ status: "missing" })),
+    // B05-m5: the set read and replacement Add's host now wires in.
+    readPhotoSet: vi.fn(async () => ({ status: "missing" })),
+    replaceInPhotoSet: vi.fn(async () => ({ status: "missing" })),
     readPhotoSets: vi.fn(),
     readDeleteEvidence: vi.fn(),
     deleteMedia: vi.fn(),

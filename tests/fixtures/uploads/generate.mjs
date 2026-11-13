@@ -133,6 +133,31 @@ if (!has("oversized.jpg")) {
   writeFileSync(path("oversized.jpg"), padded)
 }
 
+// B05-05: a valid JPEG of 8 MiB, above the 6 MiB TUS threshold and within
+// the 20 MiB photo cap, so a closed tab can continue it from its offset. The
+// size comes from APP15 segments (ignored by decoders) after SOI, so the file
+// stays a well-formed JPEG end to end.
+if (!has("photo-8mib.jpg")) {
+  const bytes = await photo(12).jpeg({ quality: 90 }).toBuffer()
+  const target = 8 * MiB
+  const segments = []
+  let size = bytes.length
+  while (size < target) {
+    const body = Math.min(65533, target - size - 4)
+    if (body < 1) break
+    const segment = Buffer.alloc(body + 4)
+    segment[0] = 0xff
+    segment[1] = 0xef
+    segment.writeUInt16BE(body + 2, 2)
+    segments.push(segment)
+    size += segment.length
+  }
+  writeFileSync(
+    path("photo-8mib.jpg"),
+    Buffer.concat([bytes.subarray(0, 2), ...segments, bytes.subarray(2)])
+  )
+}
+
 const testsrc = "testsrc2=s=640x360:r=25:d=2"
 const h264 = [
   "-c:v",
@@ -254,6 +279,7 @@ for (const name of [
   "disguised.jpg",
   "corrupt.jpg",
   "oversized.jpg",
+  "photo-8mib.jpg",
   "clip-h264.mp4",
   "clip.mov",
   "clip.webm",

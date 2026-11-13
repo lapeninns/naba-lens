@@ -40,6 +40,7 @@ export {
   addToContributionGroup,
   getContributionGroup,
   listGroupsForAssets,
+  replaceInContributionGroup,
   startContributionGroup,
 } from "./groups"
 export {

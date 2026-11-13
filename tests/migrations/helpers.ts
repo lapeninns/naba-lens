@@ -21,6 +21,11 @@ export const laterTarget = join(workdir, "supabase", "migrations", LATER)
 // the later migrations over it. Keep in step with SIBLING_BASE in run.mjs.
 export const SIBLING_BASE = "20261106130000"
 
+// B05-m1. Phase `use-baseline` resets to the newest migration before it,
+// seeds media, then applies it with `migration up`. Keep in step with
+// USE_BASELINE_FIRST in run.mjs.
+export const USE_BASELINE_FIRST = "20261113140000"
+
 export const repoMigrations = readdirSync("supabase/migrations")
   .filter((f) => f.endsWith(".sql"))
   .sort()

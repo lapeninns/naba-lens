@@ -319,7 +319,8 @@ test.describe("media.reload-resume", () => {
     expect(unfinished).toHaveLength(1)
     expect(unfinished[0].upload_state).toBe("uploading")
     await expect(
-      await tileOf(page, staff.id, "tus-video.mp4", "Uploading")
+      // After the reload this tab no longer holds the transfer (B02 UP-01).
+      await tileOf(page, staff.id, "tus-video.mp4", "Stopped")
     ).toHaveCount(1)
 
     storage.reset()
@@ -417,7 +418,12 @@ test.describe("media.reopen-states", () => {
     await page.unroute(TUS)
 
     const expectStates = async (p: typeof page) => {
-      await expect(portfolio(p).getByRole("button")).toHaveCount(3)
+      // Tiles, not buttons: the stopped video's tile also carries its own
+      // "Open Add" button inside the list (B02 UP-01). Exactly one.
+      await expect(portfolio(p).locator("button[data-media-id]")).toHaveCount(3)
+      await expect(
+        portfolio(p).getByRole("button", { name: "Open Add" })
+      ).toHaveCount(1)
       await expect(await tileOf(p, staff.id, "photo.jpg", "ready")).toHaveCount(
         1
       )
@@ -425,7 +431,7 @@ test.describe("media.reopen-states", () => {
         await tileOf(p, staff.id, "disguised.jpg", "Failed")
       ).toHaveCount(1)
       await expect(
-        await tileOf(p, staff.id, "tus-video.mp4", "Uploading")
+        await tileOf(p, staff.id, "tus-video.mp4", "Stopped")
       ).toHaveCount(1)
       // The completed photo has a real thumbnail; the others are not "ready".
       await expect

@@ -69,6 +69,8 @@ const PHOTO_KEYS = [
   "type",
   "uploadState",
   "uploaderRole",
+  // B05-m5 S6: the uploader's use summary.
+  "use",
   "venueId",
   "venueName",
 ]

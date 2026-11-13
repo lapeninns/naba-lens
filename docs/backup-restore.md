@@ -169,6 +169,19 @@ or `private` schemas. If a future migration creates app functions inside `auth` 
 `storage`, those functions also fall outside `schema.sql`; extend the backup before using
 such a migration and re-run this drill.
 
+### Media use baseline (B05-m1)
+
+Content that existed before B05-m1 must never read as a new, never-granted upload.
+
+- A full restore keeps each row's `use_baseline` (post-B05 backup), or restores the pre-B05
+  schema, where B05-m1's constant default later marks every row `legacy_unknown`.
+- Outside replica mode, the `media_assets_use_baseline_on_insert` trigger turns any row
+  whose `created_at` is before the cutover into `legacy_unknown`.
+- Any other load into a B05 schema (partial, cross-version, or a re-import or archive
+  recovery that creates a **new** row for content that existed before) must set
+  `use_baseline = 'legacy_unknown'` itself, must never copy grant rows, and must run
+  `scripts/db/check-use-baseline.sql` in the same transaction before committing.
+
 ### What the restore does
 
 The target must be **blank**: started with no migrations and no seed, as a newly created
@@ -183,7 +196,11 @@ users or storage objects.
    `migrations-schema.sql` and `storage-policies.sql`, then sets
    `session_replication_role = replica` and loads `data.sql` and `migrations-data.sql`.
    With that setting, the app's guard triggers do not re-validate restored rows. This
-   follows the Supabase restore guide.
+   follows the Supabase restore guide. Still inside that transaction it runs
+   `scripts/db/check-use-baseline.sql` (B05-m1), which aborts the load if any media row
+   created before the use-grant cutover (`private.media_use_settings.cutover_at`) does not
+   read `use_baseline = 'legacy_unknown'`. A pre-B05 backup has no cutover table, so the
+   check skips it; B05-m1's constant default marks those rows when the migration runs.
 3. It compares the app/default ACLs, migration history and storage policies with the
    backup and fails if any differs. A restore whose role/default setup differs from the
    source is not accepted merely because RLS still hides its rows.

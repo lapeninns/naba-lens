@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
+import { readFileSync } from "node:fs"
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
@@ -669,5 +670,62 @@ describe("media lifecycle: removal, cleanup, deactivation", () => {
       expect((await row(asset.id)).deleted_at).not.toBeNull()
       expect(await objectsOf(asset)).toEqual([])
     })
+  })
+})
+
+// B05-m1 L2 (contracts/b05-design.md §2.4, gate fix 1): restore-local.sh loads
+// data in replica mode, where the use-baseline insert trigger does not fire.
+// scripts/db/check-use-baseline.sql, run in the same transaction, must abort
+// a load that leaves a pre-cutover row at 'none' and pass a re-import that
+// sets 'legacy_unknown'.
+describe("use baseline on replica-mode loads", () => {
+  const check = readFileSync("scripts/db/check-use-baseline.sql", "utf8")
+  let staff: TestIdentity
+  let venueId: string
+
+  beforeAll(async () => {
+    venueId = (await createVenue(service, "b05-restore")).id
+    staff = await createIdentity(service, {
+      label: "b05-restore",
+      role: "staff",
+      venueId,
+    })
+  })
+
+  const load = (id: string, baseline: string) =>
+    [
+      "begin",
+      "set local session_replication_role = replica",
+      `insert into public.media_assets (id, uploader_id, venue_id, original_path, original_filename, media_type, size_bytes, client_upload_key, created_at, use_baseline)
+       values ('${id}', '${staff.id}', '${venueId}', '${staff.id}/${id}/original.jpg', 'TEST.jpg', 'image', 4, '${randomUUID()}',
+         (select cutover_at - interval '30 days' from private.media_use_settings), '${baseline}')`,
+      check,
+      "commit",
+    ].join(";\n")
+
+  it("aborts a load that leaves a pre-cutover row at none", () => {
+    const id = randomUUID()
+    expect(() => sql(load(id, "none"))).toThrow(/use_baseline check/)
+    expect(
+      sql(`select count(*) from public.media_assets where id = '${id}'`)
+    ).toBe("0")
+  })
+
+  it("passes a re-import that sets legacy_unknown itself", () => {
+    const id = randomUUID()
+    sql(load(id, "legacy_unknown"))
+    expect(
+      sql(`select use_baseline from public.media_assets where id = '${id}'`)
+    ).toBe("legacy_unknown")
+  })
+
+  it("marks a trigger-path insert before the cutover legacy_unknown", () => {
+    const id = randomUUID()
+    sql(`insert into public.media_assets (id, uploader_id, venue_id, original_path, original_filename, media_type, size_bytes, client_upload_key, created_at)
+      values ('${id}', '${staff.id}', '${venueId}', '${staff.id}/${id}/original.jpg', 'TEST.jpg', 'image', 4, '${randomUUID()}',
+        (select cutover_at - interval '1 day' from private.media_use_settings))`)
+    expect(
+      sql(`select use_baseline from public.media_assets where id = '${id}'`)
+    ).toBe("legacy_unknown")
   })
 })
