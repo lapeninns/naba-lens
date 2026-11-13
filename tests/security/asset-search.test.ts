@@ -1946,11 +1946,26 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
   // through its own uploads, the manager's through its manager-era ones).
   // The grant holder walks at 24 and 48 a page (22 pages of 24 pass the
   // 525 edge); limit 1 and 2 are the manager's and the admin's.
-  it("crosses chunk edges with equal times and cursors on rejected or deleted rows: manager account", () => {
-    const d = compareBodies(c.manager.id, chunkEdgeCases())
-    expectSame(d)
-    expect(d.rows, c.manager.id).toBeGreaterThan(500)
-  }, 600_000)
+  // The manager's and the admin's walks run in two tests each, one per pair
+  // of page sizes: all four sizes in one test outran 600 s on the hosted
+  // firefox runner. Together they cover the same cases and limits.
+  const pageSizes = [
+    { name: "1 and 2 a page", limits: [1, 2] },
+    { name: "24 and 48 a page", limits: [24, 48] },
+  ]
+
+  it.each(pageSizes)(
+    "crosses chunk edges with equal times and cursors on rejected or deleted rows: manager account, $name",
+    ({ limits }) => {
+      const d = compareBodies(
+        c.manager.id,
+        chunkEdgeCases().map((x) => ({ ...x, limits }))
+      )
+      expectSame(d)
+      expect(d.rows, c.manager.id).toBeGreaterThan(limits[0] === 1 ? 0 : 500)
+    },
+    600_000
+  )
 
   it("crosses chunk edges with equal times and cursors on rejected or deleted rows: legacy grant holder", () => {
     const d = compareBodies(
@@ -1961,17 +1976,22 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
     expect(d.rows, c.staffManager.id).toBeGreaterThan(500)
   }, 600_000)
 
-  it("crosses chunk edges with equal times and cursors on rejected or deleted rows: admin", () => {
-    expectSame(
-      compareBodies(
-        c.admin.id,
-        chunkEdgeCases().map((x) => ({
-          ...x,
-          filters: { venue: c.venue, ...(x.filters as object) },
-        }))
+  it.each(pageSizes)(
+    "crosses chunk edges with equal times and cursors on rejected or deleted rows: admin, $name",
+    ({ limits }) => {
+      expectSame(
+        compareBodies(
+          c.admin.id,
+          chunkEdgeCases().map((x) => ({
+            ...x,
+            limits,
+            filters: { venue: c.venue, ...(x.filters as object) },
+          }))
+        )
       )
-    )
-  }, 600_000)
+    },
+    600_000
+  )
 
   it("pages not_granted across the granted ranks and keeps scheduled grants unsettled", () => {
     // The not_granted pages hold the rows at ranks 24-26, 124-126, 524-525,
