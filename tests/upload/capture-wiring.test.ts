@@ -726,6 +726,12 @@ describe("late and hung journal operations (L2)", () => {
     }
     for (let i = 0; i < 3; i++) await turn()
   }
+  // Advances fake time until `done`, bounded. A slow runner can finish the
+  // real turns (digests) after a fixed tick has passed, which schedules the
+  // backend's delay later in fake time than the test assumed.
+  async function tickUntil(done: () => Promise<boolean>, maxMs = 15_000) {
+    for (let t = 0; t < maxMs && !(await done()); t += 100) await tick(100)
+  }
 
   const delayedPick = (
     session: CaptureSession,
@@ -958,6 +964,7 @@ describe("late and hung journal operations (L2)", () => {
       raw.slowNext(3000)
       const run = upload(photo(1000), context()).catch(() => {})
       await tick(3500)
+      await tickUntil(async () => (await raw.getAll()).length > 0)
       expect(await raw.getAll()).toMatchObject([
         { state: "transferring", assetId: "asset-1" },
       ])
@@ -999,6 +1006,7 @@ describe("late and hung journal operations (L2)", () => {
       // The server confirmed the labels before the entry was bound.
       annotateCapture(file, { pendingLabels: undefined })
       await tick(3000)
+      await tickUntil(async () => (await raw.getAll()).length > 0)
       const [entry] = await raw.getAll()
       expect(entry).toBeDefined()
       expect(entry).not.toHaveProperty("pendingLabels")
