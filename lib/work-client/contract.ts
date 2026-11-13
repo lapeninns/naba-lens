@@ -13,7 +13,6 @@ import {
   type GroupSetReason,
   type GroupSubjectKind,
   type KnowledgeErrorCode,
-  type TriageQueue,
 } from "@/lib/knowledge/contract"
 
 export { TRIAGE_QUEUES }

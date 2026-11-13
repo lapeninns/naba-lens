@@ -135,14 +135,68 @@ type AddContextValue = {
   intents?: readonly EntryIntent[] | null
 }
 
-const AddContext = React.createContext<AddContextValue | null>(null)
+/**
+ * The Add value behind a context that never changes: readers subscribe to
+ * the store instead. Add sits above every page of the staff and manager
+ * layouts, and its value changes as the page loads (R8's choices arrive, the
+ * auth client reports who is signed in). A new context value above a streamed
+ * Suspense boundary that is still waiting to be revealed makes React render
+ * that boundary again in the browser, leaving the server's copy in the page
+ * until React's reveal script removes it (the page renders twice; seen as two
+ * search forms on /manager/search). A store change re-renders only its
+ * readers, each once it has hydrated. Readers hydrate with the value the
+ * provider started with, which is the one the server rendered.
+ */
+type AddStore = {
+  get: () => AddContextValue | null
+  initial: () => AddContextValue | null
+  subscribe: (listener: () => void) => () => void
+  set: (value: AddContextValue | null) => void
+}
+
+function createAddStore(initial: AddContextValue | null): AddStore {
+  let current = initial
+  const listeners = new Set<() => void>()
+  return {
+    get: () => current,
+    initial: () => initial,
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    set(value) {
+      if (value === current) return
+      current = value
+      for (const listener of listeners) listener()
+    },
+  }
+}
+
+/** Outside the staff layout (previews, tests): no Add. */
+const NO_ADD = createAddStore(null)
+
+const AddContext = React.createContext<AddStore>(NO_ADD)
 
 /** Provided by the staff layout, which hosts the Add sheet and upload flow. */
-export const AddProvider = AddContext.Provider
+export function AddProvider({
+  value,
+  children,
+}: {
+  value: AddContextValue | null
+  children?: React.ReactNode
+}) {
+  const [store] = React.useState(() => createAddStore(value))
+  // Before paint, as a context change would have been.
+  React.useLayoutEffect(() => store.set(value), [store, value])
+  return <AddContext.Provider value={store}>{children}</AddContext.Provider>
+}
 
 /** The whole Add context, or null outside the staff layout. */
 export function useAddContext(): AddContextValue | null {
-  return React.useContext(AddContext)
+  const store = React.useContext(AddContext)
+  return React.useSyncExternalStore(store.subscribe, store.get, store.initial)
 }
 
 /**
@@ -151,7 +205,7 @@ export function useAddContext(): AddContextValue | null {
  * link to /staff.
  */
 export function useAdd(): ((opts?: OpenAddOptions) => void) | null {
-  return React.useContext(AddContext)?.openAdd ?? null
+  return useAddContext()?.openAdd ?? null
 }
 
 /**
@@ -162,7 +216,7 @@ export function useAddQueue(): {
   openAdd: (opts?: OpenAddOptions) => void
   onReady: (listener: AddReadyListener) => () => void
 } | null {
-  const add = React.useContext(AddContext)
+  const add = useAddContext()
   return React.useMemo(
     () =>
       add
@@ -179,7 +233,7 @@ export function useAddQueue(): {
 
 /** Tell Add that these photos were labelled elsewhere (no-op outside the staff layout). */
 export function useAddLabelled(): (assetIds: string[]) => void {
-  return React.useContext(AddContext)?.labelled ?? noop
+  return useAddContext()?.labelled ?? noop
 }
 
 /**
@@ -187,7 +241,7 @@ export function useAddLabelled(): (assetIds: string[]) => void {
  * (no-op outside the staff layout).
  */
 export function useAddDiscarded(): (assetIds: string[]) => void {
-  return React.useContext(AddContext)?.discarded ?? noop
+  return useAddContext()?.discarded ?? noop
 }
 
 function noop() {}
@@ -197,7 +251,7 @@ function noop() {}
  * outside the staff layout.
  */
 export function useAddActive(): number | null {
-  return React.useContext(AddContext)?.active ?? null
+  return useAddContext()?.active ?? null
 }
 
 /**
@@ -205,16 +259,16 @@ export function useAddActive(): number | null {
  * or null outside the staff layout.
  */
 export function useAddFailed(): number | null {
-  return React.useContext(AddContext)?.failed ?? null
+  return useAddContext()?.failed ?? null
 }
 
 /** Add offers dish photos (R8 says the person can upload and label). */
 export function useAddDish(): boolean {
-  return React.useContext(AddContext)?.intents?.includes("dish") ?? false
+  return useAddContext()?.intents?.includes("dish") ?? false
 }
 
 export function useAddRefreshSignal(): number {
-  return React.useContext(AddContext)?.refreshSignal ?? 0
+  return useAddContext()?.refreshSignal ?? 0
 }
 
 /**
@@ -223,7 +277,7 @@ export function useAddRefreshSignal(): number {
  * profile's own upload lives.
  */
 export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
-  const add = React.useContext(AddContext)
+  const add = useAddContext()
   const openAdd = add?.openAdd ?? null
   const busy = add?.busy
   const label = kind === "tab" ? "Add" : "Add photos"

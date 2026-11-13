@@ -130,11 +130,18 @@ function useOfflineTimes(
     }
   }, [])
 
-  return {
-    loadedAt: stamp.at ? new Date(stamp.at) : null,
-    offlineSince,
-    loadedOffline,
-  }
+  // One object per actual change: this value sits in a context above the
+  // page's streamed Suspense boundaries, and a new object there while a
+  // boundary is still waiting makes React render that boundary again in the
+  // browser beside the server's copy (see add-context.tsx).
+  return React.useMemo(
+    () => ({
+      loadedAt: stamp.at ? new Date(stamp.at) : null,
+      offlineSince,
+      loadedOffline,
+    }),
+    [stamp.at, offlineSince, loadedOffline]
+  )
 }
 /**
  * Wraps a signed-in page's content. While offline it shows one OfflineNotice

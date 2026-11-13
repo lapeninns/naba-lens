@@ -1908,8 +1908,11 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
     }
   })
 
-  it("crosses chunk edges with equal times and cursors on rejected or deleted rows", () => {
-    const cases: Case[] = [
+  // The chunk-edge walks run one caller per test: each compares every page
+  // with the slow base body, and together they outran one 600 s limit on the
+  // hosted runner. Cases and coverage are unchanged.
+  const chunkEdgeCases = (): Case[] =>
+    [
       { filters: {} },
       ...[
         "not_granted",
@@ -1938,27 +1941,39 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
         id: deletedCursor.id,
       },
     ].map((x) => ({ ...x, limits: [1, 2, 24, 48], max: 40 }))
-    // Each caller's walks return rows across the edges (the grant holder's
-    // through its own uploads, the manager's through its manager-era ones).
-    // The grant holder walks at 24 and 48 a page (22 pages of 24 pass the
-    // 525 edge); limit 1 and 2 are the manager's and the admin's.
-    for (const [who, list] of [
-      [c.manager, cases],
-      [c.staffManager, cases.map((x) => ({ ...x, limits: [24, 48], max: 25 }))],
-    ] as const) {
-      const d = compareBodies(who.id, list)
-      expectSame(d)
-      expect(d.rows, who.id).toBeGreaterThan(500)
-    }
+
+  // Each caller's walks return rows across the edges (the grant holder's
+  // through its own uploads, the manager's through its manager-era ones).
+  // The grant holder walks at 24 and 48 a page (22 pages of 24 pass the
+  // 525 edge); limit 1 and 2 are the manager's and the admin's.
+  it("crosses chunk edges with equal times and cursors on rejected or deleted rows: manager account", () => {
+    const d = compareBodies(c.manager.id, chunkEdgeCases())
+    expectSame(d)
+    expect(d.rows, c.manager.id).toBeGreaterThan(500)
+  }, 600_000)
+
+  it("crosses chunk edges with equal times and cursors on rejected or deleted rows: legacy grant holder", () => {
+    const d = compareBodies(
+      c.staffManager.id,
+      chunkEdgeCases().map((x) => ({ ...x, limits: [24, 48], max: 25 }))
+    )
+    expectSame(d)
+    expect(d.rows, c.staffManager.id).toBeGreaterThan(500)
+  }, 600_000)
+
+  it("crosses chunk edges with equal times and cursors on rejected or deleted rows: admin", () => {
     expectSame(
       compareBodies(
         c.admin.id,
-        cases.map((x) => ({
+        chunkEdgeCases().map((x) => ({
           ...x,
           filters: { venue: c.venue, ...(x.filters as object) },
         }))
       )
     )
+  }, 600_000)
+
+  it("pages not_granted across the granted ranks and keeps scheduled grants unsettled", () => {
     // The not_granted pages hold the rows at ranks 24-26, 124-126, 524-525,
     // then 538 on (the SQL rights terms skip the granted ranks between), for
     // the manager and for the grant holder alike.
