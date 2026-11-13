@@ -135,6 +135,17 @@ const postLaunch =
   one(
     `select exists (select 1 from public.media_use_grants where request_key = 'perfb05p0000000001')`
   )[0] === "t"
+// tests/perf/b05-coverage-world.sql (rows md5('perfb05c:<key>')::uuid) loaded
+// on top: coverage evidence at a production-like volume at the big venue.
+const cid = (k) => {
+  const h = createHash("md5").update(`perfb05c:${k}`).digest("hex")
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
+const coverageWorld =
+  diffWorld &&
+  one(
+    `select exists (select 1 from public.coverage_submissions where id = '${cid("csub-0001")}')`
+  )[0] === "t"
 const personD = (key) => {
   const [id, venueId, role, displayName] = one(
     `select p.id, p.venue_id, p.role, p.display_name from public.profiles p join auth.users u on u.id = p.id
@@ -497,6 +508,16 @@ try {
       `select li.item_id from public.media_label_items li join public.media_assets a on a.id = li.asset_id
        where a.uploader_id = '${P.managerBig.id}' and a.uploader_role is null group by 1 order by count(*) desc limit 1`
     )[0]
+    // The venue's least-labelled variant (labels plus menu decisions; ties
+    // by id): a variant filter that matches almost nothing.
+    const rareVariant = (venueId) =>
+      one(
+        `select x.v from (
+           select li.variant_id as v from public.media_label_items li where li.venue_id = '${venueId}' and li.variant_id is not null
+           union all
+           select mp.variant_id from public.menu_item_photos mp where mp.venue_id = '${venueId}' and mp.variant_id is not null) x
+         group by 1 order by count(*), 1 limit 1`
+      )[0]
     const acceptedItem = (venueId) =>
       one(
         `select item_id from public.menu_item_photos where venue_id = '${venueId}' and state = 'accepted' group by 1 order by count(*) desc, 1 limit 1`
@@ -512,6 +533,7 @@ try {
       ["date range, 18 to 12 months ago", days(m18, m12)],
       ["item, popular", { item: popularItem(venueId) }],
       ["variant, popular", { variant: variantOf(venueId) }],
+      ["variant, rare (fewest labels)", { variant: rareVariant(venueId) }],
       ["check / task, no evidence anywhere", { check: NOMATCH }],
       [
         "submission (coverage), unknown id",
@@ -532,6 +554,13 @@ try {
         "menu decision = accepted + item",
         { menuState: "accepted", item: acceptedItem(venueId) },
       ],
+      // Rare decision states (a few hundred, or none, in the estate).
+      ...[
+        "better_photo_requested",
+        "needs_recheck",
+        "withdrawn",
+        "invalidated",
+      ].map((st) => [`menu decision = ${st}`, { menuState: st }]),
       ...(diffWorld
         ? (() => {
             const k = venueId === P.managerSmall.venueId ? "small" : "big"
@@ -547,6 +576,15 @@ try {
               [
                 "check / coverage requirement, real evidence",
                 { check: did(`req-${k}-vs`) },
+              ],
+              [
+                "submission (coverage), real evidence",
+                {
+                  submission: {
+                    source: "coverage",
+                    id: did(`csub-${k}-vs`),
+                  },
+                },
               ],
               [
                 "submission (amenity), real evidence",
@@ -725,6 +763,32 @@ try {
             a,
             run(a, { filters })
           )
+      }
+      if (coverageWorld) {
+        // 30,000 coverage items at the big venue: the candidate statements
+        // read the venue's items (manager) or the table (admin) once a call.
+        const x = await actorFor("admin")
+        for (const [who, actor, extra] of [
+          ["managerBig", a, {}],
+          ["admin", x, {}],
+          ["admin, venue = big", x, { venue: P.managerBig.venueId }],
+        ])
+          for (const [label, filters] of [
+            [
+              "submission (coverage), 30 items of 30,000",
+              { submission: { source: "coverage", id: cid("csub-0001") } },
+            ],
+            [
+              "check / coverage requirement, 1,500 items",
+              { check: cid("req-01") },
+            ],
+          ])
+            await measure(
+              `coverage world ${who}: ${label}`,
+              "search-coverage",
+              actor,
+              run(actor, { filters: { ...extra, ...filters } })
+            )
       }
       // Thumbnail gate's search arm alone (asset_search_can_open), visible and vetoed.
       const vis = ids(
@@ -1077,7 +1141,7 @@ try {
     const arr = (v) =>
       v == null ? "null::uuid[]" : `'{${v.join(",")}}'::uuid[]`
     const bool = (b) => (b ? "true" : "false")
-    const chunkSql = (c) => {
+    const subst = (text, c) => {
       const vals = {
         v_admin: bool(c.admin),
         v_venue: lit(c.venue, "uuid"),
@@ -1089,6 +1153,10 @@ try {
         v_check_ids: arr(c.checkIds),
         v_submission_ids: arr(c.submissionIds),
         v_group_ids: arr(c.groupIds),
+        v_menu_ids: arr(c.menuIds),
+        v_in_venue: bool(c.inVenue ?? true),
+        v_more: bool(c.more ?? true),
+        v_ids: arr(c.ids ?? []),
         v_group: lit(c.group, "uuid"),
         v_menu_state: lit(c.menuState, "text"),
         v_item: lit(c.item, "uuid"),
@@ -1105,11 +1173,40 @@ try {
         v_can_review: bool(c.canReview),
         v_chunk: String(c.chunk ?? 25),
       }
-      return chunkText.replace(/\bv_[a-z_]+\b/g, (m) => {
-        if (!(m in vals)) throw new Error(`chunk statement: unmapped ${m}`)
+      return text.replace(/\bv_[a-z_]+\b/g, (m) => {
+        if (!(m in vals)) throw new Error(`statement: unmapped ${m}`)
         return vals[m]
       })
     }
+    const chunkSql = (c) => subst(chunkText, c)
+    // The candidate statements (select coalesce(array_agg(..)) into v_x ...)
+    // and the item block (return jsonb_build_object(..)), cut from the
+    // migration the same way: they run under the same SET clause.
+    const fnFrom = mig.indexOf("create function public.asset_search(")
+    const fnTo = mig.indexOf("\n$$;", fnFrom)
+    const fnText = mig.slice(fnFrom, fnTo)
+    const candText = (target) => {
+      const at = fnText.indexOf(` into ${target}\n`)
+      const from = fnText.lastIndexOf("select coalesce(array_agg(", at)
+      const to = fnText.indexOf(";\n", at)
+      if (at < 0 || from < 0 || to < 0)
+        throw new Error(`no candidate statement for ${target}`)
+      return fnText
+        .slice(from, to)
+        .replace(` into ${target}`, "")
+        .replace(/--[^\n]*/g, "")
+    }
+    const candSql = (target, c) => subst(candText(target), c)
+    const candIds = (target, c) => ids(`select unnest((${candSql(target, c)}))`)
+    const itemsText = (() => {
+      const from = fnText.indexOf("  return jsonb_build_object(\n")
+      if (from < 0) throw new Error("no item block")
+      return fnText
+        .slice(from + "  return ".length)
+        .replace(/;\s*end;\s*$/, "")
+        .replace(/--[^\n]*/g, "")
+    })()
+    const itemsSql = (c) => `select ${subst(itemsText, c)}`
     const callerConst = (p) => ({
       admin: false,
       venue: p.venueId,
@@ -1286,14 +1383,205 @@ try {
         call("search-call-grantee-no-filter", P.grantee, {})
       )
     }
+    // Variant alone and rare decision states (finding 1 of the round 3
+    // review), the candidate statements and the item block (finding 2).
+    {
+      const bigV = P.managerBig.venueId
+      const rv = one(
+        `select x.v from (
+           select li.variant_id as v from public.media_label_items li where li.venue_id = '${bigV}' and li.variant_id is not null
+           union all
+           select mp.variant_id from public.menu_item_photos mp where mp.venue_id = '${bigV}' and mp.variant_id is not null) x
+         group by 1 order by count(*), 1 limit 1`
+      )[0]
+      const pv = one(
+        `select variant_id from public.media_label_items where venue_id = '${bigV}' and variant_id is not null group by 1 order by count(*) desc, 1 limit 1`
+      )[0]
+      const adminV = { ...admC, variant: rv }
+      const mBV = { ...mB, variant: rv }
+      chunk.push(
+        [
+          "cand-admin-variant-rare",
+          t.admin.id,
+          "postgres",
+          candSql("v_menu_ids", adminV),
+        ],
+        [
+          "cand-manager-big-variant-rare",
+          P.managerBig.id,
+          "postgres",
+          candSql("v_menu_ids", mBV),
+        ],
+        [
+          "cand-admin-variant-popular",
+          t.admin.id,
+          "postgres",
+          candSql("v_menu_ids", { ...admC, variant: pv }),
+        ],
+        [
+          "chunk-admin-variant-rare",
+          t.admin.id,
+          "postgres",
+          chunkSql({ ...adminV, menuIds: candIds("v_menu_ids", adminV) }),
+        ],
+        [
+          "chunk-manager-big-variant-rare",
+          P.managerBig.id,
+          "postgres",
+          chunkSql({ ...mBV, menuIds: candIds("v_menu_ids", mBV) }),
+        ],
+        [
+          "chunk-admin-variant-popular",
+          t.admin.id,
+          "postgres",
+          chunkSql({
+            ...admC,
+            variant: pv,
+            menuIds: candIds("v_menu_ids", { ...admC, variant: pv }),
+          }),
+        ],
+        ...["needs_recheck", "withdrawn", "accepted"].flatMap((st) => {
+          const tag = st.replace("_", "-")
+          const ad = { ...admC, menuState: st }
+          const mg = { ...mB, menuState: st }
+          return [
+            [
+              `cand-admin-menu-state-${tag}`,
+              t.admin.id,
+              "postgres",
+              candSql("v_menu_ids", ad),
+            ],
+            [
+              `cand-manager-big-menu-state-${tag}`,
+              P.managerBig.id,
+              "postgres",
+              candSql("v_menu_ids", mg),
+            ],
+            [
+              `chunk-admin-menu-state-${tag}`,
+              t.admin.id,
+              "postgres",
+              chunkSql({ ...ad, menuIds: candIds("v_menu_ids", ad) }),
+            ],
+            [
+              `chunk-manager-big-menu-state-${tag}`,
+              P.managerBig.id,
+              "postgres",
+              chunkSql({ ...mg, menuIds: candIds("v_menu_ids", mg) }),
+            ],
+          ]
+        }),
+        call("search-call-admin-variant-rare", t.admin, { variant: rv }),
+        call("search-call-admin-menu-state-withdrawn", t.admin, {
+          menuState: "withdrawn",
+        })
+      )
+      const page48 = ids(
+        `select a.id from public.media_assets a where a.${READY} order by a.created_at desc, a.id desc limit 48`
+      )
+      chunk.push([
+        "items-admin-48",
+        t.admin.id,
+        "postgres",
+        itemsSql({ ...admC, ids: page48, more: true }),
+      ])
+      if (diffWorld) {
+        const big = { ...mB, inVenue: true }
+        chunk.push(
+          [
+            "cand-manager-big-check-amenity",
+            P.managerBig.id,
+            "postgres",
+            candSql("v_check_ids", { ...big, check: did("chk-big-out") }),
+          ],
+          [
+            "cand-manager-big-check-coverage",
+            P.managerBig.id,
+            "postgres",
+            candSql("v_check_ids", { ...big, check: did("req-big-vs") }),
+          ],
+          [
+            "cand-admin-check-coverage",
+            t.admin.id,
+            "postgres",
+            candSql("v_check_ids", { ...admC, check: did("req-big-vs") }),
+          ],
+          [
+            "cand-manager-big-submission-coverage",
+            P.managerBig.id,
+            "postgres",
+            candSql("v_submission_ids", {
+              ...big,
+              submissionSource: "coverage",
+              submissionId: did("csub-big-vs"),
+            }),
+          ],
+          [
+            "cand-admin-submission-coverage",
+            t.admin.id,
+            "postgres",
+            candSql("v_submission_ids", {
+              ...admC,
+              submissionSource: "coverage",
+              submissionId: did("csub-big-vs"),
+            }),
+          ],
+          [
+            "cand-manager-big-group",
+            P.managerBig.id,
+            "postgres",
+            candSql("v_group_ids", { ...big, group: groupId("perfb05-g10") }),
+          ]
+        )
+      }
+      if (coverageWorld) {
+        const big = { ...mB, inVenue: true }
+        const sub = {
+          submissionSource: "coverage",
+          submissionId: cid("csub-0001"),
+        }
+        chunk.push(
+          [
+            "cand-cov-manager-big-submission",
+            P.managerBig.id,
+            "postgres",
+            candSql("v_submission_ids", { ...big, ...sub }),
+          ],
+          [
+            "cand-cov-admin-submission",
+            t.admin.id,
+            "postgres",
+            candSql("v_submission_ids", { ...admC, ...sub }),
+          ],
+          [
+            "cand-cov-manager-big-requirement",
+            P.managerBig.id,
+            "postgres",
+            candSql("v_check_ids", { ...big, check: cid("req-01") }),
+          ],
+          [
+            "cand-cov-admin-requirement",
+            t.admin.id,
+            "postgres",
+            candSql("v_check_ids", { ...admC, check: cid("req-01") }),
+          ],
+          call("search-call-cov-manager-big-submission", P.managerBig, {
+            submission: { source: "coverage", id: cid("csub-0001") },
+          }),
+          call("search-call-cov-admin-submission", t.admin, {
+            submission: { source: "coverage", id: cid("csub-0001") },
+          })
+        )
+      }
+    }
     const S = [
       ...S0.filter(([n]) => V1_INNER || !n.startsWith("search-inner-")),
       ...chunk,
     ]
     const label = (sub) =>
       Object.entries(P).find(([, p]) => p.id === sub)?.[0] ?? sub
-    // The chunk statements run inside public.asset_search, under its SET
-    // clause: the same planner settings (not search_path; the statement is
+    // The chunk, candidate and item statements run inside
+    // public.asset_search, under its SET clause: the same planner settings (not search_path; the statement is
     // schema-qualified) are set for their EXPLAIN.
     const fnSettings = installed.config
       .filter((c) => !c.startsWith("search_path="))
@@ -1307,7 +1595,7 @@ try {
       const script = `begin;
 ${role === "authenticated" ? "set local role authenticated;" : ""}
 set local statement_timeout = '120s';
-${name.startsWith("chunk-") ? fnSettings : ""}
+${/^(chunk|cand|items)-/.test(name) ? fnSettings : ""}
 select set_config('request.jwt.claims', '{"sub":"${sub}","role":"authenticated","aud":"authenticated"}', true) \\gset
 select set_config('request.jwt.claim.sub', '${sub}', true) \\gset
 explain (analyze, buffers, settings, verbose false) ${sql};

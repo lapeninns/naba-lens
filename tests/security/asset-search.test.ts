@@ -1113,6 +1113,9 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
   const T0 = "2021-07-01T10:00:00.000Z"
   const T1 = "2021-07-01T10:00:01.000Z"
   const DEST_C = `test_srcc_${run}`
+  // A second chunk-world destination: grants scheduled there beside one in
+  // force at DEST_C must not pass destination = DEST_C2.
+  const DEST_C2 = `test_srcd_${run}`
 
   beforeAll(async () => {
     e = await world("b05-srch-e", { extra: ["outdoor_seating"] })
@@ -1185,6 +1188,18 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       catalogue: version,
     })
     fx.decisionOnly = decided.id
+    // A variant on a label only (Lamb; Chicken is on a decision only), so the
+    // variant filter's label and decision sides each have a row of their own.
+    const lamb = await reserveReady(service, e.staffB)
+    await saveOk(e.staffB, {
+      asset: lamb.id,
+      revision: 0,
+      items: [
+        { itemId: korma.itemId, variantId: korma.variants[1]!.variantId },
+      ],
+      catalogue: version,
+    })
+    fx.variantLabelOnly = lamb.id
     for (const [key, type, types] of [
       ["foodImage", "image", ["dish"]],
       ["foodVideo", "video", ["drinks"]],
@@ -1316,7 +1331,8 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
     c = await world("b05-srch-c")
     psql(`insert into public.media_use_destinations
         (key, label, audience, venue_id, owner_workstream, requires_derivative, active) values
-      ('${DEST_C}', 'TEST search chunks ${run}', 'internal', '${c.venue}', 'WS5', false, true)`)
+      ('${DEST_C}', 'TEST search chunks ${run}', 'internal', '${c.venue}', 'WS5', false, true),
+      ('${DEST_C2}', 'TEST search chunks two ${run}', 'internal', '${c.venue}', 'WS5', false, true)`)
     psql(`
       create temp table chunk_rows as
         select gen_random_uuid() as id, n,
@@ -1385,6 +1401,21 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
           'TESTchunks' || replace(r.id::text, '-', ''), now() - interval '2 minutes'
         from chunk_ranked r
         where r.rank in (10, 25, 125, 525, 536, 537, 540, 541);
+      -- scheduled beside a withdrawn grant (531, 532: still withdrawn, the
+      -- scheduled one is not in force), and at DEST_C2 beside one in force at
+      -- DEST_C (23, 27, 123, 127, 523: in force, but not at DEST_C2); 300
+      -- and 301 also hold one in force at DEST_C2.
+      insert into public.media_use_grants (asset_id, venue_id, destination_key, audience, purpose,
+          subject_kind, effective_from, effective_until, authorised_by, authority_basis,
+          clearance_version, clearance, request_key, created_at)
+        select r.id, '${c.venue}',
+          case when r.rank in (531, 532) then '${DEST_C}' else '${DEST_C2}' end,
+          'internal', 'general_gallery', 'none',
+          case when r.rank in (300, 301) then now() - interval '2 hours' else now() + interval '1 day' end,
+          null, '${c.admin.id}', 'admin', '${VERSION}', '{"a_ok": true}',
+          'TESTchunkd' || replace(r.id::text, '-', ''), now() - interval '4 minutes'
+        from chunk_ranked r
+        where r.rank in (23, 27, 123, 127, 300, 301, 523, 531, 532);
       -- Legacy rows: n % 8 = 0-1 no grant, 2-3 scheduled only, 4-5 scheduled
       -- and expired, 6-7 in force; 0-7 the manager's, 8-15 the grant holder's.
       create temp table chunk_legacy as
@@ -1438,6 +1469,29 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
           where g.request_key like 'TESTchunks%' and a.uploader_id = '${c.manager.id}'
             and exists (select 1 from public.media_use_grants o where o.asset_id = g.asset_id
               and o.effective_until is not null and o.effective_until <= now())`,
+      ],
+      [
+        "withdrawnScheduled",
+        `select string_agg(g.asset_id::text, ',' order by g.asset_id) from public.media_use_grants g
+          join public.media_assets a on a.id = g.asset_id
+          where g.request_key like 'TESTchunkd%' and a.uploader_id = '${c.manager.id}'
+            and g.effective_from > now()
+            and exists (select 1 from public.media_use_grants o
+              join public.media_use_grant_withdrawals w on w.grant_id = o.id where o.asset_id = g.asset_id)`,
+      ],
+      [
+        "scheduledElsewhere",
+        `select string_agg(g.asset_id::text, ',' order by g.asset_id) from public.media_use_grants g
+          join public.media_assets a on a.id = g.asset_id
+          where g.request_key like 'TESTchunkd%' and a.uploader_id = '${c.manager.id}'
+            and g.destination_key = '${DEST_C2}' and g.effective_from > now()`,
+      ],
+      [
+        "inForceC2",
+        `select string_agg(g.asset_id::text, ',' order by g.asset_id) from public.media_use_grants g
+          join public.media_assets a on a.id = g.asset_id
+          where g.request_key like 'TESTchunkd%' and a.uploader_id = '${c.manager.id}'
+            and g.destination_key = '${DEST_C2}' and g.effective_from <= now()`,
       ],
       [
         "legacyOpen",
@@ -1499,6 +1553,8 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       { filters: { item: pie.itemId } },
       { filters: { item: korma.itemId } },
       { filters: { variant: chicken } },
+      { filters: { variant: korma.variants[1]!.variantId } },
+      { filters: { variant: randomUUID() } },
       { filters: { item: korma.itemId, variant: chicken } },
       { filters: { item: korma.itemId, menuState: "accepted" } },
       { filters: { item: korma.itemId, menuState: "invalidated" } },
@@ -1756,6 +1812,7 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
         "expired",
       ].map((r) => ({ filters: { rights: r } })),
       { filters: { rights: "in_force", destination: DEST_C } },
+      { filters: { rights: "in_force", destination: DEST_C2 } },
       { filters: { rights: "not_granted", mediaType: "image" } },
       {
         filters: { rights: "not_granted" },
@@ -1848,11 +1905,27 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
     expect(chunkFx.legacyOpen).toHaveLength(2)
     expect(chunkFx.legacyScheduled).toHaveLength(4)
     expect(chunkFx.legacyScheduledExpired).toHaveLength(2)
+    expect(chunkFx.withdrawnScheduled).toHaveLength(2)
+    expect(chunkFx.scheduledElsewhere).toHaveLength(5)
+    expect(chunkFx.inForceC2).toHaveLength(2)
     const notGranted = walk({ rights: "not_granted" })
     expect(notGranted).toEqual(expect.arrayContaining(chunkFx.scheduledNone!))
     const legacy = walk({ rights: "legacy_unknown" })
     expect([...legacy].sort()).toEqual(
       [...chunkFx.legacyOpen!, ...chunkFx.legacyScheduled!].sort()
+    )
+    // A scheduled grant is not in force: beside a withdrawn grant the row
+    // stays withdrawn, and one scheduled at DEST_C2 beside one in force at
+    // DEST_C does not pass destination = DEST_C2.
+    const withdrawn = walk({ rights: "withdrawn" })
+    expect(withdrawn).toEqual(
+      expect.arrayContaining(chunkFx.withdrawnScheduled!)
+    )
+    expect(
+      [...walk({ rights: "in_force", destination: DEST_C2 })].sort()
+    ).toEqual([...chunkFx.inForceC2!].sort())
+    expect(walk({ rights: "in_force" })).toEqual(
+      expect.arrayContaining(chunkFx.scheduledElsewhere!)
     )
     const expired = walk({ rights: "expired" })
     expect(expired).toEqual(
@@ -1881,6 +1954,91 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       select private.asset_search_admits_shipped(p_asset, p_admin, p_venue_id)
         and abs(hashtext(p_asset.id::text)::bigint) % 4 = 0
     $g$;`
+
+  // The shipped public.asset_search with one line added at the start of each
+  // chunk: the chunk size, appended to b05.chunks. Installed as the owner in
+  // a rolled-back transaction, so a page's chunk sizes can be read back. The
+  // rest of the body is the migration's text, its growth line included.
+  const CHUNK_MARK = "      v_seen := 0;\n"
+  const COUNTED_SEARCH = (() => {
+    const fn = searchFunction(
+      readFileSync(join(repoRoot, SEARCH_MIGRATION), "utf8"),
+      "the migration"
+    )
+    const at = fn.indexOf(CHUNK_MARK)
+    if (at < 0 || fn.indexOf(CHUNK_MARK, at + 1) >= 0)
+      throw new Error("chunk start not found once in public.asset_search")
+    return `${fn
+      .slice(0, at + CHUNK_MARK.length)
+      .replace(
+        "create function public.asset_search(",
+        "create or replace function public.asset_search("
+      )}      perform set_config('b05.chunks',
+        coalesce(current_setting('b05.chunks', true), '') || v_chunk || ',', true);
+${fn.slice(at + CHUNK_MARK.length)};`
+  })()
+  // Chunk sizes by the scope (OD-B5-PERF-6): limit + 1, then x4, at most
+  // 4000; written out here, not read from the migration.
+  const chunkSizes = (limit: number, n: number) => {
+    const out: number[] = []
+    for (let c = limit + 1; out.length < n; c = Math.min(c * 4, 4000))
+      out.push(c)
+    return out
+  }
+  // A page that read r rows issued chunks c1..ck: the sizes are the scope's
+  // sequence and the rows read reach into the last chunk (or the last one
+  // came back short, when the one before ended exactly at the last row).
+  const expectChunks = (limit: number, chunks: number[], reads: number) => {
+    expect(chunks.length).toBeGreaterThan(0)
+    expect(chunks).toEqual(chunkSizes(limit, chunks.length))
+    const before = chunks.slice(0, -1).reduce((x, y) => x + y, 0)
+    expect(reads).toBeGreaterThanOrEqual(before)
+    expect(reads).toBeLessThanOrEqual(before + chunks.at(-1)!)
+  }
+  /** As the manager, in one rolled-back transaction after `setup` (as the
+   * owner) and the counted body: per page, the rows read (gate calls) and the
+   * chunk sizes issued. */
+  const pageReads = (
+    setup: string,
+    filters: unknown,
+    limit: number,
+    pages: number
+  ) =>
+    JSON.parse(
+      psql(`begin;
+        set local statement_timeout = 0;
+        set local track_functions = 'all';
+        ${setup}
+        ${COUNTED_SEARCH}
+        create function pg_temp.reads(p_filters jsonb, p_limit integer, p_pages integer)
+        returns jsonb language plpgsql as $f$
+        declare
+          v_page jsonb; v_at timestamptz; v_id uuid; v_out jsonb := '[]'; v_n bigint; v_m bigint;
+        begin
+          for i in 1 .. p_pages loop
+            perform set_config('b05.chunks', '', true);
+            select coalesce(sum(calls), 0) into v_n from pg_stat_xact_user_functions
+              where schemaname = 'private' and funcname = 'asset_search_admits';
+            v_page := public.asset_search(p_filters, v_at, v_id, p_limit);
+            select coalesce(sum(calls), 0) into v_m from pg_stat_xact_user_functions
+              where schemaname = 'private' and funcname = 'asset_search_admits';
+            v_out := v_out || jsonb_build_object('reads', v_m - v_n,
+              'items', jsonb_array_length(v_page -> 'items'),
+              'chunks', to_jsonb(string_to_array(rtrim(current_setting('b05.chunks'), ','), ',')::int[]));
+            exit when not (v_page ->> 'hasMore')::boolean;
+            v_at := (v_page -> 'items' -> -1 ->> 'uploadedAt')::timestamptz;
+            v_id := (v_page -> 'items' -> -1 ->> 'id')::uuid;
+          end loop;
+          return v_out;
+        end $f$;
+        grant execute on function pg_temp.reads(jsonb, integer, integer) to authenticated;
+        select set_config('request.jwt.claims', '{"sub":"${c.manager.id}","role":"authenticated"}', true) is null;
+        set local role authenticated;
+        select pg_temp.reads('${JSON.stringify(filters)}', ${limit}, ${pages});
+        rollback;`)
+        .split("\n")
+        .at(-1)!
+    ) as { reads: number; items: number; chunks: number[] }[]
 
   it("crosses chunk edges where the gate refuses rows P keeps", () => {
     const cases: Case[] = [
@@ -1913,50 +2071,58 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
         STRICT_GATE
       )
     )
-    // Rows each call read (one gate call per row read), page by page: a page
-    // of 24 reads past its first chunk of 25; walks at 1 a page (chunks of 2,
-    // 8, 32, ...) read past the second chunk (more than 10 rows) at least
-    // once.
-    const reads = (limit: number, pages: number) =>
-      JSON.parse(
-        psql(`begin;
-          ${STRICT_GATE}
-          create function pg_temp.reads(p_limit integer, p_pages integer)
-          returns jsonb language plpgsql as $f$
-          declare
-            v_page jsonb; v_at timestamptz; v_id uuid; v_out jsonb := '[]'; v_n bigint; v_m bigint;
-          begin
-            for i in 1 .. p_pages loop
-              select coalesce(sum(calls), 0) into v_n from pg_stat_xact_user_functions
-                where schemaname = 'private' and funcname = 'asset_search_admits';
-              v_page := public.asset_search('{}', v_at, v_id, p_limit);
-              select coalesce(sum(calls), 0) into v_m from pg_stat_xact_user_functions
-                where schemaname = 'private' and funcname = 'asset_search_admits';
-              v_out := v_out || jsonb_build_object('reads', v_m - v_n,
-                'items', jsonb_array_length(v_page -> 'items'));
-              exit when not (v_page ->> 'hasMore')::boolean;
-              v_at := (v_page -> 'items' -> -1 ->> 'uploadedAt')::timestamptz;
-              v_id := (v_page -> 'items' -> -1 ->> 'id')::uuid;
-            end loop;
-            return v_out;
-          end $f$;
-          grant execute on function pg_temp.reads(integer, integer) to authenticated;
-          select set_config('request.jwt.claims', '{"sub":"${c.manager.id}","role":"authenticated"}', true) is null;
-          set local role authenticated;
-          select pg_temp.reads(${limit}, ${pages});
-          rollback;`)
-          .split("\n")
-          .at(-1)!
-      ) as { reads: number; items: number }[]
-    const of24 = reads(24, 3)
+    // Rows each call read (one gate call per row read) and the chunk sizes
+    // it issued, page by page: a page of 24 reads past its first chunk of 25;
+    // walks at 1 a page (chunks of 2, 8, 32, ...) read past the second chunk
+    // (more than 10 rows) at least once. Each page's chunks are the scope's
+    // sizes (limit + 1, x4), and its reads reach into the last one.
+    const of24 = pageReads(STRICT_GATE, {}, 24, 3)
     expect(of24.length).toBe(3)
     for (const p of of24) {
       expect(p.items).toBe(24)
       expect(p.reads).toBeGreaterThan(25)
+      expectChunks(24, p.chunks, p.reads)
     }
-    const of1 = reads(1, 60)
+    const of1 = pageReads(STRICT_GATE, {}, 1, 60)
     expect(of1.length).toBe(60)
     expect(Math.max(...of1.map((p) => p.reads))).toBeGreaterThan(10)
+    expect(Math.max(...of1.map((p) => p.chunks.length))).toBeGreaterThan(2)
+    for (const p of of1) expectChunks(1, p.chunks, p.reads)
+  }, 600_000)
+
+  // A gate that refuses every row, and 5,000 more manager-era uploads at the
+  // chunk venue (rolled back): one call reads every row P keeps, more than
+  // the 2,730 (limit 1), 2,125 (24) and 4,165 (48) rows before the chunk the
+  // x4 growth caps at 4000, so every limit reaches the cap.
+  it("grows chunks x4 up to 4000 rows", () => {
+    const REFUSE_ALL = `
+      alter function private.asset_search_admits(public.media_assets, boolean, uuid)
+        rename to asset_search_admits_shipped;
+      create function private.asset_search_admits(
+        p_asset public.media_assets, p_admin boolean, p_venue_id uuid)
+      returns boolean language sql stable security definer set search_path = '' cost 10000
+      as $g$ select false $g$;
+      create temp table chunk_more as
+        select gen_random_uuid() as id, n from generate_series(1, 5000) n;
+      insert into public.media_assets (id, uploader_id, venue_id, original_path, original_filename,
+          media_type, size_bytes, client_upload_key, uploader_role, created_at)
+        select r.id, '${c.manager.id}', '${c.venue}',
+          '${c.manager.id}/' || r.id || '/original.jpg', 'TEST chunk more.jpg', 'image', 4,
+          gen_random_uuid(), 'manager', now() - interval '1 day' - r.n * interval '1 second'
+        from chunk_more r;
+      update public.media_assets set upload_state = 'processing'
+        where id in (select id from chunk_more);
+      update public.media_assets set upload_state = 'ready', validated_mime_type = 'image/jpeg',
+          size_bytes = 4, width = 1, height = 1
+        where id in (select id from chunk_more);`
+    for (const limit of [1, 24, 48]) {
+      const [p, ...more] = pageReads(REFUSE_ALL, {}, limit, 1)
+      expect(more).toEqual([])
+      expect(p!.items).toBe(0)
+      expect(p!.reads).toBeGreaterThan(5000)
+      expect(p!.chunks).toContain(4000)
+      expectChunks(limit, p!.chunks, p!.reads)
+    }
   }, 600_000)
 
   it("admits a row only where the prefilter holds, with a fixture for every gate arm", () => {
@@ -1998,6 +2164,7 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       fx.managerOwn,
       fx.labelled,
       fx.decisionOnly,
+      fx.variantLabelOnly,
       fx.foodImage,
       fx.coverage,
       fx.factMedia,

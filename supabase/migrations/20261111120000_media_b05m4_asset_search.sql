@@ -23,8 +23,10 @@
 --   every validation, the check, submission and group filters become
 --   candidate id lists, read only at the searched venue (a check,
 --   submission or group of another venue reads no evidence rows; an empty
---   list returns an empty page without a scan). Rows are then read in keyset
---   chunks (limit + 1, x4, at most 4000) whose query carries the filters, the
+--   list returns an empty page without a scan), and so do menuState (its
+--   menu decisions) and a variant without item (its labels and menu
+--   decisions). Rows are then read in keyset chunks (limit + 1, x4, at most
+--   4000) whose query carries the filters, the
 --   exact grant side of each rights value and, for a manager, a necessary
 --   condition P of the gate built from caller constants and one existence
 --   probe per evidence or label table. The use state and
@@ -253,6 +255,7 @@ declare
   v_check_ids uuid[];
   v_submission_ids uuid[];
   v_group_ids uuid[];
+  v_menu_ids uuid[];
   v_in_venue boolean;
   v_row public.media_assets;
   v_scan_at timestamptz;
@@ -398,6 +401,26 @@ begin
     where v_in_venue and gm.group_id = v_group
       and (v_venue is null or gm.venue_id = v_venue);
   end if;
+  -- menuState: the assets with a decision in that state (and on the item
+  -- and/or variant asked); a variant without item: the assets labelled with
+  -- it or with a decision on it. Without the list a rare state or variant
+  -- reads the whole feed, and menu_item_photos has no variant index, so
+  -- under this function's settings its EXISTS on variant alone could not be
+  -- hashed and probed every row read. Decisions are read at the searched
+  -- venue (a decision shares its venue with the asset by composite FK).
+  if v_menu_state is not null or (v_variant is not null and v_item is null) then
+    select coalesce(array_agg(distinct x.asset_id), '{}') into v_menu_ids
+    from (
+      select mp.asset_id from public.menu_item_photos mp
+      where (v_venue is null or mp.venue_id = v_venue)
+        and (v_menu_state is null or mp.state = v_menu_state)
+        and (v_item is null or mp.item_id = v_item)
+        and (v_variant is null or mp.variant_id = v_variant)
+      union all
+      select li.asset_id from public.media_label_items li
+      where v_menu_state is null and li.variant_id = v_variant
+    ) x;
+  end if;
 
   -- Keyset chunks in feed order (limit + 1 rows, then x4, at most 4000). The
   -- chunk query holds the original filters, conditions the rights filter
@@ -410,7 +433,8 @@ begin
   v_scan_id := p_after_id;
   if coalesce(cardinality(v_check_ids), 1) > 0
      and coalesce(cardinality(v_submission_ids), 1) > 0
-     and coalesce(cardinality(v_group_ids), 1) > 0 then
+     and coalesce(cardinality(v_group_ids), 1) > 0
+     and coalesce(cardinality(v_menu_ids), 1) > 0 then
     v_chunk := v_limit + 1;
     <<scan>>
     loop
@@ -428,6 +452,7 @@ begin
           and (v_check_ids is null or a.id = any (v_check_ids))
           and (v_submission_ids is null or a.id = any (v_submission_ids))
           and (v_group_ids is null or a.id = any (v_group_ids))
+          and (v_menu_ids is null or a.id = any (v_menu_ids))
           and (v_group is null or exists (
             select 1 from public.media_contribution_group_members gm
             where gm.asset_id = a.id and gm.group_id = v_group))

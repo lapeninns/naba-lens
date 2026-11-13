@@ -14,11 +14,23 @@
 // analyzed. The body (--bodies, a commit or WORKTREE) is installed, and
 // use = legacy_unknown is called --n times as the manager after one warm-up
 // call: wall ms per call (clock_timestamp inside the transaction), the
-// venue's ready rows and the rows returned.
+// venue's ready rows and the rows returned. After each rolled-back run,
+// media_assets and the grant tables are vacuumed and analyzed (outside any
+// transaction): the aborted copies and their index entries would otherwise
+// sit in front of the next run's walk, and ANALYZE's estimates outlive the
+// rollback.
+//
+// --commit (repair 3; changes the load, reset the stack afterwards): the
+// settled and grown state is committed and vacuumed before timing, so the
+// timed calls read committed, all-visible rows as in a steady state. Per
+// factor: settle and grow (copy ids md5('perfb05s:' || source id)) in one
+// committed transaction, vacuum (analyze), time every body (installed in a
+// rolled-back transaction), then delete the copies and their grants and
+// vacuum again. The settling grants on the original rows stay.
 //
 //   source /tmp/nabalens-ws/<stack>/env.sh
 //   node tests/perf/b05-venue-scale.mjs --bodies WORKTREE --factors 0,0.5,1 \
-//     [--n 10] [--out <dir>]
+//     [--n 10] [--commit] [--out <dir>]
 import { execFileSync } from "node:child_process"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { loadavg } from "node:os"
@@ -34,6 +46,7 @@ const arg = (k, d) => {
 const BODIES = arg("bodies", "WORKTREE").split(",")
 const FACTORS = arg("factors", "0,0.5,1").split(",").map(Number)
 const N = Number(arg("n", 10))
+const COMMIT = argv.includes("--commit")
 const OUT = resolve(arg("out", "docs/perf/raw"))
 const MIGRATION =
   "supabase/migrations/20261111120000_media_b05m4_asset_search.sql"
@@ -91,7 +104,7 @@ const grow = (factor) =>
     ? ""
     : `
 create temp table scale_src on commit drop as
-  select a.id as src, gen_random_uuid() as id
+  select a.id as src, md5('perfb05s:' || a.id::text)::uuid as id
   from public.media_assets a
   where a.venue_id = '${venue}' and a.deleted_at is null and a.upload_state = 'ready'
     and abs(hashtext(a.id::text || 'scale')::bigint) % 1000 < ${Math.round(factor * 1000)};
@@ -141,20 +154,63 @@ const pct = (xs, p) => {
   )
 }
 
+const VACUUM = `vacuum (analyze) public.media_assets, public.media_use_grants,
+  public.media_use_grant_withdrawals;`
+const vacuum = () =>
+  psql(env.dbUrl, ["-At", "-v", "ON_ERROR_STOP=1"], { input: VACUUM })
+// Copies (ids md5('perfb05s:' || source id)) and their grants, committed.
+const DROP_COPIES = `begin;
+set local statement_timeout = 0;
+set local session_replication_role = replica;
+create temp table scale_copies on commit drop as
+  select c.id from public.media_assets s
+  join public.media_assets c on c.id = md5('perfb05s:' || s.id::text)::uuid
+  where s.venue_id = '${venue}';
+delete from public.media_use_grant_withdrawals w using public.media_use_grants g
+  where w.grant_id = g.id and g.asset_id in (select id from scale_copies);
+delete from public.media_use_grants g where g.asset_id in (select id from scale_copies);
+delete from public.media_assets a where a.id in (select id from scale_copies);
+commit;`
+
 const loadStart = loadavg()
 const results = []
-for (const body of BODIES) {
-  for (const factor of FACTORS) {
-    const out = psql(env.dbUrl, ["-At", "-v", "ON_ERROR_STOP=1"], {
+const runs = COMMIT
+  ? FACTORS.flatMap((factor) => BODIES.map((body) => ({ body, factor })))
+  : BODIES.flatMap((body) => FACTORS.map((factor) => ({ body, factor })))
+let grown = null
+for (const [i, { body, factor }] of runs.entries()) {
+  if (COMMIT && grown !== factor) {
+    if (grown !== null) {
+      psql(env.dbUrl, ["-At", "-v", "ON_ERROR_STOP=1"], { input: DROP_COPIES })
+      vacuum()
+    }
+    psql(env.dbUrl, ["-At", "-v", "ON_ERROR_STOP=1"], {
       input: `begin;
 set local statement_timeout = 0;
 set local session_replication_role = replica;
 ${settle("a")}
 ${grow(factor)}
 ${settle("b")}
+commit;`,
+    })
+    vacuum()
+    grown = factor
+  }
+  {
+    const out = psql(env.dbUrl, ["-At", "-v", "ON_ERROR_STOP=1"], {
+      input: `begin;
+set local statement_timeout = 0;
+${
+  COMMIT
+    ? ""
+    : `set local session_replication_role = replica;
+${settle("a")}
+${grow(factor)}
+${settle("b")}
 set local session_replication_role = origin;
 analyze public.media_assets;
-analyze public.media_use_grants;
+analyze public.media_use_grants;`
+}
 ${definition(body)};
 select 'B|' || md5(prosrc) || '|' || md5(pg_get_functiondef(oid)) || '|' || array_to_string(proconfig, ',')
   from pg_proc where oid = 'public.asset_search(jsonb,timestamptz,uuid,integer)'::regprocedure;
@@ -180,6 +236,9 @@ rollback;
     const v = JSON.parse(lines.find((l) => l.startsWith("V|")).slice(2))
     const r = JSON.parse(lines.find((l) => l.startsWith("R|")).slice(2))
     const entry = {
+      order: i + 1,
+      committed: COMMIT,
+      loadAverage1m: loadavg()[0],
       body,
       installed: {
         assetSearchProsrcMd5: src,
@@ -197,9 +256,15 @@ rollback;
     }
     results.push(entry)
     console.error(
-      `${body.padEnd(9)} factor ${factor}  ready ${v.ready}  legacy ${v.legacy} (unsettled ${v.legacyUnsettled})  rows ${r.rows}  p50 ${entry.p50}  p95 ${entry.p95}`
+      `${String(i + 1).padStart(2)} ${body.padEnd(9)} factor ${factor}  ready ${v.ready}  legacy ${v.legacy} (unsettled ${v.legacyUnsettled})  rows ${r.rows}  p50 ${entry.p50}  p95 ${entry.p95}  load ${entry.loadAverage1m.toFixed(2)}`
     )
   }
+  // The rolled-back run leaves dead copies and analyze's estimates behind.
+  if (!COMMIT) vacuum()
+}
+if (COMMIT && grown !== null) {
+  psql(env.dbUrl, ["-At", "-v", "ON_ERROR_STOP=1"], { input: DROP_COPIES })
+  vacuum()
 }
 mkdirSync(OUT, { recursive: true })
 const file = join(OUT, "b05-venue-scale.json")
@@ -212,6 +277,7 @@ writeFileSync(
       loadAverage: { start: loadStart, end: loadavg() },
       bodies: BODIES,
       factors: FACTORS,
+      committed: COMMIT,
       n: N,
       results,
     },

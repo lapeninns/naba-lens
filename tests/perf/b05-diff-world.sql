@@ -24,7 +24,8 @@
 --   media arm);
 -- * food-typed unlabelled images and videos, kitchen-only and empty labels;
 -- * 'none'-baseline uploads after the use cutover and use grants in every
---   state (in force, scheduled, expired, withdrawn, and pairs) at both
+--   state (in force, scheduled, expired, withdrawn, and pairs; scheduled
+--   beside withdrawn, and beside in force at another destination) at both
 --   baselines;
 -- * deleted, processing and failed rows interleaved in feed order, many with
 --   labels or evidence;
@@ -455,6 +456,10 @@ select n.id, n.venue_id, n.created_at,
 from na n where n.baseline = 'none' and n.n % 6 <> 0;
 insert into dg select n.id, n.venue_id, n.created_at, 'withdrawn', 'perf_social' from na n where n.baseline = 'none' and n.n % 12 = 1;
 insert into dg select n.id, n.venue_id, n.created_at, 'in_force', 'perf_social' from na n where n.baseline = 'none' and n.n % 12 = 4;
+-- A scheduled grant beside a withdrawn one (n % 12 = 3: still withdrawn) and
+-- at perf_social beside one in force at perf_menu_web (n % 12 = 7: in force,
+-- but not at perf_social).
+insert into dg select n.id, n.venue_id, n.created_at, 'scheduled', 'perf_social' from na n where n.baseline = 'none' and n.n % 12 in (3, 7);
 -- Legacy rows: labelled big L 200..500 and small L 200..260: scheduled,
 -- in force + withdrawn, expired + withdrawn.
 insert into dg
@@ -463,6 +468,12 @@ from pick p, dk
 cross join lateral (values ('scheduled', 'perf_menu_web', 0), ('in_force', 'perf_menu_web', 1), ('withdrawn', 'perf_social', 1),
   ('expired', 'perf_menu_web', 2), ('withdrawn', 'perf_menu_web', 2)) k(kind, dest, m)
 where p.kind = 'L' and p.rn % 3 = k.m
+  and ((p.venue_id = dk.big and p.rn between 200 and 500) or (p.venue_id = dk.small and p.rn between 200 and 260));
+-- ... and on rn % 6 = 2 (expired + withdrawn) also scheduled at perf_social.
+insert into dg
+select p.id, p.venue_id, p.created_at, 'scheduled', 'perf_social'
+from pick p, dk
+where p.kind = 'L' and p.rn % 6 = 2
   and ((p.venue_id = dk.big and p.rn between 200 and 500) or (p.venue_id = dk.small and p.rn between 200 and 260));
 -- Legacy tie blocks: p % 5 = 0 in force, p % 10 = 3 withdrawn.
 insert into dg
