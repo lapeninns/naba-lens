@@ -1103,6 +1103,10 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
   let amenitySubmission: string
   let knowledgeContribution: string
   let otherSubmission: string
+  // An amenity submission and a knowledge contribution with evidence at o,
+  // so the cross-venue cost test passes real ids for those sources.
+  let otherAmenitySubmission: string
+  let otherKnowledgeContribution: string
   let groupId: string
   let otherGroup: string
   let outdoorCheck: string
@@ -1119,7 +1123,7 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
 
   beforeAll(async () => {
     e = await world("b05-srch-e", { extra: ["outdoor_seating"] })
-    o = await world("b05-srch-eo")
+    o = await world("b05-srch-eo", { extra: ["outdoor_seating"] })
     outdoorCheck = e.checks.outdoor_seating!
     const revisionOf = (id: string) =>
       Number(
@@ -1278,6 +1282,42 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
     const otherEvidence = await evidence(o.staffA.id, o.venue)
     fx.otherEvidence = otherEvidence.id
     otherSubmission = otherEvidence.submission
+    const otherOutdoor = o.checks.outdoor_seating!
+    await ok(
+      o.manager.client.rpc("amenity_assign_check", {
+        p_check_id: otherOutdoor,
+        p_assignee_id: o.staffA.id,
+        p_revision: revisionOf(otherOutdoor),
+      })
+    )
+    fx.otherAmenity = await photo(o.staffA.id, o.venue)
+    await ok(
+      o.staffA.client.rpc("amenity_submit_finding", {
+        p_check_id: otherOutdoor,
+        p_revision: revisionOf(otherOutdoor),
+        p_idempotency_key: randomUUID(),
+        p_answer: "yes",
+        p_finding: null as unknown as string,
+        p_limitations: null as unknown as string,
+        p_reason: null as unknown as string,
+        p_asset_ids: [fx.otherAmenity],
+        p_internal_metadata: null as never,
+        p_redaction_confirmed: false,
+      })
+    )
+    otherAmenitySubmission = psql(
+      `select submission_id from public.amenity_submission_assets where asset_id = '${fx.otherAmenity}'`
+    )
+    await submit(o.staffA, o, "guest_toilets", { answer: "no" })
+    fx.otherKnowledge = await photo(o.staffB.id, o.venue)
+    await submit(o.staffB, o, "guest_toilets", {
+      kind: "change_report",
+      answer: "yes",
+      assets: [fx.otherKnowledge],
+    })
+    otherKnowledgeContribution = psql(
+      `select contribution_id from public.knowledge_contribution_assets where asset_id = '${fx.otherKnowledge}'`
+    )
 
     // Groups: one at e with the coverage asset and a removed-from-gate member.
     groupId = randomUUID()
@@ -1776,8 +1816,18 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       ],
       [
         "amenity submission",
-        { submission: { source: "amenity", id: otherSubmission } },
+        { submission: { source: "amenity", id: otherAmenitySubmission } },
         { submission: { source: "amenity", id: randomUUID() } },
+      ],
+      [
+        "knowledge submission",
+        { submission: { source: "knowledge", id: otherKnowledgeContribution } },
+        { submission: { source: "knowledge", id: randomUUID() } },
+      ],
+      [
+        "amenity check",
+        { check: o.checks.outdoor_seating },
+        { check: randomUUID() },
       ],
       ["group", { group: otherGroup }, { group: randomUUID() }],
     ]
@@ -1787,13 +1837,21 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
         { check: otherRequirement },
         { check: randomUUID() },
       ])
-    // The other venue really holds evidence for these ids.
+    // The other venue really holds evidence for each of these ids (none of
+    // them may become an unknown-id case).
     expect(
-      Number(
-        psql(`select (select count(*) from public.coverage_submission_items where submission_id = '${otherSubmission}')
-          + (select count(*) from public.media_contribution_group_members where group_id = '${otherGroup}')`)
-      )
-    ).toBeGreaterThanOrEqual(2)
+      psql(`select concat_ws(',',
+          (select count(*) from public.coverage_submission_items where submission_id = '${otherSubmission}' and venue_id = '${o.venue}'),
+          (select count(*) from public.amenity_submission_assets where submission_id = '${otherAmenitySubmission}' and venue_id = '${o.venue}'),
+          (select count(*) from public.knowledge_contribution_assets where contribution_id = '${otherKnowledgeContribution}' and venue_id = '${o.venue}'),
+          (select count(*) from public.amenity_submission_assets sa join public.amenity_submissions s on s.id = sa.submission_id
+            where s.check_id = '${o.checks.outdoor_seating}' and sa.venue_id = '${o.venue}'),
+          (select count(*) from public.knowledge_contribution_assets ka join public.knowledge_contributions kc on kc.id = ka.contribution_id
+            where kc.check_id = '${o.checks.guest_toilets}' and ka.venue_id = '${o.venue}'),
+          (select count(*) from public.media_contribution_group_members where group_id = '${otherGroup}'))`)
+        .split(",")
+        .map((n) => Number(n) > 0)
+    ).toEqual([true, true, true, true, true, true])
     const links = tables.slice(0, 4)
     for (const who of [e.manager, e.staffManager]) {
       for (const [label, theirs, unknown] of foreign) {
@@ -1805,6 +1863,22 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       expect(
         touched(reads(who, { check: requirement }), links).length
       ).toBeGreaterThan(0)
+      expect(
+        touched(
+          reads(who, {
+            submission: { source: "amenity", id: amenitySubmission },
+          }),
+          links
+        )
+      ).toContain("amenity_submission_assets")
+      expect(
+        touched(
+          reads(who, {
+            submission: { source: "knowledge", id: knowledgeContribution },
+          }),
+          links
+        )
+      ).toContain("knowledge_contribution_assets")
     }
   })
 
