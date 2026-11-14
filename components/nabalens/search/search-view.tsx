@@ -12,6 +12,8 @@ import {
 } from "@/app/_media/search-params"
 import { Button } from "@/components/ui/button"
 import type {
+  AnswerFreshnessState,
+  AnswerUse,
   MenuDecisionState,
   SearchFilterKey,
   SearchRights,
@@ -19,6 +21,8 @@ import type {
 
 import { EmptyState } from "../empty-state"
 import {
+  ANSWER_FRESHNESS_LABEL,
+  ANSWER_USE_LABEL,
   DECISION_LABEL,
   RIGHTS_LABEL,
   SEARCH_COPY,
@@ -96,6 +100,17 @@ export function filterPills(
     add("uploadedFrom", SEARCH_COPY.pillFrom(filterDay(v.uploadedFrom, now)))
   if (v.uploadedTo)
     add("uploadedTo", SEARCH_COPY.pillTo(filterDay(v.uploadedTo, now)))
+  if (v.answerFreshness)
+    add(
+      "answerFreshness",
+      SEARCH_COPY.pillAnswer(
+        ANSWER_FRESHNESS_LABEL[v.answerFreshness as AnswerFreshnessState] ??
+          v.answerFreshness,
+        ANSWER_USE_LABEL[(v.answerUse ?? "internal") as AnswerUse] ??
+          v.answerUse ??
+          ""
+      )
+    )
   if (v.check) add("check", SEARCH_COPY.pillCheck)
   if (v.group) add("group", SEARCH_COPY.pillGroup)
   if (v.submission) add("submission", SEARCH_COPY.pillSubmission)
@@ -318,7 +333,15 @@ export function SearchView({
                           [pill.key]: null,
                           ...(pill.key === "item" ? { variant: null } : {}),
                           ...(pill.key === "venue"
-                            ? { item: null, variant: null }
+                            ? {
+                                item: null,
+                                variant: null,
+                                answerFreshness: null,
+                                answerUse: null,
+                              }
+                            : {}),
+                          ...(pill.key === "answerFreshness"
+                            ? { answerUse: null }
                             : {}),
                           ...(pill.key === "rights"
                             ? { destination: null }

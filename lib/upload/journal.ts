@@ -42,6 +42,12 @@ export type JournalState =
 export type JournalSubject = {
   kind: "menu_item" | "task" | "question" | "none"
   id: string | null
+  /**
+   * The subject's name as the screen showed it (a dish), so a set rebuilt in
+   * another tab can be worded (OD-B5-05-9 follow-up). On this device only,
+   * like displayName; absent on entries written before it.
+   */
+  name?: string
 }
 
 export type JournalEntry = {

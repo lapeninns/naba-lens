@@ -53,6 +53,7 @@ function item(n: number): AssetSearchItem {
       destinations: [],
     },
     menuDecisions: [],
+    answers: [],
   }
 }
 
@@ -96,6 +97,22 @@ function List(props: Props & { initialPage: Promise<SearchPageResult> }) {
 const cards = () => document.querySelectorAll("[data-asset-card]")
 
 describe("SearchResults follows page one (R1)", () => {
+  it("keeps Show more on an empty capped page so older matches stay reachable", async () => {
+    const onStatus = vi.fn()
+    fetchMock.fetchSearchPage.mockResolvedValue({
+      ok: true,
+      page: { items: [item(10)], nextCursor: null },
+    })
+    render(<List initialPage={okPage(0, "c1")} onStatus={onStatus} />)
+    expect(screen.queryByText("EMPTY")).toBeNull()
+    expect(screen.getByText(SEARCH_COPY.noneYet)).toBeTruthy()
+    expect(onStatus).toHaveBeenLastCalledWith(SEARCH_COPY.noneYet)
+    await userEvent.click(
+      screen.getByRole("button", { name: SEARCH_COPY.showMore })
+    )
+    expect(cards()).toHaveLength(1)
+  })
+
   it("replaces a stale empty list when a new page one arrives with the same key", () => {
     const { rerender } = render(<List initialPage={okPage(0)} />)
     expect(screen.getByText("EMPTY")).toBeTruthy()

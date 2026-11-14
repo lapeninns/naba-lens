@@ -15,6 +15,7 @@ import {
   DECISION_LABEL,
   MEDIA_WORD,
   SEARCH_COPY,
+  answerLine,
   dayOf,
   uploadedWhen,
 } from "./search-copy"
@@ -142,6 +143,15 @@ export function SearchCard({
             </li>
           ))}
         </ul>
+        {item.answers.length > 0 ? (
+          <ul aria-label={SEARCH_COPY.answersHeading} className="grid gap-0.5">
+            {item.answers.map((answer) => (
+              <li key={answer.checkId} className="text-ink-muted">
+                {answerLine(answer)}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {item.menuDecisions.length > 0 ? (
           <ul aria-label={SEARCH_COPY.decisionsHeading} className="grid gap-1">
             {item.menuDecisions.map((d) => (

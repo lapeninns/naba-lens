@@ -1,6 +1,7 @@
 import "server-only"
 
 import { intInRange } from "@/lib/server/coverage/validate"
+import { redactError } from "@/lib/server/log/redact"
 import { mediaRoutes } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
 
@@ -13,15 +14,50 @@ import {
   type AssetSearchItem,
   type AssetSearchPage,
   type AssetSearchRow,
+  type SearchAnswer,
   type SearchResult,
+  type SearchRpcs,
 } from "./types"
 
-export function toSearchItem(row: AssetSearchRow): AssetSearchItem {
+/** Empty capped freshness pages read on per request (500 candidates each). */
+export const EMPTY_CAPPED_PAGE_READS = 8
+
+export function toSearchItem(
+  row: AssetSearchRow,
+  answers: SearchAnswer[] = []
+): AssetSearchItem {
   const { hasThumbnail, ...rest } = row
   return {
     ...rest,
     thumbnailUrl: hasThumbnail ? mediaRoutes.thumbnail(row.id) : null,
+    answers,
   }
+}
+
+/**
+ * The answers in use each asset supports (B03 K1), by asset id. A failed
+ * read leaves every card without answer lines: the other signals still show
+ * (§11.2), and the page is not failed for it.
+ */
+async function answersFor(
+  db: Parameters<typeof searchRpc>[0],
+  ids: string[]
+): Promise<Map<string, SearchAnswer[]>> {
+  const out = new Map<string, SearchAnswer[]>()
+  if (ids.length === 0) return out
+  const { data, error } = await searchRpc(db, "asset_search_answers", {
+    p_asset_ids: ids,
+  })
+  if (error || !data || !Array.isArray(data.items)) {
+    console.error("[asset-search] asset_search_answers failed", {
+      error: redactError(error ?? { message: "malformed" }),
+    })
+    return out
+  }
+  for (const row of data.items)
+    if (row && typeof row.assetId === "string" && Array.isArray(row.answers))
+      out.set(row.assetId, row.answers)
+  return out
 }
 
 /**
@@ -61,24 +97,42 @@ export async function searchAssets(
   if (!parsed.ok || Object.keys(fieldErrors).length > 0)
     return searchInvalid(fieldErrors)
 
-  const { data, error } = await searchRpc(actor.db, "asset_search", {
-    p_filters: parsed.db,
-    p_after_created_at: after?.createdAt ?? null,
-    p_after_id: after?.id ?? null,
-    p_limit: limit,
-  })
-  if (error) return searchRpcFailure(error, "asset_search")
-  if (!data || !Array.isArray(data.items))
-    return searchRpcFailure({ message: "malformed" }, "asset_search")
+  // A freshness page that rated its 500 candidates without a match comes back
+  // empty with hasMore. Read on, bounded, so the person sees older matches
+  // instead of an empty state; past the bound the cursor still continues.
+  let data: SearchRpcs["asset_search"]["returns"] | null = null
+  for (let read = 0; read < EMPTY_CAPPED_PAGE_READS; read++) {
+    const page = await searchRpc(actor.db, "asset_search", {
+      p_filters: parsed.db,
+      p_after_created_at: after?.createdAt ?? null,
+      p_after_id: after?.id ?? null,
+      p_limit: limit,
+    })
+    if (page.error) return searchRpcFailure(page.error, "asset_search")
+    data = page.data
+    if (!data || !Array.isArray(data.items))
+      return searchRpcFailure({ message: "malformed" }, "asset_search")
+    if (data.items.length > 0 || !data.hasMore || !data.resumeAfter) break
+    after = { createdAt: data.resumeAfter.uploadedAt, id: data.resumeAfter.id }
+  }
+  if (!data) return searchRpcFailure({ message: "malformed" }, "asset_search")
 
-  const items = data.items.map(toSearchItem)
-  const last = items[items.length - 1]
+  const answers = await answersFor(
+    actor.db,
+    data.items.map((row) => row.id)
+  )
+  const items = data.items.map((row) =>
+    toSearchItem(row, answers.get(row.id) ?? [])
+  )
+  // A freshness page that stopped at its 500 candidates resumes after the
+  // last row it read, which may be past the last row it returned.
+  const resume = data.resumeAfter ?? items[items.length - 1]
   return {
     ok: true,
     items,
     nextCursor:
-      data.hasMore && last
-        ? encodeSearchCursor(last.uploadedAt, last.id)
+      data.hasMore && resume
+        ? encodeSearchCursor(resume.uploadedAt, resume.id)
         : null,
   }
 }

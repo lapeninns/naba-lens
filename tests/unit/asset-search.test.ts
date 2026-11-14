@@ -9,6 +9,7 @@ import { encodeCursor } from "@/lib/server/media/library"
 import {
   ASSET_SEARCH_PAGE,
   decodeSearchCursor,
+  EMPTY_CAPPED_PAGE_READS,
   encodeSearchCursor,
   parseSearchFilters,
   searchAssets,
@@ -147,6 +148,9 @@ describe("parseSearchFilters", () => {
     [{ uploadedFrom: "9999-12-31" }, "uploadedFrom"],
     [{ uploadedTo: "9999-12-31" }, "uploadedTo"],
     [{ uploadedFrom: "0000-01-01" }, "uploadedFrom"],
+    [{ answerFreshness: "stale" }, "answerFreshness"],
+    [{ answerUse: "public" }, "answerUse"],
+    [{ answerFreshness: "current", answerUse: "everyone" }, "answerUse"],
   ])("refuses %j on %s", (input, field) => {
     const parsed = parseSearchFilters(input)
     expect(parsed.ok).toBe(false)
@@ -226,6 +230,7 @@ describe("searchAssets", () => {
     const expected: Record<string, unknown> = {
       ...row(ASSET),
       thumbnailUrl: `/api/media/${ASSET}/thumb`,
+      answers: [],
     }
     delete expected.hasThumbnail
     expect(out).toEqual({
@@ -251,7 +256,7 @@ describe("searchAssets", () => {
       id: ASSET,
     })
     await searchAssets(actor, { cursor: out.nextCursor, limit: 48 })
-    expect(rpc).toHaveBeenLastCalledWith(
+    expect(rpc).toHaveBeenCalledWith(
       "asset_search",
       expect.objectContaining({
         p_after_created_at: AT,
@@ -259,6 +264,149 @@ describe("searchAssets", () => {
         p_limit: 48,
       })
     )
+  })
+
+  it("adds each card's supported answers from asset_search_answers", async () => {
+    const answer = {
+      checkId: OTHER,
+      questionKey: "guest_toilets",
+      question: "Are there guest toilets?",
+      freshness: [
+        {
+          use: "internal",
+          state: "unrated",
+          nextCheckDue: null,
+          basis: null,
+          basisDate: null,
+        },
+      ],
+    }
+    const { actor, rpc } = actorWith((fn) =>
+      fn === "asset_search_answers"
+        ? { data: { items: [{ assetId: ASSET, answers: [answer] }] } }
+        : { data: { hasMore: false, items: [row(ASSET), row(OTHER)] } }
+    )
+    const out = await searchAssets(actor, {})
+    expect(rpc).toHaveBeenCalledWith("asset_search_answers", {
+      p_asset_ids: [ASSET, OTHER],
+    })
+    expect(out.ok && out.items.map((i) => i.answers)).toEqual([[answer], []])
+  })
+
+  it("keeps the page when the answers read fails", async () => {
+    const { actor } = actorWith((fn) =>
+      fn === "asset_search_answers"
+        ? { error: { message: "boom" } }
+        : { data: { hasMore: false, items: [row(ASSET)] } }
+    )
+    const out = await searchAssets(actor, {})
+    expect(out.ok && out.items[0]!.answers).toEqual([])
+    expect(error).toHaveBeenCalled()
+  })
+
+  it("skips the answers read for an empty page", async () => {
+    const { actor, rpc } = actorWith(() => ({
+      data: { hasMore: false, items: [] },
+    }))
+    await searchAssets(actor, {})
+    expect(rpc).toHaveBeenCalledTimes(1)
+  })
+
+  it("resumes a capped freshness page after the last row it read", async () => {
+    const LATER = "2026-01-01T00:00:00.000Z"
+    const { actor, rpc } = actorWith((fn) =>
+      fn === "asset_search_answers"
+        ? { data: { items: [] } }
+        : {
+            data: {
+              hasMore: true,
+              items: [row(ASSET)],
+              resumeAfter: { uploadedAt: LATER, id: OTHER },
+            },
+          }
+    )
+    const out = await searchAssets(actor, {
+      filters: { answerFreshness: "expired", answerUse: "public" },
+    })
+    expect(rpc).toHaveBeenCalledWith(
+      "asset_search",
+      expect.objectContaining({
+        p_filters: { answerFreshness: "expired", answerUse: "public" },
+      })
+    )
+    expect(out.ok && decodeSearchCursor(out.nextCursor!)).toEqual({
+      createdAt: LATER,
+      id: OTHER,
+    })
+  })
+
+  it("reads on past empty capped freshness pages to the first match", async () => {
+    const STEP = (n: number) => `2026-01-0${n}T00:00:00.000Z`
+    let calls = 0
+    const { actor, rpc } = actorWith((fn) => {
+      if (fn === "asset_search_answers") return { data: { items: [] } }
+      calls++
+      return calls < 3
+        ? {
+            data: {
+              hasMore: true,
+              items: [],
+              resumeAfter: { uploadedAt: STEP(9 - calls), id: OTHER },
+            },
+          }
+        : { data: { hasMore: false, items: [row(ASSET)] } }
+    })
+    const out = await searchAssets(actor, {
+      filters: { answerFreshness: "expired" },
+    })
+    expect(out.ok && out.items.map((i) => i.id)).toEqual([ASSET])
+    expect(out.ok && out.nextCursor).toBeNull()
+    const searches = rpc.mock.calls.filter(([fn]) => fn === "asset_search")
+    expect(searches).toHaveLength(3)
+    expect(searches[1]![1]).toMatchObject({
+      p_after_created_at: STEP(8),
+      p_after_id: OTHER,
+    })
+    expect(searches[2]![1]).toMatchObject({ p_after_created_at: STEP(7) })
+  })
+
+  it("stops reading on after a bounded number of empty capped pages and keeps the cursor", async () => {
+    const LAST = "2026-01-01T00:00:00.000Z"
+    const { actor, rpc } = actorWith(() => ({
+      data: {
+        hasMore: true,
+        items: [],
+        resumeAfter: { uploadedAt: LAST, id: OTHER },
+      },
+    }))
+    const out = await searchAssets(actor, {
+      filters: { answerFreshness: "expired" },
+    })
+    expect(rpc).toHaveBeenCalledTimes(EMPTY_CAPPED_PAGE_READS)
+    expect(out.ok && out.items).toEqual([])
+    expect(out.ok && decodeSearchCursor(out.nextCursor!)).toEqual({
+      createdAt: LAST,
+      id: OTHER,
+    })
+  })
+
+  it("asks for a venue when the database refuses answer freshness without one", async () => {
+    const { actor } = actorWith(() => ({
+      error: {
+        message: "invalid_search_filter",
+        details: "answerFreshness",
+      } as {
+        message: string
+      },
+    }))
+    expect(
+      await searchAssets(actor, { filters: { answerFreshness: "current" } })
+    ).toMatchObject({
+      ok: false,
+      status: 400,
+      code: "invalid_input",
+      fieldErrors: { answerFreshness: "Choose a venue first." },
+    })
   })
 
   it("refuses bad filters, cursors and limits before calling the database", async () => {

@@ -266,7 +266,7 @@ test("capture-journal: a photo closed mid-TUS continues with one tap, the same a
   await again.context().close()
 })
 
-test("capture-journal: a video that didn't finish shows the re-pick copy and keeps no bytes", async ({
+test("capture-journal: a video that didn't finish shows the re-pick copy, keeps no bytes and can be dismissed", async ({
   browser,
 }, info) => {
   const world = await provisionWorld()
@@ -291,6 +291,12 @@ test("capture-journal: a video that didn't finish shows the re-pick copy and kee
   await expect(
     sheet.getByRole("button", { name: CAPTURE_COPY.continueLabel(VIDEO) })
   ).toHaveCount(0)
+  // B05-05 follow-up: Dismiss drops it from the block and the journal.
+  await sheet
+    .getByRole("button", { name: CAPTURE_COPY.dismissLabel(VIDEO) })
+    .tap()
+  await expect(sheet).not.toContainText(CAPTURE_COPY.reselectLine(VIDEO))
+  await expect.poll(async () => (await journal(again)).length).toBe(0)
   await again.context().close()
 })
 

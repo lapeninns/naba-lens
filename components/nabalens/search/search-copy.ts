@@ -3,7 +3,10 @@
 // words are coordinator decision SS-1 (owner sign-off pending).
 
 import type {
+  AnswerFreshnessState,
+  AnswerUse,
   MenuDecisionState,
+  SearchAnswer,
   SearchRights,
 } from "@/lib/server/media/search/types"
 import type { MediaKind } from "@/lib/server/media/types"
@@ -29,6 +32,23 @@ export const DECISION_LABEL: Record<MenuDecisionState, string> = {
   needs_recheck: "Sent for a recheck",
   withdrawn: "Withdrawn",
   invalidated: "Label no longer valid",
+}
+
+/**
+ * B03's answer freshness, as §11.2 words it: the answer's state, never the
+ * photo's. "Not rated yet" until a freshness policy names the question.
+ */
+export const ANSWER_FRESHNESS_LABEL: Record<AnswerFreshnessState, string> = {
+  current: "Current",
+  due_soon: "Due soon",
+  expired: "Expired",
+  basis_missing: "Date missing",
+  unrated: "Not rated yet",
+}
+
+export const ANSWER_USE_LABEL: Record<AnswerUse, string> = {
+  internal: "Internal use",
+  public: "Public use",
 }
 
 export const MEDIA_WORD: Record<MediaKind, string> = {
@@ -70,6 +90,13 @@ export const SEARCH_COPY = {
   anyDestination: "Anywhere",
   menuState: "Menu decision",
   anyDecision: "Any decision",
+  answerFreshness: "Answer freshness",
+  anyAnswerFreshness: "Any",
+  answerFreshnessHint:
+    "How up to date the answer this photo supports is. It says nothing about the photo itself.",
+  answerUse: "Freshness for",
+  pillAnswer: (state: string, use: string) =>
+    `Answer ${state.toLowerCase()} (${use.toLowerCase()})`,
   uploaded: "Uploaded",
   uploadedFrom: "Uploaded from",
   uploadedTo: "Uploaded to",
@@ -95,6 +122,8 @@ export const SEARCH_COPY = {
 
   shown: (n: number) => `${n} shown`,
   shownMore: (n: number) => `Showing ${n}. More available.`,
+  noneYet:
+    "No matches in the newest photos checked. Show more to check older ones.",
   searching: "Searching…",
   stillSearching: "Still searching. Keep this page open.",
   showMore: "Show more",
@@ -146,7 +175,28 @@ export const SEARCH_COPY = {
   noThumb: "No preview",
   useHeading: "Use",
   decisionsHeading: "Menu decisions",
+  answersHeading: "Answers it supports",
+  aQuestion: "a venue question",
 } as const
+
+/**
+ * One card line per answer the asset supports (§11.2 signal 3): "Supports
+ * 'Q': not rated yet (internal and public)" or, when the uses differ,
+ * "Supports 'Q': current (internal), expired (public)".
+ */
+export function answerLine(answer: SearchAnswer): string {
+  const q = answer.question ?? SEARCH_COPY.aQuestion
+  const entries = (["internal", "public"] as const).flatMap((use) => {
+    const f = answer.freshness.find((e) => e.use === use)
+    return f ? [{ use, state: ANSWER_FRESHNESS_LABEL[f.state] ?? f.state }] : []
+  })
+  if (entries.length === 0) return `Supports “${q}”`
+  const states =
+    entries.length === 2 && entries[0]!.state === entries[1]!.state
+      ? `${entries[0]!.state.toLowerCase()} (internal and public)`
+      : entries.map((e) => `${e.state.toLowerCase()} (${e.use})`).join(", ")
+  return `Supports “${q}”: ${states}`
+}
 
 /** The word the card shows for an asset-level use state with no place named. */
 export const ASSET_USE_LINE = {

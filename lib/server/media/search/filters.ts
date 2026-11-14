@@ -2,11 +2,15 @@ import { isObject, isUuid } from "@/lib/server/coverage/validate"
 import { londonDayRange } from "@/lib/server/media/library"
 
 import {
+  ANSWER_FRESHNESS_STATES,
+  ANSWER_USES,
   MENU_DECISION_STATES,
   SEARCH_FILTER_KEYS,
   SEARCH_MEDIA_TYPES,
   SEARCH_RIGHTS,
   SUBMISSION_SOURCES,
+  type AnswerFreshnessState,
+  type AnswerUse,
   type AssetSearchDbFilters,
   type AssetSearchFilters,
   type MenuDecisionState,
@@ -115,6 +119,25 @@ export function parseSearchFilters(input: unknown): ParsedSearchFilters {
     const s = choice<MenuDecisionState>(MENU_DECISION_STATES, menuState)
     if (s) filters.menuState = s
     else errors.menuState = "Choose a menu decision."
+  }
+
+  const answerFreshness = value("answerFreshness")
+  if (answerFreshness !== undefined) {
+    const s = choice<AnswerFreshnessState>(
+      ANSWER_FRESHNESS_STATES,
+      answerFreshness
+    )
+    if (s) filters.answerFreshness = s
+    else errors.answerFreshness = "Choose an answer freshness."
+  }
+
+  const answerUse = value("answerUse")
+  if (answerUse !== undefined) {
+    const u = choice<AnswerUse>(ANSWER_USES, answerUse)
+    if (!u) errors.answerUse = "Choose internal or public."
+    else if (!filters.answerFreshness && !errors.answerFreshness)
+      errors.answerUse = "Choose an answer freshness first."
+    else filters.answerUse = u
   }
 
   for (const key of ["uploadedFrom", "uploadedTo"] as const) {

@@ -7,7 +7,10 @@ import {
   subjectLines,
   useLines as cardUseLines,
 } from "@/components/nabalens/search/search-card"
-import { SEARCH_COPY } from "@/components/nabalens/search/search-copy"
+import {
+  SEARCH_COPY,
+  answerLine,
+} from "@/components/nabalens/search/search-copy"
 import type { AssetSearchItem } from "@/lib/server/media/search/types"
 
 type Use = AssetSearchItem["use"]
@@ -40,6 +43,7 @@ function asset(
       ...use,
     },
     menuDecisions: [],
+    answers: [],
   }
 }
 
@@ -153,5 +157,49 @@ describe("subjectLines", () => {
 
   it("is empty for an asset with no subjects", () => {
     expect(subjectLines(asset())).toEqual([])
+  })
+})
+
+describe("answerLine (B05 follow-up, §11.2 signal 3)", () => {
+  const entry = (
+    use: "internal" | "public",
+    state: "current" | "due_soon" | "expired" | "basis_missing" | "unrated"
+  ) => ({ use, state, nextCheckDue: null, basis: null, basisDate: null })
+
+  it("words one state for both uses once", () => {
+    expect(
+      answerLine({
+        checkId: "c",
+        questionKey: "guest_toilets",
+        question: "Are there guest toilets?",
+        freshness: [entry("internal", "unrated"), entry("public", "unrated")],
+      })
+    ).toBe(
+      "Supports “Are there guest toilets?”: not rated yet (internal and public)"
+    )
+  })
+
+  it("words each use when they differ, and the answer never the photo", () => {
+    const line = answerLine({
+      checkId: "c",
+      questionKey: "step_free",
+      question: null,
+      freshness: [entry("internal", "current"), entry("public", "expired")],
+    })
+    expect(line).toBe(
+      "Supports “a venue question”: current (internal), expired (public)"
+    )
+    expect(line).not.toMatch(/photo/i)
+  })
+
+  it("names the question alone when no freshness came back", () => {
+    expect(
+      answerLine({
+        checkId: "c",
+        questionKey: "k",
+        question: "Q?",
+        freshness: [],
+      })
+    ).toBe("Supports “Q?”")
   })
 })

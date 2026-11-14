@@ -1,4 +1,4 @@
-export { searchAssets, toSearchItem } from "./search"
+export { EMPTY_CAPPED_PAGE_READS, searchAssets, toSearchItem } from "./search"
 export { decodeSearchCursor, encodeSearchCursor } from "./cursor"
 export { parseSearchFilters } from "./filters"
 export { searchFailure, searchRpcFailure } from "./errors"
