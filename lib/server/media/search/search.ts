@@ -16,7 +16,11 @@ import {
   type AssetSearchRow,
   type SearchAnswer,
   type SearchResult,
+  type SearchRpcs,
 } from "./types"
+
+/** Empty capped freshness pages read on per request (500 candidates each). */
+export const EMPTY_CAPPED_PAGE_READS = 8
 
 export function toSearchItem(
   row: AssetSearchRow,
@@ -93,15 +97,25 @@ export async function searchAssets(
   if (!parsed.ok || Object.keys(fieldErrors).length > 0)
     return searchInvalid(fieldErrors)
 
-  const { data, error } = await searchRpc(actor.db, "asset_search", {
-    p_filters: parsed.db,
-    p_after_created_at: after?.createdAt ?? null,
-    p_after_id: after?.id ?? null,
-    p_limit: limit,
-  })
-  if (error) return searchRpcFailure(error, "asset_search")
-  if (!data || !Array.isArray(data.items))
-    return searchRpcFailure({ message: "malformed" }, "asset_search")
+  // A freshness page that rated its 500 candidates without a match comes back
+  // empty with hasMore. Read on, bounded, so the person sees older matches
+  // instead of an empty state; past the bound the cursor still continues.
+  let data: SearchRpcs["asset_search"]["returns"] | null = null
+  for (let read = 0; read < EMPTY_CAPPED_PAGE_READS; read++) {
+    const page = await searchRpc(actor.db, "asset_search", {
+      p_filters: parsed.db,
+      p_after_created_at: after?.createdAt ?? null,
+      p_after_id: after?.id ?? null,
+      p_limit: limit,
+    })
+    if (page.error) return searchRpcFailure(page.error, "asset_search")
+    data = page.data
+    if (!data || !Array.isArray(data.items))
+      return searchRpcFailure({ message: "malformed" }, "asset_search")
+    if (data.items.length > 0 || !data.hasMore || !data.resumeAfter) break
+    after = { createdAt: data.resumeAfter.uploadedAt, id: data.resumeAfter.id }
+  }
+  if (!data) return searchRpcFailure({ message: "malformed" }, "asset_search")
 
   const answers = await answersFor(
     actor.db,

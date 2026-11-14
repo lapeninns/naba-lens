@@ -9,6 +9,7 @@ import { encodeCursor } from "@/lib/server/media/library"
 import {
   ASSET_SEARCH_PAGE,
   decodeSearchCursor,
+  EMPTY_CAPPED_PAGE_READS,
   encodeSearchCursor,
   parseSearchFilters,
   searchAssets,
@@ -335,6 +336,56 @@ describe("searchAssets", () => {
     )
     expect(out.ok && decodeSearchCursor(out.nextCursor!)).toEqual({
       createdAt: LATER,
+      id: OTHER,
+    })
+  })
+
+  it("reads on past empty capped freshness pages to the first match", async () => {
+    const STEP = (n: number) => `2026-01-0${n}T00:00:00.000Z`
+    let calls = 0
+    const { actor, rpc } = actorWith((fn) => {
+      if (fn === "asset_search_answers") return { data: { items: [] } }
+      calls++
+      return calls < 3
+        ? {
+            data: {
+              hasMore: true,
+              items: [],
+              resumeAfter: { uploadedAt: STEP(9 - calls), id: OTHER },
+            },
+          }
+        : { data: { hasMore: false, items: [row(ASSET)] } }
+    })
+    const out = await searchAssets(actor, {
+      filters: { answerFreshness: "expired" },
+    })
+    expect(out.ok && out.items.map((i) => i.id)).toEqual([ASSET])
+    expect(out.ok && out.nextCursor).toBeNull()
+    const searches = rpc.mock.calls.filter(([fn]) => fn === "asset_search")
+    expect(searches).toHaveLength(3)
+    expect(searches[1]![1]).toMatchObject({
+      p_after_created_at: STEP(8),
+      p_after_id: OTHER,
+    })
+    expect(searches[2]![1]).toMatchObject({ p_after_created_at: STEP(7) })
+  })
+
+  it("stops reading on after a bounded number of empty capped pages and keeps the cursor", async () => {
+    const LAST = "2026-01-01T00:00:00.000Z"
+    const { actor, rpc } = actorWith(() => ({
+      data: {
+        hasMore: true,
+        items: [],
+        resumeAfter: { uploadedAt: LAST, id: OTHER },
+      },
+    }))
+    const out = await searchAssets(actor, {
+      filters: { answerFreshness: "expired" },
+    })
+    expect(rpc).toHaveBeenCalledTimes(EMPTY_CAPPED_PAGE_READS)
+    expect(out.ok && out.items).toEqual([])
+    expect(out.ok && decodeSearchCursor(out.nextCursor!)).toEqual({
+      createdAt: LAST,
       id: OTHER,
     })
   })

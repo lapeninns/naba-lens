@@ -192,7 +192,9 @@ export function SearchResults({
           : items.length === 0
             ? loading
               ? ""
-              : emptyStatus
+              : cursor
+                ? SEARCH_COPY.noneYet
+                : emptyStatus
             : cursor
               ? SEARCH_COPY.shownMore(items.length)
               : SEARCH_COPY.shown(items.length)
@@ -282,7 +284,9 @@ export function SearchResults({
       </div>
     )
   }
-  if (items.length === 0 && !loading && !more)
+  // An empty page that still has a cursor (freshness pages are capped at 500
+  // rated candidates) keeps Show more, so older matches stay reachable.
+  if (items.length === 0 && !loading && !more && !cursor)
     return (
       <div id={resultsId} className="contents">
         {empty}
@@ -291,6 +295,9 @@ export function SearchResults({
 
   return (
     <div id={resultsId} className="grid min-w-0 gap-(--gutter)">
+      {items.length === 0 && cursor && !loading ? (
+        <p className="text-body text-ink-muted">{SEARCH_COPY.noneYet}</p>
+      ) : null}
       <ul ref={listRef} className={RESULTS_GRID}>
         {items.map((item) => (
           <li key={item.id} className="min-w-0">

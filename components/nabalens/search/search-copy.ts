@@ -122,6 +122,8 @@ export const SEARCH_COPY = {
 
   shown: (n: number) => `${n} shown`,
   shownMore: (n: number) => `Showing ${n}. More available.`,
+  noneYet:
+    "No matches in the newest photos checked. Show more to check older ones.",
   searching: "Searching…",
   stillSearching: "Still searching. Keep this page open.",
   showMore: "Show more",
