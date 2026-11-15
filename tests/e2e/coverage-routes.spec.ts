@@ -490,8 +490,12 @@ test.describe("staff task routes (G-4)", () => {
     ).toBeVisible()
 
     // The link may have been menu work, so the page never says "task".
-    const missing = await page.goto(`/staff/tasks/${randomUUID()}`)
-    expect(missing?.status()).toBe(404)
+    // loading.tsx streams the shell first, so the status is 200: the page is
+    // the staff not-found.
+    await page.goto(`/staff/tasks/${randomUUID()}`)
+    await expect(
+      page.getByRole("heading", { name: "We can't find that page" })
+    ).toBeVisible()
     const back = page.getByRole("link", { name: "Go to Home" })
     await expect(back).toHaveAttribute("href", "/staff/tasks")
     await expect(page.getByRole("main")).not.toContainText(/\btasks?\b/i)

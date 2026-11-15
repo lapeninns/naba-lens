@@ -751,7 +751,8 @@ test.describe("B03 browser charters C and D", () => {
     await expect(staff).toHaveURL(STAFF_LANDING)
     await openOtherJobs(staff)
     const todo = staff.getByRole("main")
-    const recheckLink = todo.getByRole("link", { name: `Recheck: ${q.stale}` })
+    // `has` resolves inside each list item, so the link is page-rooted.
+    const recheckLink = staff.getByRole("link", { name: `Recheck: ${q.stale}` })
     const card = todo.getByRole("listitem").filter({ has: recheckLink })
     await expect(card).toContainText(
       `Recheck reason: Past its check date since ${longDate(staleTask!.dueAt)}.`

@@ -90,7 +90,7 @@ test("a staff target combines distinct menu items and completed amenity checks",
       })
     ).toBeVisible()
     await expect(
-      currentTarget.getByRole("img", {
+      currentTarget.getByRole("progressbar", {
         name: `${count} of 5 items completed`,
         exact: true,
       })
@@ -106,7 +106,7 @@ test("a staff target combines distinct menu items and completed amenity checks",
     await expect(
       staff.getByRole("progressbar", { name: "4 of 5 items completed" })
     ).toBeVisible()
-    await staff.getByRole("link", { name: "See this month" }).click()
+    await staff.getByRole("link", { name: "See your month" }).click()
     await expect(
       staff.getByRole("heading", { name: "Monthly target", exact: true })
     ).toBeVisible()
@@ -175,7 +175,7 @@ test("a staff target combines distinct menu items and completed amenity checks",
       legacy.getByRole("heading", { name: "Monthly photos", exact: true })
     ).toBeVisible()
     await expect(
-      legacy.getByRole("img", { name: "0 of 5 photos accepted" })
+      legacy.getByRole("progressbar", { name: "0 of 5 photos accepted" })
     ).toBeVisible()
     await expect(
       legacy.getByRole("heading", { name: "Add photos for this month" })

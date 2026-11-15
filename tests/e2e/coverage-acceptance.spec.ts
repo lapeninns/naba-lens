@@ -761,6 +761,8 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     const [oldPhoto] = await seedImages(w.staffA, w.venue1, 1)
     const staffPage = await signedInPage(browser, w.staffA)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
+    // A non-menu task is on Other jobs, not Home (decision 10).
+    await staffPage.goto("/staff/tasks/other")
     await expect(
       staffPage.getByRole("link", { name: `WS5 transfer task ${w.tag}` })
     ).toBeVisible()
@@ -776,7 +778,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       await expect(edit).toBeHidden()
     }
 
-    await staffPage.goto("/staff/tasks")
+    await staffPage.goto("/staff/tasks/other")
     await expect(
       staffPage.getByRole("link", { name: `WS5 transfer task ${w.tag}` })
     ).toHaveCount(0)
