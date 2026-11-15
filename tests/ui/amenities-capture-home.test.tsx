@@ -98,7 +98,7 @@ vi.mock("@/lib/knowledge-client/services", () => ({
   },
 }))
 
-import AllTasksPage from "@/app/staff/tasks/all/page"
+import OtherJobsPage from "@/app/staff/tasks/other/page"
 import TasksPage from "@/app/staff/tasks/page"
 
 function setup({
@@ -199,9 +199,9 @@ describe("Home: amenity checks", () => {
       screen.getByRole("link", { name: "All tasks" }).getAttribute("href")
     ).toBe("/staff/tasks/all")
     unmount()
-    render(await AllTasksPage())
+    render(await OtherJobsPage())
     expect(
-      screen.getByRole("heading", { level: 1, name: "All tasks" })
+      screen.getByRole("heading", { level: 1, name: "Other jobs" })
     ).toBeTruthy()
     const list = screen.getByRole("list", { name: UI_TEXT.staffSection })
     const links = within(list).getAllByRole("link")

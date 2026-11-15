@@ -770,9 +770,13 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       staffPage.getByRole("link", { name: `WS5 transfer task ${w.tag}` })
     ).toHaveCount(0)
     await staffPage.goto(`/staff/tasks/${task}`)
+    // G-4: the staff not-found, back to Home (the link may have been menu work).
     await expect(
-      staffPage.getByRole("heading", { name: "This task isn't yours" })
+      staffPage.getByRole("heading", { name: "We can't find that page" })
     ).toBeVisible()
+    await expect(
+      staffPage.getByRole("link", { name: "Go to Home" })
+    ).toHaveAttribute("href", "/staff/tasks")
     await refused(
       staffA.rpc("submit_coverage_photos", {
         p_asset_ids: [oldPhoto!],
@@ -896,6 +900,13 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       .getByRole("listitem")
       .filter({ hasText: title })
     await expect(listed.getByText("Overdue", { exact: true })).toBeVisible()
+    // Other jobs (G-4, rule 28) keeps non-menu due dates and Overdue.
+    await staffPage.goto("/staff/tasks/other")
+    const otherJob = staffPage
+      .getByRole("list", { name: "Assigned tasks" })
+      .getByRole("listitem")
+      .filter({ hasText: title })
+    await expect(otherJob.getByText("Overdue", { exact: true })).toBeVisible()
     await staffPage.goto(`/staff/tasks/${task}`)
     const taskPage = staffPage.getByRole("main")
     const overdue = taskPage.getByText("Overdue", { exact: true })
@@ -919,7 +930,9 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     await accept(manager, sent!)
     expect(await progress()).toMatchObject({ overdue: false, satisfied: true })
     await staffPage.reload()
-    await expect(taskPage.getByRole("heading", { name: title, level: 1 })).toBeVisible()
+    await expect(
+      taskPage.getByRole("heading", { name: title, level: 1 })
+    ).toBeVisible()
     await expect(overdue).toHaveCount(0)
     await staffPage.context().close()
   })

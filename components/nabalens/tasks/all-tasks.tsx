@@ -8,8 +8,24 @@ import { AssignmentList } from "./assignment-list"
 import type { MyTasksView } from "./types"
 
 /**
- * All tasks (`/staff/tasks/all`): every task assigned to me this month, then
- * my amenity checks. Home shows only the next jobs and links here (§5a).
+ * Other jobs (G-4): the assignments that stay tasks, everything but menu
+ * sections (decision 8). Menu work, and sending section shots (decision 15),
+ * lives on Our menu and the month.
+ */
+export function otherJobs<T extends Pick<MyTasksView, "assignments">>(
+  tasks: T
+): T {
+  return {
+    ...tasks,
+    assignments: tasks.assignments.filter(
+      (a) => a.requirement.kind !== "menu_section"
+    ),
+  }
+}
+
+/**
+ * The assignment list on Other jobs (`/staff/tasks/other`): every task
+ * assigned to me this month, then my amenity checks. Home links here (§5a).
  */
 export function AllTasks({
   tasks,
