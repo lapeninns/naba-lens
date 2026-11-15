@@ -66,7 +66,7 @@ export function WorkingListSection({
   return (
     <section
       aria-labelledby={WORKING_LIST_HEADING_ID}
-      className="grid scroll-mt-4 gap-(--gutter)"
+      className="grid scroll-mt-4 gap-gutter"
     >
       <div className="grid gap-1 px-1 pt-2">
         <h2
@@ -76,12 +76,12 @@ export function WorkingListSection({
           aria-label={
             needsMe > 0 ? `Amenity checks, ${needsMe} to do` : "Amenity checks"
           }
-          className="flex items-center gap-2 rounded-control font-display text-section-title [overflow-wrap:anywhere] text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="flex items-center gap-2 rounded-control font-display text-section-title [overflow-wrap:anywhere] text-ink focus-ring outline-none"
         >
           Amenity checks
           <CountBadge count={needsMe} label="to do" />
         </h2>
-        <p className="max-w-(--size-reading) text-body text-ink-muted">
+        <p className="max-w-reading text-body text-ink-muted">
           Questions about {list.venue.name}. Anyone working here can help answer
           them.
           {inTodo > 0
@@ -89,16 +89,15 @@ export function WorkingListSection({
             : null}
         </p>
       </div>
-      <ul aria-label="Amenity checks" className="grid gap-(--gutter)">
+      <ul aria-label="Amenity checks" className="grid gap-gutter">
         {rows.map(({ slot, row }) => (
           <li
             key={slot.checkId}
             className={cn(
               "relative grid min-h-16 min-w-0 gap-2 rounded-card bg-surface p-4 shadow-card",
               row.action &&
-                "transition-colors duration-(--duration-quick) hover:bg-surface-2 has-[a:focus-visible]:outline-3 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-focus has-[a:focus-visible]:outline-solid",
-              row.needsMe &&
-                "shadow-[var(--elevation-card),inset_4px_0_0_var(--warn-fg)]"
+                "focus-ring-within transition-colors duration-quick hover:bg-surface-2",
+              row.needsMe && "rail-start-warn"
             )}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -144,8 +143,7 @@ export function WorkingListSection({
                 aria-label={`Dismiss: ${slot.question}`}
                 className={buttonVariants({
                   variant: "quiet",
-                  size: "touch",
-                  className: "relative z-10 justify-self-start",
+                  className: "relative z-local justify-self-start",
                 })}
               >
                 Dismiss

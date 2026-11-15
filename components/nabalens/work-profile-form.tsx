@@ -150,9 +150,9 @@ export function WorkProfileForm({
   const listClass =
     "grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
   const rowClass =
-    "flex min-h-16 cursor-pointer items-center gap-3 px-4 py-2 text-item-title text-ink transition-colors duration-(--duration-quick) hover:bg-surface-2 has-checked:bg-accent-soft has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-focus has-focus-visible:outline-solid"
+    "flex min-h-16 cursor-pointer items-center gap-3 px-4 py-2 text-item-title text-ink transition-colors duration-quick hover:bg-surface-2 has-checked:bg-accent-soft has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-focus has-focus-visible:outline-solid"
   const areaRowClass =
-    "flex min-h-13 cursor-pointer items-center gap-3 px-4 py-2 text-body text-ink transition-colors duration-(--duration-quick) hover:bg-surface-2 has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-focus has-focus-visible:outline-solid"
+    "flex min-h-13 cursor-pointer items-center gap-3 px-4 py-2 text-body text-ink transition-colors duration-quick hover:bg-surface-2 has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-focus has-focus-visible:outline-solid"
   const markClass = "size-6 shrink-0 accent-select"
 
   return (
@@ -196,7 +196,7 @@ export function WorkProfileForm({
         aria-describedby={`${ids}-role-hint${fieldErrors.roleKey ? ` ${ids}-role-error` : ""}`}
         aria-invalid={!!fieldErrors.roleKey || undefined}
       >
-        <legend className="mb-1 px-1 font-display text-section-title text-ink">
+        <legend className="mb-1 px-1 type-section-title text-ink">
           What do you do at {venue}?
         </legend>
         <p id={`${ids}-role-hint`} className="px-1 text-body text-ink-muted">
@@ -258,7 +258,7 @@ export function WorkProfileForm({
         className="grid gap-2"
         aria-invalid={!!fieldErrors.workAreas || undefined}
       >
-        <legend className="mb-1 px-1 font-display text-section-title text-ink">
+        <legend className="mb-1 px-1 type-section-title text-ink">
           Other areas you work in{" "}
           <span className="font-sans text-body font-normal text-ink-muted">
             (optional)
@@ -297,13 +297,12 @@ export function WorkProfileForm({
         <Button
           type="button"
           variant="secondary"
-          size="touch"
           disabled={pending !== null}
           onClick={skip}
         >
           {pending === "skip" ? "Skipping…" : "Skip for now"}
         </Button>
-        <Button type="submit" size="touch" disabled={pending !== null}>
+        <Button variant="primary" type="submit" disabled={pending !== null}>
           {pending === "save" ? "Saving…" : "Save"}
         </Button>
       </div>

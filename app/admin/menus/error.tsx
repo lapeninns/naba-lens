@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button"
 
 export default function MenusError({ retry }: { retry: () => void }) {
   return (
-    <main className="mx-auto w-full max-w-(--size-page) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
-      <h1 className="px-1 pb-3 font-display text-page-title text-ink md:px-0 md:pb-5">
+    <main className="mx-auto w-full max-w-page px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
+      <h1 className="px-1 pb-3 type-page-title text-ink md:px-0 md:pb-5">
         Menus
       </h1>
       <ErrorState

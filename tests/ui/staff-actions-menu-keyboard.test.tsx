@@ -75,9 +75,8 @@ describe("More actions menu from the keyboard", () => {
     )
     expect(items.length).toBeGreaterThan(2)
     for (const item of items) {
-      expect(item.className).toContain("focus-visible:outline-focus")
-      expect(item.className).toContain("focus-visible:outline-solid")
-      expect(item.className).toContain("focus-visible:outline-3")
+      // focus-ring-inset sets the outline's width, style and colour itself
+      expect(item.className.split(/\s+/)).toContain("focus-ring-inset")
     }
   })
 

@@ -42,7 +42,7 @@ export function PrepareAction({
     <div className="grid gap-2">
       <Button
         variant={retry ? "secondary" : "primary"}
-        size={retry ? "sm" : "touch"}
+        size={retry ? "sm" : "md"}
         onClick={() => void prepare()}
         disabled={action.pending}
         aria-busy={action.pending || undefined}

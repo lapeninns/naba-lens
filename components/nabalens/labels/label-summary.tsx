@@ -123,7 +123,7 @@ export function LabelBadge({
     <span
       data-labelled={labels?.hasLabels || undefined}
       className={cn(
-        "inline-flex min-h-6 items-center gap-1 rounded-square bg-plate px-2 text-chip whitespace-nowrap text-on-tile-badge tabular-nums",
+        "inline-flex min-h-6 items-center gap-1 rounded-square bg-plate px-2 text-chip whitespace-nowrap text-on-stage tabular-nums",
         className
       )}
     >

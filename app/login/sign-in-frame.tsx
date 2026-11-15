@@ -14,13 +14,13 @@ import { cn } from "@/lib/utils"
 export const SIGN_IN_CARD =
   "grid w-full min-w-0 gap-5 rounded-card bg-surface p-4 text-ink shadow-card md:p-6"
 export const SIGN_IN_TITLE =
-  "font-display text-page-title-compact text-balance text-ink outline-none"
+  "type-page-title text-balance text-ink outline-none"
 export const SIGN_IN_TEXT =
   "text-body text-pretty text-ink-muted [&_strong]:font-bold [&_strong]:[overflow-wrap:anywhere] [&_strong]:text-ink"
 
 export function SignInPage({ children }: { children: React.ReactNode }) {
   return (
-    <main className="mx-auto grid min-h-svh w-full max-w-110 content-start gap-(--gutter) bg-bg px-(--page-gutter) pt-8 pb-8 md:pt-16">
+    <main className="mx-auto grid min-h-svh w-full max-w-110 content-start gap-gutter bg-canvas px-page-gutter pt-8 pb-8 md:pt-16">
       <SignInWordmark />
       {children}
     </main>
@@ -31,7 +31,7 @@ export function SignInWordmark({ className }: { className?: string }) {
   return (
     <p
       className={cn(
-        "px-1 pb-1 font-display text-display text-ink md:text-center",
+        "px-1 pb-1 type-display text-ink md:text-center",
         className
       )}
     >

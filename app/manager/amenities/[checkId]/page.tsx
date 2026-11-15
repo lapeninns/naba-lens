@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { workspaceManagerContext } from "@/app/staff/manage/_shared/context"
 import { AmenityCheckScreen } from "@/app/staff/manage/_shared/screens/amenities"
 
-export const metadata: Metadata = { title: "Amenity check · Naba-Lens" }
+export const metadata: Metadata = { title: "Amenity check" }
 
 /**
  * One amenity check of the workspace venue. Another venue's check, or an id

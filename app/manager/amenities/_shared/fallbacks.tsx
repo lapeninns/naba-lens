@@ -41,7 +41,7 @@ export function AmenitiesWorkspaceError({
   const router = useRouter()
   return (
     <div className="grid gap-5">
-      <h1 className="font-display text-page-title text-ink">{title}</h1>
+      <h1 className="type-page-title text-ink">{title}</h1>
       <ErrorState
         title={ERROR_COPY.couldNotLoad(what)}
         action={

@@ -1,11 +1,9 @@
 "use client"
 
+import { SearchField } from "@/components/ui/search-field"
+import { Spinner } from "@/components/ui/spinner"
 import * as React from "react"
-import {
-  ArrowsLeftRightIcon,
-  MagnifyingGlassIcon,
-  SpinnerGapIcon,
-} from "@phosphor-icons/react"
+import { ArrowsLeftRightIcon } from "@phosphor-icons/react"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { loadMenuItemsPageAction } from "@/app/manager/actions"
@@ -26,7 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import type { ManagerMenuItem, QueueCard } from "@/lib/server/menu-photos/types"
 
 import { REVIEW_COPY } from "./review-copy"
@@ -201,28 +198,16 @@ export function ItemPickerDialog({
               className="aspect-square w-20 rounded-control"
             />
           ) : null}
-          <div className="grid gap-1.5">
-            <label htmlFor={`${id}-search`} className="text-label text-ink">
-              {REVIEW_COPY.pickerSearch}
-            </label>
-            <span className="relative block">
-              <MagnifyingGlassIcon
-                aria-hidden
-                className="pointer-events-none absolute top-1/2 left-4 z-10 size-5 -translate-y-1/2 text-ink-muted"
-              />
-              <Input
-                id={`${id}-search`}
-                type="search"
-                value={query}
-                placeholder={REVIEW_COPY.pickerPlaceholder}
-                autoComplete="off"
-                aria-controls={listId}
-                onChange={(e) => setQuery(e.currentTarget.value)}
-                disabled={pending}
-                className="pl-11"
-              />
-            </span>
-          </div>
+          <SearchField
+            id={`${id}-search`}
+            label={REVIEW_COPY.pickerSearch}
+            value={query}
+            onValueChange={setQuery}
+            placeholder={REVIEW_COPY.pickerPlaceholder}
+            autoComplete="off"
+            aria-controls={listId}
+            disabled={pending}
+          />
           <fieldset
             id={listId}
             aria-describedby={pickError ? `${id}-pick-error` : undefined}
@@ -232,10 +217,7 @@ export function ItemPickerDialog({
             <legend className="sr-only">{REVIEW_COPY.pickerItems}</legend>
             {loading && items.length === 0 ? (
               <p className="flex items-center gap-2 p-3 text-body text-ink-muted">
-                <SpinnerGapIcon
-                  aria-hidden
-                  className="size-5 motion-safe:animate-spin"
-                />
+                <Spinner />
                 {REVIEW_COPY.pickerLoading}
               </p>
             ) : loadError ? (
@@ -253,7 +235,7 @@ export function ItemPickerDialog({
               items.map((item) => (
                 <label
                   key={item.itemId}
-                  className="flex min-h-14 cursor-pointer items-center gap-3 rounded-control px-3 py-2 transition-colors duration-(--duration-quick) hover:bg-raised has-checked:bg-accent-soft has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-focus has-focus-visible:outline-solid"
+                  className="flex min-h-14 cursor-pointer items-center gap-3 rounded-control px-3 py-2 transition-colors duration-quick hover:bg-raised has-checked:bg-accent-soft has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-focus has-focus-visible:outline-solid"
                 >
                   <input
                     type="radio"
@@ -325,7 +307,6 @@ export function ItemPickerDialog({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               onClick={() => close(false)}
               disabled={pending}
             >
@@ -333,21 +314,14 @@ export function ItemPickerDialog({
             </Button>
             <Button
               type="submit"
-              size="touch"
               variant="primary"
-              disabled={pending}
-              aria-busy={pending || undefined}
+              loading={pending}
+              loadingLabel={REVIEW_COPY.saving}
             >
-              {pending ? (
-                <SpinnerGapIcon aria-hidden className="animate-spin" />
-              ) : (
-                <ArrowsLeftRightIcon data-icon="inline-start" aria-hidden />
-              )}
-              {pending
-                ? REVIEW_COPY.saving
-                : picked
-                  ? REVIEW_COPY.confirmFor(picked.name)
-                  : REVIEW_COPY.confirmPick}
+              <ArrowsLeftRightIcon data-icon="inline-start" aria-hidden />
+              {picked
+                ? REVIEW_COPY.confirmFor(picked.name)
+                : REVIEW_COPY.confirmPick}
             </Button>
           </DialogFooter>
         </form>

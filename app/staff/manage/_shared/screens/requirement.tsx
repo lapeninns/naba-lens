@@ -125,7 +125,7 @@ export async function RequirementScreen({
               ) : null}
               {toTake > 0 ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <i className="block h-2.5 w-[22px] rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]" />
+                  <i className="block h-2.5 w-[22px] rounded-round bg-surface-2 edge-strong" />
                   {toTake} to take
                 </span>
               ) : null}

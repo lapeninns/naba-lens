@@ -20,7 +20,7 @@ export function ManagerDishButtons({
   const dish = useAddDish()
   if (!openAdd || !dish) return null
   return (
-    <div className="relative z-10 col-span-2 flex flex-wrap gap-2 max-sm:*:flex-auto">
+    <div className="relative z-local col-span-2 flex flex-wrap gap-2 max-sm:*:flex-auto">
       <DishAddButtons openAdd={openAdd} item={item} describedBy={describedBy} />
     </div>
   )

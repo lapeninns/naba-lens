@@ -21,7 +21,7 @@ import type { MediaActor } from "@/lib/server/media/types"
 
 import { staffShellStatus } from "../_shell/shell-status"
 
-export const metadata: Metadata = { title: "Our menu · Naba-Lens" }
+export const metadata: Metadata = { title: "Our menu" }
 
 type OurMenuSearch = Record<string, string | string[] | undefined>
 
@@ -94,7 +94,7 @@ export default async function OurMenuPage({
       {...shell}
       userName={profile.displayName}
     >
-      <div className="flex flex-col gap-(--gutter)">
+      <div className="flex flex-col gap-gutter">
         <OfflineNotice />
         <OurMenuScreen
           load={load}

@@ -127,9 +127,19 @@ describe("focus on the first invalid control that exists (R8)", () => {
       />
     )
     await act(async () => {})
-    const focused = document.activeElement as HTMLInputElement
-    expect(focused.type).toBe("radio")
-    expect(focused.name).toBe("search-mediaType")
+    // SegmentedControl is a Base UI radio group: focus lands on the chosen
+    // segment, a <button role="radio">, and the group's hidden input carries
+    // the field name.
+    const focused = document.activeElement as HTMLElement
+    expect(focused.getAttribute("role")).toBe("radio")
+    expect(focused.getAttribute("aria-checked")).toBe("true")
+    expect(focused.id).toBe("search-mediaType")
+    const group = focused.closest('[role="radiogroup"]')
+    expect(group).not.toBeNull()
+    expect(group!.getAttribute("aria-invalid")).toBe("true")
+    expect(
+      group!.querySelector('input[name="search-mediaType"]')
+    ).not.toBeNull()
   })
 
   it("a variant error with no Option control falls back to the error summary", async () => {

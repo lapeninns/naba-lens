@@ -4,6 +4,8 @@ import * as React from "react"
 import { PlusIcon, TrashIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
+import { fieldControlVariants } from "@/components/ui/field-control"
+import { cn } from "@/lib/utils"
 import type { ValueListItem } from "@/lib/knowledge-client/contract"
 
 import { FieldMessage, LABEL, MUTED } from "../amenities/capture/field-parts"
@@ -21,10 +23,9 @@ import {
   type ServiceField,
 } from "./service-detail"
 
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
+const INPUT = cn("block", fieldControlVariants())
 const ROW =
-  "flex min-h-11 cursor-pointer items-center gap-3 text-body-touch text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:text-body"
+  "flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink focus-ring-within"
 
 const describedBy = (...ids: (string | false | null | undefined)[]) =>
   ids.filter(Boolean).join(" ") || undefined
@@ -149,7 +150,7 @@ export function ServiceExtraFields({
               <label key={b.code} className={ROW}>
                 <input
                   type="checkbox"
-                  className="size-5 shrink-0 accent-primary"
+                  className="size-5 shrink-0 accent-accent"
                   checked={value.broadcasters.includes(b.code)}
                   onChange={(e) =>
                     set({
@@ -168,9 +169,7 @@ export function ServiceExtraFields({
             />
           </fieldset>
         ) : (
-          <p className="text-body-touch text-ink md:text-body">
-            {SERVICE_COPY.noBroadcasters}
-          </p>
+          <p className="text-body text-ink">{SERVICE_COPY.noBroadcasters}</p>
         )
       ) : null}
     </div>
@@ -279,7 +278,7 @@ export function EventFields({
       <FieldMessage id={`${id}-window-error`} error={errors.window} />
       <div className="grid min-w-0 gap-1">
         <p className={LABEL}>{EVENT_COPY.whoCommitted}</p>
-        <p className="text-body-touch text-ink md:text-body">{committedBy}</p>
+        <p className="text-body text-ink">{committedBy}</p>
       </div>
     </fieldset>
   )

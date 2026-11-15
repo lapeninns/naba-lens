@@ -70,13 +70,13 @@ describe("PhotoFilters", () => {
     expect(
       within(media)
         .getAllByRole("radio")
-        .map((radio) => radio.closest("label")?.textContent)
+        .map((radio) => radio.textContent)
     ).toEqual(["Photos", "Videos", "Photos and videos"])
     expect(
-      within(media).getByRole<HTMLInputElement>("radio", {
-        name: "Photos and videos",
-      }).checked
-    ).toBe(true)
+      within(media)
+        .getByRole("radio", { name: "Photos and videos" })
+        .getAttribute("aria-checked")
+    ).toBe("true")
     const footer = sheet.querySelector("[data-slot=dialog-footer]")!
     expect([...footer.children].map((el) => el.textContent)).toEqual([
       "Clear filters",
@@ -126,9 +126,10 @@ describe("PhotoFilters", () => {
       within(sheet).getByRole("combobox", { name: "Venue" }).textContent
     ).toContain("The Bell")
     expect(
-      within(sheet).getByRole<HTMLInputElement>("radio", { name: "Photos" })
-        .checked
-    ).toBe(true)
+      within(sheet)
+        .getByRole("radio", { name: "Photos" })
+        .getAttribute("aria-checked")
+    ).toBe("true")
     await user.click(
       within(sheet).getByRole("radio", { name: "Photos and videos" })
     )

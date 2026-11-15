@@ -33,7 +33,7 @@ export default async function UpgradesPage() {
     : []
   return (
     <AppShell variant="admin" active="coverage" userName={profile.displayName}>
-      <div className="mx-auto grid w-full max-w-(--size-reading) min-w-0 gap-(--gutter)">
+      <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
         <PageHeader title={UPGRADE_COPY.title} />
         {registry && !registry.ok ? (
           <Notice tone="negative">{UPGRADE_COPY.failed}</Notice>

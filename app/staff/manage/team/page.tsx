@@ -7,7 +7,7 @@ import {
   type ManageSearch,
 } from "@/app/staff/manage/_shared/screens"
 
-export const metadata: Metadata = { title: "Team · Manage · Naba-Lens" }
+export const metadata: Metadata = { title: "Team · Manage" }
 
 /** Roster and monthly targets; `?staff=<id>&period=YYYY-MM` opens one person's month. */
 export default async function ManageTeamPage({

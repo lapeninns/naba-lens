@@ -1,6 +1,11 @@
 "use client"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  type AvatarSize,
+} from "@/components/ui/avatar"
 
 import { initials } from "./format"
 
@@ -25,13 +30,14 @@ export function avatarHue(name: string): number {
 export function ProfileAvatar({
   name,
   src,
-  size = "default",
+  size = "md",
   labelled = false,
   className,
 }: {
   name: string
   src?: string | null
-  size?: "default" | "sm" | "md" | "target" | "lg"
+  /** sm 36px, md 44px (the default), lg 84px. */
+  size?: AvatarSize
   labelled?: boolean
   className?: string
 }) {

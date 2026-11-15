@@ -39,7 +39,7 @@ import {
   StatusChip,
   type ChipTone,
 } from "@/components/nabalens/status-chip"
-import { Badge } from "@/components/ui/badge"
+
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -49,14 +49,14 @@ import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 const SWATCHES = [
-  ["bg", "bg-bg"],
+  ["bg", "bg-canvas"],
   ["surface", "bg-surface"],
   ["surface-2", "bg-surface-2"],
   ["raised", "bg-raised"],
-  ["fg", "bg-fg"],
-  ["fg-muted (ink-muted)", "bg-fg-muted"],
+  ["fg", "bg-ink"],
+  ["fg-muted (ink-muted)", "bg-ink-muted"],
   ["border (line)", "bg-line"],
-  ["border-strong", "bg-border-strong"],
+  ["border-strong", "bg-edge-strong"],
   ["accent", "bg-accent"],
   ["accent-text", "bg-accent-text"],
   ["accent-soft", "bg-accent-soft"],
@@ -83,7 +83,7 @@ function Block({
 }) {
   return (
     <div className="grid gap-3">
-      <h3 className="font-display text-section-title">{title}</h3>
+      <h3 className="type-section-title">{title}</h3>
       {children}
     </div>
   )
@@ -91,14 +91,14 @@ function Block({
 
 export function CommonRoomPreview() {
   return (
-    <div className="grid gap-8 rounded-card bg-bg p-3 md:p-6">
+    <div className="grid gap-8 rounded-card bg-canvas p-3 md:p-6">
       <Block title="Tokens">
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
           {SWATCHES.map(([name, cls]) => (
             <li key={name} className="grid gap-1.5">
               <span
                 aria-hidden
-                className={`h-14 rounded-control shadow-[inset_0_0_0_1px_var(--line)] ${cls}`}
+                className={`h-14 rounded-control edge ${cls}`}
               />
               <span className="font-mono text-meta">{name}</span>
             </li>
@@ -108,14 +108,14 @@ export function CommonRoomPreview() {
 
       <Block title="Type">
         <Card>
-          <p className="font-display text-display">Display XL 34</p>
-          <p className="font-display text-page-title">Heading LG 26</p>
-          <p className="font-display text-card-title">Card title 24</p>
-          <p className="font-display text-section-title">Heading MD 21</p>
-          <p className="font-display text-count tabular-nums">46</p>
+          <p className="type-display">Display XL 34</p>
+          <p className="type-page-title">Heading LG 26</p>
+          <p className="type-section-title">Card title 24</p>
+          <p className="type-section-title">Heading MD 21</p>
+          <p className="type-count tabular-nums">46</p>
           <p className="text-lead">Lead 18. Atkinson Hyperlegible Next.</p>
           <p className="text-body">Body 17. The floor for product text.</p>
-          <p className="font-mono text-meta-strong tabular-nums">
+          <p className="font-mono text-meta font-semibold tabular-nums">
             Meta mono 17 · 2 Nov 2026, 14:06 · 42%
           </p>
         </Card>
@@ -124,19 +124,23 @@ export function CommonRoomPreview() {
       <Block title="Buttons">
         <Card>
           <div className="flex flex-wrap gap-2">
-            <Button>Primary</Button>
+            <Button variant="primary">Primary</Button>
             <Button variant="secondary">Secondary</Button>
-            <Button variant="ghost">Ghost</Button>
+            <Button variant="quiet">Ghost</Button>
             <Button variant="danger">Danger</Button>
             <Button variant="danger-quiet">Danger quiet</Button>
             <Button variant="link">Link</Button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="lg">XL 60</Button>
+            <Button variant="primary" size="lg">
+              XL 60
+            </Button>
             <Button size="sm" variant="secondary">
               Small 44
             </Button>
-            <Button aria-disabled="true">Disabled keeps its label</Button>
+            <Button variant="primary" aria-disabled="true">
+              Disabled keeps its label
+            </Button>
           </div>
         </Card>
       </Block>
@@ -159,7 +163,6 @@ export function CommonRoomPreview() {
             <Stamp />
             <CountBadge count={3} label="to review" tone="warn" />
             <CountBadge count={12} label="tasks" />
-            <Badge>Plain badge</Badge>
           </div>
         </Card>
       </Block>
@@ -215,7 +218,7 @@ export function CommonRoomPreview() {
       </Block>
 
       <Block title="Feed building blocks">
-        <div className="mx-auto grid w-full max-w-(--size-feed) gap-(--gutter)">
+        <div className="mx-auto grid w-full max-w-feed gap-gutter">
           <Notice tone="positive" title="Sample confirmation">
             A positive notice, role status.
           </Notice>
@@ -229,7 +232,11 @@ export function CommonRoomPreview() {
                 <ImageIcon aria-hidden className="size-8 text-ink-muted" />
               </span>
             }
-            actions={<Button className="w-full">The one blue action</Button>}
+            actions={
+              <Button variant="primary" className="w-full">
+                The one blue action
+              </Button>
+            }
           >
             <p className="text-ink-muted">One job and its one action.</p>
           </LeadCard>
@@ -261,7 +268,7 @@ export function CommonRoomPreview() {
           />
           <Card>
             <CardHead>
-              <h3 className="font-display text-section-title">Your month</h3>
+              <h3 className="type-section-title">Your month</h3>
               <StatusChip state="target_met" />
             </CardHead>
             <ScopeLabel>Sample staff · November 2026 · Sample venue</ScopeLabel>
@@ -304,7 +311,7 @@ export function CommonRoomPreview() {
             <IconDisc tone="ok">
               <BellIcon />
             </IconDisc>
-            <p className="font-display text-section-title">Icon disc</p>
+            <p className="type-section-title">Icon disc</p>
           </Card>
           <EmptyState
             title="Sample empty state"
@@ -317,7 +324,7 @@ export function CommonRoomPreview() {
             note="A dock holds the screen's primary."
           >
             <Button variant="secondary">Back</Button>
-            <Button>Send</Button>
+            <Button variant="primary">Send</Button>
           </ActionDock>
         </div>
       </Block>

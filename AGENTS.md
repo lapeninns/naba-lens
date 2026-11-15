@@ -39,3 +39,20 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   no browser journey. Separate local checks, CI, deployment and live proof.
 - Operation: see `docs/verification-policy.md`. The ledger is workflow evidence,
   not a security boundary or permission to bypass required release checks.
+
+## UI changes
+
+- The design system is Common Room. Read `docs/design-system/DESIGN.md` before
+  changing any screen, component or token. Code comments cite it by section
+  number ("DESIGN.md §4"); keep those numbers stable.
+- Values live in `app/globals.css`. State words, icons and shapes live in
+  `components/nabalens/status-chip.tsx`. Do not restate either elsewhere.
+- Check `docs/design-system/catalogue.md` before building a component. Extend
+  the listed one; a second implementation of a listed pattern is a defect.
+- A deliberate exception to the spec goes in `docs/design-system/departures.md`
+  with a reason and an owner. An open question goes in `decisions.md`.
+- The claude.ai Design System artifact from PR #14 and the folder
+  `research/naba-lens-common-room-2026-11-07` are superseded. Do not copy tokens
+  or rules from them.
+- `/ui-preview` (dev only) is the living reference. `docs/design-system/strategy.md`
+  holds the audit and the roadmap batches (task IDs `DS-xxx`).

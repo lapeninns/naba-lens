@@ -13,21 +13,21 @@ import { Button } from "@/components/ui/button"
 export default function GlobalError({ retry }: { retry: () => void }) {
   return (
     <html lang="en">
-      <body className="bg-bg font-sans text-ink antialiased">
+      <body className="bg-canvas font-sans text-ink antialiased">
         <title>Naba-Lens</title>
-        <main className="mx-auto flex min-h-svh w-full max-w-(--size-feed) flex-col items-center justify-center gap-3 bg-bg px-(--page-gutter) py-6 text-center text-ink">
-          <p className="mb-2 font-display text-page-title-compact">Naba-Lens</p>
+        <main className="mx-auto flex min-h-svh w-full max-w-feed flex-col items-center justify-center gap-3 bg-canvas px-page-gutter py-6 text-center text-ink">
+          <p className="mb-2 type-page-title">Naba-Lens</p>
           <IconDisc tone="warn">
             <WarningIcon />
           </IconDisc>
-          <h1 className="font-display text-page-title text-balance">
+          <h1 className="type-page-title text-balance">
             This page could not load
           </h1>
           <p className="text-body text-ink-muted">
             Check your connection and try again.
           </p>
           <Button
-            size="touch"
+            variant="primary"
             className="mt-2 min-w-55"
             onClick={() => retry()}
           >

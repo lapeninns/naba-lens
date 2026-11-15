@@ -28,7 +28,7 @@ function frames(
 const SEGMENT_CLASS: Record<FrameState, string> = {
   accepted: "bg-ok-fg",
   waiting: "bg-stripe",
-  open: "bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]",
+  open: "bg-surface-2 edge-strong",
 }
 
 /**
@@ -57,7 +57,7 @@ export function PhotoSegments({
       <div
         aria-hidden
         className={cn(
-          "flex h-3 overflow-hidden rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]",
+          "flex h-3 overflow-hidden rounded-round bg-surface-2 edge-strong",
           className
         )}
       >
@@ -131,7 +131,7 @@ export function MonthCard({
       <CardHead>
         <h2
           id={headingId}
-          className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+          className="type-section-title [overflow-wrap:anywhere] text-ink"
         >
           {heading}
         </h2>
@@ -148,10 +148,8 @@ export function MonthCard({
       {monthly && !needsSetup ? (
         <div className="grid gap-3">
           <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="font-display text-count text-ink tabular-nums">
-              {count}
-            </span>
-            <span className="font-display text-section-title text-ink-muted">
+            <span className="type-count text-ink tabular-nums">{count}</span>
+            <span className="type-section-title text-ink-muted">
               of {target} {completion ? "completed" : "accepted"}
             </span>
             {monthly.complete ? (
@@ -197,7 +195,7 @@ export function MonthCard({
           <StatusChip tone="warning">Needs another photo</StatusChip>
           <Link
             href={replaceHref}
-            className={buttonVariants({ variant: "link", size: "touch" })}
+            className={buttonVariants({ variant: "link" })}
           >
             {replaceCount === 1
               ? "1 photo to replace"
@@ -218,7 +216,6 @@ export function MonthCard({
             href={addHref}
             className={buttonVariants({
               variant: "secondary",
-              size: "touch",
               className: "w-full sm:w-auto",
             })}
           >

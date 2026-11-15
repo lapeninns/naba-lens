@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
 const SWIPE_PX = 40
 const LAST = GUIDE_ANGLES.length - 1
 const VIEWER_BUTTON =
-  "border-on-viewer/40 bg-transparent text-on-viewer hover:bg-on-viewer/12 hover:text-on-viewer disabled:border-on-viewer/20 disabled:bg-transparent disabled:text-on-viewer-muted"
+  "border-on-stage/40 bg-transparent text-on-stage hover:bg-on-stage/12 hover:text-on-stage disabled:border-on-stage/20 disabled:bg-transparent disabled:text-on-stage-muted"
 
 type GuideViewerProps = {
   dish: GuideDish
@@ -81,14 +81,15 @@ export function GuideViewer({
           }
         }}
         className={cn(
-          // Examples always sit on the dark viewer ground, in both themes.
-          "flex flex-col gap-0 bg-viewer p-0 pt-0 pb-0 text-on-viewer before:hidden",
+          // Examples always sit on the dark viewer ground, in both themes;
+          // `dark` gives everything inside the dark tokens (DESIGN.md §2).
+          "dark flex flex-col gap-0 bg-stage p-0 pt-0 pb-0 text-on-stage before:hidden",
           "max-md:top-0 max-md:max-h-dvh max-md:min-h-dvh max-md:rounded-none",
           "md:max-h-[calc(100dvh-3rem)] md:max-w-[min(56rem,calc(100vw-3rem))] md:p-0"
         )}
       >
         <div className="flex items-center justify-between gap-3 px-4 pt-2 md:px-5">
-          <p className="font-mono text-meta text-on-viewer-muted tabular-nums">
+          <p className="font-mono text-meta text-on-stage-muted tabular-nums">
             {index + 1} of {GUIDE_ANGLES.length} · {dish.name}
           </p>
           {/* Focus stays on Previous/Next, so name the angle that came in. */}
@@ -100,7 +101,7 @@ export function GuideViewer({
               <Button
                 variant="quiet"
                 size="sm"
-                className="-mr-2 text-on-viewer hover:bg-on-viewer/12 hover:text-on-viewer active:bg-on-viewer/20"
+                className="-mr-2 text-on-stage hover:bg-on-stage/12 hover:text-on-stage active:bg-on-stage/20"
               />
             }
           >
@@ -149,23 +150,22 @@ export function GuideViewer({
                 key={a.id}
                 className={cn(
                   "size-2.5 rounded-round",
-                  i === index ? "bg-on-viewer" : "bg-on-viewer/30"
+                  i === index ? "bg-on-stage" : "bg-on-stage/30"
                 )}
               />
             ))}
           </div>
-          <DialogTitle className="pr-0 font-display text-section-title text-on-viewer">
+          <DialogTitle className="pr-0 type-section-title text-on-stage">
             {angle.name}
           </DialogTitle>
-          <DialogDescription className="max-w-(--size-reading) text-body text-on-viewer-muted">
+          <DialogDescription className="max-w-reading text-body text-on-stage-muted">
             {angle.tip}
           </DialogDescription>
         </div>
         <div className="mt-auto grid grid-cols-2 gap-3 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:px-5 md:pb-5">
           <Button
             ref={previousRef}
-            variant="outline"
-            size="touch"
+            variant="secondary"
             disabled={index === 0}
             onClick={() => go(index - 1)}
             className={VIEWER_BUTTON}
@@ -174,8 +174,7 @@ export function GuideViewer({
           </Button>
           <Button
             ref={nextRef}
-            variant="outline"
-            size="touch"
+            variant="secondary"
             disabled={index === LAST}
             onClick={() => go(index + 1)}
             className={VIEWER_BUTTON}

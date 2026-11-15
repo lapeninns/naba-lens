@@ -98,7 +98,7 @@ export function ManagerNav({
     <nav
       aria-label={MANAGER_COPY.navLabel}
       data-slot="tabbar"
-      className="fixed inset-x-0 bottom-0 z-40 grid auto-cols-fr grid-flow-col bg-surface px-1 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-1px_0_var(--line)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-nav grid auto-cols-fr grid-flow-col bg-surface pr-[max(0.25rem,env(safe-area-inset-right,0px))] pb-[env(safe-area-inset-bottom,0px)] pl-[max(0.25rem,env(safe-area-inset-left,0px))] shadow-bar md:hidden"
     >
       {ITEMS.flatMap((item, index) => {
         const Icon = item.icon

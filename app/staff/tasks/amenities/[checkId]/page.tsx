@@ -8,7 +8,7 @@ import { staffShellStatus } from "../../../_shell/shell-status"
 import { TASKS_PATH, unwrap } from "../../result"
 import { CaptureScreen } from "../_capture/screen"
 
-export const metadata = { title: "Amenity check · Naba-Lens" }
+export const metadata = { title: "Amenity check" }
 
 const NO_SEARCH: Record<string, string | string[] | undefined> = {}
 

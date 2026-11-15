@@ -360,6 +360,46 @@ async function itemsWithVariants(ctx: ManagerPhotoCtx): Promise<Set<string>> {
 }
 
 /** Staff labels of a dish with variants saved without one say so. */
+/**
+ * Adds what accepting each labelled card also counts for (ORP-3b). Display
+ * only: a failed read leaves the cards without the line.
+ */
+async function withAlsoCounts(
+  ctx: ManagerPhotoCtx,
+  cards: QueueCard[]
+): Promise<QueueCard[]> {
+  const assetIds = [
+    ...new Set(
+      cards.flatMap((c) =>
+        c.kind === "labelled" && c.item ? [c.asset.assetId] : []
+      )
+    ),
+  ]
+  if (assetIds.length === 0) return cards
+  try {
+    const { data, error } = await ctx.actor.db.rpc("menu_photo_also_counts", {
+      p_venue_id: ctx.venueId,
+      p_asset_ids: assetIds,
+    })
+    if (error || !data) return cards
+    const byTuple = new Map(
+      data.map((r) => [
+        `${r.asset_id}:${r.item_id}`,
+        { tasks: r.task_titles ?? [], month: r.credit_month ?? null },
+      ])
+    )
+    return cards.map((c) => {
+      const counts =
+        c.kind === "labelled" && c.item
+          ? byTuple.get(`${c.asset.assetId}:${c.item.itemId}`)
+          : undefined
+      return counts ? { ...c, alsoCounts: counts } : c
+    })
+  } catch {
+    return cards
+  }
+}
+
 async function withUnspecified(
   ctx: ManagerPhotoCtx,
   cards: QueueCard[]
@@ -424,7 +464,10 @@ export async function listReviewQueue(
   const last = rows.length > QUEUE_PAGE ? page[page.length - 1] : null
   return {
     ok: true,
-    items: await withUnspecified(ctx, page.map(queueCardView)),
+    items: await withAlsoCounts(
+      ctx,
+      await withUnspecified(ctx, page.map(queueCardView))
+    ),
     nextCursor: last
       ? queueCursor.encode({ createdAt: last.created_at, key: last.sort_key })
       : null,

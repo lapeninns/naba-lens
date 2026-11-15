@@ -77,12 +77,12 @@ export function MenuVenueTally({
       {cells.map((cell) => (
         <div
           key={cell.label}
-          className="grid content-start gap-1 rounded-card px-3 py-2.5 shadow-[inset_0_0_0_1px_var(--line)]"
+          className="grid content-start gap-1 rounded-card px-3 py-2.5 edge"
         >
           <dt className="text-meta text-ink-muted">{cell.label}</dt>
           <dd
             className={cn(
-              "flex items-baseline gap-1.5 font-display text-count text-ink tabular-nums",
+              "flex items-baseline gap-1.5 type-count text-ink tabular-nums",
               cell.attention && "text-warn-fg"
             )}
           >

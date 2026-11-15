@@ -4,6 +4,8 @@ import * as React from "react"
 import { PlusIcon, TrashIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
+import { fieldControlVariants } from "@/components/ui/field-control"
+import { cn } from "@/lib/utils"
 import type {
   Place,
   PlaceRef,
@@ -24,10 +26,9 @@ import {
   type MeasureUnit,
 } from "./accessibility-detail"
 
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
+const INPUT = cn("block", fieldControlVariants())
 const ROW =
-  "flex min-h-11 cursor-pointer items-center gap-3 text-body-touch text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:text-body"
+  "flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink focus-ring-within"
 const VALUES: FeatureValue[] = ["yes", "no", "not_checked"]
 const UNITS: MeasureUnit[] = ["mm", "cm", "degrees"]
 const METHODS: MeasureMethod[] = ["tape", "gauge", "other"]
@@ -53,7 +54,7 @@ function TriChoice({
 }) {
   return (
     <fieldset className="grid min-w-0 gap-1" aria-describedby={describedById}>
-      <legend className="text-body-touch font-semibold [overflow-wrap:anywhere] text-ink md:text-body">
+      <legend className="text-body font-semibold [overflow-wrap:anywhere] text-ink">
         {legend}
       </legend>
       <div className="grid gap-1 min-[360px]:grid-cols-3">
@@ -62,7 +63,7 @@ function TriChoice({
             <input
               type="radio"
               name={name}
-              className="size-5 shrink-0 accent-primary"
+              className="size-5 shrink-0 accent-accent"
               checked={value === v}
               onChange={() => onChange(v)}
             />
@@ -165,10 +166,7 @@ export function AccessDetailFields({
               {COPY.entrancesHelp}
             </p>
           ) : (
-            <p
-              id={`${id}-entrances-help`}
-              className="text-body-touch text-ink md:text-body"
-            >
+            <p id={`${id}-entrances-help`} className="text-body text-ink">
               {COPY.noEntrances(venueName)}{" "}
               {canManagePlaces
                 ? COPY.addEntrancesManager
@@ -212,7 +210,7 @@ export function AccessDetailFields({
               <input
                 type="radio"
                 name={`${id}-scope`}
-                className="size-5 shrink-0 accent-primary"
+                className="size-5 shrink-0 accent-accent"
                 checked={
                   value.scope !== null &&
                   "subjectId" in value.scope &&
@@ -227,7 +225,7 @@ export function AccessDetailFields({
             <input
               type="radio"
               name={`${id}-scope`}
-              className="size-5 shrink-0 accent-primary"
+              className="size-5 shrink-0 accent-accent"
               checked={elsewhere}
               onChange={() =>
                 chooseScope(
@@ -257,7 +255,7 @@ export function AccessDetailFields({
             </div>
           ) : null}
           {value.scope && scopeName(value.scope, places).trim() ? (
-            <p className="text-body-touch text-ink md:text-body">
+            <p className="text-body text-ink">
               {COPY.covers(scopeName(value.scope, places))}
             </p>
           ) : null}
@@ -305,7 +303,7 @@ export function AccessDetailFields({
           {value.measurements.map((m, i) => (
             <fieldset
               key={i}
-              className="grid min-w-0 gap-3 rounded-card bg-well p-3"
+              className="grid min-w-0 gap-3 rounded-card bg-surface-2 p-3"
               disabled={disabled}
             >
               <legend className={LABEL}>{COPY.measurement(i + 1)}</legend>

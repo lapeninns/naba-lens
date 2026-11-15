@@ -61,7 +61,7 @@ export function EntrySheet({
                 <DialogTitle>{ENTRY_COPY.title}</DialogTitle>
                 <div
                   aria-hidden
-                  className="h-40 animate-pulse rounded-touch bg-surface-2"
+                  className="h-40 animate-pulse rounded-card bg-surface-2"
                 />
               </>
             }
@@ -78,7 +78,7 @@ export function EntrySheet({
           </React.Suspense>
         ) : null}
         <DialogFooter>
-          <DialogClose render={<Button variant="secondary" size="touch" />}>
+          <DialogClose render={<Button variant="secondary" />}>
             {ENTRY_COPY.cancel}
           </DialogClose>
         </DialogFooter>

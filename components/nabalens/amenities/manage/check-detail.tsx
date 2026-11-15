@@ -7,7 +7,6 @@ import {
   ArrowCounterClockwiseIcon,
   CameraIcon,
   FloppyDiskIcon,
-  SpinnerGapIcon,
   UserMinusIcon,
   UserPlusIcon,
   PencilSimpleIcon,
@@ -418,26 +417,13 @@ export function AmenityCheckDetail({
     !notConfirmed
       ? policyFacts(inUse.answerDetail, knowledge.policy)
       : []
-  const muted = "text-body-touch text-ink-muted md:text-body-sm"
+  const muted = "text-body text-ink-muted"
   const stillSaving = (...keys: Write[]) =>
     still && busy && keys.includes(busy) ? (
       <p role="status" className={muted}>
         {STILL_SAVING}
       </p>
     ) : null
-  /** The pressed button's icon and label while its write runs. */
-  const label = (key: Write, icon: React.ReactNode, text: string) =>
-    busy === key ? (
-      <>
-        <SpinnerGapIcon aria-hidden className="animate-spin" />
-        {SAVING}
-      </>
-    ) : (
-      <>
-        {icon}
-        {text}
-      </>
-    )
 
   return (
     <div
@@ -484,9 +470,7 @@ export function AmenityCheckDetail({
         focusableTitle
       >
         {SPORT_LINES[check.entry.key] ? (
-          <p className="text-body-touch text-ink md:text-body">
-            {SPORT_LINES[check.entry.key]}
-          </p>
+          <p className="text-body text-ink">{SPORT_LINES[check.entry.key]}</p>
         ) : null}
         {knowledge?.view.slot.answerInUse.policyMissing?.length ? (
           <PolicyNeedsPanel
@@ -495,18 +479,14 @@ export function AmenityCheckDetail({
         ) : null}
         <dl className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1">
-            <dt className="text-meta-touch text-ink-muted md:text-meta">
-              Progress
-            </dt>
+            <dt className="text-meta text-ink-muted">Progress</dt>
             <dd>
               <ProgressChip check={check} notConfirmed={notConfirmed} />
             </dd>
           </div>
           <div className="grid gap-1">
-            <dt className="text-meta-touch text-ink-muted md:text-meta">
-              Answer
-            </dt>
-            <dd className="text-body-touch text-ink md:text-body">
+            <dt className="text-meta text-ink-muted">Answer</dt>
+            <dd className="text-body text-ink">
               {stepFree ? (
                 <span className="block">{`Current answer: ${stepFree}.`}</span>
               ) : knowledge ? (
@@ -526,7 +506,7 @@ export function AmenityCheckDetail({
               {/* A step-free Yes says Checked on and Recorded below, with
                   no staff name (§3.5, D3). */}
               {answered && !stepFree ? (
-                <span className="block text-meta-touch text-ink-muted md:text-meta">
+                <span className="block text-meta text-ink-muted">
                   {answered}
                 </span>
               ) : null}
@@ -534,55 +514,43 @@ export function AmenityCheckDetail({
           </div>
           {policyRows.map((row) => (
             <div key={row.term} className="grid gap-1">
-              <dt className="text-meta-touch text-ink-muted md:text-meta">
-                {row.term}
-              </dt>
-              <dd className="text-body-touch break-words text-ink md:text-body">
-                {row.value}
-              </dd>
+              <dt className="text-meta text-ink-muted">{row.term}</dt>
+              <dd className="text-body break-words text-ink">{row.value}</dd>
             </div>
           ))}
           {stepFree && inUse ? (
             <>
               <div className="grid gap-1">
-                <dt className="text-meta-touch text-ink-muted md:text-meta">
-                  Checked on
-                </dt>
-                <dd className="text-body-touch text-ink md:text-body">
+                <dt className="text-meta text-ink-muted">Checked on</dt>
+                <dd className="text-body text-ink">
                   {inUse.observedOn
                     ? longDate(inUse.observedOn)
                     : "Not recorded"}
                 </dd>
               </div>
               <div className="grid gap-1">
-                <dt className="text-meta-touch text-ink-muted md:text-meta">
-                  Recorded
-                </dt>
-                <dd className="text-body-touch text-ink md:text-body">
+                <dt className="text-meta text-ink-muted">Recorded</dt>
+                <dd className="text-body text-ink">
                   {inUse.savedAt ? longDate(inUse.savedAt) : "Not recorded"}
                 </dd>
               </div>
             </>
           ) : null}
           <div className="grid gap-1">
-            <dt className="text-meta-touch text-ink-muted md:text-meta">
-              Evidence needed
-            </dt>
-            <dd className="text-body-touch text-ink md:text-body">
+            <dt className="text-meta text-ink-muted">Evidence needed</dt>
+            <dd className="text-body text-ink">
               {EVIDENCE_RULE_LABEL[check.entry.evidenceRule]}
             </dd>
           </div>
           <div className="grid gap-1">
-            <dt className="text-meta-touch text-ink-muted md:text-meta">
-              Category
-            </dt>
-            <dd className="text-body-touch break-words text-ink md:text-body">
+            <dt className="text-meta text-ink-muted">Category</dt>
+            <dd className="text-body break-words text-ink">
               {check.entry.category}
             </dd>
           </div>
         </dl>
         {inUse && stepFreeCoversLine(inUse) ? (
-          <p className="text-body-touch text-ink-muted md:text-body-sm">
+          <p className="text-body text-ink-muted">
             {stepFreeCoversLine(inUse)}
           </p>
         ) : null}
@@ -605,7 +573,6 @@ export function AmenityCheckDetail({
               href={hrefs.capture(check.id)}
               className={buttonVariants({
                 variant: canUpload || statesPolicy ? "primary" : "secondary",
-                size: "touch",
               })}
             >
               <CameraIcon aria-hidden />
@@ -618,10 +585,7 @@ export function AmenityCheckDetail({
           knowledge.view.slot.answerInUse.detail !== "answer_withdrawn" ? (
             <Link
               href={`${hrefs.capture(check.id)}?correct=1`}
-              className={buttonVariants({
-                variant: "secondary",
-                size: "touch",
-              })}
+              className={buttonVariants({ variant: "secondary" })}
             >
               <PencilSimpleIcon aria-hidden />
               {CORRECT_COPY.open}
@@ -642,7 +606,6 @@ export function AmenityCheckDetail({
           {canReopen ? (
             <Button
               variant="secondary"
-              size="touch"
               onClick={() => setReopenOpen(true)}
               disabled={action.pending}
             >
@@ -653,7 +616,6 @@ export function AmenityCheckDetail({
           {permissions.canArchive && active ? (
             <Button
               variant="secondary"
-              size="touch"
               onClick={() =>
                 write(
                   "archive",
@@ -663,15 +625,16 @@ export function AmenityCheckDetail({
                 )
               }
               disabled={action.pending}
-              aria-busy={busy === "archive" || undefined}
+              loading={busy === "archive"}
+              loadingLabel={SAVING}
             >
-              {label("archive", <ArchiveIcon aria-hidden />, UI_TEXT.archive)}
+              <ArchiveIcon aria-hidden />
+              {UI_TEXT.archive}
             </Button>
           ) : null}
           {permissions.canRestore && !active ? (
             <Button
               variant="secondary"
-              size="touch"
               onClick={() =>
                 write(
                   "restore",
@@ -681,13 +644,11 @@ export function AmenityCheckDetail({
                 )
               }
               disabled={action.pending}
-              aria-busy={busy === "restore" || undefined}
+              loading={busy === "restore"}
+              loadingLabel={SAVING}
             >
-              {label(
-                "restore",
-                <ArrowCounterClockwiseIcon aria-hidden />,
-                UI_TEXT.restore
-              )}
+              <ArrowCounterClockwiseIcon aria-hidden />
+              {UI_TEXT.restore}
             </Button>
           ) : null}
         </div>
@@ -730,13 +691,13 @@ export function AmenityCheckDetail({
       ) : null}
 
       <CoverageSection id="amenity-brief" title="Capture brief">
-        <p className="max-w-(--size-reading) text-body-touch break-words whitespace-pre-line text-ink md:text-body">
+        <p className="max-w-reading text-body break-words whitespace-pre-line text-ink">
           {check.entry.captureBrief}
         </p>
       </CoverageSection>
 
       <CoverageSection id="amenity-assignee" title="Who captures it">
-        <p className="text-body-touch text-ink md:text-body">
+        <p className="text-body text-ink">
           {check.assignee
             ? `Assigned to ${check.assignee.displayName ?? "a former team member"}.`
             : "No one is assigned."}
@@ -744,7 +705,7 @@ export function AmenityCheckDetail({
         {qualifiedInUse(check.qualification) &&
         permissions.canAssign &&
         active ? (
-          <p className="text-body-touch text-ink-muted md:text-body-sm">
+          <p className="text-body text-ink-muted">
             Assigning doesn&apos;t change the answer in use. Whoever you assign
             is asked to look again; what they send goes through this
             question&apos;s usual confirmation.
@@ -753,10 +714,7 @@ export function AmenityCheckDetail({
         {permissions.canAssign && active ? (
           <div className="grid max-w-md gap-3">
             <div className="grid gap-1.5">
-              <label
-                htmlFor={`${id}-assignee`}
-                className="text-label-touch text-ink md:text-label"
-              >
+              <label htmlFor={`${id}-assignee`} className="text-label text-ink">
                 Assignee
               </label>
               <OptionSelect
@@ -786,7 +744,7 @@ export function AmenityCheckDetail({
                 <p
                   id={`${id}-assignee-error`}
                   role="alert"
-                  className="text-meta-touch font-semibold text-negative md:text-meta-strong"
+                  className="text-meta font-semibold text-warn-fg"
                 >
                   {action.fieldErrors.assigneeId}
                 </p>
@@ -794,30 +752,29 @@ export function AmenityCheckDetail({
             </div>
             <div className="flex flex-wrap gap-3">
               <Button
-                size="touch"
+                variant="primary"
                 onClick={() => assign(assigneeId)}
                 disabled={
                   action.pending ||
                   !assigneeId ||
                   assigneeId === check.assignee?.id
                 }
-                aria-busy={busy === "assign" || undefined}
+                loading={busy === "assign"}
+                loadingLabel={SAVING}
               >
-                {label("assign", <UserPlusIcon aria-hidden />, UI_TEXT.assign)}
+                <UserPlusIcon aria-hidden />
+                {UI_TEXT.assign}
               </Button>
               {check.assignee ? (
                 <Button
                   variant="secondary"
-                  size="touch"
                   onClick={() => assign(null)}
                   disabled={action.pending}
-                  aria-busy={busy === "unassign" || undefined}
+                  loading={busy === "unassign"}
+                  loadingLabel={SAVING}
                 >
-                  {label(
-                    "unassign",
-                    <UserMinusIcon aria-hidden />,
-                    UI_TEXT.unassign
-                  )}
+                  <UserMinusIcon aria-hidden />
+                  {UI_TEXT.unassign}
                 </Button>
               ) : null}
             </div>
@@ -834,7 +791,7 @@ export function AmenityCheckDetail({
         <CoverageSection id="amenity-notes" title="Notes">
           <form
             onSubmit={saveNotes}
-            className="grid max-w-(--size-reading) gap-3"
+            className="grid max-w-reading gap-3"
             noValidate
           >
             <ReasonField
@@ -852,13 +809,14 @@ export function AmenityCheckDetail({
               <Button
                 type="submit"
                 variant="secondary"
-                size="touch"
                 disabled={
                   action.pending || notes.trim() === (check.notes ?? "")
                 }
-                aria-busy={busy === "notes" || undefined}
+                loading={busy === "notes"}
+                loadingLabel={SAVING}
               >
-                {label("notes", <FloppyDiskIcon aria-hidden />, "Save notes")}
+                <FloppyDiskIcon aria-hidden />
+                Save notes
               </Button>
             </div>
             {stillSaving("notes")}

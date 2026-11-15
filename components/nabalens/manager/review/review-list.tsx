@@ -549,7 +549,7 @@ export function ReviewList({
         <div
           ref={listRef}
           tabIndex={-1}
-          className="@container grid gap-(--gutter) outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="@container grid gap-gutter focus-ring outline-none"
         >
           <ul aria-label={REVIEW_COPY.listLabel} className="grid gap-6">
             {groupCards(cards).map((group, index) => {
@@ -582,13 +582,13 @@ export function ReviewList({
                   <section aria-labelledby={headingId} className="grid gap-3">
                     <h2
                       id={headingId}
-                      className="font-display text-section-title break-words text-ink"
+                      className="type-section-title break-words text-ink"
                     >
                       {REVIEW_COPY.groupHeading(group.name ?? "", total)}
                     </h2>
                     <ul
                       aria-label={`Photos of ${group.name ?? ""}`}
-                      className="grid gap-(--gutter)"
+                      className="grid gap-gutter"
                     >
                       {setRuns(
                         group.cards,
@@ -612,7 +612,7 @@ export function ReviewList({
                               >
                                 {REVIEW_COPY.set(run.cards.length)}
                               </p>
-                              <ul className="grid gap-(--gutter)">
+                              <ul className="grid gap-gutter">
                                 {run.cards.map((member) => (
                                   <li key={member.key}>{itemCard(member)}</li>
                                 ))}

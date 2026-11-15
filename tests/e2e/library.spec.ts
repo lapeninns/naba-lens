@@ -143,8 +143,10 @@ test.describe("admin library", () => {
       page.getByRole("combobox", { name: "Staff member" })
     ).toContainText("All staff")
     await expect(
-      page.getByRole("button", { name: "Photos", exact: true })
-    ).toHaveAttribute("aria-pressed", "true")
+      page
+        .getByRole("radiogroup", { name: "Media type" })
+        .getByRole("radio", { name: "Photos", exact: true })
+    ).toHaveAttribute("aria-checked", "true")
 
     // Page 1, then page 2 under the same filters: newest first, no gaps.
     const library = page.getByRole("list", { name: "Library" })
@@ -162,7 +164,10 @@ test.describe("admin library", () => {
     await expectImageLoaded(library.getByRole("button").first().locator("img"))
 
     // Filters -> URL: the type toggle and the staff select update the URL.
-    await page.getByRole("button", { name: "Videos", exact: true }).click()
+    await page
+      .getByRole("radiogroup", { name: "Media type" })
+      .getByRole("radio", { name: "Videos", exact: true })
+      .click()
     await expect(page).toHaveURL(
       new RegExp(`/admin\\?venue=${venueA.id}&type=video$`)
     )
@@ -190,7 +195,8 @@ test.describe("admin library", () => {
     )
     await expect(page.getByText("Nothing matches these filters.")).toBeVisible()
     await page
-      .getByRole("button", { name: "Photos and videos", exact: true })
+      .getByRole("radiogroup", { name: "Media type" })
+      .getByRole("radio", { name: "Photos and videos", exact: true })
       .click()
     await expect(page).toHaveURL(
       new RegExp(`/admin\\?venue=${venueB.id}&staff=${staff2.id}$`)

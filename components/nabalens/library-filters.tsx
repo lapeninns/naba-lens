@@ -1,15 +1,12 @@
 "use client"
 
+import { SegmentedControl } from "@/components/ui/segmented-control"
+import { SearchField } from "@/components/ui/search-field"
 import * as React from "react"
-import {
-  FunnelSimpleIcon,
-  MagnifyingGlassIcon,
-  XIcon,
-} from "@phosphor-icons/react"
+import { FunnelSimpleIcon, XIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   CONTENT_TYPE_LABELS,
   CONTENT_TYPES,
@@ -255,15 +252,6 @@ const CONTENT_OPTIONS: Option[] = CONTENT_TYPES.map((code) => ({
 
 const FIELD_LABEL = "text-label text-ink"
 const HINT = "text-body text-ink-muted"
-/** Common Room segmented control: the grey track from ToggleGroup's default. */
-const SEGMENTS = "w-full md:w-auto"
-const SEGMENT = "flex-1 md:flex-none"
-/**
- * Equal-width segments would make a row three times its longest label
- * ("Photos and videos"), wider than a 320–360px screen leaves. On phones the
- * words may wrap.
- */
-const SEGMENT_WRAP = "min-w-0 shrink md:whitespace-nowrap"
 
 /** Same normalisation as the search box sends: trimmed, single spaces. */
 const tidy = (text: string) => text.replace(/\s+/g, " ").trim()
@@ -338,27 +326,13 @@ export function LibraryFilters({
           <span aria-hidden className={FIELD_LABEL}>
             Media
           </span>
-          <ToggleGroup
+          <SegmentedControl
             // The visible label is "Media"; the name keeps it as its start.
-            aria-label="Media type"
-            spacing={1}
-            value={[v.type]}
-            onValueChange={(next) => {
-              const type = next[0] as LibraryFilterValue["type"] | undefined
-              if (type) set({ type })
-            }}
-            className={SEGMENTS}
-          >
-            {TYPES.map((t) => (
-              <ToggleGroupItem
-                key={t.value}
-                value={t.value}
-                className={cn(SEGMENT, SEGMENT_WRAP)}
-              >
-                {t.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+            label="Media type"
+            options={TYPES}
+            value={v.type}
+            onValueChange={(type) => set({ type })}
+          />
         </div>
         <Field
           label="Search"
@@ -376,7 +350,6 @@ export function LibraryFilters({
           <Button
             type="button"
             variant="secondary"
-            size="touch"
             aria-expanded={open}
             aria-controls={`${id}-more`}
             onClick={() => setOpen((o) => !o)}
@@ -386,12 +359,7 @@ export function LibraryFilters({
             <CountBadge count={moreCount} label="on" />
           </Button>
           {/* Selects and segments apply at once; this sends the typed search. */}
-          <Button
-            type="submit"
-            form={searchFormId}
-            variant="secondary"
-            size="touch"
-          >
+          <Button type="submit" form={searchFormId} variant="secondary">
             Apply filters
           </Button>
         </div>
@@ -481,26 +449,14 @@ export function LibraryFilters({
           <span id={`${id}-labels`} className={FIELD_LABEL}>
             Labels
           </span>
-          <ToggleGroup
+          <SegmentedControl<LabelState | "all">
             aria-labelledby={`${id}-labels`}
-            spacing={1}
-            value={[v.labelState ?? "all"]}
-            onValueChange={(next) => {
-              const state = next[0] as LabelState | "all" | undefined
-              if (state) set({ labelState: state === "all" ? null : state })
-            }}
-            className={cn(SEGMENTS, "md:w-full")}
-          >
-            {LABEL_STATES.map((s) => (
-              <ToggleGroupItem
-                key={s.value}
-                value={s.value}
-                className={cn(SEGMENT, SEGMENT_WRAP, "md:flex-1")}
-              >
-                {s.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+            options={LABEL_STATES}
+            value={v.labelState ?? "all"}
+            onValueChange={(state) =>
+              set({ labelState: state === "all" ? null : state })
+            }
+          />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Field label="From" htmlFor={`${id}-from`}>
@@ -590,43 +546,43 @@ function SearchBox({
   }
 
   return (
-    <form
-      id={formId}
-      role="search"
-      aria-label="Library search"
-      className="relative min-w-0"
-      onSubmit={(e) => {
-        e.preventDefault()
-        apply(draft)
+    <SearchField
+      id={inputId}
+      name="q"
+      // The visible label is "Search"; the name says what is searched.
+      label="Search labels and notes"
+      hideLabel
+      aria-label="Search labels and notes"
+      autoComplete="off"
+      maxLength={80}
+      placeholder="Search labels and notes"
+      value={draft}
+      onValueChange={setDraft}
+      onClear={() => apply("")}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && (draft || value)) {
+          e.preventDefault()
+          setDraft("")
+          apply("")
+        }
       }}
-    >
-      <MagnifyingGlassIcon
-        aria-hidden
-        className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
-      />
-      <Input
-        id={inputId}
-        type="search"
-        name="q"
-        autoComplete="off"
-        enterKeyHint="search"
-        maxLength={80}
-        // The visible label is "Search"; the name says what is searched.
-        aria-label="Search labels and notes"
-        placeholder="Search labels and notes"
-        value={draft}
-        onChange={(e) => setDraft(e.currentTarget.value)}
-        onBlur={() => apply(draft)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape" && (draft || value)) {
-            e.preventDefault()
-            setDraft("")
-            apply("")
-          }
-        }}
-        className="pl-11"
-      />
-    </form>
+      className="min-w-0"
+      formProps={{
+        id: formId,
+        "aria-label": "Library search",
+        // Apply when focus leaves the whole search, not when it moves from
+        // the box to Clear search: that would search for the text being
+        // thrown away.
+        onBlur: (e) => {
+          if (e.currentTarget.contains(e.relatedTarget)) return
+          apply(draft)
+        },
+        onSubmit: (e) => {
+          e.preventDefault()
+          apply(draft)
+        },
+      }}
+    />
   )
 }
 

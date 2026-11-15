@@ -107,7 +107,6 @@ export function AmenityFactsSection({
           <div>
             <Button
               variant="secondary"
-              size="touch"
               onClick={() => {
                 setSaved(null)
                 setOpen(true)
@@ -121,7 +120,7 @@ export function AmenityFactsSection({
       </div>
       {form ? (
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{requirement.title} facts</DialogTitle>
             </DialogHeader>

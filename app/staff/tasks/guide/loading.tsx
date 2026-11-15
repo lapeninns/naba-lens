@@ -4,11 +4,11 @@ import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 /** The photo guide in its real shape: checklist card, dish filters, angle posts. */
 export default function PhotoGuideLoading() {
   return (
-    <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader title="Photo guide" />
       <SkeletonRegion
         label="Loading the photo guide…"
-        className="flex flex-col gap-(--gutter)"
+        className="flex flex-col gap-gutter"
       >
         <div className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
           <Skeleton shape="title" className="w-40" />

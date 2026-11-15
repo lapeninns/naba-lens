@@ -15,7 +15,7 @@ const ROWS = [
 /** The directory in its real layout: filter fields, then one card of rows. */
 export default function StaffLoading() {
   return (
-    <div className="mx-auto grid w-full max-w-(--size-page) gap-4 px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <div className="mx-auto grid w-full max-w-page gap-4 px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader
         venueScope
         scope="All venues"

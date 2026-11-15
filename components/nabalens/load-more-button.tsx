@@ -1,7 +1,5 @@
 "use client"
 
-import { SpinnerGapIcon } from "@phosphor-icons/react"
-
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -40,19 +38,11 @@ export function LoadMoreButton({
       ) : null}
       <Button
         variant="secondary"
-        size="touch"
         onClick={onLoadMore}
-        disabled={loading}
-        aria-busy={loading}
+        loading={loading}
+        loadingLabel="Loading…"
       >
-        {loading ? (
-          <SpinnerGapIcon
-            data-icon="inline-start"
-            className="motion-safe:animate-spin"
-            aria-hidden
-          />
-        ) : null}
-        {loading ? "Loading…" : error ? "Try again" : "Load more"}
+        {error ? "Try again" : "Load more"}
       </Button>
     </div>
   )

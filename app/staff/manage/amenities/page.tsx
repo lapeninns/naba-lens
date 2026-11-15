@@ -4,7 +4,7 @@ import { managerAccess } from "@/app/staff/manage/_shared/context"
 import { NotManagerPage } from "@/app/staff/manage/_shared/frame"
 import { AmenitiesScreen } from "@/app/staff/manage/_shared/screens/amenities"
 
-export const metadata: Metadata = { title: "Amenities · Manage · Naba-Lens" }
+export const metadata: Metadata = { title: "Amenities · Manage" }
 
 export default async function ManageAmenitiesPage() {
   const access = await managerAccess()

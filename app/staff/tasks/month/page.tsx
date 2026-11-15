@@ -41,7 +41,7 @@ import { PORTFOLIO_PATH, TASKS_PATH, unwrap } from "../result"
 import { backFrom } from "../back-from"
 import { TaskSubmit } from "../task-submit"
 
-export const metadata = { title: "Monthly progress · Naba-Lens" }
+export const metadata = { title: "Monthly progress" }
 
 // finaliseUpload (Server Action used by the upload dialog on this page) decodes
 // HEIC/images; same bound as /staff, below MEDIA_LIMITS.staleProcessingMinutes.
@@ -203,7 +203,7 @@ export default async function MonthPage({
       userName={profile.displayName}
     >
       <OfflineNotice className="mb-4" />
-      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
+      <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
         <BackToTasks {...backFrom(search.from, MONTH_PATH)} />
         <PageHeader
           scope={[scope.venue?.name, periodLabel(period)]}
@@ -230,7 +230,11 @@ export default async function MonthPage({
         action={
           <Link
             href={monthHref(period, current)}
-            className={buttonVariants({ size: "lg", className: "w-full" })}
+            className={buttonVariants({
+              variant: "primary",
+              size: "lg",
+              className: "w-full",
+            })}
           >
             Try again
           </Link>
@@ -306,13 +310,13 @@ export default async function MonthPage({
       )}
 
       {isCurrent && setupPending ? (
-        <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
+        <p className="max-w-reading px-1 text-body text-ink-muted">
           Your manager sets your target for {label}. Until then, photos you add
           still go to Photos and your profile.
         </p>
       ) : null}
       {isCurrent && met && !setupPending ? (
-        <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
+        <p className="max-w-reading px-1 text-body text-ink-muted">
           Photos you add now still go to Photos and your profile.
         </p>
       ) : null}
@@ -324,7 +328,7 @@ export default async function MonthPage({
         >
           <h2
             id="completion-work-heading"
-            className="font-display text-section-title text-ink"
+            className="type-section-title text-ink"
           >
             What counts toward your target
           </h2>
@@ -340,19 +344,13 @@ export default async function MonthPage({
           <div className="flex flex-wrap gap-2">
             <Link
               href="/staff/menu"
-              className={buttonVariants({
-                variant: "secondary",
-                size: "touch",
-              })}
+              className={buttonVariants({ variant: "secondary" })}
             >
               Browse menu items
             </Link>
             <Link
               href={TASKS_PATH}
-              className={buttonVariants({
-                variant: "secondary",
-                size: "touch",
-              })}
+              className={buttonVariants({ variant: "secondary" })}
             >
               See assigned checks on Home
             </Link>
@@ -363,7 +361,7 @@ export default async function MonthPage({
       {isCurrent && (!combinedHere || replacing) ? (
         <section
           aria-labelledby="add-heading"
-          className="flex scroll-mt-4 flex-col gap-(--gutter)"
+          className="flex scroll-mt-4 flex-col gap-gutter"
         >
           <SectionHeader
             id="add-heading"
@@ -373,7 +371,7 @@ export default async function MonthPage({
             scope={
               <Link
                 href={GUIDE_PATH}
-                className="-my-1 inline-flex min-h-11 items-center gap-1 justify-self-start rounded-control text-label text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+                className="-my-1 inline-flex min-h-11 items-center gap-1 justify-self-start rounded-control text-label text-ink underline underline-offset-3 focus-ring outline-none"
               >
                 How to photograph a dish
                 <CaretRightIcon aria-hidden weight="bold" className="size-4" />
@@ -406,7 +404,7 @@ export default async function MonthPage({
       {!combined || month.submissions.length > 0 ? (
         <section
           aria-labelledby="sent-heading"
-          className="flex flex-col gap-(--gutter)"
+          className="flex flex-col gap-gutter"
         >
           <SectionHeader
             id="sent-heading"
@@ -426,12 +424,12 @@ export default async function MonthPage({
                 empty={null}
               />
               {more ? (
-                <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
+                <p className="max-w-reading px-1 text-body text-ink-muted">
                   These are your newest {month.submissions.length}. Every photo
                   you sent is on{" "}
                   <Link
                     href={PORTFOLIO_PATH}
-                    className="inline-flex min-h-11 items-center rounded-control font-semibold text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+                    className="inline-flex min-h-11 items-center rounded-control font-semibold text-ink underline underline-offset-3 focus-ring outline-none"
                   >
                     Me
                   </Link>
@@ -451,7 +449,7 @@ export default async function MonthPage({
       {isCurrent && past.length > 0 ? (
         <section
           aria-labelledby="past-heading"
-          className="flex flex-col gap-(--gutter)"
+          className="flex flex-col gap-gutter"
         >
           <SectionHeader id="past-heading" title="Past months" />
           <RowList list>

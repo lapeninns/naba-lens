@@ -6,7 +6,7 @@ import { AppShell } from "@/components/nabalens/app-shell"
 import { amenityHrefs } from "@/lib/amenities/contract"
 
 export const metadata: Metadata = {
-  title: "Capture amenity · Venue coverage · Naba-Lens",
+  title: "Capture amenity · Venue coverage",
 }
 
 /**

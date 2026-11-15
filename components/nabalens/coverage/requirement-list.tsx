@@ -42,7 +42,7 @@ function RequirementRow({
     <li>
       <Link
         href={href}
-        className="flex min-h-16 items-start gap-3 p-3 text-ink no-underline -outline-offset-3 transition-colors duration-(--duration-quick) hover:bg-surface-2 md:px-4"
+        className="flex min-h-16 items-start gap-3 p-3 text-ink no-underline -outline-offset-3 transition-colors duration-quick hover:bg-surface-2 md:px-4"
       >
         <span className="grid min-w-0 flex-1 gap-1.5">
           <span className="flex min-w-0 flex-wrap items-center gap-2">
@@ -153,7 +153,7 @@ export function RequirementList({
           >
             <h3
               id={titleId}
-              className="flex flex-wrap items-baseline gap-x-3 px-1 font-display text-section-title text-ink"
+              className="flex flex-wrap items-baseline gap-x-3 px-1 type-section-title text-ink"
             >
               {labelFor(REQUIREMENT_KIND_LABEL, group.kind)}
               {showCounts ? (

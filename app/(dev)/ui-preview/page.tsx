@@ -4,7 +4,7 @@ import { notFound } from "next/navigation"
 import { UiPreview } from "./ui-preview"
 
 export const metadata: Metadata = {
-  title: "Naba-Lens UI preview (dev only)",
+  title: "UI preview (dev only)",
   robots: { index: false, follow: false },
 }
 

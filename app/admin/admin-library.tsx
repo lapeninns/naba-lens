@@ -80,7 +80,7 @@ export function AdminLibrary({
         actions={
           <Link
             href="/admin/search"
-            className={buttonVariants({ variant: "secondary", size: "touch" })}
+            className={buttonVariants({ variant: "secondary" })}
           >
             <MagnifyingGlassIcon aria-hidden />
             {SEARCH_COPY.entry}
@@ -138,7 +138,6 @@ export function AdminLibrary({
                       <Button
                         type="button"
                         variant="secondary"
-                        size="touch"
                         onClick={() => navigate(EMPTY_LIBRARY_FILTERS)}
                       >
                         Clear filters
@@ -200,7 +199,7 @@ function LibraryFolders({
   return (
     <section aria-labelledby={heading} className="grid gap-3">
       <div>
-        <h2 id={heading} className="font-display text-section-title text-ink">
+        <h2 id={heading} className="type-section-title text-ink">
           Browse folders
         </h2>
         <p className="text-body text-ink-muted">
@@ -217,8 +216,7 @@ function LibraryFolders({
             <li key={folder.id} className="max-w-full min-w-0">
               <Button
                 type="button"
-                size="touch"
-                variant={active ? "secondary" : "outline"}
+                variant="secondary"
                 aria-pressed={active}
                 className="h-auto min-h-11 max-w-full text-left whitespace-normal"
                 onClick={() => onChange(next)}

@@ -28,7 +28,7 @@ export function SectionHeader({
       className={cn("grid gap-1 px-1 pt-2", className)}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <Element id={id} className="font-display text-section-title text-ink">
+        <Element id={id} className="type-section-title text-ink">
           {title}
         </Element>
         {action}

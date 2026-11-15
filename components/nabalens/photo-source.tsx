@@ -149,7 +149,6 @@ export function PhotoSourceActions({
     >
       <Button
         type="button"
-        size="touch"
         variant={libraryVariant}
         className={cn(layout === "row" && "sm:flex-1")}
         disabled={disabled}
@@ -162,8 +161,7 @@ export function PhotoSourceActions({
       {cameraHidden ? null : (
         <Button
           type="button"
-          size="touch"
-          variant="outline"
+          variant="secondary"
           className={cn(layout === "row" && "sm:flex-1")}
           disabled={disabled}
           onClick={() => onChoose("camera")}

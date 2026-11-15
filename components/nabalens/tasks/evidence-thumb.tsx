@@ -45,10 +45,10 @@ export function EvidenceThumb({
             type="button"
             onClick={() => setOpen(true)}
             aria-label={`View larger: ${label}`}
-            className="absolute inset-0 z-10 cursor-zoom-in rounded-[inherit] outline-none focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+            className="absolute inset-0 z-local cursor-zoom-in rounded-[inherit] focus-ring-inset outline-none"
           />
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="md:max-w-2xl">
+            <DialogContent size="wide">
               <DialogHeader>
                 <DialogTitle>{label}</DialogTitle>
               </DialogHeader>

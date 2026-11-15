@@ -1,7 +1,8 @@
 "use client"
 
+import { Textarea } from "@/components/ui/textarea"
 import * as React from "react"
-import { SpinnerGapIcon, WarningCircleIcon } from "@phosphor-icons/react"
+import { WarningCircleIcon } from "@phosphor-icons/react"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
@@ -16,9 +17,6 @@ import {
 
 import { COVERAGE_LIMITS } from "./copy"
 import type { Reported } from "./use-coverage-action"
-
-export const textareaClass =
-  "block min-h-28 w-full min-w-0 resize-y rounded-control bg-surface-2 px-3.5 py-3 text-body text-ink shadow-[inset_0_0_0_1.5px_var(--border-strong)] outline-none placeholder:text-ink-muted focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:text-ink-muted aria-invalid:shadow-[inset_0_0_0_2px_var(--warn-fg)]"
 
 /**
  * Dialog `finalFocus` that sends focus to `reportFocus` after a `REPORTED`
@@ -77,7 +75,7 @@ export function ReasonField({
           <span className="font-normal text-ink-muted"> (optional)</span>
         )}
       </label>
-      <textarea
+      <Textarea
         id={id}
         value={value}
         onChange={(e) => onChange(e.currentTarget.value)}
@@ -87,7 +85,6 @@ export function ReasonField({
         disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
-        className={textareaClass}
       />
       <div className="flex items-start gap-3">
         {error ? (
@@ -256,7 +253,6 @@ export function ReasonDialog({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               onClick={() => close(false)}
               disabled={pending}
             >
@@ -264,17 +260,12 @@ export function ReasonDialog({
             </Button>
             <Button
               type="submit"
-              size="touch"
-              variant={destructive ? "destructive" : "primary"}
-              disabled={pending}
-              aria-busy={pending || undefined}
+              variant={destructive ? "danger-quiet" : "primary"}
+              loading={pending}
+              loadingLabel={pendingLabel}
             >
-              {pending && confirmIcon ? (
-                <SpinnerGapIcon aria-hidden className="animate-spin" />
-              ) : (
-                confirmIcon
-              )}
-              {pending ? pendingLabel : confirmLabel}
+              {confirmIcon}
+              {confirmLabel}
             </Button>
           </DialogFooter>
         </form>

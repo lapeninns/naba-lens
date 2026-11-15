@@ -31,7 +31,7 @@ import { mergeByWaiting, reviewKindOf } from "@/lib/work-client/triage"
 
 import { failedRead } from "../load-overview"
 
-export const metadata = { title: "Review · Naba-Lens" }
+export const metadata = { title: "Review" }
 
 /**
  * Review: photos staff labelled with a menu item at the manager's venue,
@@ -114,7 +114,11 @@ export default async function ManagerReviewPage({
       />
       {triage ? <ReviewKindFilter active={kind} /> : null}
       {kind === "photos" ? (
-        <ReviewBody ctx={scope.ctx} scope={{ kind: "manager" }} search={search} />
+        <ReviewBody
+          ctx={scope.ctx}
+          scope={{ kind: "manager" }}
+          search={search}
+        />
       ) : (
         <TriageBody ctx={scope.ctx} kind={kind} />
       )}

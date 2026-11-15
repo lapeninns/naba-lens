@@ -5,11 +5,11 @@ import {
   FilmStripIcon,
   ImageIcon,
   PlayIcon,
-  SpinnerGapIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { dishName } from "@/lib/menus/dish-name"
 import { cn } from "@/lib/utils"
 
@@ -50,7 +50,7 @@ export function TileBadge({
       className={cn(
         // A chip on a photo sits on the solid plate (DESIGN.md §4), so it
         // reads on any photo in both themes.
-        "inline-flex min-h-7 items-center gap-1 rounded-square bg-plate px-2 text-chip whitespace-nowrap text-on-tile-badge tabular-nums [&_svg]:size-4",
+        "inline-flex min-h-7 items-center gap-1 rounded-square bg-plate px-2 text-chip whitespace-nowrap text-on-stage tabular-nums [&_svg]:size-4",
         className
       )}
     >
@@ -140,10 +140,7 @@ function TileMedia({
             <WarningCircleIcon className="size-7 text-warn-fg" aria-hidden />
           ) : item.uploadState === "uploading" ||
             item.uploadState === "processing" ? (
-            <SpinnerGapIcon
-              className="size-7 motion-safe:animate-spin"
-              aria-hidden
-            />
+            <Spinner className="size-7" />
           ) : item.uploadState === "failed" ? (
             <WarningCircleIcon className="size-7 text-warn-fg" aria-hidden />
           ) : // No video poster frames (no transcoding); a neutral video tile.
@@ -165,7 +162,7 @@ function TileMedia({
       {item.uploadState !== "ready" ? (
         <TileBadge className="pointer-events-none absolute top-1.5 left-1.5">
           {item.uploadState === "processing" ? (
-            <SpinnerGapIcon aria-hidden className="motion-safe:animate-spin" />
+            <Spinner />
           ) : item.uploadState === "failed" || stopped ? (
             <WarningCircleIcon aria-hidden />
           ) : null}
@@ -177,7 +174,7 @@ function TileMedia({
 }
 
 const MEDIA_BUTTON =
-  "relative block w-full overflow-hidden bg-media-placeholder outline-none focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-solid"
+  "relative block w-full overflow-hidden bg-media-placeholder outline-none"
 
 /**
  * One square, cropped thumbnail. The whole tile is a button so it is reachable
@@ -231,9 +228,8 @@ export function MediaTile({
           )}
           className={cn(
             MEDIA_BUTTON,
-            "aspect-square rounded-control focus-visible:outline-offset-2",
-            (item.uploadState === "failed" || stopped) &&
-              "shadow-[inset_0_0_0_2px_var(--warn-fg)]"
+            "aspect-square rounded-control focus-ring",
+            (item.uploadState === "failed" || stopped) && "edge-invalid"
           )}
         >
           <TileMedia item={item} stopped={stopped} />
@@ -322,9 +318,8 @@ export function MediaPost({
           aria-label={describe(item, true, false, null)}
           className={cn(
             MEDIA_BUTTON,
-            "absolute inset-0 h-full -outline-offset-3",
-            item.uploadState === "failed" &&
-              "shadow-[inset_0_0_0_2px_var(--warn-fg)]"
+            "absolute inset-0 h-full focus-ring-inset",
+            item.uploadState === "failed" && "edge-invalid"
           )}
         >
           <TileMedia item={item} />

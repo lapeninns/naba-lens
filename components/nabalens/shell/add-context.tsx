@@ -305,7 +305,7 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
         <span
           data-slot="tabbar-disc"
           aria-hidden
-          className="grid h-[30px] w-11 place-items-center rounded-round bg-surface-2 text-ink transition-colors duration-(--duration-quick) group-hover:bg-raised"
+          className="grid h-[30px] w-11 place-items-center rounded-round bg-surface-2 text-ink transition-colors duration-quick group-hover:bg-raised"
         >
           <PlusIcon weight="bold" className="size-[22px]" />
         </span>

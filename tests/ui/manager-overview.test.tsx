@@ -95,6 +95,10 @@ describe("Overview", () => {
     const bar = screen.getByRole("progressbar")
     expect(bar.getAttribute("aria-valuetext")).toBe(heading)
     expect(bar.getAttribute("aria-valuenow")).toBe("40")
+    // It counts items with an accepted photo, so it asks for green.
+    expect(
+      bar.closest('[data-slot="progress"]')?.getAttribute("data-tone")
+    ).toBe("ok")
     expect(hrefOf("5 photos waiting for a decision")).toBe("/manager/review")
     expect(hrefOf("3 items awaiting review")).toBe(
       "/manager/menu?status=awaiting_review"

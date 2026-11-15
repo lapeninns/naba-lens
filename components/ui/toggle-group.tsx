@@ -8,12 +8,19 @@ import { cn } from "@/lib/utils"
 
 import { toggleVariants } from "@/components/ui/toggle"
 
-const ToggleGroupContext = React.createContext<
-  VariantProps<typeof toggleVariants> & {
-    spacing?: number
-    orientation?: "horizontal" | "vertical"
-  }
->({
+/*
+ * Internal. The older group of pressed buttons (DESIGN.md §4), kept for
+ * components/nabalens/library-filters.tsx until it moves over. New code uses
+ * SegmentedControl for one choice of a few and PillGroup with FilterPill for
+ * filters. A group with no variant is the grey segmented track: it used to
+ * need `variant="default"` spelt out, and drew no track without it.
+ */
+type ToggleGroupStyle = VariantProps<typeof toggleVariants> & {
+  spacing?: number
+  orientation?: "horizontal" | "vertical"
+}
+
+const ToggleGroupContext = React.createContext<ToggleGroupStyle>({
   size: "default",
   variant: "default",
   spacing: 2,
@@ -22,17 +29,13 @@ const ToggleGroupContext = React.createContext<
 
 function ToggleGroup({
   className,
-  variant,
-  size,
+  variant = "default",
+  size = "default",
   spacing = 2,
   orientation = "horizontal",
   children,
   ...props
-}: ToggleGroupPrimitive.Props &
-  VariantProps<typeof toggleVariants> & {
-    spacing?: number
-    orientation?: "horizontal" | "vertical"
-  }) {
+}: ToggleGroupPrimitive.Props & ToggleGroupStyle) {
   return (
     <ToggleGroupPrimitive
       data-slot="toggle-group"
@@ -64,19 +67,18 @@ function ToggleGroupItem({
   ...props
 }: TogglePrimitive.Props & VariantProps<typeof toggleVariants>) {
   const context = React.useContext(ToggleGroupContext)
+  const itemVariant = context.variant || variant
+  const itemSize = context.size || size
 
   return (
     <TogglePrimitive
       data-slot="toggle-group-item"
-      data-variant={context.variant || variant}
-      data-size={context.size || size}
+      data-variant={itemVariant}
+      data-size={itemSize}
       data-spacing={context.spacing}
       className={cn(
-        "shrink-0 group-data-[spacing=0]/toggle-group:px-3 focus:z-10 focus-visible:z-10 group-data-[spacing=0]/toggle-group:has-data-[icon=inline-end]:pr-2.5 group-data-[spacing=0]/toggle-group:has-data-[icon=inline-start]:pl-2.5",
-        toggleVariants({
-          variant: context.variant || variant,
-          size: context.size || size,
-        }),
+        "shrink-0 group-data-[spacing=0]/toggle-group:px-3 focus:z-local focus-visible:z-local group-data-[spacing=0]/toggle-group:has-data-[icon=inline-end]:pr-2.5 group-data-[spacing=0]/toggle-group:has-data-[icon=inline-start]:pl-2.5",
+        toggleVariants({ variant: itemVariant, size: itemSize }),
         className
       )}
       {...props}

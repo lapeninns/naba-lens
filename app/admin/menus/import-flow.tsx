@@ -163,10 +163,10 @@ export function ImportFlow({
       className="grid gap-5 rounded-card bg-surface p-4 shadow-card md:p-6"
     >
       <div className="grid gap-1">
-        <h2 id={titleId} className="font-display text-section-title text-ink">
+        <h2 id={titleId} className="type-section-title text-ink">
           Import a menu
         </h2>
-        <p className="max-w-(--size-reading) text-body text-ink-muted">
+        <p className="max-w-reading text-body text-ink-muted">
           Compares a file with {possessive(venueName)} active menu. Items match
           only by their source key. Nothing is saved until you create the draft.
         </p>
@@ -255,10 +255,9 @@ export function ImportFlow({
         </>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-2 md:flex-row md:justify-end">
+      <div className="flex flex-col gap-2 md:flex-row md:justify-end">
         <Button
           variant="quiet"
-          size="touch"
           disabled={creating}
           onClick={() => {
             request.current?.abort()
@@ -269,7 +268,7 @@ export function ImportFlow({
         </Button>
         {preview && resolved ? (
           <Button
-            size="touch"
+            variant="primary"
             onClick={createDraft}
             disabled={creating || !online || !!resolved.error}
             aria-busy={creating || undefined}

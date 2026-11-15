@@ -41,7 +41,7 @@ export function VenueAccessUnavailable({
       as="section"
       aria-labelledby="venue-access-unavailable"
       data-slot="venue-access-unavailable"
-      className="max-w-(--size-reading)"
+      className="max-w-reading"
     >
       <IconDisc tone="warn">
         <LockSimpleIcon />
@@ -50,7 +50,7 @@ export function VenueAccessUnavailable({
         id="venue-access-unavailable"
         ref={heading}
         tabIndex={-1}
-        className="font-display text-page-title [overflow-wrap:anywhere] text-ink outline-none"
+        className="type-page-title [overflow-wrap:anywhere] text-ink outline-none"
       >
         {COPY.title}
       </h1>
@@ -58,12 +58,7 @@ export function VenueAccessUnavailable({
       <p className="text-body text-ink-muted">{COPY.reason[reason]}</p>
       {refreshShell ? <RefreshShellOnce /> : null}
       <form action="/auth/logout" method="post" className="mt-1">
-        <Button
-          type="submit"
-          variant="primary"
-          size="touch"
-          className="max-md:w-full"
-        >
+        <Button type="submit" variant="primary" className="max-md:w-full">
           {COPY.signOut}
         </Button>
       </form>
@@ -86,9 +81,9 @@ export function VenueAccessUnavailablePage({
   reason: VenueAccessUnavailableReason
 }) {
   return (
-    <div className="flex min-h-svh flex-col bg-bg text-ink">
-      <header className="relative z-10 bg-surface shadow-[0_1px_0_var(--line)]">
-        <div className="mx-auto flex min-h-15 w-full max-w-(--size-page) items-center px-3 md:px-6">
+    <div className="flex min-h-svh flex-col bg-canvas text-ink">
+      <header className="relative z-local bg-surface shadow-[0_1px_0_var(--line)]">
+        <div className="mx-auto flex min-h-15 w-full max-w-page items-center px-3 md:px-6">
           <span className="font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.02em] text-ink">
             Naba-Lens
           </span>
@@ -96,7 +91,7 @@ export function VenueAccessUnavailablePage({
       </header>
       <main
         id="main"
-        className="mx-auto w-full max-w-(--size-page) flex-1 overflow-x-clip px-(--page-gutter) py-6 md:px-6 md:py-12"
+        className="mx-auto w-full max-w-page flex-1 overflow-x-clip px-page-gutter py-6 md:px-6 md:py-12"
       >
         <VenueAccessUnavailable reason={reason} />
       </main>

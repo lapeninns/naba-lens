@@ -6,7 +6,7 @@ import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
 import { MenuItemsScreen } from "@/app/staff/manage/_shared/screens/menu-items"
 
 export const metadata: Metadata = {
-  title: "Our menu · Manage · Naba-Lens",
+  title: "Our menu · Manage",
 }
 
 export default async function ManageMenuItemsPage({

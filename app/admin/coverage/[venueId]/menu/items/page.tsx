@@ -5,7 +5,7 @@ import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
 import { MenuItemsScreen } from "@/app/staff/manage/_shared/screens/menu-items"
 
 export const metadata: Metadata = {
-  title: "Our menu · Venue coverage · Naba-Lens",
+  title: "Our menu · Venue coverage",
 }
 
 export default async function AdminVenueMenuItemsPage({

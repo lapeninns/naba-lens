@@ -212,7 +212,7 @@ export async function SearchScreen(props: SearchScreenProps) {
   const { ctx } = props
   if (props.mode === "workspace") {
     return (
-      <div className="grid min-w-0 gap-(--gutter) md:gap-4">
+      <div className="grid min-w-0 gap-gutter md:gap-4">
         <OfflineNotice className={OFFLINE_BANNER_CLASS} loadedAt={now} />
         <PageHeader
           venueScope

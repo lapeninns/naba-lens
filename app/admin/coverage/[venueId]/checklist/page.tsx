@@ -4,7 +4,7 @@ import { adminVenueContext } from "@/app/staff/manage/_shared/context"
 import { ChecklistScreen } from "@/app/staff/manage/_shared/screens"
 
 export const metadata: Metadata = {
-  title: "Checklist · Venue coverage · Naba-Lens",
+  title: "Checklist · Venue coverage",
 }
 
 export default async function AdminVenueChecklistPage({

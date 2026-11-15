@@ -10,7 +10,7 @@ import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 
 export const metadata: Metadata = {
-  title: "Review menu photos · Venue coverage · Naba-Lens",
+  title: "Review menu photos · Venue coverage",
 }
 
 /**

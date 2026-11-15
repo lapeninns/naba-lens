@@ -9,13 +9,13 @@ import { requireManagerVenue } from "@/lib/auth/manager"
 
 import { updateManagerDisplayNameAction } from "./actions"
 
-export const metadata = { title: "Account · Naba-Lens" }
+export const metadata = { title: "Account" }
 
 export default async function ManagerAccountPage() {
   const { profile, venue } = await requireManagerVenue()
   const copy = MANAGER_COPY.accountPage
   return (
-    <div className="grid gap-(--gutter)">
+    <div className="grid gap-gutter">
       <OfflineNotice
         className={OFFLINE_BANNER_CLASS}
         loadedAt={new Date().toISOString()}

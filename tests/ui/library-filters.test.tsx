@@ -110,6 +110,44 @@ describe("LibraryFilters label search", () => {
     expect(screen.getByRole("search", { name: "Library search" })).toBeTruthy()
   })
 
+  it("Clear search discards unapplied text without searching for it first", async () => {
+    const { onChange, user } = setup({
+      ...EMPTY_LIBRARY_FILTERS,
+      query: "lamb",
+    })
+    const box = screen.getByRole<HTMLInputElement>("searchbox", {
+      name: "Search labels and notes",
+    })
+    await user.type(box, " bhuna")
+    // By pointer: the press must not blur the box and apply "lamb bhuna".
+    await user.click(screen.getByRole("button", { name: "Clear search" }))
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ query: null })
+    )
+    expect(document.activeElement).toBe(box)
+  })
+
+  it("Clear search by keyboard does not apply the text on the way", async () => {
+    const { onChange, user } = setup({
+      ...EMPTY_LIBRARY_FILTERS,
+      query: "lamb",
+    })
+    const box = screen.getByRole<HTMLInputElement>("searchbox", {
+      name: "Search labels and notes",
+    })
+    await user.type(box, " bhuna")
+    await user.tab()
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Clear search" })
+    )
+    await user.keyboard("{Enter}")
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ query: null })
+    )
+  })
+
   it("clears the search with Escape and follows outside changes", async () => {
     const { onChange, rerender, user } = setup({
       ...EMPTY_LIBRARY_FILTERS,
@@ -154,7 +192,7 @@ describe("LibraryFilters more filters", () => {
     ).toBe(true)
     // Content type, labels and dates work without a venue.
     expect(screen.getByLabelText("Content type")).toBeTruthy()
-    expect(screen.getByRole("group", { name: "Labels" })).toBeTruthy()
+    expect(screen.getByRole("radiogroup", { name: "Labels" })).toBeTruthy()
     expect(screen.getByLabelText("From")).toBeTruthy()
     expect(screen.getByLabelText("To")).toBeTruthy()
   })
@@ -246,7 +284,7 @@ describe("LibraryFilters more filters", () => {
   it("sets the label state and dates", async () => {
     const { onChange, user } = setup()
     await user.click(screen.getByRole("button", { name: /More filters/ }))
-    await user.click(screen.getByRole("button", { name: "Needs labels" }))
+    await user.click(screen.getByRole("radio", { name: "Needs labels" }))
     expect(onChange).toHaveBeenLastCalledWith({
       ...EMPTY_LIBRARY_FILTERS,
       labelState: "unlabelled",

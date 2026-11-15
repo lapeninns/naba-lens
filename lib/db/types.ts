@@ -4464,6 +4464,15 @@ export type Database = {
         }[]
       }
       menu_label_counts: { Args: { p_venue_id: string }; Returns: Json }
+      menu_photo_also_counts: {
+        Args: { p_asset_ids: string[]; p_venue_id: string }
+        Returns: {
+          asset_id: string
+          credit_month: string
+          item_id: string
+          task_titles: string[]
+        }[]
+      }
       prepare_coverage_month: {
         Args: { p_venue_id?: string }
         Returns: {

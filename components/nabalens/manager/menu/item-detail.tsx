@@ -50,7 +50,7 @@ type Decide = (
 ) => Promise<ReasonOutcome>
 
 /** A section heading on the grey canvas (Common Room SectionHeader). */
-const SECTION_TITLE = "px-1 font-display text-section-title text-ink"
+const SECTION_TITLE = "px-1 type-section-title text-ink"
 
 /**
  * One active-menu item for a manager: its menu photo (or the fallback),
@@ -373,7 +373,7 @@ function PhotoSection({
       <h2 id={id} className={SECTION_TITLE}>
         {title}
       </h2>
-      <ul className="grid gap-(--gutter)">{children}</ul>
+      <ul className="grid gap-gutter">{children}</ul>
     </section>
   )
 }
@@ -483,7 +483,7 @@ function WithdrawButton({
   return (
     <>
       <Button
-        variant="destructive"
+        variant="danger-quiet"
         size="sm"
         disabled={disabled}
         onClick={() => setOpen(true)}

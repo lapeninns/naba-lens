@@ -73,7 +73,7 @@ export function AccountNotice({
             notice.tone === "pending" ? undefined : (
               <Button
                 variant="quiet"
-                size="icon-sm"
+                size="icon"
                 aria-label="Close"
                 onClick={onDismiss}
               >
@@ -474,14 +474,13 @@ export function useAccountControls({
           <AlertDialogFooter>
             <AlertDialogCancel
               variant="secondary"
-              size="touch"
+
               disabled={pending}
             >
               Cancel
             </AlertDialogCancel>
             <Button
               variant="danger"
-              size="touch"
               onClick={confirmDeactivate}
               disabled={pending}
               aria-busy={pending}

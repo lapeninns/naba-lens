@@ -1,7 +1,8 @@
 "use client"
 
+import { SearchField } from "@/components/ui/search-field"
 import * as React from "react"
-import { MagnifyingGlassIcon, UserPlusIcon } from "@phosphor-icons/react"
+import { UserPlusIcon } from "@phosphor-icons/react"
 
 import {
   EmptyState,
@@ -18,7 +19,6 @@ import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 
 import {
   AccountNotice,
@@ -202,7 +202,7 @@ export function StaffDirectory({
         title="Staff"
         summary={STAFF_SUMMARY}
         actions={
-          <Button size="touch" onClick={() => setInviting(true)}>
+          <Button variant="primary" onClick={() => setInviting(true)}>
             <UserPlusIcon aria-hidden />
             Invite staff
           </Button>
@@ -215,11 +215,7 @@ export function StaffDirectory({
           title="No staff yet."
           description="Invite people one at a time. Each gets a single-use sign-in link by email and shows as Invited until they first sign in."
           action={
-            <Button
-              variant="secondary"
-              size="touch"
-              onClick={() => setInviting(true)}
-            >
+            <Button variant="secondary" onClick={() => setInviting(true)}>
               <UserPlusIcon aria-hidden />
               Invite staff
             </Button>
@@ -275,31 +271,18 @@ export function StaffDirectory({
                 emptyLabel="All statuses"
               />
             </Field>
-            <Field className="w-full min-w-48 flex-1 gap-1.5">
-              <FieldLabel htmlFor={`${id}-search`}>Search</FieldLabel>
-              <div className="relative">
-                <MagnifyingGlassIcon
-                  aria-hidden
-                  className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
-                />
-                <Input
-                  id={`${id}-search`}
-                  type="search"
-                  value={draft.query}
-                  onChange={(e) => {
-                    const query = e.currentTarget.value
-                    setDraft((d) => ({ ...d, query }))
-                  }}
-                  placeholder="Name or email"
-                  autoComplete="off"
-                  className="pl-11"
-                />
-              </div>
-            </Field>
+            <SearchField
+              id={`${id}-search`}
+              label="Search"
+              value={draft.query}
+              onValueChange={(query) => setDraft((d) => ({ ...d, query }))}
+              placeholder="Name or email"
+              autoComplete="off"
+              className="min-w-48 flex-1"
+            />
             <Button
               type="submit"
               variant="secondary"
-              size="touch"
               className="w-full sm:w-auto"
             >
               Apply filters
@@ -332,7 +315,7 @@ export function StaffDirectory({
               title="Nothing matches these filters."
               description={describeFilters(applied, venueOptions)}
               action={
-                <Button variant="secondary" size="touch" onClick={clearFilters}>
+                <Button variant="secondary" onClick={clearFilters}>
                   Clear filters
                 </Button>
               }

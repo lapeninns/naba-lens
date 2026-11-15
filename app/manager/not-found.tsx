@@ -14,7 +14,7 @@ export default function ManagerNotFound() {
       action={
         <Link
           href={managerHrefs.overview}
-          className={buttonVariants({ variant: "secondary", size: "touch" })}
+          className={buttonVariants({ variant: "secondary" })}
         >
           <ArrowLeftIcon data-icon="inline-start" aria-hidden />
           {MANAGER_COPY.notFound.back}

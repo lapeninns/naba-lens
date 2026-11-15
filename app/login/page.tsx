@@ -13,7 +13,7 @@ import {
 } from "@/lib/auth/routes"
 
 export const metadata: Metadata = {
-  title: "Sign in · Naba-Lens",
+  title: "Sign in",
 }
 
 export default async function LoginPage({

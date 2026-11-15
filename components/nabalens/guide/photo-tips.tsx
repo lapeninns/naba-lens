@@ -19,8 +19,8 @@ import { PHOTO_TIPS_TITLE } from "./photo-tips-copy"
  */
 export function PhotoTips({ guideHref }: { guideHref?: string | null }) {
   return (
-    <details className="group rounded-touch border border-line-control">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-touch px-4 py-2 text-label-touch text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:text-label [&::-webkit-details-marker]:hidden">
+    <details className="group rounded-card border border-edge-strong">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-card px-4 py-2 text-label text-ink focus-ring outline-none [&::-webkit-details-marker]:hidden">
         {PHOTO_TIPS_TITLE}
         <CaretDownIcon
           aria-hidden
@@ -36,19 +36,15 @@ export function PhotoTips({ guideHref }: { guideHref?: string | null }) {
         </ul>
         {GUIDE_SUBJECT_TIPS.map((tip) => (
           <section key={tip.title} className="grid gap-1">
-            <h3 className="text-label-touch text-ink md:text-label">
-              {tip.title}
-            </h3>
+            <h3 className="text-label text-ink">{tip.title}</h3>
             <p className="text-body text-ink-muted">{tip.text}</p>
           </section>
         ))}
-        <p className="text-meta-touch text-ink-muted md:text-meta">
-          {GUIDE_SAFETY}
-        </p>
+        <p className="text-meta text-ink-muted">{GUIDE_SAFETY}</p>
         {guideHref ? (
           <Link
             href={guideHref}
-            className="inline-flex min-h-11 items-center self-start rounded-control text-label text-ink underline outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+            className="inline-flex min-h-11 items-center self-start rounded-control text-label text-ink underline focus-ring outline-none"
           >
             See the full photo guide
           </Link>

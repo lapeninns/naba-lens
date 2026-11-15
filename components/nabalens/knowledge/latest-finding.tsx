@@ -91,7 +91,6 @@ export function LatestFinding({
           <Button
             type="button"
             variant="secondary"
-            size="touch"
             className="justify-self-start max-sm:w-full"
             onClick={() => setChanging(true)}
           >

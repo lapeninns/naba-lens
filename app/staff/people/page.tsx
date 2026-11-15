@@ -30,7 +30,7 @@ import {
 import { PeopleSearch } from "./people-search"
 import { PersonCard } from "./person-card"
 
-export const metadata = { title: "People · Naba-Lens" }
+export const metadata = { title: "People" }
 
 export default async function PeoplePage({
   searchParams,
@@ -81,7 +81,7 @@ export default async function PeoplePage({
       userName={profile.displayName}
     >
       {/* Common Room feed: white cards on the grey canvas, one column. */}
-      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
+      <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
         <OfflineNotice />
         <PageHeader
           scope={PEOPLE_COPY.scope}
@@ -138,7 +138,6 @@ export default async function PeoplePage({
                     scroll={false}
                     className={buttonVariants({
                       variant: "secondary",
-                      size: "touch",
                       className: "w-full",
                     })}
                   >
@@ -176,9 +175,7 @@ function PeopleEmpty({
       <IconDisc size="lg" className="mb-1 text-ink-muted">
         <UsersIcon />
       </IconDisc>
-      <p className="max-w-[32ch] font-display text-section-title text-ink">
-        {title}
-      </p>
+      <p className="max-w-[32ch] type-section-title text-ink">{title}</p>
       <p className="max-w-[40ch] text-body text-ink-muted">{description}</p>
       {action ? (
         <div className="mt-2 flex flex-wrap justify-center gap-2">{action}</div>

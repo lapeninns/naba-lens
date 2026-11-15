@@ -30,8 +30,8 @@ export function TabBadge({
       className={cn(
         "inline-grid place-items-center rounded-round font-mono leading-none font-bold tabular-nums",
         placement === "tab"
-          ? "absolute top-1 left-[calc(50%+2px)] h-[22px] min-w-[22px] px-[5px] text-[0.875rem] ring-2 ring-surface"
-          : "-ml-0.5 h-[26px] min-w-[26px] px-[7px] text-[1.0625rem]",
+          ? "absolute top-1 left-[calc(50%+2px)] h-[22px] min-w-[22px] px-[5px] text-caption ring-2 ring-surface"
+          : "-ml-0.5 h-[26px] min-w-[26px] px-[7px] text-mono",
         unknown ? "bg-ink-muted text-surface" : "bg-warn-fg text-surface",
         className
       )}
@@ -42,19 +42,17 @@ export function TabBadge({
           <span aria-hidden>?</span>
           <span className="sr-only">{BADGE_UNKNOWN}</span>
         </>
+      ) : count! > 9 ? (
+        <>
+          <span aria-hidden>9+</span>
+          <span className="sr-only">{`, ${count} ${label}`}</span>
+        </>
       ) : (
-        count! > 9 ? (
-          <>
-            <span aria-hidden>9+</span>
-            <span className="sr-only">{`, ${count} ${label}`}</span>
-          </>
-        ) : (
-          <>
-            <span className="sr-only">, </span>
-            {count}
-            <span className="sr-only"> {label}</span>
-          </>
-        )
+        <>
+          <span className="sr-only">, </span>
+          {count}
+          <span className="sr-only"> {label}</span>
+        </>
       )}
     </span>
   )

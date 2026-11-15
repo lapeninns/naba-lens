@@ -7,10 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { CardHead } from "../common-room"
 import { pendingLines } from "../knowledge/copy"
 import { Notice } from "../notice"
-import {
-  TargetProgress,
-  TargetSetup,
-} from "../tasks/monthly-progress-card"
+import { TargetProgress, TargetSetup } from "../tasks/monthly-progress-card"
 import { StatusChip } from "../tasks/status-badges"
 import type { MonthlyProgress } from "../tasks/types"
 import { NO_MENU_COPY, type OurMenuProgress } from "./our-menu-card"
@@ -18,7 +15,7 @@ import { NO_MENU_COPY, type OurMenuProgress } from "./our-menu-card"
 type Pending = { awaitingConfirmation: number; unknownRecorded: number } | null
 
 const LINK =
-  "inline-flex min-h-11 w-fit items-center gap-1 rounded-control text-body font-bold text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+  "inline-flex min-h-11 w-fit items-center gap-1 rounded-control text-body font-bold text-ink underline underline-offset-3 focus-ring outline-none"
 
 const LINES = "grid gap-1 border-t border-line pt-3 text-meta text-ink-muted"
 
@@ -105,7 +102,7 @@ export function ThisMonthCard({
       <CardHead>
         <h2
           id="this-month-heading"
-          className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+          className="type-section-title [overflow-wrap:anywhere] text-ink"
         >
           This month
         </h2>

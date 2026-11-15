@@ -41,18 +41,16 @@ export function CheckDatesSection({
   return (
     <CoverageSection id="amenity-check-dates" title={COPY.title}>
       {rated.length === 0 ? (
-        <p className="text-body-touch text-ink md:text-body">{COPY.noRule}</p>
+        <p className="text-body text-ink">{COPY.noRule}</p>
       ) : (
-        <ul className="grid gap-2 text-body-touch text-ink md:text-body">
+        <ul className="grid gap-2 text-body text-ink">
           {rated.map((entry) => {
             const basis = checkDateBasis(entry)
             return (
               <li key={entry.use} className="grid gap-0.5">
                 <span>{checkDateLine(entry, { policy })}</span>
                 {basis ? (
-                  <span className="text-meta-touch text-ink-muted md:text-meta">
-                    {basis}
-                  </span>
+                  <span className="text-meta text-ink-muted">{basis}</span>
                 ) : null}
               </li>
             )
@@ -60,11 +58,9 @@ export function CheckDatesSection({
         </ul>
       )}
       {rechecks === null ? (
-        <p className="text-body-touch text-ink md:text-body">
-          {COPY.rechecksFailed}
-        </p>
+        <p className="text-body text-ink">{COPY.rechecksFailed}</p>
       ) : rechecks.tasks.length ? (
-        <ul className="grid gap-2 text-body-touch text-ink md:text-body">
+        <ul className="grid gap-2 text-body text-ink">
           {rechecks.tasks.map((task) => (
             <li key={task.taskId}>
               {COPY.recheckOpen(recheckCauseLine(task, { policy }), assignee)}
@@ -72,18 +68,14 @@ export function CheckDatesSection({
           ))}
         </ul>
       ) : rechecks.count > 0 ? (
-        <p className="text-body-touch text-ink md:text-body">
+        <p className="text-body text-ink">
           {COPY.rechecksCount(rechecks.count)}
         </p>
       ) : expired ? (
-        <p className="text-body-touch text-ink md:text-body">
-          {COPY.opensWithinHour}
-        </p>
+        <p className="text-body text-ink">{COPY.opensWithinHour}</p>
       ) : null}
       {findingWaiting && (rechecks?.count ?? 0) > 0 ? (
-        <p className="text-body-touch text-ink md:text-body">
-          {COPY.waitingFinding}
-        </p>
+        <p className="text-body text-ink">{COPY.waitingFinding}</p>
       ) : null}
     </CoverageSection>
   )

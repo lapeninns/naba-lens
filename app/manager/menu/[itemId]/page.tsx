@@ -20,7 +20,7 @@ import {
 import { decideMenuPhotoAction, loadItemEventsAction } from "../../actions"
 import { failedRead } from "../../load-overview"
 
-export const metadata = { title: "Menu item · Naba-Lens" }
+export const metadata = { title: "Menu item" }
 
 /**
  * One active-menu item: its menu photo, alternatives, requests, rechecks,

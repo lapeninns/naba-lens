@@ -17,12 +17,15 @@ function sourceFiles(dir: string): string[] {
 // `focus-visible:outline-2` reads that variable for its outline-style, so the
 // focus outline never draws. An explicit `focus-visible:outline-solid` (or
 // another style) restores it. `outline-hidden` sets the same variable, so it
-// is no fix.
+// is no fix. The `focus-ring` utilities (app/globals.css) set the style
+// themselves, so they draw beside `outline-none` and are not checked here.
 const OUTLINE_NONE = /(?:^|[\s"'`])outline-(?:none|hidden)(?=[\s"'`]|$)/
 const FOCUS_OUTLINE =
   /[\w-]*focus(?:-visible|-within)?:outline-(?!none\b|hidden\b|offset-)[\w[\]/.-]+/
 const FOCUS_OUTLINE_STYLE =
   /[\w-]*focus(?:-visible|-within)?:outline-(?:solid|dashed|dotted|double)\b/
+
+const FOCUS_RING = /(?:^|[\s"'`])focus-ring(?:-inset)?(?=[\s"'`]|$)/
 
 describe("keyboard focus outlines", () => {
   it("never pair outline-none with a focus outline that has no style", () => {
@@ -46,12 +49,16 @@ describe("keyboard focus outlines", () => {
 
   it("keeps the shared field style's outline drawable when merged with outline-none", () => {
     const styles = readFileSync(
-      join(root, "components/nabalens/labels/field-styles.ts"),
+      join(root, "components/ui/field-control.ts"),
       "utf8"
     )
-    const control = styles.slice(styles.indexOf("FIELD_CONTROL ="))
-    expect(control.split("\n").slice(0, 3).join(" ")).toMatch(
-      FOCUS_OUTLINE_STYLE
-    )
+    const control = styles.slice(styles.indexOf("fieldControlVariants = cva("))
+    const recipe = control.split("\n").slice(0, 3).join(" ")
+    // Either a hand-written outline with its style, or the focus-ring
+    // utility, whose rule sets `outline: 3px solid`.
+    expect(
+      FOCUS_OUTLINE_STYLE.test(recipe) || FOCUS_RING.test(recipe),
+      recipe
+    ).toBe(true)
   })
 })

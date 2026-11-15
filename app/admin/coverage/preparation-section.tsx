@@ -30,7 +30,7 @@ import {
 import { PrepareButton, PrepareRetryButton } from "./prepare-control"
 
 const TH =
-  "px-3 py-2.5 text-left text-meta-strong text-ink-muted first:pl-4 last:pr-4"
+  "px-3 py-2.5 text-left text-meta font-semibold text-ink-muted first:pl-4 last:pr-4"
 const TD =
   "px-3 py-2.5 align-top text-body text-ink first:pl-4 last:pr-4 max-md:flex max-md:gap-2 max-md:px-4 max-md:py-1 max-md:before:min-w-32 max-md:before:text-ink-muted max-md:before:content-[attr(data-label)]"
 const TABLE =
@@ -126,13 +126,10 @@ export function PreparationSection({
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid gap-1">
-          <h2
-            id="preparation-title"
-            className="font-display text-section-title text-ink"
-          >
+          <h2 id="preparation-title" className="type-section-title text-ink">
             {PREPARATION_COPY.title}
           </h2>
-          <p className="max-w-(--size-reading) text-body text-ink-muted">
+          <p className="max-w-reading text-body text-ink-muted">
             {PREPARATION_COPY.summary}
           </p>
         </div>
@@ -304,7 +301,7 @@ export function PreparationSection({
           </div>
         )}
         <details id="all-runs" className="group">
-          <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 px-1 text-body font-bold text-ink underline underline-offset-4 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 px-1 text-body font-bold text-ink underline underline-offset-4 focus-ring outline-none [&::-webkit-details-marker]:hidden">
             <CaretRightIcon
               aria-hidden
               className="size-5 shrink-0 transition-transform group-open:rotate-90 motion-reduce:transition-none"

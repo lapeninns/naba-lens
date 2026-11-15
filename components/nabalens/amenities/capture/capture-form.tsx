@@ -1,12 +1,15 @@
 "use client"
 
+import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup } from "@/components/ui/radio-group"
+import { OptionRow } from "@/components/ui/option-row"
+import { Input } from "@/components/ui/input"
 import * as React from "react"
 import Link from "next/link"
 import {
   ArrowClockwiseIcon,
   CheckCircleIcon,
   PaperPlaneTiltIcon,
-  SpinnerGapIcon,
   WarningIcon,
 } from "@phosphor-icons/react"
 
@@ -324,9 +327,6 @@ function fromKnowledge(result: KnowledgeResult<SubmittedFinding>): Sent {
     : result
 }
 
-const inputClass =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
-
 function isDirty(draft: CaptureDraft): boolean {
   return Boolean(
     draft.answer ||
@@ -394,6 +394,18 @@ const FIELD_ELEMENT: Partial<Record<CaptureField, string>> = {
   "wifi.uploadMbps": "wifi-up",
 }
 
+/*
+ * The first control in `root` that takes focus. A Base UI radio or checkbox
+ * is focused on its role element: its hidden input can't take focus, and the
+ * box's id lands on that input, so the redaction row carries the id instead.
+ */
+const FOCUSABLE_CONTROL =
+  '[role="radio"]:not([data-disabled]), [role="checkbox"]:not([data-disabled]), input:not(:disabled):not([aria-hidden="true"])'
+
+function firstControl(root: Element | null | undefined) {
+  return root?.querySelector<HTMLElement>(FOCUSABLE_CONTROL) ?? null
+}
+
 function sameIds(a: string[], b: string[]) {
   return a.length === b.length && a.every((id, i) => id === b[i])
 }
@@ -431,7 +443,7 @@ function TextInput({
   label: string
   error?: string
   help?: string
-} & Omit<React.ComponentProps<"input">, "id">) {
+} & Omit<React.ComponentProps<typeof Input>, "id">) {
   const describedBy =
     [help ? `${id}-help` : null, error ? `${id}-error` : null]
       .filter(Boolean)
@@ -441,11 +453,10 @@ function TextInput({
       <label htmlFor={id} className={LABEL}>
         {label}
       </label>
-      <input
+      <Input
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
-        className={inputClass}
         {...props}
       />
       {help ? (
@@ -1228,9 +1239,7 @@ export function CaptureForm({
       redactionAssetIds: [],
     })
     void reloadAssets(missed)
-    requestAnimationFrame(() =>
-      answerGroupRef.current?.querySelector<HTMLInputElement>("input")?.focus()
-    )
+    requestAnimationFrame(() => firstControl(answerGroupRef.current)?.focus())
   }
 
   /** Focus the first invalid control; its message is in its description. */
@@ -1386,20 +1395,20 @@ export function CaptureForm({
     requestAnimationFrame(() => {
       const byId = (suffix: string) =>
         document.getElementById(`${ids}-${suffix}`)
-      const firstInput = (root: Element | null | undefined) =>
-        root?.querySelector<HTMLElement>("input:not(:disabled)") ?? null
       const target: HTMLElement | null =
         field === "answer"
-          ? firstInput(answerGroupRef.current)
+          ? firstControl(answerGroupRef.current)
           : field === "confirmOwn"
-            ? firstInput(selfConfirmRef.current)
+            ? firstControl(selfConfirmRef.current)
             : field === "unknownPreset"
-              ? firstInput(byId("unknown-preset-group"))
+              ? firstControl(byId("unknown-preset-group"))
               : field === "assetIds"
                 ? (evidenceHeadingRef.current?.parentElement?.querySelector<HTMLElement>(
                     'input[type="checkbox"]:not(:disabled)'
                   ) ?? evidenceHeadingRef.current)
-                : byId(FIELD_ELEMENT[field] ?? field)
+                : field === "redactionConfirmed"
+                  ? firstControl(byId("redaction"))
+                  : byId(FIELD_ELEMENT[field] ?? field)
       target?.focus()
     })
   }
@@ -1407,9 +1416,7 @@ export function CaptureForm({
   function stopWaiting() {
     setWaiting(false)
     setOutcome(null)
-    requestAnimationFrame(() =>
-      answerGroupRef.current?.querySelector<HTMLInputElement>("input")?.focus()
-    )
+    requestAnimationFrame(() => firstControl(answerGroupRef.current)?.focus())
   }
 
   /** What the knowledge path reports, in the person's words. */
@@ -1749,9 +1756,7 @@ export function CaptureForm({
     serverDraftRevision.current = null
     setOutcome({ kind: "discarded" })
     // The notice that held the button is gone: start at the answers (CA-16).
-    requestAnimationFrame(() =>
-      answerGroupRef.current?.querySelector<HTMLInputElement>("input")?.focus()
-    )
+    requestAnimationFrame(() => firstControl(answerGroupRef.current)?.focus())
   }
 
   // Offline, Try again would only fail again. The unresolved send waits and
@@ -1943,15 +1948,13 @@ export function CaptureForm({
       ) : null}
       <section
         aria-labelledby={`${ids}-brief`}
-        className="flex flex-col gap-2 rounded-panel bg-well p-4"
+        className="flex flex-col gap-2 rounded-card bg-surface-2 p-4"
       >
         <h2 id={`${ids}-brief`} className={LABEL}>
           What to capture
         </h2>
-        <p className="text-body-touch break-words md:text-body">
-          {entry.captureBrief}
-        </p>
-        <p className="text-body-touch md:text-body-sm">
+        <p className="text-body break-words">{entry.captureBrief}</p>
+        <p className="text-body">
           <span className="font-semibold">Required evidence:</span>{" "}
           {EVIDENCE_RULE_LABEL[rule]}
           <span className="text-ink-muted"> (for a Yes answer)</span>
@@ -2023,59 +2026,58 @@ export function CaptureForm({
           aria-describedby={errorId("answer")}
           disabled={locked}
         >
-          <legend className={cn(LABEL, "mb-2")}>{entry.question}</legend>
+          <legend id={`${ids}-answer-legend`} className={cn(LABEL, "mb-2")}>
+            {entry.question}
+          </legend>
           {knowledge ? (
-            <div className="grid gap-2 min-[360px]:grid-cols-2 sm:grid-cols-4">
+            <RadioGroup
+              aria-labelledby={`${ids}-answer-legend`}
+              // "" while nothing is chosen, so the group stays controlled.
+              value={answer ?? ""}
+              onValueChange={(next) => {
+                const option = KNOWLEDGE_ANSWERS.find((a) => a === next)
+                if (option) setField("answer", option)
+              }}
+              disabled={locked}
+              aria-invalid={errors.answer ? true : undefined}
+              className="grid gap-2 min-[360px]:grid-cols-2 sm:grid-cols-4"
+            >
               {KNOWLEDGE_ANSWERS.map((option: KnowledgeAnswer) => (
-                <label
+                <OptionRow
                   key={option}
-                  className="flex min-h-13 cursor-pointer items-start gap-3 rounded-control border border-line-control bg-panel px-4 py-3 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
-                >
-                  <input
-                    type="radio"
-                    name={`${ids}-answer`}
-                    value={option}
-                    checked={answer === option}
-                    onChange={() => setField("answer", option)}
-                    aria-labelledby={`${ids}-answer-${option}`}
-                    aria-describedby={`${ids}-answer-${option}-hint`}
-                    className="mt-0.5 size-5 shrink-0 accent-primary"
-                  />
-                  <span className="grid gap-0.5">
-                    <span id={`${ids}-answer-${option}`}>
-                      {KNOWLEDGE_ANSWER_LABEL[option]}
-                    </span>
-                    <span
-                      id={`${ids}-answer-${option}-hint`}
-                      className="text-meta-touch font-normal text-ink-muted md:text-meta"
-                    >
-                      {option === "yes" && yesRefused
-                        ? yesRefused
-                        : ANSWER_HINT[option]}
-                    </span>
-                  </span>
-                </label>
+                  type="radio"
+                  value={option}
+                  label={KNOWLEDGE_ANSWER_LABEL[option]}
+                  hint={
+                    option === "yes" && yesRefused
+                      ? yesRefused
+                      : ANSWER_HINT[option]
+                  }
+                />
               ))}
-            </div>
+            </RadioGroup>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-3">
+            <RadioGroup
+              aria-labelledby={`${ids}-answer-legend`}
+              // "" while nothing is chosen, so the group stays controlled.
+              value={answer ?? ""}
+              onValueChange={(next) => {
+                const option = SUBMIT_ANSWERS.find((a) => a === next)
+                if (option) setField("answer", option)
+              }}
+              disabled={locked}
+              aria-invalid={errors.answer ? true : undefined}
+              className="grid gap-2 sm:grid-cols-3"
+            >
               {SUBMIT_ANSWERS.map((option) => (
-                <label
+                <OptionRow
                   key={option}
-                  className="flex min-h-13 cursor-pointer items-center gap-3 rounded-control border border-line-control bg-panel px-4 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
-                >
-                  <input
-                    type="radio"
-                    name={`${ids}-answer`}
-                    value={option}
-                    checked={answer === option}
-                    onChange={() => setField("answer", option)}
-                    className="size-5 shrink-0 accent-primary"
-                  />
-                  {ANSWER_LABEL[option]}
-                </label>
+                  type="radio"
+                  value={option}
+                  label={ANSWER_LABEL[option]}
+                />
               ))}
-            </div>
+            </RadioGroup>
           )}
           {yesRefused && !knowledge ? (
             <p className={MUTED}>{yesRefused}</p>
@@ -2268,7 +2270,7 @@ export function CaptureForm({
           id={`${ids}-evidence`}
           tabIndex={-1}
           aria-describedby={errorId("assetIds")}
-          className="font-display text-section-title-touch text-ink outline-none md:text-section-title"
+          className="type-section-title text-ink outline-none"
         >
           Evidence
         </h2>
@@ -2281,8 +2283,8 @@ export function CaptureForm({
         <p
           data-testid="evidence-rule-status"
           className={cn(
-            "flex items-start gap-1.5 text-body-touch md:text-body-sm",
-            ruleMet ? "text-positive" : "text-ink"
+            "flex items-start gap-1.5 text-body",
+            ruleMet ? "text-ok-fg" : "text-ink"
           )}
         >
           {ruleMet ? (
@@ -2290,7 +2292,7 @@ export function CaptureForm({
           ) : (
             <WarningIcon
               aria-hidden
-              className="mt-0.5 size-4 shrink-0 text-attention"
+              className="mt-0.5 size-4 shrink-0 text-warn-fg"
             />
           )}
           {ruleMet
@@ -2326,10 +2328,7 @@ export function CaptureForm({
           </p>
         )}
 
-        <div
-          aria-live="polite"
-          className="text-body-touch empty:hidden md:text-body-sm"
-        >
+        <div aria-live="polite" className="text-body empty:hidden">
           {uploadNote ? <p>{uploadNote}</p> : null}
         </div>
 
@@ -2364,7 +2363,6 @@ export function CaptureForm({
               <Button
                 type="button"
                 variant="secondary"
-                size="touch"
                 onClick={() => void reloadAssets()}
               >
                 <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
@@ -2383,15 +2381,18 @@ export function CaptureForm({
 
       {redaction ? (
         <div className="flex flex-col gap-1.5">
-          <label className="flex min-h-13 cursor-pointer items-start gap-3 rounded-control border border-line-control bg-panel px-4 py-3 text-body-touch has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-body-sm">
-            <input
-              id={`${ids}-redaction`}
-              type="checkbox"
+          {/* A plain row, not OptionRow: the error below must describe the box. */}
+          <label
+            id={`${ids}-redaction`}
+            className="flex min-h-14 cursor-pointer items-start gap-3 rounded-card bg-surface-2 p-3 text-body edge-strong focus-ring-within has-aria-invalid:edge-invalid"
+          >
+            <Checkbox
+              focus="parent"
               checked={redactionConfirmed}
               // A photo still saving changes the set the tick vouches for
               // when it arrives, which clears it: it waits for the photo.
               disabled={locked || pendingUploads > 0}
-              onChange={(e) => confirmRedaction(e.currentTarget.checked)}
+              onCheckedChange={(checked) => confirmRedaction(checked)}
               aria-invalid={errors.redactionConfirmed ? true : undefined}
               aria-describedby={
                 [
@@ -2401,7 +2402,6 @@ export function CaptureForm({
                   .filter(Boolean)
                   .join(" ") || undefined
               }
-              className="mt-0.5 size-5 shrink-0 accent-primary"
             />
             {UI_TEXT.redactionConfirm}
           </label>
@@ -2528,13 +2528,12 @@ export function CaptureForm({
         <p className={MUTED}>{dockNote(slot, knowledge.role)}</p>
       ) : null}
 
-      <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-3 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      <div className="sticky bottom-0 z-sticky -mx-4 flex flex-col gap-3 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         {afterSend ? (
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               onClick={sendAgainWithLate}
             >
               {afterSend.missed.length === 1
@@ -2543,8 +2542,8 @@ export function CaptureForm({
             </Button>
             <Button
               ref={doneRef}
+              variant="primary"
               type="button"
-              size="touch"
               className="sm:self-start"
               onClick={onDone}
             >
@@ -2558,9 +2557,8 @@ export function CaptureForm({
                 ref={saveButtonRef}
                 type="button"
                 variant="secondary"
-                size="touch"
                 aria-disabled={submitBlocked || undefined}
-                aria-busy={savingNow || undefined}
+                loading={savingNow}
                 onClick={() => {
                   if (!submitBlocked) void saveForLater()
                 }}
@@ -2569,21 +2567,13 @@ export function CaptureForm({
               </Button>
             ) : null}
             <Button
+              variant="primary"
               type="submit"
-              size="touch"
               aria-disabled={submitBlocked || undefined}
-              aria-busy={sending || waiting || undefined}
+              loading={sending || waiting}
               className="sm:self-start"
             >
-              {sending || waiting ? (
-                <SpinnerGapIcon
-                  data-icon="inline-start"
-                  className="motion-safe:animate-spin"
-                  aria-hidden
-                />
-              ) : (
-                <PaperPlaneTiltIcon data-icon="inline-start" aria-hidden />
-              )}
+              <PaperPlaneTiltIcon data-icon="inline-start" aria-hidden />
               {waiting
                 ? UPLOAD_WAIT_COPY.primary(pendingUploads, waitKinds)
                 : sending
@@ -2703,13 +2693,7 @@ function UploadWait({
         tone="info"
         role="status"
         action={
-          <Button
-            ref={stopRef}
-            type="button"
-            variant="quiet"
-            size="touch"
-            onClick={onStop}
-          >
+          <Button ref={stopRef} type="button" variant="quiet" onClick={onStop}>
             {UPLOAD_WAIT_COPY.stop}
           </Button>
         }
@@ -2725,22 +2709,12 @@ function UploadWait({
       action={
         <div className="flex flex-wrap gap-2">
           {canWait ? (
-            <Button
-              type="button"
-              variant="secondary"
-              size="touch"
-              onClick={onWait}
-            >
+            <Button type="button" variant="secondary" onClick={onWait}>
               {UPLOAD_WAIT_COPY.waitFor(n)}
             </Button>
           ) : null}
           {canSendWithout ? (
-            <Button
-              type="button"
-              variant="quiet"
-              size="touch"
-              onClick={onSendWithout}
-            >
+            <Button type="button" variant="quiet" onClick={onSendWithout}>
               {UPLOAD_WAIT_COPY.sendWithout(n)}
             </Button>
           ) : null}
@@ -2784,7 +2758,7 @@ function OutcomeMessage({
 }) {
   if (!outcome) return null
   const reload = (label = "Reload") => (
-    <Button type="button" variant="secondary" size="touch" onClick={onReload}>
+    <Button type="button" variant="secondary" onClick={onReload}>
       <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
       {label}
     </Button>
@@ -2827,7 +2801,6 @@ function OutcomeMessage({
               href={pageHref ?? ""}
               className={buttonVariants({
                 variant: "secondary",
-                size: "touch",
               })}
             >
               {KNOWLEDGE_FAILURE_COPY.pathRequired.action}
@@ -2927,7 +2900,6 @@ function OutcomeMessage({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               onClick={() => onStartNewDraft(outcome.sentAt)}
             >
               {DRAFT_SAVE_COPY.startNew}
@@ -2966,7 +2938,6 @@ function OutcomeMessage({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               onClick={onRetry}
               disabled={sending || !online}
             >
@@ -2987,12 +2958,7 @@ function OutcomeMessage({
           role="alert"
           title="This check changed"
           action={
-            <Button
-              type="button"
-              variant="secondary"
-              size="touch"
-              onClick={onReload}
-            >
+            <Button type="button" variant="secondary" onClick={onReload}>
               <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
               Reload
             </Button>
@@ -3012,7 +2978,6 @@ function OutcomeMessage({
               href={signInHref}
               className={buttonVariants({
                 variant: "secondary",
-                size: "touch",
               })}
             >
               Sign in

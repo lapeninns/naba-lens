@@ -28,7 +28,7 @@ import { Notice } from "../../notice"
 import { FieldMessage, LABEL } from "./field-parts"
 
 const RADIO_ROW =
-  "flex min-h-11 cursor-pointer items-center gap-3 text-body-touch text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:text-body"
+  "flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink focus-ring-within"
 
 /** Couldn't establish: why (a preset) and what was tried. */
 export function UnknownFields({
@@ -69,7 +69,7 @@ export function UnknownFields({
               value={value}
               checked={preset === value}
               onChange={() => onPreset(value)}
-              className="size-5 shrink-0 accent-primary"
+              className="size-5 shrink-0 accent-accent"
             />
             {UNKNOWN_PRESET_LABEL[value]}
           </label>
@@ -139,7 +139,7 @@ export const SelfConfirmFieldset = React.forwardRef<
       {options.map((option) => (
         <label
           key={String(option.own)}
-          className="flex min-h-13 cursor-pointer items-start gap-3 rounded-control border border-line-control bg-panel px-4 py-3 text-body-touch has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-body"
+          className="flex min-h-14 cursor-pointer items-start gap-3 rounded-control bg-surface-2 px-4 py-3 text-body edge-strong focus-ring-within has-checked:bg-accent-soft has-checked:edge-selected"
         >
           <input
             type="radio"
@@ -148,7 +148,7 @@ export const SelfConfirmFieldset = React.forwardRef<
             onChange={() => onChange(option.own)}
             aria-labelledby={`${id}-${option.own}-word`}
             aria-describedby={`${id}-${option.own}-hint`}
-            className="mt-0.5 size-5 shrink-0 accent-primary"
+            className="mt-0.5 size-5 shrink-0 accent-accent"
           />
           <span className="grid gap-0.5">
             <span id={`${id}-${option.own}-word`} className="font-semibold">
@@ -156,7 +156,7 @@ export const SelfConfirmFieldset = React.forwardRef<
             </span>
             <span
               id={`${id}-${option.own}-hint`}
-              className="text-meta-touch text-ink-muted md:text-meta"
+              className="text-meta text-ink-muted"
             >
               {option.hint}
             </span>
@@ -251,7 +251,6 @@ export function DiscardDraftDialog({
           <Button
             type="button"
             variant="danger-quiet"
-            size="touch"
             aria-disabled={busy || undefined}
             aria-busy={busy || undefined}
             onClick={() => void discard()}
@@ -260,7 +259,6 @@ export function DiscardDraftDialog({
           </Button>
           <AlertDialogCancel
             variant="primary"
-            size="touch"
             aria-disabled={busy || undefined}
           >
             Keep draft
@@ -296,7 +294,6 @@ export function DraftRestoredNotice({
         <Button
           type="button"
           variant="quiet"
-          size="touch"
           disabled={disabled}
           onClick={() => setOpen(true)}
         >

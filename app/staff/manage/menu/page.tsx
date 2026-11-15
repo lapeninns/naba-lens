@@ -5,7 +5,7 @@ import { NotManagerPage } from "@/app/staff/manage/_shared/frame"
 import { MenuScreen } from "@/app/staff/manage/_shared/screens"
 
 export const metadata: Metadata = {
-  title: "Menu coverage · Manage · Naba-Lens",
+  title: "Menu coverage · Manage",
 }
 
 export default async function ManageMenuPage() {

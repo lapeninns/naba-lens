@@ -22,7 +22,7 @@ export type EntryHrefs = {
 }
 
 const ROW =
-  "flex min-h-14 w-full items-center gap-3 rounded-touch border border-line-control px-4 py-3 text-left transition-colors outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+  "flex min-h-14 w-full items-center gap-3 rounded-card border border-edge-strong px-4 py-3 text-left focus-ring transition-colors outline-none hover:bg-surface-2"
 
 /** "For {venue}", then who sees it (§4.2); the second line may be absent. */
 export function EntryContext({
@@ -34,14 +34,10 @@ export function EntryContext({
 }) {
   return (
     <div data-slot="entry-context" className="grid gap-0.5">
-      <p className="text-label-touch [overflow-wrap:anywhere] text-ink md:text-label">
+      <p className="text-label [overflow-wrap:anywhere] text-ink">
         {ENTRY_COPY.venue(venueName)}
       </p>
-      {audience ? (
-        <p className="text-meta-touch text-ink-muted md:text-meta">
-          {audience}
-        </p>
-      ) : null}
+      {audience ? <p className="text-meta text-ink-muted">{audience}</p> : null}
     </div>
   )
 }
@@ -164,7 +160,7 @@ export function EntryFlow({
       </ul>
       {initialStep === "choose" ? (
         <div>
-          <Button variant="quiet" size="touch" onClick={() => go("choose")}>
+          <Button variant="quiet" onClick={() => go("choose")}>
             <CaretLeftIcon data-icon="inline-start" aria-hidden />
             {ENTRY_COPY.back}
           </Button>
@@ -178,12 +174,10 @@ function Choice({ title, hint }: { title: string; hint?: string | null }) {
   return (
     <>
       <span className="grid min-w-0 flex-1 gap-0.5">
-        <span className="text-item-title-touch [overflow-wrap:anywhere] text-ink">
+        <span className="text-item-title [overflow-wrap:anywhere] text-ink">
           {title}
         </span>
-        {hint ? (
-          <span className="text-meta-touch text-ink-muted">{hint}</span>
-        ) : null}
+        {hint ? <span className="text-meta text-ink-muted">{hint}</span> : null}
       </span>
       <CaretRightIcon
         aria-hidden

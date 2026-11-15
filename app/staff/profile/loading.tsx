@@ -6,11 +6,11 @@ const ROWS = ["45%", "38%", "52%", "40%", "48%"]
 /** The real layout: header, who you are, then the choice list in one card. */
 export default function WorkProfileLoading() {
   return (
-    <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader title="Work details" className="pb-0 md:pb-0" />
       <SkeletonRegion
         label="Loading your work details…"
-        className="flex flex-col gap-(--gutter)"
+        className="flex flex-col gap-gutter"
       >
         <div className="flex items-center gap-3 rounded-card bg-surface p-3 shadow-card">
           <Skeleton shape="av" />

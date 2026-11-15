@@ -1,9 +1,9 @@
+import { FilterPill } from "@/components/ui/filter-pill"
+import { SearchField } from "@/components/ui/search-field"
 import Link from "next/link"
-import { CheckIcon, MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr"
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { Button, buttonVariants } from "@/components/ui/button"
-import { Field, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 import { OUR_MENU_COPY, sectionCount } from "./copy"
@@ -34,22 +34,6 @@ export function ourMenuHref(
   const search = params.toString()
   return search ? `${basePath}?${search}` : basePath
 }
-
-/*
- * Select pills (DESIGN.md §4): grey; the current one is accent-soft with an
- * accent-text inset edge and a tick. Pills wrap; nothing scrolls sideways.
- */
-const PILL =
-  "group/pill inline-flex min-h-11 items-center gap-1.5 rounded-round bg-surface-2 px-4 text-label [overflow-wrap:anywhere] text-ink outline-none transition-colors duration-(--duration-quick) hover:bg-raised focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus aria-[current=page]:bg-accent-soft aria-[current=page]:shadow-[inset_0_0_0_1.5px_var(--accent-text)]"
-
-/** The tick on the current pill (decorative: aria-current carries it). */
-const tick = (
-  <CheckIcon
-    aria-hidden
-    weight="bold"
-    className="hidden size-4 shrink-0 group-aria-[current=page]/pill:inline"
-  />
-)
 
 /**
  * Search, "Still needs a photo" and the section chips for Our menu. Plain GET
@@ -88,31 +72,21 @@ export function OurMenuFilters({
         {filter.gapsOnly ? (
           <input type="hidden" name="filter" value="gaps" />
         ) : null}
-        <Field>
-          <FieldLabel htmlFor="our-menu-q">{OUR_MENU_COPY.search}</FieldLabel>
-          <span className="relative block">
-            <MagnifyingGlassIcon
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
-            />
-            <Input
-              id="our-menu-q"
-              name="q"
-              type="search"
-              autoComplete="off"
-              enterKeyHint="search"
-              defaultValue={filter.query}
-              placeholder={OUR_MENU_COPY.searchPlaceholder}
-              maxLength={OUR_MENU_QUERY_MAX}
-              className="pl-11"
-            />
-          </span>
-        </Field>
+        <SearchField
+          // Remounts when the address changes, so Clear empties the field.
+          key={filter.query}
+          id="our-menu-q"
+          name="q"
+          label={OUR_MENU_COPY.search}
+          autoComplete="off"
+          defaultValue={filter.query}
+          placeholder={OUR_MENU_COPY.searchPlaceholder}
+          maxLength={OUR_MENU_QUERY_MAX}
+        />
         <div className="flex flex-wrap gap-2">
           <Button
             type="submit"
             variant="secondary"
-            size="touch"
             className="flex-auto md:flex-none"
           >
             <MagnifyingGlassIcon aria-hidden />
@@ -122,7 +96,7 @@ export function OurMenuFilters({
             <Link
               href={hrefWith({ query: "" })}
               className={cn(
-                buttonVariants({ variant: "secondary", size: "touch" }),
+                buttonVariants({ variant: "secondary" }),
                 "flex-auto md:flex-none"
               )}
             >
@@ -132,46 +106,36 @@ export function OurMenuFilters({
         </div>
       </form>
       <nav aria-label="Show" className="flex flex-wrap gap-2">
-        <Link
+        <FilterPill
           href={hrefWith({ gapsOnly: false })}
-          aria-current={filter.gapsOnly ? undefined : "page"}
-          className={PILL}
+          selected={!filter.gapsOnly}
         >
-          {tick}
           {OUR_MENU_COPY.allDishes}
-        </Link>
-        <Link
+        </FilterPill>
+        <FilterPill
           href={hrefWith({ gapsOnly: true })}
-          aria-current={filter.gapsOnly ? "page" : undefined}
-          className={PILL}
+          selected={filter.gapsOnly}
         >
-          {tick}
           {OUR_MENU_COPY.gaps}
-        </Link>
+        </FilterPill>
       </nav>
       {sections.length > 1 ? (
         <nav aria-label="Menu sections">
           <ul className="flex flex-wrap gap-2">
             <li className="min-w-0">
-              <Link
+              <FilterPill
                 href={hrefWith({ sectionId: null })}
-                aria-current={filter.sectionId ? undefined : "page"}
-                className={PILL}
+                selected={!filter.sectionId}
               >
-                {tick}
                 {OUR_MENU_COPY.allSections}
-              </Link>
+              </FilterPill>
             </li>
             {sections.map((section) => (
               <li key={section.sectionId} className="min-w-0">
-                <Link
+                <FilterPill
                   href={hrefWith({ sectionId: section.sectionId })}
-                  aria-current={
-                    filter.sectionId === section.sectionId ? "page" : undefined
-                  }
-                  className={PILL}
+                  selected={filter.sectionId === section.sectionId}
                 >
-                  {tick}
                   {section.name}
                   <span
                     aria-hidden
@@ -182,7 +146,7 @@ export function OurMenuFilters({
                   <span className="sr-only">
                     , {sectionCount(section.covered, section.eligible)}
                   </span>
-                </Link>
+                </FilterPill>
               </li>
             ))}
           </ul>

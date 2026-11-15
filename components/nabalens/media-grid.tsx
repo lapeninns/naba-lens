@@ -8,11 +8,10 @@ import type { MediaItem } from "./types"
  * A contact sheet: three across with 2px gutters on phones, like the camera
  * roll; captioned grids take two across. From md, tiles auto-fill from 160px.
  */
-const GRID =
-  "grid grid-cols-3 gap-0.5 md:grid-cols-[repeat(auto-fill,minmax(var(--size-tile-min),1fr))] md:gap-x-3 md:gap-y-4"
+const GRID = "grid grid-cols-3 gap-0.5 md:grid-cols-tiles md:gap-x-3 md:gap-y-4"
 const CAPTIONED = "max-md:grid-cols-2 max-md:gap-x-3 max-md:gap-y-4"
 /** The Common Room feed: one post per file, white cards on the grey canvas. */
-const FEED = "mx-auto grid w-full max-w-(--size-feed) gap-(--gutter)"
+const FEED = "mx-auto grid w-full max-w-feed gap-gutter"
 
 type MediaGridProps = {
   items: MediaItem[]

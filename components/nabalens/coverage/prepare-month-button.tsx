@@ -2,11 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import {
-  ArrowClockwiseIcon,
-  CalendarCheckIcon,
-  SpinnerGapIcon,
-} from "@phosphor-icons/react"
+import { ArrowClockwiseIcon, CalendarCheckIcon } from "@phosphor-icons/react"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Notice } from "@/components/nabalens/notice"
@@ -163,19 +159,19 @@ export function PrepareMonthButton({
     <Link
       href={teamHref}
       onClick={() => setOpen(false)}
-      className={buttonVariants({ variant: "primary", size: "touch" })}
+      className={buttonVariants({ variant: "primary" })}
     >
       Go to Team
     </Link>
   ) : (
-    <Button size="touch" onClick={() => change(false)}>
+    <Button variant="primary" onClick={() => change(false)}>
       Close
     </Button>
   )
 
   return (
     <>
-      <Button size="touch" onClick={() => setOpen(true)}>
+      <Button variant="primary" onClick={() => setOpen(true)}>
         <CalendarCheckIcon aria-hidden />
         {label}
       </Button>
@@ -252,14 +248,10 @@ export function PrepareMonthButton({
               goToTeam
             ) : outcome?.kind === "failed" || outcome?.kind === "refused" ? (
               <>
-                <Button
-                  variant="secondary"
-                  size="touch"
-                  onClick={() => change(false)}
-                >
+                <Button variant="secondary" onClick={() => change(false)}>
                   Close
                 </Button>
-                <Button size="touch" onClick={() => void prepare()}>
+                <Button variant="primary" onClick={() => void prepare()}>
                   <ArrowClockwiseIcon aria-hidden />
                   Try again
                 </Button>
@@ -268,24 +260,19 @@ export function PrepareMonthButton({
               <>
                 <Button
                   variant="secondary"
-                  size="touch"
                   onClick={() => change(false)}
                   disabled={pending}
                 >
                   Cancel
                 </Button>
                 <Button
-                  size="touch"
+                  variant="primary"
                   onClick={() => void prepare()}
-                  aria-disabled={pending || undefined}
-                  aria-busy={pending || undefined}
+                  loading={pending}
+                  loadingLabel="Preparing…"
                 >
-                  {pending ? (
-                    <SpinnerGapIcon aria-hidden className="animate-spin" />
-                  ) : (
-                    <CalendarCheckIcon aria-hidden />
-                  )}
-                  {pending ? "Preparing…" : label}
+                  <CalendarCheckIcon aria-hidden />
+                  {label}
                 </Button>
               </>
             )}

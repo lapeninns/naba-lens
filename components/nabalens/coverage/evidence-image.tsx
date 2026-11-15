@@ -80,22 +80,20 @@ export function EvidencePreviewButton({
         className={edge ? "aspect-auto h-full rounded-none" : undefined}
       />
       {large ? (
-        // Overlay (z-10) under EvidenceImage's own "Try again" (z-20), so a
+        // Overlay (z-local) under EvidenceImage's own "Try again" (z-20), so a
         // failed thumbnail can be retried without opening the dialog.
         <button
           type="button"
           onClick={() => setOpen(true)}
           aria-label={`Open ${label}`}
           className={cn(
-            "absolute inset-0 z-10 outline-none focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-solid",
-            edge
-              ? "focus-visible:-outline-offset-3"
-              : "rounded-control focus-visible:outline-offset-2"
+            "absolute inset-0 z-local outline-none",
+            edge ? "focus-ring-inset" : "rounded-control focus-ring"
           )}
         />
       ) : null}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent size="wide">
           <DialogHeader>
             <DialogTitle>{label}</DialogTitle>
             {description ? (

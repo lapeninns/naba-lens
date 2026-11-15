@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 
 const PATH = "/admin/knowledge/sources"
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const MUTED = "text-meta-touch text-ink-muted md:text-meta"
+const MUTED = "text-meta text-ink-muted"
 const CARD = "grid min-w-0 gap-2 rounded-card bg-surface p-4 shadow-card"
 
 /**
@@ -72,16 +72,14 @@ export default async function SourcesPage({
 
   return (
     <AppShell variant="admin" active="coverage" userName={profile.displayName}>
-      <div className="mx-auto grid w-full max-w-(--size-reading) min-w-0 gap-(--gutter)">
+      <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
         <PageHeader title={COPY.sourcesTitle} />
 
         <CoverageSection id="sources" title={COPY.sources}>
           {!sources?.ok ? (
             <Notice tone="negative">{COPY.failed}</Notice>
           ) : sources.sources.length === 0 ? (
-            <p className="text-body-touch text-ink md:text-body">
-              {COPY.noSources}
-            </p>
+            <p className="text-body text-ink">{COPY.noSources}</p>
           ) : (
             <ul className="grid gap-3">
               {sources.sources.map((s) => (
@@ -119,15 +117,11 @@ export default async function SourcesPage({
         </CoverageSection>
 
         <CoverageSection id="mappings" title={COPY.mappings}>
-          <p className="text-body-touch text-ink md:text-body">
-            {COPY.mappingsLine}
-          </p>
+          <p className="text-body text-ink">{COPY.mappingsLine}</p>
           {!mappings?.ok ? (
             <Notice tone="negative">{COPY.failed}</Notice>
           ) : mappings.page.items.length === 0 ? (
-            <p className="text-body-touch text-ink md:text-body">
-              {COPY.noMappings}
-            </p>
+            <p className="text-body text-ink">{COPY.noMappings}</p>
           ) : (
             <ul className="grid gap-3">
               {mappings.page.items.map((item) => (
@@ -142,7 +136,7 @@ export default async function SourcesPage({
                     {venueName.get(item.venueId) ?? COPY.aVenue}
                   </p>
                   {item.mappings.length ? (
-                    <ul className="grid gap-1 text-body-touch text-ink md:text-body">
+                    <ul className="grid gap-1 text-body text-ink">
                       {item.mappings.map((m) => (
                         <li key={m.questionKey}>
                           {m.questionKey}:{" "}
@@ -173,10 +167,7 @@ export default async function SourcesPage({
             <div>
               <Link
                 href={`${PATH}?cursor=${encodeURIComponent(mappings.page.nextCursor)}`}
-                className={buttonVariants({
-                  variant: "secondary",
-                  size: "touch",
-                })}
+                className={buttonVariants({ variant: "secondary" })}
               >
                 {COPY.showOlder}
               </Link>

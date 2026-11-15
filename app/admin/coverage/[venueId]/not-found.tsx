@@ -24,7 +24,6 @@ export default function VenueCoverageNotFound() {
               href="/admin/coverage"
               className={buttonVariants({
                 variant: "secondary",
-                size: "touch",
               })}
             >
               <ArrowLeftIcon data-icon="inline-start" aria-hidden />

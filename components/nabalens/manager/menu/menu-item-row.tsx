@@ -86,7 +86,7 @@ export function MenuItemRow({
       ) : (
         <span
           aria-hidden
-          className="grid aspect-square w-14 place-items-center rounded-control border-2 border-dashed border-border-strong text-ink-muted"
+          className="grid aspect-square w-14 place-items-center rounded-control border-2 border-dashed border-edge-strong text-ink-muted"
         >
           <CameraIcon className="size-6" />
         </span>
@@ -95,7 +95,7 @@ export function MenuItemRow({
         <h3 id={nameId} className="text-item-title break-words text-ink">
           <Link
             href={href}
-            className="rounded-control outline-none after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+            className="rounded-control focus-ring outline-none after:absolute after:inset-0 after:content-[''] hover:underline"
           >
             {item.name}
           </Link>

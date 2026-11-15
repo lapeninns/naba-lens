@@ -4,7 +4,7 @@ import { SignInPage } from "@/app/login/sign-in-frame"
 import { NotFoundCard } from "@/components/nabalens/not-found-card"
 
 export const metadata: Metadata = {
-  title: "Page not found · Naba-Lens",
+  title: "Page not found",
 }
 
 /**

@@ -39,7 +39,7 @@ export function ProgressSegments({
   const segmented = total > 0 && total <= 12
   return (
     <div data-slot="cr-progress" className={cn("grid gap-2", className)}>
-      <p className="font-mono text-meta-strong text-ink tabular-nums">
+      <p className="font-mono text-meta font-semibold text-ink tabular-nums">
         {label}
       </p>
       {segmented ? (
@@ -57,7 +57,7 @@ export function ProgressSegments({
                   ? "bg-ok-fg"
                   : index < ok + sent
                     ? "bg-stripe"
-                    : "bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+                    : "bg-surface-2 edge-strong"
               )}
             />
           ))}
@@ -65,7 +65,7 @@ export function ProgressSegments({
       ) : (
         <div
           aria-hidden
-          className="flex h-3 overflow-hidden rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+          className="flex h-3 overflow-hidden rounded-round bg-surface-2 edge-strong"
         >
           <i
             className="block bg-ok-fg"
@@ -101,7 +101,7 @@ export function ProgressSegments({
             <span className="inline-flex items-center gap-1.5">
               <i
                 aria-hidden
-                className="block h-2.5 w-[22px] rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+                className="block h-2.5 w-[22px] rounded-round bg-surface-2 edge-strong"
               />
               {keyLabels.needed}
             </span>

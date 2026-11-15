@@ -244,7 +244,7 @@ describe("draft-save guard (L-b)", () => {
       await screen.findByText("This finding was already sent.")
     ).toBeTruthy()
     await waitFor(() => expect(stored()).toBeNull())
-    expect((radio("No") as HTMLInputElement).checked).toBe(false)
+    expect(radio("No").getAttribute("aria-checked")).toBe("false")
     expect(screen.queryByRole("textbox", { name: /^Reason/ })).toBeNull()
     await user.click(radio("Yes"))
     await user.click(saveButton())
@@ -276,7 +276,7 @@ describe("draft-save guard (L-b)", () => {
     // The old draft's phone copy is gone; what is on screen is the new one.
     await waitFor(() => expect(stored()?.idempotencyKey).not.toBe(oldKey))
     expect(stored()?.reason).toBe("Board removed")
-    expect((radio("No") as HTMLInputElement).checked).toBe(true)
+    expect(radio("No").getAttribute("aria-checked")).toBe("true")
     expect((reasonBox() as HTMLTextAreaElement).value).toBe("Board removed")
     await waitFor(() => expect(document.activeElement).toBe(saveButton()))
     await user.click(saveButton())
@@ -350,7 +350,7 @@ describe("guest_wifi: the redaction tick waits for a photo still saving", () => 
     const { user, submit, pick, arrive } = wifi()
     await user.click(radio("Yes"))
     const opts = await pick()
-    expect((tick() as HTMLInputElement).disabled).toBe(true)
+    expect(tick().getAttribute("aria-disabled")).toBe("true")
     const why = document.getElementById(
       tick().getAttribute("aria-describedby") ?? ""
     )
@@ -358,9 +358,7 @@ describe("guest_wifi: the redaction tick waits for a photo still saving", () => 
       "Tick this when your photo has finished saving: it covers every photo and video you send."
     )
     await arrive(opts)
-    await waitFor(() =>
-      expect((tick() as HTMLInputElement).disabled).toBe(false)
-    )
+    await waitFor(() => expect(tick().getAttribute("aria-disabled")).toBeNull())
     expect(screen.queryByText(/Tick this when/)).toBeNull()
     await user.click(tick())
     await user.type(
@@ -387,11 +385,11 @@ describe("guest_wifi: the redaction tick waits for a photo still saving", () => 
     await user.click(radio("Yes"))
     await user.click(screen.getByRole("checkbox", { name: /^Photo added/ }))
     await user.click(tick())
-    expect((tick() as HTMLInputElement).checked).toBe(true)
+    expect(tick().getAttribute("aria-checked")).toBe("true")
     const opts = await pick()
     await arrive(opts)
     await waitFor(() =>
-      expect((tick() as HTMLInputElement).checked).toBe(false)
+      expect(tick().getAttribute("aria-checked")).toBe("false")
     )
   })
 })

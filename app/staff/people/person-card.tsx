@@ -44,7 +44,7 @@ export function PersonCard({ member }: { member: CommunityMember }) {
   return (
     <Link
       href={`/staff/people/${member.id}`}
-      className="grid min-h-16 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 bg-surface p-3 text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+      className="grid min-h-16 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 bg-surface p-3 text-ink focus-ring-inset transition-colors duration-quick outline-none hover:bg-surface-2"
     >
       <ProfileAvatar name={member.displayName} src={member.avatarUrl} />
       <span className="grid min-w-0 gap-0.5">
@@ -69,7 +69,7 @@ export function PersonCard({ member }: { member: CommunityMember }) {
           </span>
         </span>
       </span>
-      <span className="flex items-center gap-1 text-meta-strong text-ink-muted">
+      <span className="flex items-center gap-1 text-meta font-semibold text-ink-muted">
         <span className="max-sm:sr-only">View profile</span>
         <CaretRightIcon aria-hidden weight="bold" className="size-5" />
       </span>

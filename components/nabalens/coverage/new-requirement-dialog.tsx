@@ -1,5 +1,8 @@
 "use client"
 
+import { RadioGroup } from "@/components/ui/radio-group"
+import { OptionRow } from "@/components/ui/option-row"
+import { Textarea } from "@/components/ui/textarea"
 import * as React from "react"
 import { PlusIcon } from "@phosphor-icons/react"
 
@@ -22,7 +25,7 @@ import {
 import { Input } from "@/components/ui/input"
 
 import { COVERAGE_LIMITS, failureText } from "./copy"
-import { textareaClass } from "./reason-dialog"
+
 import type { CoverageResult, CreateRequirementInput } from "./types"
 import { useRequestIds } from "./use-request-id"
 
@@ -149,7 +152,7 @@ export function NewRequirementDialog({
 
   return (
     <>
-      <Button size="touch" variant="secondary" onClick={() => setOpen(true)}>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
         <PlusIcon data-icon="inline-start" aria-hidden />
         {triggerLabel}
       </Button>
@@ -161,7 +164,7 @@ export function NewRequirementDialog({
           setOpen(next)
         }}
       >
-        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
+        <DialogContent>
           <form onSubmit={submit} className="grid gap-4" noValidate>
             <DialogHeader>
               <DialogTitle>Add a checklist item</DialogTitle>
@@ -171,28 +174,25 @@ export function NewRequirementDialog({
               </DialogDescription>
             </DialogHeader>
             <fieldset className="grid gap-2" disabled={pending}>
-              <legend className="mb-1 text-label text-ink">Type</legend>
-              {KINDS.map((option) => (
-                <label
-                  key={option.value}
-                  className="flex min-h-14 cursor-pointer items-start gap-3 rounded-control bg-surface-2 px-3 py-3 hover:bg-raised has-checked:bg-accent-soft"
-                >
-                  <input
+              <legend id={`${ids}-kind`} className="mb-1 text-label text-ink">
+                Type
+              </legend>
+              <RadioGroup
+                aria-labelledby={`${ids}-kind`}
+                value={kind}
+                onValueChange={(next) => setKind(next)}
+                disabled={pending}
+              >
+                {KINDS.map((option) => (
+                  <OptionRow
+                    key={option.value}
                     type="radio"
-                    name={`${ids}-kind`}
                     value={option.value}
-                    checked={kind === option.value}
-                    onChange={() => setKind(option.value)}
-                    className="mt-0.5 size-6 accent-select"
+                    label={option.label}
+                    hint={option.help}
                   />
-                  <span className="grid">
-                    <span className="text-label text-ink">{option.label}</span>
-                    <span className="text-meta text-ink-muted">
-                      {option.help}
-                    </span>
-                  </span>
-                </label>
-              ))}
+                ))}
+              </RadioGroup>
             </fieldset>
             <Field className="gap-1.5">
               <FieldLabel htmlFor={`${ids}-title`}>Title</FieldLabel>
@@ -212,14 +212,14 @@ export function NewRequirementDialog({
               <FieldLabel htmlFor={`${ids}-guidance`}>
                 Guidance for staff (optional)
               </FieldLabel>
-              <textarea
+              <Textarea
                 id={`${ids}-guidance`}
                 value={guidance}
                 onChange={(e) => setGuidance(e.currentTarget.value)}
                 maxLength={COVERAGE_LIMITS.guidanceMax}
                 rows={3}
                 aria-invalid={!!errors.guidance || undefined}
-                className={textareaClass}
+
                 disabled={pending}
               />
               {errors.guidance ? (
@@ -275,15 +275,14 @@ export function NewRequirementDialog({
               <Button
                 type="button"
                 variant="secondary"
-                size="touch"
                 onClick={() => setOpen(false)}
                 disabled={pending}
               >
                 Cancel
               </Button>
               <Button
+                variant="primary"
                 type="submit"
-                size="touch"
                 disabled={pending}
                 aria-busy={pending || undefined}
               >

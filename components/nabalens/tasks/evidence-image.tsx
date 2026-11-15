@@ -88,10 +88,10 @@ export function EvidenceImage({
     return (
       <span className={cn(frame, "flex-col gap-1 p-1 text-center")}>
         <ImageBrokenIcon className="size-6" aria-hidden />
-        {/* z-20: stays above a selectable tile's overlay button (z-10). */}
+        {/* z-20: stays above a selectable tile's overlay button (z-local). */}
         <button
           type="button"
-          className="relative z-20 inline-flex min-h-11 max-w-full flex-wrap items-center justify-center gap-x-1.5 rounded-control bg-surface px-2 text-label leading-tight text-ink outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+          className="relative z-20 inline-flex min-h-11 max-w-full flex-wrap items-center justify-center gap-x-1.5 rounded-control bg-surface px-2 text-label leading-tight text-ink focus-ring-inset outline-none hover:bg-surface-2"
           onClick={() =>
             setState((s) => ({
               ...s,

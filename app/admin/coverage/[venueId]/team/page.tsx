@@ -6,7 +6,7 @@ import {
   type ManageSearch,
 } from "@/app/staff/manage/_shared/screens"
 
-export const metadata: Metadata = { title: "Team · Venue coverage · Naba-Lens" }
+export const metadata: Metadata = { title: "Team · Venue coverage" }
 
 /** Admins may also correct past months' targets, with a reason. */
 export default async function AdminVenueTeamPage({

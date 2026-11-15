@@ -11,6 +11,11 @@ type PageHeaderProps = {
   /** Show the venue icon before the scope (pages scoped to one venue). */
   venueScope?: boolean
   title: React.ReactNode
+  /**
+   * The title's element. Leave it as the page's `h1`; a lower level is for
+   * a header shown inside another page (the gallery's specimens).
+   */
+  titleAs?: "h1" | "h2" | "h3" | "h4"
   /** One or two sentences on what the page decides or shows. */
   summary?: React.ReactNode
   /** At most one primary and one secondary. */
@@ -31,6 +36,7 @@ export function PageHeader({
   scope,
   venueScope = false,
   title,
+  titleAs: Title = "h1",
   summary,
   actions,
   children,
@@ -70,14 +76,14 @@ export function PageHeader({
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="grid min-w-0 gap-2">
-          <h1
+          <Title
             id={titleId}
-            className="font-display text-page-title [overflow-wrap:anywhere] text-ink"
+            className="type-page-title [overflow-wrap:anywhere] text-ink"
           >
             {title}
-          </h1>
+          </Title>
           {summary ? (
-            <div className="max-w-(--size-reading) text-body text-ink-muted">
+            <div className="max-w-reading text-body text-ink-muted">
               {summary}
             </div>
           ) : null}

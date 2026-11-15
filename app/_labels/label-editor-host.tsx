@@ -268,15 +268,14 @@ function HostSession({
           <Button
             type="button"
             variant="secondary"
-            size="touch"
             onClick={() => onOpenChange(false)}
           >
             Close
           </Button>
           {phase.kind === "error" ? (
             <Button
+              variant="primary"
               type="button"
-              size="touch"
               onClick={() => {
                 setPhase({ kind: "loading" })
                 load(groups[index], !multi)

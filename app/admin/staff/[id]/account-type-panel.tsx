@@ -240,10 +240,7 @@ export function AccountTypePanel({
       aria-labelledby={`${ids}-heading`}
       className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
     >
-      <h2
-        id={`${ids}-heading`}
-        className="font-display text-section-title text-ink"
-      >
+      <h2 id={`${ids}-heading`} className="type-section-title text-ink">
         {ACCOUNT_TYPE_COPY.heading}
       </h2>
       <CoverageNotice
@@ -271,7 +268,6 @@ export function AccountTypePanel({
         {canGiveAccess ? (
           <Button
             variant="secondary"
-            size="touch"
             onClick={() => void giveAccess()}
             disabled={action.pending}
             aria-busy={action.pending || undefined}
@@ -284,7 +280,6 @@ export function AccountTypePanel({
         ) : null}
         <Button
           variant="secondary"
-          size="touch"
           onClick={openDialog}
           disabled={inactive || action.pending}
           aria-describedby={inactive ? `${ids}-inactive` : undefined}
@@ -306,7 +301,7 @@ export function AccountTypePanel({
       ) : null}
 
       <div className="grid gap-1.5 border-t border-line pt-3">
-        <h3 className="text-meta-strong text-ink-muted">
+        <h3 className="text-meta font-semibold text-ink-muted">
           {ACCOUNT_TYPE_COPY.historyHeading}
         </h3>
         {history === null ? (

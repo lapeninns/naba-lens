@@ -35,25 +35,20 @@ export function TaskPhotoGuide({
   return (
     <Card as="section" aria-labelledby="photo-guide-heading">
       <div className="grid gap-1">
-        <h2
-          id="photo-guide-heading"
-          className="font-display text-section-title text-ink"
-        >
+        <h2 id="photo-guide-heading" className="type-section-title text-ink">
           How to photograph it
         </h2>
         {lede ? (
-          <p className="max-w-(--size-reading) text-body text-ink-muted">
-            {lede}
-          </p>
+          <p className="max-w-reading text-body text-ink-muted">{lede}</p>
         ) : null}
       </div>
       <DishGuide suggested={suggested} />
-      <p className="max-w-(--size-reading) text-body text-ink-muted">
+      <p className="max-w-reading text-body text-ink-muted">
         Examples, not your menu. Same plain dark background every time.
       </p>
       <Link
         href={GUIDE_PATH}
-        className="-my-1 inline-flex min-h-11 items-center gap-1 justify-self-start rounded-control text-label text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+        className="-my-1 inline-flex min-h-11 items-center gap-1 justify-self-start rounded-control text-label text-ink underline underline-offset-3 focus-ring outline-none"
       >
         See the full photo guide
         <CaretRightIcon aria-hidden weight="bold" className="size-4" />

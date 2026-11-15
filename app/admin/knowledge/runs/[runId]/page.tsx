@@ -25,7 +25,7 @@ export const metadata: Metadata = { title: "Run · Knowledge · Naba-Lens" }
 
 const RUNS = "/admin/knowledge/runs"
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const MUTED = "text-meta-touch text-ink-muted md:text-meta"
+const MUTED = "text-meta text-ink-muted"
 
 /** A dry run may be applied while it is under a day old (§7.4). */
 function freshDryRun(run: { mode: string; startedAt: string }) {
@@ -63,7 +63,7 @@ export default async function RunPage({
 
   return (
     <AppShell variant="admin" active="coverage" userName={profile.displayName}>
-      <div className="mx-auto grid w-full max-w-(--size-reading) min-w-0 gap-(--gutter)">
+      <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
         <div>
           <Link
             href={RUNS}
@@ -80,10 +80,7 @@ export default async function RunPage({
               action={
                 <Link
                   href={`${RUNS}/${runId}`}
-                  className={buttonVariants({
-                    variant: "secondary",
-                    size: "touch",
-                  })}
+                  className={buttonVariants({ variant: "secondary" })}
                 >
                   {COPY.tryAgain}
                 </Link>
@@ -98,9 +95,7 @@ export default async function RunPage({
               title={`${COPY.runKind[run.kind]} · ${COPY.runMode[run.mode]} · ${name(run.venueId)}`}
             />
             <p className={MUTED}>{dateAndTime(run.startedAt)}</p>
-            <p className="text-body-touch text-ink md:text-body">
-              {COPY.summary(run.counts)}
-            </p>
+            <p className="text-body text-ink">{COPY.summary(run.counts)}</p>
             {run.mode === "dry_run" ? (
               fresh ? (
                 <ApplyRunControl
@@ -111,40 +106,34 @@ export default async function RunPage({
                   runsHref={RUNS}
                 />
               ) : (
-                <p className="text-body-touch text-ink md:text-body">
-                  {COPY.applyStale}
-                </p>
+                <p className="text-body text-ink">{COPY.applyStale}</p>
               )
             ) : null}
             <CoverageSection id="would-create" title={COPY.wouldCreate}>
               {run.wouldCreate.length ? (
-                <ul className="grid gap-1 text-body-touch text-ink md:text-body">
+                <ul className="grid gap-1 text-body text-ink">
                   {run.wouldCreate.map((p, i) => (
                     <li key={i}>{COPY.proposal(p, name(p.venueId))}</li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-body-touch text-ink md:text-body">
-                  {COPY.noneListed}
-                </p>
+                <p className="text-body text-ink">{COPY.noneListed}</p>
               )}
             </CoverageSection>
             <CoverageSection id="conflicts" title={COPY.conflicts}>
               {run.conflicts.length ? (
-                <ul className="grid gap-1 text-body-touch text-ink md:text-body">
+                <ul className="grid gap-1 text-body text-ink">
                   {run.conflicts.map((p, i) => (
                     <li key={i}>{COPY.proposal(p, name(p.venueId))}</li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-body-touch text-ink md:text-body">
-                  {COPY.noneListed}
-                </p>
+                <p className="text-body text-ink">{COPY.noneListed}</p>
               )}
             </CoverageSection>
             <CoverageSection id="revisions" title={COPY.revisions}>
               {Object.keys(run.sourceRevisions).length ? (
-                <ul className="grid gap-1 text-body-touch text-ink md:text-body">
+                <ul className="grid gap-1 text-body text-ink">
                   {Object.entries(run.sourceRevisions).map(
                     ([source, revision]) => (
                       <li key={source}>
@@ -154,9 +143,7 @@ export default async function RunPage({
                   )}
                 </ul>
               ) : (
-                <p className="text-body-touch text-ink md:text-body">
-                  {COPY.noneListed}
-                </p>
+                <p className="text-body text-ink">{COPY.noneListed}</p>
               )}
             </CoverageSection>
           </>

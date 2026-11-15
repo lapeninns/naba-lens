@@ -83,7 +83,7 @@ export function ProvenanceCard({
       term: "File SHA-256",
       value: (
         <details className="group min-w-0">
-          <summary className="cursor-pointer rounded-chip font-mono text-mono outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid">
+          <summary className="cursor-pointer rounded-square font-mono text-mono focus-ring outline-none">
             {source.sha256.slice(0, SHORT_HASH)}…
             <span className="ml-2 font-sans text-ink-muted group-open:hidden">
               Show full value
@@ -145,7 +145,7 @@ export function ProvenanceCard({
         className
       )}
     >
-      <h2 className="font-display text-section-title text-ink">{title}</h2>
+      <h2 className="type-section-title text-ink">{title}</h2>
       <dl className="grid gap-3 text-body text-ink">
         {rows.map((row) => (
           <div

@@ -288,7 +288,7 @@ function EditStaffForm({
           if (!next) requestClose()
         }}
       >
-        <DialogContent className="md:max-w-(--size-dialog-wide)">
+        <DialogContent size="wide">
           <form
             onSubmit={submit}
             className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5"
@@ -468,15 +468,14 @@ function EditStaffForm({
               <Button
                 type="button"
                 variant="secondary"
-                size="touch"
                 onClick={requestClose}
                 disabled={pending}
               >
                 Cancel
               </Button>
               <Button
+                variant="primary"
                 type="submit"
-                size="touch"
                 disabled={pending || nameMissing || actionPending}
                 aria-busy={pending}
                 aria-describedby={saveBlockedBy}
@@ -503,12 +502,11 @@ function EditStaffForm({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel variant="secondary" size="touch">
+            <AlertDialogCancel variant="secondary">
               Keep editing
             </AlertDialogCancel>
             <Button
               variant="danger"
-              size="touch"
               onClick={() => {
                 setConfirmingDiscard(false)
                 onClose()

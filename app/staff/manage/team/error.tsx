@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button"
 
 export default function ManageTeamError({ retry }: { retry: () => void }) {
   return (
-    <main className="mx-auto grid w-full max-w-(--size-page) gap-(--gutter) px-(--page-gutter) py-4 md:gap-4 md:px-6 md:py-8">
-      <h1 className="px-1 font-display text-page-title text-ink">Team</h1>
+    <main className="mx-auto grid w-full max-w-page gap-gutter px-page-gutter py-4 md:gap-4 md:px-6 md:py-8">
+      <h1 className="px-1 type-page-title text-ink">Team</h1>
       <ErrorState
         title={ERROR_COPY.couldNotLoad("the team")}
         action={

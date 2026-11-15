@@ -33,6 +33,7 @@ import {
   type Uploader,
 } from "@/components/nabalens"
 import { Button } from "@/components/ui/button"
+import { LinkButton } from "@/components/ui/link-button"
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { TaskPhotoGuide } from "@/components/nabalens/guide"
 import { suggestedAngles } from "@/lib/guide/dish-guide"
@@ -91,7 +92,7 @@ function Section({
   return (
     <section aria-labelledby={id} className="grid gap-3">
       <div>
-        <h2 id={id} className="font-display text-page-title">
+        <h2 id={id} className="type-page-title">
           {title}
         </h2>
         {note ? <p className="text-body text-ink-muted">{note}</p> : null}
@@ -112,8 +113,7 @@ function ThemeToggle() {
   // Static label: the resolved theme is unknown during server rendering.
   return (
     <Button
-      variant="outline"
-      size="touch"
+      variant="secondary"
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
       Toggle light or dark theme
@@ -162,17 +162,18 @@ export function UiPreview() {
   return (
     <div className="mx-auto grid max-w-7xl gap-12 px-4 py-8 sm:px-6">
       <header className="grid gap-3">
-        <h1 className="font-display text-page-title-compact md:text-page-title">
-          Naba-Lens UI preview
-        </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
+        <h1 className="type-page-title">Naba-Lens UI preview</h1>
+        <p className="max-w-2xl text-meta text-ink-muted">
           Development only. Every name, venue, image and upload here is a fake
           fixture. The uploader is simulated: files with “fail” in the name fail
           on the first attempt.
         </p>
         <div className="flex flex-wrap items-center gap-3">
+          <LinkButton href="/ui-preview/gallery">
+            Open the design system gallery
+          </LinkButton>
           <ThemeToggle />
-          <p className="text-sm" aria-live="polite">
+          <p className="text-body" aria-live="polite">
             Last callback: <span className="font-medium">{lastEvent}</span>
           </p>
         </div>
@@ -190,7 +191,7 @@ export function UiPreview() {
         note="Idle state, and the expired-link state."
       >
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="flex justify-center rounded-xl bg-muted/50 px-4 py-10">
+          <div className="flex justify-center rounded-card bg-surface-2/50 px-4 py-10">
             <LoginCard
               onSubmit={async (email) => {
                 await new Promise((r) => setTimeout(r, 600))
@@ -198,7 +199,7 @@ export function UiPreview() {
               }}
             />
           </div>
-          <div className="flex justify-center rounded-xl bg-muted/50 px-4 py-10">
+          <div className="flex justify-center rounded-card bg-surface-2/50 px-4 py-10">
             <LoginCard
               linkExpired
               onSubmit={async () => setLastEvent("login (expired card)")}
@@ -227,14 +228,16 @@ export function UiPreview() {
                 actions={
                   <>
                     <Button
-                      variant="outline"
-                      size="touch"
+                      variant="secondary"
                       onClick={() => setEditOpen("staff")}
                     >
                       <PencilSimpleIcon data-icon="inline-start" aria-hidden />
                       Edit profile
                     </Button>
-                    <Button size="touch" onClick={() => setUploadOpen(true)}>
+                    <Button
+                      variant="primary"
+                      onClick={() => setUploadOpen(true)}
+                    >
                       <UploadSimpleIcon data-icon="inline-start" aria-hidden />
                       Upload photos or videos
                     </Button>
@@ -260,7 +263,7 @@ export function UiPreview() {
         <div className="grid gap-6 lg:grid-cols-2">
           <EmptyState
             action={
-              <Button size="touch" onClick={() => setUploadOpen(true)}>
+              <Button variant="primary" onClick={() => setUploadOpen(true)}>
                 <UploadSimpleIcon data-icon="inline-start" aria-hidden />
                 Upload photos or videos
               </Button>
@@ -270,8 +273,7 @@ export function UiPreview() {
             title="No media matches these filters."
             action={
               <Button
-                variant="outline"
-                size="touch"
+                variant="secondary"
                 onClick={() => setFilters(EMPTY_LIBRARY_FILTERS)}
               >
                 Clear filters
@@ -296,9 +298,7 @@ export function UiPreview() {
             className="min-h-0"
           >
             <div className="grid gap-6">
-              <h1 className="font-display text-page-title-compact md:text-page-title">
-                Content
-              </h1>
+              <h1 className="type-page-title">Content</h1>
               <LibraryFilters
                 venues={FAKE_VENUES}
                 staff={FAKE_STAFF_OPTIONS}
@@ -321,8 +321,7 @@ export function UiPreview() {
                   title="No media matches these filters."
                   action={
                     <Button
-                      variant="outline"
-                      size="touch"
+                      variant="secondary"
                       onClick={() => setFilters(EMPTY_LIBRARY_FILTERS)}
                     >
                       Clear filters
@@ -357,10 +356,8 @@ export function UiPreview() {
           >
             <div className="grid gap-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h1 className="font-display text-page-title-compact md:text-page-title">
-                  Staff
-                </h1>
-                <Button size="touch" onClick={() => setInviteOpen(true)}>
+                <h1 className="type-page-title">Staff</h1>
+                <Button variant="primary" onClick={() => setInviteOpen(true)}>
                   <UserPlusIcon data-icon="inline-start" aria-hidden />
                   Invite staff
                 </Button>
@@ -386,8 +383,7 @@ export function UiPreview() {
                 venueName={null}
                 actions={
                   <Button
-                    variant="outline"
-                    size="touch"
+                    variant="secondary"
                     onClick={() => setEditOpen("admin")}
                   >
                     Edit account
@@ -408,58 +404,39 @@ export function UiPreview() {
 
       <Section title="Dialogs" note="Open each dialog directly.">
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="touch"
-            onClick={() => setUploadOpen(true)}
-          >
+          <Button variant="secondary" onClick={() => setUploadOpen(true)}>
             Upload dialog
           </Button>
           <Button
-            variant="outline"
-            size="touch"
+            variant="secondary"
             onClick={() => openViewer(FAKE_MEDIA[3], "admin")}
           >
             Viewer: photo (admin)
           </Button>
           <Button
-            variant="outline"
-            size="touch"
+            variant="secondary"
             onClick={() => openViewer(FAKE_MEDIA[2], "admin")}
           >
             Viewer: unplayable video
           </Button>
           <Button
-            variant="outline"
-            size="touch"
+            variant="secondary"
             onClick={() => setDeleteItem(FAKE_MEDIA[3])}
           >
             Confirm delete
           </Button>
-          <Button
-            variant="outline"
-            size="touch"
-            onClick={() => setEditOpen("staff")}
-          >
+          <Button variant="secondary" onClick={() => setEditOpen("staff")}>
             Edit profile (staff)
           </Button>
-          <Button
-            variant="outline"
-            size="touch"
-            onClick={() => setEditOpen("admin")}
-          >
+          <Button variant="secondary" onClick={() => setEditOpen("admin")}>
             Edit account (admin)
           </Button>
-          <Button
-            variant="outline"
-            size="touch"
-            onClick={() => setInviteOpen(true)}
-          >
+          <Button variant="secondary" onClick={() => setInviteOpen(true)}>
             Invite staff
           </Button>
         </div>
         <div className="grid max-w-xs gap-1.5">
-          <label htmlFor="invite-outcome" className="text-sm font-medium">
+          <label htmlFor="invite-outcome" className="text-body font-medium">
             Fake invite outcome
           </label>
           <OptionSelect

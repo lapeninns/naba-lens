@@ -26,9 +26,9 @@ export function ActionDock({
     <div
       data-slot="cr-action-dock"
       className={cn(
-        "sticky z-30 -mx-(--page-gutter) grid gap-2 bg-surface px-(--page-gutter) pt-3 pb-3 shadow-[0_-1px_0_var(--line)] md:static md:mx-0 md:rounded-card md:p-4 md:shadow-card",
+        "sticky z-dock -mx-page-gutter grid gap-2 bg-surface px-page-gutter pt-3 pb-3 shadow-bar md:static md:mx-0 md:rounded-card md:p-4 md:shadow-card",
         overTabBar
-          ? "bottom-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px))]"
+          ? "bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px))]"
           : "bottom-0 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]",
         className
       )}

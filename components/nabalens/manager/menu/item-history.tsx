@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { SpinnerGapIcon } from "@phosphor-icons/react"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { failureText } from "@/components/nabalens/coverage/copy"
@@ -82,10 +81,7 @@ export function ItemHistory({
 
   return (
     <section aria-labelledby="item-history" className="grid gap-3">
-      <h2
-        id="item-history"
-        className="px-1 font-display text-section-title text-ink"
-      >
+      <h2 id="item-history" className="px-1 type-section-title text-ink">
         {copy.history}
       </h2>
       {events.length === 0 && !error ? (
@@ -114,18 +110,11 @@ export function ItemHistory({
           variant="secondary"
           size="sm"
           className="justify-self-start"
-          aria-disabled={loading || undefined}
-          aria-busy={loading || undefined}
+          loading={loading}
+          loadingLabel={copy.loadingMore}
           onClick={() => void loadMore()}
         >
-          {loading ? (
-            <SpinnerGapIcon
-              data-icon="inline-start"
-              className="motion-safe:animate-spin"
-              aria-hidden
-            />
-          ) : null}
-          {loading ? copy.loadingMore : copy.showMore}
+          {copy.showMore}
         </Button>
       ) : null}
     </section>

@@ -42,27 +42,26 @@ export function AmenityTaskList({
   return (
     <section
       aria-labelledby="amenity-checks-heading"
-      className="grid scroll-mt-4 gap-(--gutter)"
+      className="grid scroll-mt-4 gap-gutter"
     >
       <div className="px-1 pt-2">
         <h2
           id="amenity-checks-heading"
-          className="flex items-center gap-2 font-display text-section-title [overflow-wrap:anywhere] text-ink"
+          className="flex items-center gap-2 type-section-title [overflow-wrap:anywhere] text-ink"
         >
           {heading}
           <CountBadge count={tasks.length} label="to capture" />
         </h2>
       </div>
-      <ul aria-label={heading} className="grid gap-(--gutter)">
+      <ul aria-label={heading} className="grid gap-gutter">
         {ordered.map((task) => {
           const recheck = task.progress === "needs_recheck"
           return (
             <li
               key={task.id}
               className={cn(
-                "relative grid min-w-0 gap-2 rounded-card bg-surface p-4 shadow-card transition-colors duration-(--duration-quick) hover:bg-surface-2 has-[a:focus-visible]:outline-3 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-focus has-[a:focus-visible]:outline-solid",
-                recheck &&
-                  "shadow-[var(--elevation-card),inset_4px_0_0_var(--warn-fg)]"
+                "relative grid min-w-0 gap-2 rounded-card bg-surface p-4 shadow-card transition-colors duration-quick hover:bg-surface-2 has-[a:focus-visible]:outline-3 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-focus has-[a:focus-visible]:outline-solid",
+                recheck && "shadow-card rail-start-warn"
               )}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">

@@ -13,7 +13,7 @@ const ROWS = [
 /** The tally card, then the venue rows in one card, as they will load. */
 export default function MenusLoading() {
   return (
-    <div className="mx-auto w-full max-w-(--size-page) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <div className="mx-auto w-full max-w-page px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <MenusHeader />
       <SkeletonRegion label="Loading menus…" className="grid gap-6">
         <div className="grid grid-cols-2 gap-2 rounded-card bg-surface p-3 shadow-card md:grid-cols-4">

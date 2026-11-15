@@ -18,6 +18,30 @@ export function firstName(displayName: string): string {
   return displayName.trim().split(/\s+/)[0] || displayName
 }
 
+/** "November 2026" from a `YYYY-MM-01` month. */
+function monthName(month: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${month.slice(0, 10)}T00:00:00Z`))
+}
+
+/**
+ * What accepting a photo also counts for (ORP-3b): "Starters · Priya's
+ * November 2026". Null when it counts for nothing beyond the dish.
+ */
+export function alsoCountsText(
+  counts: { tasks: string[]; month: string | null } | undefined,
+  contributorName: string
+): string | null {
+  if (!counts) return null
+  const parts = [...counts.tasks]
+  if (counts.month)
+    parts.push(`${firstName(contributorName)}'s ${monthName(counts.month)}`)
+  return parts.length > 0 ? parts.join(" · ") : null
+}
+
 export const REVIEW_STATUS_LABEL: Record<QueueStatus, string> = {
   pending: "Waiting",
   recheck: "Needs a recheck",
@@ -93,6 +117,7 @@ export const REVIEW_COPY = {
   labelledOld: (item: string) => `Labelled for ${item}, no longer on the menu`,
   menuItem: "Menu item",
   noMenuItem: "Not matched to a menu item yet",
+  alsoCounts: "Also counts for",
   matchedByReviewer: "Matched by a reviewer",
   movedFrom: (item: string) => `Moved from ${item}`,
   reason: "Reason",

@@ -20,7 +20,6 @@ import { CountBadge } from "../status-chip"
 import type { MediaItem } from "../types"
 import { AssignmentList } from "./assignment-list"
 import { ColleaguePosts } from "./colleague-posts"
-import { FirstRunEntry } from "./first-run-entry"
 import { NextActions } from "./next-actions"
 import {
   checkKey,
@@ -146,7 +145,7 @@ export function HomeOverview({
   const venueName = scope.venue?.name ?? "your venue"
 
   return (
-    <div className="mx-auto grid w-full max-w-(--size-feed) min-w-0 gap-(--gutter)">
+    <div className="mx-auto grid w-full max-w-feed min-w-0 gap-gutter">
       <PageHeader
         scope={[scope.venue?.name, period.label]}
         venueScope={Boolean(scope.venue)}
@@ -174,8 +173,6 @@ export function HomeOverview({
         />
       ) : null}
 
-      {welcomeHref ? <FirstRunEntry href={welcomeHref} /> : null}
-
       {blocked && scope.venue ? <Notice role="status">{blocked}</Notice> : null}
 
       <NextActions
@@ -191,6 +188,7 @@ export function HomeOverview({
           retakes: retakes === null,
           rechecks: rechecks === null,
         }}
+        welcomeHref={welcomeHref}
       />
 
       {workingList && listed ? (
@@ -203,7 +201,7 @@ export function HomeOverview({
 
       <AmenityTaskList tasks={legacy} />
 
-      <div className="mt-3 grid gap-(--gutter)">
+      <div className="mt-3 grid gap-gutter">
         <ThisMonthCard
           monthly={monthly}
           ourMenu={ourMenu}
@@ -211,7 +209,7 @@ export function HomeOverview({
           monthHref={`${tasksPath}/month`}
         />
 
-        <p className="max-w-(--size-reading) px-1 text-meta text-ink-muted">
+        <p className="max-w-reading px-1 text-meta text-ink-muted">
           {RULE_SENTENCE}
         </p>
       </div>
@@ -226,21 +224,21 @@ export function HomeOverview({
 
       <section
         aria-labelledby="other-tasks-heading"
-        className="mt-3 grid gap-(--gutter)"
+        className="mt-3 grid gap-gutter"
       >
         <div className="grid gap-1 px-1 pt-2">
           <h2
             id="other-tasks-heading"
-            className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+            className="type-section-title [overflow-wrap:anywhere] text-ink"
           >
             Other tasks this month
           </h2>
-          <p className="max-w-(--size-reading) text-body text-ink-muted">
+          <p className="max-w-reading text-body text-ink-muted">
             Tasks assigned to you at {venueName}. Overdue tasks still take
             photos.
           </p>
           {othersInTodo > 0 ? (
-            <p className="max-w-(--size-reading) text-body text-ink-muted">
+            <p className="max-w-reading text-body text-ink-muted">
               {moreInTodo(othersInTodo)}
             </p>
           ) : null}

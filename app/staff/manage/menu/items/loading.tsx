@@ -5,7 +5,7 @@ export default function ManageMenuItemsLoading() {
   return (
     <SkeletonRegion
       label="Loading menu photos to review…"
-      className="mx-auto grid w-full max-w-(--size-page) gap-(--gutter) px-(--page-gutter) py-4 md:gap-4 md:px-6 md:py-8"
+      className="mx-auto grid w-full max-w-page gap-gutter px-page-gutter py-4 md:gap-4 md:px-6 md:py-8"
     >
       <div className="grid gap-2 px-1">
         <Skeleton shape="title" className="w-48" />
@@ -19,7 +19,7 @@ export default function ManageMenuItemsLoading() {
       {[0, 1].map((card) => (
         <div
           key={card}
-          className="grid w-full max-w-(--size-feed) overflow-hidden rounded-card bg-surface shadow-card"
+          className="grid w-full max-w-feed overflow-hidden rounded-card bg-surface shadow-card"
         >
           <Skeleton className="aspect-[4/3] w-full rounded-none" />
           <div className="grid gap-2 p-3">

@@ -9,8 +9,10 @@ import { describe, expect, it } from "vitest"
  * v0.3 and v0.4 in docs/spec/).
  *
  * 1. Every URL the app serves comes from an allow-list: the product screens,
- *    auth infrastructure, the media/profile APIs the screens use, and the dev-only
- *    UI preview. A new screen or API must be added here on purpose.
+ *    auth infrastructure and the media/profile APIs the screens use. A new
+ *    screen or API must be added here on purpose. Dev-only previews are let
+ *    through by rule, not by name: a page inside the `(dev)` route group is
+ *    allowed only if its own source answers 404 in production.
  * 2. Application source (comments stripped) has no code for the excluded
  *    features: publication approval, comments, likes/reactions, follows,
  *    announcements, messaging, tagging, ZIP export, analytics, notifications,
@@ -43,6 +45,10 @@ const ALLOWED_PAGES = new Set([
   "/staff/tasks/[requirementId]",
   "/staff/tasks/month",
   "/staff/tasks/welcome",
+  // All tasks (Common Room batch 0): every assignment and amenity check off
+  // Home. Becomes the "Other jobs" list in G-4 (docs/plans/goals-not-tasks.md,
+  // decision 10).
+  "/staff/tasks/all",
   // Dish photo guide (November 2026): static example angles and a checklist,
   // no media, no scoring (docs/usage-staff.md "Photo guide").
   "/staff/tasks/guide",
@@ -63,7 +69,6 @@ const ALLOWED_PAGES = new Set([
   "/admin/[...missing]",
   // Email-link landing: shows Continue; the token is used only on POST (review #8).
   "/auth/confirm",
-  "/ui-preview",
   // v0.3 menu catalogue (docs/spec/NabaLens-Menus-Labels-v0.3.md §4).
   "/admin/menus",
   "/admin/menus/[venueId]",
@@ -208,8 +213,28 @@ const ALLOWED_HANDLERS = new Set([
   "/api/media/search",
 ])
 
-/** The dev-only preview must stay inside the `(dev)` route group. */
-const DEV_ONLY = new Set(["/ui-preview"])
+/*
+ * Dev-only previews (docs/design-system/strategy.md DS-207). There is no
+ * list of them: a page is dev-only if, and only if, it sits in the `(dev)`
+ * route group, and every such page must refuse production itself. The check
+ * reads the page's source (comments removed) for the gate, written the one
+ * way the previews write it, so a preview cannot ship by being forgotten.
+ */
+const DEV_GROUP = "(dev)"
+const PRODUCTION_GATE =
+  /if\s*\(\s*process\.env\.NODE_ENV\s*===\s*["']production["']\s*\)\s*\{?\s*notFound\(\)/
+
+const isDevRoute = (r: Route) => r.file.split(sep).includes(DEV_GROUP)
+
+function stripSourceComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|\s)\/\/.*$/gm, "$1")
+}
+
+function hasProductionGate(file: string): boolean {
+  return PRODUCTION_GATE.test(
+    stripSourceComments(readFileSync(join(root, file), "utf8"))
+  )
+}
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -254,7 +279,9 @@ describe("scope guard: routes", () => {
 
   it("serves no page outside the allow-list", () => {
     const extra = routes
-      .filter((r) => r.kind === "page" && !ALLOWED_PAGES.has(r.url))
+      .filter(
+        (r) => r.kind === "page" && !isDevRoute(r) && !ALLOWED_PAGES.has(r.url)
+      )
       .map((r) => `${r.url} (${r.file})`)
     expect(extra).toEqual([])
   })
@@ -276,10 +303,73 @@ describe("scope guard: routes", () => {
     expect(pages.has("/admin/staff/[id]")).toBe(true)
   })
 
-  it("keeps dev-only screens inside the (dev) route group", () => {
-    for (const r of routes.filter((r) => DEV_ONLY.has(r.url))) {
-      expect(r.file.split(sep)).toContain("(dev)")
-    }
+  it("finds the dev-only previews", () => {
+    const dev = routes.filter((r) => r.kind === "page" && isDevRoute(r))
+    expect(dev.map((r) => r.url)).toEqual(
+      expect.arrayContaining(["/ui-preview"])
+    )
+  })
+
+  it("lets a page in the (dev) route group through only if it 404s in production", () => {
+    const ungated = routes
+      .filter((r) => r.kind === "page" && isDevRoute(r))
+      .filter((r) => !hasProductionGate(r.file))
+      .map((r) => `${r.url} (${r.file})`)
+    expect(ungated).toEqual([])
+  })
+
+  it("keeps the (dev) route group to pages: no handler is dev-only", () => {
+    const handlers = routes
+      .filter((r) => r.kind === "handler" && isDevRoute(r))
+      .map((r) => `${r.url} (${r.file})`)
+    expect(handlers).toEqual([])
+  })
+
+  it("has no dev-only page outside the (dev) route group", () => {
+    const outside = routes.filter((r) => r.kind === "page" && !isDevRoute(r))
+    // A production gate outside (dev) would be a preview hiding among the
+    // product screens.
+    const gated = outside
+      .filter((r) => hasProductionGate(r.file))
+      .map((r) => `${r.url} (${r.file})`)
+    expect(gated).toEqual([])
+    // And no product screen may answer at, or under, a preview's address.
+    const devUrls = routes
+      .filter((r) => r.kind === "page" && isDevRoute(r))
+      .map((r) => r.url)
+    const shadowing = outside
+      .filter((r) =>
+        devUrls.some((dev) => r.url === dev || r.url.startsWith(`${dev}/`))
+      )
+      .map((r) => `${r.url} (${r.file})`)
+    expect(shadowing).toEqual([])
+  })
+
+  it("the production gate matcher refuses a page without the gate", () => {
+    // A guard that has never been seen to fail proves nothing.
+    const gate = (source: string) =>
+      PRODUCTION_GATE.test(stripSourceComments(source))
+    expect(
+      gate(
+        'if (process.env.NODE_ENV === "production") notFound()\nreturn <P />'
+      )
+    ).toBe(true)
+    expect(
+      gate('if (process.env.NODE_ENV === "production") {\n  notFound()\n}')
+    ).toBe(true)
+    expect(gate("return <P />")).toBe(false)
+    expect(
+      gate('// if (process.env.NODE_ENV === "production") notFound()\nreturn 1')
+    ).toBe(false)
+    expect(
+      gate('/* if (process.env.NODE_ENV === "production") notFound() */')
+    ).toBe(false)
+    expect(gate('if (process.env.NODE_ENV !== "production") notFound()')).toBe(
+      false
+    )
+    expect(gate('if (process.env.NODE_ENV === "development") notFound()')).toBe(
+      false
+    )
   })
 
   it("has no parallel or intercepting routes", () => {

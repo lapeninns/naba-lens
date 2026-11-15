@@ -10,8 +10,7 @@ import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 import { LIBRARY_COPY } from "./library-copy"
 
 /** The captioned library grid's columns, so the placeholder holds its place. */
-const GRID =
-  "grid grid-cols-2 gap-(--gutter) md:grid-cols-[repeat(auto-fill,minmax(var(--size-tile-min),1fr))]"
+const GRID = "grid grid-cols-2 gap-gutter md:grid-cols-tiles"
 
 /** The library grid while its first page loads (12 tiles, two desktop rows). */
 export function LibraryGridSkeleton() {

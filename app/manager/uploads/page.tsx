@@ -42,7 +42,7 @@ export default async function ManagerUploadsPage() {
   const page = await firstPage()
   const copy = MANAGER_COPY.uploads
   return (
-    <div className="grid gap-(--gutter)">
+    <div className="grid gap-gutter">
       <OfflineNotice
         className={OFFLINE_BANNER_CLASS}
         loadedAt={new Date().toISOString()}

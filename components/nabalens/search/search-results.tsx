@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowClockwiseIcon, SpinnerGapIcon } from "@phosphor-icons/react"
+import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 import { catchError, type ErrorInfo } from "next/error"
 
 import { fetchSearchPage } from "@/app/_media/fetch-search-page"
@@ -294,7 +294,7 @@ export function SearchResults({
     )
 
   return (
-    <div id={resultsId} className="grid min-w-0 gap-(--gutter)">
+    <div id={resultsId} className="grid min-w-0 gap-gutter">
       {items.length === 0 && cursor && !loading ? (
         <p className="text-body text-ink-muted">{SEARCH_COPY.noneYet}</p>
       ) : null}
@@ -320,7 +320,6 @@ export function SearchResults({
               ref={againRef}
               type="button"
               variant="secondary"
-              size="touch"
               onClick={() => load(null)}
             >
               <ArrowClockwiseIcon aria-hidden />
@@ -335,10 +334,7 @@ export function SearchResults({
             <Link
               ref={signInRef}
               href={ROUTES.login}
-              className={buttonVariants({
-                variant: "secondary",
-                size: "touch",
-              })}
+              className={buttonVariants({ variant: "secondary" })}
             >
               {SEARCH_COPY.signIn}
             </Link>
@@ -348,8 +344,8 @@ export function SearchResults({
             ref={pagerRef}
             type="button"
             variant="secondary"
-            size="touch"
-            aria-disabled={loading || undefined}
+            loading={loading}
+            loadingLabel={SEARCH_COPY.loadingMore}
             onClick={() => {
               if (loading) return
               // Try again repeats the page that failed (page one after an
@@ -357,17 +353,7 @@ export function SearchResults({
               void load(more === "failed" ? lastFrom.current : cursor)
             }}
           >
-            {loading ? (
-              <SpinnerGapIcon
-                aria-hidden
-                className="motion-safe:animate-spin"
-              />
-            ) : null}
-            {loading
-              ? SEARCH_COPY.loadingMore
-              : more === "failed"
-                ? SEARCH_COPY.tryAgain
-                : SEARCH_COPY.showMore}
+            {more === "failed" ? SEARCH_COPY.tryAgain : SEARCH_COPY.showMore}
           </Button>
         ) : (
           <p className="text-meta text-ink-muted">

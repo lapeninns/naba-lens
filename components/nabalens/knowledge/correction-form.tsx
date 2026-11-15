@@ -8,6 +8,7 @@ import { ArrowClockwiseIcon, CheckIcon } from "@phosphor-icons/react"
 import { Notice } from "@/components/nabalens/notice"
 import { useRequestIds } from "@/components/nabalens/coverage/use-request-id"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { ANSWER_LABEL, type SubmitAnswer } from "@/lib/amenities/contract"
 import type {
   CorrectResult,
@@ -45,10 +46,8 @@ import { emptyService } from "./service-detail"
 import { EventFields, ServiceExtraFields } from "./service-fields"
 
 const HEADLINES: SubmitAnswer[] = ["yes", "no", "not_applicable"]
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
 const ROW =
-  "flex min-h-11 cursor-pointer items-center gap-3 text-body-touch text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:text-body"
+  "flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink focus-ring-within"
 
 /** Words for a detail section in What changes (§8.1). */
 const FIELD_LABEL: Record<string, string> = {
@@ -325,7 +324,7 @@ export function CorrectionForm({
         <div>
           <Link
             href={doneHref}
-            className={buttonVariants({ variant: "secondary", size: "touch" })}
+            className={buttonVariants({ variant: "secondary" })}
           >
             Back to the check
           </Link>
@@ -380,7 +379,7 @@ export function CorrectionForm({
               <input
                 type="radio"
                 name={`${id}-headline`}
-                className="size-5 shrink-0 accent-primary"
+                className="size-5 shrink-0 accent-accent"
                 checked={headline === h}
                 onChange={() => setHeadline(h)}
               />
@@ -478,13 +477,12 @@ export function CorrectionForm({
         <label htmlFor={`${id}-reason`} className={LABEL}>
           {COPY.why} (required)
         </label>
-        <textarea
+        <Textarea
           id={`${id}-reason`}
           rows={3}
           maxLength={500}
           value={reason}
           disabled={pending}
-          className={INPUT}
           aria-invalid={errors.reason ? true : undefined}
           aria-describedby={[
             `${id}-reason-help`,
@@ -502,23 +500,18 @@ export function CorrectionForm({
 
       <section
         aria-labelledby={`${id}-changes-title`}
-        className="grid min-w-0 gap-2 rounded-card bg-well p-3"
+        className="grid min-w-0 gap-2 rounded-card bg-surface-2 p-3"
       >
         <h3 id={`${id}-changes-title`} className={LABEL}>
           {COPY.whatChanges}
         </h3>
         {changes.length === 0 ? (
-          <p className="text-body-touch text-ink md:text-body">
-            {COPY.nothing}
-          </p>
+          <p className="text-body text-ink">{COPY.nothing}</p>
         ) : (
           <>
             <ul className="grid gap-2">
               {changes.map((c) => (
-                <li
-                  key={c.field}
-                  className="grid gap-0.5 text-body-touch text-ink md:text-body"
-                >
+                <li key={c.field} className="grid gap-0.5 text-body text-ink">
                   <span className="font-semibold">
                     {c.label}
                     {c.material ? ` · ${COPY.material}` : ""}
@@ -532,7 +525,7 @@ export function CorrectionForm({
                 </li>
               ))}
             </ul>
-            <p className="text-body-touch text-ink md:text-body">
+            <p className="text-body text-ink">
               {material ? COPY.materialLine : COPY.smallLine}
             </p>
           </>
@@ -549,7 +542,6 @@ export function CorrectionForm({
               <Button
                 type="button"
                 variant="secondary"
-                size="touch"
                 onClick={() => router.refresh()}
               >
                 <ArrowClockwiseIcon aria-hidden />
@@ -565,7 +557,7 @@ export function CorrectionForm({
       <div>
         <Button
           type="submit"
-          size="touch"
+          variant="primary"
           disabled={pending}
           aria-busy={pending || undefined}
         >

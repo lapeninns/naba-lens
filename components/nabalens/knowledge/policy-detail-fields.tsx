@@ -4,6 +4,8 @@ import * as React from "react"
 import { PlusIcon, TrashIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
+import { fieldControlVariants } from "@/components/ui/field-control"
+import { cn } from "@/lib/utils"
 import type {
   Place,
   PolicyNeed,
@@ -30,11 +32,10 @@ import {
   type ZoneDraft,
 } from "./policy-detail"
 
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
+const INPUT = cn("block", fieldControlVariants())
 const ROW =
-  "flex min-h-11 cursor-pointer items-center gap-3 text-body-touch text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:text-body"
-const CARD = "grid min-w-0 gap-3 rounded-card bg-well p-3"
+  "flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink focus-ring-within"
+const CARD = "grid min-w-0 gap-3 rounded-card bg-surface-2 p-3"
 const SOURCES: PolicySource[] = ["in_person", "written_policy"]
 const ELSEWHERE = "__elsewhere"
 
@@ -89,7 +90,7 @@ export function PolicyRuleField({
             <input
               type="radio"
               name={`${id}`}
-              className="size-5 shrink-0 accent-primary"
+              className="size-5 shrink-0 accent-accent"
               checked={value === stance}
               aria-disabled={off || undefined}
               aria-describedby={off ? `${id}-conditional-off` : undefined}
@@ -389,7 +390,7 @@ export function PolicyDetailFields({
                   <input
                     type="radio"
                     name={`${id}-z${i}-stance`}
-                    className="size-5 shrink-0 accent-primary"
+                    className="size-5 shrink-0 accent-accent"
                     checked={z.stance === stance}
                     onChange={() => setRow("zones", i, { stance })}
                   />
@@ -472,9 +473,7 @@ export function PolicyDetailFields({
             }}
           </Rows>
         ) : (
-          <p className="text-body-touch text-ink md:text-body">
-            {COPY.noConditionTypes}
-          </p>
+          <p className="text-body text-ink">{COPY.noConditionTypes}</p>
         )
       ) : null}
 
@@ -531,7 +530,7 @@ export function PolicyDetailFields({
               <input
                 type="radio"
                 name={`${id}-scope`}
-                className="size-5 shrink-0 accent-primary"
+                className="size-5 shrink-0 accent-accent"
                 checked={value.policyScope === scope}
                 onChange={() => set({ policyScope: scope })}
               />
@@ -553,9 +552,7 @@ export function PolicyDetailFields({
           <p id={`${id}-who-title`} className={LABEL}>
             {COPY.whoStated}
           </p>
-          <p className="text-body-touch text-ink md:text-body">
-            {COPY.basisLabel[basis]}
-          </p>
+          <p className="text-body text-ink">{COPY.basisLabel[basis]}</p>
           <div className="grid min-w-0 gap-1.5">
             <label htmlFor={`${id}-stated-on`} className={LABEL}>
               {COPY.statedOn}
@@ -595,7 +592,7 @@ export function PolicyDetailFields({
                 <input
                   type="radio"
                   name={`${id}-source`}
-                  className="size-5 shrink-0 accent-primary"
+                  className="size-5 shrink-0 accent-accent"
                   checked={value.source === source}
                   onChange={() => set({ source })}
                 />
@@ -649,19 +646,19 @@ export function PolicyNeedsPanel({
     <div
       role="note"
       aria-labelledby={titleId}
-      className="grid min-w-0 gap-2 rounded-card bg-well p-3"
+      className="grid min-w-0 gap-2 rounded-card bg-surface-2 p-3"
     >
       <p id={titleId} className={LABEL}>
         {COPY.needsTitle}
       </p>
       {words.length ? (
-        <ul className="grid list-disc gap-1 pl-5 text-body-touch text-ink md:text-body">
+        <ul className="grid list-disc gap-1 pl-5 text-body text-ink">
           {words.map((w) => (
             <li key={w}>{w}</li>
           ))}
         </ul>
       ) : null}
-      <p role="status" className="text-body-touch text-ink md:text-body">
+      <p role="status" className="text-body text-ink">
         {words.length ? "" : COPY.nothingMissing}
       </p>
     </div>

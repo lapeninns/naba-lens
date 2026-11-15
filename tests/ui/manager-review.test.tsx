@@ -42,7 +42,10 @@ import {
   type ListCard,
 } from "@/components/nabalens/manager/review/card-model"
 import type { ReviewView } from "@/components/nabalens/manager/review/links"
-import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
+import {
+  alsoCountsText,
+  REVIEW_COPY,
+} from "@/components/nabalens/manager/review/review-copy"
 import { ReviewScreen } from "@/components/nabalens/manager/review/review-screen"
 import type {
   DecisionOutcome,
@@ -338,6 +341,34 @@ describe("ReviewScreen", () => {
     expect(within(el).getByText(REVIEW_COPY.ownPhoto)).toBeTruthy()
     expect(
       within(el).queryByRole("button", { name: REVIEW_COPY.accept })
+    ).toBeNull()
+  })
+
+  it("says what accepting a waiting photo also counts for (ORP-3b)", () => {
+    renderScreen([
+      card({
+        alsoCounts: { tasks: ["Starters"], month: "2026-11-01" },
+      }),
+    ])
+    const el = cardEl(card().key)
+    expect(within(el).getByText(REVIEW_COPY.alsoCounts)).toBeTruthy()
+    expect(within(el).getByText("Starters · TEST's November 2026")).toBeTruthy()
+  })
+
+  it("leaves the line off when it counts for nothing more, or is accepted", () => {
+    expect(alsoCountsText({ tasks: [], month: null }, "Sam")).toBeNull()
+    expect(alsoCountsText(undefined, "Sam")).toBeNull()
+    expect(alsoCountsText({ tasks: [], month: "2026-10-01" }, "Sam Lee")).toBe(
+      "Sam's October 2026"
+    )
+    renderScreen([
+      card({
+        state: "accepted",
+        alsoCounts: { tasks: ["Starters"], month: null },
+      }),
+    ])
+    expect(
+      within(cardEl(card().key)).queryByText(REVIEW_COPY.alsoCounts)
     ).toBeNull()
   })
 

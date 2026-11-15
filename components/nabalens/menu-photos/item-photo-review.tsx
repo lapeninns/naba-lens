@@ -1,5 +1,6 @@
 "use client"
 
+import { Checkbox } from "@/components/ui/checkbox"
 import * as React from "react"
 import Link from "next/link"
 import {
@@ -428,7 +429,7 @@ export function ItemPhotoReview({
         <div
           ref={listRef}
           tabIndex={-1}
-          className="@container grid gap-6 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="@container grid gap-6 focus-ring outline-none"
         >
           {groupByItem(items).map((group) => {
             const headingId = `item-photos-${group.item.id}`
@@ -442,7 +443,7 @@ export function ItemPhotoReview({
                   <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                     <h2
                       id={headingId}
-                      className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+                      className="type-section-title [overflow-wrap:anywhere] text-ink"
                     >
                       {group.item.name}
                     </h2>
@@ -465,7 +466,7 @@ export function ItemPhotoReview({
                 </div>
                 <ul
                   aria-label={`Photos of ${group.item.name}`}
-                  className="grid gap-(--gutter)"
+                  className="grid gap-gutter"
                 >
                   {group.candidates.map((candidate) => (
                     <li key={candidate.labelId}>
@@ -629,7 +630,7 @@ function CandidateCard({
   return (
     <article
       aria-label={`${candidate.item.name}: photo by ${uploader.displayName}`}
-      className="grid gap-4 rounded-card bg-surface p-4 shadow-card @min-[40rem]:grid-cols-[minmax(0,280px)_minmax(0,1fr)]"
+      className="grid gap-4 rounded-card bg-surface p-4 shadow-card @wide:grid-cols-[minmax(0,280px)_minmax(0,1fr)]"
     >
       <EvidencePreviewButton
         thumbnailUrl={candidate.asset.thumbnailUrl}
@@ -763,25 +764,19 @@ function CandidateActions({
         </p>
       ) : null}
       {acceptable ? (
-        <label
-          htmlFor={`${id}-primary`}
-          className="flex min-h-11 cursor-pointer items-center gap-3 text-body"
-        >
-          <input
+        <label className="flex min-h-11 cursor-pointer items-center gap-3 text-body">
+          <Checkbox
             id={`${id}-primary`}
-            type="checkbox"
             checked={makePrimary}
             disabled={busy}
-            onChange={(e) => onMakePrimaryChange(e.currentTarget.checked)}
-            className="size-6 shrink-0 accent-select focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+            onCheckedChange={(checked) => onMakePrimaryChange(checked)}
           />
           {ITEM_REVIEW_COPY.makePrimaryOnAccept}
         </label>
       ) : null}
-      <div className="flex flex-wrap gap-2 @max-[40rem]:*:flex-auto">
+      <div className="flex flex-wrap gap-2 @max-wide:*:flex-auto">
         {acceptable ? (
           <Button
-            size="touch"
             variant="primary"
             disabled={busy}
             aria-busy={pending === "accept" || undefined}
@@ -792,19 +787,13 @@ function CandidateActions({
           </Button>
         ) : null}
         {askable ? (
-          <Button
-            size="touch"
-            variant="secondary"
-            disabled={busy}
-            onClick={onAskBetter}
-          >
+          <Button variant="secondary" disabled={busy} onClick={onAskBetter}>
             <CameraRotateIcon data-icon="inline-start" aria-hidden />
             {ITEM_REVIEW_COPY.askBetter}
           </Button>
         ) : null}
         {state === "accepted" && !candidate.photo?.isPrimary ? (
           <Button
-            size="touch"
             variant="secondary"
             disabled={busy}
             aria-busy={pending === "primary" || undefined}
@@ -815,12 +804,7 @@ function CandidateActions({
           </Button>
         ) : null}
         {state === "accepted" || variantGone ? (
-          <Button
-            size="touch"
-            variant="secondary"
-            disabled={busy}
-            onClick={onUndo}
-          >
+          <Button variant="secondary" disabled={busy} onClick={onUndo}>
             <ArrowCounterClockwiseIcon data-icon="inline-start" aria-hidden />
             {ITEM_REVIEW_COPY.undo}
           </Button>

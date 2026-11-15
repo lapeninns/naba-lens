@@ -5,7 +5,7 @@ import { NotManagerPage } from "@/app/staff/manage/_shared/frame"
 import { RequirementScreen } from "@/app/staff/manage/_shared/screens"
 
 export const metadata: Metadata = {
-  title: "Checklist item · Manage · Naba-Lens",
+  title: "Checklist item · Manage",
 }
 
 export default async function ManageRequirementPage({

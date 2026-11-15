@@ -6,7 +6,7 @@ import { getCoverageActor, getMyTasks } from "@/lib/server/coverage"
 
 import { PORTFOLIO_PATH, TASKS_PATH, WELCOME_PATH, unwrap } from "../result"
 
-export const metadata = { title: "Welcome · Naba-Lens" }
+export const metadata = { title: "Welcome" }
 
 type SearchParams = Record<string, string | string[] | undefined>
 

@@ -78,7 +78,7 @@ export function OurMenuScreen({
 
   if (load.state === "unavailable") {
     return (
-      <div className="flex flex-col gap-(--gutter)">
+      <div className="flex flex-col gap-gutter">
         {header()}
         <ErrorState
           title={OUR_MENU_COPY.unavailableTitle}
@@ -99,7 +99,7 @@ export function OurMenuScreen({
 
   if (load.state === "needs_venue") {
     return (
-      <div className="flex flex-col gap-(--gutter)">
+      <div className="flex flex-col gap-gutter">
         {header()}
         <EmptyState
           title={OUR_MENU_COPY.needsVenue}
@@ -111,7 +111,7 @@ export function OurMenuScreen({
 
   if (load.state !== "ready") {
     return (
-      <div className="flex flex-col gap-(--gutter)">
+      <div className="flex flex-col gap-gutter">
         {header()}
         <EmptyState
           title={
@@ -140,7 +140,7 @@ export function OurMenuScreen({
     : menu.sections
 
   return (
-    <div className="flex flex-col gap-(--gutter)">
+    <div className="flex flex-col gap-gutter">
       {header()}
       {/* The count as a card: the words, one segment per dish (a bar past
           12), then how a dish counts. Green means accepted, never blue. */}
@@ -149,7 +149,7 @@ export function OurMenuScreen({
           accepted={covered}
           target={eligible}
           label={`${progress}.`}
-          className="[&>p:first-child]:font-display [&>p:first-child]:text-section-title"
+          className="[&>p:first-child]:type-section-title"
         />
         {/* The segments are drawn aria-hidden; keep the named progressbar. */}
         <div

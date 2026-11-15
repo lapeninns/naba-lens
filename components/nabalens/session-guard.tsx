@@ -358,18 +358,13 @@ export function SignInAgainSheet({
           )
         ) : null}
         <DialogFooter>
-          <Button
-            variant="secondary"
-            size="touch"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
             {/* Off-deck: E7 lists only "Not now"; "Done" closes the sent state. */}
             {sent ? "Done" : "Not now"}
           </Button>
           {sent ? null : guard.email ? (
             <Button
               variant="primary"
-              size="touch"
               onClick={send}
               disabled={
                 sending || captchaUnavailable || (needsCaptcha && !captchaToken)
@@ -383,7 +378,7 @@ export function SignInAgainSheet({
               href={loginLink}
               target="_blank"
               rel="noopener"
-              className={buttonVariants({ variant: "primary", size: "touch" })}
+              className={buttonVariants({ variant: "primary" })}
             >
               Sign in again
             </a>

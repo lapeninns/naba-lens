@@ -41,7 +41,7 @@ import { SectionHead } from "../coverage-sections"
 import { MANAGERS_COPY, compareBySurname } from "./managers-copy"
 
 const TH =
-  "px-3 py-2.5 text-left text-meta-strong text-ink-muted first:pl-4 last:pr-4"
+  "px-3 py-2.5 text-left text-meta font-semibold text-ink-muted first:pl-4 last:pr-4"
 const TD =
   "px-3 py-2.5 align-middle text-body text-ink first:pl-4 last:pr-4 max-md:flex max-md:gap-2 max-md:px-4 max-md:py-1 max-md:before:min-w-28 max-md:before:text-ink-muted max-md:before:content-[attr(data-label)]"
 const TABLE =
@@ -229,7 +229,6 @@ export function ManagersView({
             <Button
               type="submit"
               variant="primary"
-              size="touch"
               className="md:mt-8"
               disabled={action.pending}
               aria-busy={action.pending || undefined}
@@ -337,7 +336,7 @@ export function ManagersView({
                           <DropdownMenuTrigger
                             render={
                               <Button
-                                variant="ghost"
+                                variant="quiet"
                                 size="icon-lg"
                                 disabled={action.pending}
                                 aria-label={MANAGERS_COPY.moreActions(
@@ -350,7 +349,7 @@ export function ManagersView({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="min-w-44">
                             <DropdownMenuItem
-                              variant="destructive"
+                              variant="danger"
                               onClick={() => setRevoking(g)}
                             >
                               {MANAGERS_COPY.revokeItem}
@@ -378,10 +377,7 @@ export function ManagersView({
       <section aria-labelledby={`${ids}-ended`} className="grid gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-1">
           <div className="flex flex-wrap items-baseline gap-x-4">
-            <h2
-              id={`${ids}-ended`}
-              className="font-display text-section-title text-ink"
-            >
+            <h2 id={`${ids}-ended`} className="type-section-title text-ink">
               {MANAGERS_COPY.endedHeading}
             </h2>
             <span className="text-meta text-ink-muted">

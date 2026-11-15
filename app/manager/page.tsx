@@ -22,7 +22,7 @@ import { workServices } from "@/lib/work-client/services"
 import { managerNeedsLabels } from "./entry"
 import { failedRead, isRefusal, loadManagerOverview } from "./load-overview"
 
-export const metadata = { title: "Overview · Naba-Lens" }
+export const metadata = { title: "Overview" }
 
 /**
  * Overview: the venue's menu photo progress and what is waiting for a

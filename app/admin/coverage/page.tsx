@@ -50,7 +50,7 @@ import {
   PrepareStatus,
 } from "./prepare-control"
 
-export const metadata: Metadata = { title: "Coverage · Naba-Lens" }
+export const metadata: Metadata = { title: "Coverage" }
 
 /**
  * A16 and A17: every venue's coverage and its staff participation (reported
@@ -140,7 +140,6 @@ export default async function CoverageOverviewPage({
               href="/admin/coverage/managers"
               className={buttonVariants({
                 variant: "secondary",
-                size: "touch",
               })}
             >
               <ShieldCheckIcon aria-hidden />
@@ -196,7 +195,7 @@ export default async function CoverageOverviewPage({
               ) : null}
               <VenueList rows={venues} />
               {isCurrent ? (
-                <div className="grid items-start gap-(--gutter) lg:grid-cols-2">
+                <div className="grid items-start gap-gutter lg:grid-cols-2">
                   <div className="grid min-w-0 content-start gap-2 rounded-card bg-surface p-4 shadow-card">
                     <SectionHead
                       id="preparation-summary-title"
@@ -256,7 +255,7 @@ export default async function CoverageOverviewPage({
                     id="self-review-title"
                     title={SELF_REVIEWS_COPY.title}
                   />
-                  <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
+                  <p className="max-w-reading px-1 text-body text-ink-muted">
                     {SELF_REVIEWS_COPY.body}
                   </p>
                 </div>
@@ -272,7 +271,7 @@ export default async function CoverageOverviewPage({
                   <h3 className="px-1 font-display text-item-title text-ink">
                     {ITEM_SELF_REVIEWS_COPY.title}
                   </h3>
-                  <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
+                  <p className="max-w-reading px-1 text-body text-ink-muted">
                     {ITEM_SELF_REVIEWS_COPY.body}
                   </p>
                 </div>

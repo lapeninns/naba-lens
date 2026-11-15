@@ -2,30 +2,58 @@
 
 import * as React from "react"
 import { Avatar as AvatarPrimitive } from "@base-ui/react/avatar"
+import { cva, type VariantProps } from "class-variance-authority"
+
 import { cn } from "@/lib/utils"
+
+/*
+ * Avatar (DESIGN.md §4): a photo in a circle, or up to two initials in white
+ * on a per-person tint. Set `--ah` (a hue) on the Avatar; ProfileAvatar
+ * derives it from the name. The tint only tells faces apart: it never
+ * carries a state. Not interactive, so it has no hover or focus of its own;
+ * a link or button around it draws those.
+ *
+ * Sizes: sm 36px (bars, stacks, tables), md 44px (rows, posts; the default),
+ * lg 84px (profile heads).
+ */
+const avatarVariants = cva(
+  "group/avatar relative flex shrink-0 overflow-hidden rounded-round bg-surface-2 select-none",
+  {
+    variants: {
+      size: {
+        sm: "size-9",
+        md: "size-11",
+        lg: "size-21",
+      },
+    },
+    defaultVariants: { size: "md" },
+  }
+)
+
+type AvatarSize = NonNullable<VariantProps<typeof avatarVariants>["size"]>
 
 function Avatar({
   className,
-  size = "default",
+  size = "md",
   ...props
-}: AvatarPrimitive.Root.Props & {
-  /** sm 32px (bars, stacks, tables), md 36px, default 44px (rows, posts), target 44px (cards), lg 84px (profile heads). */
-  size?: "default" | "sm" | "md" | "target" | "lg"
+}: Omit<AvatarPrimitive.Root.Props, "className"> & {
+  size?: AvatarSize
+  className?: string
 }) {
   return (
     <AvatarPrimitive.Root
       data-slot="avatar"
       data-size={size}
-      className={cn(
-        "group/avatar relative flex size-11 shrink-0 overflow-hidden rounded-round bg-surface-2 select-none data-[size=lg]:size-21 data-[size=md]:size-9 data-[size=sm]:size-8 data-[size=target]:size-11",
-        className
-      )}
+      className={cn(avatarVariants({ size }), className)}
       {...props}
     />
   )
 }
 
-function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
+function AvatarImage({
+  className,
+  ...props
+}: Omit<AvatarPrimitive.Image.Props, "className"> & { className?: string }) {
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
@@ -41,15 +69,19 @@ function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
 function AvatarFallback({
   className,
   ...props
-}: AvatarPrimitive.Fallback.Props) {
+}: Omit<AvatarPrimitive.Fallback.Props, "className"> & {
+  className?: string
+}) {
   return (
     <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        // Common Room avatar: initials in white on a per-person tint (set --ah,
-        // a hue, on the Avatar; ProfileAvatar derives it from the name). The
-        // tint only tells faces apart; it never carries a state.
-        "flex size-full items-center justify-center rounded-round bg-[oklch(0.42_0.06_var(--ah,250))] font-display text-[17px] leading-none font-extrabold text-[oklch(0.98_0_0)] group-data-[size=lg]/avatar:text-[30px] group-data-[size=md]/avatar:text-[15px] group-data-[size=sm]/avatar:text-[14px]",
+        // Initials stay at the 17px floor at sm and md: two letters still fit
+        // a 36px circle. The spec's 15px for sm is below the floor. lg has
+        // no type role: 30px sits between page-title (26) and display (34).
+        "flex size-full items-center justify-center rounded-round bg-avatar-fill font-display text-label leading-none font-extrabold text-on-avatar group-data-[size=lg]/avatar:text-[30px]",
+        // Forced colours drop the tint; an outline keeps the circle.
+        "forced-colors:border",
         className
       )}
       {...props}
@@ -57,15 +89,15 @@ function AvatarFallback({
   )
 }
 
+/** A small dot on the avatar's corner. Decoration: say the state in words beside it. */
 function AvatarBadge({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="avatar-badge"
       className={cn(
-        "absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full bg-ink text-surface bg-blend-color ring-2 ring-surface select-none",
+        "absolute right-0 bottom-0 z-local inline-flex size-2.5 items-center justify-center rounded-round bg-ink text-surface ring-2 ring-surface select-none [&>svg]:size-2",
         "group-data-[size=sm]/avatar:size-2 group-data-[size=sm]/avatar:[&>svg]:hidden",
-        "group-data-[size=default]/avatar:size-2.5 group-data-[size=default]/avatar:[&>svg]:size-2",
-        "group-data-[size=lg]/avatar:size-3 group-data-[size=lg]/avatar:[&>svg]:size-2",
+        "group-data-[size=lg]/avatar:size-3",
         className
       )}
       {...props}
@@ -73,6 +105,7 @@ function AvatarBadge({ className, ...props }: React.ComponentProps<"span">) {
   )
 }
 
+/** Avatars in a row, each overlapping the last by 8px with a 2px ring. */
 function AvatarGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -86,6 +119,7 @@ function AvatarGroup({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+/** "+3" at the end of a group. As big as the avatars beside it. */
 function AvatarGroupCount({
   className,
   ...props
@@ -94,7 +128,7 @@ function AvatarGroupCount({
     <div
       data-slot="avatar-group-count"
       className={cn(
-        "relative flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-meta-strong text-ink ring-2 ring-surface group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3",
+        "relative flex size-11 shrink-0 items-center justify-center rounded-round bg-surface-2 text-meta font-semibold text-ink ring-2 ring-surface group-has-data-[size=sm]/avatar-group:size-9 [&>svg]:size-5",
         className
       )}
       {...props}
@@ -109,4 +143,6 @@ export {
   AvatarGroup,
   AvatarGroupCount,
   AvatarBadge,
+  avatarVariants,
+  type AvatarSize,
 }

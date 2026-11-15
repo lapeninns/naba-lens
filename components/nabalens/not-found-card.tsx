@@ -18,10 +18,13 @@ export const NOT_FOUND_COPY = {
 export function NotFoundCard({
   backHref,
   backLabel,
+  titleAs: Title = "h1",
   className,
 }: {
   backHref: string
   backLabel: string
+  /** The title's element: the page's `h1` unless shown inside another page. */
+  titleAs?: "h1" | "h2" | "h3" | "h4"
   className?: string
 }) {
   return (
@@ -35,12 +38,9 @@ export function NotFoundCard({
       <IconDisc size="lg" className="text-ink-muted">
         <MagnifyingGlassIcon />
       </IconDisc>
-      <h1
-        id="not-found-title"
-        className="font-display text-section-title text-balance"
-      >
+      <Title id="not-found-title" className="type-section-title text-balance">
         {NOT_FOUND_COPY.title}
-      </h1>
+      </Title>
       <p className="text-body text-pretty text-ink-muted">
         {NOT_FOUND_COPY.body}
       </p>
@@ -48,7 +48,6 @@ export function NotFoundCard({
         href={backHref}
         className={buttonVariants({
           variant: "primary",
-          size: "touch",
           className: "mt-2 w-full md:w-auto md:min-w-55",
         })}
       >

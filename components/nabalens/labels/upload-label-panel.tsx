@@ -515,7 +515,7 @@ export function UploadLabelPanel({
             return (
               <li
                 key={chip.key}
-                className="flex max-w-full min-w-0 items-center gap-1 rounded-card bg-accent-soft py-1 ps-3.5 text-ink shadow-[inset_0_0_0_1.5px_var(--accent-text)]"
+                className="flex max-w-full min-w-0 items-center gap-1 rounded-card bg-accent-soft py-1 ps-3.5 text-ink edge-selected"
               >
                 <span className="min-w-0 py-0.5">
                   <span className="block text-label break-words">{name}</span>
@@ -526,7 +526,7 @@ export function UploadLabelPanel({
                 <Button
                   type="button"
                   variant="quiet"
-                  size="icon-sm"
+                  size="icon"
                   className="shrink-0 text-current"
                   aria-label={`Remove ${name}`}
                   onClick={(e) => {
@@ -657,7 +657,7 @@ export function UploadLabelPanel({
         ) : null}
         <ul
           aria-label={one ? "Your photo" : "Your photos"}
-          className="divide-y divide-line overflow-hidden rounded-card shadow-[inset_0_0_0_1px_var(--line)]"
+          className="divide-y divide-line overflow-hidden rounded-card edge"
         >
           {files.map((f) => {
             const isOpen = expanded.includes(f.id) && !disabled.has(f.id)

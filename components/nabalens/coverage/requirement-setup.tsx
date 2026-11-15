@@ -1,10 +1,11 @@
 "use client"
 
+import { SegmentedControl } from "@/components/ui/segmented-control"
+import { Textarea } from "@/components/ui/textarea"
 import * as React from "react"
 import {
   CheckIcon,
   ProhibitIcon,
-  SpinnerGapIcon,
   TrashIcon,
   WarningIcon,
 } from "@phosphor-icons/react"
@@ -31,7 +32,7 @@ import {
   plural,
 } from "./copy"
 import { CoverageSection, Quote } from "./layout"
-import { ReasonDialog, textareaClass } from "./reason-dialog"
+import { ReasonDialog } from "./reason-dialog"
 import { bySurname } from "./roster"
 import { Stepper, TeamTag } from "./team-roster"
 import type {
@@ -198,61 +199,24 @@ function AppliesChoice({
   appliesDisabled?: boolean
   notApplyDisabled?: boolean
 }) {
-  const options = [
-    {
-      key: "applies",
-      text: "Applies",
-      checked: applies,
-      disabled: appliesDisabled,
-      pick: onApplies,
-    },
-    {
-      key: "not",
-      text: "Does not apply",
-      checked: !applies,
-      disabled: notApplyDisabled,
-      pick: onDoesNotApply,
-    },
-  ]
-  const refs = React.useRef<(HTMLButtonElement | null)[]>([])
-
-  function onKeyDown(event: React.KeyboardEvent, index: number) {
-    const keys = ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"]
-    if (!keys.includes(event.key)) return
-    event.preventDefault()
-    const next = (index + 1) % options.length
-    if (options[next].disabled) return
-    refs.current[next]?.focus()
-    options[next].pick()
-  }
-
   return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="grid w-full grid-cols-2 gap-1 rounded-control bg-surface-2 p-1"
-    >
-      {options.map((option, i) => (
-        <button
-          key={option.key}
-          ref={(el) => {
-            refs.current[i] = el
-          }}
-          type="button"
-          role="radio"
-          aria-checked={option.checked}
-          tabIndex={option.checked ? 0 : -1}
-          disabled={option.disabled}
-          onClick={() => {
-            if (!option.checked) option.pick()
-          }}
-          onKeyDown={(e) => onKeyDown(e, i)}
-          className="min-h-11 rounded-control px-3 py-1.5 text-label leading-tight font-bold text-ink-muted transition-[background-color,color,box-shadow] duration-(--duration-quick) outline-none hover:bg-raised hover:text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed disabled:opacity-60 aria-checked:bg-surface aria-checked:text-ink aria-checked:shadow-[0_1px_2px_oklch(0.2_0.01_250/0.16),0_0_0_1.5px_var(--border-strong)]"
-        >
-          {option.text}
-        </button>
-      ))}
-    </div>
+    <SegmentedControl
+      label={label}
+      value={applies ? "applies" : "not"}
+      // The choice follows `applies`: "Does not apply" may first ask for a
+      // reason, and stays unchosen until that is given.
+      onValueChange={(next) =>
+        next === "applies" ? onApplies() : onDoesNotApply()
+      }
+      options={[
+        { value: "applies", label: "Applies", disabled: appliesDisabled },
+        {
+          value: "not",
+          label: "Does not apply",
+          disabled: notApplyDisabled,
+        },
+      ]}
+    />
   )
 }
 
@@ -479,7 +443,7 @@ export function RequirementSetup({
       : null
 
   const left = (
-    <div className="grid min-w-0 content-start gap-(--gutter) md:gap-4">
+    <div className="grid min-w-0 content-start gap-gutter md:gap-4">
       <OfflineNotice />
       <div className={cn(CARD, "gap-3")}>
         <div className="grid gap-2">
@@ -624,7 +588,7 @@ export function RequirementSetup({
                       (optional)
                     </span>
                   </FieldLabel>
-                  <textarea
+                  <Textarea
                     id={`${ids}-guidance`}
                     value={draft.guidance}
                     onChange={(e) => set("guidance", e.currentTarget.value)}
@@ -632,7 +596,7 @@ export function RequirementSetup({
                     rows={2}
                     aria-invalid={!!errors.guidance || undefined}
                     aria-describedby={`${ids}-guidance-help`}
-                    className={cn(textareaClass, "min-h-16")}
+
                     disabled={action.pending}
                   />
                   <FieldDescription
@@ -672,7 +636,6 @@ export function RequirementSetup({
             <div className={cn(CARD, "justify-items-start gap-2")}>
               <Button
                 variant="danger"
-                size="touch"
                 onClick={() => setDialog("retire")}
                 disabled={action.pending}
               >
@@ -704,7 +667,7 @@ export function RequirementSetup({
             >
               {choices.map((choice) => (
                 <li key={choice.id}>
-                  <label className="flex min-h-16 cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors duration-(--duration-quick) hover:bg-surface-2 has-checked:bg-accent-soft has-disabled:cursor-not-allowed md:px-4">
+                  <label className="flex min-h-16 cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors duration-quick hover:bg-surface-2 has-checked:bg-accent-soft has-disabled:cursor-not-allowed md:px-4">
                     <input
                       type="checkbox"
                       checked={selected.includes(choice.id)}
@@ -745,43 +708,35 @@ export function RequirementSetup({
     <>
       <div
         className={cn(
-          "grid gap-(--gutter) md:gap-4",
+          "grid gap-gutter md:gap-4",
           photos &&
-            "lg:grid-cols-[minmax(0,var(--size-reading))_minmax(340px,1fr)] lg:items-start"
+            "lg:grid-cols-[minmax(0,var(--container-reading))_minmax(340px,1fr)] lg:items-start"
         )}
       >
         {left}
         {photos ? (
-          <div className="grid min-w-0 content-start gap-(--gutter) md:gap-4">
+          <div className="grid min-w-0 content-start gap-gutter md:gap-4">
             {photos}
           </div>
         ) : null}
       </div>
 
       {settingUp ? (
-        <div className="sticky bottom-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px))] z-30 -mx-(--page-gutter) flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-(--page-gutter) py-3 shadow-float md:bottom-0 md:mx-0 md:rounded-card md:border-t-0 md:px-4 md:shadow-card">
+        <div className="sticky bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px))] z-dock -mx-page-gutter flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-page-gutter py-3 shadow-float md:bottom-0 md:mx-0 md:rounded-card md:border-t-0 md:px-4 md:shadow-card">
           <p id={statusId} role="status" className="text-meta text-ink-muted">
             {barStatus}
           </p>
           <Button
             variant={confirming ? "primary" : "secondary"}
-            size="touch"
             className="ms-auto"
             onClick={() => void save(confirming)}
-            disabled={action.pending || (confirming ? blocked != null : !dirty)}
+            disabled={confirming ? blocked != null : !dirty}
+            loading={action.pending}
+            loadingLabel="Saving…"
             aria-describedby={barStatus ? statusId : undefined}
-            aria-busy={action.pending || undefined}
           >
-            {action.pending ? (
-              <SpinnerGapIcon aria-hidden className="animate-spin" />
-            ) : (
-              <CheckIcon aria-hidden />
-            )}
-            {action.pending
-              ? "Saving…"
-              : confirming
-                ? "Save and confirm"
-                : "Save changes"}
+            <CheckIcon aria-hidden />
+            {confirming ? "Save and confirm" : "Save changes"}
           </Button>
         </div>
       ) : null}

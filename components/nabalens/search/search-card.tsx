@@ -108,7 +108,7 @@ export function SearchCard({
       tabIndex={-1}
       data-asset-card
       aria-label={`${media}, ${SEARCH_COPY.uploadedAt(when)}`}
-      className="flex h-full min-w-0 gap-3 rounded-card bg-surface p-3 shadow-card outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+      className="flex h-full min-w-0 gap-3 rounded-card bg-surface p-3 shadow-card focus-ring outline-none"
     >
       <Thumb url={item.thumbnailUrl} alt={alt} mediaType={item.mediaType} />
       <div className="grid min-w-0 flex-1 content-start gap-1.5 text-body [overflow-wrap:anywhere]">

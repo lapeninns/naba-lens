@@ -6,7 +6,7 @@ import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
  */
 export function ManagerWorkspaceLoading({ label }: { label: string }) {
   return (
-    <SkeletonRegion label={label} className="grid gap-(--gutter)">
+    <SkeletonRegion label={label} className="grid gap-gutter">
       <div className="grid gap-2 px-1">
         <Skeleton shape="line" className="w-40" />
         <Skeleton shape="title" className="w-48 max-w-full" />

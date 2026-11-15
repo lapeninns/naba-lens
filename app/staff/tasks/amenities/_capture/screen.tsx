@@ -339,7 +339,7 @@ export function BackLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className="inline-flex h-11 items-center gap-1.5 self-start rounded-control text-meta-touch font-medium text-ink-muted outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:h-9 md:text-meta"
+      className="inline-flex h-11 items-center gap-1.5 self-start rounded-control text-meta font-medium text-ink-muted focus-ring outline-none hover:text-ink md:h-9"
     >
       <ArrowLeftIcon className="size-4" aria-hidden />
       {label}
@@ -467,14 +467,14 @@ export async function CaptureScreen({
               {PROGRESS_LABEL[check.progress]}
             </StatusChip>
             {knowledge ? (
-              <span className="text-meta-touch text-ink-muted md:text-meta">
+              <span className="text-meta text-ink-muted">
                 {answerInUseLines(
                   knowledge.slot.answerInUse,
                   knowledge.slot
                 ).join(" ")}
               </span>
             ) : legacyAnswer && legacyAnswer !== "to_check" ? (
-              <span className="text-meta-touch text-ink-muted md:text-meta">
+              <span className="text-meta text-ink-muted">
                 Current answer: {ANSWER_LABEL[legacyAnswer]}
               </span>
             ) : null}

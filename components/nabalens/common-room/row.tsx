@@ -15,7 +15,7 @@ const ICON_TONE: Record<RowTone, string> = {
 const ROW =
   "grid min-h-16 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-card bg-surface p-3 text-left text-ink shadow-card"
 const INTERACTIVE =
-  "transition-colors duration-(--duration-quick) outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+  "transition-colors duration-quick outline-none hover:bg-surface-2 focus-ring"
 
 type RowProps = {
   /** A 44px round icon disc on the left (decorative). */

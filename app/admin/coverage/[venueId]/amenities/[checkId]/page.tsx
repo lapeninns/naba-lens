@@ -4,7 +4,7 @@ import { adminVenueContext } from "@/app/staff/manage/_shared/context"
 import { AmenityCheckScreen } from "@/app/staff/manage/_shared/screens/amenities"
 
 export const metadata: Metadata = {
-  title: "Amenity check · Venue coverage · Naba-Lens",
+  title: "Amenity check · Venue coverage",
 }
 
 export default async function AdminVenueAmenityCheckPage({

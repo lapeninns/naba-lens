@@ -4,6 +4,8 @@ import * as React from "react"
 import { PlusIcon, TrashIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
+import { fieldControlVariants } from "@/components/ui/field-control"
+import { cn } from "@/lib/utils"
 import type {
   KnowledgeResult,
   Occurrence,
@@ -28,10 +30,9 @@ import {
   type Weekday,
 } from "./schedule-detail"
 
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
+const INPUT = cn("block", fieldControlVariants())
 const ROW =
-  "flex min-h-11 min-w-11 cursor-pointer items-center gap-3 text-body-touch text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:text-body"
+  "flex min-h-11 min-w-11 cursor-pointer items-center gap-3 text-body text-ink focus-ring-within"
 const REPEATS: Repeats[] = ["weekly", "monthly", "dated"]
 
 const describedBy = (...ids: (string | false | null | undefined)[]) =>
@@ -69,9 +70,7 @@ export function ScheduleFields({
       <legend className={LABEL}>{COPY.when}</legend>
       <p className={MUTED}>{COPY.timezone(timezone)}</p>
       {changing ? (
-        <p className="text-body-touch text-ink md:text-body">
-          {COPY.changeHelp}
-        </p>
+        <p className="text-body text-ink">{COPY.changeHelp}</p>
       ) : null}
 
       <div className="grid gap-3 min-[400px]:grid-cols-2">
@@ -130,7 +129,7 @@ export function ScheduleFields({
             <input
               type="radio"
               name={`${id}-repeats`}
-              className="size-5 shrink-0 accent-primary"
+              className="size-5 shrink-0 accent-accent"
               checked={value.repeats === r}
               onChange={() => set({ repeats: r })}
             />
@@ -148,7 +147,7 @@ export function ScheduleFields({
                     type="checkbox"
                     name={`${id}-day`}
                     aria-label={DAY_LABEL[day].long}
-                    className="size-5 shrink-0 accent-primary"
+                    className="size-5 shrink-0 accent-accent"
                     checked={value.days.includes(day)}
                     onChange={(e) =>
                       set({
@@ -297,7 +296,7 @@ export function ScheduleFields({
           return (
             <fieldset
               key={i}
-              className="grid min-w-0 gap-2 rounded-card bg-well p-3"
+              className="grid min-w-0 gap-2 rounded-card bg-surface-2 p-3"
             >
               <legend className={LABEL}>{COPY.time(i + 1)}</legend>
               <div className="grid gap-3 min-[360px]:grid-cols-2">
@@ -457,7 +456,7 @@ export function SchedulePreview({
   return (
     <section
       aria-labelledby={`${id}-title`}
-      className="grid min-w-0 gap-2 rounded-card bg-well p-3"
+      className="grid min-w-0 gap-2 rounded-card bg-surface-2 p-3"
     >
       <h3 id={`${id}-title`} className={LABEL}>
         {COPY.previewTitle}
@@ -465,12 +464,10 @@ export function SchedulePreview({
       {state.kind === "invalid" ? (
         <p className={MUTED}>{COPY.previewInvalid}</p>
       ) : state.kind === "failed" ? (
-        <p className="text-body-touch text-ink md:text-body">
-          {COPY.previewFailed}
-        </p>
+        <p className="text-body text-ink">{COPY.previewFailed}</p>
       ) : state.kind === "shown" ? (
         shown.length ? (
-          <ul className="grid gap-1 text-body-touch text-ink md:text-body">
+          <ul className="grid gap-1 text-body text-ink">
             {shown.map((o) => (
               <li key={`${o.localDate}-${o.startsAt}`}>
                 {occurrenceLine(o, timezone)}
@@ -478,9 +475,7 @@ export function SchedulePreview({
             ))}
           </ul>
         ) : (
-          <p className="text-body-touch text-ink md:text-body">
-            {COPY.previewNone}
-          </p>
+          <p className="text-body text-ink">{COPY.previewNone}</p>
         )
       ) : null}
       <p role="status" aria-live="polite" className="sr-only">

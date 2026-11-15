@@ -267,7 +267,7 @@ test.describe("forced colours", () => {
       for (const width of [390, 1280]) {
         await visit(page, width, path)
         const primary = page.locator(
-          '[data-slot="button"]:is([data-variant="default"], [data-variant="primary"])'
+          '[data-slot="button"][data-variant="primary"]'
         )
         const chip = page.locator('[data-slot="status-chip"]')
         buttons += await primary.filter({ visible: true }).count()
@@ -301,19 +301,19 @@ test.describe("forced colours", () => {
   test("a selected segment differs from the others by more than its fill", async () => {
     // [page, path, selected, unselected, dialog that holds the group]
     const groups: [Page, string, string, string, string?][] = [
-      // Library filters (ToggleGroup)
+      // Library filters (SegmentedControl)
       [
         fcAdmin,
         "/admin",
-        '[data-slot="toggle-group-item"][aria-pressed="true"]',
-        '[data-slot="toggle-group-item"][aria-pressed="false"]',
+        '[data-slot="segmented-control-item"][aria-checked="true"]',
+        '[data-slot="segmented-control-item"][aria-checked="false"]',
       ],
-      // Photos filter (Segmented radios), inside the Filters dialog
+      // Photos filter (SegmentedControl), inside the Filters dialog
       [
         fcStaff,
         "/staff/community",
-        '[role="radiogroup"] label:has(input:checked)',
-        '[role="radiogroup"] label:has(input:not(:checked))',
+        '[data-slot="segmented-control-item"][aria-checked="true"]',
+        '[data-slot="segmented-control-item"][aria-checked="false"]',
         "Filters",
       ],
     ]

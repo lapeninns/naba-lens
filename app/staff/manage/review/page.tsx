@@ -7,7 +7,7 @@ import {
   type ManageSearch,
 } from "@/app/staff/manage/_shared/screens"
 
-export const metadata: Metadata = { title: "Review · Manage · Naba-Lens" }
+export const metadata: Metadata = { title: "Review · Manage" }
 
 export default async function ManageReviewPage({
   searchParams,

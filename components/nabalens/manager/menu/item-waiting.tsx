@@ -65,7 +65,6 @@ export function ItemWaiting({
             href={managerHrefs.review({ item: item.itemId })}
             className={buttonVariants({
               variant: "primary",
-              size: "touch",
               className: "justify-self-start max-md:w-full",
             })}
           >

@@ -4,6 +4,8 @@ import * as React from "react"
 import { PlusIcon, XIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
+import { fieldControlVariants } from "@/components/ui/field-control"
+import { cn } from "@/lib/utils"
 import type { Place, PlaceRef } from "@/lib/knowledge-client/contract"
 
 import { FieldMessage, LABEL, MUTED } from "../amenities/capture/field-parts"
@@ -17,12 +19,11 @@ import {
   type FacilityField,
 } from "./facility-detail"
 
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
+const INPUT = cn("block", fieldControlVariants())
 const ROW =
-  "flex min-h-11 cursor-pointer items-center gap-3 text-body-touch text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:text-body"
+  "flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink focus-ring-within"
 const SUMMARY =
-  "min-h-11 cursor-pointer content-center rounded-control text-body-touch font-semibold text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:text-body"
+  "min-h-11 cursor-pointer content-center rounded-control text-body font-semibold text-ink outline-none focus-ring"
 
 const AVAILABILITY: FacilityAvailability[] = [
   "available",
@@ -119,7 +120,7 @@ export function FacilityDetailFields({
             <label key={place.subjectId} className={ROW}>
               <input
                 type="checkbox"
-                className="size-5 shrink-0 accent-primary"
+                className="size-5 shrink-0 accent-accent"
                 checked={chosen(place.subjectId)}
                 onChange={(e) =>
                   togglePlace(place.subjectId, e.currentTarget.checked)
@@ -135,13 +136,13 @@ export function FacilityDetailFields({
                   key={ref.label}
                   className="flex min-w-0 items-center justify-between gap-2"
                 >
-                  <span className="text-body-touch [overflow-wrap:anywhere] text-ink md:text-body">
+                  <span className="text-body [overflow-wrap:anywhere] text-ink">
                     {ref.label}
                   </span>
                   <Button
                     type="button"
                     variant="quiet"
-                    size="icon-sm"
+                    size="icon"
                     aria-label={COPY.removePlace(ref.label)}
                     onClick={() => removeLabel(ref.label)}
                   >
@@ -203,7 +204,7 @@ export function FacilityDetailFields({
               <input
                 type="radio"
                 name={`${id}-availability`}
-                className="size-5 shrink-0 accent-primary"
+                className="size-5 shrink-0 accent-accent"
                 checked={value.availability === state}
                 onChange={() => set({ availability: state })}
               />
@@ -273,7 +274,7 @@ export function FacilityDetailFields({
               <input
                 type="radio"
                 name={`${id}-fees`}
-                className="size-5 shrink-0 accent-primary"
+                className="size-5 shrink-0 accent-accent"
                 checked={value.fees.kind === kind}
                 onChange={() => set({ fees: { ...value.fees, kind } })}
               />

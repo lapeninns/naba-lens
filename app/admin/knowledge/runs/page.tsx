@@ -21,7 +21,7 @@ export const metadata: Metadata = { title: "Runs · Knowledge · Naba-Lens" }
 
 const PATH = "/admin/knowledge/runs"
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const MUTED = "text-meta-touch text-ink-muted md:text-meta"
+const MUTED = "text-meta text-ink-muted"
 
 type RunRow = {
   runId: string
@@ -86,7 +86,7 @@ export default async function RunsPage({
 
   return (
     <AppShell variant="admin" active="coverage" userName={profile.displayName}>
-      <div className="mx-auto grid w-full max-w-(--size-reading) min-w-0 gap-(--gutter)">
+      <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
         <PageHeader title={COPY.runsTitle} />
         <StartDryRunForm
           venues={venues}
@@ -97,9 +97,7 @@ export default async function RunsPage({
           {!runs?.ok ? (
             <Notice tone="negative">{COPY.failed}</Notice>
           ) : rows.length === 0 ? (
-            <p className="text-body-touch text-ink md:text-body">
-              {COPY.noRuns}
-            </p>
+            <p className="text-body text-ink">{COPY.noRuns}</p>
           ) : (
             <ul className="grid gap-3">
               {rows.map((r) => (
@@ -119,9 +117,7 @@ export default async function RunsPage({
                   <p className={MUTED}>
                     {COPY.started(r.startedBy, dateAndTime(r.startedAt))}
                   </p>
-                  <p className="text-body-touch text-ink md:text-body">
-                    {COPY.summary(r.counts)}
-                  </p>
+                  <p className="text-body text-ink">{COPY.summary(r.counts)}</p>
                 </li>
               ))}
             </ul>
@@ -130,10 +126,7 @@ export default async function RunsPage({
             <div>
               <Link
                 href={`${PATH}?cursor=${encodeURIComponent(runs.page.nextCursor)}`}
-                className={buttonVariants({
-                  variant: "secondary",
-                  size: "touch",
-                })}
+                className={buttonVariants({ variant: "secondary" })}
               >
                 {COPY.showOlder}
               </Link>

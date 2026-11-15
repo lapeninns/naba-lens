@@ -168,7 +168,6 @@ export function VenueMenusView({
             {active ? (
               <Button
                 variant="secondary"
-                size="touch"
                 onClick={() => draft.run("copy")}
                 disabled={busy}
                 aria-busy={draft.pending === "copy" || undefined}
@@ -180,7 +179,6 @@ export function VenueMenusView({
             ) : (
               <Button
                 variant="secondary"
-                size="touch"
                 onClick={() => draft.run("empty")}
                 disabled={busy}
                 aria-busy={draft.pending === "empty" || undefined}
@@ -191,7 +189,7 @@ export function VenueMenusView({
               </Button>
             )}
             <Button
-              size="touch"
+              variant="primary"
               onClick={() => setImporting(true)}
               disabled={importing}
             >

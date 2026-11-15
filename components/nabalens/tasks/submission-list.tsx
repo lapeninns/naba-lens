@@ -14,7 +14,7 @@ import type { SubmissionView } from "./types"
 export function ReviewReason({ reason }: { reason: string | null }) {
   if (!reason) return null
   return (
-    <div className="rounded-control bg-warn-bg px-3 py-2.5 text-body text-ink shadow-[inset_4px_0_0_var(--warn-fg)]">
+    <div className="rounded-control bg-warn-bg px-3 py-2.5 text-body text-ink rail-start-warn">
       <span className="font-bold">Reason: </span>
       <span className="break-words whitespace-pre-line">{reason}</span>
     </div>
@@ -99,9 +99,7 @@ export function SubmissionRow({
       ) : null}
       {submission.completionTarget ? (
         <p className="text-meta text-ink-muted">
-          {submission.requirement
-            ? COMPLETION_ONLY
-            : "Coverage photo history."}
+          {submission.requirement ? COMPLETION_ONLY : "Coverage photo history."}
         </p>
       ) : !submission.countsTowardMonthly ? (
         <p className="text-meta text-ink-muted">
@@ -177,7 +175,7 @@ export function SubmissionList({
       aria-label={label}
       className={
         variant === "post"
-          ? "grid gap-(--gutter)"
+          ? "grid gap-gutter"
           : "grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
       }
     >

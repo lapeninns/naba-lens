@@ -9,14 +9,14 @@ export type CardTone = "warn" | "info" | "ok"
 
 /** Inset bar on the left of a card (Card) or along the top (LeadCard). */
 const LEFT_BAR: Record<CardTone, string> = {
-  warn: "shadow-[var(--elevation-card),inset_4px_0_0_var(--warn-fg)]",
-  info: "shadow-[var(--elevation-card),inset_4px_0_0_var(--info-fg)]",
-  ok: "shadow-[var(--elevation-card),inset_4px_0_0_var(--ok-fg)]",
+  warn: "shadow-card rail-start-warn",
+  info: "shadow-card rail-start-info",
+  ok: "shadow-card rail-start-ok",
 }
 const TOP_BAR: Record<CardTone, string> = {
-  warn: "pt-5 shadow-[var(--elevation-card),inset_0_4px_0_var(--warn-fg)]",
-  info: "pt-5 shadow-[var(--elevation-card),inset_0_4px_0_var(--info-fg)]",
-  ok: "pt-5 shadow-[var(--elevation-card),inset_0_4px_0_var(--ok-fg)]",
+  warn: "pt-5 shadow-card rail-top-warn",
+  info: "pt-5 shadow-card rail-top-info",
+  ok: "pt-5 shadow-card rail-top-ok",
 }
 
 type CardProps = Omit<React.HTMLAttributes<HTMLElement>, "ref"> & {
@@ -132,7 +132,7 @@ export function LeadCard({
       ) : null}
       <Title
         id={titleId}
-        className="font-display text-card-title [overflow-wrap:anywhere] text-ink"
+        className="type-section-title [overflow-wrap:anywhere] text-ink"
       >
         {title}
       </Title>

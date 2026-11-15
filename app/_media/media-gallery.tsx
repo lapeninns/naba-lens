@@ -417,7 +417,7 @@ export function MediaGallery({
       {brokenCount > 0 ? (
         <div
           role="alert"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-warn-bg p-3 ps-4 text-body text-ink shadow-[inset_4px_0_0_var(--warn-fg)]"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-warn-bg p-3 ps-4 text-body text-ink rail-start-warn"
         >
           <span className="flex min-w-0 items-start gap-2">
             <WarningCircleIcon

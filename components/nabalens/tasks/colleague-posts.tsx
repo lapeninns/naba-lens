@@ -33,19 +33,16 @@ export function ColleaguePosts({
   if (posts.length === 0) return null
 
   return (
-    <section
-      aria-labelledby="colleagues-heading"
-      className="grid gap-(--gutter)"
-    >
+    <section aria-labelledby="colleagues-heading" className="grid gap-gutter">
       <div className="px-1 pt-2">
         <h2
           id="colleagues-heading"
-          className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+          className="type-section-title [overflow-wrap:anywhere] text-ink"
         >
           From your colleagues
         </h2>
       </div>
-      <ul className="grid gap-(--gutter)">
+      <ul className="grid gap-gutter">
         {posts.map((item) => (
           <li key={item.id} className="min-w-0">
             <Post

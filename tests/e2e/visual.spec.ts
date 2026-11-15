@@ -416,18 +416,23 @@ async function focusWalk(page: Page, maxStops = 40) {
       const outline =
         s.outlineStyle !== "none" && parseFloat(s.outlineWidth) > 0
       // A focus ring is a zero-offset, zero-blur box-shadow with a spread. A
-      // card may draw it for its stretched link (`:has(:focus-visible)`).
+      // card or row may mark focus for its stretched link, whose own outline
+      // is off: with a ring, or with an outline (`:has(:focus-visible)`).
       const isRing = (shadow: string) =>
         /(^|,\s*)(\S+(\([^)]*\))?\s+)?0px 0px 0px [1-9]/.test(shadow)
+      const hasOutline = (style: CSSStyleDeclaration) =>
+        style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0
       let ancestorRing = false
       for (
         let a = el.parentElement, i = 0;
         a && i < 4 && !ancestorRing;
         a = a.parentElement, i++
-      )
+      ) {
+        const ancestor = getComputedStyle(a)
         ancestorRing =
           a.matches(":has(:focus-visible)") &&
-          isRing(getComputedStyle(a).boxShadow)
+          (isRing(ancestor.boxShadow) || hasOutline(ancestor))
+      }
       const ring =
         (s.boxShadow !== "none" && s.boxShadow !== "") || ancestorRing
       const key =
@@ -978,7 +983,10 @@ test("admin: library and filters", async ({ browser, baseURL }, testInfo) => {
   })
   await page.getByRole("option", { name: fx.venue.name }).click()
   await expect(page).toHaveURL(/venue=/)
-  await page.getByRole("button", { name: "Videos", exact: true }).click()
+  await page
+    .getByRole("radiogroup", { name: "Media type" })
+    .getByRole("radio", { name: "Videos", exact: true })
+    .click()
   await expect(page).toHaveURL(/type=video/)
   await expect(
     page.getByRole("button", { name: /kitchen-pass\.mp4/ })

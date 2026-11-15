@@ -1,12 +1,12 @@
 "use client"
 
+import { SearchField } from "@/components/ui/search-field"
 import * as React from "react"
 import { MagnifyingGlassIcon } from "@phosphor-icons/react"
 
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import type { Department } from "@/lib/config/departments"
 
 import { TEAM_OPTIONS } from "../community/search"
@@ -34,26 +34,17 @@ export function PeopleSearch({
       // Common Room: the search sits in one white card above the list.
       className="grid gap-3 rounded-card bg-surface p-4 shadow-card md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end"
     >
-      <Field>
-        <FieldLabel htmlFor="people-name">Name</FieldLabel>
-        <span className="relative block">
-          <MagnifyingGlassIcon
-            aria-hidden
-            className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
-          />
-          <Input
-            id="people-name"
-            name="q"
-            type="search"
-            autoComplete="off"
-            enterKeyHint="search"
-            defaultValue={query}
-            placeholder="Search by name"
-            maxLength={80}
-            className="pl-11"
-          />
-        </span>
-      </Field>
+      <SearchField
+        // Remounts when the address changes, so a cleared search empties it.
+        key={query}
+        id="people-name"
+        name="q"
+        label="Name"
+        autoComplete="off"
+        defaultValue={query}
+        placeholder="Search by name"
+        maxLength={80}
+      />
       <div className="grid grid-cols-2 gap-3 md:contents">
         <Field>
           <FieldLabel htmlFor="people-venue">Venue</FieldLabel>
@@ -78,12 +69,7 @@ export function PeopleSearch({
           {team ? <input type="hidden" name="department" value={team} /> : null}
         </Field>
       </div>
-      <Button
-        type="submit"
-        variant="primary"
-        size="touch"
-        className="w-full md:w-auto"
-      >
+      <Button type="submit" variant="primary" className="w-full md:w-auto">
         <MagnifyingGlassIcon aria-hidden />
         {PEOPLE_COPY.find}
       </Button>

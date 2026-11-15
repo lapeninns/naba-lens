@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 
 export default function CommunityError({ retry }: { retry: () => void }) {
   return (
-    <main className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) px-(--page-gutter) pt-4 pb-8 md:px-0 md:py-8">
+    <main className="mx-auto flex w-full max-w-feed flex-col gap-gutter px-page-gutter pt-4 pb-8 md:px-0 md:py-8">
       <PageHeader scope="All venues" title="Photos" className="pb-1 md:pb-1" />
       <ErrorState
         title={ERROR_COPY.couldNotLoad("photos")}

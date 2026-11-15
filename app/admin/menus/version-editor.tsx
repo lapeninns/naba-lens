@@ -388,7 +388,7 @@ export function VersionEditor({
         <DotsThreeIcon weight="bold" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
-        <DropdownMenuItem variant="destructive" onClick={onSelect}>
+        <DropdownMenuItem variant="danger" onClick={onSelect}>
           {label}
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -403,7 +403,6 @@ export function VersionEditor({
     <>
       <Button
         variant="secondary"
-        size="touch"
         className={barButton}
         onClick={save}
         disabled={!dirty || saving || refreshing || conflict || !online}
@@ -412,13 +411,13 @@ export function VersionEditor({
         {saving ? "Saving…" : "Save"}
       </Button>
       {unresolved > 0 ? (
-        <Button size="touch" className={barButton} onClick={review}>
+        <Button variant="primary" className={barButton} onClick={review}>
           <WarningIcon aria-hidden />
           {`Review ${plural(unresolved, "item")}`}
         </Button>
       ) : (
         <Button
-          size="touch"
+          variant="primary"
           className={barButton}
           onClick={() => setDialog("activate")}
           disabled={!online}
@@ -432,7 +431,6 @@ export function VersionEditor({
     <>
       <Button
         variant="secondary"
-        size="touch"
         onClick={startDraft}
         disabled={starting || !online}
         aria-busy={starting || undefined}
@@ -480,7 +478,7 @@ export function VersionEditor({
         ) : null}
         {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
 
-        <div className="grid items-start gap-(--gutter) lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="grid items-start gap-gutter lg:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="grid min-w-0 gap-6">
             <section
               id={editorId}
@@ -555,7 +553,7 @@ export function VersionEditor({
 
           <aside
             aria-label="About this version"
-            className="grid min-w-0 gap-(--gutter) lg:sticky lg:top-6"
+            className="grid min-w-0 gap-gutter lg:sticky lg:top-6"
           >
             {isDraft ? (
               <section
@@ -564,7 +562,7 @@ export function VersionEditor({
               >
                 <h2
                   id={`${editorId}-before`}
-                  className="font-display text-section-title text-ink"
+                  className="type-section-title text-ink"
                 >
                   {unresolved === 0 && blockers.length === 0
                     ? "Ready to activate"
@@ -671,10 +669,9 @@ export function VersionEditor({
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel size="touch">Keep editing</AlertDialogCancel>
+                <AlertDialogCancel>Keep editing</AlertDialogCancel>
                 <Button
                   variant="danger"
-                  size="touch"
                   onClick={() => {
                     const href = leaving
                     setLeaving(null)

@@ -22,7 +22,7 @@ import {
   type CommunitySearch,
 } from "./search"
 
-export const metadata = { title: "Photos · Naba-Lens" }
+export const metadata = { title: "Photos" }
 
 const clearFilters = (
   <Link
@@ -64,7 +64,7 @@ export default async function CommunityPage({
       userName={profile.displayName}
     >
       {/* Common Room: one feed column of posts on the grey canvas. */}
-      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
+      <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
         <OfflineNotice />
         <PageHeader
           scope={venueName ?? "All venues"}

@@ -35,7 +35,7 @@ export function BackToTasks({
   return (
     <Link
       href={href}
-      className="-ml-1 inline-flex min-h-11 items-center gap-1.5 self-start rounded-control px-1 text-label text-ink outline-none hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+      className="-ml-1 inline-flex min-h-11 items-center gap-1.5 self-start rounded-control px-1 text-label text-ink focus-ring outline-none hover:underline"
     >
       <CaretLeftIcon className="size-5" weight="bold" aria-hidden />
       {label}
@@ -67,7 +67,7 @@ function Flag({
       className={cn(
         "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2.5 rounded-control px-3 py-2.5 text-body text-ink [&_svg]:mt-px [&_svg]:size-[22px]",
         tone === "warn"
-          ? "bg-warn-bg shadow-[inset_4px_0_0_var(--warn-fg)] [&_svg]:text-warn-fg"
+          ? "bg-warn-bg rail-start-warn [&_svg]:text-warn-fg"
           : "bg-surface-2 [&_svg]:text-ink-muted"
       )}
     >
@@ -105,7 +105,7 @@ function SharedCount({
         "h-3",
         segmented
           ? "grid gap-1"
-          : "flex overflow-hidden rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+          : "flex overflow-hidden rounded-round bg-surface-2 edge-strong"
       )}
       style={
         segmented
@@ -119,9 +119,7 @@ function SharedCount({
             key={index}
             className={cn(
               "block h-3 rounded-round",
-              index < ok
-                ? "bg-ok-fg"
-                : "bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+              index < ok ? "bg-ok-fg" : "bg-surface-2 edge-strong"
             )}
           />
         ))
@@ -169,14 +167,14 @@ export function TaskSummary({
   const others = Math.max(0, assignees.length - 1)
   const countsNote = !closed && !satisfied && !overdue && monthLabel
   return (
-    <div className="flex flex-col gap-(--gutter)">
+    <div className="flex flex-col gap-gutter">
       <Card className="gap-3.5">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
           <IconDisc className="size-11 [&_svg]:size-6">
             {KIND_ICON[requirement.kind] ?? <CalendarBlankIcon />}
           </IconDisc>
           <div className="grid min-w-0 gap-0.5">
-            <h1 className="font-display text-card-title [overflow-wrap:anywhere] text-ink">
+            <h1 className="type-page-title [overflow-wrap:anywhere] text-ink">
               {requirement.title}
             </h1>
             {venueName ? (
@@ -229,7 +227,7 @@ export function TaskSummary({
             >
               What to photograph
             </h2>
-            <p className="max-w-(--size-reading) break-words whitespace-pre-line">
+            <p className="max-w-reading break-words whitespace-pre-line">
               {requirement.guidance}
             </p>
           </section>
@@ -251,16 +249,13 @@ export function TaskSummary({
       {guide}
 
       <Card as="section" aria-labelledby="progress-heading" className="gap-2.5">
-        <h2
-          id="progress-heading"
-          className="font-display text-section-title text-ink"
-        >
+        <h2 id="progress-heading" className="type-section-title text-ink">
           On this section
         </h2>
         {progress.target ? (
           <>
-            <p className="font-display text-section-title text-ink tabular-nums">
-              <span className="text-[2.125rem] leading-none font-extrabold tracking-[-0.02em]">
+            <p className="type-section-title text-ink tabular-nums">
+              <span className="text-display leading-none">
                 {progress.accepted}
               </span>{" "}
               of {progress.target}{" "}

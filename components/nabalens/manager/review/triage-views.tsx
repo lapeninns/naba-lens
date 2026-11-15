@@ -1,5 +1,6 @@
 import Link from "next/link"
 
+import { FilterPill } from "@/components/ui/filter-pill"
 import { amenityHrefs } from "@/lib/amenities/contract"
 import type { ToConfirmRow } from "@/lib/knowledge-client/contract"
 import { dishName } from "@/lib/menus/dish-name"
@@ -38,21 +39,20 @@ export function ReviewKindFilter({ active }: { active: ReviewKind }) {
   return (
     <nav aria-label={REVIEW_KIND_COPY.label} className="flex flex-wrap gap-2">
       {(["photos", "findings", "all"] as const).map((kind) => (
-        <Link
+        <FilterPill
           key={kind}
           href={reviewKindHref(kind)}
-          aria-current={kind === active ? "page" : undefined}
-          className="inline-flex min-h-11 items-center rounded-round border border-border-strong px-4 text-body font-semibold text-ink outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid aria-[current=page]:bg-ink aria-[current=page]:text-surface"
+          selected={kind === active}
         >
           {REVIEW_KIND_COPY.kinds[kind]}
-        </Link>
+        </FilterPill>
       ))}
     </nav>
   )
 }
 
 const ROW_LINK =
-  "grid min-h-16 min-w-0 gap-1 p-4 outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+  "grid min-h-16 min-w-0 gap-1 p-4 focus-ring-inset outline-none hover:bg-surface-2"
 
 /** When a To confirm row started waiting (R4), else its send time. */
 export const findingWaitingAt = (row: ToConfirmRow) =>
@@ -175,7 +175,7 @@ export function AllView({
       {heldBack > 0 ? (
         <Link
           href={reviewKindHref("photos")}
-          className="inline-flex min-h-11 items-center justify-self-start rounded-control text-body text-ink underline underline-offset-2 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="inline-flex min-h-11 items-center justify-self-start rounded-control text-body text-ink underline underline-offset-2 focus-ring outline-none"
         >
           {REVIEW_KIND_COPY.heldBack}
         </Link>

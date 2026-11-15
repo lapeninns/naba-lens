@@ -1,5 +1,6 @@
 "use client"
 
+import { Textarea } from "@/components/ui/textarea"
 import * as React from "react"
 import Link from "next/link"
 import {
@@ -7,7 +8,6 @@ import {
   MinusIcon,
   PencilSimpleIcon,
   PlusIcon,
-  SpinnerGapIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 
@@ -79,7 +79,7 @@ export function TeamTag({
 }) {
   if (!department) return <StatusChip state="needs_setup">No team</StatusChip>
   return (
-    <span className="inline-flex min-h-7 items-center rounded-square px-2 font-mono text-meta-strong tracking-[0.04em] whitespace-nowrap text-ink-muted shadow-[inset_0_0_0_1.5px_var(--border-strong)]">
+    <span className="inline-flex min-h-7 items-center rounded-square px-2 font-mono text-meta font-semibold tracking-[0.04em] whitespace-nowrap text-ink-muted shadow-[inset_0_0_0_1.5px_var(--edge-strong)]">
       {department.toUpperCase()}
     </span>
   )
@@ -105,7 +105,7 @@ export function TeamPerson({
           {href ? (
             <Link
               href={href}
-              className="-my-2.5 inline-flex min-h-11 items-center rounded-control [overflow-wrap:anywhere] underline-offset-3 outline-none hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+              className="-my-2.5 inline-flex min-h-11 items-center rounded-control [overflow-wrap:anywhere] underline-offset-3 focus-ring outline-none hover:underline"
             >
               {person.displayName}
             </Link>
@@ -150,7 +150,7 @@ export function Stepper({
   const n = Number(value)
   const set = value !== "" && Number.isInteger(n)
   const step =
-    "grid min-h-12 w-12 place-items-center rounded-control bg-surface-2 text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-surface-2"
+    "grid min-h-12 w-12 place-items-center rounded-control bg-surface-2 text-ink transition-colors duration-quick outline-none hover:bg-raised focus-ring disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-surface-2"
   return (
     <div className={cn("inline-flex items-stretch gap-2 justify-self-start")}>
       <button
@@ -174,12 +174,12 @@ export function Stepper({
         aria-describedby={describedBy}
         disabled={disabled}
         className={cn(
-          "min-h-12 w-[3.75em] rounded-control bg-surface-2 text-center text-lead font-bold text-ink tabular-nums outline-none placeholder:text-ink-muted focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:opacity-60",
+          "min-h-12 w-[3.75em] rounded-control bg-surface-2 text-center text-lead font-bold text-ink tabular-nums focus-ring outline-none placeholder:text-ink-muted disabled:opacity-60",
           invalid
-            ? "shadow-[inset_0_0_0_2px_var(--warn-fg)]"
+            ? "edge-invalid"
             : changed
               ? "shadow-[inset_0_0_0_2px_var(--accent-text)]"
-              : "shadow-[inset_0_0_0_1.5px_var(--border-strong)]"
+              : "shadow-[inset_0_0_0_1.5px_var(--edge-strong)]"
         )}
       />
       <button
@@ -606,12 +606,12 @@ function TeamRosterMonth({
           verb={completion ? "completed" : "accepted"}
           pending={completion ? 0 : row.pending}
           chip={chip}
-          className="@max-[640px]:col-span-full"
+          className="@max-wide:col-span-full"
         />
       )
     } else {
       progress = (
-        <p className="@max-[640px]:col-span-full">
+        <p className="@max-wide:col-span-full">
           <StatusChip state="needs_setup" />
         </p>
       )
@@ -621,7 +621,7 @@ function TeamRosterMonth({
       <li
         key={`${id}:${row.venue.id}`}
         data-target-row={id}
-        className="grid grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1fr)_minmax(0,0.8fr)] items-center gap-x-5 gap-y-3 p-4 @max-[640px]:grid-cols-1"
+        className="grid grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1fr)_minmax(0,0.8fr)] items-center gap-x-5 gap-y-3 p-4 @max-wide:grid-cols-1"
       >
         <TeamPerson
           person={row.person}
@@ -666,7 +666,7 @@ function TeamRosterMonth({
           </p>
         )}
         {progress}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 @max-[640px]:col-span-full">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 @max-wide:col-span-full">
           {completion ? (
             <p className="text-meta text-ink-muted">
               {completionBreakdown(completion)}
@@ -768,7 +768,7 @@ function TeamRosterMonth({
   }
 
   return (
-    <div className="grid min-w-0 gap-(--gutter) md:gap-4">
+    <div className="grid min-w-0 gap-gutter md:gap-4">
       <CoverageNotice
         ref={noticeRef}
         notice={notice}
@@ -786,13 +786,10 @@ function TeamRosterMonth({
       ) : (
         <section
           aria-labelledby={`${ids}-people`}
-          className="grid min-w-0 gap-(--gutter)"
+          className="grid min-w-0 gap-gutter"
         >
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pt-2">
-            <h2
-              id={`${ids}-people`}
-              className="font-display text-section-title text-ink"
-            >
+            <h2 id={`${ids}-people`} className="type-section-title text-ink">
               People
             </h2>
             <span className="text-meta text-ink-muted tabular-nums">
@@ -825,11 +822,11 @@ function TeamRosterMonth({
       {moved.length > 0 ? (
         <section
           aria-labelledby={`${ids}-moved`}
-          className="grid min-w-0 gap-(--gutter)"
+          className="grid min-w-0 gap-gutter"
         >
           <h2
             id={`${ids}-moved`}
-            className="px-1 pt-2 font-display text-section-title text-ink"
+            className="px-1 pt-2 type-section-title text-ink"
           >
             Moved away this month
           </h2>
@@ -839,22 +836,19 @@ function TeamRosterMonth({
         </section>
       ) : null}
       {changes.length > 0 ? (
-        <div className="sticky bottom-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px))] z-30 -mx-(--page-gutter) flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-(--page-gutter) py-3 shadow-float md:bottom-0 md:mx-0 md:rounded-card md:border-t-0 md:px-4 md:shadow-card">
+        <div className="sticky bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px))] z-dock -mx-page-gutter flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-page-gutter py-3 shadow-float md:bottom-0 md:mx-0 md:rounded-card md:border-t-0 md:px-4 md:shadow-card">
           <p role="status" className="text-meta text-ink-muted tabular-nums">
             {plural(changes.length, "change")} not saved
           </p>
           <Button
+            variant="primary"
             onClick={() => void save()}
             className="max-md:flex-auto"
-            aria-disabled={saving || undefined}
-            aria-busy={saving || undefined}
+            loading={saving}
+            loadingLabel="Saving…"
           >
-            {saving ? (
-              <SpinnerGapIcon aria-hidden className="animate-spin" />
-            ) : (
-              <CheckIcon aria-hidden />
-            )}
-            {saving ? "Saving…" : "Save targets"}
+            <CheckIcon aria-hidden />
+            Save targets
           </Button>
         </div>
       ) : null}
@@ -1073,7 +1067,7 @@ function CorrectTargetDialog({
             <label htmlFor={`${ids}-reason`} className={fieldLabel}>
               Reason
             </label>
-            <textarea
+            <Textarea
               id={`${ids}-reason`}
               rows={3}
               value={reason}
@@ -1085,7 +1079,6 @@ function CorrectTargetDialog({
               aria-invalid={!!errors.reason || undefined}
               aria-describedby={`${ids}-reason-hint`}
               disabled={pending}
-              className="min-h-28 w-full resize-y rounded-control bg-surface-2 px-3.5 py-3 text-body text-ink shadow-[inset_0_0_0_1.5px_var(--border-strong)] outline-none placeholder:text-ink-muted focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid aria-invalid:shadow-[inset_0_0_0_2px_var(--warn-fg)]"
             />
             <div className="flex items-start gap-3">
               {errors.reason ? (
@@ -1105,22 +1098,18 @@ function CorrectTargetDialog({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               onClick={() => onOpenChange(false)}
               disabled={pending}
             >
               Cancel
             </Button>
             <Button
+              variant="primary"
               type="submit"
-              size="touch"
-              aria-disabled={pending || undefined}
-              aria-busy={pending || undefined}
+              loading={pending}
+              loadingLabel="Saving…"
             >
-              {pending ? (
-                <SpinnerGapIcon aria-hidden className="animate-spin" />
-              ) : null}
-              {pending ? "Saving…" : "Save correction"}
+              Save correction
             </Button>
           </DialogFooter>
         </form>

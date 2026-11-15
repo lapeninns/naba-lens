@@ -1,11 +1,11 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import * as React from "react"
 import {
   DownloadSimpleIcon,
   ImageBrokenIcon,
   PencilSimpleIcon,
-  SpinnerGapIcon,
   TagIcon,
   TrashIcon,
   UserCircleIcon,
@@ -83,7 +83,7 @@ function StageMessage({
   action?: React.ReactNode
 }) {
   return (
-    <div className="flex w-full flex-col items-center justify-center gap-3 px-4 py-16 text-center text-on-viewer-muted">
+    <div className="flex w-full flex-col items-center justify-center gap-3 px-4 py-16 text-center text-on-stage-muted">
       {icon}
       <p className="text-body">{children}</p>
       {action}
@@ -137,14 +137,7 @@ function Preview({
   }
   if (item.uploadState === "uploading" || item.uploadState === "processing") {
     return (
-      <StageMessage
-        icon={
-          <SpinnerGapIcon
-            className="size-8 motion-safe:animate-spin"
-            aria-hidden
-          />
-        }
-      >
+      <StageMessage icon={<Spinner className="size-8" />}>
         {item.uploadState === "processing"
           ? "Processing. It appears here in a moment."
           : "Still uploading."}
@@ -175,7 +168,7 @@ function Preview({
         playsInline
         preload="metadata"
         aria-label={label}
-        className="max-h-[65svh] w-full bg-viewer"
+        className="max-h-[65svh] w-full bg-stage"
         onError={() => setFailedUrl(item.previewUrl)}
       >
         {PREVIEW_UNAVAILABLE}
@@ -263,19 +256,18 @@ export function MediaViewer({
     <Dialog open={open && !!item} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className={cn(
-          // The stage behind the photo is always near black (DESIGN.md §2),
-          // in both themes; the details card below follows the theme.
-          // Phones: full screen, details in a card below the media. From
-          // md: media beside a 20rem details panel.
-          "gap-0 bg-bg p-0 pt-0 pb-0 text-ink before:hidden",
-          "max-md:top-0 max-md:max-h-dvh max-md:min-h-dvh max-md:rounded-none",
-          "md:max-h-[calc(100dvh-3rem)] md:max-w-[min(64rem,calc(100vw-3rem))] md:grid-cols-[minmax(0,1fr)_20rem] md:p-0"
-        )}
+        // The stage behind the photo is always near black (DESIGN.md §2),
+        // in both themes; the details card below follows the theme.
+        // Phones: full screen, details in a card below the media. From
+        // md: media beside a 20rem details panel.
+        size="viewer"
+        className="bg-canvas md:grid-cols-[minmax(0,1fr)_20rem]"
       >
         {item ? (
           <>
-            <div className="relative grid min-h-75 place-items-center bg-stage pt-15 pb-4 text-on-viewer md:min-h-90 md:px-6 md:pb-6">
+            {/* `dark`: whatever sits on the stage reads the dark tokens in
+                both themes (DESIGN.md §2); the details panel is outside it. */}
+            <div className="dark relative grid min-h-75 place-items-center bg-stage pt-15 pb-4 text-on-stage md:min-h-90 md:px-6 md:pb-6">
               <div className="absolute inset-x-2 top-2 flex items-center justify-between gap-2">
                 {/* A labelled Close (DESIGN.md §4): icon and word. */}
                 <DialogClose
@@ -283,7 +275,7 @@ export function MediaViewer({
                     <Button
                       variant="quiet"
                       size="sm"
-                      className="gap-1.5 px-3 text-on-viewer hover:bg-on-viewer/12 hover:text-on-viewer active:bg-on-viewer/20"
+                      className="gap-1.5 px-3 text-on-stage hover:bg-on-stage/12 hover:text-on-stage active:bg-on-stage/20"
                     />
                   }
                 >
@@ -308,7 +300,7 @@ export function MediaViewer({
             </div>
             <aside
               aria-label="Details"
-              className="grid content-start bg-bg p-(--page-gutter) pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] md:border-s md:border-line md:p-4"
+              className="grid content-start bg-canvas p-page-gutter pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] md:border-s md:border-line md:p-4"
             >
               <DialogTitle className="sr-only">
                 {noun(item)} by {item.contributorName}
@@ -375,39 +367,38 @@ export function MediaViewer({
                 ) : null}
                 {removed ? (
                   <div className="flex flex-col gap-2 md:flex-row md:flex-wrap">
-                    <DialogClose
-                      render={<Button variant="secondary" size="touch" />}
-                    >
+                    <DialogClose render={<Button variant="secondary" />}>
                       Close
                     </DialogClose>
                   </div>
                 ) : downloadable || editLabels || profileHref || deletable ? (
-                  // Phones stack the actions with the primary last, nearest the
-                  // thumb; from md they read in order, primary first.
-                  <div className="flex flex-col-reverse gap-2 md:flex-row md:flex-wrap">
-                    {downloadable ? (
-                      <a
-                        href={getDownloadHref(item)}
-                        download
-                        onClick={
-                          onDownload ? () => onDownload(item) : undefined
-                        }
+                  // Quiet and grey first, the primary last, in DOM order (DESIGN.md
+                  // §4): stacked on phones Download is at the bottom, nearest the
+                  // thumb; from md it is on the right. Focus follows what is seen.
+                  <div className="flex flex-col gap-2 md:flex-row md:flex-wrap">
+                    {deletable ? (
+                      <Button
+                        variant="danger-quiet"
+                        onClick={() => deletable(item)}
+                      >
+                        <TrashIcon data-icon="inline-start" aria-hidden />
+                        Delete
+                      </Button>
+                    ) : null}
+                    {profileHref ? (
+                      <Link
+                        href={profileHref}
                         className={buttonVariants({
-                          variant: "primary",
-                          size: "touch",
+                          variant: "secondary",
                         })}
                       >
-                        <DownloadSimpleIcon
-                          data-icon="inline-start"
-                          aria-hidden
-                        />
-                        Download original
-                      </a>
+                        <UserCircleIcon data-icon="inline-start" aria-hidden />
+                        Open profile
+                      </Link>
                     ) : null}
                     {editLabels ? (
                       <Button
                         variant="secondary"
-                        size="touch"
                         onClick={() => editLabels(item)}
                       >
                         {labelsEmpty ? (
@@ -421,27 +412,23 @@ export function MediaViewer({
                         {labelsEmpty ? "Add labels" : "Edit labels"}
                       </Button>
                     ) : null}
-                    {profileHref ? (
-                      <Link
-                        href={profileHref}
+                    {downloadable ? (
+                      <a
+                        href={getDownloadHref(item)}
+                        download
+                        onClick={
+                          onDownload ? () => onDownload(item) : undefined
+                        }
                         className={buttonVariants({
-                          variant: "secondary",
-                          size: "touch",
+                          variant: "primary",
                         })}
                       >
-                        <UserCircleIcon data-icon="inline-start" aria-hidden />
-                        Open profile
-                      </Link>
-                    ) : null}
-                    {deletable ? (
-                      <Button
-                        variant="danger-quiet"
-                        size="touch"
-                        onClick={() => deletable(item)}
-                      >
-                        <TrashIcon data-icon="inline-start" aria-hidden />
-                        Delete
-                      </Button>
+                        <DownloadSimpleIcon
+                          data-icon="inline-start"
+                          aria-hidden
+                        />
+                        Download original
+                      </a>
                     ) : null}
                   </div>
                 ) : null}

@@ -199,7 +199,6 @@ export function AccountHeader({
                   ? "secondary"
                   : "primary"
               }
-              size="touch"
               onClick={() => controls.edit(member)}
               disabled={!!controls.busy}
               focusableWhenDisabled
@@ -267,17 +266,14 @@ export function AccountHeader({
         </Notice>
       ) : null}
 
-      <div className="grid items-start gap-(--gutter) lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+      <div className="grid items-start gap-gutter lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         {photos}
-        <div className="grid gap-(--gutter)">
+        <div className="grid gap-gutter">
           <section
             aria-labelledby="account-heading"
             className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
           >
-            <h2
-              id="account-heading"
-              className="font-display text-section-title text-ink"
-            >
+            <h2 id="account-heading" className="type-section-title text-ink">
               Account
             </h2>
             <dl className="grid gap-3 text-body [&_dd]:font-bold">

@@ -36,7 +36,7 @@ export default function VenueCoverageError({
               </Button>
               <Link
                 href="/admin/coverage"
-                className={buttonVariants({ variant: "ghost", size: "sm" })}
+                className={buttonVariants({ variant: "quiet", size: "sm" })}
               >
                 <ArrowLeftIcon data-icon="inline-start" aria-hidden />
                 {VENUE_COVERAGE_COPY.backToVenues}

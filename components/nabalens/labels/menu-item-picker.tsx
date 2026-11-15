@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-import { FIELD_CONTROL, FIELD_HINT, FIELD_LABEL } from "./field-styles"
+import { FIELD_HINT, FIELD_LABEL } from "./field-styles"
 import {
   searchCatalogue,
   suggestedItems,
@@ -295,7 +295,7 @@ export function MenuItemPicker({
             if (!query.trim()) setActive(-1)
           }}
           onKeyDown={onKeyDown}
-          className={cn(FIELD_CONTROL, "ps-11")}
+          className="ps-11"
         />
       </div>
       {description ? (
@@ -442,7 +442,7 @@ function VariantQuestion({
       role="group"
       aria-labelledby={headingId}
       aria-describedby={hintId}
-      className="grid gap-2 rounded-card p-3 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+      className="grid gap-2 rounded-card p-3 edge-strong"
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.preventDefault()

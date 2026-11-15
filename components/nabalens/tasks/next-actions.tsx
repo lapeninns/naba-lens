@@ -31,6 +31,7 @@ import {
   titleClass,
   TODO_HEADING_ID,
   TopRow,
+  WelcomeCard,
 } from "./todo-list"
 import type { CoverageScope } from "./types"
 
@@ -247,6 +248,7 @@ export function NextActions({
   tasksPath,
   portfolioPath,
   errors = {},
+  welcomeHref = null,
 }: {
   actions: NextAction[]
   scope: CoverageScope
@@ -254,6 +256,8 @@ export function NextActions({
   tasksPath: string
   portfolioPath: string
   errors?: NextActionErrors
+  /** The first-run screen for a new starter; null to leave it out. */
+  welcomeHref?: string | null
 }) {
   const openAdd = useAdd()
   const failedUploads = useAddFailed() ?? 0
@@ -264,6 +268,7 @@ export function NextActions({
     failedUploads > 0
       ? -1
       : actions.findIndex((item) => hasAction(item, scope, profile))
+  const welcomeLeads = failedUploads === 0 && lead === -1
   const checks = actions.filter((item) => item.kind === "check")
   const folded = !expanded && checks.length > CHECKS_SHOWN
   const hidden = new Set(folded ? checks.slice(CHECKS_SHOWN) : [])
@@ -360,7 +365,7 @@ export function NextActions({
   }
 
   return (
-    <section aria-labelledby={TODO_HEADING_ID} className="grid gap-(--gutter)">
+    <section aria-labelledby={TODO_HEADING_ID} className="grid gap-gutter">
       <div className="px-1 pt-2">
         <h2
           id={TODO_HEADING_ID}
@@ -370,7 +375,7 @@ export function NextActions({
           aria-label={
             count > 0 ? `To do, ${count} ${thingsToDo(count)}` : "To do"
           }
-          className="flex items-center gap-2 rounded-control font-display text-section-title text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="flex items-center gap-2 rounded-control type-section-title text-ink focus-ring outline-none"
         >
           To do
           <CountBadge count={count} label={thingsToDo(count)} />
@@ -381,16 +386,16 @@ export function NextActions({
           {READ_FAILED[read]}
         </ReadFailed>
       ))}
-      {actions.length === 0 && failedUploads === 0 ? (
+      {actions.length === 0 && failedUploads === 0 && !welcomeHref ? (
         failures.length > 0 ? null : (
           <div className="rounded-card bg-surface p-4 shadow-card">
-            <p className="font-display text-section-title text-ink">
+            <p className="type-section-title text-ink">
               Nothing to do right now.
             </p>
           </div>
         )
       ) : (
-        <ul className="grid gap-(--gutter)">
+        <ul className="grid gap-gutter">
           {failedUploads > 0 && openAdd ? (
             <UploadsCard count={failedUploads} primary openAdd={openAdd} />
           ) : null}
@@ -405,7 +410,6 @@ export function NextActions({
                     onClick={showAll}
                     className={buttonVariants({
                       variant: "secondary",
-                      size: "touch",
                       className: "w-full sm:w-auto",
                     })}
                   >
@@ -415,6 +419,11 @@ export function NextActions({
               )
             return shown
           })}
+          {/* New starters' way in (DESIGN.md §5a "First photo"): after every
+              real job, so it leads only when nothing else has an action. */}
+          {welcomeHref ? (
+            <WelcomeCard href={welcomeHref} primary={welcomeLeads} />
+          ) : null}
         </ul>
       )}
     </section>

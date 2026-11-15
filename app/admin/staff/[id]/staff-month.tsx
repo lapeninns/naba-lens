@@ -24,7 +24,7 @@ function Frames({
       <div
         aria-hidden
         className={cn(
-          "flex overflow-hidden rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]",
+          "flex overflow-hidden rounded-round bg-surface-2 edge-strong",
           compact ? "h-2" : "h-3"
         )}
       >
@@ -53,7 +53,7 @@ function Frames({
               ? "bg-ok-fg"
               : index < filled + pending
                 ? "bg-stripe"
-                : "bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+                : "bg-surface-2 edge-strong"
           )}
         />
       ))}
@@ -91,7 +91,7 @@ export function StaffMonth({
       className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
     >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 id={headingId} className="font-display text-section-title text-ink">
+        <h2 id={headingId} className="type-section-title text-ink">
           {inactive
             ? `${monthly.period.label} at ${monthly.venue.name}`
             : `${firstName}'s month`}
@@ -107,7 +107,7 @@ export function StaffMonth({
           <span
             className={cn(
               "tabular-nums",
-              inactive ? "text-label" : "font-display text-count"
+              inactive ? "text-label" : "type-count"
             )}
           >
             {count}
@@ -144,7 +144,7 @@ export function StaffMonth({
               <span className="inline-flex items-center gap-1.5">
                 <i
                   aria-hidden
-                  className="inline-block h-2.5 w-[22px] rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+                  className="inline-block h-2.5 w-[22px] rounded-round bg-surface-2 edge-strong"
                 />
                 {toTake} to take
               </span>

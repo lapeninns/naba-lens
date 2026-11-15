@@ -51,7 +51,7 @@ export function DishGuide({
   const posts = layout === "posts"
 
   return (
-    <div className="flex min-w-0 flex-col gap-(--gutter)">
+    <div className="flex min-w-0 flex-col gap-gutter">
       <div
         role="group"
         aria-label="Example dish"
@@ -66,7 +66,7 @@ export function DishGuide({
               aria-pressed={pressed}
               onClick={() => setDishId(d.id)}
               className={cn(
-                "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-round bg-surface-2 px-4 text-label whitespace-nowrap text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid",
+                "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-round bg-surface-2 px-4 text-label whitespace-nowrap text-ink focus-ring transition-colors duration-quick outline-none hover:bg-raised",
                 pressed &&
                   "bg-accent-soft text-accent-text shadow-[inset_0_0_0_2px_var(--accent-text)] hover:bg-accent-soft"
               )}
@@ -83,7 +83,7 @@ export function DishGuide({
       <ul
         className={
           posts
-            ? "grid gap-(--gutter)"
+            ? "grid gap-gutter"
             : "grid grid-cols-2 gap-x-2 gap-y-4 md:grid-cols-4 md:gap-x-3"
         }
       >
@@ -96,8 +96,8 @@ export function DishGuide({
               className={cn(
                 "grid shrink-0 place-items-center rounded-round font-display font-extrabold tabular-nums",
                 posts
-                  ? "size-9 bg-ink text-[1.1875rem] text-surface"
-                  : "absolute top-2 left-2 size-8 bg-tile-badge text-label text-on-tile-badge"
+                  ? "size-9 bg-ink text-heading-sm text-surface"
+                  : "absolute top-2 left-2 size-8 bg-plate text-label text-on-stage"
               )}
             >
               {index + 1}
@@ -112,10 +112,8 @@ export function DishGuide({
                 setViewer({ open: true, index })
               }}
               className={cn(
-                "relative block w-full cursor-zoom-in overflow-hidden bg-stage outline-none focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-solid",
-                posts
-                  ? "focus-visible:-outline-offset-3"
-                  : "rounded-control focus-visible:outline-offset-2"
+                "relative block w-full cursor-zoom-in overflow-hidden bg-stage outline-none",
+                posts ? "focus-ring-inset" : "rounded-control focus-ring"
               )}
             >
               {/* Pre-sized static example; no image optimiser (no-image-optimiser.test.ts). */}
@@ -141,8 +139,8 @@ export function DishGuide({
           const name = (
             <Heading
               className={cn(
-                "font-display text-ink",
-                posts ? "text-section-title" : "text-item-title"
+                "text-ink",
+                posts ? "type-section-title" : "font-display text-item-title"
               )}
             >
               {angle.name}

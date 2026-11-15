@@ -124,7 +124,7 @@ function ReconcileCard({
           <ul className="grid grid-cols-3 gap-2 sm:grid-cols-6">
             {carryable.map((submission) => (
               <li key={submission.id}>
-                <label className="grid cursor-pointer gap-1.5 rounded-control bg-surface-2 p-1.5 has-checked:bg-accent-soft has-checked:shadow-[inset_0_0_0_3px_var(--select)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus has-focus-visible:outline-solid">
+                <label className="grid cursor-pointer gap-1.5 rounded-control bg-surface-2 p-1.5 focus-ring-within has-checked:bg-accent-soft has-checked:ring-selected">
                   <EvidenceThumb src={submission.asset.thumbnailUrl} />
                   <span className="flex items-center gap-1.5 text-meta">
                     <input
@@ -179,7 +179,7 @@ function ReconcileCard({
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {carryable.length > 0 ? (
           <Button
-            size="touch"
+            variant="primary"
             onClick={() => void submit(true)}
             disabled={pending || options.length === 0}
           >
@@ -189,7 +189,6 @@ function ReconcileCard({
         ) : null}
         <Button
           variant="secondary"
-          size="touch"
           onClick={() => void submit(false)}
           disabled={pending}
         >
@@ -231,14 +230,14 @@ export function MenuCoveragePanel({
     (menu.menuState === "needs_setup" || menu.menuState === "menu_changed")
 
   return (
-    <div className="grid min-w-0 gap-(--gutter) md:gap-4">
+    <div className="grid min-w-0 gap-gutter md:gap-4">
       <section
         aria-labelledby="menu-state-title"
         className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
       >
         <h2
           id="menu-state-title"
-          className="flex flex-wrap items-center gap-2 font-display text-card-title text-ink"
+          className="flex flex-wrap items-center gap-2 type-section-title text-ink"
         >
           <ForkKnifeIcon aria-hidden className="size-6 shrink-0" />
           {labelFor(MENU_STATE_LABEL, menu.menuState)}
@@ -275,11 +274,11 @@ export function MenuCoveragePanel({
       {canStart && activeVersion ? (
         <section
           aria-labelledby="menu-start-title"
-          className="grid min-w-0 gap-3 rounded-card bg-surface p-4 pt-5 shadow-[var(--elevation-card),inset_0_4px_0_var(--warn-fg)]"
+          className="grid min-w-0 gap-3 rounded-card bg-surface p-4 pt-5 shadow-card rail-top-warn"
         >
           <h2
             id="menu-start-title"
-            className="font-display text-card-title [overflow-wrap:anywhere] text-ink"
+            className="type-section-title [overflow-wrap:anywhere] text-ink"
           >
             Use “{activeVersion.title}” for menu coverage
           </h2>
@@ -303,7 +302,7 @@ export function MenuCoveragePanel({
           </ul>
           <div className="grid">
             <Button
-              size="touch"
+              variant="primary"
               onClick={() =>
                 void action.run(
                   () => handlers.start(activeVersion.id),
@@ -321,13 +320,10 @@ export function MenuCoveragePanel({
       {draftPlan ? (
         <section
           aria-labelledby="menu-draft-title"
-          className="grid min-w-0 gap-(--gutter)"
+          className="grid min-w-0 gap-gutter"
         >
           <div className="grid gap-1 px-1 pt-2">
-            <h2
-              id="menu-draft-title"
-              className="font-display text-section-title text-ink"
-            >
+            <h2 id="menu-draft-title" className="type-section-title text-ink">
               New menu plan (not confirmed)
             </h2>
             <p className="text-body text-ink-muted">
@@ -350,7 +346,7 @@ export function MenuCoveragePanel({
           ) : null}
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
-              size="touch"
+              variant="primary"
               onClick={() =>
                 void action.run(
                   () =>
@@ -370,7 +366,6 @@ export function MenuCoveragePanel({
             </Button>
             <Button
               variant="secondary"
-              size="touch"
               onClick={() =>
                 void action.run(
                   () =>
@@ -393,12 +388,12 @@ export function MenuCoveragePanel({
       {menu.superseded.length > 0 ? (
         <section
           aria-labelledby="menu-reconcile-title"
-          className="grid min-w-0 gap-(--gutter)"
+          className="grid min-w-0 gap-gutter"
         >
           <div className="grid gap-1 px-1 pt-2">
             <h2
               id="menu-reconcile-title"
-              className="font-display text-section-title text-ink"
+              className="type-section-title text-ink"
             >
               Carry photos from the previous menu
             </h2>
@@ -409,7 +404,7 @@ export function MenuCoveragePanel({
               and the previous plan stays in the history.
             </p>
           </div>
-          <ul className="grid gap-(--gutter)">
+          <ul className="grid gap-gutter">
             {menu.superseded.map((requirement) => (
               <ReconcileCard
                 key={requirement.id}
@@ -441,11 +436,11 @@ export function MenuCoveragePanel({
       {currentPlan ? (
         <section
           aria-labelledby="menu-current-title"
-          className="grid min-w-0 gap-(--gutter)"
+          className="grid min-w-0 gap-gutter"
         >
           <h2
             id="menu-current-title"
-            className="px-1 pt-2 font-display text-section-title text-ink"
+            className="px-1 pt-2 type-section-title text-ink"
           >
             Current menu sections
           </h2>

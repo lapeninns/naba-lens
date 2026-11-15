@@ -211,8 +211,10 @@ describe("RequirementSetup", () => {
     await user.click(
       within(dialog).getByRole("button", { name: "Mark as not applicable" })
     )
+    // Busy keeps focus: held with aria-disabled, not the disabled attribute.
     const busy = within(dialog).getByRole("button", { name: "Marking…" })
-    expect(busy.hasAttribute("disabled")).toBe(true)
+    expect(busy.getAttribute("aria-busy")).toBe("true")
+    expect(busy.getAttribute("aria-disabled")).toBe("true")
     finish(ok(5))
     expect(
       await screen.findByText(
@@ -528,10 +530,11 @@ describe("AmenityFactForm", () => {
     expect(
       screen.getByText("Saved with the facts. Admins can see it.")
     ).toBeTruthy()
+    // A Base UI checkbox: its state is in ARIA, not in input properties.
     const check = screen.getByRole("checkbox", {
       name: /I have checked this at the venue/,
     })
-    expect(check.hasAttribute("disabled")).toBe(true)
+    expect(check.getAttribute("aria-disabled")).toBe("true")
 
     await user.click(screen.getByRole("button", { name: "Save facts" }))
     expect(onSave.mock.calls[0]).toEqual([
@@ -545,8 +548,8 @@ describe("AmenityFactForm", () => {
       )
     ).toBeTruthy()
     await user.click(screen.getByRole("radio", { name: "Present" }))
-    expect(check.hasAttribute("disabled")).toBe(false)
-    expect((check as HTMLInputElement).checked).toBe(false)
+    expect(check.getAttribute("aria-disabled")).toBeNull()
+    expect(check.getAttribute("aria-checked")).toBe("false")
     expect(
       screen.getByText(
         "Present, not checked yet. The item can be confirmed once you have checked it."
@@ -600,12 +603,12 @@ describe("AmenityFactForm", () => {
     await user.click(screen.getByRole("radio", { name: "Not present" }))
     const check = screen.getByRole("checkbox", {
       name: /I have checked this at the venue/,
-    }) as HTMLInputElement
+    })
     await user.click(check)
-    expect(check.checked).toBe(true)
+    expect(check.getAttribute("aria-checked")).toBe("true")
     await user.click(screen.getByRole("radio", { name: "Needs verification" }))
-    expect(check.checked).toBe(false)
-    expect(check.disabled).toBe(true)
+    expect(check.getAttribute("aria-checked")).toBe("false")
+    expect(check.getAttribute("aria-disabled")).toBe("true")
     await user.click(screen.getByRole("button", { name: "Save facts" }))
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ presence: "unknown", confirm: false })

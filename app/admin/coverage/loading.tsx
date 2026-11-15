@@ -20,7 +20,7 @@ export default function CoverageLoading() {
         {/* Also the boundary for /admin/coverage/[venueId] and /managers. */}
         <PageHeader title={COVERAGE_COPY.title} className="pb-0 md:pb-0" />
         <SkeletonRegion label={COVERAGE_COPY.loading} className="grid gap-6">
-          <div className="grid items-start gap-(--gutter) lg:grid-cols-2">
+          <div className="grid items-start gap-gutter lg:grid-cols-2">
             {[3, 3].map((cells, card) => (
               <div
                 key={card}

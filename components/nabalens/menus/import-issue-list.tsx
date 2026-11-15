@@ -27,8 +27,8 @@ export function ImportIssueList({ issues, className }: ImportIssueListProps) {
         className={cn(
           "rounded-card bg-warn-bg px-4 py-3 text-body text-ink",
           tone === "error"
-            ? "shadow-[inset_4px_0_0_var(--warn-fg)]"
-            : "shadow-[inset_4px_0_0_var(--border-strong)]"
+            ? "rail-start-warn"
+            : "shadow-[inset_4px_0_0_var(--edge-strong)]"
         )}
       >
         <p className="flex items-center gap-2 font-bold">

@@ -144,7 +144,7 @@ export function OverviewBody({
 
   if (overview.menuState === "no_menu") {
     return (
-      <div className="grid gap-(--gutter)">
+      <div className="grid gap-gutter">
         <WorkspacePending
           venueName={venueName}
           title={copy.title}
@@ -169,7 +169,7 @@ export function OverviewBody({
 
   if (overview.menuState === "empty") {
     return (
-      <div className="grid gap-(--gutter)">
+      <div className="grid gap-gutter">
         {header}
         {confirm}
         <EmptyState
@@ -246,18 +246,15 @@ export function OverviewBody({
   ]
 
   return (
-    <div className="grid gap-(--gutter)">
+    <div className="grid gap-gutter">
       {header}
       {confirm}
       <ActivationBanner overview={overview} now={now} />
-      <section
-        aria-labelledby="overview-photos"
-        className="grid gap-(--gutter)"
-      >
+      <section aria-labelledby="overview-photos" className="grid gap-gutter">
         <Card>
           <h2
             id="overview-photos"
-            className="font-display text-card-title [overflow-wrap:anywhere] text-ink"
+            className="type-section-title [overflow-wrap:anywhere] text-ink"
           >
             {heading}
           </h2>
@@ -265,6 +262,8 @@ export function OverviewBody({
             value={eligible > 0 ? (covered / eligible) * 100 : 0}
             aria-label={heading}
             aria-valuetext={heading}
+            // Green: the bar counts items with an accepted photo.
+            tone="ok"
           />
           {meta ? <p className="text-meta text-ink-muted">{meta}</p> : null}
           {pendingPhotos > 0 ? (
@@ -272,7 +271,6 @@ export function OverviewBody({
               href={managerHrefs.review()}
               className={buttonVariants({
                 variant: "primary",
-                size: "touch",
                 className: "mt-1 justify-self-start max-md:w-full",
               })}
             >
@@ -323,7 +321,7 @@ export function OverviewBody({
       {overview.sections.length > 0 ? (
         <section
           aria-labelledby="overview-sections"
-          className="grid gap-(--gutter)"
+          className="grid gap-gutter"
         >
           <SectionHeader id="overview-sections" title={copy.sectionsTitle} />
           <ul className={ROW_LIST}>

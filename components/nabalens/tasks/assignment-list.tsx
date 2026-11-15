@@ -109,7 +109,7 @@ export function AssignmentList({
         return (
           <li
             key={requirement.id}
-            className="relative grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 transition-colors duration-(--duration-quick) hover:bg-surface-2 has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-focus has-[a:focus-visible]:ring-inset"
+            className="relative grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 transition-colors duration-quick hover:bg-surface-2 has-[a:focus-visible]:outline-3 has-[a:focus-visible]:-outline-offset-3 has-[a:focus-visible]:outline-focus has-[a:focus-visible]:outline-solid"
           >
             <span
               aria-hidden

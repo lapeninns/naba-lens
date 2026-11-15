@@ -9,7 +9,6 @@ import {
   type Department,
 } from "@/lib/config/departments"
 
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -29,6 +28,8 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 
 import { formatBytes } from "./format"
+import { Notice } from "./notice"
+
 import { OptionSelect } from "./option-select"
 import { ProfileAvatar } from "./profile-avatar"
 import type { ActionResult, Option } from "./types"
@@ -78,7 +79,7 @@ export function EditProfileDialog(props: EditProfileDialogProps) {
         if (!pending) onOpenChange(next)
       }}
     >
-      <DialogContent className="max-h-[calc(100svh-1rem)] overflow-y-auto sm:max-w-md">
+      <DialogContent>
         {/* Mounted only while open, so every opening starts from `initial`. */}
         <EditProfileForm {...props} pending={pending} setPending={setPending} />
       </DialogContent>
@@ -186,9 +187,9 @@ function EditProfileForm({
       </DialogHeader>
 
       {result && !result.ok ? (
-        <Alert variant="destructive">
-          <AlertDescription>{result.error}</AlertDescription>
-        </Alert>
+        <Notice tone="negative" role="alert">
+          {result.error}
+        </Notice>
       ) : null}
 
       <div className="flex items-center gap-4">
@@ -208,7 +209,9 @@ function EditProfileForm({
             aria-invalid={!!avatarError || !!fieldErrors.avatar || undefined}
             // The picker's own button is drawn as a grey Common Room button;
             // the field around it has no box, so it reads as one control.
-            className="h-auto min-h-13 cursor-pointer border-0 bg-transparent p-0 text-body text-ink-muted shadow-none file:mr-3 file:min-h-13 file:cursor-pointer file:items-center file:rounded-control file:border-0 file:bg-surface-2 file:px-4 file:text-button file:text-ink hover:file:bg-raised dark:bg-transparent"
+            // The field recipe's hover fill and its switched-off hairline are
+            // cancelled too, or the box comes back in those states.
+            className="h-auto min-h-13 cursor-pointer border-0 bg-transparent p-0 text-body text-ink-muted inset-ring-0 file:mr-3 file:min-h-13 file:cursor-pointer file:items-center file:rounded-control file:border-0 file:bg-surface-2 file:px-4 file:text-button file:text-ink hover:bg-transparent hover:file:bg-raised disabled:inset-ring-0 disabled:hover:bg-transparent dark:bg-transparent data-disabled:inset-ring-0 data-disabled:hover:bg-transparent"
           />
           <FieldDescription id={ids.photoHelp}>
             JPEG, PNG, WebP or HEIC, up to {formatBytes(maxAvatarBytes)}.
@@ -307,15 +310,14 @@ function EditProfileForm({
         <Button
           type="button"
           variant="secondary"
-          size="touch"
           onClick={() => onOpenChange(false)}
           disabled={pending}
         >
           Cancel
         </Button>
         <Button
+          variant="primary"
           type="submit"
-          size="touch"
           disabled={pending || !displayName.trim()}
           aria-busy={pending}
         >
