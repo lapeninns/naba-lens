@@ -36,12 +36,15 @@ export function OurMenuItemRow({
   item,
   canAdd,
   reviewHref,
+  primary = false,
 }: {
   item: OurMenuItem
   /** The person can upload now (active staff at an active venue). */
   canAdd: boolean
   /** Reviewers: this dish's photos to decide. */
   reviewHref?: string
+  /** Home's one main action is this dish's camera (goals decision 12). */
+  primary?: boolean
 }) {
   const openAdd = useAdd()
   const id = React.useId()
@@ -92,8 +95,10 @@ export function OurMenuItemRow({
             <StatusChip tone="neutral">{OUR_MENU_COPY.gaps}</StatusChip>
           )}
           {item.neededBy ? <NeededByChip neededBy={item.neededBy} /> : null}
-          {item.needsRecheck ? (
+          {item.needsRecheck || item.reviewState === "being_checked" ? (
             <StatusChip tone="pending">{OUR_MENU_COPY.recheck}</StatusChip>
+          ) : item.reviewState === "waiting" ? (
+            <StatusChip state="waiting_for_review" />
           ) : null}
           {item.acceptedCount > 1 ? (
             <span className="text-meta text-ink-muted">
@@ -131,6 +136,7 @@ export function OurMenuItemRow({
               openAdd={openAdd}
               item={item}
               describedBy={nameId}
+              primary={primary}
             />
           ) : null}
         </div>
@@ -147,18 +153,21 @@ export function DishAddButtons({
   openAdd,
   item,
   describedBy,
+  primary = false,
 }: {
   openAdd: (opts?: OpenAddOptions) => void
   item: { itemId: string; name: string }
   /** The row's name. */
   describedBy: string
+  /** Blue only when this dish is the screen's one main action. */
+  primary?: boolean
 }) {
   return (
     <>
       {/* The row's lead action, grey: a list of dishes must not
           turn every row blue (one blue action per screen). */}
       <Button
-        variant="secondary"
+        variant={primary ? "primary" : "secondary"}
         size="sm"
         aria-describedby={describedBy}
         // openAdd clicks the camera input inside this click handler.

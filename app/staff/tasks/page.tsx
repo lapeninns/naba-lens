@@ -7,6 +7,13 @@ import type { FindingSentCopy } from "@/components/nabalens/amenities/capture/fi
 import { sentNoticeFor } from "@/components/nabalens/knowledge/copy"
 import { FINDING_SENT_PARAM } from "@/components/nabalens/amenities/capture/finding-sent"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { GoalsHome } from "@/components/nabalens/home/goals-home"
+import {
+  otherJobsCount,
+  retakeNotes,
+  STILL_NEEDED_ON_HOME,
+  type OurMenuGoal,
+} from "@/components/nabalens/home/goals-home-model"
 import type { OurMenuProgress } from "@/components/nabalens/home/our-menu-card"
 import {
   AlsoThisMonth,
@@ -25,7 +32,12 @@ import { homePrompt } from "@/lib/config/work-roles"
 import { withWorkingListEntrances } from "@/lib/knowledge-client/entrances"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck } from "@/lib/server/amenities"
-import { getCoverageActor, getOurMenu } from "@/lib/server/coverage"
+import {
+  getCoverageActor,
+  getOurMenu,
+  listOurMenuItems,
+} from "@/lib/server/coverage"
+import type { OurMenuItem } from "@/lib/server/coverage/types"
 import type { MediaActor } from "@/lib/server/media/types"
 import { listCommunityMedia } from "@/lib/server/community"
 import { getMediaActor } from "@/lib/server/media/context"
@@ -119,6 +131,45 @@ async function ourMenuProgress(
 }
 
 /**
+ * Our menu for goal-led Home: the totals and the first few dishes still
+ * needed, in menu order, with their review state. A failed list keeps the
+ * totals; a failed summary never breaks Home.
+ */
+async function ourMenuGoal(
+  actor: MediaActor,
+  hasVenue: boolean
+): Promise<OurMenuGoal> {
+  if (!hasVenue) return { state: "needs_setup" }
+  try {
+    const result = await getOurMenu(actor, {})
+    if (!result.ok)
+      return {
+        state: result.code === "needs_setup" ? "needs_setup" : "unavailable",
+      }
+    const { menuState, totals } = result.menu
+    if (menuState !== "ready") return { state: menuState }
+    let stillNeeded: OurMenuItem[] | null = []
+    if (totals.gaps > 0) {
+      const items = await listOurMenuItems(actor, {
+        gapsOnly: true,
+        limit: STILL_NEEDED_ON_HOME,
+      }).catch(() => null)
+      stillNeeded = items?.ok ? items.items : null
+    }
+    return {
+      state: "ready",
+      covered: totals.covered,
+      total: totals.eligible,
+      gaps: totals.gaps,
+      needsRecheck: totals.needsRecheck,
+      stillNeeded,
+    }
+  } catch {
+    return { state: "unavailable" }
+  }
+}
+
+/**
  * When the working list can't be read, a complete check may still have a
  * newer finding of mine waiting: say it was sent, never that it is complete.
  */
@@ -185,7 +236,10 @@ const UPLOAD_BLOCKED = {
     "Your venue isn't taking photos right now, so you can't add any. Ask an admin to check your venue.",
 } as const
 
-/** Staff Home: the next thing to do, this month's photos and all tasks. */
+/**
+ * Staff Home. On the goals layout (the default): Our menu, Your month and the
+ * retake note. B02 and B01 (To do and tasks) stay only as a rollback.
+ */
 export default async function TasksPage({
   searchParams,
 }: {
@@ -195,6 +249,8 @@ export default async function TasksPage({
   const { actor } = unwrap(await getCoverageActor())
   const dismissedAt = profile.work?.welcomeDismissedAt ?? null
   const layout = homeLayout(profile.venueId)
+  if (layout === "goals")
+    return goalsTasksPage({ profile, actor, searchParams })
   // B02 streams these lines in their own boundary rather than waiting here.
   const streamedPending = layout === "b02" ? myPending(actor) : null
   const [
@@ -308,6 +364,105 @@ export default async function TasksPage({
       ) : (
         <TasksOverview {...common} alsoPending={pending} />
       )}
+    </AppShell>
+  )
+}
+
+/** The goal-led Home (goals-not-tasks G-1): its own reads, nothing of To do. */
+async function goalsTasksPage({
+  profile,
+  actor,
+  searchParams,
+}: {
+  profile: Awaited<ReturnType<typeof requireActiveStaff>>
+  actor: MediaActor
+  searchParams: Promise<SearchParams>
+}) {
+  const dismissedAt = profile.work?.welcomeDismissedAt ?? null
+  const [
+    { tasks },
+    colleagues,
+    params,
+    shell,
+    ownMedia,
+    ourMenu,
+    jar,
+    amenityTasks,
+    findingSent,
+    workingList,
+    retakes,
+  ] = await Promise.all([
+    myTasks(actor).then(unwrap),
+    recentColleaguePhotos(),
+    searchParams,
+    staffShellStatus(actor, profile),
+    // Once dismissed, Start here never shows, so skip the read.
+    dismissedAt ? true : hasOwnMedia(actor),
+    ourMenuGoal(actor, Boolean(profile.venueId)),
+    cookies(),
+    myAmenityTasks(actor),
+    searchParams.then((p) => sentFinding(actor, p)),
+    myWorkingList(actor),
+    myRetakes(actor),
+  ])
+  const { reviewCount } = shell
+  const blockedReason = uploadBlockReason(profile)
+
+  const showWelcome = showWelcomeEntry({
+    dismissedAt,
+    legacyCookie: jar.has(FIRST_RUN_COOKIE),
+    hasOwnMedia: ownMedia,
+  })
+  const justSent = parseJustSent(
+    params,
+    (id) =>
+      tasks.assignments.find((a) => a.requirement.id === id)?.requirement
+        .title ?? null
+  )
+
+  return (
+    <AppShell
+      variant="staff"
+      active="tasks"
+      {...shell}
+      userName={profile.displayName}
+    >
+      <OfflineNotice className="mb-3" />
+      <GoalsHome
+        scope={tasks.scope}
+        period={tasks.period}
+        profile={{
+          displayName: profile.displayName,
+          venueName: profile.venue?.name ?? null,
+          department: profile.department ?? null,
+          hasAvatar: profile.avatarPath !== null,
+        }}
+        monthly={tasks.monthly}
+        ourMenu={ourMenu}
+        notes={retakeNotes({ retakes, tasks })}
+        notesError={retakes === null}
+        otherJobs={otherJobsCount({
+          tasks,
+          amenityTasks,
+          slots: workingList?.slots ?? null,
+        })}
+        otherJobsError={amenityTasks === null || workingList === undefined}
+        reviewCount={reviewCount ?? 0}
+        reviewError={shell.canManage && reviewCount === undefined}
+        canAdd={blockedReason === null}
+        // No venue is the setup notice's to explain.
+        blocked={
+          blockedReason && blockedReason !== "no_venue"
+            ? UPLOAD_BLOCKED[blockedReason]
+            : null
+        }
+        welcomeHref={showWelcome ? WELCOME_PATH : null}
+        justSent={justSent}
+        findingSent={findingSent}
+        colleagues={colleagues}
+        tasksPath={TASKS_PATH}
+        portfolioPath={PORTFOLIO_PATH}
+      />
     </AppShell>
   )
 }

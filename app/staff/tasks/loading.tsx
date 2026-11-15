@@ -6,6 +6,7 @@ import { homeLayout } from "@/lib/config/home-layout"
 const CARD = "grid gap-3 rounded-card bg-surface p-4 shadow-card"
 
 export default function TasksLoading() {
+  if (homeLayout() === "goals") return <GoalsLoading />
   return (
     <div className="mx-auto grid w-full max-w-feed min-w-0 gap-gutter px-page-gutter py-4 md:px-0 md:py-8">
       <PageHeader title="Home" className="pb-1 md:pb-2" />
@@ -54,6 +55,38 @@ export default function TasksLoading() {
           </SkeletonRegion>
         </>
       ) : null}
+    </div>
+  )
+}
+
+/** Goal-led Home: Our menu with its dish rows, then Your month. */
+function GoalsLoading() {
+  return (
+    <div className="mx-auto grid w-full max-w-feed min-w-0 gap-gutter px-page-gutter py-4 md:px-0 md:py-8">
+      <PageHeader title="Home" className="pb-1 md:pb-2" />
+      <SkeletonRegion label="Loading Home…" className="grid gap-gutter">
+        {/* Our menu: the count, the bar and the dishes still needed */}
+        <div className={CARD}>
+          <Skeleton shape="title" />
+          <Skeleton shape="line" className="w-1/2" />
+          <Skeleton className="h-3 rounded-round" />
+          {[0, 1, 2].map((row) => (
+            <div
+              key={row}
+              className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-3"
+            >
+              <Skeleton className="aspect-square w-14 rounded-control" />
+              <Skeleton shape="line" />
+            </div>
+          ))}
+        </div>
+        {/* Your month */}
+        <div className={CARD}>
+          <Skeleton shape="title" />
+          <Skeleton className="h-12 w-1/2" />
+          <Skeleton className="h-3 rounded-round" />
+        </div>
+      </SkeletonRegion>
     </div>
   )
 }

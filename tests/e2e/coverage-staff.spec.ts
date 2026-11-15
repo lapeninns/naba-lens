@@ -327,9 +327,9 @@ async function staffJourney(
   setup: Setup,
   browser: Browser
 ) {
-  // "This month" exactly: "Other tasks this month" is a region too, and its
-  // task card shows the same "N of 2 photos accepted" as an img.
-  const monthly = page.getByRole("region", { name: "This month", exact: true })
+  // Goal-led Home (goals-not-tasks G-1): Your month on Home; the
+  // venue-specific job is one Other jobs row away, in the list page.
+  const monthly = page.getByRole("region", { name: "Your month", exact: true })
   const monthProgress = (accepted: number) =>
     monthly.getByRole("progressbar", {
       name: `${accepted} of 2 photos accepted`,
@@ -340,10 +340,12 @@ async function staffJourney(
     has: page.getByRole("link", { name: setup.title, exact: true }),
   })
 
-  // Landing: Home with the month's target and the assigned task.
+  // Landing: Home with the month's target; the job is in Other jobs.
   await expect(page).toHaveURL(STAFF_LANDING)
   await expect(page.getByRole("heading", { name: "Home" })).toBeVisible()
   await expect(monthProgress(0)).toBeVisible()
+  await page.getByRole("link", { name: /^Other jobs/ }).click()
+  await expect(page).toHaveURL(/\/staff\/tasks\/all$/)
   await expect(assigned.getByRole("link", { name: setup.title })).toBeVisible()
   await expect(
     taskCard.getByRole("img", { name: "0 of 2 photos accepted", exact: true })
@@ -398,10 +400,13 @@ async function staffJourney(
 
   await page.goto("/staff/tasks")
   await expect(monthProgress(1)).toBeVisible()
-  const replacements = page.getByRole("region", { name: /To do/ })
+  // The retake note on Home, with Reshoot as the one main action.
+  const replacements = page.getByRole("region", {
+    name: "Needs another photo",
+  })
   await expect(replacements.getByText(reason)).toBeVisible()
   await replacements
-    .getByRole("link", { name: `Send another photo for ${setup.title}` })
+    .getByRole("link", { name: `Reshoot ${setup.title}` })
     .click()
   await expect(page).toHaveURL(
     new RegExp(`/staff/tasks/${setup.requirementId}\\?replaces=${sent[1]!.id}$`)
@@ -421,16 +426,13 @@ async function staffJourney(
   })
   await review(setup.manager, replacement, "accepted")
 
-  // Done: target met, task complete, nothing left to replace.
+  // Done: target met, nothing left to replace, the job complete in its list.
   await page.goto("/staff/tasks")
   await expect(monthProgress(2)).toBeVisible()
   await expect(monthly.getByText("Target met")).toBeVisible()
+  await expect(page.getByRole("link", { name: /^Reshoot / })).toHaveCount(0)
+  await page.goto("/staff/tasks/all")
   await expect(taskCard).toContainText("Complete")
-  await expect(
-    page
-      .getByRole("region", { name: /To do/ })
-      .getByRole("link", { name: /Send another photo/ })
-  ).toHaveCount(0)
 }
 
 test.describe("coverage: staff tasks journey (WS5)", () => {
@@ -466,7 +468,7 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     await expect(setupList).toContainText("Team (FOH or BOH)")
     await expect(setupList).toContainText("Ask an admin to set your team.")
     const monthly = page.getByRole("region", {
-      name: "This month",
+      name: "Your month",
       exact: true,
     })
     await expect(monthly).toBeVisible()
