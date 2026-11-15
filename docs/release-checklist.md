@@ -204,6 +204,65 @@ credit, or email/account details in manager screens.
 Contain access under the authorised incident plan, retain safe diagnostic
 evidence and fix/retest before resuming. Do not weaken RLS or assertions.
 
+## Release: goals, not tasks (v0.5, phase 1)
+
+[v0.5](spec/NabaLens-Goals-v0.5.md) §6 and
+[decision 18](plans/goals-not-tasks.md): staff Home switches from tasks to
+goals at every venue in one release, with no per-venue stage. This entry does
+not authorise a deploy, a migration or an environment change; those stay with
+the user under Gate 4.
+
+**Who tells the venues and when.** Aman Kumar Shrestha tells every venue one
+week before the release. The release waits until that has happened.
+
+| Item                                 | Value                                      |
+| ------------------------------------ | ------------------------------------------ |
+| Who tells each venue                 | Aman Kumar Shrestha                        |
+| Release date                         | not set yet                                |
+| Date venues are told (release − 7 d) | not set yet; record the actual date here   |
+| Venues told                          | every venue (record each one and the date) |
+
+**Note for every venue** (send as written, or in the same words):
+
+> From [release date], Naba-Lens Home changes for food and drink photos.
+> There are no more task lists, due dates or Overdue for menu photos. Home
+> shows **Our menu**: the dishes and drinks at your venue that still need a
+> photo. Anyone can photograph any of them, and a dish leaves the list once a
+> photo of it is accepted. **Your month** still shows your own target; it
+> ends with the calendar month and has no due date. Accepted food and drink
+> photos you labelled, and photos you sent to the month, count. If a manager
+> asks for another photo of a dish, Home shows it as **Needs another photo**
+> with **Reshoot** and **Later**. Photos you have already sent keep counting.
+> Amenity checks and other venue jobs keep their dates; find them under
+> **Other jobs** on Home.
+
+**Steps for the user, in order.** Environment changes need the user; agents
+never make them.
+
+1. Set the release date. Record it and the date venues are told (7 days
+   before) in the table above.
+2. Aman Kumar Shrestha sends the note to every venue on that date. Record each
+   venue and the date sent.
+3. Do not release until 7 days after the last venue was told.
+4. In the production hosting environment, check `NABALENS_HOME_LAYOUT`. It
+   must be unset (or `goals`, once G-1 accepts that value), so the new
+   default applies. If it says `b01` or `b02`, remove it.
+5. In the same environment, check `NABALENS_HOME_LAYOUT_B01_VENUES`. It must be
+   empty or unset: any venue listed there stays on the old B01 Home whatever
+   the default.
+6. Apply the phase 1 migrations and deploy through the normal release path
+   (Gates 2 to 4, v0.4 §5 release and rollback rules). Nothing here applies
+   them.
+7. On a phone at one venue, check Home: Our menu with Still needed, Your month
+   with no due date, no Overdue on any dish, and an amenity check reachable
+   from **Other jobs**.
+8. Rollback, if needed: set `NABALENS_HOME_LAYOUT=b02` in production and
+   redeploy so the new value is read. This restores B02's To do Home only; no
+   data changes. Tell the venues if you do.
+9. One release after the cut-over, `b01` and `b02` are removed from the code
+   (decision 9). Then delete `NABALENS_HOME_LAYOUT` and
+   `NABALENS_HOME_LAYOUT_B01_VENUES` from every environment.
+
 ## Gate 4: PRODUCTION
 
 Requires Gates 2–3 and a **separate production authorisation**, not a passing CI run.
