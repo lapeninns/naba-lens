@@ -97,6 +97,9 @@ const ALLOWED_PAGES = new Set([
   "/manager/account",
   // A manager account's own uploads to label later (B02-c), while Add is on.
   "/manager/uploads",
+  // Monthly photo targets at the manager account's own venue: the venue
+  // default and each person's number (G-6, docs/plans/goals-not-tasks.md).
+  "/manager/team",
   // Amenities in the workspace: the /staff/manage amenity screens for the
   // manager account's own venue (docs/plans/amenity-catalogue.md).
   "/manager/amenities",
