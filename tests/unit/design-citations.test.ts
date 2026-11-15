@@ -16,17 +16,27 @@ function sourceFiles(dir: string): string[] {
 
 // Code comments justify sizes, shapes and colours by section number, as
 // "DESIGN.md §4". The section numbers are therefore load-bearing: the spec
-// lives in the repo and each cited section must exist in it.
-const CITATION = /DESIGN\.md(?:\s+v[\d.]+)?[\s,(]*§\s*(\d+)/g
+// lives in the repo and each cited section must exist in it. A lettered
+// subsection ("§5a", the staff Home) is cited and checked as itself.
+const CITATION = /DESIGN\.md(?:\s+v[\d.]+)?[\s,(]*§\s*(\d+[a-z]?)/g
+const HEADING = /^#{2,3} (\d+[a-z]?)\. /gm
 
 describe("design spec citations", () => {
   const spec = readFileSync(join(root, SPEC), "utf8")
-  const sections = new Set(
-    [...spec.matchAll(/^## (\d+)\. /gm)].map((match) => match[1])
-  )
+  const sections = new Set([...spec.matchAll(HEADING)].map((match) => match[1]))
 
   it("numbers the spec's sections", () => {
     expect(sections.size).toBeGreaterThan(0)
+  })
+
+  it("reads a lettered subsection as itself", () => {
+    expect(sections.has("5a")).toBe(true)
+    const cite = (text: string) => [...text.matchAll(CITATION)].map((m) => m[1])
+    expect(cite("DESIGN.md §5a")).toEqual(["5a"])
+    expect(cite("DESIGN.md v0.4 §5")).toEqual(["5"])
+    expect(cite("(DESIGN.md §11, rule 7)")).toEqual(["11"])
+    // A missing subsection is reported, not read as its parent.
+    expect(sections.has(cite("DESIGN.md §5z")[0])).toBe(false)
   })
 
   it("only cites sections that exist in the spec", () => {
