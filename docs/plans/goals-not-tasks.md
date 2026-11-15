@@ -175,7 +175,9 @@ passed; security suite 66 of 67 files passed. Failures that were already on
   `save_media_labels_as` to allow only `('staff', 'admin')`. `main`'s
   B02c migration `20261110090145` added `'manager'`.
 
-These need their own fix before `pnpm verify:release`. Migration upgrade
+The lint findings are now listed in `KNOWN_FINDINGS`, and the withdraw
+assertion includes `'manager'`. Neither change was re-run. The asset-search
+check is still open: fixing it means redefining `asset_search`. Migration upgrade
 (8) and reset (3) passed.
 
 ### Phase 1: staff Home
