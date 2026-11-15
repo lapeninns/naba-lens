@@ -19,6 +19,7 @@ import { requireActiveAdmin } from "@/lib/auth"
 import {
   getCoverageActor,
   getGroupOverview,
+  getOurMenu,
   listItemPhotoSelfReviews,
   listPreparationRuns,
   listSelfReviews,
@@ -28,6 +29,8 @@ import {
   periodKeyOf,
   periodView,
 } from "@/lib/server/coverage/time"
+import type { GroupOverviewRow } from "@/lib/server/coverage/types"
+import type { MediaActor } from "@/lib/server/media/types"
 
 import {
   COVERAGE_COPY,
@@ -41,6 +44,7 @@ import {
   SummaryLine,
   Tallies,
   VenueList,
+  type VenueMenus,
 } from "./coverage-sections"
 import { buildPreparation, loadPeriodRuns, runsSince } from "./preparation"
 import { PreparationSection } from "./preparation-section"
@@ -51,6 +55,28 @@ import {
 } from "./prepare-control"
 
 export const metadata: Metadata = { title: "Coverage" }
+
+/** Our menu totals per venue; a venue whose menu can't be read is left out. */
+async function readVenueMenus(
+  actor: MediaActor,
+  venues: GroupOverviewRow[]
+): Promise<VenueMenus> {
+  const reads = await Promise.all(
+    venues.map(async (row) => ({
+      venueId: row.venue.id,
+      read: await getOurMenu(actor, { venueId: row.venue.id }),
+    }))
+  )
+  const menus: VenueMenus = new Map()
+  for (const { venueId, read } of reads) {
+    if (!read.ok) continue
+    menus.set(
+      venueId,
+      read.menu.menuState === "ready" ? read.menu.totals : null
+    )
+  }
+  return menus
+}
 
 /**
  * A16 and A17: every venue's coverage and its staff participation (reported
@@ -100,6 +126,11 @@ export default async function CoverageOverviewPage({
   if (!itemSelfReviews.ok) unexpected(itemSelfReviews)
   if (!runs.ok) unexpected(runs)
   const { venues, preparation } = overview
+  // Our menu is a current goal, not a month's record: shown this month only.
+  // A venue whose menu can't be read is left blank rather than failing the page.
+  const menus: VenueMenus | undefined = isCurrent
+    ? await readVenueMenus(actor, venues)
+    : undefined
   const month = monthName(overview.period.label)
   const model = buildPreparation(venues, runs.runs, overview.period, now, {
     ...preparation,
@@ -191,9 +222,13 @@ export default async function CoverageOverviewPage({
           ) : (
             <>
               {isCurrent ? (
-                <Tallies rows={venues} periodLabel={overview.period.label} />
+                <Tallies
+                  rows={venues}
+                  periodLabel={overview.period.label}
+                  menus={menus}
+                />
               ) : null}
-              <VenueList rows={venues} />
+              <VenueList rows={venues} menus={menus} />
               {isCurrent ? (
                 <div className="grid items-start gap-gutter lg:grid-cols-2">
                   <div className="grid min-w-0 content-start gap-2 rounded-card bg-surface p-4 shadow-card">

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import {
   cleanup,
-  fireEvent,
   render,
   screen,
   waitFor,
@@ -249,7 +248,7 @@ describe("TeamRoster", () => {
     expect(onSetTarget).not.toHaveBeenCalled()
   })
 
-  it("sets a first target without a reason and keeps the due date in the month", async () => {
+  it("sets a first target without a reason and shows no due date (rule 23)", async () => {
     const user = userEvent.setup()
     const onSetTarget = vi.fn<SetTargetHandler>(ok)
     render(
@@ -276,23 +275,68 @@ describe("TeamRoster", () => {
     expect(
       screen.queryByLabelText("Reason for changing November's target")
     ).toBeNull()
-    const changeDue = screen.getByRole("button", {
-      name: "Change due date for TEST Sam",
-    })
-    // WCAG 2.5.3: the accessible name starts with the visible label.
-    expect(changeDue.textContent).toBe("Change due date")
-    await user.click(changeDue)
-    const due = screen.getByLabelText("Due date")
-    expect(due.getAttribute("min")).toBe("2026-11-01")
-    expect(due.getAttribute("max")).toBe("2026-11-30")
+    expect(screen.queryByRole("button", { name: /Change due date/ })).toBeNull()
+    expect(screen.queryByLabelText("Due date")).toBeNull()
     await user.click(screen.getByRole("button", { name: "Save targets" }))
+    // No date is sent: the server keeps the month's end, as before.
     expect(onSetTarget).toHaveBeenCalledWith(
       expect.objectContaining({
         targetCount: 4,
         reason: null,
-        dueOn: "2026-11-30",
+        dueOn: null,
         expectedRevision: 2,
       })
+    )
+  })
+
+  it("shows no due date or Overdue for a month past an old due date", () => {
+    const { container } = render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[
+          monthly({
+            due: {
+              dueOn: "2026-11-10",
+              dueAt: "2026-11-11T00:00:00.000Z",
+              label: "Due 10 Nov 2026",
+              overdue: true,
+            },
+          }),
+        ]}
+        canEdit
+        isAdmin={false}
+        basePath="/staff/manage"
+        onSetTarget={vi.fn<SetTargetHandler>(ok)}
+      />
+    )
+    expect(container.textContent).not.toMatch(/overdue|due 10 nov/i)
+  })
+
+  it("keeps a target's stored due date when its count changes", async () => {
+    const user = userEvent.setup()
+    const onSetTarget = vi.fn<SetTargetHandler>(ok)
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[monthly()]}
+        canEdit
+        isAdmin={false}
+        basePath="/staff/manage"
+        onSetTarget={onSetTarget}
+      />
+    )
+    await user.click(
+      screen.getByRole("button", { name: "Increase TEST Sam's photo target" })
+    )
+    await user.type(
+      screen.getByLabelText("Reason for changing November's target"),
+      "Extra shifts"
+    )
+    await user.click(screen.getByRole("button", { name: "Save targets" }))
+    expect(onSetTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ targetCount: 6, dueOn: "2026-11-30" })
     )
   })
 
@@ -564,10 +608,6 @@ describe("TeamRoster", () => {
       isCurrent: false,
     }
     const targetInput = () => screen.getByLabelText("TEST Sam's photo target")
-    const openDueDate = () =>
-      user.click(
-        screen.getByRole("button", { name: "Change due date for TEST Sam" })
-      )
     const { rerender } = render(<TeamRoster {...props} rows={[monthly()]} />)
 
     await user.click(
@@ -577,17 +617,9 @@ describe("TeamRoster", () => {
       screen.getByLabelText("Reason for changing November's target"),
       "Extra November shifts"
     )
-    await openDueDate()
-    fireEvent.change(screen.getByLabelText("Due date"), {
-      target: { value: "2026-11-18" },
-    })
 
     rerender(<TeamRoster {...props} rows={[monthly({ accepted: 3 })]} />)
     expect(targetInput()).toHaveProperty("value", "6")
-    expect(screen.getByLabelText("Due date")).toHaveProperty(
-      "value",
-      "2026-11-18"
-    )
     expect(
       screen.getByLabelText("Reason for changing November's target")
     ).toHaveProperty("value", "Extra November shifts")
@@ -612,11 +644,6 @@ describe("TeamRoster", () => {
       screen.queryByLabelText("Reason for changing December's target")
     ).toBeNull()
     expect(screen.queryByRole("button", { name: "Save targets" })).toBeNull()
-    await openDueDate()
-    expect(screen.getByLabelText("Due date")).toHaveProperty(
-      "value",
-      "2026-12-31"
-    )
     expect(onSetTarget).not.toHaveBeenCalled()
   })
 

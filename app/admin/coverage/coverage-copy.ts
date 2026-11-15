@@ -29,6 +29,7 @@ export const COVERAGE_COPY = {
   venueManagers: "Venue managers",
   venueCoverage: "Venue coverage",
   staffParticipation: "Staff participation",
+  ourMenu: "Our menu",
   venues: "Venues",
   venuesNote: (count: number) =>
     `${plural(count, "venue")} · a venue is complete when every applicable item is and its menu coverage is current`,
@@ -56,8 +57,11 @@ export const COVERAGE_COPY = {
     needSetup: "Need setup",
     acrossVenues: (count: number) => `Across ${plural(count, "venue")}`,
     toReview: "To review",
-    overdue: "Overdue",
+    // Non-menu work only: menu work has no due date (v0.5 rule 23).
+    overdue: "Other jobs overdue",
     menuChanged: "Menu changed",
+    withoutPhoto: "Dishes without a photo",
+    acrossMenus: (count: number) => `On ${plural(count, "menu")}`,
     metTarget: "Met their target",
     photosAccepted: "Photos accepted",
     withoutTarget: (count: number) => `${count} without a target`,
@@ -65,10 +69,13 @@ export const COVERAGE_COPY = {
   chip: {
     needSetup: (count: number) => `${count} need setup`,
     toReview: (count: number) => `${count} to review`,
-    overdue: (count: number) => `${count} overdue`,
+    overdue: (count: number) =>
+      `${count} other ${count === 1 ? "job" : "jobs"} overdue`,
   },
   itemsComplete: (total: number) => `of ${total} items complete`,
   metTheirTarget: (total: number) => `of ${total} met their target`,
+  dishesWithPhoto: (total: number) => `of ${total} dishes have a photo`,
+  noMenu: "No active menu",
 } as const
 
 export const PREPARATION_COPY = {

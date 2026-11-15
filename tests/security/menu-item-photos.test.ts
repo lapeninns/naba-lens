@@ -1271,6 +1271,32 @@ describe("one review per photo: month and section counts", () => {
     mains = reqs!.find((r) => r.title === "Mains")!.id
   })
 
+  // v0.5 (G-8): nobody can be assigned to a menu section now. These cases
+  // model sends made before the cut-over, so the assignment is written as
+  // the history the old procedure left.
+  async function assignedBeforeCutOver(requirementId: string, ids: string[]) {
+    const { data: open, error } = await service
+      .from("coverage_requirement_assignees")
+      .select("staff_id")
+      .eq("requirement_id", requirementId)
+      .is("ended_at", null)
+    if (error) throw error
+    const have = new Set(open!.map((a) => a.staff_id))
+    const rows = ids
+      .filter((id) => !have.has(id))
+      .map((staff_id) => ({
+        requirement_id: requirementId,
+        venue_id: f.venue,
+        staff_id,
+        assigned_by: f.manager.id,
+      }))
+    if (rows.length === 0) return
+    const { error: insertError } = await service
+      .from("coverage_requirement_assignees")
+      .insert(rows)
+    if (insertError) throw insertError
+  }
+
   it("counts an accepted labelled photo for the month and its section, and a withdrawal takes both back", async () => {
     const tikka = t(f.items["mains--tikka"]!)
     const asset = (await labelled(f.staff, f.version, [tikka])).id
@@ -1325,7 +1351,7 @@ describe("one review per photo: month and section counts", () => {
       month: await month(f.staff2),
       mains: await sectionCount(mains),
     }
-    await assign(f.manager, mains, [f.staff2.id])
+    await assignedBeforeCutOver(mains, [f.staff2.id])
     const [sent] = await submit(f.staff2, [asset], mains)
     await reviewItem(f.manager, sent!.item_id, sent!.revision, "accepted")
     expect(await month(f.staff2)).toBe(before.month + 1)
@@ -1384,7 +1410,7 @@ describe("one review per photo: month and section counts", () => {
 
   it("settles a task submission when the menu accepts the same photo", async () => {
     const tikka = t(f.items["mains--tikka"]!)
-    await assign(f.manager, mains, [f.staff.id, f.staff2.id])
+    await assignedBeforeCutOver(mains, [f.staff.id, f.staff2.id])
     const asset = (await labelled(f.staff, f.version, [tikka])).id
     const before = await pending()
     await submit(f.staff, [asset], mains)

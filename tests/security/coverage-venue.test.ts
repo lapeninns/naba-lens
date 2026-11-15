@@ -545,7 +545,24 @@ describe("menu coverage", () => {
       await reserveReady(service, staffer),
       await reserveReady(service, staffer),
     ]
-    await assign(manager, oldStarters, [staffer.id])
+    // v0.5: nobody can be assigned to a menu section now. An assignment made
+    // before the cut-over is still history and still lets its holder send.
+    await fails(
+      manager.client.rpc("set_coverage_requirement_assignees", {
+        p_requirement_id: oldStarters,
+        p_staff_ids: [staffer.id],
+      }),
+      "menu_section_shared",
+      "P0001"
+    )
+    await ok(
+      service.from("coverage_requirement_assignees").insert({
+        requirement_id: oldStarters,
+        venue_id: venue,
+        staff_id: staffer.id,
+        assigned_by: manager.id,
+      })
+    )
     const items = await submit(
       staffer,
       photos.map((p) => p.id),

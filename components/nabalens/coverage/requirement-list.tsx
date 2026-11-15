@@ -86,7 +86,13 @@ function RequirementRow({
                 </span>
               )}
               <span className="text-meta text-ink-muted">
-                {[requirement.due?.label ?? null, assigneeText(requirement)]
+                {[
+                  requirement.due?.label ?? null,
+                  // A menu section is shared: nobody is assigned (v0.5 rule 22).
+                  requirement.kind === "menu_section"
+                    ? null
+                    : assigneeText(requirement),
+                ]
                   .filter(Boolean)
                   .join(" · ")}
               </span>

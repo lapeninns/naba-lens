@@ -315,7 +315,11 @@ export function RequirementSetup({
   const assigneesDirty =
     selected.length !== savedSet.size ||
     selected.some((id) => !savedSet.has(id))
-  const showAssignees = settingUp && roster != null && onSetAssignees != null
+  // v0.5 rules 22 and 23: a menu section is shared by the whole venue, with
+  // no assignees and no due date.
+  const shared = requirement.kind === "menu_section"
+  const showAssignees =
+    !shared && settingUp && roster != null && onSetAssignees != null
   const dirty = detailsDirty || (showAssignees && assigneesDirty)
 
   const amenity = requirement.amenity
@@ -439,7 +443,9 @@ export function RequirementSetup({
     ? null
     : confirming
       ? (blocked ??
-        (selected.length > 0 ? "Ready to confirm" : "Not confirmed yet"))
+        (shared || selected.length > 0
+          ? "Ready to confirm"
+          : "Not confirmed yet"))
       : null
 
   const left = (
@@ -609,26 +615,28 @@ export function RequirementSetup({
                     <FieldError>{errors.guidance}</FieldError>
                   ) : null}
                 </Field>
-                <Field className="gap-1.5">
-                  <FieldLabel htmlFor={`${ids}-due`}>Due date</FieldLabel>
-                  <Input
-                    id={`${ids}-due`}
-                    type="date"
-                    value={draft.dueOn}
-                    onChange={(e) => set("dueOn", e.currentTarget.value)}
-                    aria-invalid={!!errors.dueOn || undefined}
-                    aria-describedby={`${ids}-due-help`}
-                    className="w-full sm:w-64"
-                    disabled={action.pending}
-                  />
-                  <FieldDescription id={`${ids}-due-help`} className={HINT}>
-                    Overdue is for follow-up. It never stops anyone sending
-                    photos.
-                  </FieldDescription>
-                  {errors.dueOn ? (
-                    <FieldError>{errors.dueOn}</FieldError>
-                  ) : null}
-                </Field>
+                {shared ? null : (
+                  <Field className="gap-1.5">
+                    <FieldLabel htmlFor={`${ids}-due`}>Due date</FieldLabel>
+                    <Input
+                      id={`${ids}-due`}
+                      type="date"
+                      value={draft.dueOn}
+                      onChange={(e) => set("dueOn", e.currentTarget.value)}
+                      aria-invalid={!!errors.dueOn || undefined}
+                      aria-describedby={`${ids}-due-help`}
+                      className="w-full sm:w-64"
+                      disabled={action.pending}
+                    />
+                    <FieldDescription id={`${ids}-due-help`} className={HINT}>
+                      Overdue is for follow-up. It never stops anyone sending
+                      photos.
+                    </FieldDescription>
+                    {errors.dueOn ? (
+                      <FieldError>{errors.dueOn}</FieldError>
+                    ) : null}
+                  </Field>
+                )}
               </>
             ) : null}
           </form>
@@ -649,6 +657,13 @@ export function RequirementSetup({
             </div>
           ) : null}
         </CoverageSection>
+      ) : null}
+
+      {shared && settingUp ? (
+        <p className={cn(CARD, MUTED)}>
+          Everyone at {venueName} can photograph this section&apos;s dishes.
+          Nobody is assigned, and there is no due date.
+        </p>
       ) : null}
 
       {showAssignees ? (
