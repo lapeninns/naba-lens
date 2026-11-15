@@ -84,7 +84,7 @@ test.describe("Needs another photo: retake from Me", () => {
     })
     if (error) throw new Error(`fixture label save failed: ${error.message}`)
 
-    // The manager asks for a better photo, with a reason.
+    // The manager asks for another photo, with a reason.
     const reason = `Show all ten momos, in focus (${w.tag})`
     const manager = await signedInPage(browser, w.manager)
     await manager.goto("/staff/manage/menu/items")
@@ -92,10 +92,10 @@ test.describe("Needs another photo: retake from Me", () => {
     const card = manager.getByRole("article", {
       name: new RegExp(`^Momo.*photo by ${escape(w.staffA.name)}`),
     })
-    await card.getByRole("button", { name: "Ask for a better photo" }).click()
-    const ask = manager.getByRole("dialog", { name: "Ask for a better photo" })
+    await card.getByRole("button", { name: "Ask for another photo" }).click()
+    const ask = manager.getByRole("dialog", { name: "Ask for another photo" })
     await ask.getByRole("textbox", { name: /Reason/ }).fill(reason)
-    await ask.getByRole("button", { name: "Ask for a better photo" }).click()
+    await ask.getByRole("button", { name: "Ask for another photo" }).click()
     await expect(ask).toBeHidden()
     await expect
       .poll(() => photoState(first!, momo))

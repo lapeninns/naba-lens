@@ -60,12 +60,16 @@ export const ITEM_REVIEW_COPY = {
   emptyItem: "No labelled photos of this dish yet.",
   accept: "Accept for this dish",
   makePrimaryOnAccept: "Use as the dish's main photo",
-  askBetter: "Ask for a better photo",
+  /** A reviewer's "needs another photo" decision (v0.5 §2 Retake note). */
+  askBetter: "Ask for another photo",
+  /** Under the reason field; the photo's author sees the reason. */
+  askReasonHelp: "Say what the next photo needs.",
+  askReasonMissing: "Add a reason. Say what the next photo needs.",
   undo: "Undo acceptance",
   makePrimary: "Make main photo",
   primary: "Main photo",
   accepted: "Accepted for menu use",
-  betterRequested: "Better photo requested",
+  betterRequested: "Needs another photo",
   recheck: "Check after a menu change",
   waiting: "Waiting for a decision",
   variantRemoved:
