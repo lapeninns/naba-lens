@@ -20,7 +20,7 @@ import { getCoverageActor } from "@/lib/server/coverage"
 import type { MediaActor } from "@/lib/server/media/types"
 
 export const metadata: Metadata = {
-  title: "Check dates · Knowledge · Naba-Lens",
+  title: "Check dates · Knowledge",
 }
 
 const PATH = "/admin/knowledge/check-dates"

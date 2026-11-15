@@ -6,7 +6,7 @@ import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-acce
 import { getManagerWorkspace } from "@/lib/auth/manager"
 
 export const metadata: Metadata = {
-  title: "Search photos and videos · Naba-Lens",
+  title: "Search photos and videos",
 }
 
 /**

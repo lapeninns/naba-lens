@@ -14,7 +14,7 @@ import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCoverageActor } from "@/lib/server/coverage"
 
 export const metadata: Metadata = {
-  title: "Schema upgrades · Knowledge · Naba-Lens",
+  title: "Schema upgrades · Knowledge",
 }
 
 /** Admin (B03 UI design §8.3): a question's schema upgrade, dry run first. */

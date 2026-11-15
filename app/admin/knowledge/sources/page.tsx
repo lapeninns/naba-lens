@@ -30,7 +30,7 @@ import { getCoverageActor } from "@/lib/server/coverage"
 import { adminVenues } from "../admin-venues"
 
 export const metadata: Metadata = {
-  title: "Sources and mappings · Knowledge · Naba-Lens",
+  title: "Sources and mappings · Knowledge",
 }
 
 const PATH = "/admin/knowledge/sources"

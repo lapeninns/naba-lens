@@ -17,7 +17,7 @@ import { getCoverageActor } from "@/lib/server/coverage"
 
 import { adminVenues } from "../admin-venues"
 
-export const metadata: Metadata = { title: "Runs · Knowledge · Naba-Lens" }
+export const metadata: Metadata = { title: "Runs · Knowledge" }
 
 const PATH = "/admin/knowledge/runs"
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
