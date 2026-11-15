@@ -247,6 +247,9 @@ export const HOME_OUR_MENU_COPY = {
 /** Your month on goal-led Home (v0.5 §1; decision 13). */
 export const HOME_MONTH_COPY = {
   title: "Your month",
+  /** Decision 5 as amended by G-9 (decision 24): what earns month credit. */
+  counts:
+    "Accepted photos you labelled — dishes, drinks and venue areas — and photos you sent to the month, count",
   private: "Only you, your manager and admins see this.",
   noTarget: "There's no photo target for you this month.",
   seeMonth: "See your month",

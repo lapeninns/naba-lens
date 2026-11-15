@@ -159,8 +159,19 @@ Taken while integrating G-1 to G-8 on `feat/goals-sprint`.
 23. **Other jobs is `/staff/tasks/other`** (`OTHER_JOBS_PATH`).
     `/staff/tasks/all` redirects there. It lists non-menu jobs, amenity
     checks and the working list, including questions waiting on the person.
+24. **Venue areas are B03 places (G-9; the user, 15 Nov 2026).** Month credit
+    for photos that are not a dish or a drink comes from labelled venue
+    areas, and the areas are the venue's existing B03 knowledge places
+    (entrances, routes, areas, rooms, facility points): no second list. Only
+    the uploader's own area label counts, and only once a reviewer accepts
+    the photo. No self-review: nobody, admins included, decides on a photo
+    they uploaded or labelled. `deny_manager_coverage_writes` is unchanged.
+    Decision 5's copy becomes "Accepted photos you labelled — dishes, drinks
+    and venue areas — and photos you sent to the month, count". This amends
+    v0.5 rule 25's "credit for photos that are not a menu item is not part
+    of this amendment".
 
-No decisions are open. Phase 3 (G-9, G-10) still needs its own decisions.
+No decisions are open. G-10 waits for pilot counts.
 
 ## Order of work
 
@@ -261,11 +272,16 @@ What the review found for phase 2:
 
 | ID   | Step                                                                                                                                                                                                                                                                          |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| G-9  | Month credit for photos that are not a dish or a drink. Choose between a scoped exception to `deny_manager_coverage_writes` for month-only photos, and labelled venue areas.                                                                                                  |
+| G-9  | **Built (15 Nov 2026, `feat/goals-sprint`; decision 24).** Month credit for photos that are not a dish or a drink, through labelled venue areas (B03 places), reviewed on `/manager/review` and its admin twin. Migration `20261116170000_area_photos.sql`.                   |
 | G-10 | Deferred until the pilot venues have real counts. Service and venue-specific requirements either become a venue goal or are retired. Decide with real counts from the pilot venues, together with the `/staff/manage` retirement date (D3). This ends decision 8's list page. |
 
-Phase 3 is not designed. Each step needs its own decision before a batch
-starts.
+G-9 is built. G-10 is deferred until the pilot venues have real counts, and
+needs its own decision before a batch starts.
+
+G-9 follow-ups (not built): retake notes for area photos (`my_retake_notes`
+does not read them), area photos in the Review tab badge and "Also counts
+for", paging past 50 in the area queue, and the area chip on Me outside the
+label editor.
 
 ## Risks
 

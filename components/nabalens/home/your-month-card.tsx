@@ -52,6 +52,8 @@ export function YourMonthCard({
         <TargetProgress monthly={monthly} />
       )}
 
+      <p className="max-w-reading text-meta text-ink-muted">{COPY.counts}</p>
+
       <Link href={monthHref} className={LINK}>
         {COPY.seeMonth}
         <CaretRightIcon aria-hidden weight="bold" className="size-5" />

@@ -103,8 +103,8 @@ date: the menu belongs to everyone at the venue.
 - **Your month** (**You · November 2026 · The Railway**, for example) shows
   your target and progress, such as **2 of 5 accepted**, with one frame per
   photo: **Accepted**, **Waiting for review**, **Needs another photo** and
-  **Still to take**. Accepted food and drink photos you labelled, and photos
-  you sent to the month, count. The month ends with the calendar month; there
+  **Still to take**. Accepted photos you labelled (dishes, drinks and venue
+  areas) and photos you sent to the month count. The month ends with the calendar month; there
   is no due date. **Target met** appears once accepted photos reach the
   target. Only you, your venue manager and admins see your month.
 - **Other jobs** appears only when you have amenity checks or other venue

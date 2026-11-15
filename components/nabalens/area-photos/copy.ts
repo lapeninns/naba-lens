@@ -1,11 +1,12 @@
-// G-9 strings (temporary home: G-5 owns the copy files and moves these into
-// components/nabalens/tasks/copy.ts and menu-photos/copy.ts at the end).
-// Plain British English; staff copy never says "any photo counts".
+// Venue area labels and review (G-9, decision 24). Plain British English;
+// staff copy never says "any photo counts". The month line lives with Your
+// month in tasks/copy.ts (HOME_MONTH_COPY.counts); it is re-exported here.
+
+import { HOME_MONTH_COPY } from "../tasks/copy"
 
 export const AREA_COPY = {
-  /** Decision 5's month line once G-9 lands (for the month screen; G-5). */
-  monthCounts:
-    "Accepted photos you labelled — dishes, drinks and venue areas — and photos you sent to the month, count",
+  /** Decision 5's month line, amended by G-9 (HOME_MONTH_COPY.counts). */
+  monthCounts: HOME_MONTH_COPY.counts,
   fieldLabel: "Venue area",
   fieldHint:
     "Not a dish or a drink? Choose the part of the venue it shows. Once accepted, it counts toward your month.",

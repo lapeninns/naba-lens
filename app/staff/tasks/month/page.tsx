@@ -18,6 +18,7 @@ import {
   askerName,
   BackToTasks,
   isPeriodKey,
+  HOME_MONTH_COPY,
   MonthCard,
   MonthPhotoList,
   MONTH_PHOTOS_COPY,
@@ -310,6 +311,13 @@ export default async function MonthPage({
         />
       )}
 
+      {/* Decision 5 (amended by G-9): what earns month credit. A completion
+          venue lists its own rules below. */}
+      {!combined ? (
+        <p className="max-w-reading px-1 text-body text-ink-muted">
+          {HOME_MONTH_COPY.counts}
+        </p>
+      ) : null}
       {isCurrent && setupPending ? (
         <p className="max-w-reading px-1 text-body text-ink-muted">
           Your manager sets your target for {label}. Until then, photos you add

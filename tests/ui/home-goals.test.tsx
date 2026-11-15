@@ -397,6 +397,19 @@ describe("Goal-led Home: the retake note and one main action", () => {
     ).toBeTruthy()
   })
 
+  it("Your month says what earns credit: labelled dishes, drinks and venue areas, and month sends", () => {
+    renderHome()
+    const month = screen
+      .getByRole("heading", { name: "Your month" })
+      .closest("section")!
+    expect(
+      within(month).getByText(
+        "Accepted photos you labelled — dishes, drinks and venue areas — and photos you sent to the month, count"
+      )
+    ).toBeTruthy()
+    expect(month.textContent).not.toMatch(/any photo counts/i)
+  })
+
   it("never shows the share box", () => {
     renderHome()
     expect(screen.queryByRole("heading", { name: /today\?$/ })).toBeNull()
