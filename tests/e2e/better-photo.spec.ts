@@ -25,9 +25,9 @@ import { escape } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
- * Batch B, ME-1: a manager asks for a better photo of a dish, and the staff
- * member who took it sends a new one from Me in at most two taps (Take a new
- * photo, Done), already labelled with that dish and its variant. The service
+ * Batch B, ME-1 (G-3 words): a manager asks for another photo of a dish, and
+ * the staff member who took it sends a new one from Me in at most two taps
+ * (Reshoot, Done), already labelled with that dish and its variant. The service
  * role only seeds the menu, the grant and the photo bytes; the first label is
  * saved by the uploader's own session and the request goes through the
  * manager's page. Chromium, phone context at 390 px (emulation, not a device).
@@ -53,7 +53,7 @@ const photoState = (assetId: string, itemId: string) =>
     `select state from public.menu_item_photos where asset_id = ${sql(assetId)}::uuid and item_id = ${sql(itemId)}::uuid and state in ('accepted', 'better_photo_requested', 'needs_recheck')`
   )
 
-test.describe("Better photo requested: retake from Me", () => {
+test.describe("Needs another photo: retake from Me", () => {
   test.setTimeout(300_000)
 
   test("staff take the replacement from the request in two taps, labelled with the dish", async ({
@@ -102,21 +102,22 @@ test.describe("Better photo requested: retake from Me", () => {
       .toBe("better_photo_requested")
     await manager.context().close()
 
-    // Staff A on a phone: the request is on Me with the dish and the note.
+    // Staff A on a phone: the note is on Me with the dish and the reason
+    // (my_retake_notes, shared with Home).
     const page = await signedInPage(browser, w.staffA, phone(390))
     await page.goto("/staff")
     await settled(page)
     const section = page.getByRole("region", {
-      name: /^Better photo requested/,
+      name: /^Needs another photo/,
     })
     await expect(section).toBeVisible()
     const request = section.getByRole("article", { name: "Momo (Veg)" })
     await expect(request).toContainText(reason)
-    const take = request.getByRole("button", { name: "Take a new photo" })
+    const take = request.getByRole("button", { name: "Reshoot: Momo (Veg)" })
     const takeBox = await take.boundingBox()
     expect(takeBox?.height ?? 0).toBeGreaterThanOrEqual(44)
 
-    // Take a new photo opens the camera straight away, with the dish applied.
+    // Reshoot opens the camera straight away, with the dish applied.
     const taps = new TapCounter()
     const photo = await syntheticJpeg(`better-photo-${w.tag}.jpg`)
     const input = await pickFiles(page, take, [photo.path], taps)
@@ -140,17 +141,17 @@ test.describe("Better photo requested: retake from Me", () => {
       .poll(() => labelItems(id), { timeout: 90_000 })
       .toBe(`Momo|${veg}|Veg`)
 
-    // Me reads requests on the server: once the retake is labelled, the
-    // request says it was sent and offers only a quiet Take another.
+    // The server decides the note is retaken once the new photo is labelled:
+    // it says it was sent and offers only a quiet Take another.
     await page.reload()
     await settled(page)
-    await expect(request).toContainText(
-      "New photo sent · waiting for manager review"
+    await expect(request).toContainText("New photo sent · waiting for review")
+    await expect(request.getByRole("button", { name: /^Reshoot/ })).toHaveCount(
+      0
     )
-    await expect(
-      request.getByRole("button", { name: "Take a new photo" })
-    ).toHaveCount(0)
-    const again = request.getByRole("button", { name: "Take another" })
+    const again = request.getByRole("button", {
+      name: "Take another: Momo (Veg)",
+    })
     await expect(again).toBeVisible()
     expect((await again.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
 

@@ -13,8 +13,11 @@ import {
 } from "@/lib/config/my-contributions"
 import { workRoleLabel } from "@/lib/config/work-roles"
 import type { ContributionsFeedPage } from "@/lib/knowledge/contract"
-import { listMyMenuPhotoDecisions } from "@/lib/server/coverage"
-import type { MyMenuPhotoState } from "@/lib/server/coverage/types"
+import {
+  listMyMenuPhotoDecisions,
+  listMyRetakeNotes,
+} from "@/lib/server/coverage"
+import type { MyMenuPhotoState, RetakeNote } from "@/lib/server/coverage/types"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listOwnMedia, listOwnMediaByIds } from "@/lib/server/media/library"
 import type { MediaActor, MediaItemView } from "@/lib/server/media/types"
@@ -44,12 +47,13 @@ export const maxDuration = 120
 
 type SearchParams = Record<string, string | string[] | undefined>
 
-/** Photos shown per Me decision section (accepted, better photo requested). */
+/** Photos shown in Me's "Accepted for menu use". */
 const DECISION_TILES = 24
 
 /**
- * The caller's newest menu decisions and their photos, whichever gallery page
- * the photos are on; Me still works when this fails.
+ * The caller's newest accepted menu decisions and their photos, whichever
+ * gallery page the photos are on; Me still works when this fails. Retake
+ * notes are read separately (my_retake_notes).
  */
 async function menuPhotoDecisions(
   actor: MediaActor
@@ -57,19 +61,28 @@ async function menuPhotoDecisions(
   try {
     const result = await listMyMenuPhotoDecisions(actor)
     if (!result.ok) return { states: [], items: [] }
-    const ids: string[] = []
-    for (const kind of ["accepted", "better_photo_requested"] as const) {
-      const own = new Set<string>()
-      for (const state of result.states) {
-        if (state.state !== kind || own.size >= DECISION_TILES) continue
-        own.add(state.assetId)
-      }
-      for (const id of own) if (!ids.includes(id)) ids.push(id)
+    const ids = new Set<string>()
+    for (const state of result.states) {
+      if (state.state !== "accepted" || ids.size >= DECISION_TILES) continue
+      ids.add(state.assetId)
     }
-    const media = await listOwnMediaByIds(actor, ids)
+    const media = await listOwnMediaByIds(actor, [...ids])
     return { states: result.states, items: media.ok ? media.items : [] }
   } catch {
     return { states: [], items: [] }
+  }
+}
+
+/**
+ * My retake notes (G-3), shared with Home; Me still works when this fails
+ * (the block is left out).
+ */
+async function retakeNotes(actor: MediaActor): Promise<RetakeNote[]> {
+  try {
+    const result = await listMyRetakeNotes(actor)
+    return result.ok ? result.notes : []
+  } catch {
+    return []
   }
 }
 
@@ -144,12 +157,13 @@ export default async function StaffPage({
   const profile = await requireActiveStaff()
   const auth = await getMediaActor("staff")
   if (!auth.ok) throw new Error("Not authorised.")
-  const [page, shell, params, menuPhotos, findings] = await Promise.all([
+  const [page, shell, params, menuPhotos, findings, notes] = await Promise.all([
     listOwnMedia(auth.actor),
     staffShellStatus(auth.actor, profile),
     searchParams ?? Promise.resolve({} as SearchParams),
     menuPhotoDecisions(auth.actor),
     history(auth.actor, myContributionsSurface()),
+    retakeNotes(auth.actor),
   ])
   if (!page.ok) throw new Error(page.message)
   const blocked = uploadBlockReason(profile)
@@ -192,16 +206,18 @@ export default async function StaffPage({
         initialEditOpen={params.edit === "profile"}
         menuPhotos={menuPhotos.states}
         menuPhotoItems={menuPhotos.items}
+        retakeNotes={notes}
         findings={
           !findings.show ? null : findings.kind === "b02" ? (
             <MyContributions
               initial={findings.page}
               drafts={findings.drafts}
               venue={venue}
-              offMenuPhotoIds={menuPhotos.states.flatMap((state) =>
-                state.state === "better_photo_requested" &&
-                state.canRetake === false
-                  ? [state.photoId]
+              offMenuPhotoIds={notes.flatMap((note) =>
+                note.kind === "menu" &&
+                note.status !== "cleared" &&
+                !note.canRetake
+                  ? [note.noteId]
                   : []
               )}
               loadMore={loadMoreContributionsAction}

@@ -511,7 +511,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     const staff2 = await signedInPage(browser, w.staffA2, view(info))
     await staff2.goto("/staff")
     await expect(
-      main(staff2).getByText("Better photo requested").first()
+      main(staff2).getByText("Needs another photo").first()
     ).toBeVisible()
 
     // Withdraw the relinked acceptance with a reason: Lager needs a photo again.

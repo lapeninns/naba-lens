@@ -7,12 +7,9 @@ import {
   BookOpenTextIcon,
   BriefcaseIcon,
   CameraIcon,
-  CameraPlusIcon,
   CaretRightIcon,
-  CheckCircleIcon,
   ClipboardTextIcon,
   ForkKnifeIcon,
-  ImagesIcon,
   PencilSimpleIcon,
   SignOutIcon,
   TagIcon,
@@ -43,12 +40,11 @@ import {
   useAddDiscarded,
   useAddLabelled,
   useAddRefreshSignal,
-  type AddLabelPreset,
-  type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { Button } from "@/components/ui/button"
 import { MEDIA_LIMITS } from "@/lib/config/media"
-import type { MyMenuPhotoState } from "@/lib/server/coverage/types"
+import { RetakeNotes } from "@/components/nabalens/tasks/retake-notes"
+import type { MyMenuPhotoState, RetakeNote } from "@/lib/server/coverage/types"
 import type { MediaPage } from "@/lib/server/media/types"
 import { LABEL_LIMITS } from "@/lib/menus/types"
 
@@ -73,8 +69,10 @@ type StaffPortfolioProps = {
   manage?: { venueName: string | null; reviewCount: number } | null
   /** Open Edit profile straight away (`/staff?edit=profile`). */
   initialEditOpen?: boolean
-  /** The caller's own newest menu photo decisions (accepted, better photo requested). */
+  /** The caller's own newest menu photo decisions (accepted). */
   menuPhotos?: MyMenuPhotoState[]
+  /** The caller's retake notes (my_retake_notes); Me shows all but cleared. */
+  retakeNotes?: RetakeNote[]
   /** The own photos those decisions are on, whichever gallery page they are on. */
   menuPhotoItems?: MediaItem[]
   /** "Your findings" (B01-06), after the menu decisions; null to leave it out. */
@@ -86,7 +84,7 @@ export const MILESTONES = {
   saved: "Saved to your portfolio",
   label: "Ready to label",
   accepted: "Accepted for menu use",
-  better: "Better photo requested",
+  better: "Needs another photo",
 } as const
 
 export type Milestone = keyof typeof MILESTONES
@@ -328,209 +326,6 @@ function MilestoneTile({
   )
 }
 
-/** One manager request for a better photo of one dish on one own photo. */
-export type BetterPhotoRequest = {
-  key: string
-  item: MediaItem
-  dish: string
-  reason: string | null
-  preset: AddLabelPreset
-  /** A newer own photo of this dish is labelled and waiting for a decision. */
-  sent: boolean
-  /**
-   * The dish is on the person's current venue's active menu, so a retake can
-   * be labelled with it (see listMyMenuPhotoDecisions).
-   */
-  canRetake: boolean
-}
-
-export const BETTER_PHOTO_COPY = {
-  intro:
-    "A manager would like a better photo of these dishes. Take a new one and it goes to them for review, already labelled with the dish.",
-  take: "Take a new photo",
-  choose: "Choose from photos",
-  sent: "New photo sent · waiting for manager review",
-  again: "Take another",
-  offMenu:
-    "This dish isn't on your venue's menu now, so a new photo can't be sent for it.",
-} as const
-
-const sameDish = (
-  a: { itemId: string; variantId: string | null },
-  b: { itemId: string; variantId: string | null }
-) => a.itemId === b.itemId && a.variantId === b.variantId
-
-/**
- * Open better-photo requests on photos that are ready, newest decision first.
- * The dish and its variant become Add's label preset, as on Our menu.
- *
- * A retake only labels a new photo, so the request itself stays open until a
- * manager decides on the old photo. Among the person's loaded own photos
- * (`own`), a newer one labelled with the same dish and variant marks the
- * request sent while it has no decision, and drops it once it is accepted.
- */
-export function betterPhotoRequests(
-  states: readonly MyMenuPhotoState[],
-  items: readonly MediaItem[],
-  own: readonly MediaItem[] = items
-): BetterPhotoRequest[] {
-  const ready = new Map(
-    items
-      .filter((item) => item.uploadState === "ready")
-      .map((item) => [item.id, item])
-  )
-  const photos = new Map(own.map((photo) => [photo.id, photo]))
-  for (const item of items) photos.set(item.id, item)
-  return states.flatMap((state) => {
-    const item = ready.get(state.assetId)
-    if (state.state !== "better_photo_requested" || !item) return []
-    const requestedAt = Date.parse(item.createdAt)
-    // Only a photo can answer: videos are never review candidates for a
-    // dish, and a review of one is refused.
-    const newer = [...photos.values()].filter(
-      (photo) =>
-        photo.id !== item.id &&
-        photo.mediaType === "image" &&
-        Date.parse(photo.createdAt) > requestedAt
-    )
-    const decided = (photo: MediaItem) =>
-      states.filter((s) => s.assetId === photo.id && sameDish(s, state))
-    if (
-      newer.some((photo) =>
-        decided(photo).some((decision) => decision.state === "accepted")
-      )
-    )
-      return []
-    const sent = newer.some(
-      (photo) =>
-        decided(photo).length === 0 &&
-        (photo.labels?.items ?? []).some((label) => sameDish(label, state))
-    )
-    return [
-      {
-        key: state.photoId,
-        item,
-        dish: state.variantName
-          ? `${state.itemName} (${state.variantName})`
-          : state.itemName,
-        reason: state.reason,
-        preset: {
-          itemId: state.itemId,
-          variantId: state.variantId,
-          itemName: state.itemName,
-          variantName: state.variantName,
-        },
-        sent,
-        canRetake: state.canRetake !== false,
-      },
-    ]
-  })
-}
-
-/**
- * A better-photo request: the photo, the dish, the manager's note, and the
- * camera (or library) straight away with the dish preset. Grey buttons: the
- * profile card keeps the screen's one blue action.
- */
-function BetterPhotoRow({
-  request,
-  openAdd,
-}: {
-  request: BetterPhotoRequest
-  openAdd: ((opts?: OpenAddOptions) => void) | null
-}) {
-  const nameId = React.useId()
-  const { item, dish, reason, preset, sent, canRetake } = request
-  const retake = canRetake ? openAdd : null
-  return (
-    <li>
-      <article
-        aria-labelledby={nameId}
-        className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 p-3"
-      >
-        <span className="relative block size-16 shrink-0 overflow-hidden rounded-control bg-plate">
-          {item.thumbnailUrl ? (
-            // Signed private URLs never go through next/image (see MediaTile).
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={item.thumbnailUrl}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="absolute inset-0 size-full object-cover"
-            />
-          ) : null}
-        </span>
-        <div className="grid min-w-0 content-start gap-1">
-          <StatusChip state={MILESTONE_STATE.better} className="w-fit">
-            {MILESTONES.better}
-          </StatusChip>
-          <h3
-            id={nameId}
-            className="text-item-title [overflow-wrap:anywhere] text-ink"
-          >
-            {dish}
-          </h3>
-          {reason ? (
-            <p className="text-body [overflow-wrap:anywhere] text-ink-muted">
-              {reason}
-            </p>
-          ) : null}
-          {!canRetake ? (
-            <p className="text-body [overflow-wrap:anywhere] text-ink">
-              {BETTER_PHOTO_COPY.offMenu}
-            </p>
-          ) : null}
-          {sent && canRetake ? (
-            <p className="flex items-center gap-1.5 text-body text-ink">
-              <CheckCircleIcon aria-hidden className="size-5 text-ok-fg" />
-              {BETTER_PHOTO_COPY.sent}
-            </p>
-          ) : null}
-        </div>
-        {retake && sent ? (
-          <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
-            <Button
-              variant="quiet"
-              aria-describedby={nameId}
-              onClick={() =>
-                retake({ source: "camera", imagesOnly: true, preset })
-              }
-            >
-              <CameraPlusIcon data-icon="inline-start" aria-hidden />
-              {BETTER_PHOTO_COPY.again}
-            </Button>
-          </div>
-        ) : retake ? (
-          <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
-            <Button
-              variant="secondary"
-              aria-describedby={nameId}
-              // openAdd clicks the camera input inside this click handler.
-              onClick={() =>
-                retake({ source: "camera", imagesOnly: true, preset })
-              }
-            >
-              <CameraPlusIcon data-icon="inline-start" aria-hidden />
-              {BETTER_PHOTO_COPY.take}
-            </Button>
-            <Button
-              variant="quiet"
-              aria-describedby={nameId}
-              onClick={() =>
-                retake({ source: "library", imagesOnly: true, preset })
-              }
-            >
-              <ImagesIcon data-icon="inline-start" aria-hidden />
-              {BETTER_PHOTO_COPY.choose}
-            </Button>
-          </div>
-        ) : null}
-      </article>
-    </li>
-  )
-}
-
 /** Which §3 state shape draws each milestone (the word stays MILESTONES'). */
 const MILESTONE_STATE: Record<Milestone, string> = {
   saved: "portfolio_saved",
@@ -550,6 +345,7 @@ export function StaffPortfolio({
   initialEditOpen = false,
   menuPhotos = [],
   menuPhotoItems = [],
+  retakeNotes = [],
   findings = null,
 }: StaffPortfolioProps) {
   const router = useRouter()
@@ -605,16 +401,6 @@ export function StaffPortfolio({
   const acceptedItems = menuPhotoItems.filter(
     (item) => photoMilestone(item, acceptedIds) === "accepted"
   )
-  const betterRequests = betterPhotoRequests(menuPhotos, menuPhotoItems, [
-    ...initialPage.items,
-    ...menuPhotoItems,
-  ])
-  const betterWaiting = betterRequests.filter(
-    (request) => !request.sent && request.canRetake
-  )
-  // A blocked account sees why in the notice below, not a camera that fails.
-  const openRetake = uploadBlocked ? null : openAdd
-
   const uploadButton = (variant: "primary" | "secondary" = "primary") =>
     uploadBlocked || !openAdd ? null : (
       <Button variant={variant} onClick={() => openAdd({ dialog: true })}>
@@ -767,37 +553,12 @@ export function StaffPortfolio({
           </ul>
         </section>
       ) : null}
-      {betterRequests.length > 0 ? (
-        <section aria-labelledby="better-heading" className="grid gap-3 pt-2">
-          <div className="grid gap-1 px-1">
-            <h2
-              id="better-heading"
-              className="flex items-center gap-2 type-section-title text-ink"
-            >
-              {MILESTONES.better}
-              <CountBadge
-                count={betterWaiting.length}
-                label={betterWaiting.length === 1 ? "request" : "requests"}
-              />
-            </h2>
-            <p className="text-body text-ink-muted">
-              {BETTER_PHOTO_COPY.intro}
-            </p>
-          </div>
-          <ul
-            aria-label="Photos with a better photo requested"
-            className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
-          >
-            {betterRequests.map((request) => (
-              <BetterPhotoRow
-                key={request.key}
-                request={request}
-                openAdd={openRetake}
-              />
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      {/* G-3: one retake note block, shared with Home (my_retake_notes). */}
+      <RetakeNotes
+        surface="me"
+        notes={retakeNotes}
+        uploadBlocked={uploadBlocked !== null}
+      />
       {findings}
       {uploadBlocked ? (
         <Notice tone="attention" role="status">
