@@ -492,9 +492,7 @@ describe("coverage services", () => {
       await getMyMonth(actors.staff1, { period: thisMonth })
     ).month
     expect(
-      month.submissions.some(
-        (s) => s.asset.id === assetA1 && s.state === "accepted"
-      )
+      month.photos.some((p) => p.assetId === assetA1 && p.state === "accepted")
     ).toBe(true)
 
     const roster = okOf(await getVenueRoster(actors.manager, {}))

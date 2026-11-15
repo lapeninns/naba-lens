@@ -1,6 +1,10 @@
 import "server-only"
 
-import { decodeCursor, encodeCursor } from "@/lib/server/media/library"
+import {
+  decodeCursor,
+  encodeCursor,
+  mediaRoutes,
+} from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import { readAccess, scopeOf, staffOnly, type Access } from "./context"
@@ -23,6 +27,8 @@ import type {
   CoverageFailure,
   CoverageResult,
   MyAssignment,
+  MonthPhotoState,
+  MonthPhotoView,
   MyMonthView,
   MyTasksView,
   Page,
@@ -281,9 +287,93 @@ export async function getMyAssignment(
   }
 }
 
+type MonthPhotoRow = {
+  asset_id: string
+  venue_id: string
+  state: string
+  uploaded_at: string
+  item_names: string[] | null
+  /** "" when sent to the month, null when not sent in the month. */
+  requirement_title: string | null
+  submission_item_id: string | null
+  reason: string | null
+  decided_by: string | null
+  decided_at: string | null
+  has_preview: boolean
+  has_thumbnail: boolean
+  width: number | null
+  height: number | null
+  evidence_available: boolean
+}
+
+// G-2: my_month_photos (20261116110000) is not in the generated types yet;
+// the coordinator regenerates lib/db/types.ts once.
+type MonthPhotosRpc = {
+  rpc(
+    fn: "my_month_photos",
+    args: { p_period_month: string; p_limit: number }
+  ): PromiseLike<{
+    data: MonthPhotoRow[] | null
+    error: { message: string; code: string; details?: string } | null
+  }>
+}
+
+const MONTH_PHOTO_STATES: readonly MonthPhotoState[] = [
+  "accepted",
+  "needs_another_photo",
+  "waiting",
+]
+
+function monthPhotoView(
+  row: MonthPhotoRow,
+  names: Map<string, string>
+): MonthPhotoView | null {
+  const state = MONTH_PHOTO_STATES.find((s) => s === row.state)
+  if (!state) return null
+  const available = row.evidence_available
+  return {
+    assetId: row.asset_id,
+    venueId: row.venue_id,
+    state,
+    uploadedAt: row.uploaded_at,
+    itemNames: row.item_names ?? [],
+    sent:
+      row.requirement_title === null
+        ? null
+        : { requirementTitle: row.requirement_title || null },
+    submissionId: row.submission_item_id,
+    reason: state === "needs_another_photo" ? row.reason : null,
+    decision:
+      state !== "waiting" && row.decided_at && row.decided_by
+        ? {
+            decidedAt: row.decided_at,
+            decidedBy: {
+              id: row.decided_by,
+              displayName: names.get(row.decided_by) ?? null,
+            },
+          }
+        : null,
+    // Own photos: the media library routes, which open any own upload.
+    asset: {
+      id: row.asset_id,
+      thumbnailUrl:
+        available && row.has_thumbnail
+          ? mediaRoutes.thumbnail(row.asset_id)
+          : null,
+      previewUrl:
+        available && row.has_preview ? mediaRoutes.preview(row.asset_id) : null,
+      width: row.width,
+      height: row.height,
+      available,
+    },
+  }
+}
+
 /**
  * A past or current month: progress per venue (a transfer can give two) and
- * own photos, newest first. `more` says photos past the first 100 were sent.
+ * own photos in it, newest upload first. Both read one SQL source
+ * (private.month_photo_states), so the list is what the counts count. `more`
+ * says there are photos past the first 100.
  */
 export async function getMyMonth(
   actor: MediaActor,
@@ -296,12 +386,10 @@ export async function getMyMonth(
   if (!read.ok) return read
   const { access } = read
   const month = periodMonthDate(period)
-  const [progress, items, people] = await Promise.all([
+  const [progress, photos, people] = await Promise.all([
     actor.db.rpc("coverage_staff_progress_v2", { p_period_month: month }),
-    actor.db.rpc("coverage_items_page", {
-      p_author_id: actor.profile.id,
+    (actor.db as unknown as MonthPhotosRpc).rpc("my_month_photos", {
       p_period_month: month,
-      p_newest_first: true,
       p_limit: 101,
     }),
     access.venueId
@@ -313,27 +401,21 @@ export async function getMyMonth(
       : Promise.resolve(new Map()),
   ])
   if (progress.error) return coverageRpcFailure(progress.error, "my month")
-  if (items.error) return coverageRpcFailure(items.error, "my month photos")
-  const all = items.data ?? []
+  if (photos.error) return coverageRpcFailure(photos.error, "my month photos")
+  const all = photos.data ?? []
   const rows = all.slice(0, 100)
-  const [names, completionPeriods] = await Promise.all([
-    nameMap(
-      actor,
-      people,
-      rows.map((r) => r.decided_by)
-    ),
-    readSubmissionCompletionPeriods(actor, rows),
-  ])
-  if (!completionPeriods.ok) return completionPeriods
+  const names = await nameMap(
+    actor,
+    people,
+    rows.map((r) => r.decided_by)
+  )
   const now = new Date()
   return {
     ok: true,
     month: {
       period: periodView(period, now),
       monthly: (progress.data ?? []).map((r) => monthlyView(r, now)),
-      submissions: rows.map((r) =>
-        submissionView(r, names, completionPeriods.byVenue)
-      ),
+      photos: rows.flatMap((r) => monthPhotoView(r, names) ?? []),
     },
     more: all.length > rows.length,
   }

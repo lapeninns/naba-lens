@@ -4,7 +4,8 @@
 -- Tables, rows, media, archive and monitoring objects are untouched; re-grant
 -- by re-running the grant statements of migrations 20261102130000..150000 and
 -- 20261106130000 (Our menu item photos), 20261107100100 and
--- 20261107100400..100500 (manager item photos). The venue manager security
+-- 20261107100400..100500 (manager item photos) and 20261116110000 (Your
+-- month list). The venue manager security
 -- fixes (effective grant, revoke trigger, denials, audit policy, item-photo
 -- rules of 20261107100300) and the 'manager' enum value stay in place:
 -- convert any manager accounts back to staff first.
@@ -55,7 +56,9 @@ revoke execute on function
   public.manager_menu_photo_item(uuid, uuid),
   public.manager_menu_photo_item_events(uuid, uuid, bigint, integer),
   public.manager_menu_photo_contributors(uuid),
-  public.manager_menu_photo_contributor(uuid, uuid)
+  public.manager_menu_photo_contributor(uuid, uuid),
+  -- G-2 (20261116110000): the caller's own month list.
+  public.my_month_photos(date, integer)
 from authenticated;
 
 -- Stops the hourly preparation even if the scheduler keeps calling it.

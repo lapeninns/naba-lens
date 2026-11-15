@@ -19,12 +19,12 @@ import {
   BackToTasks,
   isPeriodKey,
   MonthCard,
+  MonthPhotoList,
   periodLabel,
   pickReplacement,
   plural,
   ReplacementNote,
   shiftPeriod,
-  SubmissionList,
   submitBlockedCopy,
 } from "@/components/nabalens/tasks"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -243,9 +243,9 @@ export default async function MonthPage({
     )
   }
   const { month, more } = monthResult
-  const sentCount = more
-    ? `${month.submissions.length}+ photos`
-    : plural(month.submissions.length, "photo", "photos")
+  const photoCount = more
+    ? `${month.photos.length}+ photos`
+    : plural(month.photos.length, "photo", "photos")
 
   const requested = typeof search.replaces === "string" ? search.replaces : null
   const open = isCurrent
@@ -401,32 +401,30 @@ export default async function MonthPage({
         </section>
       ) : null}
 
-      {!combined || month.submissions.length > 0 ? (
+      {!combined || month.photos.length > 0 ? (
         <section
-          aria-labelledby="sent-heading"
+          aria-labelledby="photos-heading"
           className="flex flex-col gap-gutter"
         >
           <SectionHeader
-            id="sent-heading"
-            title={`${combined ? "Coverage photos" : "Sent"} for ${monthName(period)}`}
+            id="photos-heading"
+            title={`${combined ? "Coverage photos" : "Photos"} in ${monthName(period)}`}
             action={
-              month.submissions.length > 0 ? (
-                <span className="text-body text-ink-muted">{sentCount}</span>
+              month.photos.length > 0 ? (
+                <span className="text-body text-ink-muted">{photoCount}</span>
               ) : null
             }
           />
-          {month.submissions.length > 0 ? (
+          {month.photos.length > 0 ? (
             <>
-              <SubmissionList
-                label={`Sent for ${monthName(period)}`}
-                submissions={month.submissions}
-                showTask
-                empty={null}
+              <MonthPhotoList
+                label={`Photos in ${monthName(period)}`}
+                photos={month.photos}
               />
               {more ? (
                 <p className="max-w-reading px-1 text-body text-ink-muted">
-                  These are your newest {month.submissions.length}. Every photo
-                  you sent is on{" "}
+                  These are your newest {month.photos.length}. Every photo you
+                  took is on{" "}
                   <Link
                     href={PORTFOLIO_PATH}
                     className="inline-flex min-h-11 items-center rounded-control font-semibold text-ink underline underline-offset-3 focus-ring outline-none"
@@ -440,7 +438,7 @@ export default async function MonthPage({
           ) : (
             <EmptyState
               variant="done"
-              title="No photos were sent this month."
+              title="No photos count toward this month yet."
             />
           )}
         </section>

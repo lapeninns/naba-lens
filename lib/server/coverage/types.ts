@@ -357,12 +357,40 @@ export type MyTasksView = {
   pendingReview: number
 }
 
+/**
+ * One photo's state in a person's month (decision 13), in this order of
+ * precedence: accepted, needs another photo, waiting for review. "Still to
+ * take" is the rest of the target and has no photo.
+ */
+export type MonthPhotoState = "accepted" | "needs_another_photo" | "waiting"
+
+/** One of the person's own photos in their month (my_month_photos). */
+export type MonthPhotoView = {
+  assetId: string
+  venueId: string
+  state: MonthPhotoState
+  uploadedAt: Instant
+  /** Menu items the person labelled it with, by name. */
+  itemNames: string[]
+  /** Sent in the month: to a task (its title) or to the month (null title). */
+  sent: { requirementTitle: string | null } | null
+  /** The coverage item a send's "needs another photo" request is on. */
+  submissionId: string | null
+  /** The reviewer's reason, for needs another photo. */
+  reason: string | null
+  decision: { decidedAt: Instant; decidedBy: PersonRef } | null
+  asset: EvidenceAsset
+}
+
 export type MyMonthView = {
   period: PeriodView
   /** One per venue with a target or credit that month (a transfer can give two). */
   monthly: MonthlyProgress[]
-  /** Newest first (at most 100). */
-  submissions: SubmissionView[]
+  /**
+   * Own photos in the month, newest upload first (at most 100): the photos
+   * the counts in `monthly` count, one row each.
+   */
+  photos: MonthPhotoView[]
 }
 
 export type StaffMonthView = {

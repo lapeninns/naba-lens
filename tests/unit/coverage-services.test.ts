@@ -624,18 +624,113 @@ describe("own photo windows", () => {
     expect(result.ok && result.tasks.needsAnotherPhoto).toEqual([])
   })
 
+  /** A my_month_photos row (G-2). */
+  function monthPhotoRow(overrides: Record<string, unknown> = {}) {
+    return {
+      asset_id: crypto.randomUUID(),
+      venue_id: "00000000-0000-4000-8000-0000000000a1",
+      state: "waiting",
+      uploaded_at: "2026-11-10T10:00:00.000Z",
+      item_names: [],
+      requirement_title: "",
+      submission_item_id: null,
+      reason: null,
+      decided_by: null,
+      decided_at: null,
+      has_preview: true,
+      has_thumbnail: true,
+      width: 800,
+      height: 600,
+      evidence_available: true,
+      ...overrides,
+    }
+  }
+
+  function monthActor(photos: unknown[]) {
+    const actor = fakeActor({ newest: [] })
+    actor.db.rpc.mockImplementation(async (name: string) => ({
+      data:
+        name === "coverage_access_scope"
+          ? [scope]
+          : name === "my_month_photos"
+            ? photos
+            : [],
+      error: null,
+    }))
+    return actor
+  }
+
   it.each([
     [100, false],
     [101, true],
   ])(
-    "shows the newest 100 of %i sent photos and says whether there are more",
-    async (sent, more) => {
-      const actor = fakeActor({
-        newest: Array.from({ length: sent }, () => itemRow("submitted")),
-      })
+    "shows the newest 100 of %i month photos and says whether there are more",
+    async (count, more) => {
+      const actor = monthActor(
+        Array.from({ length: count }, () => monthPhotoRow())
+      )
       const result = await getMyMonth(actor as never, { period: "2026-11" })
-      expect(result.ok && result.month.submissions).toHaveLength(100)
+      expect(result.ok && result.month.photos).toHaveLength(100)
       expect(result.ok && result.more).toBe(more)
+      expect(actor.db.rpc).toHaveBeenCalledWith("my_month_photos", {
+        p_period_month: "2026-11-01",
+        p_limit: 101,
+      })
+      expect(actor.db.rpc).not.toHaveBeenCalledWith(
+        "coverage_items_page",
+        expect.anything()
+      )
     }
   )
+
+  it("reads each month photo's state, what it was sent for and the reason", async () => {
+    const actor = monthActor([
+      monthPhotoRow({
+        state: "accepted",
+        item_names: ["Dal"],
+        requirement_title: null,
+        decided_by: me,
+        decided_at: "2026-11-11T10:00:00.000Z",
+      }),
+      monthPhotoRow({
+        state: "needs_another_photo",
+        requirement_title: "Garden",
+        submission_item_id: "00000000-0000-4000-8000-0000000000b1",
+        reason: "Blurred",
+        decided_by: me,
+        decided_at: "2026-11-12T10:00:00.000Z",
+      }),
+      monthPhotoRow({
+        state: "waiting",
+        reason: "ignored",
+        evidence_available: false,
+      }),
+      monthPhotoRow({ state: "something_else" }),
+    ])
+    const result = await getMyMonth(actor as never, { period: "2026-11" })
+    if (!result.ok) throw new Error("expected ok")
+    const [accepted, again, waiting] = result.month.photos
+    expect(result.month.photos).toHaveLength(3)
+    expect(accepted).toMatchObject({
+      state: "accepted",
+      itemNames: ["Dal"],
+      sent: null,
+      reason: null,
+      decision: { decidedBy: { id: me } },
+    })
+    expect(accepted!.asset.thumbnailUrl).toMatch(/^\/api\/media\//)
+    expect(again).toMatchObject({
+      state: "needs_another_photo",
+      sent: { requirementTitle: "Garden" },
+      submissionId: "00000000-0000-4000-8000-0000000000b1",
+      reason: "Blurred",
+    })
+    expect(waiting).toMatchObject({
+      state: "waiting",
+      sent: { requirementTitle: null },
+      reason: null,
+      decision: null,
+      asset: { available: false, thumbnailUrl: null },
+    })
+  })
 })

@@ -6,8 +6,10 @@ import { cn } from "@/lib/utils"
  * Progress (DESIGN.md §4). One component, two modes.
  *
  * `segments`: one rounded segment per unit, green when accepted, striped
- * while submitted and waiting, grey with an edge while still needed. Above
- * 12 units the segments merge into one bar with the same three fills.
+ * while submitted and waiting, warn with a heavy edge when a reviewer asked
+ * for another photo, grey with an edge while still needed. Above 12 units
+ * the segments merge into one bar with the same fills. In that order:
+ * accepted, waiting, needs another, still needed (goals plan, decision 13).
  *
  * `bar` (the default): a continuous 8px bar. It fills with ink (`neutral`,
  * the default: any share, or technical progress such as an upload). Tone
@@ -80,13 +82,20 @@ type ProgressSegmentsProps = ProgressCommon &
     accepted: number
     /** Units sent and waiting for a decision (striped). */
     submitted?: number
+    /** Units a reviewer asked to be taken again (warn). */
+    needsAnother?: number
     /** Units needed in all; the rest are grey. */
     total: number
     /**
      * Words for a key under the bar, from the area's copy. Pass only the
      * kinds that appear.
      */
-    keyLabels?: { accepted?: string; submitted?: string; needed?: string }
+    keyLabels?: {
+      accepted?: string
+      submitted?: string
+      needsAnother?: string
+      needed?: string
+    }
   }
 
 type ProgressProps = ProgressBarProps | ProgressSegmentsProps
@@ -94,11 +103,14 @@ type ProgressProps = ProgressBarProps | ProgressSegmentsProps
 /*
  * Forced colours drop fills and box-shadow edges, so each kind keeps a
  * border there: accepted is solid, submitted keeps its stripes inside an
- * outline, still needed is an empty outline.
+ * outline, needs another is a dashed outline, still needed is an empty
+ * outline.
  */
 const FILL = {
   accepted: "bg-ok-fg forced-colors:border-6",
   submitted: "bg-stripe forced-colors:border",
+  needsAnother:
+    "bg-warn-bg edge-invalid forced-colors:border-2 forced-colors:border-dashed",
   needed: "bg-surface-2 edge-strong forced-colors:border",
 } as const
 
@@ -138,6 +150,11 @@ function Progress(props: ProgressProps) {
     const total = Math.max(0, Math.floor(props.total))
     const ok = clamp(Math.floor(props.accepted), 0, total)
     const sent = clamp(Math.floor(props.submitted ?? 0), 0, total - ok)
+    const redo = clamp(
+      Math.floor(props.needsAnother ?? 0),
+      0,
+      total - ok - sent
+    )
     const merged = total === 0 || total > MAX_SEGMENTS
     const keyLabels = props.keyLabels
     const height = SEGMENT_HEIGHT[size]
@@ -197,6 +214,14 @@ function Progress(props: ProgressProps) {
                   style={{ width: `${(sent / total) * 100}%` }}
                 />
               ) : null}
+              {redo > 0 ? (
+                <i
+                  data-slot="progress-segment"
+                  data-state="needsAnother"
+                  className={cn("block h-full", FILL.needsAnother)}
+                  style={{ width: `${(redo / total) * 100}%` }}
+                />
+              ) : null}
             </>
           ) : (
             Array.from({ length: total }, (_, index) => {
@@ -205,7 +230,9 @@ function Progress(props: ProgressProps) {
                   ? "accepted"
                   : index < ok + sent
                     ? "submitted"
-                    : "needed"
+                    : index < ok + sent + redo
+                      ? "needsAnother"
+                      : "needed"
               return (
                 <i
                   key={index}
@@ -222,19 +249,20 @@ function Progress(props: ProgressProps) {
             data-slot="progress-key"
             className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-muted"
           >
-            {(["accepted", "submitted", "needed"] as const).map((kind) =>
-              keyLabels[kind] ? (
-                <span key={kind} className="inline-flex items-center gap-1.5">
-                  <i
-                    aria-hidden
-                    className={cn(
-                      "block h-2.5 w-5.5 shrink-0 rounded-round",
-                      FILL[kind]
-                    )}
-                  />
-                  {keyLabels[kind]}
-                </span>
-              ) : null
+            {(["accepted", "submitted", "needsAnother", "needed"] as const).map(
+              (kind) =>
+                keyLabels[kind] ? (
+                  <span key={kind} className="inline-flex items-center gap-1.5">
+                    <i
+                      aria-hidden
+                      className={cn(
+                        "block h-2.5 w-5.5 shrink-0 rounded-round",
+                        FILL[kind]
+                      )}
+                    />
+                    {keyLabels[kind]}
+                  </span>
+                ) : null
             )}
           </p>
         ) : null}
