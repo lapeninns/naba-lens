@@ -549,14 +549,8 @@ describe("legacy coverage writes", () => {
         p_asset_ids: [],
       })
     )
-    await denied(
-      managerA.client.rpc("set_monthly_target", {
-        p_venue_id: venueA,
-        p_staff_id: chefA.id,
-        p_period_month: currentMonth(),
-        p_target_count: 4,
-      })
-    )
+    // Monthly targets at its own venue are the one exception (G-6); see
+    // "target writes" below.
     await denied(
       managerA.client.rpc("prepare_coverage_month", { p_venue_id: venueA })
     )
@@ -697,6 +691,221 @@ describe("legacy coverage writes", () => {
       .eq("id", cAssignment)
       .single()
     expect(data).toMatchObject({ end_kind: "unassigned", ended_by: admin.id })
+  })
+})
+
+// G-6 (decision 17): the one exception to the legacy coverage write denial.
+// A manager account sets its own venue's default photo target and a person's
+// number there, current month onwards. Another venue, a past month, an admin
+// correction and every other coverage table stay denied.
+describe("target writes", () => {
+  type Rpc = (
+    fn: string,
+    args: Record<string, unknown>
+  ) => PromiseLike<{
+    data: unknown
+    error: { code: string; message: string; details?: string } | null
+  }>
+  const rpc =
+    (who: TestIdentity): Rpc =>
+    (fn, args) =>
+      (who.client.rpc as unknown as Rpc).call(who.client, fn, args)
+  let newcomer: TestIdentity
+
+  const targetOf = async (staffId: string) => {
+    const { data } = await service
+      .from("monthly_targets")
+      .select("target_count, source, revision")
+      .eq("staff_id", staffId)
+      .eq("period_month", currentMonth())
+      .single()
+    return data
+  }
+
+  /** As a signed-in account, straight at the table (bypassing every RPC check). */
+  const insertAs = (
+    uid: string,
+    staffId: string,
+    venueId: string,
+    month: string,
+    source: string
+  ) =>
+    psql(`select set_config('request.jwt.claims', '{"sub":"${uid}","role":"authenticated"}', false);
+do $$ begin
+  begin
+    insert into public.monthly_targets (staff_id, venue_id, period_month, target_count, due_on, source)
+    values ('${staffId}', '${venueId}', '${month}', 3, ('${month}'::date + interval '1 month')::date - 1, '${source}');
+    raise exception 'allowed';
+  exception when others then
+    perform set_config('nl.result', sqlerrm, false);
+  end;
+end $$;
+select current_setting('nl.result');`)
+      .split("\n")
+      .pop()
+
+  beforeAll(async () => {
+    newcomer = await staff("mgr-deny-newcomer", venueA)
+  })
+
+  it("set the own venue's default; this month's rows follow it", async () => {
+    const [set] = (await ok(
+      rpc(managerA)("set_venue_default_target", {
+        p_venue_id: venueA,
+        p_target_count: 6,
+      })
+    )) as { revision: number; target_count: number }[]
+    expect(set).toMatchObject({ revision: 1, target_count: 6 })
+    expect(await targetOf(newcomer.id)).toMatchObject({
+      target_count: 6,
+      source: "venue_default",
+    })
+    const [read] = (await ok(
+      rpc(managerA)("venue_default_target", { p_venue_id: venueA })
+    )) as { revision: number; target_count: number }[]
+    expect(read).toMatchObject({ revision: 1, target_count: 6 })
+
+    // Changing a set default needs a reason (v0.4 rule, v0.5 rule 23).
+    await fails(
+      rpc(managerA)("set_venue_default_target", {
+        p_venue_id: venueA,
+        p_target_count: 8,
+        p_expected_revision: 1,
+      }),
+      "reason_required"
+    )
+    await ok(
+      rpc(managerA)("set_venue_default_target", {
+        p_venue_id: venueA,
+        p_target_count: 8,
+        p_expected_revision: 1,
+        p_reason: "TEST busier month",
+      })
+    )
+    expect(await targetOf(newcomer.id)).toMatchObject({
+      target_count: 8,
+      source: "venue_default",
+    })
+  })
+
+  it("set a person's own number with a reason, which the default no longer moves", async () => {
+    const before = await targetOf(newcomer.id)
+    await fails(
+      managerA.client.rpc("set_monthly_target", {
+        p_venue_id: venueA,
+        p_staff_id: newcomer.id,
+        p_period_month: currentMonth(),
+        p_target_count: 3,
+        p_expected_revision: before!.revision,
+      }),
+      "reason_required"
+    )
+    await ok(
+      managerA.client.rpc("set_monthly_target", {
+        p_venue_id: venueA,
+        p_staff_id: newcomer.id,
+        p_period_month: currentMonth(),
+        p_target_count: 3,
+        p_expected_revision: before!.revision,
+        p_reason: "TEST part time",
+      })
+    )
+    expect(await targetOf(newcomer.id)).toMatchObject({
+      target_count: 3,
+      source: "manager",
+    })
+    await ok(
+      rpc(managerA)("set_venue_default_target", {
+        p_venue_id: venueA,
+        p_target_count: 9,
+        p_expected_revision: 2,
+        p_reason: "TEST again",
+      })
+    )
+    expect(await targetOf(newcomer.id)).toMatchObject({
+      target_count: 3,
+      source: "manager",
+    })
+  })
+
+  it("never reach another venue, a past month or an admin correction", async () => {
+    await denied(
+      rpc(managerA)("set_venue_default_target", {
+        p_venue_id: venueB,
+        p_target_count: 5,
+      })
+    )
+    expect(
+      await ok(rpc(admin)("venue_default_target", { p_venue_id: venueB }))
+    ).toEqual([])
+    await denied(rpc(managerA)("venue_default_target", { p_venue_id: venueB }))
+    await denied(
+      managerA.client.rpc("set_monthly_target", {
+        p_venue_id: venueB,
+        p_staff_id: chefB.id,
+        p_period_month: currentMonth(),
+        p_target_count: 5,
+      })
+    )
+    const [y, m] = currentMonth().split("-").map(Number)
+    const last = new Date(Date.UTC(y!, m! - 2, 1)).toISOString().slice(0, 10)
+    await fails(
+      managerA.client.rpc("set_monthly_target", {
+        p_venue_id: venueA,
+        p_staff_id: newcomer.id,
+        p_period_month: last,
+        p_target_count: 5,
+        p_reason: "TEST past",
+      }),
+      "historical_admin_only",
+      "42501"
+    )
+
+    // The table guard itself, past every RPC check.
+    const next = new Date(Date.UTC(y!, m!, 1)).toISOString().slice(0, 10)
+    expect(insertAs(managerA.id, chefB.id, venueB, next, "manager")).toBe(
+      "not_venue_manager"
+    )
+    expect(insertAs(managerA.id, newcomer.id, venueA, last, "manager")).toBe(
+      "not_venue_manager"
+    )
+    expect(
+      insertAs(managerA.id, newcomer.id, venueA, next, "admin_correction")
+    ).toBe("not_venue_manager")
+    expect(insertAs(managerA.id, newcomer.id, venueA, next, "manager")).toBe(
+      "allowed"
+    )
+    // A legacy staff-held grant and the system are not manager accounts.
+    expect(insertAs(chefB.id, chefB.id, venueB, next, "manager")).toBe(
+      "allowed"
+    )
+  })
+
+  it("leave every other coverage table on the blanket denial", () => {
+    const rows = psql(`select c.relname || ':' || p.proname
+      from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_proc p on p.oid = t.tgfoid
+      where t.tgname like '%deny_manager_writes' and not t.tgisinternal
+      order by c.relname`).split("\n")
+    expect(rows).toEqual([
+      "coverage_preparation_runs:deny_manager_coverage_writes",
+      "coverage_requirement_assignees:deny_manager_coverage_writes",
+      "coverage_requirements:deny_manager_coverage_writes",
+      "coverage_review_events:deny_manager_coverage_writes",
+      "coverage_submission_items:deny_manager_coverage_writes",
+      "coverage_submissions:deny_manager_coverage_writes",
+      "menu_coverage_plans:deny_manager_coverage_writes",
+      "monthly_targets:deny_manager_monthly_target_writes",
+      "venue_amenity_fact_media:deny_manager_coverage_writes",
+      "venue_amenity_facts:deny_manager_coverage_writes",
+    ])
+  })
+
+  it("still cannot run preparation, which writes requirements and runs", async () => {
+    await denied(
+      managerA.client.rpc("prepare_coverage_month", { p_venue_id: venueA })
+    )
   })
 })
 
