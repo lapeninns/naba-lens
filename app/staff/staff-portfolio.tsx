@@ -377,13 +377,20 @@ export function StaffPortfolio({
   const addDiscarded = useAddDiscarded()
   // Labels saved from "Needs labels": hide those photos here and refresh the
   // gallery so its badges catch up.
-  // A venue area counts as a label (S-1), so those photos never show here.
   const [labelled, setLabelled] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  // A venue area counts as a label (S-1): photos with the uploader's area,
+  // as read and as saved here since, never show under Needs labels.
+  const [areaDone, setAreaDone] = React.useState<ReadonlySet<string>>(
     () => new Set(areaLabelled)
   )
   const [labelSaves, setLabelSaves] = React.useState(0)
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
-  const needsLabels = photosNeedingLabels(initialPage.items, labelled)
+  const needsLabels = photosNeedingLabels(
+    initialPage.items,
+    new Set([...labelled, ...areaDone])
+  )
   const needsLabelsNoun = uploadsNoun(needsLabels)
   const accepted = React.useMemo(() => {
     const accepted = new Map<string, string[]>()
@@ -607,6 +614,17 @@ export function StaffPortfolio({
           setLabelled((current) => new Set([...current, ...saved]))
           setLabelSaves((n) => n + 1)
         }}
+        // An area counts as a label (S-1): an area-only save leaves "Needs
+        // labels" at once; clearing the area brings the photo back.
+        onAreaSaved={(ids, subjectId) =>
+          setAreaDone((current) => {
+            const next = new Set(current)
+            for (const id of ids)
+              if (subjectId) next.add(id)
+              else next.delete(id)
+            return next
+          })
+        }
       />
       <EditProfileDialog
         open={editOpen}

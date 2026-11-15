@@ -370,6 +370,91 @@ describe("back to the venue default (review c, 5)", () => {
       .eq("entity_id", own.id)
       .eq("reason", "Back to part time")
     expect(count).toBe(1)
+    // Delta review 3: the audit says what it was before.
+    const { data: audit } = await service
+      .from("coverage_audit_events")
+      .select("before, after")
+      .eq("entity_id", own.id)
+      .eq("reason", "Back to part time")
+      .single()
+    expect(audit).toMatchObject({
+      before: { target: 8, source: "manager" },
+      after: { target: 4, source: "venue_default" },
+    })
+  })
+
+  it("keeps someone on no number when the default is cleared after moving them to it (delta review 2)", async () => {
+    // Last month their own 30; this month a manager moved them to the default.
+    const ana = await staff("vdt-reset-ana", v)
+    lastMonthRow(ana.id, v, 30, "manager")
+    psql(
+      `select private.apply_monthly_targets('${v}'::uuid, '${month}'::date, '${admin.id}'::uuid)`
+    )
+    const copied = (await targetOf(ana.id))!
+    expect(copied).toMatchObject({ target_count: 30, source: "copied" })
+    await ok(
+      mgr.client.rpc("use_venue_default_target", {
+        p_venue_id: v,
+        p_staff_id: ana.id,
+        p_reason: "Back to the default",
+        p_expected_revision: copied.revision,
+      })
+    )
+    expect(await targetOf(ana.id)).toMatchObject({
+      target_count: 4,
+      source: "venue_default",
+    })
+
+    // The manager clears the default: Ana is on no number, not her old 30.
+    const [current] = (await ok(
+      rpc(admin)("venue_default_target", { p_venue_id: v })
+    )) as { revision: number }[]
+    await ok(
+      rpc(admin)("set_venue_default_target", {
+        p_venue_id: v,
+        p_target_count: null,
+        p_reason: "No default for now",
+        p_expected_revision: current!.revision,
+      })
+    )
+    expect(await targetOf(ana.id)).toMatchObject({
+      target_count: null,
+      source: "placeholder",
+    })
+
+    // Next month's preparation doesn't bring the 30 back either.
+    const next = new Date(Date.UTC(year!, mon!, 1)).toISOString().slice(0, 10)
+    psql(
+      `select private.apply_monthly_targets('${v}'::uuid, '${next}'::date, '${admin.id}'::uuid)`
+    )
+    const { data } = await service
+      .from("monthly_targets")
+      .select("target_count, source")
+      .eq("staff_id", ana.id)
+      .eq("period_month", next)
+      .single()
+    expect(data).toEqual({ target_count: null, source: "placeholder" })
+
+    // Someone who keeps their own number still carries it into next month.
+    const bob = await staff("vdt-reset-bob", v)
+    lastMonthRow(bob.id, v, 12, "manager")
+    psql(
+      `select private.apply_monthly_targets('${v}'::uuid, '${month}'::date, '${admin.id}'::uuid)`
+    )
+    expect(await targetOf(bob.id)).toMatchObject({
+      target_count: 12,
+      source: "copied",
+    })
+    psql(
+      `select private.apply_monthly_targets('${v}'::uuid, '${next}'::date, '${admin.id}'::uuid)`
+    )
+    const { data: kept } = await service
+      .from("monthly_targets")
+      .select("target_count, source")
+      .eq("staff_id", bob.id)
+      .eq("period_month", next)
+      .single()
+    expect(kept).toEqual({ target_count: 12, source: "copied" })
   })
 
   it("is refused when the venue has no default", async () => {

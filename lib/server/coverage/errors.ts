@@ -142,6 +142,9 @@ const STATE_CONFLICT_MESSAGES: Record<string, string> = {
   menu_section_shared:
     "Menu sections are shared by everyone at the venue. Nobody is assigned to them.",
   menu_section_no_due_date: "Menu sections have no due date.",
+  // Review c (5): the default was cleared meanwhile.
+  no_venue_default:
+    "The venue has no default target now. Reload the page and set one first.",
   menu_section_send_closed:
     "Photos of the menu count toward your month now. Add them from Our menu or your month.",
   menu_version_not_active:

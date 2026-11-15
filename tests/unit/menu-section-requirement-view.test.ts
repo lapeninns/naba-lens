@@ -112,6 +112,14 @@ describe("menu-section refusals", () => {
         "Menu sections are shared by everyone at the venue. Nobody is assigned to them.",
       ],
       ["menu_section_no_due_date", "Menu sections have no due date."],
+      [
+        "menu_section_send_closed",
+        "Photos of the menu count toward your month now. Add them from Our menu or your month.",
+      ],
+      [
+        "no_venue_default",
+        "The venue has no default target now. Reload the page and set one first.",
+      ],
     ]) {
       expect(
         coverageRpcFailure({ message, code: "P0001", details: "" }, "test")

@@ -53,7 +53,17 @@ type HostProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSaved?: (results: { ok: boolean; assetId: string }[]) => void
+  onAreaSaved?: (assetIds: string[], subjectId: string | null) => void
 }
+const areas = vi.hoisted(() => ({ ids: [] as string[] }))
+vi.mock("@/lib/server/area-photos", () => ({
+  getMyAreaLabels: async (_actor: unknown, ids: string[]) => ({
+    ok: true,
+    labels: ids
+      .filter((id) => areas.ids.includes(id))
+      .map((assetId) => ({ assetId })),
+  }),
+}))
 const host = vi.hoisted(() => ({ last: null as HostProps | null }))
 vi.mock("@/app/_labels/label-editor-host", () => ({
   LabelEditorHost: (props: HostProps) => {
@@ -332,6 +342,37 @@ describe("Me: Needs labels and milestones", () => {
       within(section).getByRole("button", { name: "Label this photo" })
     ).toBeTruthy()
     expect(gallery.signals.at(-1)).toBe((before ?? 0) + 1)
+  })
+
+  it("leaves photos with a venue area out, and follows area saves (S-1, note 7)", async () => {
+    library.items = [item("a1"), item("a2"), item("a3")]
+    areas.ids = ["a3"]
+    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+      ok: true,
+      states: [],
+    })
+    try {
+      render(await StaffPage())
+      const section = screen.getByRole("region", { name: /Needs labels/ })
+      // a3 has the uploader's area: labelled.
+      fireEvent.click(
+        within(section).getByRole("button", { name: "Label these 2 photos" })
+      )
+      expect(screen.getByRole("dialog", { name: "Labels" }).textContent).toBe(
+        "a1,a2"
+      )
+      // An area-only save takes a1 out at once; clearing a3's brings it back.
+      act(() => host.last?.onAreaSaved?.(["a1"], "place-bar"))
+      expect(
+        within(section).getByRole("button", { name: "Label this photo" })
+      ).toBeTruthy()
+      act(() => host.last?.onAreaSaved?.(["a3"], null))
+      expect(
+        within(section).getByRole("button", { name: "Label these 2 photos" })
+      ).toBeTruthy()
+    } finally {
+      areas.ids = []
+    }
   })
 
   it("says files, not photos, when videos need labels too", async () => {

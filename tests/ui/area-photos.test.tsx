@@ -264,6 +264,23 @@ describe("AreaLabelField", () => {
     expect(labelActions.setAreaLabelAction).not.toHaveBeenCalled()
   })
 
+  it("tells the host which photos were saved with the area, and when it is cleared (note 7)", async () => {
+    labelActions.loadAreaLabelsAction.mockResolvedValue({
+      ok: true,
+      offered: true,
+      places: [{ subjectId: BAR, kind: "area", label: "Bar" }],
+      labels: [],
+    })
+    labelActions.setAreaLabelAction.mockResolvedValue({ ok: true })
+    const onSaved = vi.fn()
+    render(<AreaLabelField assetIds={[A, B]} onSaved={onSaved} />)
+    const select = await screen.findByLabelText("Venue area")
+    fireEvent.change(select, { target: { value: BAR } })
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith([A, B], BAR))
+    fireEvent.change(select, { target: { value: "" } })
+    await waitFor(() => expect(onSaved).toHaveBeenLastCalledWith([A, B], null))
+  })
+
   it("Try again resends the same choice after a failed save (S-3)", async () => {
     labelActions.loadAreaLabelsAction.mockResolvedValue({
       ok: true,

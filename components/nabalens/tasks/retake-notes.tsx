@@ -403,74 +403,76 @@ export function RetakeNotes({
       {RETAKE_COPY.laterFailed}
     </Notice>
   ) : null
-  // Always rendered, so the polite message is read even once the block goes.
+  // One element at one fixed place in the tree (first in the fragment the
+  // block always returns), mounted empty, so the text that Later puts in it
+  // is announced even when the block's section goes away.
   const live = (
     <p className="sr-only" aria-live="polite" role="status">
       {announced}
     </p>
   )
-
-  if (surface === "home") {
-    if (shown.length === 0)
-      return (
-        <>
-          {live}
-          {failure}
-        </>
-      )
-    return (
-      <section aria-label={RETAKE_COPY.heading} className="grid gap-gutter">
-        {live}
-        {failure}
-        <HomeNotes
-          notes={shown}
-          openAdd={openAdd}
-          tasksPath={tasksPath}
-          blocked={uploadBlocked}
-          onLater={later ?? (() => undefined)}
-        />
-      </section>
-    )
-  }
-
-  if (shown.length === 0) return live
-  const waiting = shown.filter(
-    (note) => note.status !== "retaken" && note.canRetake
-  ).length
   return (
-    <section aria-labelledby="better-heading" className="grid gap-3 pt-2">
-      <div className="grid gap-1 px-1">
-        {live}
-        <h2
-          id="better-heading"
-          tabIndex={-1}
-          className="flex items-center gap-2 rounded-control type-section-title text-ink focus-ring outline-none"
-        >
-          {RETAKE_COPY.heading}
-          <CountBadge
-            count={waiting}
-            label={waiting === 1 ? "photo" : "photos"}
-          />
-        </h2>
-        <p className="text-body text-ink-muted">{RETAKE_COPY.meIntro}</p>
-      </div>
-      {failure}
-      <ul
-        aria-label={RETAKE_COPY.listLabel}
-        className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
-      >
-        {shown.map((note) => (
-          <NoteRow
-            key={keyOf(note)}
-            note={note}
+    <>
+      {live}
+      {retakeBlock()}
+    </>
+  )
+
+  function retakeBlock() {
+    if (surface === "home") {
+      if (shown.length === 0) return failure
+      return (
+        <section aria-label={RETAKE_COPY.heading} className="grid gap-gutter">
+          {failure}
+          <HomeNotes
+            notes={shown}
             openAdd={openAdd}
             tasksPath={tasksPath}
             blocked={uploadBlocked}
-            onLater={later}
-            library
+            onLater={later ?? (() => undefined)}
           />
-        ))}
-      </ul>
-    </section>
-  )
+        </section>
+      )
+    }
+
+    if (shown.length === 0) return null
+    const waiting = shown.filter(
+      (note) => note.status !== "retaken" && note.canRetake
+    ).length
+    return (
+      <section aria-labelledby="better-heading" className="grid gap-3 pt-2">
+        <div className="grid gap-1 px-1">
+          <h2
+            id="better-heading"
+            tabIndex={-1}
+            className="flex items-center gap-2 rounded-control type-section-title text-ink focus-ring outline-none"
+          >
+            {RETAKE_COPY.heading}
+            <CountBadge
+              count={waiting}
+              label={waiting === 1 ? "photo" : "photos"}
+            />
+          </h2>
+          <p className="text-body text-ink-muted">{RETAKE_COPY.meIntro}</p>
+        </div>
+        {failure}
+        <ul
+          aria-label={RETAKE_COPY.listLabel}
+          className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
+        >
+          {shown.map((note) => (
+            <NoteRow
+              key={keyOf(note)}
+              note={note}
+              openAdd={openAdd}
+              tasksPath={tasksPath}
+              blocked={uploadBlocked}
+              onLater={later}
+              library
+            />
+          ))}
+        </ul>
+      </section>
+    )
+  }
 }

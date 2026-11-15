@@ -173,6 +173,9 @@ describe("RetakeNotes on Home", () => {
     const later = screen.getByRole("button", {
       name: "Later: Korma (Chicken)",
     })
+    // The live region is there, empty, before anything is announced.
+    const status = screen.getByRole("status")
+    expect(status.textContent).toBe("")
     later.focus()
     await act(async () => {
       fireEvent.click(later)
@@ -181,9 +184,13 @@ describe("RetakeNotes on Home", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("heading", { name: "Our menu" })
     )
-    expect(screen.getByRole("status").textContent).toBe(
-      "Set aside for later. It stays on Me."
-    )
+    // The same element (not a new one mounted with the text) carries it,
+    // although the last note and its section are gone.
+    expect(screen.getByRole("status")).toBe(status)
+    expect(status.textContent).toBe("Set aside for later. It stays on Me.")
+    expect(
+      screen.queryByRole("region", { name: "Needs another photo" })
+    ).toBeNull()
   })
 
   it("brings the note back and says so when Later fails", async () => {

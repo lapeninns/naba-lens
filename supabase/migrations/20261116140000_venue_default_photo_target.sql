@@ -89,7 +89,9 @@ alter table public.coverage_audit_events add constraint coverage_audit_events_en
     'amenity_fact', 'menu_plan', 'preparation', 'account_role',
     'venue_default_target'
   )) not valid;
--- Checked separately so the scan doesn't hold the ACCESS EXCLUSIVE lock.
+-- Added not valid, then validated. In this one migration transaction the
+-- ACCESS EXCLUSIVE lock from add constraint is still held while validate
+-- scans; the table is small, and lock_timeout above keeps the wait short.
 alter table public.coverage_audit_events validate constraint coverage_audit_events_entity_check;
 
 -- New rows that took the venue default. already_present stays the rest.
@@ -162,22 +164,22 @@ begin
   ),
   sources as (
     select r.staff_id, r.venue_id,
-      case when own.source <> 'venue_default' then own.id end as own_id,
-      case when own.source <> 'venue_default' then own.target_count end as own_count,
+      case when own.source in ('manager', 'admin_correction', 'copied') then own.id end as own_id,
+      case when own.source in ('manager', 'admin_correction', 'copied') then own.target_count end as own_count,
       private.venue_default_photo_target(r.venue_id, p_month) as default_count,
       cur.id as cur_id, cur.source as cur_source
     from roster r
     left join public.monthly_targets cur
       on cur.staff_id = r.staff_id and cur.venue_id = r.venue_id and cur.period_month = p_month
-    -- The person's own number: the latest earlier month with a number, at
-    -- this venue only. If that month took the default (a manager moved them
-    -- back to it), they have no own number any more.
+    -- The person's own number: the latest earlier month's row at this venue,
+    -- only if a manager or admin set it (or it was copied from one). A month
+    -- that took the default, or became a placeholder when the default was
+    -- cleared, ends it: a manager moved them off their own number.
     left join lateral (
       select t.id, t.target_count, t.source
       from public.monthly_targets t
       where t.staff_id = r.staff_id and t.venue_id = r.venue_id
-        and t.period_month < p_month and t.target_count is not null
-        and t.source in ('manager', 'admin_correction', 'copied', 'venue_default')
+        and t.period_month < p_month
       order by t.period_month desc
       limit 1
     ) own on true
@@ -198,16 +200,20 @@ begin
     on conflict on constraint monthly_targets_period_key do nothing
     returning t.id, t.venue_id, t.staff_id, t.source, t.target_count
   ),
+  -- A placeholder this month only ever takes the default. An own number
+  -- was copied when the row was made; a placeholder with one behind it can
+  -- only come from clearing the default after a manager moved the person to
+  -- it (use_venue_default_target), and that number must not come back.
   raised as (
     update public.monthly_targets t
-    set target_count = coalesce(s.own_count, s.default_count),
-        source = case when s.own_id is not null then 'copied' else 'venue_default' end,
-        copied_from_target_id = s.own_id,
+    set target_count = s.default_count,
+        source = 'venue_default',
+        copied_from_target_id = null,
         updated_by = p_actor,
         revision = t.revision + 1
     from sources s
     where s.cur_id is not null and t.id = s.cur_id and t.source = 'placeholder'
-      and coalesce(s.own_count, s.default_count) is not null
+      and s.default_count is not null
     returning t.id, t.venue_id, t.staff_id, t.source, t.target_count
   ),
   -- Data-modifying CTEs always run once, whether or not they are read.
@@ -475,6 +481,7 @@ declare
   v_reason text := private.require_reason(p_reason);
   v_default integer;
   v_row public.monthly_targets;
+  v_before jsonb;
 begin
   perform pg_advisory_xact_lock(hashtextextended('nabalens_coverage_prepare:' || v_month::text, 0));
 
@@ -500,6 +507,8 @@ begin
     return query select v_row.id, v_row.revision, v_row.target_count, v_row.source;
     return;
   end if;
+  -- Read before the update: `returning ... into v_row` overwrites it.
+  v_before := jsonb_build_object('target', v_row.target_count, 'source', v_row.source);
 
   update public.monthly_targets t
   set target_count = v_default,
@@ -511,9 +520,9 @@ begin
   returning t.* into v_row;
 
   insert into public.coverage_audit_events
-    (venue_id, entity, entity_id, actor_id, actor_role, action, reason, after)
+    (venue_id, entity, entity_id, actor_id, actor_role, action, reason, before, after)
   values (p_venue_id, 'monthly_target', v_row.id, v_uid, private.coverage_actor_role(p_venue_id),
-    'updated', v_reason,
+    'updated', v_reason, v_before,
     jsonb_build_object('staffId', p_staff_id, 'month', v_month, 'target', v_default, 'source', 'venue_default'));
 
   return query select v_row.id, v_row.revision, v_row.target_count, v_row.source;

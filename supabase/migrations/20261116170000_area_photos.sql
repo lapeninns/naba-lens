@@ -836,14 +836,25 @@ as $$
     and a.upload_state = 'ready'
     and a.deleted_at is null
     and private.is_active_user()
-    and exists (
-      select 1 from public.media_area_labels l
-      where l.asset_id = a.id and l.venue_id = a.venue_id and l.added_by = a.uploader_id
-    )
     and (
-      private.can_manage_venue(a.venue_id)
-      or private.is_active_admin()
-      or a.uploader_id = (select auth.uid())
+      -- The venue's manager and the uploader: only while the uploader's area
+      -- label is live. Clearing the area ends their access through here.
+      (
+        (private.can_manage_venue(a.venue_id) or a.uploader_id = (select auth.uid()))
+        and exists (
+          select 1 from public.media_area_labels l
+          where l.asset_id = a.id and l.venue_id = a.venue_id
+            and l.added_by = a.uploader_id and l.removed_at is null
+        )
+      )
+      -- Admin oversight keeps the photo after its area goes, as menu review.
+      or (
+        private.is_active_admin()
+        and exists (
+          select 1 from public.media_area_labels l
+          where l.asset_id = a.id and l.venue_id = a.venue_id and l.added_by = a.uploader_id
+        )
+      )
     );
 $$;
 revoke all on function public.area_photo_asset(uuid) from public, anon, service_role;

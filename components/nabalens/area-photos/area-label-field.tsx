@@ -31,11 +31,14 @@ type Current = { subjectId: string; state: string; reason: string | null }
 export function AreaLabelField({
   assetIds,
   waitingCount = 0,
+  onSaved,
 }: {
   /** The reserved photos (images only) the choice applies to. */
   assetIds: readonly string[]
   /** Photos not reserved yet: the choice waits for them. */
   waitingCount?: number
+  /** After the photos are saved with this area (null: none). */
+  onSaved?: (assetIds: string[], subjectId: string | null) => void
 }) {
   const [places, setPlaces] = React.useState<Place[] | null>(null)
   const [failed, setFailed] = React.useState(false)
@@ -97,6 +100,11 @@ export function AreaLabelField({
   // Every reserved photo carries the current choice. One request at a time
   // per photo and choice; the latest choice wins once each answer is in.
   const [round, setRound] = React.useState(0)
+  // The latest callback, without re-running the save effect when it changes.
+  const onSavedRef = React.useRef(onSaved)
+  React.useEffect(() => {
+    onSavedRef.current = onSaved
+  }, [onSaved])
   React.useEffect(() => {
     if (!places || !touched) return
     const ids = idsKey ? idsKey.split(",") : []
@@ -122,6 +130,8 @@ export function AreaLabelField({
     ).then((all) => {
       const done = all.every(Boolean)
       setStatus(done ? "saved" : "error")
+      const stored = todo.filter((_, i) => all[i])
+      if (stored.length > 0) onSavedRef.current?.(stored, want || null)
       if (done && ids.length === 1)
         setCurrent(
           want ? { subjectId: want, state: "pending", reason: null } : null

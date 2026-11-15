@@ -398,6 +398,13 @@ describe("who can review an area photo", () => {
     expect(await canOpen(colleague, asset)).toBe(false)
     // A photo with no area is not opened through this route.
     expect(await canOpen(convert, plain)).toBe(false)
+    // Delta review 1: once the uploader clears the area, the manager (and
+    // the uploader, through this route) lose access; admin oversight keeps it.
+    await ok(setArea(s, asset, null))
+    expect(await canOpen(convert, asset)).toBe(false)
+    expect(await canOpen(f.manager, asset)).toBe(false)
+    expect(await canOpen(s, asset)).toBe(false)
+    expect(await canOpen(admin, asset)).toBe(true)
     // The general media route is not widened: menu review's check still
     // refuses an area-only photo to the manager account.
     expect(
