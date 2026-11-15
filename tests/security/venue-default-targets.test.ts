@@ -10,7 +10,7 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
-import { currentMonth, fails, ok, psql } from "./coverage-fixtures"
+import { currentMonth, fails, makeManager, ok, psql } from "./coverage-fixtures"
 
 const service = serviceClient()
 
@@ -270,5 +270,124 @@ describe("venue default target", () => {
         `update private.venue_default_photo_targets set target_count = 1 where venue_id = '${venue}'`
       )
     ).toThrow(/row_immutable/)
+  })
+})
+
+describe("back to the venue default (review c, 5)", () => {
+  let v: string
+  let w: string
+  let person: TestIdentity
+  let wasReset: TestIdentity
+  let mgr: TestIdentity
+  let otherMgr: TestIdentity
+  const twoMonthsAgo = new Date(Date.UTC(year!, mon! - 3, 1))
+    .toISOString()
+    .slice(0, 10)
+
+  beforeAll(async () => {
+    v = (await createVenue(service, "vdt-reset")).id
+    w = (await createVenue(service, "vdt-reset-other")).id
+    ;[person, wasReset, mgr, otherMgr] = await Promise.all([
+      staff("vdt-reset-person", v),
+      staff("vdt-reset-was", v),
+      staff("vdt-reset-mgr", v),
+      staff("vdt-reset-other-mgr", w),
+    ])
+    await makeManager(admin, mgr, v)
+    await makeManager(admin, otherMgr, w)
+    // Two months ago their own 9; last month a manager moved them back to
+    // the default. Their 9 must not come back.
+    psql(`insert into public.monthly_targets
+      (staff_id, venue_id, period_month, target_count, due_on, source)
+      values ('${wasReset.id}', '${v}', '${twoMonthsAgo}', 9,
+        ('${twoMonthsAgo}'::date + interval '1 month')::date - 1, 'manager')`)
+    lastMonthRow(wasReset.id, v, 4, "venue_default")
+    await ok(
+      rpc(admin)("set_venue_default_target", {
+        p_venue_id: v,
+        p_target_count: 4,
+      })
+    )
+  })
+
+  it("rollover stops at a month that took the default", async () => {
+    expect(await targetOf(wasReset.id)).toMatchObject({
+      target_count: 4,
+      source: "venue_default",
+    })
+  })
+
+  it("lets the venue's manager move someone back, with a reason and the current revision", async () => {
+    const before = (await targetOf(person.id))!
+    expect(before).toMatchObject({ target_count: 4, source: "venue_default" })
+    await ok(
+      mgr.client.rpc("set_monthly_target", {
+        p_venue_id: v,
+        p_staff_id: person.id,
+        p_period_month: currentMonth(),
+        p_target_count: 8,
+        p_reason: "Full time now",
+        p_expected_revision: before.revision,
+      })
+    )
+    const own = (await targetOf(person.id))!
+    expect(own).toMatchObject({ target_count: 8, source: "manager" })
+
+    const call = (who: TestIdentity, over: Record<string, unknown> = {}) =>
+      who.client.rpc("use_venue_default_target", {
+        p_venue_id: v,
+        p_staff_id: person.id,
+        p_reason: "Back to part time",
+        p_expected_revision: own.revision,
+        ...over,
+      })
+    await fails(call(person), "not_venue_manager", "42501")
+    await fails(call(otherMgr), "not_venue_manager", "42501")
+    await fails(call(mgr, { p_reason: "" }), "reason_required")
+    await fails(
+      call(mgr, { p_expected_revision: own.revision + 5 }),
+      "coverage_conflict",
+      "40001"
+    )
+    expect(await targetOf(person.id)).toMatchObject({ target_count: 8 })
+
+    const [row] = (await ok(call(mgr)))!
+    expect(row).toMatchObject({ target_count: 4, source: "venue_default" })
+    expect(await targetOf(person.id)).toMatchObject({
+      target_count: 4,
+      source: "venue_default",
+      revision: own.revision + 1,
+      copied_from_target_id: null,
+    })
+    // Again: nothing changes.
+    const [again] = (await ok(
+      call(mgr, { p_expected_revision: own.revision + 1 })
+    ))!
+    expect(again!.revision).toBe(own.revision + 1)
+    const { count } = await service
+      .from("coverage_audit_events")
+      .select("id", { count: "exact", head: true })
+      .eq("entity_id", own.id)
+      .eq("reason", "Back to part time")
+    expect(count).toBe(1)
+  })
+
+  it("is refused when the venue has no default", async () => {
+    const someone = await staff("vdt-reset-nodefault", w)
+    psql(`insert into public.monthly_targets
+      (staff_id, venue_id, period_month, target_count, due_on, source)
+      values ('${someone.id}', '${w}', '${month}', 3,
+        ('${month}'::date + interval '1 month')::date - 1, 'manager')`)
+    const row = (await targetOf(someone.id))!
+    await fails(
+      otherMgr.client.rpc("use_venue_default_target", {
+        p_venue_id: w,
+        p_staff_id: someone.id,
+        p_reason: "x",
+        p_expected_revision: row.revision,
+      }),
+      "no_venue_default",
+      "P0001"
+    )
   })
 })

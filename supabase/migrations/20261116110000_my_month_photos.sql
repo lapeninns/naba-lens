@@ -1,3 +1,6 @@
+-- Fail fast instead of queueing behind a long transaction on push.
+set lock_timeout = '5s';
+
 -- G-2 (docs/plans/goals-not-tasks.md, decision 13): Your month reads both
 -- sources, photos sent to the month or a task and labelled menu photos,
 -- through one SQL source. Read-through, in the ORP style: no rows change, no

@@ -1,3 +1,6 @@
+-- Fail fast instead of queueing behind a long transaction on push.
+set lock_timeout = '5s';
+
 -- G-1 (goals-not-tasks decision 11): whether each listed dish has a photo
 -- waiting for review, for every viewer at the venue.
 --

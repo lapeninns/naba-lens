@@ -391,3 +391,35 @@ export function psql(sql: string): string {
     }
   ).trim()
 }
+
+/**
+ * A send to a menu section as it could be made before the G-8 cut-over
+ * (decision 7 keeps that history): the real submit_coverage_photos, as
+ * `staffId`, with the menu-section rule held aside for this one transaction
+ * only (psql as the owner; other sessions never see the swap).
+ */
+export function sendBeforeCutOver(
+  staffId: string,
+  requirementId: string,
+  assetIds: string[]
+): { item_id: string; asset_id: string; state: string; revision: number }[] {
+  const ids = assetIds.map((id) => `'${id}'::uuid`).join(", ")
+  const key = `pre-cut-over-${randomUUID()}`
+  const out = psql(`begin;
+    alter function private.menu_section_send_closed(uuid, uuid) rename to menu_section_send_closed_held;
+    create function private.menu_section_send_closed(uuid, uuid) returns boolean language sql as 'select false';
+    select set_config('request.jwt.claims', '{"sub":"${staffId}","role":"authenticated"}', true) is null;
+    select coalesce(json_agg(t), '[]') from public.submit_coverage_photos(array[${ids}], '${requirementId}'::uuid, '${key}') t;
+    drop function private.menu_section_send_closed(uuid, uuid);
+    alter function private.menu_section_send_closed_held(uuid, uuid) rename to menu_section_send_closed;
+    commit;`)
+  // json_agg puts a line break between rows: parse from the "[" on.
+  const start = out.indexOf("\n[")
+  const json = out.startsWith("[")
+    ? out
+    : start >= 0
+      ? out.slice(start + 1)
+      : ""
+  if (!json) throw new Error(`pre-cut-over send failed: ${out}`)
+  return JSON.parse(json)
+}

@@ -5363,6 +5363,20 @@ export type Database = {
           venue_name: string
         }[]
       }
+      area_photo_asset: {
+        Args: { p_asset_id: string }
+        Returns: {
+          asset_id: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number
+          media_type: Database["public"]["Enums"]["media_type"]
+          uploader_id: string
+          validated_mime_type: string
+          venue_id: string
+          width: number
+        }[]
+      }
       area_photo_queue: {
         Args: { p_limit?: number; p_status?: string; p_venue_id?: string }
         Returns: {
@@ -7180,6 +7194,20 @@ export type Database = {
           validated_mime_type: string
           venue_id: string
           width: number
+        }[]
+      }
+      use_venue_default_target: {
+        Args: {
+          p_expected_revision: number
+          p_reason: string
+          p_staff_id: string
+          p_venue_id: string
+        }
+        Returns: {
+          revision: number
+          source: string
+          target_count: number
+          target_id: string
         }[]
       }
       venue_coverage_summary: {

@@ -1,3 +1,6 @@
+-- Fail fast instead of queueing behind a long transaction on push.
+set lock_timeout = '5s';
+
 -- G-7 (docs/plans/goals-not-tasks.md, decision 1; v0.5 rule 24 and §4):
 -- "needed by" on one still-needed dish.
 --

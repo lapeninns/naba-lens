@@ -1,3 +1,6 @@
+-- Fail fast instead of queueing behind a long transaction on push.
+set lock_timeout = '5s';
+
 -- G-6 (docs/plans/goals-not-tasks.md, decisions 3, 16 and 17; v0.5 rules 23
 -- and 26): a venue default monthly photo target, and manager target writes.
 --
@@ -85,7 +88,9 @@ alter table public.coverage_audit_events add constraint coverage_audit_events_en
     'manager_grant', 'requirement', 'assignment', 'monthly_target',
     'amenity_fact', 'menu_plan', 'preparation', 'account_role',
     'venue_default_target'
-  ));
+  )) not valid;
+-- Checked separately so the scan doesn't hold the ACCESS EXCLUSIVE lock.
+alter table public.coverage_audit_events validate constraint coverage_audit_events_entity_check;
 
 -- New rows that took the venue default. already_present stays the rest.
 alter table public.coverage_preparation_runs
@@ -156,20 +161,23 @@ begin
       and (p_venue_id is null or p.venue_id = p_venue_id)
   ),
   sources as (
-    select r.staff_id, r.venue_id, own.id as own_id, own.target_count as own_count,
+    select r.staff_id, r.venue_id,
+      case when own.source <> 'venue_default' then own.id end as own_id,
+      case when own.source <> 'venue_default' then own.target_count end as own_count,
       private.venue_default_photo_target(r.venue_id, p_month) as default_count,
       cur.id as cur_id, cur.source as cur_source
     from roster r
     left join public.monthly_targets cur
       on cur.staff_id = r.staff_id and cur.venue_id = r.venue_id and cur.period_month = p_month
-    -- The person's own number: never a month that took the default, never
-    -- another venue's.
+    -- The person's own number: the latest earlier month with a number, at
+    -- this venue only. If that month took the default (a manager moved them
+    -- back to it), they have no own number any more.
     left join lateral (
-      select t.id, t.target_count
+      select t.id, t.target_count, t.source
       from public.monthly_targets t
       where t.staff_id = r.staff_id and t.venue_id = r.venue_id
         and t.period_month < p_month and t.target_count is not null
-        and t.source in ('manager', 'admin_correction', 'copied')
+        and t.source in ('manager', 'admin_correction', 'copied', 'venue_default')
       order by t.period_month desc
       limit 1
     ) own on true
@@ -443,6 +451,77 @@ begin
   return next;
 end;
 $$;
+
+-- Review c (5): move one person back to the venue default for this month.
+-- Their own number then stops carrying forward: next month's preparation
+-- sees that this month took the default. A reason is required (it changes a
+-- set target). The venue's manager or an admin; this month only.
+create function public.use_venue_default_target(
+  p_venue_id uuid,
+  p_staff_id uuid,
+  p_reason text,
+  p_expected_revision integer
+)
+returns table (target_id uuid, revision integer, target_count integer, source text)
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_uid uuid := private.assert_can_manage_venue(p_venue_id);
+  v_month date := private.current_london_month();
+  v_reason text := private.require_reason(p_reason);
+  v_default integer;
+  v_row public.monthly_targets;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('nabalens_coverage_prepare:' || v_month::text, 0));
+
+  v_default := private.venue_default_photo_target(p_venue_id, v_month);
+  if v_default is null then
+    raise exception 'no_venue_default' using errcode = 'P0001';
+  end if;
+
+  select t.* into v_row from public.monthly_targets t
+  where t.staff_id = p_staff_id and t.venue_id = p_venue_id and t.period_month = v_month
+  for update;
+  if not found or not exists (
+    select 1 from public.profiles p
+    where p.id = p_staff_id and p.active and p.role = 'staff' and p.venue_id = p_venue_id
+  ) then
+    raise exception 'coverage_target_not_found' using errcode = 'P0002';
+  end if;
+  if v_row.revision is distinct from p_expected_revision then
+    raise exception 'coverage_conflict' using errcode = '40001',
+      detail = jsonb_build_object('revision', v_row.revision, 'state', null)::text;
+  end if;
+  if v_row.source = 'venue_default' then
+    return query select v_row.id, v_row.revision, v_row.target_count, v_row.source;
+    return;
+  end if;
+
+  update public.monthly_targets t
+  set target_count = v_default,
+      source = 'venue_default',
+      copied_from_target_id = null,
+      updated_by = v_uid,
+      revision = t.revision + 1
+  where t.id = v_row.id
+  returning t.* into v_row;
+
+  insert into public.coverage_audit_events
+    (venue_id, entity, entity_id, actor_id, actor_role, action, reason, after)
+  values (p_venue_id, 'monthly_target', v_row.id, v_uid, private.coverage_actor_role(p_venue_id),
+    'updated', v_reason,
+    jsonb_build_object('staffId', p_staff_id, 'month', v_month, 'target', v_default, 'source', 'venue_default'));
+
+  return query select v_row.id, v_row.revision, v_row.target_count, v_row.source;
+end;
+$$;
+revoke all on function public.use_venue_default_target(uuid, uuid, text, integer) from public, anon;
+grant execute on function public.use_venue_default_target(uuid, uuid, text, integer)
+  to authenticated, service_role;
 
 revoke all on function
   public.venue_default_target(uuid),

@@ -1,8 +1,12 @@
+-- Fail fast instead of queueing behind a long transaction on push.
+set lock_timeout = '5s';
+
 -- G-8 (goals, not tasks; v0.5 rules 22 and 23): menu-section requirements
 -- have no assignees and no due date.
 --
--- * set_coverage_requirement_assignees refuses a menu section for everyone,
---   admins included (menu_section_shared).
+-- * set_coverage_requirement_assignees refuses to assign anyone to a menu
+--   section, admins included (menu_section_shared). The unassign-only call
+--   (an empty list) still ends assignments made before the cut-over.
 -- * save_coverage_requirement refuses a new due date on a menu section
 --   (menu_section_no_due_date). An existing date may stay or be cleared.
 -- * coverage_requirement_progress never reports a menu section as overdue or
@@ -12,8 +16,10 @@
 --
 -- No rows are deleted or rewritten (decision 7): existing assignees, due
 -- dates, submissions and audit events stay, and admins can still read them.
--- submit_coverage_photos still refuses unassigned senders, so menu-section
--- sending ends; section shots go to the month (decision 15).
+-- * submit_coverage_photos refuses a fresh send to a menu section
+--   (menu_section_send_closed); an answer to an open "needs another photo"
+--   request (p_replaces_item_id) still works. Section shots go to the month
+--   (decision 15).
 -- Read-only for history; signatures and grants are unchanged.
 
 create or replace function public.set_coverage_requirement_assignees(
@@ -40,8 +46,9 @@ begin
     raise exception 'coverage_requirement_not_found' using errcode = 'P0002';
   end if;
   -- v0.5 rule 22: nobody is assigned to a menu section, admins included.
-  -- Assignments made before the cut-over stay in the table as history.
-  if v_row.kind = 'menu_section' then
+  -- Assignments made before the cut-over stay as history; the unassign-only
+  -- call (an empty list) may still end them.
+  if v_row.kind = 'menu_section' and (p_staff_ids is null or cardinality(p_staff_ids) > 0) then
     raise exception 'menu_section_shared' using errcode = 'P0001',
       detail = 'Menu sections are shared by the whole venue. Nobody is assigned to them.';
   end if;
@@ -384,5 +391,193 @@ begin
   cross join lateral private.venue_menu_state(v.id) ms
   where (v_venue is null and v.active) or v.id = v_venue
   order by v.name, v.id;
+end;
+$$;
+
+-- G-8 (review a, 2): a fresh send to a menu section is closed; an answer to
+-- an open request (p_replaces_item_id) is not.
+create function private.menu_section_send_closed(p_requirement_id uuid, p_replaces_item_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p_replaces_item_id is null and exists (
+    select 1 from public.coverage_requirements r
+    where r.id = p_requirement_id and r.kind = 'menu_section'
+  );
+$$;
+revoke all on function private.menu_section_send_closed(uuid, uuid) from public, anon, authenticated;
+
+-- G-8 (review a, 2): the latest body (20261102150000) with one added rule.
+create or replace function public.submit_coverage_photos(
+  p_asset_ids uuid[],
+  p_requirement_id uuid default null,
+  p_client_request_key text default null,
+  p_replaces_item_id uuid default null
+)
+returns table (item_id uuid, asset_id uuid, state text, revision integer, reused boolean, replayed boolean)
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  c_max_assets constant integer := 10;
+  v_uid uuid := auth.uid();
+  v_venue uuid;
+  v_assets uuid[];
+  v_asset_id uuid;
+  v_asset public.media_assets;
+  v_previous public.coverage_submissions;
+  v_live public.coverage_submission_items;
+  v_submission uuid;
+  v_new_id uuid;
+  v_new_revision integer;
+begin
+  if v_uid is null or not private.is_active_staff() then
+    raise exception 'not_active_staff' using errcode = '42501';
+  end if;
+  perform private.assert_request_key(p_client_request_key);
+  v_assets := private.normalise_id_list(p_asset_ids, c_max_assets);
+  perform private.lock_coverage_request(v_uid, p_client_request_key);
+
+  select s.* into v_previous from public.coverage_submissions s
+  where s.submitted_by = v_uid and s.client_request_key = p_client_request_key;
+  if found then
+    if v_previous.kind <> 'staff_submit' or v_previous.asset_ids <> v_assets
+       or v_previous.requirement_id is distinct from p_requirement_id then
+      raise exception 'idempotency_key_reused' using errcode = '22023';
+    end if;
+    return query
+      select r.item_id, r.asset_id, r.state, r.revision, r.reused, true
+      from private.replay_items(p_asset_ids, v_previous.venue_id) r;
+    return;
+  end if;
+  replayed := false;
+
+  v_venue := private.uploadable_venue_id();
+  if v_venue is null then
+    raise exception 'venue_inactive' using errcode = 'P0001',
+      detail = 'Staff must be assigned to an active venue to submit photos.';
+  end if;
+
+  if p_requirement_id is not null then
+    if not exists (
+      select 1 from public.coverage_requirements r
+      where r.id = p_requirement_id and r.venue_id = v_venue
+    ) then
+      raise exception 'coverage_requirement_not_found' using errcode = 'P0002';
+    end if;
+    if not private.requirement_is_current(p_requirement_id) then
+      raise exception 'requirement_not_open' using errcode = 'P0001';
+    end if;
+    -- FOR SHARE: an unassignment committing meanwhile is seen, not raced.
+    perform 1 from public.coverage_requirement_assignees a
+    where a.requirement_id = p_requirement_id and a.staff_id = v_uid and a.ended_at is null
+    for share;
+    if not found then
+      raise exception 'requirement_not_assigned' using errcode = 'P0001',
+        detail = 'Only staff assigned to this requirement can submit photos to it.';
+    end if;
+    -- G-8 (review a, 2): a menu section takes no fresh sends; section shots
+    -- go to the month (decision 15). An open "needs another photo" request
+    -- on a section sent before the cut-over can still be answered.
+    if private.menu_section_send_closed(p_requirement_id, p_replaces_item_id) then
+      raise exception 'menu_section_send_closed' using errcode = 'P0001',
+        detail = 'Menu section photos count toward the month now. Only a request for another photo can still be answered here.';
+    end if;
+  end if;
+
+  if p_replaces_item_id is not null and not exists (
+    select 1 from public.coverage_submission_items i
+    where i.id = p_replaces_item_id and i.author_id = v_uid and i.venue_id = v_venue
+      and i.state = 'needs_another_photo'
+      and i.requirement_id is not distinct from p_requirement_id
+  ) then
+    raise exception 'coverage_item_not_found' using errcode = 'P0002';
+  end if;
+
+  -- Validate every asset before writing anything.
+  foreach v_asset_id in array v_assets loop
+    perform pg_advisory_xact_lock(hashtextextended('nabalens_coverage_asset:' || v_asset_id::text, 0));
+    select a.* into v_asset from public.media_assets a where a.id = v_asset_id;
+    if not found or v_asset.uploader_id <> v_uid or v_asset.deleted_at is not null then
+      raise exception 'media_asset_not_found' using errcode = 'P0002';
+    end if;
+    if v_asset.upload_state <> 'ready' then
+      raise exception 'evidence_not_eligible' using errcode = 'P0001', detail = 'not_ready';
+    end if;
+    if v_asset.media_type <> 'image' then
+      raise exception 'evidence_not_eligible' using errcode = 'P0001', detail = 'not_image';
+    end if;
+    if v_asset.venue_id <> v_venue then
+      raise exception 'evidence_not_eligible' using errcode = 'P0001', detail = 'other_venue';
+    end if;
+    -- A monthly-only photo can only earn credit in its own upload month.
+    if p_requirement_id is null
+       and private.london_month(v_asset.created_at) <> private.london_month(now()) then
+      raise exception 'evidence_not_eligible' using errcode = 'P0001', detail = 'outside_period';
+    end if;
+    select i.* into v_live from public.coverage_submission_items i
+    where i.asset_id = v_asset_id and i.state in ('submitted', 'accepted') and i.archived_at is null;
+    -- Only the author's own pending submission may move to another requirement.
+    if found and v_live.requirement_id is distinct from p_requirement_id
+       and not (v_live.state = 'submitted' and v_live.origin = 'submitted') then
+      raise exception 'asset_already_submitted' using errcode = 'P0001',
+        detail = jsonb_build_object('itemId', v_live.id)::text;
+    end if;
+  end loop;
+
+  insert into public.coverage_submissions as s
+    (venue_id, submitted_by, kind, requirement_id, client_request_key, asset_ids)
+  values (v_venue, v_uid, 'staff_submit', p_requirement_id, p_client_request_key, v_assets)
+  returning s.id into v_submission;
+
+  foreach v_asset_id in array p_asset_ids loop
+    select a.* into v_asset from public.media_assets a where a.id = v_asset_id;
+    select i.* into v_live from public.coverage_submission_items i
+    where i.asset_id = v_asset_id and i.state in ('submitted', 'accepted') and i.archived_at is null
+    for update;
+    if found then
+      if v_live.requirement_id is not distinct from p_requirement_id then
+        item_id := v_live.id;
+        asset_id := v_live.asset_id;
+        state := v_live.state;
+        revision := v_live.revision;
+        reused := true;
+        return next;
+        continue;
+      end if;
+      v_new_revision := private.move_coverage_item(v_live.id, p_requirement_id, p_replaces_item_id);
+      item_id := v_live.id;
+      asset_id := v_live.asset_id;
+      state := v_live.state;
+      revision := v_new_revision;
+      reused := false;
+      return next;
+      continue;
+    end if;
+
+    insert into public.coverage_submission_items as i (
+      submission_id, venue_id, asset_id, author_id, requirement_id, origin, submitted_by,
+      submitted_at, submitted_month, uploaded_at, uploaded_month, replaces_item_id
+    )
+    values (
+      v_submission, v_venue, v_asset_id, v_uid, p_requirement_id, 'submitted', v_uid,
+      now(), private.london_month(now()), v_asset.created_at, private.london_month(v_asset.created_at),
+      p_replaces_item_id
+    )
+    returning i.id, i.revision into v_new_id, v_new_revision;
+    perform private.record_item_event(v_new_id, 'submitted', null, null, false, null);
+    item_id := v_new_id;
+    asset_id := v_asset_id;
+    state := 'submitted';
+    revision := v_new_revision;
+    reused := false;
+    return next;
+  end loop;
 end;
 $$;

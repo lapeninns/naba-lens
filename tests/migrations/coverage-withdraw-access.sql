@@ -70,11 +70,13 @@ revoke execute on function
   public.set_retake_note_aside(uuid, uuid),
   public.venue_default_target(uuid),
   public.set_venue_default_target(uuid, integer, text, integer),
+  public.use_venue_default_target(uuid, uuid, text, integer),
   -- G-9: venue area labels and their review.
   public.set_media_area_label(uuid, uuid),
   public.my_area_labels(uuid[]),
   public.area_photo_queue(uuid, text, integer),
-  public.decide_area_photo(uuid, text, text)
+  public.decide_area_photo(uuid, text, text),
+  public.area_photo_asset(uuid)
 from authenticated;
 
 -- Stops the hourly preparation even if the scheduler keeps calling it.

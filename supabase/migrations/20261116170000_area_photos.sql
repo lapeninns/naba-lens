@@ -1,3 +1,6 @@
+-- Fail fast instead of queueing behind a long transaction on push.
+set lock_timeout = '5s';
+
 -- G-9 (docs/plans/goals-not-tasks.md, phase 3; decided 15 Nov 2026): month
 -- credit for labelled venue areas. A still image that is not a dish or a
 -- drink (the bar set-up, the garden, the toilets) counts toward its
@@ -130,7 +133,8 @@ create trigger area_photo_decisions_no_truncate
 -- Reads and writes go through the functions below only.
 alter table public.media_area_labels enable row level security;
 alter table public.area_photo_decisions enable row level security;
-revoke all on table public.media_area_labels, public.area_photo_decisions from public, anon, authenticated;
+-- service_role too: the default privileges would leave it INSERT.
+revoke all on table public.media_area_labels, public.area_photo_decisions from public, anon, authenticated, service_role;
 grant select on table public.media_area_labels, public.area_photo_decisions to service_role;
 
 -- ---------------------------------------------------------------------------
@@ -254,6 +258,18 @@ begin
   if v_live.id is null and p_subject_id is null then
     return query select null::uuid, null::uuid, false;
     return;
+  end if;
+
+  -- A reviewer withdrew this photo's area credit: that is final for the
+  -- photo. Removing the area and choosing one again must not send it back
+  -- to the queue with no history. Clearing the area stays allowed.
+  if p_subject_id is not null and exists (
+    select 1
+    from public.media_area_labels l
+    cross join lateral private.area_photo_latest(l.id) d
+    where l.asset_id = p_asset_id and d.action = 'withdrawn'
+  ) then
+    raise exception 'area_photo_withdrawn' using errcode = 'P0001';
   end if;
 
   if v_live.id is not null then
@@ -790,6 +806,74 @@ grant execute on function public.set_media_area_label(uuid, uuid) to authenticat
 grant execute on function public.my_area_labels(uuid[]) to authenticated;
 grant execute on function public.area_photo_queue(uuid, text, integer) to authenticated;
 grant execute on function public.decide_area_photo(uuid, text, text) to authenticated;
+
+-- Review c (1): the image check for area photos, used by
+-- /api/area-photos/{id}/thumb|preview like menu_item_photo_asset is for menu
+-- review. The venue's manager (account or grant) and admins may open a photo
+-- its uploader labelled with one of the venue's areas; the uploader may open
+-- their own. Nobody else, and never another venue's photo.
+create function public.area_photo_asset(p_asset_id uuid)
+returns table (
+  asset_id uuid,
+  venue_id uuid,
+  uploader_id uuid,
+  media_type public.media_type,
+  validated_mime_type text,
+  has_preview boolean,
+  has_thumbnail boolean,
+  width integer,
+  height integer
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select a.id, a.venue_id, a.uploader_id, a.media_type, a.validated_mime_type,
+    a.preview_path is not null, a.thumbnail_path is not null, a.width, a.height
+  from public.media_assets a
+  where a.id = p_asset_id
+    and a.upload_state = 'ready'
+    and a.deleted_at is null
+    and private.is_active_user()
+    and exists (
+      select 1 from public.media_area_labels l
+      where l.asset_id = a.id and l.venue_id = a.venue_id and l.added_by = a.uploader_id
+    )
+    and (
+      private.can_manage_venue(a.venue_id)
+      or private.is_active_admin()
+      or a.uploader_id = (select auth.uid())
+    );
+$$;
+revoke all on function public.area_photo_asset(uuid) from public, anon, service_role;
+grant execute on function public.area_photo_asset(uuid) to authenticated;
+
+-- S-1: a photo its uploader labelled with a venue area is labelled. It no
+-- longer counts in "needs labels" (Home's labels row and badge, Me, the
+-- label-work counts), which all read this function.
+create or replace function private.asset_needs_labels(p_asset_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.media_assets a
+    where a.id = p_asset_id
+      and a.deleted_at is null
+      and a.upload_state = 'ready'
+      and a.purpose = 'general'
+      and not exists (
+        select 1 from public.media_labels l where l.asset_id = a.id and l.has_labels
+      )
+      and not exists (
+        select 1 from public.media_area_labels al
+        where al.asset_id = a.id and al.removed_at is null and al.added_by = a.uploader_id
+      )
+  );
+$$;
 
 -- create or replace keeps these; restated.
 revoke all on function public.my_month_photos(date, integer) from public, anon, service_role;

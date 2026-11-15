@@ -20,8 +20,17 @@ import {
   makeManager,
   ok,
   requirementProgress,
+  requestKey,
+  review,
+  sendBeforeCutOver,
 } from "./coverage-fixtures"
-import { item, menu, publishMenu, section } from "./menus-fixtures"
+import {
+  item,
+  menu,
+  publishMenu,
+  reserveReady,
+  section,
+} from "./menus-fixtures"
 
 const service = serviceClient()
 const PAST = "2026-01-15"
@@ -151,7 +160,7 @@ beforeAll(async () => {
 describe("menu sections have no assignees", () => {
   it("refuses assigning a section to anyone, admins included, and writes nothing", async () => {
     for (const who of [legacyManager, admin]) {
-      for (const ids of [[staffA.id], []]) {
+      for (const ids of [[staffA.id], [staffA.id, colleagueA.id]]) {
         await fails(
           who.client.rpc("set_coverage_requirement_assignees", {
             p_requirement_id: starters,
@@ -423,5 +432,93 @@ describe("the team roster is for the venue manager and admins only", () => {
       }
     }
     expect(staffB.id).toBeTruthy()
+  })
+})
+
+describe("menu-section sending after the cut-over (review a, 2)", () => {
+  const sendTo = (who: TestIdentity, assets: string[], replaces?: string) =>
+    who.client.rpc("submit_coverage_photos", {
+      p_asset_ids: assets,
+      p_requirement_id: starters,
+      p_client_request_key: requestKey(),
+      ...(replaces ? { p_replaces_item_id: replaces } : {}),
+    })
+
+  it("refuses a fresh send to a section even with an old assignment, but answers an open request", async () => {
+    // An assignment and a send from before the cut-over (decision 7).
+    const { error } = await service
+      .from("coverage_requirement_assignees")
+      .insert({
+        requirement_id: starters,
+        venue_id: venueA,
+        staff_id: colleagueA.id,
+        assigned_by: legacyManager.id,
+      })
+    if (error) throw error
+    const old = await reserveReady(service, colleagueA)
+    const [sent] = sendBeforeCutOver(colleagueA.id, starters, [old.id])
+    await ok(
+      review(
+        legacyManager,
+        sent!.item_id,
+        sent!.revision,
+        "needs_another_photo",
+        "Too dark"
+      )
+    )
+
+    const fresh = await reserveReady(service, colleagueA)
+    await fails(
+      sendTo(colleagueA, [fresh.id]),
+      "menu_section_send_closed",
+      "P0001"
+    )
+    const [retake] = await ok(sendTo(colleagueA, [fresh.id], sent!.item_id))
+    expect(retake).toMatchObject({ state: "submitted", reused: false })
+  })
+
+  it("lets a manager or an admin end old assignments with an empty list, and nothing else", async () => {
+    const before = await service
+      .from("coverage_requirement_assignees")
+      .select("id")
+      .eq("requirement_id", starters)
+      .is("ended_at", null)
+    expect(before.data!.length).toBeGreaterThan(0)
+    await ok(
+      legacyManager.client.rpc("set_coverage_requirement_assignees", {
+        p_requirement_id: starters,
+        p_staff_ids: [],
+        p_reason: "Sections are shared now.",
+      })
+    )
+    const after = await service
+      .from("coverage_requirement_assignees")
+      .select("id, end_kind")
+      .eq("requirement_id", starters)
+      .is("ended_at", null)
+    expect(after.data).toEqual([])
+    // An admin's empty call is a no-op now; assigning is still refused.
+    await ok(
+      admin.client.rpc("set_coverage_requirement_assignees", {
+        p_requirement_id: starters,
+        p_staff_ids: [],
+      })
+    )
+    await fails(
+      admin.client.rpc("set_coverage_requirement_assignees", {
+        p_requirement_id: starters,
+        p_staff_ids: [staffA.id],
+      }),
+      "menu_section_shared",
+      "P0001"
+    )
+    // Staff learn nothing, empty list or not.
+    await fails(
+      staffA.client.rpc("set_coverage_requirement_assignees", {
+        p_requirement_id: starters,
+        p_staff_ids: [],
+      }),
+      "coverage_requirement_not_found"
+    )
   })
 })

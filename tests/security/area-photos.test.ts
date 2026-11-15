@@ -371,6 +371,44 @@ describe("who can review an area photo", () => {
     ).toEqual([])
   })
 
+  it("lets a manager account open its own venue's area photo images, never another venue's (review c, 1)", async () => {
+    const [s, convert, otherConvert, colleague] = await Promise.all([
+      newStaff("area-image-s", f.venue),
+      newStaff("area-image-mgr", f.venue),
+      newStaff("area-image-mgr-other", other.venue),
+      newStaff("area-image-colleague", f.venue),
+    ])
+    await Promise.all([
+      makeManager(admin, convert, f.venue),
+      makeManager(admin, otherConvert, other.venue),
+    ])
+    const { asset } = await areaPhoto(s, f.places.bar)
+    const plain = (await reserveReady(service, s)).id
+    // The check /api/area-photos/{id}/thumb|preview signs with.
+    const canOpen = async (who: TestIdentity, id: string) =>
+      ((await ok(who.client.rpc("area_photo_asset", { p_asset_id: id }))) ?? [])
+        .length === 1
+
+    expect(await canOpen(convert, asset)).toBe(true)
+    expect(await canOpen(f.manager, asset)).toBe(true)
+    expect(await canOpen(admin, asset)).toBe(true)
+    expect(await canOpen(s, asset)).toBe(true)
+    // Another venue's manager account and a colleague: nothing.
+    expect(await canOpen(otherConvert, asset)).toBe(false)
+    expect(await canOpen(colleague, asset)).toBe(false)
+    // A photo with no area is not opened through this route.
+    expect(await canOpen(convert, plain)).toBe(false)
+    // The general media route is not widened: menu review's check still
+    // refuses an area-only photo to the manager account.
+    expect(
+      (
+        (await ok(
+          convert.client.rpc("menu_item_photo_asset", { p_asset_id: asset })
+        )) ?? []
+      ).length
+    ).toBe(0)
+  })
+
   it("refuses staff without a grant and another venue's manager", async () => {
     const [s, colleague] = await Promise.all([
       newStaff("area-review-s3", f.venue),
@@ -401,6 +439,26 @@ describe("who can review an area photo", () => {
       "area_photo_not_found",
       "P0002"
     )
+  })
+})
+
+describe("an area label counts as a label (S-1)", () => {
+  let f: Fixture
+
+  beforeAll(async () => {
+    f = await venueWithPlaces("area-needs-labels")
+  })
+
+  it("takes the photo out of the uploader's needs-labels count", async () => {
+    const s = await newStaff("area-needs-labels-s", f.venue)
+    const asset = (await reserveReady(service, s)).id
+    const needs = async () => (await ok(s.client.rpc("my_label_work")))![0]!
+    const before = (await needs()).needs_labels
+    expect(before).toBeGreaterThanOrEqual(1)
+    await ok(setArea(s, asset, f.places.garden))
+    expect((await needs()).needs_labels).toBe(before - 1)
+    await ok(setArea(s, asset, null))
+    expect((await needs()).needs_labels).toBe(before)
   })
 })
 
@@ -530,6 +588,39 @@ describe("month credit for area photos", () => {
       "area_photo_conflict",
       "40001"
     )
+  })
+
+  it("refuses a new area on a photo whose area was withdrawn (review a, 1)", async () => {
+    const s = await newStaff("area-credit-rewithdraw", f.venue)
+    const { asset, label } = await areaPhoto(s, f.places.toilets)
+    await ok(decide(f.manager, label, "accepted"))
+    await ok(decide(f.manager, label, "withdrawn", "Shows a guest"))
+
+    // Another place, or clearing and choosing again: refused, no new row.
+    await fails(
+      setArea(s, asset, f.places.garden),
+      "area_photo_withdrawn",
+      "P0001"
+    )
+    await ok(setArea(s, asset, null))
+    await fails(
+      setArea(s, asset, f.places.toilets),
+      "area_photo_withdrawn",
+      "P0001"
+    )
+    expect(
+      rows(
+        `select id from public.media_area_labels where asset_id = '${asset}' and removed_at is null`
+      )
+    ).toEqual([])
+    expect(
+      (await ok(queue(f.manager, f.venue))).some((r) => r.asset_id === asset)
+    ).toBe(false)
+    expect(await counts(s, f.venue)).toEqual({
+      accepted: 0,
+      waiting: 0,
+      needs: 0,
+    })
   })
 
   it("removes the credit when the uploader removes or changes the area", async () => {

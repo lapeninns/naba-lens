@@ -84,7 +84,7 @@ function privilegesAfterScript(): { fn: string; role: string; ok: boolean }[] {
 
 describe("coverage access withdrawal", () => {
   it("names every coverage RPC and table", () => {
-    expect(publicFunctions.length).toBe(57)
+    expect(publicFunctions.length).toBe(59)
     expect(publicTables.length).toBe(21)
     for (const fn of publicFunctions)
       expect(script, fn).toContain(`public.${fn}(`)
@@ -98,9 +98,9 @@ describe("coverage access withdrawal", () => {
     const rows = privilegesAfterScript()
     expect(rows).toHaveLength(publicFunctions.length * 2 + publicTables.length)
     // The scheduled run is revoked; menu_item_review_states, my_month_photos
-    // (G-1, G-2) and G-9's four area RPCs were only granted to authenticated.
+    // (G-1, G-2) and G-9's five area RPCs were only granted to authenticated.
     expect(rows.filter((r) => r.ok && r.role === "service_role").length).toBe(
-      publicFunctions.length - 7
+      publicFunctions.length - 8
     )
     const stillGranted = rows.filter(
       (r) =>

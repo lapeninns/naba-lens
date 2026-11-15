@@ -1,3 +1,6 @@
+-- Fail fast instead of queueing behind a long transaction on push.
+set lock_timeout = '5s';
+
 -- Retake notes, G-3 (docs/plans/goals-not-tasks.md, decisions 4 and 14).
 --
 -- A retake note is a "Needs another photo" decision shown to the photo's

@@ -28,6 +28,7 @@ import {
   review as reviewItem,
   staffProgress,
   submit,
+  sendBeforeCutOver,
 } from "./coverage-fixtures"
 import {
   item,
@@ -1352,7 +1353,7 @@ describe("one review per photo: month and section counts", () => {
       mains: await sectionCount(mains),
     }
     await assignedBeforeCutOver(mains, [f.staff2.id])
-    const [sent] = await submit(f.staff2, [asset], mains)
+    const [sent] = sendBeforeCutOver(f.staff2.id, mains, [asset])
     await reviewItem(f.manager, sent!.item_id, sent!.revision, "accepted")
     expect(await month(f.staff2)).toBe(before.month + 1)
     expect(await sectionCount(mains)).toBe(before.mains + 1)
@@ -1413,7 +1414,7 @@ describe("one review per photo: month and section counts", () => {
     await assignedBeforeCutOver(mains, [f.staff.id, f.staff2.id])
     const asset = (await labelled(f.staff, f.version, [tikka])).id
     const before = await pending()
-    await submit(f.staff, [asset], mains)
+    sendBeforeCutOver(f.staff.id, mains, [asset])
     expect(await pending()).toEqual({
       mains: before.mains + 1,
       venue: before.venue + 1,
@@ -1442,7 +1443,7 @@ describe("one review per photo: month and section counts", () => {
     const dal = t(f.items["mains--dal"]!)
     const asset = (await labelled(f.staff, f.version, [dal])).id
     const before = await pending()
-    await submit(f.staff, [asset], mains)
+    sendBeforeCutOver(f.staff.id, mains, [asset])
     await ok(
       review(
         f.manager,

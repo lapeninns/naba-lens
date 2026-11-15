@@ -10,7 +10,6 @@ import {
 } from "@/lib/server/coverage/errors"
 import type { CoverageFailure } from "@/lib/server/coverage/types"
 import { isUuid } from "@/lib/server/coverage/validate"
-import { mediaRoutes } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
 import type { ManagerPhotoCtx } from "@/lib/server/menu-photos"
 
@@ -54,6 +53,16 @@ export type AreaDecision = "accepted" | "needs_another_photo" | "withdrawn"
 
 type Result<T> = ({ ok: true } & T) | CoverageFailure
 
+/**
+ * Area photo images for review (review c, 1): authorised per request by
+ * area_photo_asset, like menu review's menuPhotoRoutes, so a manager account
+ * can open them; the general /api/media routes stay as they are.
+ */
+export const areaPhotoRoutes = {
+  thumbnail: (assetId: string) => `/api/area-photos/${assetId}/thumb`,
+  preview: (assetId: string) => `/api/area-photos/${assetId}/preview`,
+}
+
 const MESSAGES: Record<string, CoverageFailure> = {
   not_active_user: NOT_PERMITTED,
   not_venue_manager: NOT_PERMITTED,
@@ -73,6 +82,10 @@ const MESSAGES: Record<string, CoverageFailure> = {
   area_unavailable: failure(
     "state_conflict",
     "That place is no longer listed for this venue. Choose another."
+  ),
+  area_photo_withdrawn: failure(
+    "state_conflict",
+    "A reviewer withdrew this photo's area, so it can't be given another one."
   ),
   area_label_image_only: failure(
     "invalid_input",
@@ -200,9 +213,9 @@ export async function listAreaPhotoQueue(
         decidedAt: text(r.decided_at),
         canDecide: r.can_decide === true,
         thumbnailUrl: r.has_thumbnail
-          ? mediaRoutes.thumbnail(r.asset_id)
+          ? areaPhotoRoutes.thumbnail(r.asset_id)
           : null,
-        previewUrl: r.has_preview ? mediaRoutes.preview(r.asset_id) : null,
+        previewUrl: r.has_preview ? areaPhotoRoutes.preview(r.asset_id) : null,
       },
     ]
   })

@@ -22,6 +22,7 @@ import {
   requirementProgress,
   staffProgress,
   submit,
+  sendBeforeCutOver,
 } from "./coverage-fixtures"
 import {
   item,
@@ -563,10 +564,11 @@ describe("menu coverage", () => {
         assigned_by: manager.id,
       })
     )
-    const items = await submit(
-      staffer,
-      photos.map((p) => p.id),
-      oldStarters
+    // A send made before the G-8 cut-over (fresh section sends are closed).
+    const items = sendBeforeCutOver(
+      staffer.id,
+      oldStarters,
+      photos.map((p) => p.id)
     )
     for (const i of items) await accept(service, manager, i.item_id)
     const [row] = (await requirementProgress(manager, venue)).filter(

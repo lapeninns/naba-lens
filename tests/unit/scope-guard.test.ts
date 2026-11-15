@@ -201,6 +201,11 @@ const ALLOWED_HANDLERS = new Set([
   "/api/amenities/evidence/[assetId]/preview",
   "/api/amenities/evidence/[assetId]/stream",
   "/api/menu-photos/[assetId]/preview",
+  // Venue area photos (G-9), checked by area_photo_asset like menu review:
+  // the venue's manager or an admin reviewing, and the uploader. Signed
+  // derivatives for 60 s; no originals or downloads.
+  "/api/area-photos/[assetId]/thumb",
+  "/api/area-photos/[assetId]/preview",
   // v0.4 §3 rule 9: hourly idempotent monthly preparation, cron-only bearer auth
   // like the other /api/internal routes; it sends nothing to staff.
   "/api/internal/coverage/monthly-preparation",
