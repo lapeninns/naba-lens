@@ -11,6 +11,7 @@ import {
 
 import { signIn, type Db } from "../support/identities"
 import {
+  assignBeforeCutOver,
   legacyStaffGrant,
   provisionCoverageWorld,
   type CoverageWorld,
@@ -161,12 +162,9 @@ async function menuSectionSetup(w: CoverageWorld, manager: Db) {
       })
     )
   }
-  await ok(
-    manager.rpc("set_coverage_requirement_assignees", {
-      p_requirement_id: starters,
-      p_staff_ids: [w.staffA.id],
-    })
-  )
+  // G-8: sections take no assignee now; Starters' assignment is history from
+  // before the cut-over (the send and replacement paths still honour it).
+  assignBeforeCutOver(starters, w.venue1.id, [w.staffA.id], w.manager.id)
   await ok(
     manager.rpc("confirm_menu_coverage_plan", {
       p_plan_id: planId,
@@ -345,7 +343,7 @@ async function staffJourney(
   await expect(page.getByRole("heading", { name: "Home" })).toBeVisible()
   await expect(monthProgress(0)).toBeVisible()
   await page.getByRole("link", { name: /^Other jobs/ }).click()
-  await expect(page).toHaveURL(/\/staff\/tasks\/all$/)
+  await expect(page).toHaveURL(/\/staff\/tasks\/other$/)
   await expect(assigned.getByRole("link", { name: setup.title })).toBeVisible()
   await expect(
     taskCard.getByRole("img", { name: "0 of 2 photos accepted", exact: true })
@@ -406,7 +404,7 @@ async function staffJourney(
   })
   await expect(replacements.getByText(reason)).toBeVisible()
   await replacements
-    .getByRole("link", { name: `Reshoot ${setup.title}` })
+    .getByRole("link", { name: `Reshoot: ${setup.title}` })
     .click()
   await expect(page).toHaveURL(
     new RegExp(`/staff/tasks/${setup.requirementId}\\?replaces=${sent[1]!.id}$`)
@@ -431,7 +429,7 @@ async function staffJourney(
   await expect(monthProgress(2)).toBeVisible()
   await expect(monthly.getByText("Target met")).toBeVisible()
   await expect(page.getByRole("link", { name: /^Reshoot / })).toHaveCount(0)
-  await page.goto("/staff/tasks/all")
+  await page.goto("/staff/tasks/other")
   await expect(taskCard).toContainText("Complete")
 }
 

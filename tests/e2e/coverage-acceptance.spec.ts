@@ -4,13 +4,14 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { signIn, type Db } from "../support/identities"
 import {
+  assignBeforeCutOver,
   legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
   type CoverageWorld,
 } from "./helpers/coverage-world"
 import { provisioner, psql } from "./helpers/stack"
-import { chooseOption, STAFF_LANDING } from "./helpers/ui"
+import { chooseOption, openOtherJobs, STAFF_LANDING } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -385,11 +386,21 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     const mains1 = sections1.find((r) => r.title === "Mains")!
     await confirmApplies(manager, starters1, 2)
     await confirmApplies(manager, mains1, 1)
-    await ok(
+    // G-8: a section takes no assignee now (menu_section_shared); Starters'
+    // assignment is history from before the cut-over.
+    await refused(
       manager.rpc("set_coverage_requirement_assignees", {
         p_requirement_id: starters1.requirement_id,
         p_staff_ids: [w.staffA.id],
-      })
+      }),
+      "menu_section_shared",
+      "P0001"
+    )
+    assignBeforeCutOver(
+      starters1.requirement_id,
+      v1,
+      [w.staffA.id],
+      w.manager.id
     )
     await ok(
       manager.rpc("confirm_menu_coverage_plan", {
@@ -894,14 +905,10 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     )
     const staffPage = await signedInPage(browser, w.staffA)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
-    // Home raises it on its To do card only (one home per piece of work).
-    const listed = staffPage
-      .getByRole("region", { name: /^To do/ })
-      .getByRole("listitem")
-      .filter({ hasText: title })
-    await expect(listed.getByText("Overdue", { exact: true })).toBeVisible()
-    // Other jobs (G-4, rule 28) keeps non-menu due dates and Overdue.
-    await staffPage.goto("/staff/tasks/other")
+    // Goal-led Home names no task and no Overdue; it links to Other jobs,
+    // which keeps non-menu due dates and Overdue (G-4, rule 28).
+    await expect(staffPage.getByText("Overdue", { exact: true })).toHaveCount(0)
+    await openOtherJobs(staffPage)
     const otherJob = staffPage
       .getByRole("list", { name: "Assigned tasks" })
       .getByRole("listitem")

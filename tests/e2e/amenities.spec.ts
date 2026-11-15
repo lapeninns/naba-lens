@@ -37,12 +37,13 @@ import {
 } from "./helpers/amenities-world"
 import {
   escape,
-  expectTodoCheck,
+  expectOtherJobsCheck,
+  openOtherJobs,
+  OTHER_JOBS_PATH,
   STAFF_LANDING,
   chooseOption,
-  startTodoCheck,
-  todoCheck,
-  todoRegion,
+  startOtherJobsCheck,
+  otherJobsCheck,
 } from "./helpers/ui"
 import { signedInPage, type Person } from "./helpers/world"
 
@@ -63,10 +64,10 @@ const LEGACY_MANAGE = amenityHrefs("/staff/manage")
 const adminHrefs = (w: AmenitiesWorld) =>
   amenityHrefs(`/admin/coverage/${w.venueA.id}`)
 
-/** Staff land on Home and start the assigned check from its To do card. */
+/** Staff land on Home and start the assigned check from Other jobs. */
 async function openStaffCheck(page: Page, key: string, id: string) {
   await expect(page).toHaveURL(STAFF_LANDING)
-  await startTodoCheck(page, question(key), id)
+  await startOtherJobsCheck(page, question(key), id)
 }
 
 /**
@@ -201,13 +202,12 @@ test.describe("amenity checks", () => {
     })
     expect(currentSubmission(id).assets).toEqual([photo])
 
-    // Complete checks leave staff Home.
-    await staff.goto("/staff/tasks")
-    await expect(todoRegion(staff)).toBeVisible()
-    await expect(todoCheck(staff, question("darts")).card).toHaveCount(0)
+    // Complete checks leave Other jobs (and were never on goal-led Home).
+    await staff.goto(OTHER_JOBS_PATH)
     await expect(
-      staff.getByRole("link", { name: question("darts") })
-    ).toHaveCount(0)
+      staff.getByRole("heading", { level: 1, name: "Other jobs" })
+    ).toBeVisible()
+    await expect(otherJobsCheck(staff, question("darts")).card).toHaveCount(0)
 
     await manager.reload()
     await expectAnswered(manager, "yes", w.staffA)
@@ -478,13 +478,14 @@ test.describe("amenity checks", () => {
     expect(checkState(id).recheckReason).toContain(extra)
 
     const staff = await signedInPage(browser, w.staffA)
-    const recheck = await expectTodoCheck(staff, question("darts"), id)
+    await openOtherJobs(staff)
+    const recheck = await expectOtherJobsCheck(staff, question("darts"), id)
     await expect(recheck.card).toContainText(PROGRESS_LABEL.needs_recheck)
     await expect(recheck.card).toContainText(
       `Recheck reason: ${REOPEN_PRESET_LABEL.wrong_area}`
     )
     await expect(recheck.card).toContainText(extra)
-    await openStaffCheck(staff, "darts", id)
+    await startOtherJobsCheck(staff, question("darts"), id)
     await expect(
       staff.getByText(REOPEN_PRESET_LABEL.wrong_area).first()
     ).toBeVisible()
@@ -590,12 +591,14 @@ test.describe("amenity checks", () => {
     )
     expect(coverageFootprint(w.venueA)).toEqual(before)
 
-    // Staff Home lists the amenity check as its own To do card, never as a
+    // Other jobs lists the amenity check as its own card, never as a
     // Coverage task or in the month's photo count.
     const staff = await signedInPage(browser, w.staffA)
     await expect(staff).toHaveURL(STAFF_LANDING)
+    await openOtherJobs(staff)
     await expect(
-      (await expectTodoCheck(staff, question("guest_toilets"), toilets)).start
+      (await expectOtherJobsCheck(staff, question("guest_toilets"), toilets))
+        .start
     ).toBeVisible()
     const coverageTasks = staff.getByRole("list", { name: "Assigned tasks" })
     for (const key of ["darts", ...CORE_CHECK_KEYS]) {

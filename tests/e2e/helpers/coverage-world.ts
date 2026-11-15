@@ -218,6 +218,33 @@ export function setUploaderRole(assetIds: string[], role: "staff" | "manager") {
   `)
 }
 
+/**
+ * G-8: a menu section has no assignees from the cut-over on, so the manager's
+ * RPC refuses one (menu_section_shared). Specs about sends and replacements on
+ * a section assigned before the cut-over write that history row directly, as
+ * tests/security/menu-item-photos.test.ts does (fixture setup only).
+ */
+export function assignBeforeCutOver(
+  requirementId: string,
+  venueId: string,
+  staffIds: string[],
+  assignedBy: string
+) {
+  const ids = [requirementId, venueId, assignedBy, ...staffIds]
+  if (!ids.every((id) => UUID.test(id))) throw new Error("not a uuid")
+  psql(`
+    insert into public.coverage_requirement_assignees
+      (requirement_id, venue_id, staff_id, assigned_by)
+    select '${requirementId}'::uuid, '${venueId}'::uuid, s.id, '${assignedBy}'::uuid
+    from unnest(array[${staffIds.map((id) => `'${id}'`).join(", ")}]::uuid[]) s (id)
+    where not exists (
+      select 1 from public.coverage_requirement_assignees a
+      where a.requirement_id = '${requirementId}'::uuid
+        and a.staff_id = s.id and a.ended_at is null
+    );
+  `)
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/
 

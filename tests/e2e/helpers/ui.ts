@@ -60,48 +60,60 @@ export async function staffTile(
 /** Where staff land after sign-in or a wrong-role redirect: Home. */
 export const STAFF_LANDING = /\/staff\/tasks$/
 
-/**
- * Home's To do region. It is named by its heading's aria-label, which carries
- * the count ("To do, 2 things to do"; "To do" when there is nothing).
- */
-export const todoRegion = (page: Page) =>
-  page.getByRole("region", { name: /^To do(, \d+ things? to do)?$/ })
+/** Other jobs (G-4, decision 23): non-menu jobs, amenity checks and questions. */
+export const OTHER_JOBS_PATH = "/staff/tasks/other"
+export const OTHER_JOBS = /\/staff\/tasks\/other$/
 
 /**
- * An assigned amenity check in To do (CheckCard in
- * components/nabalens/tasks/next-actions.tsx): the card with this exact
- * question as its heading and the exact "Start check: <question>" link.
+ * Goal-led Home has no To do: amenity checks and other jobs are one tap away,
+ * through the Other jobs row (decision 10). Opens it from Home.
  */
-export function todoCheck(page: Page, question: string) {
-  const name = `Start check: ${question}`
-  const card = todoRegion(page)
-    .getByRole("listitem")
-    .filter({
-      has: page.getByRole("heading", { level: 3, name: question, exact: true }),
-    })
-  return { card, start: card.getByRole("link", { name, exact: true }) }
+export async function openOtherJobs(page: Page) {
+  if (new URL(page.url()).pathname !== "/staff/tasks")
+    await page.goto("/staff/tasks")
+  await page.getByRole("link", { name: /^Other jobs/ }).click()
+  await expect(page).toHaveURL(OTHER_JOBS)
 }
 
-/** The check is in To do once, and its action opens this check's capture page. */
-export async function expectTodoCheck(
+/** Working-list actions that wait on the person (slotRow's needsMe rows). */
+const CHECK_ACTION = "(Start check|Recheck|Finish|Add detail|Check again)"
+
+/**
+ * An amenity check on Other jobs: the assigned-check card (AmenityTaskList,
+ * a link named by the question) or its working-list row (a link named
+ * "<action>: <question>"). Only rows that ask something of the person.
+ */
+export function otherJobsCheck(page: Page, question: string) {
+  const start = page.getByRole("link", { name: question, exact: true }).or(
+    page.getByRole("link", {
+      name: new RegExp(`^${CHECK_ACTION}: ${escape(question)}$`),
+    })
+  )
+  const card = page.getByRole("listitem").filter({ has: start })
+  return { card, start }
+}
+
+/** The check is on Other jobs once, and its link opens its capture page. */
+export async function expectOtherJobsCheck(
   page: Page,
   question: string,
   checkId: string
 ) {
-  const check = todoCheck(page, question)
+  const check = otherJobsCheck(page, question)
   await expect(check.card).toHaveCount(1)
   await expect(check.start).toHaveAttribute("href", staffCaptureHref(checkId))
   return check
 }
 
-/** Starts an assigned check from To do and lands on its capture page. */
-export async function startTodoCheck(
+/** From Home: Other jobs, then the check (two taps), landing on its capture page. */
+export async function startOtherJobsCheck(
   page: Page,
   question: string,
   checkId: string,
   how: "click" | "tap" = "click"
 ) {
-  const { start } = await expectTodoCheck(page, question, checkId)
+  if (!OTHER_JOBS.test(page.url())) await openOtherJobs(page)
+  const { start } = await expectOtherJobsCheck(page, question, checkId)
   await start[how]()
   await expect(page).toHaveURL(
     new RegExp(`${escape(staffCaptureHref(checkId))}$`)

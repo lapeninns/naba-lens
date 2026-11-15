@@ -236,9 +236,9 @@ test.describe("Home: goals, not tasks", () => {
     await settled(page)
     // Tap 1: the Other jobs row. Tap 2: the check.
     const row = page.getByRole("link", { name: /^Other jobs/ })
-    await expect(row).toHaveAttribute("href", "/staff/tasks/all")
+    await expect(row).toHaveAttribute("href", "/staff/tasks/other")
     await row.tap()
-    await expect(page).toHaveURL(/\/staff\/tasks\/all$/)
+    await expect(page).toHaveURL(/\/staff\/tasks\/other$/)
     await page
       .locator(`a[href="${staffCaptureHref(darts)}"]`)
       .first()
