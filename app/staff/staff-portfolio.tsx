@@ -702,7 +702,6 @@ export function StaffPortfolio({
           />
         </ul>
       </nav>
-      <ThemeSetting />
       <NeedsAttention
         refreshSignal={addRefreshSignal}
         onFixed={(saved) => {
@@ -825,6 +824,10 @@ export function StaffPortfolio({
         // state repeats it in grey.
         empty={<EmptyState action={uploadButton("secondary")} />}
       />
+      {/* Last on Me, after the portfolio: a setting above the grid pushes its
+          lazy thumbnails past the browser's load distance, so a reload would
+          not fetch them (or find a failed one) until the person scrolls. */}
+      <ThemeSetting />
       <LabelEditorHost
         assetIds={labelIds ?? []}
         open={labelIds !== null}
