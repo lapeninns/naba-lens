@@ -340,6 +340,7 @@ function LabelEditor({
   preset = null,
   presetAssetIds,
   fix,
+  extra,
 }: LabelEditorProps) {
   const uid = React.useId()
   const batch = assets.length > 1
@@ -1172,6 +1173,8 @@ function LabelEditor({
                 {fileFields(single, "single")}
               </>
             )}
+
+            {extra}
 
             <p
               id={ids.status}

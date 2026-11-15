@@ -1,3 +1,4 @@
+import { AreaReviewSection } from "@/app/manager/review/_shared/area-section"
 import {
   ReviewBody,
   type ReviewSearch,
@@ -114,11 +115,14 @@ export default async function ManagerReviewPage({
       />
       {triage ? <ReviewKindFilter active={kind} /> : null}
       {kind === "photos" ? (
-        <ReviewBody
-          ctx={scope.ctx}
-          scope={{ kind: "manager" }}
-          search={search}
-        />
+        <>
+          <ReviewBody
+            ctx={scope.ctx}
+            scope={{ kind: "manager" }}
+            search={search}
+          />
+          <AreaReviewSection ctx={scope.ctx} />
+        </>
       ) : (
         <TriageBody ctx={scope.ctx} kind={kind} />
       )}

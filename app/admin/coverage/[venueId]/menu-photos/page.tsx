@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 
+import { AreaReviewSection } from "@/app/manager/review/_shared/area-section"
 import {
   ReviewBody,
   type ReviewSearch,
@@ -42,6 +43,7 @@ export default async function AdminMenuPhotosPage({
         scope={{ kind: "admin", venueId: ctx.venueId }}
         search={await searchParams}
       />
+      <AreaReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
     </ManageFrame>
   )
 }

@@ -3,6 +3,7 @@
 import * as React from "react"
 import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
+import { AreaLabelField } from "@/components/nabalens/area-photos/area-label-field"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { LabelEditorDialog, type CatalogueProp } from "@/components/nabalens"
 import { Notice } from "@/components/nabalens/notice"
@@ -238,6 +239,15 @@ function HostSession({
         focus={focus === undefined ? phase.focus : focus}
         preset={preset}
         presetAssetIds={presetAssetIds}
+        extra={
+          phase.audience === "staff" ? (
+            <AreaLabelField
+              assetIds={phase.assets
+                .filter((a) => a.mediaType === "image")
+                .map((a) => a.id)}
+            />
+          ) : null
+        }
       />
     )
   }
