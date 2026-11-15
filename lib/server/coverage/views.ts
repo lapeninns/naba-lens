@@ -134,6 +134,11 @@ export function requirementView(
   const kind = row.kind as RequirementKind
   const status = row.status as RequirementStatus
   const presence = row.amenity_presence as AmenityPresence | null
+  // v0.5 rules 22 and 23: a menu section belongs to the whole venue. It has
+  // no assignees, no due date and no Overdue, so it never asks for an
+  // assignee or a reassignment. Screens stop reading old assignees (decision
+  // 7); the rows stay in the database, readable by admins.
+  const shared = kind === "menu_section"
   const issues: RequirementSetupIssue[] = []
   if (status === "needs_setup") issues.push("unconfirmed")
   if (kind === "amenity" && status !== "retired") {
@@ -142,9 +147,11 @@ export function requirementView(
     else if (presence === "absent" && status === "needs_setup")
       issues.push("fact_absent")
   }
-  if (status === "active" && row.assignee_ids.length === 0)
+  if (!shared && status === "active" && row.assignee_ids.length === 0)
     issues.push("no_assignees")
-  if (row.needs_reassignment) issues.push("needs_reassignment")
+  const needsReassignment = !shared && row.needs_reassignment
+  if (needsReassignment) issues.push("needs_reassignment")
+  const overdue = !shared && row.overdue
 
   const snapshot = row.section_snapshot
   return {
@@ -154,7 +161,7 @@ export function requirementView(
     title: row.title,
     guidance: row.guidance,
     photoTarget: row.photo_target,
-    due: row.due_on ? dueView(row.due_on, row.overdue) : null,
+    due: !shared && row.due_on ? dueView(row.due_on, overdue) : null,
     status,
     statusReason: row.status_reason,
     isCurrent: row.is_current,
@@ -177,12 +184,12 @@ export function requirementView(
       kind === "amenity"
         ? { presence, confirmed: row.amenity_confirmed }
         : null,
-    assigneeIds: row.assignee_ids,
-    assignees: row.assignee_ids.flatMap((id) => {
+    assigneeIds: shared ? [] : row.assignee_ids,
+    assignees: (shared ? [] : row.assignee_ids).flatMap((id) => {
       const person = people.get(id)
       return person ? [person] : []
     }),
-    needsReassignment: row.needs_reassignment,
+    needsReassignment,
     progress: {
       target: row.photo_target,
       accepted: row.accepted_count,
@@ -190,7 +197,7 @@ export function requirementView(
       needsAnotherPhoto: row.needs_another_photo_count,
       evidenceRemoved: row.evidence_removed_count,
       satisfied: row.satisfied,
-      overdue: row.overdue,
+      overdue,
     },
     revision: row.revision,
   }
