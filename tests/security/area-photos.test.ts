@@ -160,6 +160,10 @@ async function venueWithPlaces(label: string): Promise<Fixture> {
   }
 }
 
+/** Rows of the G-9 tables (no PostgREST grants: read with psql as JSON). */
+const rows = (sql: string): unknown[] =>
+  JSON.parse(psql(`select coalesce(json_agg(t), '[]') from (${sql}) t`))
+
 const newStaff = (label: string, venueId: string) =>
   createIdentity(service, { label, role: "staff", venueId })
 
@@ -236,11 +240,10 @@ describe("who can label a photo with a venue area", () => {
     expect(await ok(mine(s, [asset]))).toEqual([])
 
     // Closed, never deleted.
-    const { data } = await service
-      .from("media_area_labels")
-      .select("subject_id, removed_by")
-      .eq("asset_id", asset)
-      .order("added_at")
+    const data = rows(
+      `select subject_id, removed_by from public.media_area_labels
+       where asset_id = '${asset}' order by added_at`
+    )
     expect(data).toEqual([
       { subject_id: f.places.bar, removed_by: s.id },
       { subject_id: f.places.garden, removed_by: s.id },
@@ -380,11 +383,10 @@ describe("who can review an area photo", () => {
     )
     await ok(decide(admin, two.label, "accepted"))
 
-    const { data } = await service
-      .from("area_photo_decisions")
-      .select("action, reason, decided_by")
-      .eq("label_id", one.label)
-      .order("id")
+    const data = rows(
+      `select action, reason, decided_by from public.area_photo_decisions
+       where label_id = '${one.label}' order by id`
+    )
     expect(data).toEqual([
       {
         action: "needs_another_photo",
@@ -413,11 +415,11 @@ describe("who can review an area photo", () => {
       "self_review_not_allowed",
       "42501"
     )
-    const { count } = await service
-      .from("area_photo_decisions")
-      .select("id", { count: "exact", head: true })
-      .eq("label_id", label)
-    expect(count).toBe(0)
+    expect(
+      rows(
+        `select id from public.area_photo_decisions where label_id = '${label}'`
+      )
+    ).toEqual([])
   })
 
   it("refuses staff without a grant and another venue's manager", async () => {
