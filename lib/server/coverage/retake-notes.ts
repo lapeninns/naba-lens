@@ -9,7 +9,6 @@ import {
   NOT_FOUND,
   NOT_PERMITTED,
   unavailableFailure,
-  type DbError,
 } from "./errors"
 import type { CoverageResult, RetakeNote, RetakeNoteRef } from "./types"
 import { isObject, isUuid } from "./validate"
@@ -17,9 +16,8 @@ import { isObject, isUuid } from "./validate"
 // Retake notes (G-3, docs/plans/goals-not-tasks.md, decisions 4 and 14). The
 // database decides each note's status; Home and Me share this one read.
 
-// my_retake_notes and set_retake_note_aside are not in lib/db/types.ts yet
-// (regenerated once by the coordinator), so they are called through this
-// narrow view of the client.
+// The generator marks every returned column non-null and every text a plain
+// string; this row says which may be null and which words come back.
 type NoteRow = {
   kind: "menu" | "coverage"
   note_id: string
@@ -39,14 +37,6 @@ type NoteRow = {
   can_retake: boolean
   set_aside_at: string | null
 }
-type RpcClient = {
-  rpc: (
-    fn: string,
-    args?: object
-  ) => PromiseLike<{ data: unknown; error: DbError }>
-}
-const rpc = (actor: MediaActor, fn: string, args: object = {}) =>
-  (actor.db as unknown as RpcClient).rpc(fn, args)
 
 function noteView(row: NoteRow, thumbnailUrl: string | null): RetakeNote {
   return {
@@ -92,7 +82,7 @@ export async function listMyRetakeNotes(
   if (!actor.profile.active)
     return failure("account_inactive", "Your account is not active.")
   if (actor.profile.role !== "staff") return NOT_PERMITTED
-  const { data, error } = await rpc(actor, "my_retake_notes")
+  const { data, error } = await actor.db.rpc("my_retake_notes")
   if (error) return unavailableFailure("retake notes", error)
   const rows = (data ?? []) as NoteRow[]
   const shown = rows.filter((row) => row.status !== "cleared")
@@ -127,9 +117,12 @@ export async function setRetakeNoteAside(
   if (!ref) return invalid({}, "This request is invalid. Reload the page.")
   if (!actor.profile.active)
     return failure("account_inactive", "Your account is not active.")
-  const { data, error } = await rpc(actor, "set_retake_note_aside", {
-    [ref.kind === "menu" ? "p_photo_id" : "p_submission_item_id"]: ref.noteId,
-  })
+  const { data, error } = await actor.db.rpc(
+    "set_retake_note_aside",
+    ref.kind === "menu"
+      ? { p_photo_id: ref.noteId }
+      : { p_submission_item_id: ref.noteId }
+  )
   if (error) {
     switch (error.message) {
       case "retake_note_not_found":
@@ -147,9 +140,7 @@ export async function setRetakeNoteAside(
         return unavailableFailure("set retake note aside", error)
     }
   }
-  const row = (
-    data as { set_aside_at: string; replayed: boolean }[] | null
-  )?.[0]
+  const row = data?.[0]
   if (!row) return unavailableFailure("set retake note aside")
   return { ok: true, setAsideAt: row.set_aside_at, replayed: row.replayed }
 }

@@ -45,26 +45,10 @@ import { isMenuStatus, isQueueStatus } from "./validate"
 // failed read is never an empty one. Id reads outside the venue are empty.
 
 type Fns = Database["public"]["Functions"]
-// G-7 (20261116150000) adds needed_by and needed_by_passed to the row and
-// p_after_needed_by to the cursor. Local until lib/db/types.ts is regenerated.
-type ItemRow = Fns["manager_menu_photo_items"]["Returns"][number] & {
-  needed_by: string | null
-  needed_by_passed: boolean
-}
-type ItemArgs = Fns["manager_menu_photo_items"]["Args"] & {
-  p_after_needed_by?: string
-}
-type ItemsRpc = {
-  rpc(
-    fn: "manager_menu_photo_items",
-    args: ItemArgs
-  ): PromiseLike<{
-    data: ItemRow[] | null
-    error: { message: string; code: string; details: string | null } | null
-  }>
-}
+type ItemRow = Fns["manager_menu_photo_items"]["Returns"][number]
+type ItemArgs = Fns["manager_menu_photo_items"]["Args"]
 const itemsRpc = (ctx: ManagerPhotoCtx, args: ItemArgs) =>
-  (ctx.actor.db as unknown as ItemsRpc).rpc("manager_menu_photo_items", args)
+  ctx.actor.db.rpc("manager_menu_photo_items", args)
 
 /** The keyset after a row: its needed-by date is part of the order (G-7). */
 const afterRow = (r: {

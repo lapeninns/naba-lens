@@ -19,8 +19,9 @@ import { monthlyView } from "./views"
 // correction on /admin. The manager scope comes from the workspace
 // (ManagerPhotoCtx) and the database checks it again in every call.
 
-// The RPCs of 20261116140000_venue_default_photo_target.sql, typed here until
-// lib/db/types.ts is regenerated.
+// The RPCs of 20261116140000_venue_default_photo_target.sql, typed here: the
+// generator marks p_target_count and target_count non-null, but null clears
+// the default and an unset default reads as null.
 type DefaultRow = {
   revision: number
   target_count: number | null

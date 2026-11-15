@@ -67,7 +67,7 @@ describe("listMyRetakeNotes", () => {
       error: null,
     }))
     const result = await listMyRetakeNotes(a)
-    expect(a.db.rpc).toHaveBeenCalledWith("my_retake_notes", {})
+    expect(a.db.rpc).toHaveBeenCalledWith("my_retake_notes")
     expect(media.listOwnMediaByIds).toHaveBeenCalledWith(a, ["a1", "a2"])
     expect(result).toEqual({
       ok: true,

@@ -1627,22 +1627,10 @@ describe("menu states", () => {
   })
 })
 
-// G-2: my_month_photos is not in the generated types until the coordinator
-// regenerates lib/db/types.ts; a narrow local type for the calls below.
-type MonthPhotoRow = { asset_id: string; venue_id: string; state: string }
-type MonthPhotosRpc = {
-  rpc(
-    fn: "my_month_photos",
-    args: { p_period_month: string; p_limit?: number }
-  ): PromiseLike<{
-    data: MonthPhotoRow[] | null
-    error: { code: string; message: string; details?: string } | null
-  }>
-}
 const monthPhotos = (
   who: TestIdentity,
   args: { p_period_month: string; p_limit?: number }
-) => (who.client as unknown as MonthPhotosRpc).rpc("my_month_photos", args)
+) => who.client.rpc("my_month_photos", args)
 
 // G-2 (docs/plans/goals-not-tasks.md, decision 13): Your month reads both
 // sources through one SQL source. Each (author, venue, month, photo) has one

@@ -42,16 +42,8 @@ import {
 const service = serviceClient()
 let admin: TestIdentity
 
-// The new RPCs are not in lib/db/types.ts yet (the coordinator regenerates it
-// once), so they are called through this narrow untyped view.
-type RpcResult = {
-  data: unknown
-  error: { code: string; message: string; details?: string } | null
-}
-type Untyped = { rpc: (fn: string, args?: object) => PromiseLike<RpcResult> }
-const rpc = (client: Db, fn: string, args: object = {}) =>
-  (client as unknown as Untyped).rpc(fn, args)
-
+// The generator marks every returned column non-null; this row says which
+// may be null and which words come back.
 type Note = {
   kind: "menu" | "coverage"
   note_id: string
@@ -74,7 +66,7 @@ type Note = {
 
 async function notes(who: TestIdentity | Db): Promise<Note[]> {
   const client = "client" in who ? who.client : who
-  return (await ok(rpc(client, "my_retake_notes"))) as Note[]
+  return (await ok(client.rpc("my_retake_notes"))) as Note[]
 }
 
 async function note(who: TestIdentity | Db, id: string) {
@@ -85,7 +77,7 @@ const aside = (
   who: TestIdentity,
   target: { photo?: string; submissionItem?: string }
 ) =>
-  rpc(who.client, "set_retake_note_aside", {
+  who.client.rpc("set_retake_note_aside", {
     ...(target.photo ? { p_photo_id: target.photo } : {}),
     ...(target.submissionItem
       ? { p_submission_item_id: target.submissionItem }
@@ -318,7 +310,7 @@ describe("menu notes: read and Later", () => {
         "42501"
       )
       await fails(
-        rpc(who.client, "my_retake_notes"),
+        who.client.rpc("my_retake_notes"),
         "work_profile_forbidden",
         "42501"
       )
@@ -329,11 +321,11 @@ describe("menu notes: read and Later", () => {
       "42501"
     )
     await fails(
-      rpc(inactive.client, "my_retake_notes"),
+      inactive.client.rpc("my_retake_notes"),
       "work_profile_forbidden",
       "42501"
     )
-    await fails(rpc(service, "my_retake_notes"), "work_profile_forbidden")
+    await fails(service.rpc("my_retake_notes"), "work_profile_forbidden")
     expect(await totalRows()).toBe(before)
   })
 

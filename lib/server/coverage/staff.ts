@@ -306,18 +306,6 @@ type MonthPhotoRow = {
   evidence_available: boolean
 }
 
-// G-2: my_month_photos (20261116110000) is not in the generated types yet;
-// the coordinator regenerates lib/db/types.ts once.
-type MonthPhotosRpc = {
-  rpc(
-    fn: "my_month_photos",
-    args: { p_period_month: string; p_limit: number }
-  ): PromiseLike<{
-    data: MonthPhotoRow[] | null
-    error: { message: string; code: string; details?: string } | null
-  }>
-}
-
 const MONTH_PHOTO_STATES: readonly MonthPhotoState[] = [
   "accepted",
   "needs_another_photo",
@@ -388,7 +376,7 @@ export async function getMyMonth(
   const month = periodMonthDate(period)
   const [progress, photos, people] = await Promise.all([
     actor.db.rpc("coverage_staff_progress_v2", { p_period_month: month }),
-    (actor.db as unknown as MonthPhotosRpc).rpc("my_month_photos", {
+    actor.db.rpc("my_month_photos", {
       p_period_month: month,
       p_limit: 101,
     }),
@@ -402,7 +390,8 @@ export async function getMyMonth(
   ])
   if (progress.error) return coverageRpcFailure(progress.error, "my month")
   if (photos.error) return coverageRpcFailure(photos.error, "my month photos")
-  const all = photos.data ?? []
+  // The generator marks every returned column non-null; several may be null.
+  const all = (photos.data ?? []) as MonthPhotoRow[]
   const rows = all.slice(0, 100)
   const names = await nameMap(
     actor,

@@ -55,24 +55,7 @@ import { decodeKey, encodeKey } from "./views"
 
 type Fns = Database["public"]["Functions"]
 type SummaryRow = Fns["menu_item_photo_summary"]["Returns"][number]
-// G-7 (20261116150000) adds needed_by and needed_by_passed to the row and
-// p_after_needed_by to the cursor. Local until lib/db/types.ts is regenerated.
-type ItemRow = Fns["menu_item_photo_items"]["Returns"][number] & {
-  needed_by: string | null
-  needed_by_passed: boolean
-}
-type ItemArgs = Fns["menu_item_photo_items"]["Args"] & {
-  p_after_needed_by?: string
-}
-type ItemsRpc = {
-  rpc(
-    fn: "menu_item_photo_items",
-    args: ItemArgs
-  ): PromiseLike<{
-    data: ItemRow[] | null
-    error: { message: string; code: string; details: string | null } | null
-  }>
-}
+type ItemRow = Fns["menu_item_photo_items"]["Returns"][number]
 type CandidateRow = Fns["menu_item_photo_candidates"]["Returns"][number]
 
 const BAD_REQUEST = invalid({}, "This request is invalid. Reload the page.")
@@ -350,24 +333,21 @@ export async function listOurMenuItems(
   const venue = await readVenue(actor, args.venueId)
   if (!venue.ok) return venue
 
-  const { data, error } = await (actor.db as unknown as ItemsRpc).rpc(
-    "menu_item_photo_items",
-    {
-      p_venue_id: venue.venueId,
-      ...(sectionId ? { p_section_id: sectionId } : {}),
-      p_gaps_only: args.gapsOnly === true,
-      ...(query ? { p_query: query } : {}),
-      ...(after
-        ? {
-            ...(after.neededBy ? { p_after_needed_by: after.neededBy } : {}),
-            p_after_section_position: after.section,
-            p_after_entry_position: after.entry,
-            p_after_item_id: after.itemId,
-          }
-        : {}),
-      p_limit: size + 1,
-    }
-  )
+  const { data, error } = await actor.db.rpc("menu_item_photo_items", {
+    p_venue_id: venue.venueId,
+    ...(sectionId ? { p_section_id: sectionId } : {}),
+    p_gaps_only: args.gapsOnly === true,
+    ...(query ? { p_query: query } : {}),
+    ...(after
+      ? {
+          ...(after.neededBy ? { p_after_needed_by: after.neededBy } : {}),
+          p_after_section_position: after.section,
+          p_after_entry_position: after.entry,
+          p_after_item_id: after.itemId,
+        }
+      : {}),
+    p_limit: size + 1,
+  })
   if (error) return coverageRpcFailure(error, "our menu items")
   const rows = data ?? []
   const page = rows.slice(0, size)
@@ -397,16 +377,6 @@ export async function listOurMenuItems(
 
 type ReviewStateRow = { item_id: string; waiting: boolean; rechecking: boolean }
 
-type ReviewStateRpc = {
-  rpc(
-    fn: "menu_item_review_states",
-    args: { p_venue_id: string; p_item_ids: string[] }
-  ): PromiseLike<{
-    data: ReviewStateRow[] | null
-    error: { message?: string; code?: string; details?: string | null } | null
-  }>
-}
-
 /**
  * Decision 11: a dish still needed whose photo is being checked after a menu
  * change says "Being checked"; one with a photo waiting for a first decision
@@ -432,10 +402,10 @@ async function reviewStatesByItem(
   itemIds: string[]
 ): Promise<Map<string, ReviewStateRow> | null> {
   if (itemIds.length === 0) return new Map()
-  const { data, error } = await (actor.db as unknown as ReviewStateRpc).rpc(
-    "menu_item_review_states",
-    { p_venue_id: venueId, p_item_ids: itemIds }
-  )
+  const { data, error } = await actor.db.rpc("menu_item_review_states", {
+    p_venue_id: venueId,
+    p_item_ids: itemIds,
+  })
   if (error) {
     console.error("[coverage] our menu review states failed", {
       error: redactError(
@@ -445,16 +415,6 @@ async function reviewStatesByItem(
     return null
   }
   return new Map((data ?? []).map((r) => [r.item_id, r]))
-}
-
-type WaitingRpc = {
-  rpc(
-    fn: "my_menu_waiting_items",
-    args: { p_venue_id: string; p_item_ids: string[] }
-  ): PromiseLike<{
-    data: { item_id: string; waiting: number }[] | null
-    error: { message?: string; code?: string; details?: string | null } | null
-  }>
 }
 
 /**
@@ -467,10 +427,10 @@ async function myWaitingByItem(
   itemIds: string[]
 ): Promise<Map<string, number> | null> {
   if (itemIds.length === 0) return new Map()
-  const { data, error } = await (actor.db as unknown as WaitingRpc).rpc(
-    "my_menu_waiting_items",
-    { p_venue_id: venueId, p_item_ids: itemIds }
-  )
+  const { data, error } = await actor.db.rpc("my_menu_waiting_items", {
+    p_venue_id: venueId,
+    p_item_ids: itemIds,
+  })
   if (error) {
     console.error("[coverage] our menu own waiting failed", {
       error: redactError(

@@ -19,25 +19,7 @@ import type { MenuPhotoResult } from "./types"
 
 type DbError = { message: string; code: string; details?: string } | null
 
-// Local RPC types until lib/db/types.ts is regenerated.
-type NeededByRpc = {
-  rpc(
-    fn: "set_menu_item_needed_by",
-    args: { p_item_id: string; p_needed_by: string; p_venue_id: string }
-  ): PromiseLike<{
-    data: { item_id: string; needed_by: string }[] | null
-    error: DbError
-  }>
-  rpc(
-    fn: "clear_menu_item_needed_by",
-    args: { p_item_id: string; p_venue_id: string }
-  ): PromiseLike<{
-    data: { item_id: string; cleared: boolean }[] | null
-    error: DbError
-  }>
-}
-
-const db = (ctx: ManagerPhotoCtx) => ctx.actor.db as unknown as NeededByRpc
+const db = (ctx: ManagerPhotoCtx) => ctx.actor.db
 
 const DATE_RANGE = "Choose a date from today to a year ahead."
 
