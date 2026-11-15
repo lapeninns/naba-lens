@@ -256,6 +256,54 @@ export type Database = {
           },
         ]
       }
+      area_photo_decisions: {
+        Row: {
+          action: string
+          asset_id: string
+          decided_at: string
+          decided_by: string
+          id: number
+          label_id: string
+          reason: string | null
+          venue_id: string
+        }
+        Insert: {
+          action: string
+          asset_id: string
+          decided_at?: string
+          decided_by: string
+          id?: never
+          label_id: string
+          reason?: string | null
+          venue_id: string
+        }
+        Update: {
+          action?: string
+          asset_id?: string
+          decided_at?: string
+          decided_by?: string
+          id?: never
+          label_id?: string
+          reason?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "area_photo_decisions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "area_photo_decisions_label_fkey"
+            columns: ["label_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_area_labels"
+            referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
       coverage_amenity_templates: {
         Row: {
           active: boolean
@@ -2664,6 +2712,74 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "media_assets"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_area_labels: {
+        Row: {
+          added_at: string
+          added_by: string
+          asset_id: string
+          id: string
+          removed_at: string | null
+          removed_by: string | null
+          subject_id: string
+          subject_kind: string
+          subject_label: string
+          venue_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by: string
+          asset_id: string
+          id?: string
+          removed_at?: string | null
+          removed_by?: string | null
+          subject_id: string
+          subject_kind: string
+          subject_label: string
+          venue_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string
+          asset_id?: string
+          id?: string
+          removed_at?: string | null
+          removed_by?: string | null
+          subject_id?: string
+          subject_kind?: string
+          subject_label?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_area_labels_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_area_labels_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "media_area_labels_removed_by_fkey"
+            columns: ["removed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_area_labels_subject_fkey"
+            columns: ["subject_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_subjects"
+            referencedColumns: ["id", "venue_id"]
           },
         ]
       }
@@ -5247,6 +5363,30 @@ export type Database = {
           venue_name: string
         }[]
       }
+      area_photo_queue: {
+        Args: { p_limit?: number; p_status?: string; p_venue_id?: string }
+        Returns: {
+          asset_id: string
+          author_id: string
+          author_name: string
+          can_decide: boolean
+          credit_month: string
+          decided_at: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number
+          label_id: string
+          labelled_at: string
+          reason: string
+          state: string
+          subject_id: string
+          subject_kind: string
+          subject_label: string
+          uploaded_at: string
+          venue_id: string
+          width: number
+        }[]
+      }
       asset_search: {
         Args: {
           p_after_created_at?: string
@@ -5689,6 +5829,14 @@ export type Database = {
           p_venue_id: string
         }
         Returns: string
+      }
+      decide_area_photo: {
+        Args: { p_action: string; p_label_id: string; p_reason?: string }
+        Returns: {
+          changed: boolean
+          label_id: string
+          state: string
+        }[]
       }
       delete_media_asset: { Args: { p_asset_id: string }; Returns: undefined }
       discard_menu_coverage_plan: {
@@ -6535,6 +6683,19 @@ export type Database = {
           task_titles: string[]
         }[]
       }
+      my_area_labels: {
+        Args: { p_asset_ids: string[] }
+        Returns: {
+          asset_id: string
+          decided_at: string
+          label_id: string
+          reason: string
+          state: string
+          subject_id: string
+          subject_kind: string
+          subject_label: string
+        }[]
+      }
       my_asset_delete_impact: { Args: { p_asset_id: string }; Returns: Json }
       my_contributions_feed: {
         Args: { p_cursor: string; p_limit: number }
@@ -6865,6 +7026,14 @@ export type Database = {
           p_status: string
         }
         Returns: number
+      }
+      set_media_area_label: {
+        Args: { p_asset_id: string; p_subject_id: string }
+        Returns: {
+          changed: boolean
+          label_id: string
+          subject_id: string
+        }[]
       }
       set_menu_item_archived: {
         Args: { p_archived: boolean; p_item_id: string }

@@ -39,52 +39,11 @@ import {
 
 const service = serviceClient()
 
-// Not in the generated types until the coordinator regenerates
-// lib/db/types.ts; narrow local types for the calls below.
-type RpcError = { code: string; message: string; details?: string }
-type RpcResult<T> = PromiseLike<{ data: T | null; error: RpcError | null }>
-type LabelRow = {
-  label_id: string | null
-  subject_id: string | null
-  changed: boolean
-}
-type DecisionRow = { label_id: string; state: string; changed: boolean }
-type QueueRow = {
-  label_id: string
-  asset_id: string
-  author_id: string
-  subject_label: string
-  state: string
-  reason: string | null
-  can_decide: boolean
-  credit_month: string
-}
-type MineRow = {
-  asset_id: string
-  label_id: string
-  subject_label: string
-  state: string
-}
-type MonthRow = {
-  asset_id: string
-  venue_id: string
-  state: string
-  item_names: string[]
-}
-type Rpc = {
-  rpc(fn: string, args: Record<string, unknown>): RpcResult<unknown>
-}
-
-const call = <T>(
-  who: TestIdentity,
-  fn: string,
-  args: Record<string, unknown>
-) => (who.client as unknown as Rpc).rpc(fn, args) as RpcResult<T>
-
 const setArea = (who: TestIdentity, asset: string, subject: string | null) =>
-  call<LabelRow[]>(who, "set_media_area_label", {
+  who.client.rpc("set_media_area_label", {
     p_asset_id: asset,
-    p_subject_id: subject,
+    // Null clears; the generator types every SQL argument non-null.
+    p_subject_id: subject as string,
   })
 const decide = (
   who: TestIdentity,
@@ -92,20 +51,20 @@ const decide = (
   action: "accepted" | "needs_another_photo" | "withdrawn",
   reason: string | null = null
 ) =>
-  call<DecisionRow[]>(who, "decide_area_photo", {
+  who.client.rpc("decide_area_photo", {
     p_label_id: label,
     p_action: action,
-    p_reason: reason,
+    ...(reason === null ? {} : { p_reason: reason }),
   })
 const queue = (who: TestIdentity, venue: string | null, status = "pending") =>
-  call<QueueRow[]>(who, "area_photo_queue", {
-    p_venue_id: venue,
+  who.client.rpc("area_photo_queue", {
+    ...(venue === null ? {} : { p_venue_id: venue }),
     p_status: status,
   })
 const mine = (who: TestIdentity, assets: string[]) =>
-  call<MineRow[]>(who, "my_area_labels", { p_asset_ids: assets })
+  who.client.rpc("my_area_labels", { p_asset_ids: assets })
 const monthPhotos = (who: TestIdentity, month = currentMonth()) =>
-  call<MonthRow[]>(who, "my_month_photos", {
+  who.client.rpc("my_month_photos", {
     p_period_month: month,
     p_limit: 201,
   })
@@ -270,24 +229,14 @@ describe("who can label a photo with a venue area", () => {
       "42501"
     )
 
-    const { error } = await (
-      colleague.client as unknown as {
-        from(t: string): {
-          insert(
-            row: Record<string, unknown>
-          ): PromiseLike<{ error: RpcError | null }>
-        }
-      }
-    )
-      .from("media_area_labels")
-      .insert({
-        asset_id: asset,
-        venue_id: f.venue,
-        subject_id: f.places.bar,
-        subject_kind: "area",
-        subject_label: "Bar",
-        added_by: colleague.id,
-      })
+    const { error } = await colleague.client.from("media_area_labels").insert({
+      asset_id: asset,
+      venue_id: f.venue,
+      subject_id: f.places.bar,
+      subject_kind: "area",
+      subject_label: "Bar",
+      added_by: colleague.id,
+    })
     expect(error?.code).toBe("42501")
     expect(await ok(mine(s, [asset]))).toEqual([])
   })
