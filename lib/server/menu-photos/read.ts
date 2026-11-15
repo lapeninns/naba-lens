@@ -395,16 +395,19 @@ async function withAlsoCounts(
       p_asset_ids: assetIds,
     })
     if (error || !data) return cards
+    // One row per label tuple: the month credit depends on the variant.
     const byTuple = new Map(
       data.map((r) => [
-        `${r.asset_id}:${r.item_id}`,
+        `${r.asset_id}:${r.item_id}:${r.variant_id ?? ""}`,
         { tasks: r.task_titles ?? [], month: r.credit_month ?? null },
       ])
     )
     return cards.map((c) => {
       const counts =
         c.kind === "labelled" && c.item
-          ? byTuple.get(`${c.asset.assetId}:${c.item.itemId}`)
+          ? byTuple.get(
+              `${c.asset.assetId}:${c.item.itemId}:${c.item.variantId ?? ""}`
+            )
           : undefined
       return counts ? { ...c, alsoCounts: counts } : c
     })

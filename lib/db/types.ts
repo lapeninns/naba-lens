@@ -6695,6 +6695,7 @@ export type Database = {
           credit_month: string
           item_id: string
           task_titles: string[]
+          variant_id: string
         }[]
       }
       my_area_labels: {
