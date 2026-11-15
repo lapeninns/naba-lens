@@ -6,9 +6,9 @@
 -- 20261106130000 (Our menu item photos), 20261107100100 and
 -- 20261107100400..100500 (manager item photos) and the goals sprint's
 -- 20261116100000 (review states), 20261116110000 (Your month list),
--- 20261116120000 (retake notes), 20261116140000 (venue default target) and
+-- 20261116120000 (retake notes), 20261116140000 (venue default target),
 -- 20261116150000 (needed by on a dish, which also recreates the two item
--- lists with a wider cursor). The venue manager security
+-- lists with a wider cursor) and 20261116170000 (venue area photos). The venue manager security
 -- fixes (effective grant, revoke trigger, denials, audit policy, item-photo
 -- rules of 20261107100300) and the 'manager' enum value stay in place:
 -- convert any manager accounts back to staff first.
@@ -69,7 +69,12 @@ revoke execute on function
   public.my_retake_notes(),
   public.set_retake_note_aside(uuid, uuid),
   public.venue_default_target(uuid),
-  public.set_venue_default_target(uuid, integer, text, integer)
+  public.set_venue_default_target(uuid, integer, text, integer),
+  -- G-9: venue area labels and their review.
+  public.set_media_area_label(uuid, uuid),
+  public.my_area_labels(uuid[]),
+  public.area_photo_queue(uuid, text, integer),
+  public.decide_area_photo(uuid, text, text)
 from authenticated;
 
 -- Stops the hourly preparation even if the scheduler keeps calling it.
@@ -94,5 +99,7 @@ revoke select on
   public.menu_item_photo_events,
   public.menu_item_needed_by,
   public.menu_item_needed_by_events,
-  public.retake_note_set_asides
+  public.retake_note_set_asides,
+  public.media_area_labels,
+  public.area_photo_decisions
 from authenticated;

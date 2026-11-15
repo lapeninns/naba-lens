@@ -28,6 +28,7 @@ const MIGRATIONS = [
   "20261116120000_retake_notes.sql",
   "20261116140000_venue_default_photo_target.sql",
   "20261116150000_menu_item_needed_by.sql",
+  "20261116170000_area_photos.sql",
 ]
 const script = readFileSync(
   join(import.meta.dirname, "coverage-withdraw-access.sql"),
@@ -83,8 +84,8 @@ function privilegesAfterScript(): { fn: string; role: string; ok: boolean }[] {
 
 describe("coverage access withdrawal", () => {
   it("names every coverage RPC and table", () => {
-    expect(publicFunctions.length).toBe(53)
-    expect(publicTables.length).toBe(19)
+    expect(publicFunctions.length).toBe(57)
+    expect(publicTables.length).toBe(21)
     for (const fn of publicFunctions)
       expect(script, fn).toContain(`public.${fn}(`)
     for (const t of publicTables) expect(script, t).toContain(`public.${t}`)
@@ -96,10 +97,10 @@ describe("coverage access withdrawal", () => {
   it("leaves signed-in users no coverage capability and stops the scheduled run", () => {
     const rows = privilegesAfterScript()
     expect(rows).toHaveLength(publicFunctions.length * 2 + publicTables.length)
-    // The scheduled run is revoked; menu_item_review_states and
-    // my_month_photos (G-1, G-2) were only ever granted to authenticated.
+    // The scheduled run is revoked; menu_item_review_states, my_month_photos
+    // (G-1, G-2) and G-9's four area RPCs were only granted to authenticated.
     expect(rows.filter((r) => r.ok && r.role === "service_role").length).toBe(
-      publicFunctions.length - 3
+      publicFunctions.length - 7
     )
     const stillGranted = rows.filter(
       (r) =>
