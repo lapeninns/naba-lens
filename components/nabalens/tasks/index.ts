@@ -13,11 +13,19 @@ export {
   pickReplacement,
   ReplacementClosed,
   replacementHref,
+  replacementPath,
   askerName,
   ReplacementNote,
   REPLACES_PARAM,
 } from "./needs-another-photo-list"
 export { PhotoPicker } from "./photo-picker"
+export {
+  homeRetakeNotes,
+  meRetakeNotes,
+  RETAKE_COPY,
+  RetakeNotes,
+  retakeNoteTitle,
+} from "./retake-notes"
 export { FIRST_RUN_COOKIE, showWelcomeEntry } from "./first-run-state"
 export { FirstRun, setupGaps } from "./first-run"
 export { intentKey, useRequestIntent } from "./request-intent"

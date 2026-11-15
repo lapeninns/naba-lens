@@ -726,6 +726,41 @@ export type WithdrawnItemPhoto = {
 
 export type PrimaryItemPhoto = { photoId: string; itemRevision: number }
 
+/**
+ * One "Needs another photo" note for its author (G-3, my_retake_notes): a menu
+ * request on a labelled photo, or a coverage request on a month or task send.
+ * The server decides the status: open, set aside (Later; hidden from Home,
+ * kept on Me), retaken (a new photo is waiting for review) or cleared
+ * (decision 4 for menu notes; a decided replacement for coverage notes).
+ */
+export type RetakeNote = {
+  kind: "menu" | "coverage"
+  /** The menu photo id, or the coverage submission item id. */
+  noteId: string
+  revision: number
+  assetId: string
+  /** The own photo the note is on; null when it couldn't be signed. */
+  thumbnailUrl: string | null
+  status: "open" | "set_aside" | "retaken" | "cleared"
+  /** A new photo can be taken for it now (dish on the menu, task open to me). */
+  canRetake: boolean
+  reason: string | null
+  askedBy: string | null
+  askedAt: string
+  setAsideAt: string | null
+  /** Menu notes: the dish, with the variant that was reviewed. */
+  dish: {
+    itemId: string
+    variantId: string | null
+    itemName: string
+    variantName: string | null
+  } | null
+  /** Coverage notes on a task; null for menu notes and month sends. */
+  requirement: { id: string; title: string; kind: string } | null
+}
+
+export type RetakeNoteRef = { kind: RetakeNote["kind"]; noteId: string }
+
 /** The uploader's own live item decisions (for "Accepted for menu use"). */
 export type MyMenuPhotoState = {
   photoId: string

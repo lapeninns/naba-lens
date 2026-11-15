@@ -185,15 +185,31 @@ export function ReplacementClosed({
   )
 }
 
+/**
+ * Where to send a replacement for the request `itemId`: its task, or this
+ * month's photos when it had no task.
+ */
+export function replacementPath(
+  tasksPath: string,
+  requirementId: string | null,
+  itemId: string
+): string {
+  const base = requirementId
+    ? `${tasksPath}/${requirementId}`
+    : `${tasksPath}/month`
+  return `${base}?${REPLACES_PARAM}=${itemId}`
+}
+
 /** Where to send a replacement for `submission`. */
 export function replacementHref(
   tasksPath: string,
   submission: SubmissionView
 ): string {
-  const base = submission.requirement
-    ? `${tasksPath}/${submission.requirement.id}`
-    : `${tasksPath}/month`
-  return `${base}?${REPLACES_PARAM}=${submission.id}`
+  return replacementPath(
+    tasksPath,
+    submission.requirement?.id ?? null,
+    submission.id
+  )
 }
 
 /**
