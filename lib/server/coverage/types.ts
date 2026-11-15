@@ -80,7 +80,12 @@ export type CoverageScope = {
 // ---- Monthly targets ----------------------------------------------------------
 
 export type MonthlyTargetSource =
-  "manager" | "copied" | "placeholder" | "admin_correction"
+  | "manager"
+  | "copied"
+  | "placeholder"
+  | "admin_correction"
+  /** The venue default (G-6): the person has no number of their own. */
+  | "venue_default"
 
 export type MonthlySetupGap = "team" | "target"
 

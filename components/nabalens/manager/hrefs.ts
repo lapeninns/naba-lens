@@ -51,6 +51,8 @@ function withQuery(
 export const managerHrefs = {
   overview: "/manager",
   account: "/manager/account",
+  /** Monthly photo targets (G-6), linked from Overview; no nav tab. */
+  team: "/manager/team",
   /** The manager account's own uploads (B02-c); no nav tab. */
   uploads: "/manager/uploads",
   /**

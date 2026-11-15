@@ -25,6 +25,7 @@ export const MANAGER_COPY = {
     menu: "the menu",
     item: "this menu item",
     account: "your account",
+    team: "the team's targets",
   },
   notFound: {
     title: "This page isn't available in your workspace",
@@ -189,6 +190,43 @@ export const MANAGER_COPY = {
     loading: "Loading your uploads…",
     addLabels: "Add labels",
     editLabels: "Edit labels",
+  },
+  team: {
+    title: "Team targets",
+    loading: "Loading the team's targets…",
+    entry: "Team targets",
+    entryNote: "Monthly photo targets for your team",
+    summary: (month: string) =>
+      `Accepted photos each person aims for in ${month}. Each person sees only their own month.`,
+    defaultTitle: "Venue default",
+    defaultBody:
+      "Everyone at the venue gets this number each month, unless you set their own. New starters get it too.",
+    defaultName: "Venue default photo target",
+    defaultUnset:
+      "No default yet. People without their own number show Needs setup.",
+    defaultSet: (n: number) =>
+      `${plural(n, "accepted photo")} per person each month.`,
+    saveDefault: "Save default",
+    clearDefault: "Clear default",
+    defaultSaved: "The venue default is saved.",
+    defaultCleared: "The venue default is cleared.",
+    peopleTitle: "People",
+    peopleEmpty: "Nobody works at this venue yet.",
+    ownNumber: "Own number",
+    usesDefault: "Venue default",
+    noTarget: "No target yet",
+    change: (name: string) => `Change ${name}'s target`,
+    changeShort: "Change",
+    personName: (name: string) => `${name}'s photo target`,
+    savePerson: "Save target",
+    cancel: "Cancel",
+    personSaved: (name: string) => `${name}'s target is saved.`,
+    reasonLabel: "Reason for the change",
+    reasonHelp: "Admins can see this reason.",
+    saving: "Saving…",
+    wholeVenue:
+      "This month the venue has one target for the whole team, counted in menu items and amenity checks. Photo targets aren't used.",
+    privacy: "Targets are private to each person, you and admins.",
   },
   accountPage: {
     title: "Account",
