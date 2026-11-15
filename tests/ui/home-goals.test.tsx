@@ -448,6 +448,19 @@ describe("Goal-led Home: model", () => {
     ).toBe(2)
   })
 
+  it("counts an open recheck as an other job, once per check", () => {
+    const recheck = (checkId: string) =>
+      ({ checkId, question: "Q", dueAt: "2026-11-20T00:00:00Z" }) as never
+    expect(
+      otherJobsCount({
+        tasks: tasksView(),
+        amenityTasks: [amenityCheck("c1")],
+        slots: [],
+        rechecks: [recheck("c1"), recheck("c2")],
+      })
+    ).toBe(2)
+  })
+
   it("Home leaves out set-aside, retaken and closed notes", () => {
     expect(
       homeRetakeNotes([

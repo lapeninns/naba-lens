@@ -3,7 +3,7 @@
 // preview fixtures all decide the same way.
 
 import type { MyAmenityTask } from "@/lib/amenities/contract"
-import type { WorkingSlot } from "@/lib/knowledge-client/contract"
+import type { RecheckTask, WorkingSlot } from "@/lib/knowledge-client/contract"
 import type { OurMenuItem, RetakeNote } from "@/lib/server/coverage/types"
 
 import { slotRow } from "../knowledge/copy"
@@ -43,17 +43,20 @@ export function menuComplete(menu: OurMenuGoal | null): boolean {
 
 /**
  * Decision 10: jobs that are not food and drink photos. Open non-menu
- * requirements I'm assigned to, amenity checks assigned to me, and working
- * list questions that wait on me. Menu sections are never counted.
+ * requirements I'm assigned to, amenity checks assigned to me, working list
+ * questions that wait on me and my open rechecks (B03-e), each check once.
+ * Menu sections are never counted.
  */
 export function otherJobsCount({
   tasks,
   amenityTasks,
   slots,
+  rechecks = null,
 }: {
   tasks: Pick<MyTasksView, "assignments"> | null
   amenityTasks: readonly MyAmenityTask[] | null
   slots: readonly WorkingSlot[] | null
+  rechecks?: readonly RecheckTask[] | null
 }): number {
   const requirements = (tasks?.assignments ?? []).filter(
     (a) =>
@@ -64,6 +67,7 @@ export function otherJobsCount({
   const checks = new Set((amenityTasks ?? []).map((task) => task.id))
   for (const slot of slots ?? [])
     if (slotRow(slot).needsMe) checks.add(slot.checkId)
+  for (const task of rechecks ?? []) checks.add(task.checkId)
   return requirements + checks.size
 }
 

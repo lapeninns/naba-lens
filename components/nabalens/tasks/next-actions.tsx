@@ -429,3 +429,24 @@ export function NextActions({
     </section>
   )
 }
+
+/**
+ * Other jobs (goals layout, B03-e): my open recheck tasks as the same cards
+ * To do drew, none of them the page's blue action. Nothing when empty.
+ */
+export function RecheckCards({
+  checks,
+  label,
+}: {
+  checks: readonly CheckCardData[]
+  label: string
+}) {
+  if (checks.length === 0) return null
+  return (
+    <ul aria-label={label} className="grid gap-gutter">
+      {checks.map((check) => (
+        <CheckCard key={check.checkId} check={check} recheck primary={false} />
+      ))}
+    </ul>
+  )
+}

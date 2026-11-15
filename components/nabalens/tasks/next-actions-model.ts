@@ -81,6 +81,50 @@ function checkFromTask(task: MyAmenityTask, action: string): CheckCard {
   }
 }
 
+/** B03-e: an open recheck task as its check's card, with the server's cause. */
+function recheckCard(
+  task: RecheckTask,
+  slot: WorkingSlot | undefined,
+  assigned: ReadonlyMap<string, MyAmenityTask>
+): CheckCard {
+  const previous = slot?.answerInUse.value ?? slot?.previousAnswer ?? null
+  return {
+    checkId: task.checkId,
+    question: task.question,
+    category:
+      slot?.category ?? assigned.get(task.checkId)?.entry.category ?? "",
+    evidenceRule:
+      slot?.evidenceRule ??
+      assigned.get(task.checkId)?.entry.evidenceRule ??
+      "photo",
+    chip: PROGRESS_LABEL.needs_recheck,
+    recheckReason: recheckCauseLine(task, {
+      previous: previous ? ANSWER_LABEL[previous] : null,
+    }),
+    action: "Recheck",
+  }
+}
+
+/**
+ * Other jobs (goals layout): my open recheck tasks as check cards, in due
+ * order. The same cards To do drew on the B02 Home.
+ */
+export function recheckCards({
+  rechecks,
+  slots = [],
+  amenityChecks = [],
+}: {
+  rechecks: readonly RecheckTask[]
+  slots?: readonly WorkingSlot[]
+  amenityChecks?: readonly MyAmenityTask[]
+}): CheckCard[] {
+  const bySlot = new Map(slots.map((slot) => [slot.checkId, slot]))
+  const assigned = new Map(amenityChecks.map((task) => [task.id, task]))
+  return [...rechecks]
+    .sort((a, b) => a.dueAt.localeCompare(b.dueAt))
+    .map((task) => recheckCard(task, bySlot.get(task.checkId), assigned))
+}
+
 function isOpenAndUnfinished(a: MyAssignment) {
   return a.canSubmit && !a.requirement.progress.satisfied
 }
@@ -184,27 +228,11 @@ export function nextActions({
     const key = checkKey(task.checkId)
     const at = entries.findIndex((entry) => entry.key === key)
     if (at >= 0 && entries[at].kind === "finding") continue
-    const slot = bySlot.get(task.checkId)
-    const previous = slot?.answerInUse.value ?? slot?.previousAnswer ?? null
     const card: NextAction = {
       key,
       kind: "recheck",
       members: 1,
-      check: {
-        checkId: task.checkId,
-        question: task.question,
-        category:
-          slot?.category ?? assigned.get(task.checkId)?.entry.category ?? "",
-        evidenceRule:
-          slot?.evidenceRule ??
-          assigned.get(task.checkId)?.entry.evidenceRule ??
-          "photo",
-        chip: PROGRESS_LABEL.needs_recheck,
-        recheckReason: recheckCauseLine(task, {
-          previous: previous ? ANSWER_LABEL[previous] : null,
-        }),
-        action: "Recheck",
-      },
+      check: recheckCard(task, bySlot.get(task.checkId), assigned),
     }
     if (at >= 0) entries.splice(at, 1)
     entries.push(card)

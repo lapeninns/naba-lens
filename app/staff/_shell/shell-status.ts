@@ -363,6 +363,7 @@ async function goalsShellStatus(
     workingList,
     notes,
     labels,
+    rechecks,
   ] = await Promise.all([
     myTasks(actor).catch(() => null),
     myAmenityTasks(actor),
@@ -370,6 +371,7 @@ async function goalsShellStatus(
     myWorkingList(actor),
     myRetakeNotes(actor),
     myLabelWork(actor),
+    myRechecks(actor),
   ])
   const view = tasks?.ok ? tasks.tasks : null
   const known =
@@ -378,7 +380,8 @@ async function goalsShellStatus(
     (!canManage || reviewCount !== undefined) &&
     workingList !== undefined &&
     notes !== null &&
-    labels.status !== "failed"
+    labels.status !== "failed" &&
+    rechecks !== null
   const cards = view
     ? goalsHomeCards({
         setupComplete: view.scope.setup.complete,
@@ -388,6 +391,7 @@ async function goalsShellStatus(
           tasks: view,
           amenityTasks,
           slots: workingList?.slots ?? null,
+          rechecks,
         }),
         reviewCount: reviewCount ?? 0,
       })
@@ -400,6 +404,18 @@ async function goalsShellStatus(
     avatarUrl: avatarUrl(profile.id, profile.avatarPath),
   }
 }
+
+const rechecksOf = cache(async (actor: MediaActor) => {
+  try {
+    const result = await knowledgeServices.listMyRechecks(actor)
+    return result.ok ? result.tasks : null
+  } catch {
+    return null
+  }
+})
+
+/** My open recheck tasks (B03-e), once per request; null when unread. */
+export const myRechecks = (actor: MediaActor) => rechecksOf(sharedActor(actor))
 
 /** Decision 19: Home shows a labels row (the person's own photo work). */
 export function hasLabelWork(labels: HomeLabels): boolean {

@@ -10,12 +10,15 @@ import {
   OTHER_JOBS_COPY,
   otherJobs,
 } from "@/components/nabalens/tasks"
+import { recheckCards } from "@/components/nabalens/tasks/next-actions-model"
+import { RecheckCards } from "@/components/nabalens/tasks/next-actions"
 import { requireActiveStaff } from "@/lib/auth"
 import { withWorkingListEntrances } from "@/lib/knowledge-client/entrances"
 import { getCoverageActor } from "@/lib/server/coverage"
 
 import {
   myAmenityTasks,
+  myRechecks,
   myTasks,
   myWorkingList,
   staffShellStatus,
@@ -34,12 +37,14 @@ export const metadata = { title: "Other jobs" }
 export default async function OtherJobsPage() {
   const profile = await requireActiveStaff()
   const { actor } = unwrap(await getCoverageActor())
-  const [{ tasks }, amenityTasks, shell, workingList] = await Promise.all([
-    myTasks(actor).then(unwrap),
-    myAmenityTasks(actor),
-    staffShellStatus(actor, profile),
-    myWorkingList(actor),
-  ])
+  const [{ tasks }, amenityTasks, shell, workingList, rechecks] =
+    await Promise.all([
+      myTasks(actor).then(unwrap),
+      myAmenityTasks(actor),
+      staffShellStatus(actor, profile),
+      myWorkingList(actor),
+      myRechecks(actor),
+    ])
   // A step-free Yes names its entrances here too (B03 UI §3.5).
   const listed = workingList
     ? await withWorkingListEntrances(actor, workingList)
@@ -60,6 +65,21 @@ export default async function OtherJobsPage() {
           title={OTHER_JOBS_COPY.title}
           summary={OTHER_JOBS_COPY.summary}
         />
+        {/* B03-e: my open rechecks lead, each with its server-given cause. */}
+        {rechecks === null ? (
+          <Notice tone="attention" role="status">
+            {HOME_READ_FAILED.rechecks}
+          </Notice>
+        ) : (
+          <RecheckCards
+            label={OTHER_JOBS_COPY.rechecks}
+            checks={recheckCards({
+              rechecks,
+              slots: workingList?.slots ?? [],
+              amenityChecks: amenityTasks ?? [],
+            })}
+          />
+        )}
         <AllTasks
           tasks={otherJobs(tasks)}
           tasksPath={TASKS_PATH}

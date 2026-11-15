@@ -216,6 +216,7 @@ export const HOME_READ_FAILED = {
   otherJobs: "We couldn't check your other jobs.",
   review: "We couldn't check photos to review.",
   labels: "We couldn't check which photos need labels.",
+  rechecks: "We couldn't check your rechecks.",
 } as const
 
 /** Our menu on goal-led Home (v0.5 §1). */
@@ -266,9 +267,7 @@ export const OTHER_JOBS_COPY = {
   body: "Checks and venue jobs that aren't menu photos.",
   countLabel: "jobs",
   summary: "Overdue jobs still take photos.",
-  questions: "Questions waiting on you",
-  questionsHint:
-    "Venue questions you can answer with a photo or a quick check.",
+  rechecks: "Checks to do again",
 } as const
 
 /** A menu section's send page, served only to answer a request (G-4). */

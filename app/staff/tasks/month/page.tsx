@@ -38,7 +38,7 @@ import {
 import { periodKeyOf } from "@/lib/server/coverage/time"
 
 import { myTasks, staffShellStatus } from "../../_shell/shell-status"
-import { PORTFOLIO_PATH, TASKS_PATH, unwrap } from "../result"
+import { OTHER_JOBS_PATH, PORTFOLIO_PATH, TASKS_PATH, unwrap } from "../result"
 import { backFrom } from "../back-from"
 import { TaskSubmit } from "../task-submit"
 
@@ -350,10 +350,10 @@ export default async function MonthPage({
               Browse menu items
             </Link>
             <Link
-              href={TASKS_PATH}
+              href={OTHER_JOBS_PATH}
               className={buttonVariants({ variant: "secondary" })}
             >
-              See assigned checks on Home
+              See your other jobs
             </Link>
           </div>
         </section>
