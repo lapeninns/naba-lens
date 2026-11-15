@@ -45,9 +45,12 @@ const ALLOWED_PAGES = new Set([
   "/staff/tasks/[requirementId]",
   "/staff/tasks/month",
   "/staff/tasks/welcome",
-  // All tasks (Common Room batch 0): every assignment and amenity check off
-  // Home. Becomes the "Other jobs" list in G-4 (docs/plans/goals-not-tasks.md,
-  // decision 10).
+  // Other jobs (G-4, docs/plans/goals-not-tasks.md decisions 8 and 10): the
+  // non-menu tasks and amenity checks, with due dates, until G-10. Menu
+  // sections are left out; a menu-section task page goes to Our menu unless
+  // it answers an open "needs another photo" request.
+  "/staff/tasks/other",
+  // Redirect only: All tasks (Common Room batch 0) became Other jobs.
   "/staff/tasks/all",
   // Dish photo guide (November 2026): static example angles and a checklist,
   // no media, no scoring (docs/usage-staff.md "Photo guide").

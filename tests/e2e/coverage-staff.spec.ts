@@ -474,39 +474,37 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     await expect(page.getByText("Needs setup").first()).toBeVisible()
   })
 
-  test("photo guide: a food menu task teaches the four angles; other tasks do not (phone)", async ({
+  test("photo guide: a menu-section task goes to Our menu; the guide teaches the four angles (phone)", async ({
     browser,
     request,
   }) => {
     const w = await provisionCoverageWorld()
     const setup = await managerSetup(w)
     const startersId = await menuSectionSetup(w, setup.manager)
+    const sectionId = psql(
+      `select menu_section_id from public.coverage_requirements where id = '${startersId}'::uuid`
+    )
     const page = await signedInPage(browser, w.staffA, devices["Pixel 7"])
 
+    // G-4: menu work is on Our menu. With no open "needs another photo"
+    // request, the section's task link ends on its Still needed dishes
+    // (a soft redirect through loading.tsx).
     await page.goto(`/staff/tasks/${startersId}`)
+    await expect(page).toHaveURL(
+      new RegExp(`/staff/menu\\?section=${sectionId}&filter=gaps$`)
+    )
     await expect(
-      page.getByRole("heading", { level: 1, name: "Starters" })
+      page.getByRole("heading", { level: 1, name: "Our menu" })
     ).toBeVisible()
-    const guide = page.getByRole("region", { name: "How to photograph it" })
-    await expect(guide).toBeVisible()
-    await expect(
-      guide.getByText(
-        "This section needs 2 photos. Start with the marked angles."
-      )
-    ).toBeVisible()
-    await expect(guide.getByText("Suggested", { exact: true })).toHaveCount(2)
-    // Between "What to photograph" and "On this section".
-    const headings = await page
-      .getByRole("heading", { level: 2 })
-      .allTextContents()
-    const at = (name: string) => headings.indexOf(name)
-    expect(at("What to photograph")).toBeGreaterThanOrEqual(0)
-    expect(at("How to photograph it")).toBe(at("What to photograph") + 1)
-    expect(at("On this section")).toBe(at("How to photograph it") + 1)
+    await page.goto(`/staff/tasks/${startersId}?replaces=${randomUUID()}`)
+    await expect(page).toHaveURL(
+      new RegExp(`/staff/menu\\?section=${sectionId}&filter=gaps$`)
+    )
 
-    // The example loads as a static file, then opens full screen.
-    const tile = guide.getByRole("button", {
-      name: "45° angle, suggested. Open example",
+    // The full guide: the examples open full screen, no angle marked.
+    await page.goto("/staff/tasks/guide")
+    const tile = page.getByRole("button", {
+      name: "45° angle. Open example",
     })
     await tile.scrollIntoViewIfNeeded()
     await expect
@@ -538,8 +536,6 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(tile).toBeFocused()
 
-    // The full guide: checklist, safety note, no angle marked.
-    await guide.getByRole("link", { name: "See the full photo guide" }).click()
     await expect(page).toHaveURL(/\/staff\/tasks\/guide$/)
     await expect(
       page.getByRole("heading", { level: 1, name: "Photo guide" })

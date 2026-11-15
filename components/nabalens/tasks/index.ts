@@ -44,7 +44,7 @@ export {
   submissionTitle,
 } from "./submission-list"
 export { SubmitPhotosPanel } from "./submit-photos-panel"
-export { AllTasks } from "./all-tasks"
+export { AllTasks, otherJobs } from "./all-tasks"
 export { BackToTasks, TaskSummary } from "./task-summary"
 export {
   RULE_SENTENCE,

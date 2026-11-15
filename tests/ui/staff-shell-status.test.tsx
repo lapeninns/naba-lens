@@ -268,10 +268,10 @@ describe("staff pages", () => {
       "app/staff/people/page.tsx",
       "app/staff/profile/page.tsx",
       "app/staff/tasks/[requirementId]/page.tsx",
-      "app/staff/tasks/all/page.tsx",
       "app/staff/tasks/amenities/[checkId]/page.tsx",
       "app/staff/tasks/guide/page.tsx",
       "app/staff/tasks/month/page.tsx",
+      "app/staff/tasks/other/page.tsx",
       "app/staff/tasks/page.tsx",
     ])
   })
