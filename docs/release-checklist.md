@@ -212,15 +212,15 @@ goals at every venue in one release, with no per-venue stage. This entry does
 not authorise a deploy, a migration or an environment change; those stay with
 the user under Gate 4.
 
-**Who tells the venues and when.** Aman Kumar Shrestha tells every venue one
-week before the release. The release waits until that has happened.
+**Who tells the venues and when.** Aman Kumar Shrestha tells every venue on
+release day (decision 18, amended by the user on 15 Nov 2026).
 
-| Item                                 | Value                                      |
-| ------------------------------------ | ------------------------------------------ |
-| Who tells each venue                 | Aman Kumar Shrestha                        |
-| Release date                         | not set yet                                |
-| Date venues are told (release − 7 d) | not set yet; record the actual date here   |
-| Venues told                          | every venue (record each one and the date) |
+| Item                               | Value                                      |
+| ---------------------------------- | ------------------------------------------ |
+| Who tells each venue               | Aman Kumar Shrestha                        |
+| Release date                       | not set yet                                |
+| Date venues are told (release day) | not set yet; record the actual date here   |
+| Venues told                        | every venue (record each one and the date) |
 
 **Note for every venue** (send as written, or in the same words):
 
@@ -239,14 +239,13 @@ week before the release. The release waits until that has happened.
 **Steps for the user, in order.** Environment changes need the user; agents
 never make them.
 
-1. Set the release date. Record it and the date venues are told (7 days
-   before) in the table above.
-2. Aman Kumar Shrestha sends the note to every venue on that date. Record each
-   venue and the date sent.
-3. Do not release until 7 days after the last venue was told.
+1. Set the release date and record it in the table above.
+2. On release day, Aman Kumar Shrestha sends the note to every venue. Record
+   each venue and the date sent.
+3. (No waiting period: venues are told on release day.)
 4. In the production hosting environment, check `NABALENS_HOME_LAYOUT`. It
-   must be unset (or `goals`, once G-1 accepts that value), so the new
-   default applies. If it says `b01` or `b02`, remove it.
+   must be unset or `goals`, so the new default applies. If it says `b01` or
+   `b02`, remove it.
 5. In the same environment, check `NABALENS_HOME_LAYOUT_B01_VENUES`. It must be
    empty or unset: any venue listed there stays on the old B01 Home whatever
    the default.
