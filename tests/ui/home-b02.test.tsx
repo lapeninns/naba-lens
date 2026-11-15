@@ -115,6 +115,12 @@ vi.mock("@/lib/work-client/services", () => ({ workServices: work }))
 import TasksLoading from "@/app/staff/tasks/loading"
 import TasksPage from "@/app/staff/tasks/page"
 
+// Goal-led Home is the default (goals-not-tasks decision 9); these tests
+// cover the B02 layout, which stays selectable as a rollback.
+beforeEach(() => {
+  vi.stubEnv("NABALENS_HOME_LAYOUT", "b02")
+})
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -458,7 +464,7 @@ describe("Home switch (homeLayout)", () => {
     })
   }
 
-  it("renders the B02 Home by default, with the badge counting labels", async () => {
+  it("renders the B02 Home when switched to b02, with the badge counting labels", async () => {
     await home()
     expect(screen.getByRole("heading", { name: "This month" })).toBeTruthy()
     expect(

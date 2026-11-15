@@ -651,7 +651,17 @@ export type OurMenuItem = {
    * that count could not be read, so the list still loads.
    */
   myWaiting?: number
+  /**
+   * For a dish still needed (decision 11): "being_checked" when a photo is
+   * being checked after a menu change, "waiting" when a photo waits for a
+   * first decision, else null. Set by listOurMenuItems; left out when that
+   * read failed, so the list still loads.
+   */
+  reviewState?: OurMenuReviewState
 }
+
+/** A still-needed dish's review state; null when no photo waits. */
+export type OurMenuReviewState = "waiting" | "being_checked" | null
 
 /** A labelled photo a reviewer can decide for one item (and variant). */
 export type ItemPhotoCandidate = {

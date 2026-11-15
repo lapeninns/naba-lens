@@ -2,6 +2,11 @@ import "server-only"
 
 import { cache } from "react"
 
+import {
+  goalsHomeCards,
+  otherJobsCount,
+  retakeNotes,
+} from "@/components/nabalens/home/goals-home-model"
 import { todoCount, todoItems } from "@/components/nabalens/tasks"
 import {
   nextActions,
@@ -230,9 +235,11 @@ const managerStatus = (actor: MediaActor) => managerStatusOf(sharedActor(actor))
 export type StaffShellStatus = {
   canManage: boolean
   /**
-   * Home's To do count; none when the tasks, the checks, the working list or
-   * (for a manager) the photos to review can't be read: unknown, never a
-   * smaller number.
+   * The Home tab's badge. On goal-led Home, the number of actionable cards on
+   * Home (setup, the retake note, Other jobs, Photos to review), never
+   * dishes; on the B01/B02 rollback, To do's count. None when a read behind
+   * it fails (the tasks, the checks, the working list, the notes or, for a
+   * manager, the photos to review): unknown, never a smaller number.
    */
   todoCount: number | undefined
   /** The count above couldn't be read: the badge says so ("?"). */
@@ -252,7 +259,9 @@ export async function staffShellStatus(
   actor: MediaActor,
   profile: { id: string; avatarPath: string | null }
 ): Promise<StaffShellStatus> {
-  const b02 = homeLayout(actor.profile?.venueId) === "b02"
+  const layout = homeLayout(actor.profile?.venueId)
+  if (layout === "goals") return goalsShellStatus(actor, profile)
+  const b02 = layout === "b02"
   const [
     tasks,
     amenityTasks,
@@ -317,6 +326,52 @@ export async function staffShellStatus(
             )
           )
         : undefined,
+    reviewCount,
+    avatarUrl: avatarUrl(profile.id, profile.avatarPath),
+  }
+}
+
+/** The shell on goal-led Home: the badge counts Home's actionable cards. */
+async function goalsShellStatus(
+  actor: MediaActor,
+  profile: { id: string; avatarPath: string | null }
+): Promise<StaffShellStatus> {
+  const [
+    tasks,
+    amenityTasks,
+    { canManage, reviewCount },
+    workingList,
+    retakes,
+  ] = await Promise.all([
+    myTasks(actor).catch(() => null),
+    myAmenityTasks(actor),
+    managerStatus(actor),
+    myWorkingList(actor),
+    myRetakes(actor),
+  ])
+  const view = tasks?.ok ? tasks.tasks : null
+  const known =
+    !!view &&
+    !!amenityTasks &&
+    (!canManage || reviewCount !== undefined) &&
+    workingList !== undefined &&
+    retakes !== null
+  const cards = view
+    ? goalsHomeCards({
+        setupComplete: view.scope.setup.complete,
+        notes: retakeNotes({ retakes, tasks: view }),
+        otherJobs: otherJobsCount({
+          tasks: view,
+          amenityTasks,
+          slots: workingList?.slots ?? null,
+        }),
+        reviewCount: reviewCount ?? 0,
+      })
+    : null
+  return {
+    canManage,
+    todoUnknown: !known,
+    todoCount: known && cards ? cards.length : undefined,
     reviewCount,
     avatarUrl: avatarUrl(profile.id, profile.avatarPath),
   }

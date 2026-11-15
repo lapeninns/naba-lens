@@ -190,14 +190,20 @@ describe("tasksInTodo", () => {
 describe("homeLayout", () => {
   afterEach(() => vi.unstubAllEnvs())
 
-  it("defaults to b02, and b01 restores the B01 Home", async () => {
-    const { homeLayout } = await import("@/lib/config/home-layout")
+  it("defaults to goals; b02 and b01 stay selectable as a rollback", async () => {
+    const { homeLayout, DEFAULT_HOME_LAYOUT } =
+      await import("@/lib/config/home-layout")
+    expect(DEFAULT_HOME_LAYOUT).toBe("goals")
     vi.stubEnv("NABALENS_HOME_LAYOUT", "")
+    expect(homeLayout("v1")).toBe("goals")
+    vi.stubEnv("NABALENS_HOME_LAYOUT", "b02")
     expect(homeLayout("v1")).toBe("b02")
     vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
     expect(homeLayout("v1")).toBe("b01")
+    vi.stubEnv("NABALENS_HOME_LAYOUT", " goals ")
+    expect(homeLayout("v1")).toBe("goals")
     vi.stubEnv("NABALENS_HOME_LAYOUT", "nonsense")
-    expect(homeLayout()).toBe("b02")
+    expect(homeLayout()).toBe("goals")
   })
 
   it("keeps listed venues on b01", async () => {
