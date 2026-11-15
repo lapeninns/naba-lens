@@ -11,26 +11,35 @@ import {
 } from "@phosphor-icons/react"
 
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
 import { Notice } from "../notice"
 import { PhotoSourceActions, type PhotoSource } from "../photo-source"
 import { useAdd } from "../shell/add-context"
 import { completionBreakdown } from "./copy"
-import { PhotoSegments } from "./month-card"
 import { StatusChip } from "./status-badges"
-import type { CompletionProgress, MyTasksView } from "./types"
+import type {
+  CompletionProgress,
+  MonthlySetupGap,
+  ProfileSetupGap,
+} from "./types"
 
-/** What is still missing, in the words of the copy deck. */
-export function setupGaps(tasks: MyTasksView): string[] {
-  const { scope, monthly } = tasks
+/**
+ * What is still missing, in the words of the copy deck: the profile's own
+ * gaps (venue, team) and this month's (team, target).
+ */
+export function setupGaps({
+  missing,
+  monthly,
+}: {
+  missing: readonly ProfileSetupGap[]
+  monthly: { setupMissing: readonly MonthlySetupGap[] } | null
+}): string[] {
   const gaps: string[] = []
-  if (scope.setup.missing.includes("venue"))
+  if (missing.includes("venue"))
     gaps.push("No venue yet: an admin assigns your venue")
-  if (
-    scope.setup.missing.includes("team") ||
-    monthly?.setupMissing.includes("team")
-  )
+  if (missing.includes("team") || monthly?.setupMissing.includes("team"))
     gaps.push("No team yet: an admin assigns Front of house or Back of house")
   if (monthly?.setupMissing.includes("target"))
     gaps.push("No target yet: your manager sets it")
@@ -78,12 +87,14 @@ export function FirstRun({
   name: string
   venueName: string | null
   periodLabel: string
-  /** This month's target and progress, when a target is set. */
+  /**
+   * This month's target and progress, when a target is set. The month has
+   * no due date (v0.5 rule 23); it ends with the London calendar month.
+   */
   monthly: {
     target: number
     accepted: number
     completionProgress?: CompletionProgress
-    dueLabel: string | null
   } | null
   gaps: string[]
   /** Why photos can't be added yet, or null. */
@@ -202,19 +213,19 @@ export function FirstRun({
         {monthly.completionProgress ? "Your target for" : "Your photos for"}{" "}
         {periodLabel}
       </h2>
-      <p className="flex flex-wrap gap-x-3 gap-y-1 text-body text-ink">
-        <span className="font-mono font-bold tabular-nums">
-          {monthly.completionProgress?.total ?? monthly.accepted} of{" "}
-          {monthly.target}{" "}
-          {monthly.completionProgress ? "completed" : "accepted"}
-        </span>
-        {monthly.dueLabel ? (
-          <span className="text-ink-muted">{monthly.dueLabel}</span>
-        ) : null}
+      <p
+        id="month-count"
+        className="font-mono text-body font-bold text-ink tabular-nums"
+      >
+        {monthly.completionProgress?.total ?? monthly.accepted} of{" "}
+        {monthly.target} {monthly.completionProgress ? "completed" : "accepted"}
       </p>
-      <PhotoSegments
+      {/* The frames are Progress segments (DESIGN.md §4; decision 6). */}
+      <Progress
+        mode="segments"
         accepted={monthly.completionProgress?.total ?? monthly.accepted}
-        target={monthly.target}
+        total={monthly.target}
+        aria-labelledby="month-count"
       />
       {monthly.completionProgress ? (
         <p className="text-meta text-ink-muted">

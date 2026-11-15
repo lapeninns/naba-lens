@@ -26,7 +26,7 @@ export const ITEM_SELF_REVIEWS_COPY = {
 
 const DECISION = {
   accept: "Accepted",
-  better_photo: "Asked for a better photo of",
+  better_photo: "Asked for another photo of",
 } as const
 
 /** Item-photo decisions managers made on their own photos, newest first (admins). */
