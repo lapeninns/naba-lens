@@ -23,6 +23,7 @@ import type {
   ItemPhotoState,
   MenuItemVariant,
   MyMenuPhotoState,
+  NeededBy,
   OurMenuItem,
   OurMenuReviewFigures,
   OurMenuSection,
@@ -53,7 +54,24 @@ import { decodeKey, encodeKey } from "./views"
 
 type Fns = Database["public"]["Functions"]
 type SummaryRow = Fns["menu_item_photo_summary"]["Returns"][number]
-type ItemRow = Fns["menu_item_photo_items"]["Returns"][number]
+// G-7 (20261116150000) adds needed_by and needed_by_passed to the row and
+// p_after_needed_by to the cursor. Local until lib/db/types.ts is regenerated.
+type ItemRow = Fns["menu_item_photo_items"]["Returns"][number] & {
+  needed_by: string | null
+  needed_by_passed: boolean
+}
+type ItemArgs = Fns["menu_item_photo_items"]["Args"] & {
+  p_after_needed_by?: string
+}
+type ItemsRpc = {
+  rpc(
+    fn: "menu_item_photo_items",
+    args: ItemArgs
+  ): PromiseLike<{
+    data: ItemRow[] | null
+    error: { message: string; code: string; details: string | null } | null
+  }>
+}
 type CandidateRow = Fns["menu_item_photo_candidates"]["Returns"][number]
 
 const BAD_REQUEST = invalid({}, "This request is invalid. Reload the page.")
@@ -205,24 +223,54 @@ export async function getOurMenu(
 
 function encodeItemCursor(row: ItemRow): string {
   return Buffer.from(
-    JSON.stringify([row.section_position, row.entry_position, row.item_id])
+    JSON.stringify([
+      row.needed_by ?? null,
+      row.section_position,
+      row.entry_position,
+      row.item_id,
+    ])
   ).toString("base64url")
 }
 
-function decodeItemCursor(
-  cursor: string
-): { section: number; entry: number; itemId: string } | null {
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+function decodeItemCursor(cursor: string): {
+  neededBy: string | null
+  section: number
+  entry: number
+  itemId: string
+} | null {
   try {
-    const value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"))
+    const raw = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"))
+    // A three-part cursor from before G-7 has no needed-by date.
+    const value = Array.isArray(raw) && raw.length === 3 ? [null, ...raw] : raw
     if (
       Array.isArray(value) &&
-      intInRange(value[0], 0, MAX_REVISION) &&
+      value.length === 4 &&
+      (value[0] === null ||
+        (typeof value[0] === "string" &&
+          ISO_DATE.test(value[0]) &&
+          !Number.isNaN(Date.parse(value[0])))) &&
       intInRange(value[1], 0, MAX_REVISION) &&
-      isUuid(value[2])
+      intInRange(value[2], 0, MAX_REVISION) &&
+      isUuid(value[3])
     )
-      return { section: value[0], entry: value[1], itemId: value[2] }
+      return {
+        neededBy: value[0],
+        section: value[1],
+        entry: value[2],
+        itemId: value[3],
+      }
   } catch {}
   return null
+}
+
+/** G-7: the row's live needed-by date, or null. Never an overdue state. */
+export function neededByView(
+  date: string | null | undefined,
+  passed: boolean | null | undefined
+): NeededBy | null {
+  return date ? { date, passed: passed === true } : null
 }
 
 function variantsOf(value: unknown): MenuItemVariant[] {
@@ -260,6 +308,7 @@ function itemView(row: ItemRow, canReview: boolean): OurMenuItem {
           }
         : null,
     itemRevision: row.item_revision,
+    neededBy: neededByView(row.needed_by, row.needed_by_passed),
     review:
       canReview && row.candidate_count !== null
         ? {
@@ -296,20 +345,24 @@ export async function listOurMenuItems(
   const venue = await readVenue(actor, args.venueId)
   if (!venue.ok) return venue
 
-  const { data, error } = await actor.db.rpc("menu_item_photo_items", {
-    p_venue_id: venue.venueId,
-    ...(sectionId ? { p_section_id: sectionId } : {}),
-    p_gaps_only: args.gapsOnly === true,
-    ...(query ? { p_query: query } : {}),
-    ...(after
-      ? {
-          p_after_section_position: after.section,
-          p_after_entry_position: after.entry,
-          p_after_item_id: after.itemId,
-        }
-      : {}),
-    p_limit: ITEMS_PAGE + 1,
-  })
+  const { data, error } = await (actor.db as unknown as ItemsRpc).rpc(
+    "menu_item_photo_items",
+    {
+      p_venue_id: venue.venueId,
+      ...(sectionId ? { p_section_id: sectionId } : {}),
+      p_gaps_only: args.gapsOnly === true,
+      ...(query ? { p_query: query } : {}),
+      ...(after
+        ? {
+            ...(after.neededBy ? { p_after_needed_by: after.neededBy } : {}),
+            p_after_section_position: after.section,
+            p_after_entry_position: after.entry,
+            p_after_item_id: after.itemId,
+          }
+        : {}),
+      p_limit: ITEMS_PAGE + 1,
+    }
+  )
   if (error) return coverageRpcFailure(error, "our menu items")
   const rows = data ?? []
   const page = rows.slice(0, ITEMS_PAGE)

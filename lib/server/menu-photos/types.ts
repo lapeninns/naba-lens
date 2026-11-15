@@ -3,7 +3,7 @@
 // can import them with `import type`. The services live beside this file and
 // are server-only.
 
-import type { CoverageFailure } from "@/lib/server/coverage/types"
+import type { CoverageFailure, NeededBy } from "@/lib/server/coverage/types"
 
 export type ManagerMenuState = "no_menu" | "empty" | "ready"
 
@@ -97,6 +97,8 @@ export type ManagerMenuItem = {
   candidateCount: number
   preferred: PhotoAsset | null
   itemRevision: number
+  /** G-7: the manager's "needed by" date while the dish is still needed. */
+  neededBy?: NeededBy | null
 }
 
 /** One staff label tuple of a photo; `onMenu` false for an item no longer on the menu. */

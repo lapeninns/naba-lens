@@ -661,6 +661,13 @@ export type OurMenuView = {
 
 export type MenuItemVariant = { variantId: string; name: string }
 
+/**
+ * G-7: a manager's "needed by" date on a still-needed dish (London calendar
+ * date, "YYYY-MM-DD"). It has no overdue state: once the date has passed,
+ * `passed` words it "Needed" and the dish stays first.
+ */
+export type NeededBy = { date: string; passed: boolean }
+
 export type OurMenuItem = {
   itemId: string
   sectionId: string
@@ -683,7 +690,8 @@ export type OurMenuItem = {
    * (any viewer, own photos only). Set by listOurMenuItems; left out when
    * that count could not be read, so the list still loads.
    */
-  myWaiting?: number
+  myWaiting?: number /** G-7: set while a manager's date is live; such dishes lead the list. */
+  neededBy?: NeededBy | null
 }
 
 /** A labelled photo a reviewer can decide for one item (and variant). */

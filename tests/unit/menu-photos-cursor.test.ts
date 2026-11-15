@@ -11,8 +11,12 @@ const raw = (value: unknown) =>
 
 describe("menu photo cursors", () => {
   it("round-trips items/queue/events cursors", () => {
-    const items = { section: 2, entry: 0, itemId: ID }
+    const items = { neededBy: null, section: 2, entry: 0, itemId: ID }
     expect(itemsCursor.decode(itemsCursor.encode(items))).toEqual(items)
+    const needed = { ...items, neededBy: "2026-11-20" }
+    expect(itemsCursor.decode(itemsCursor.encode(needed))).toEqual(needed)
+    // A three-part cursor from before G-7 reads as a dish without a date.
+    expect(itemsCursor.decode(raw([2, 0, ID]))).toEqual(items)
     const queue = { createdAt: "2026-11-07T10:00:00.123456+00:00", key: ID }
     expect(queueCursor.decode(queueCursor.encode(queue))).toEqual(queue)
     expect(eventsCursor.decode(eventsCursor.encode({ before: 42 }))).toEqual({
@@ -30,6 +34,9 @@ describe("menu photo cursors", () => {
       raw([1.5, 0, ID]),
       raw([1, 0, "x"]),
       raw([1, 0, ID, "extra"]),
+      raw(["2026-02-30", 1, 0, ID]),
+      raw(["tomorrow", 1, 0, ID]),
+      raw(["2026-11-20", 1, 0, ID, "extra"]),
     ])
       expect(itemsCursor.decode(bad), bad).toBeNull()
     for (const bad of [

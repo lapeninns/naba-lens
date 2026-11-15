@@ -6,6 +6,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr"
 
 import { EvidenceThumb } from "@/components/nabalens/coverage/evidence-image"
+import { NeededByChip } from "@/components/nabalens/menu-photos/needed-by-chip"
 import { StatusChip, type ChipTone } from "@/components/nabalens/status-chip"
 
 import type {
@@ -40,11 +41,12 @@ export function MenuStatusChip({ status }: { status: MenuItemStatus }) {
   )
 }
 
-/** Secondary chips: a newer photo waiting, a recheck, the caller's own photo. */
+/** Secondary chips: a "needed by" date (G-7), a newer photo waiting, a recheck, the caller's own photo. */
 export function MenuItemChips({ item }: { item: ManagerMenuItem }) {
   const copy = MANAGER_COPY.menu
   return (
     <>
+      {item.neededBy ? <NeededByChip neededBy={item.neededBy} /> : null}
       {item.hasPendingReplacement ? (
         <StatusChip tone="pending">{copy.replacementChip}</StatusChip>
       ) : null}
