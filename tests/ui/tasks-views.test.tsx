@@ -289,8 +289,10 @@ describe("TasksOverview", () => {
     // Home links to All tasks rather than listing every task a second time.
     expect(screen.queryByRole("list", { name: "Assigned tasks" })).toBeNull()
     expect(
-      within(todo).getByRole("link", { name: "All tasks" }).getAttribute("href")
-    ).toBe("/staff/tasks/all")
+      within(todo)
+        .getByRole("link", { name: "Other jobs" })
+        .getAttribute("href")
+    ).toBe("/staff/tasks/other")
 
     cleanup()
     render(
@@ -573,7 +575,7 @@ describe("NeedsAnotherPhotoList", () => {
     expect(
       screen.queryByRole("link", { name: "Send another photo for Desserts" })
     ).toBeNull()
-    expect(screen.getByText(/This task is no longer open to you/)).toBeTruthy()
+    expect(screen.getByText(/This job is no longer open to you/)).toBeTruthy()
     expect(
       screen.getAllByText(`Reviewed by ${MANAGER.displayName} on 3 Nov 2026`)
     ).toHaveLength(2)
@@ -730,11 +732,11 @@ describe("SubmissionList", () => {
     expect(within(rows[1]).getByText("Photo removed")).toBeTruthy()
     expect(within(rows[1]).queryByRole("button")).toBeNull()
     expect(
-      within(rows[2]).getByText("Added to this task by a manager on 2 Nov 2026")
+      within(rows[2]).getByText("Added to this job by a manager on 2 Nov 2026")
     ).toBeTruthy()
     expect(
       within(rows[2]).getByText(
-        "Counts for the task only, not your monthly target."
+        "Counts for the job only, not your monthly target."
       )
     ).toBeTruthy()
   })
@@ -1049,7 +1051,7 @@ describe("To do: amenity checks", () => {
       within(todo).getByRole("heading", { name: "Is there guest Wi-Fi?" })
     ).toBeTruthy()
     expect(within(todo).getByText("Password or QR visible")).toBeTruthy()
-    expect(within(todo).getByText(/1 more check in All tasks/)).toBeTruthy()
+    expect(within(todo).getByText(/1 more check in Other jobs/)).toBeTruthy()
     const start = within(todo).getByRole("link", {
       name: "Start check: Is there guest Wi-Fi?",
     })

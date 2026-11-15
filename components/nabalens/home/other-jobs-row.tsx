@@ -5,21 +5,17 @@ import {
 } from "@phosphor-icons/react/dist/ssr"
 
 import { CountBadge } from "../status-chip"
-
-// TEMP copy (G-1): G-5 moves these into the copy files.
-const COPY = {
-  title: "Other jobs",
-  body: "Checks and venue jobs that aren't menu photos.",
-} as const
+import { OTHER_JOBS_COPY as COPY } from "../tasks/copy"
 
 /**
  * Decision 10: one row, only when the person has non-menu requirements or
- * amenity checks, linking to the one list page of those jobs (G-4 owns it;
- * `/staff/tasks/all` until then). Menu sections are never counted here.
+ * amenity checks or working-list questions waiting on them, linking to the
+ * one list page of those jobs (G-4, `/staff/tasks/other`). Menu sections are
+ * never counted here.
  */
 export function OtherJobsRow({
   count,
-  href = "/staff/tasks/all",
+  href = "/staff/tasks/other",
 }: {
   count: number
   href?: string
@@ -39,7 +35,7 @@ export function OtherJobsRow({
       <span className="grid min-w-0 gap-0.5">
         <span className="flex flex-wrap items-center gap-2 text-item-title text-ink">
           {COPY.title}
-          <CountBadge count={count} label="jobs" />
+          <CountBadge count={count} label={COPY.countLabel} />
         </span>
         <span className="text-meta text-ink-muted">{COPY.body}</span>
       </span>

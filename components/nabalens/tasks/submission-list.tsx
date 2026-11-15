@@ -36,11 +36,11 @@ export function decisionText(
 export function submissionTitle(submission: SubmissionView): string {
   if (!submission.requirement)
     return submission.completionTarget ? "Coverage photo" : "Monthly photo"
-  return submission.requirement.title ?? "Task"
+  return submission.requirement.title ?? "Job"
 }
 
 const ORIGIN_NOTE: Partial<Record<SubmissionView["origin"], string>> = {
-  attached: "Added to this task by a manager",
+  attached: "Added to this job by a manager",
   reconciled: "Carried over from an earlier menu",
 }
 
@@ -75,7 +75,7 @@ export function SubmissionRow({
         <StatusChip tone="negative">Photo removed</StatusChip>
       ) : null}
       {submission.archived ? (
-        <StatusChip tone="muted">Task closed</StatusChip>
+        <StatusChip tone="muted">Job closed</StatusChip>
       ) : null}
     </span>
   )
@@ -103,7 +103,7 @@ export function SubmissionRow({
         </p>
       ) : !submission.countsTowardMonthly ? (
         <p className="text-meta text-ink-muted">
-          Counts for the task only, not your monthly target.
+          Counts for the job only, not your monthly target.
         </p>
       ) : null}
     </>

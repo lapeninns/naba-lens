@@ -96,6 +96,7 @@ function staffActor(items: () => unknown[]) {
       }
     if (fn === "menu_item_photo_items") return { data: items(), error: null }
     if (fn === "my_menu_waiting_items") return { data: [], error: null }
+    if (fn === "menu_item_review_states") return { data: [], error: null }
     throw new Error(`unexpected rpc ${fn}`)
   })
   const actor = {

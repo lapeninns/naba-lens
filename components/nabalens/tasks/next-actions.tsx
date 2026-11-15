@@ -51,7 +51,7 @@ const READ_FAILED: Record<keyof NextActionErrors, string> = {
   review: "We couldn't check photos to review.",
   amenity: "We couldn't check your amenity checks.",
   labels: "We couldn't check which photos need labels.",
-  retakes: "We couldn't check requests for a better photo.",
+  retakes: "We couldn't check requests for another photo.",
   rechecks: "We couldn't check your rechecks.",
 }
 
@@ -114,13 +114,13 @@ function RetakeCard({
     <li className={cardClass(primary, "warn")}>
       <TopRow
         kicker={<>For: {dish}</>}
-        chip={<StatusChip tone="warning">Better photo requested</StatusChip>}
+        chip={<StatusChip tone="warning">Needs another photo</StatusChip>}
       />
       {/* OD-3: the card never names the reviewer. */}
       <h3 className={titleClass(primary)}>
         {request.reason
-          ? `A reviewer asked for a better photo: ${request.reason}`
-          : "A reviewer asked for a better photo"}
+          ? `A reviewer asked for another photo: ${request.reason}`
+          : "A reviewer asked for another photo"}
       </h3>
       {openAdd ? (
         <button

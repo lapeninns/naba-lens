@@ -1,4 +1,10 @@
 import type { Department } from "@/lib/config/departments"
+import type { LabelWork } from "@/lib/knowledge/contract"
+import type {
+  CoverageResult,
+  RetakeNote,
+  RetakeNoteRef,
+} from "@/lib/server/coverage/types"
 
 import {
   FindingSentNotice,
@@ -8,6 +14,7 @@ import { Notice } from "../notice"
 import { PageHeader } from "../page-header"
 import type { MediaItem } from "../types"
 import { ColleaguePosts } from "../tasks/colleague-posts"
+import { HOME_READ_FAILED as READ_FAILED } from "../tasks/copy"
 import { PhotosSentNotice } from "../tasks/photos-sent-notice"
 import { SetupChecklist } from "../tasks/setup-checklist"
 import {
@@ -15,24 +22,15 @@ import {
   sentNotice,
   type JustSent,
 } from "../tasks/tasks-overview"
+import { RetakeNotes } from "../tasks/retake-notes"
+import { homeRetakeNotes } from "../tasks/retake-notes-model"
 import { ReadFailed, ReviewCard, WelcomeCard } from "../tasks/todo-list"
 import type { CoverageScope, MonthlyProgress, PeriodView } from "../tasks/types"
-import {
-  goalsPrimary,
-  type OurMenuGoal,
-  type RetakeNote,
-} from "./goals-home-model"
+import { goalsPrimary, type OurMenuGoal } from "./goals-home-model"
 import { OtherJobsRow } from "./other-jobs-row"
 import { OUR_MENU_HEADING_ID, OurMenuGoalCard } from "./our-menu-goal-card"
-import { RetakeNoteSlot } from "./retake-note-slot"
+import { OwnWorkRows } from "./own-work-rows"
 import { YourMonthCard } from "./your-month-card"
-
-// TEMP copy (G-1): G-5 moves these into the copy files.
-const READ_FAILED = {
-  notes: "We couldn't check requests for another photo.",
-  otherJobs: "We couldn't check your other jobs.",
-  review: "We couldn't check photos to review.",
-} as const
 
 /**
  * Staff Home on the goals layout (goals-not-tasks G-1, v0.5 rule 21): the
@@ -50,6 +48,9 @@ export function GoalsHome({
   ourMenu,
   notes,
   notesError = false,
+  onLater,
+  labels = null,
+  labelsError = false,
   otherJobs,
   otherJobsError = false,
   reviewCount = 0,
@@ -62,7 +63,7 @@ export function GoalsHome({
   colleagues = [],
   tasksPath,
   portfolioPath,
-  otherJobsHref = `${tasksPath}/all`,
+  otherJobsHref = `${tasksPath}/other`,
   photosPath = "/staff/community",
   peoplePath = "/staff/people",
 }: {
@@ -76,9 +77,17 @@ export function GoalsHome({
   }
   monthly: MonthlyProgress | null
   ourMenu: OurMenuGoal
+  /** My retake notes (G-3, `listMyRetakeNotes`), every status. */
   notes: readonly RetakeNote[]
   /** The notes couldn't all be read: say so, never "no notes". */
   notesError?: boolean
+  /** Later on a note: `setRetakeNoteAsideAction`. */
+  onLater?: (
+    ref: RetakeNoteRef
+  ) => Promise<CoverageResult<{ setAsideAt: string; replayed: boolean }>>
+  /** Decision 19: my photos that need labels; null when none or unread. */
+  labels?: LabelWork | null
+  labelsError?: boolean
   otherJobs: number
   otherJobsError?: boolean
   /** Photos waiting for this reviewer (legacy grant); 0 for everyone else. */
@@ -98,7 +107,11 @@ export function GoalsHome({
   photosPath?: string
   peoplePath?: string
 }) {
-  const primary = goalsPrimary({ notes, menu: ourMenu, canAdd })
+  const primary = goalsPrimary({
+    notes: homeRetakeNotes(notes),
+    menu: ourMenu,
+    canAdd,
+  })
   const sent =
     typeof findingSent === "string"
       ? { question: findingSent, copy: undefined }
@@ -141,17 +154,23 @@ export function GoalsHome({
         </ul>
       ) : null}
 
-      {/* Slot: the retake note (content owned by G-3). */}
+      {/* The retake note (G-3): the first open note leads, Reshoot is blue. */}
       {notesError ? (
         <ReadFailed retryHref={tasksPath}>{READ_FAILED.notes}</ReadFailed>
       ) : null}
-      <RetakeNoteSlot
+      <RetakeNotes
         notes={notes}
-        primaryKey={primary?.kind === "reshoot" ? primary.noteKey : null}
-        canSubmit={scope.canSubmit}
+        surface="home"
         tasksPath={tasksPath}
-        portfolioPath={portfolioPath}
+        uploadBlocked={!canAdd}
+        onLater={onLater}
       />
+
+      {/* Decision 19: my own photo work, as compact rows (never blue). */}
+      {labelsError ? (
+        <ReadFailed retryHref={tasksPath}>{READ_FAILED.labels}</ReadFailed>
+      ) : null}
+      <OwnWorkRows labels={labels} portfolioPath={portfolioPath} />
 
       <OurMenuGoalCard
         menu={ourMenu}

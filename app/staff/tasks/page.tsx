@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { cookies } from "next/headers"
 
+import { setRetakeNoteAsideAction } from "@/app/_coverage/actions"
 import { dismissClosedAssignmentAction } from "@/app/_knowledge/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import type { FindingSentCopy } from "@/components/nabalens/amenities/capture/finding-sent-notice"
@@ -10,7 +11,6 @@ import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { GoalsHome } from "@/components/nabalens/home/goals-home"
 import {
   otherJobsCount,
-  retakeNotes,
   STILL_NEEDED_ON_HOME,
   type OurMenuGoal,
 } from "@/components/nabalens/home/goals-home-model"
@@ -46,12 +46,19 @@ import {
   myAmenityTasks,
   myContributionEntry,
   myLabelWork,
+  myRetakeNotes,
   myRetakes,
   myTasks,
   myWorkingList,
   staffShellStatus,
 } from "../_shell/shell-status"
-import { WELCOME_PATH, PORTFOLIO_PATH, TASKS_PATH, unwrap } from "./result"
+import {
+  OTHER_JOBS_PATH,
+  WELCOME_PATH,
+  PORTFOLIO_PATH,
+  TASKS_PATH,
+  unwrap,
+} from "./result"
 import { withRecheckSent } from "./sent-recheck"
 
 export const metadata = { title: "Home" }
@@ -390,7 +397,8 @@ async function goalsTasksPage({
     amenityTasks,
     findingSent,
     workingList,
-    retakes,
+    notes,
+    labels,
   ] = await Promise.all([
     myTasks(actor).then(unwrap),
     recentColleaguePhotos(),
@@ -403,7 +411,9 @@ async function goalsTasksPage({
     myAmenityTasks(actor),
     searchParams.then((p) => sentFinding(actor, p)),
     myWorkingList(actor),
-    myRetakes(actor),
+    // G-3: every note with its server-decided status; Home shows open ones.
+    myRetakeNotes(actor),
+    myLabelWork(actor),
   ])
   const { reviewCount } = shell
   const blockedReason = uploadBlockReason(profile)
@@ -439,8 +449,11 @@ async function goalsTasksPage({
         }}
         monthly={tasks.monthly}
         ourMenu={ourMenu}
-        notes={retakeNotes({ retakes, tasks })}
-        notesError={retakes === null}
+        notes={notes ?? []}
+        notesError={notes === null}
+        onLater={setRetakeNoteAsideAction}
+        labels={labels.status === "ok" ? labels.work : null}
+        labelsError={labels.status === "failed"}
         otherJobs={otherJobsCount({
           tasks,
           amenityTasks,
@@ -462,6 +475,7 @@ async function goalsTasksPage({
         colleagues={colleagues}
         tasksPath={TASKS_PATH}
         portfolioPath={PORTFOLIO_PATH}
+        otherJobsHref={OTHER_JOBS_PATH}
       />
     </AppShell>
   )

@@ -15,7 +15,7 @@ import type { MenuPhotoResult } from "./types"
 // their own venue; an admin names it. The database re-checks the scope, that
 // the dish is on the active menu and still needed, and the date range.
 //
-// Temporary copy: G-5 moves these strings into the copy files.
+// Its refusal messages stay here with the read, as in errors.ts.
 
 type DbError = { message: string; code: string; details?: string } | null
 

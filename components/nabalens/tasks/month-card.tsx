@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import { CardHead } from "../common-room"
 import { formatDate } from "../format"
 import { StatusChip as SystemChip } from "../status-chip"
-import { completionBreakdown } from "./copy"
+import { completionBreakdown, MONTH_PHOTOS_COPY } from "./copy"
 import { EvidenceThumb } from "./evidence-thumb"
 import { StatusChip } from "./status-badges"
 import { ReviewReason } from "./submission-list"
@@ -214,7 +214,7 @@ function MonthPhotoChip({ state }: { state: MonthPhotoView["state"] }) {
 /** What the photo is of: the dishes it was labelled with, or what it was sent to. */
 export function monthPhotoTitle(photo: MonthPhotoView): string {
   if (photo.itemNames.length > 0) return photo.itemNames.join(", ")
-  return photo.sent?.requirementTitle ?? "Monthly photo"
+  return photo.sent?.requirementTitle ?? MONTH_PHOTOS_COPY.monthlyPhoto
 }
 
 /**
@@ -254,7 +254,7 @@ export function MonthPhotoList({
                 {title}
               </p>
               <p className="text-meta text-ink-muted">
-                Taken {uploaded}
+                {MONTH_PHOTOS_COPY.taken(uploaded)}
                 {photo.itemNames.length > 0 && photo.sent?.requirementTitle
                   ? ` · Sent to ${photo.sent.requirementTitle}`
                   : ""}

@@ -5,7 +5,8 @@
 
 import { plural } from "@/components/nabalens/coverage/copy"
 
-import type { ItemPhotoState } from "@/lib/server/coverage/types"
+import { dayLabel } from "@/lib/server/coverage/time"
+import type { ItemPhotoState, NeededBy } from "@/lib/server/coverage/types"
 
 export const OUR_MENU_COPY = {
   title: "Our menu",
@@ -116,4 +117,31 @@ export function waitingFor(since: string | null, now: string): string | null {
   if (ms < HOUR) return "under an hour"
   if (ms < DAY) return plural(Math.floor(ms / HOUR), "hour")
   return plural(Math.floor(ms / DAY), "day")
+}
+
+/**
+ * G-7: a manager's "needed by" date on a still-needed dish (v0.5 rule 24).
+ * Never Overdue: after the date the word is "Needed".
+ */
+export const NEEDED_BY_COPY = {
+  /** The heading over dishes with a date, which lead the list. */
+  groupTitle: "Needed soon",
+  label: (neededBy: NeededBy) =>
+    neededBy.passed ? "Needed" : `Needed by ${dayLabel(neededBy.date)}`,
+}
+
+/** G-7: the manager's and admin's control for one dish's date. */
+export const NEEDED_BY_CONTROL_COPY = {
+  title: "Needed by",
+  intro:
+    "Put a date on this dish to show it first in Still needed for everyone at the venue. The date clears when a photo of the dish is accepted.",
+  date: "Date",
+  hint: "From today to a year ahead. After the date the dish stays first and shows Needed.",
+  save: "Save date",
+  saving: "Saving",
+  clear: "Clear date",
+  clearing: "Clearing",
+  saved: (name: string, label: string) => `${name}: ${label}.`,
+  cleared: (name: string) => `Cleared the date on ${name}.`,
+  network: "Could not reach NabaLens. Check your connection and try again.",
 }

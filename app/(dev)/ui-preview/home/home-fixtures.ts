@@ -447,15 +447,40 @@ export function goalsOurMenu(state: GoalsPreviewState): OurMenuGoal {
 export const GOALS_RETAKE_NOTES: RetakeNote[] = [
   {
     kind: "menu",
-    key: "menu:photo-korma",
-    request: {
-      photoId: "photo-korma",
+    noteId: "photo-korma",
+    revision: 1,
+    assetId: "asset-korma",
+    thumbnailUrl: NEEDS_ANOTHER.asset.thumbnailUrl,
+    status: "open",
+    canRetake: true,
+    reason: "The bowl is cut off. Shoot from above so the whole dish shows.",
+    askedBy: "TEST Riya Patel",
+    askedAt: "2026-11-12T10:00:00.000Z",
+    setAsideAt: null,
+    dish: {
       itemId: "item-korma",
       variantId: null,
       itemName: "Lamb korma",
       variantName: null,
-      reason: "The bowl is cut off. Shoot from above so the whole dish shows.",
     },
+    requirement: null,
   },
-  { kind: "send", key: "send:monthly", submission: MONTHLY_NEEDS_ANOTHER },
+  {
+    kind: "coverage",
+    noteId: MONTHLY_NEEDS_ANOTHER.id,
+    revision: 1,
+    assetId: "asset-monthly",
+    thumbnailUrl: MONTHLY_NEEDS_ANOTHER.asset.thumbnailUrl,
+    status: "open",
+    canRetake: true,
+    reason: "Too dark to see the plate. Try near the window.",
+    askedBy: "TEST Riya Patel",
+    askedAt: "2026-11-11T16:00:00.000Z",
+    setAsideAt: null,
+    dish: null,
+    requirement: null,
+  },
 ]
+
+/** Decision 19: the person's own photos that need a dish label. */
+export const GOALS_LABEL_WORK = { needsLabels: 3, needsAttention: 1 }

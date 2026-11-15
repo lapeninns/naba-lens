@@ -53,7 +53,7 @@ export function TasksOverview({
   tasks,
   profile,
   tasksPath,
-  allTasksPath = `${tasksPath}/all`,
+  allTasksPath = `${tasksPath}/other`,
   portfolioPath,
   justSent = null,
   colleagues = [],
@@ -80,7 +80,7 @@ export function TasksOverview({
   }
   /** "/staff/tasks" */
   tasksPath: string
-  /** "/staff/tasks/all" */
+  /** Other jobs: "/staff/tasks/other" (G-4) */
   allTasksPath?: string
   /** Me ("/staff"); its Edit profile opens with `?edit=profile`. */
   portfolioPath: string

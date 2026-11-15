@@ -196,8 +196,8 @@ describe("Home: amenity checks", () => {
       screen.queryByRole("list", { name: UI_TEXT.staffSection })
     ).toBeNull()
     expect(
-      screen.getByRole("link", { name: "All tasks" }).getAttribute("href")
-    ).toBe("/staff/tasks/all")
+      screen.getByRole("link", { name: "Other jobs" }).getAttribute("href")
+    ).toBe("/staff/tasks/other")
     unmount()
     render(await OtherJobsPage())
     expect(

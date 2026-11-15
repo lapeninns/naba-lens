@@ -7,6 +7,7 @@ import { TasksOverview } from "@/components/nabalens/tasks"
 
 import { FAKE_MEDIA } from "../fixtures"
 import {
+  GOALS_LABEL_WORK,
   GOALS_RETAKE_NOTES,
   GOALS_STATES,
   goalsOurMenu,
@@ -90,8 +91,11 @@ export default async function HomePreviewPage({
       }
     : tasks.scope
   const notes = state === "retake" ? GOALS_RETAKE_NOTES : []
-  // Setup, the retake note, Other jobs and Photos to review: never dishes.
-  const badge = (needsSetup ? 1 : 0) + (notes.length > 0 ? 1 : 0) + 2
+  const labels = state === "retake" ? GOALS_LABEL_WORK : null
+  // Setup, the retake note, labels, Other jobs and Photos to review: never
+  // dishes.
+  const badge =
+    (needsSetup ? 1 : 0) + (notes.length > 0 ? 1 : 0) + (labels ? 1 : 0) + 2
   return (
     <AppShell
       variant="staff"
@@ -110,6 +114,7 @@ export default async function HomePreviewPage({
         monthly={tasks.monthly}
         ourMenu={goalsOurMenu(state)}
         notes={notes}
+        labels={labels}
         otherJobs={HOME_AMENITY_TASKS.length + 1}
         reviewCount={3}
         canAdd={!needsSetup && state !== "blocked"}
@@ -126,6 +131,7 @@ export default async function HomePreviewPage({
         colleagues={colleagues}
         tasksPath="/staff/tasks"
         portfolioPath="/staff"
+        otherJobsHref="/staff/tasks/other"
       />
     </AppShell>
   )

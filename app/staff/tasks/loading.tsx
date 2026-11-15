@@ -10,7 +10,7 @@ export default function TasksLoading() {
   return (
     <div className="mx-auto grid w-full max-w-feed min-w-0 gap-gutter px-page-gutter py-4 md:px-0 md:py-8">
       <PageHeader title="Home" className="pb-1 md:pb-2" />
-      <SkeletonRegion label="Loading your tasks…" className="grid gap-gutter">
+      <SkeletonRegion label="Loading Home…" className="grid gap-gutter">
         {/* The share box */}
         <div className={CARD}>
           <Skeleton shape="title" />

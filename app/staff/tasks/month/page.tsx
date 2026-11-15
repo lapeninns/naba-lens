@@ -20,6 +20,7 @@ import {
   isPeriodKey,
   MonthCard,
   MonthPhotoList,
+  MONTH_PHOTOS_COPY,
   periodLabel,
   pickReplacement,
   plural,
@@ -408,7 +409,7 @@ export default async function MonthPage({
         >
           <SectionHeader
             id="photos-heading"
-            title={`${combined ? "Coverage photos" : "Photos"} in ${monthName(period)}`}
+            title={MONTH_PHOTOS_COPY.heading(monthName(period), combined)}
             action={
               month.photos.length > 0 ? (
                 <span className="text-body text-ink-muted">{photoCount}</span>
@@ -418,7 +419,7 @@ export default async function MonthPage({
           {month.photos.length > 0 ? (
             <>
               <MonthPhotoList
-                label={`Photos in ${monthName(period)}`}
+                label={MONTH_PHOTOS_COPY.heading(monthName(period), false)}
                 photos={month.photos}
               />
               {more ? (
@@ -436,10 +437,7 @@ export default async function MonthPage({
               ) : null}
             </>
           ) : (
-            <EmptyState
-              variant="done"
-              title="No photos count toward this month yet."
-            />
+            <EmptyState variant="done" title={MONTH_PHOTOS_COPY.empty} />
           )}
         </section>
       ) : null}

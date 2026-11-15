@@ -18,10 +18,10 @@ import {
   goalsHomeCards,
   goalsPrimary,
   otherJobsCount,
-  retakeNotes,
   type OurMenuGoal,
   type RetakeNote,
 } from "@/components/nabalens/home/goals-home-model"
+import { homeRetakeNotes } from "@/components/nabalens/tasks/retake-notes-model"
 import { AddProvider } from "@/components/nabalens/shell/add-context"
 import type { OurMenuItem } from "@/lib/server/coverage/types"
 
@@ -30,7 +30,6 @@ import {
   assignment,
   due,
   monthly,
-  needsAnother,
   NOVEMBER,
   PROFILE,
   tasksView,
@@ -90,6 +89,7 @@ const coverage = vi.hoisted(() => ({
   getOurMenu: vi.fn(),
   listOurMenuItems: vi.fn(),
   listMyMenuPhotoDecisions: vi.fn(),
+  listMyRetakeNotes: vi.fn(),
 }))
 vi.mock("@/lib/server/coverage", () => coverage)
 vi.mock("@/lib/server/community", () => ({
@@ -156,17 +156,32 @@ function ready(over: Partial<OurMenuGoal & { state: "ready" }> = {}) {
   } as OurMenuGoal
 }
 
-const menuNote = (reason = "Too dark"): RetakeNote => ({
+const menuNote = (
+  reason = "Too dark",
+  over: Partial<RetakeNote> = {}
+): RetakeNote => ({
   kind: "menu",
-  key: "menu:p1",
-  request: {
-    photoId: "p1",
-    itemId: "i1",
-    variantId: null,
-    itemName: "Korma",
-    variantName: null,
-    reason,
-  },
+  noteId: "p1",
+  revision: 1,
+  assetId: "a1",
+  thumbnailUrl: null,
+  status: "open",
+  canRetake: true,
+  reason,
+  askedBy: "TEST Riya",
+  askedAt: "2026-11-10T10:00:00Z",
+  setAsideAt: null,
+  dish: { itemId: "i1", variantId: null, itemName: "Korma", variantName: null },
+  requirement: null,
+  ...over,
+})
+
+const monthNote = (reason = "Blurry"): RetakeNote => ({
+  ...menuNote(reason),
+  kind: "coverage",
+  noteId: "s1",
+  dish: null,
+  requirement: null,
 })
 
 /** Every link or button drawn as the page's one blue action. */
@@ -349,11 +364,13 @@ describe("Goal-led Home: the retake note and one main action", () => {
   it("an open retake note makes Reshoot the one primary action", () => {
     const openAdd = vi.fn()
     renderHome({ notes: [menuNote()] }, openAdd)
-    const reshoot = screen.getByRole("button", { name: "Reshoot Korma" })
+    const reshoot = screen.getByRole("button", { name: "Reshoot: Korma" })
     expect(primaries()).toEqual([reshoot])
     expect(
-      screen.getByText("Needs another photo", { selector: "h2" })
+      screen.getByRole("region", { name: "Needs another photo" })
     ).toBeTruthy()
+    // Decision 14: Later sits beside Reshoot, grey.
+    expect(screen.getByRole("button", { name: "Later: Korma" })).toBeTruthy()
     expect(screen.getByText("Too dark")).toBeTruthy()
     fireEvent.click(reshoot)
     expect(openAdd).toHaveBeenCalledWith(
@@ -365,17 +382,11 @@ describe("Goal-led Home: the retake note and one main action", () => {
   })
 
   it("a coverage request on a month photo reshoots through its replacement link", () => {
-    const sent = needsAnother("Blurry")
-    renderHome({
-      notes: retakeNotes({
-        retakes: [],
-        tasks: tasksView({ needsAnotherPhoto: [sent] }),
-      }),
+    renderHome({ notes: [monthNote()] })
+    const link = screen.getByRole("link", {
+      name: "Reshoot: Photo for your month",
     })
-    const link = screen.getByRole("link", { name: "Reshoot Monthly photo" })
-    expect(link.getAttribute("href")).toBe(
-      `/staff/tasks/month?replaces=${sent.id}`
-    )
+    expect(link.getAttribute("href")).toBe("/staff/tasks/month?replaces=s1")
     expect(primaries()).toEqual([link])
   })
 
@@ -437,16 +448,38 @@ describe("Goal-led Home: model", () => {
     ).toBe(2)
   })
 
-  it("drops a replacement on a closed job", () => {
-    const closed = needsAnother("x", {
-      requirement: { id: "gone", title: "Old", kind: "service" },
-    } as never)
+  it("Home leaves out set-aside, retaken and closed notes", () => {
     expect(
-      retakeNotes({
-        retakes: null,
-        tasks: tasksView({ needsAnotherPhoto: [closed] }),
-      })
-    ).toEqual([])
+      homeRetakeNotes([
+        menuNote("a", { noteId: "n1", status: "set_aside" }),
+        menuNote("b", { noteId: "n2", status: "retaken" }),
+        menuNote("c", { noteId: "n3", canRetake: false }),
+        menuNote("d", { noteId: "n4" }),
+      ]).map((note) => note.noteId)
+    ).toEqual(["n4"])
+  })
+
+  it("a set-aside note gives the main action back to the first dish", () => {
+    renderHome({ notes: [menuNote("x", { status: "set_aside" })] })
+    expect(
+      screen.queryByRole("region", { name: "Needs another photo" })
+    ).toBeNull()
+    expect(primaries()).toHaveLength(1)
+    expect(screen.queryByRole("button", { name: /^Reshoot/ })).toBeNull()
+  })
+
+  it("shows the labels row under the retake note, never as the blue action (decision 19)", () => {
+    renderHome({
+      notes: [menuNote()],
+      labels: { needsLabels: 3, needsAttention: 0 },
+    })
+    const row = screen.getByRole("link", {
+      name: /3 photos need a dish or drink label/,
+    })
+    expect(row.getAttribute("href")).toBe("/staff#needs-labels-heading")
+    expect(primaries()).toEqual([
+      screen.getByRole("button", { name: "Reshoot: Korma" }),
+    ])
   })
 
   it("counts actionable cards, never dishes", () => {
@@ -454,10 +487,11 @@ describe("Goal-led Home: model", () => {
       goalsHomeCards({
         setupComplete: false,
         notes: [menuNote()],
+        labels: true,
         otherJobs: 7,
         reviewCount: 4,
       })
-    ).toEqual(["setup", "retake", "other_jobs", "review_photos"])
+    ).toEqual(["setup", "retake", "labels", "other_jobs", "review_photos"])
     expect(
       goalsHomeCards({
         setupComplete: true,
@@ -488,6 +522,12 @@ describe("Goal-led Home: the page", () => {
       ok: true,
       states: [],
     })
+    coverage.listMyRetakeNotes.mockResolvedValue({ ok: true, notes: [] })
+    work.getLabelWork.mockResolvedValue({
+      status: "ok",
+      value: { needsLabels: 0, needsAttention: 0 },
+    })
+    work.getCapabilities.mockResolvedValue(null)
     amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
     knowledge.getWorkingList.mockResolvedValue({ ok: true, view: null })
   })
@@ -554,7 +594,7 @@ describe("Goal-led Home: the page", () => {
     })
     await home()
     const row = screen.getByRole("link", { name: /Other jobs/ })
-    expect(row.getAttribute("href")).toBe("/staff/tasks/all")
+    expect(row.getAttribute("href")).toBe("/staff/tasks/other")
     expect(within(row).getByText("2")).toBeTruthy()
     // One card on Home, however many jobs it holds.
     expect(shell.props).toMatchObject({ todoCount: 1, todoUnknown: false })
@@ -571,33 +611,36 @@ describe("Goal-led Home: the page", () => {
         assignments: [assignment({ kind: "service", title: "Bar set-up" })],
       }),
     })
-    coverage.listMyMenuPhotoDecisions.mockResolvedValue({
+    coverage.listMyRetakeNotes.mockResolvedValue({
       ok: true,
-      states: [
-        {
-          photoId: "p1",
-          assetId: "a1",
-          itemId: "i1",
-          itemName: "Korma",
-          variantId: null,
-          variantName: null,
-          state: "better_photo_requested",
-          isPrimary: false,
-          reason: "Too dark",
-          decidedAt: "2026-11-10T10:00:00Z",
-          canRetake: true,
-        },
+      notes: [
+        menuNote(),
+        menuNote("old", { noteId: "p2", status: "set_aside" }),
       ],
     })
     await home()
     expect(shell.props).toMatchObject({ todoCount: 3, todoUnknown: false })
-    // Outside the staff layout (no Add), Reshoot links to the note on Me.
-    expect(screen.getByRole("link", { name: "Reshoot Korma" })).toBeTruthy()
+    // The open note shows (with Later); the set-aside one stays on Me.
+    expect(screen.getByRole("button", { name: "Later: Korma" })).toBeTruthy()
+    expect(screen.queryByText("old")).toBeNull()
+  })
+
+  it("counts the labels row as a card, and keeps the badge unknown when labels can't be read", async () => {
+    coverage.getMyTasks.mockResolvedValue({ ok: true, tasks: tasksView() })
+    work.getLabelWork.mockResolvedValue({
+      status: "ok",
+      value: { needsLabels: 2, needsAttention: 0 },
+    })
+    await home()
+    expect(shell.props).toMatchObject({ todoCount: 1, todoUnknown: false })
+    expect(
+      screen.getByRole("link", { name: /2 photos need a dish or drink label/ })
+    ).toBeTruthy()
   })
 
   it("keeps the badge unknown when the notes can't be read", async () => {
     coverage.getMyTasks.mockResolvedValue({ ok: true, tasks: tasksView() })
-    coverage.listMyMenuPhotoDecisions.mockResolvedValue({
+    coverage.listMyRetakeNotes.mockResolvedValue({
       ok: false,
       code: "unavailable",
       message: "x",

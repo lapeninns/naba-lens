@@ -9,9 +9,10 @@ import {
 } from "@/components/nabalens/coverage/coverage-notice"
 import { failureText } from "@/components/nabalens/coverage/copy"
 import {
+  NEEDED_BY_CONTROL_COPY,
   NEEDED_BY_COPY,
-  NeededByChip,
-} from "@/components/nabalens/menu-photos/needed-by-chip"
+} from "@/components/nabalens/menu-photos/copy"
+import { NeededByChip } from "@/components/nabalens/menu-photos/needed-by-chip"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
 import { FormField } from "@/components/ui/field"
@@ -24,23 +25,6 @@ import type { MenuPhotoResult } from "@/lib/server/menu-photos/types"
 // manager (/manager/menu) and admins (the venue's Our menu page). The dish
 // then leads Still needed for everyone at the venue, with its date; it
 // clears itself when a photo of the dish is accepted. Never Overdue.
-//
-// Temporary copy: G-5 moves these strings into the copy files.
-
-export const NEEDED_BY_CONTROL_COPY = {
-  title: "Needed by",
-  intro:
-    "Put a date on this dish to show it first in Still needed for everyone at the venue. The date clears when a photo of the dish is accepted.",
-  date: "Date",
-  hint: "From today to a year ahead. After the date the dish stays first and shows Needed.",
-  save: "Save date",
-  saving: "Saving",
-  clear: "Clear date",
-  clearing: "Clearing",
-  saved: (name: string, label: string) => `${name}: ${label}.`,
-  cleared: (name: string) => `Cleared the date on ${name}.`,
-  network: "Could not reach NabaLens. Check your connection and try again.",
-}
 
 export type SetNeededBy = (
   input: unknown
@@ -48,6 +32,8 @@ export type SetNeededBy = (
 export type ClearNeededBy = (
   input: unknown
 ) => Promise<MenuPhotoResult<{ cleared: boolean }>>
+
+export { NEEDED_BY_CONTROL_COPY }
 
 export function NeededByControl({
   item,

@@ -4,18 +4,11 @@ import { CaretRightIcon } from "@phosphor-icons/react/dist/ssr"
 import { CardHead } from "../common-room"
 import { StatusChip } from "../status-chip"
 import { TargetProgress, TargetSetup } from "../tasks/monthly-progress-card"
+import { HOME_MONTH_COPY as COPY } from "../tasks/copy"
 import type { MonthlyProgress } from "../tasks/types"
 
 const LINK =
   "inline-flex min-h-11 w-fit items-center gap-1 rounded-control text-body font-bold text-ink underline underline-offset-3 focus-ring outline-none"
-
-// TEMP copy (G-1): G-5 moves these into the copy files.
-const COPY = {
-  title: "Your month",
-  private: "Only you, your manager and admins see this.",
-  noTarget: "There's no photo target for you this month.",
-  seeMonth: "See your month",
-} as const
 
 /**
  * Your month, one person's goal (v0.5 §1): the monthly target and how far

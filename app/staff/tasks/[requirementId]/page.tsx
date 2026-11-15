@@ -12,6 +12,7 @@ import {
   pickReplacement,
   ReplacementClosed,
   ReplacementNote,
+  SECTION_SEND_COPY,
   SubmissionList,
   submitBlockedCopy,
   TaskSummary,
@@ -99,13 +100,9 @@ export default async function TaskPage({
       suggested={suggestedAngles(assignment.requirement.photoTarget)}
     />
   ) : null
-  // Temporary strings until G-5 moves them into tasks/copy.ts: menu work never
-  // says "task" on staff screens.
+  // Menu work never says "task" on staff screens.
   const mineCopy = menuSection
-    ? {
-        heading: "Your photos for this section",
-        empty: "You haven't sent photos for this section yet.",
-      }
+    ? SECTION_SEND_COPY
     : {
         heading: "Your photos for this task",
         empty: "You haven't sent photos for this task yet.",

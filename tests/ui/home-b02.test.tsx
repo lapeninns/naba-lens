@@ -247,12 +247,12 @@ describe("B02 To do", () => {
       screen.getByText("We couldn't check which photos need labels.")
     ).toBeTruthy()
     expect(
-      screen.getByText("We couldn't check requests for a better photo.")
+      screen.getByText("We couldn't check requests for another photo.")
     ).toBeTruthy()
     expect(screen.queryByText("Nothing to do right now.")).toBeNull()
   })
 
-  it("asks for a better photo without naming the reviewer", () => {
+  it("asks for another photo without naming the reviewer", () => {
     const openAdd = vi.fn()
     render(
       <AddProvider value={{ openAdd }}>
@@ -274,7 +274,7 @@ describe("B02 To do", () => {
     )
     expect(
       screen.getByRole("heading", {
-        name: "A reviewer asked for a better photo: Too dark",
+        name: "A reviewer asked for another photo: Too dark",
       })
     ).toBeTruthy()
     expect(screen.queryByText(/TEST Morgan/)).toBeNull()
@@ -340,7 +340,7 @@ describe("B02 one home per piece of work", () => {
         tasks={tasksView({ assignments: [overdue, later] })}
       />
     )
-    expect(screen.queryByRole("heading", { name: "All tasks" })).toBeNull()
+    expect(screen.queryByRole("heading", { name: "Other jobs" })).toBeNull()
     const section = screen
       .getByRole("heading", { name: "Other tasks this month" })
       .closest("section") as HTMLElement
@@ -507,9 +507,9 @@ describe("Home switch (homeLayout)", () => {
     await home()
     // B01 Home links to All tasks (/staff/tasks/all) instead of listing them.
     expect(
-      screen.getByRole("link", { name: "All tasks" }).getAttribute("href")
-    ).toBe("/staff/tasks/all")
-    expect(screen.queryByRole("heading", { name: "All tasks" })).toBeNull()
+      screen.getByRole("link", { name: "Other jobs" }).getAttribute("href")
+    ).toBe("/staff/tasks/other")
+    expect(screen.queryByRole("heading", { name: "Other jobs" })).toBeNull()
     expect(screen.getByRole("heading", { name: "Our menu" })).toBeTruthy()
     expect(screen.queryByRole("heading", { name: "This month" })).toBeNull()
     expect(work.getLabelWork).not.toHaveBeenCalled()
@@ -526,7 +526,7 @@ describe("Home switch (homeLayout)", () => {
     vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
     render(<TasksLoading />)
     // B01 Home has no task list of its own: they are in All tasks.
-    expect(screen.queryByRole("heading", { name: "All tasks" })).toBeNull()
+    expect(screen.queryByRole("heading", { name: "Other jobs" })).toBeNull()
     expect(
       screen.queryByRole("heading", { name: "Other tasks this month" })
     ).toBeNull()

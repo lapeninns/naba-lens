@@ -90,6 +90,31 @@ const ALLOWED_TEXT: { file: string; text: string; reason: string }[] = [
     text: "Task",
     reason: "kind label fallback for a requirement of an unknown kind",
   },
+  // The B01/B02 rollback Home (NABALENS_HOME_LAYOUT=b01|b02) lists non-menu
+  // tasks with their dates. Goal-led Home never renders these; they go when
+  // the rollback is retired after release.
+  ...[
+    ["app/staff/tasks/loading.tsx", "Other tasks this month"],
+    ["app/staff/tasks/loading.tsx", "Loading tasks…"],
+    ["components/nabalens/tasks/home-overview.tsx", "Other tasks this month"],
+    ["components/nabalens/tasks/home-overview.tsx", "Tasks assigned to you at"],
+    [
+      "components/nabalens/tasks/home-overview.tsx",
+      "Your manager assigns tasks at . You can still add photos to your profile.",
+    ],
+    ["components/nabalens/tasks/todo-list.tsx", "Overdue"],
+    ["components/nabalens/tasks/todo-list.tsx", "due soon"],
+    ["components/nabalens/tasks/todo-list.tsx", "Was due"],
+  ].map(([file, text]) => ({
+    file,
+    text,
+    reason: "non-menu task cards on the B01/B02 rollback Home (rule 28)",
+  })),
+  {
+    file: "components/nabalens/tasks/copy.ts",
+    text: "Overdue jobs still take photos.",
+    reason: "the Other jobs page summary: non-menu jobs keep Overdue (rule 28)",
+  },
   ...[
     "Videos don't count toward photo tasks.",
     "Already sent for this task.",
@@ -109,31 +134,7 @@ const ALLOWED_TEXT: { file: string; text: string; reason: string }[] = [
  * list only shrinks. Once a file is clean, the test below fails until its
  * entry is removed, so the guard then holds for it. Do not add to it.
  */
-const PENDING: { file: string; owner: string }[] = [
-  { file: "app/staff/tasks/loading.tsx", owner: "G-1 (Home skeleton)" },
-  { file: "app/staff/tasks/error.tsx", owner: "G-1 (Home error)" },
-  {
-    file: "components/nabalens/tasks/home-overview.tsx",
-    owner: "G-1 (goal-led Home)",
-  },
-  {
-    file: "components/nabalens/tasks/todo-list.tsx",
-    owner: "G-1 (To do goes for menu work)",
-  },
-  {
-    file: "components/nabalens/tasks/next-actions.tsx",
-    owner: "G-1 / G-3 (retake note on Home)",
-  },
-  {
-    file: "components/nabalens/tasks/needs-another-photo-list.tsx",
-    owner: "G-3 (one retake note block)",
-  },
-  { file: "app/staff/staff-portfolio.tsx", owner: "G-3 (retake note on Me)" },
-  {
-    file: "components/nabalens/tasks/submission-list.tsx",
-    owner: "G-2 (my_month_photos replaces the month list)",
-  },
-]
+const PENDING: { file: string; owner: string }[] = []
 
 /** Whole words only: "Overdue", "Due 30 Nov", "tasks", "better photo". */
 const BANNED = /\b(tasks?|due|overdue|better photos?)\b/i

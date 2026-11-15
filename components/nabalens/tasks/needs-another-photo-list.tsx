@@ -163,7 +163,7 @@ export function ReplacementClosed({
     <div className="grid gap-gutter">
       <Notice
         tone="attention"
-        title="This task has closed"
+        title="This job has closed"
         action={
           <Link
             href={homeHref}
@@ -266,7 +266,7 @@ export function NeedsAnotherPhotoList({
                 ) : null}
                 {closed ? (
                   <p className="text-meta text-ink-muted">
-                    This task is no longer open to you, so no replacement is
+                    This job is no longer open to you, so no replacement is
                     needed.
                   </p>
                 ) : canSubmit ? (

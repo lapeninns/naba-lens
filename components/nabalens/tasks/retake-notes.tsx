@@ -21,51 +21,19 @@ import type {
 
 import { useAdd, type OpenAddOptions } from "../shell/add-context"
 import { formatDate } from "../format"
+import { RETAKE_COPY } from "./copy"
 import { replacementPath } from "./needs-another-photo-list"
+import {
+  homeRetakeNotes,
+  meRetakeNotes,
+  retakeNoteKey,
+  retakeNoteTitle,
+} from "./retake-notes-model"
 
 // One retake note block (G-3, docs/plans/goals-not-tasks.md, decisions 4, 12
 // and 14). Menu notes reshoot with the dish already labelled; coverage
 // requests reshoot through their send page. The database decides each note's
 // status (my_retake_notes); this only draws it.
-
-/**
- * Words for the block. Temporary home: G-5 moves them into tasks/copy.ts.
- * Staff screens never say task, due or overdue for food and drink work.
- */
-export const RETAKE_COPY = {
-  heading: "Needs another photo",
-  reshoot: "Reshoot",
-  choose: "Choose from photos",
-  later: "Later",
-  again: "Take another",
-  sent: "New photo sent · waiting for review",
-  setAside: "Set aside for later. It stays here until a new photo is accepted.",
-  monthPhoto: "Photo for your month",
-  noReason: "Your reviewer didn't leave a reason.",
-  offMenu:
-    "This dish isn't on your venue's menu now, so a new photo can't be sent for it.",
-  closed: "This is no longer open to you, so no new photo is needed.",
-  laterFailed: "We couldn't set this aside. Try again.",
-  meIntro:
-    "A reviewer would like another photo. Take a new one and it goes to them for review.",
-} as const
-
-/** What the note is about: the dish, the job's title, or the month. */
-export function retakeNoteTitle(note: RetakeNote): string {
-  if (note.dish)
-    return note.dish.variantName
-      ? `${note.dish.itemName} (${note.dish.variantName})`
-      : note.dish.itemName
-  return note.requirement?.title ?? RETAKE_COPY.monthPhoto
-}
-
-/** Home shows open notes that can be retaken now, newest first. */
-export const homeRetakeNotes = (notes: readonly RetakeNote[]) =>
-  notes.filter((note) => note.status === "open" && note.canRetake)
-
-/** Me keeps every note until it clears, set aside or not. */
-export const meRetakeNotes = (notes: readonly RetakeNote[]) =>
-  notes.filter((note) => note.status !== "cleared")
 
 const refOf = (note: RetakeNote): RetakeNoteRef => ({
   kind: note.kind,
@@ -253,7 +221,7 @@ function HomeNotes({
         >
           {rest.map((note) => (
             <NoteRow
-              key={`${note.kind}:${note.noteId}`}
+              key={retakeNoteKey(note)}
               note={note}
               openAdd={openAdd}
               tasksPath={tasksPath}
@@ -388,7 +356,7 @@ export function RetakeNotes({
     () => new Set()
   )
   const [failed, setFailed] = React.useState(false)
-  const keyOf = (note: RetakeNote) => `${note.kind}:${note.noteId}`
+  const keyOf = retakeNoteKey
 
   const later = onLater
     ? (note: RetakeNote) => {
@@ -458,7 +426,7 @@ export function RetakeNotes({
       </div>
       {failure}
       <ul
-        aria-label="Photos that need another photo"
+        aria-label={RETAKE_COPY.listLabel}
         className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
       >
         {shown.map((note) => (

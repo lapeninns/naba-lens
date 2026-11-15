@@ -11,11 +11,11 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { AddProvider } from "@/components/nabalens/shell/add-context"
+import { RetakeNotes } from "@/components/nabalens/tasks/retake-notes"
 import {
   homeRetakeNotes,
   meRetakeNotes,
-  RetakeNotes,
-} from "@/components/nabalens/tasks/retake-notes"
+} from "@/components/nabalens/tasks/retake-notes-model"
 import type { RetakeNote } from "@/lib/server/coverage/types"
 
 const router = vi.hoisted(() => ({ refresh: vi.fn() }))

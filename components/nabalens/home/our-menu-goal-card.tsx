@@ -4,6 +4,7 @@ import { CaretRightIcon, ForkKnifeIcon } from "@phosphor-icons/react/dist/ssr"
 import { Progress } from "@/components/ui/progress"
 
 import { Notice } from "../notice"
+import { HOME_OUR_MENU_COPY as COPY } from "../tasks/copy"
 import {
   menuComplete,
   type GoalsPrimary,
@@ -17,31 +18,6 @@ export const OUR_MENU_HEADING_ID = "our-menu-heading"
 
 const LINK =
   "inline-flex min-h-11 w-fit items-center gap-1 rounded-control text-body font-bold text-ink underline underline-offset-3 focus-ring outline-none"
-
-// TEMP copy (G-1): G-5 moves these into the copy files.
-const COPY = {
-  title: "Our menu",
-  subtitle: (venue: string | null) =>
-    `The whole team's goal${venue ? ` at ${venue}` : ""}: an accepted photo of every dish and drink`,
-  count: (covered: number, total: number) =>
-    `${covered} of ${total} have an accepted photo`,
-  recheck: (n: number) =>
-    n === 1
-      ? "1 dish is being checked after a menu change."
-      : `${n} dishes are being checked after a menu change.`,
-  stillNeeded: "Still needed",
-  stillNeededHint:
-    "Anyone can take these. A dish leaves the list once a photo of it is accepted.",
-  listFailed: "The dishes still needed can't be shown right now.",
-  seeAll: (n: number) => `See all ${n}`,
-  complete: "Every dish and drink on the menu has an accepted photo.",
-  completeHint: "New photos still count toward your month.",
-  empty: "The active menu has no dishes or drinks yet.",
-  needsSetup:
-    "Your venue's menu appears here once an admin assigns your venue.",
-  unavailable: "Menu photos can't be shown right now. Try again later.",
-  browse: "Browse our menu",
-} as const
 
 /**
  * Our menu, the venue's goal (v0.5 §1): how many dishes and drinks have an

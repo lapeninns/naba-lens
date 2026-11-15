@@ -19,13 +19,13 @@ export {
   REPLACES_PARAM,
 } from "./needs-another-photo-list"
 export { PhotoPicker } from "./photo-picker"
+export { RetakeNotes } from "./retake-notes"
 export {
   homeRetakeNotes,
   meRetakeNotes,
-  RETAKE_COPY,
-  RetakeNotes,
+  retakeNoteKey,
   retakeNoteTitle,
-} from "./retake-notes"
+} from "./retake-notes-model"
 export { FIRST_RUN_COOKIE, showWelcomeEntry } from "./first-run-state"
 export { FirstRun, setupGaps } from "./first-run"
 export { intentKey, useRequestIntent } from "./request-intent"
