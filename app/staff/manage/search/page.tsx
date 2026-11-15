@@ -5,7 +5,7 @@ import { NotManagerPage } from "@/app/staff/manage/_shared/frame"
 import { SearchScreen } from "@/app/staff/manage/_shared/screens"
 
 export const metadata: Metadata = {
-  title: "Search · Manage · Naba-Lens",
+  title: "Search · Manage",
 }
 
 /**
