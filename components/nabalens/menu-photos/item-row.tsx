@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils"
 import type { OurMenuItem } from "@/lib/server/coverage/types"
 
 import { ITEM_REVIEW_COPY, OUR_MENU_COPY } from "./copy"
+import { NeededByChip } from "./needed-by-chip"
 
 /**
  * One dish or drink on Our menu: its name and variants, whether it has an
@@ -90,6 +91,7 @@ export function OurMenuItemRow({
           ) : (
             <StatusChip tone="neutral">{OUR_MENU_COPY.gaps}</StatusChip>
           )}
+          {item.neededBy ? <NeededByChip neededBy={item.neededBy} /> : null}
           {item.needsRecheck ? (
             <StatusChip tone="pending">{OUR_MENU_COPY.recheck}</StatusChip>
           ) : null}

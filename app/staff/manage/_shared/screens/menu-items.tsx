@@ -2,7 +2,12 @@ import { FilterPill } from "@/components/ui/filter-pill"
 import Link from "next/link"
 import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
+import {
+  clearMenuItemNeededByAction,
+  setMenuItemNeededByAction,
+} from "@/app/manager/actions"
 import { manageHrefs } from "@/components/nabalens/coverage"
+import { NeededByControl } from "@/components/nabalens/manager/menu/needed-by-control"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import {
   ITEM_REVIEW_COPY,
@@ -23,6 +28,11 @@ import {
 } from "@/lib/server/coverage"
 import type { OurMenuView } from "@/lib/server/coverage/types"
 import { isUuid } from "@/lib/server/coverage/validate"
+import {
+  getManagerItem,
+  getManagerPhotoCtx,
+  neededByBounds,
+} from "@/lib/server/menu-photos"
 
 import { type ManageContext } from "../context"
 import { ManageFrame } from "../frame"
@@ -55,6 +65,33 @@ function figures(menu: OurMenuView, now: string) {
         </p>
       ) : null}
     </>
+  )
+}
+
+/**
+ * G-7: the "Needed by" control for one dish, for an admin or a manager
+ * account (the manager workspace's scope). Left out when that scope or the
+ * dish cannot be read: the dish's photos still show.
+ */
+async function neededByFor(ctx: ManageContext, itemId: string) {
+  const scope = await getManagerPhotoCtx(ctx.venueId)
+  if (!scope.ok) return null
+  const read = await getManagerItem(scope.ctx, itemId)
+  if (!read.ok || !read.detail) return null
+  const { item } = read.detail
+  return (
+    <NeededByControl
+      item={{
+        itemId: item.itemId,
+        name: item.name,
+        covered: item.status === "covered",
+        neededBy: item.neededBy ?? null,
+      }}
+      {...(scope.ctx.role === "admin" ? { venueId: ctx.venueId } : {})}
+      {...neededByBounds()}
+      setAction={setMenuItemNeededByAction}
+      clearAction={clearMenuItemNeededByAction}
+    />
   )
 }
 
@@ -211,6 +248,7 @@ export async function MenuItemsScreen({
 
   if (view === "item") {
     const name = candidates.items[0]?.item.name
+    const neededBy = itemId ? await neededByFor(ctx, itemId) : null
     return frame(
       <>
         <div>
@@ -223,6 +261,7 @@ export async function MenuItemsScreen({
           </Link>
         </div>
         <h2 className="sr-only">{name ?? "Dish photos"}</h2>
+        {neededBy}
         {labelling}
         <ItemPhotoReviewControl
           initial={candidates}

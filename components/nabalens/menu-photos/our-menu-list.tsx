@@ -15,29 +15,47 @@ import type {
 
 import { sectionCount } from "./copy"
 import { OUR_MENU_LIST_CLASS, OurMenuItemRow } from "./item-row"
+import { NEEDED_BY_COPY } from "./needed-by-chip"
 
 export type LoadOurMenuItemsHandler = (
   cursor: string
 ) => Promise<CoverageResult<Page<OurMenuItem>>>
 
 type Group = {
-  sectionId: string
+  /** A section id, or "needed" for the dishes with a date that lead (G-7). */
+  key: string
+  sectionId: string | null
   name: string
   items: OurMenuItem[]
 }
 
-/** Items in menu order, grouped by their section (pages arrive in order). */
+/**
+ * Items in list order, grouped by their section (pages arrive in order).
+ * Dishes with a "needed by" date lead the list, so they form one group of
+ * their own first, without a section count.
+ */
 function groupBySection(items: OurMenuItem[]): Group[] {
   const groups: Group[] = []
   for (const item of items) {
+    const key = item.neededBy ? "needed" : item.sectionId
     const last = groups[groups.length - 1]
-    if (last && last.sectionId === item.sectionId) last.items.push(item)
+    if (last && last.key === key) last.items.push(item)
     else
-      groups.push({
-        sectionId: item.sectionId,
-        name: item.sectionName,
-        items: [item],
-      })
+      groups.push(
+        item.neededBy
+          ? {
+              key,
+              sectionId: null,
+              name: NEEDED_BY_COPY.groupTitle,
+              items: [item],
+            }
+          : {
+              key,
+              sectionId: item.sectionId,
+              name: item.sectionName,
+              items: [item],
+            }
+      )
   }
   return groups
 }
@@ -106,14 +124,14 @@ export function OurMenuList({
 
   return (
     <div className="grid gap-gutter">
-      {groupBySection(items).map((group) => {
-        const total = totals.get(group.sectionId)
-        const headingId = `our-menu-section-${group.sectionId}`
+      {groupBySection(items).map((group, index) => {
+        const total = group.sectionId ? totals.get(group.sectionId) : null
+        const headingId = `our-menu-section-${group.key}-${index}`
         return (
           // One white card per section: its heading and count, then the
           // dishes split by hairlines (Common Room row list).
           <section
-            key={group.sectionId}
+            key={`${group.key}-${index}`}
             aria-labelledby={headingId}
             className="grid min-w-0 overflow-hidden rounded-card bg-surface shadow-card"
           >

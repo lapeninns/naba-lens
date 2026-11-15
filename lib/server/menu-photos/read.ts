@@ -1,6 +1,6 @@
 import "server-only"
 
-import { menuPhotoRoutes } from "@/lib/server/coverage/menu-items"
+import { menuPhotoRoutes, neededByView } from "@/lib/server/coverage/menu-items"
 import { invalid } from "@/lib/server/coverage/errors"
 import {
   isObject,
@@ -45,7 +45,39 @@ import { isMenuStatus, isQueueStatus } from "./validate"
 // failed read is never an empty one. Id reads outside the venue are empty.
 
 type Fns = Database["public"]["Functions"]
-type ItemRow = Fns["manager_menu_photo_items"]["Returns"][number]
+// G-7 (20261116150000) adds needed_by and needed_by_passed to the row and
+// p_after_needed_by to the cursor. Local until lib/db/types.ts is regenerated.
+type ItemRow = Fns["manager_menu_photo_items"]["Returns"][number] & {
+  needed_by: string | null
+  needed_by_passed: boolean
+}
+type ItemArgs = Fns["manager_menu_photo_items"]["Args"] & {
+  p_after_needed_by?: string
+}
+type ItemsRpc = {
+  rpc(
+    fn: "manager_menu_photo_items",
+    args: ItemArgs
+  ): PromiseLike<{
+    data: ItemRow[] | null
+    error: { message: string; code: string; details: string | null } | null
+  }>
+}
+const itemsRpc = (ctx: ManagerPhotoCtx, args: ItemArgs) =>
+  (ctx.actor.db as unknown as ItemsRpc).rpc("manager_menu_photo_items", args)
+
+/** The keyset after a row: its needed-by date is part of the order (G-7). */
+const afterRow = (r: {
+  needed_by: string | null
+  section_position: number
+  entry_position: number
+  item_id: string
+}) => ({
+  ...(r.needed_by ? { p_after_needed_by: r.needed_by } : {}),
+  p_after_section_position: r.section_position,
+  p_after_entry_position: r.entry_position,
+  p_after_item_id: r.item_id,
+})
 type QueueRow = Fns["manager_menu_photo_queue"]["Returns"][number]
 type ContributorRow = Fns["manager_menu_photo_contributor"]["Returns"][number]
 
@@ -197,6 +229,7 @@ function menuItemView(r: ItemRow): ManagerMenuItem {
         )
       : null,
     itemRevision: r.item_revision,
+    neededBy: neededByView(r.needed_by, r.needed_by_passed),
   }
 }
 
@@ -223,17 +256,18 @@ export async function listManagerMenuItems(
   const after = args.cursor ? itemsCursor.decode(args.cursor as string) : null
   if (args.cursor && !after) return BAD_CURSOR
 
-  const { data, error } = await ctx.actor.db.rpc("manager_menu_photo_items", {
+  const { data, error } = await itemsRpc(ctx, {
     p_venue_id: ctx.venueId,
     ...(args.status ? { p_status: args.status as string } : {}),
     ...(sectionId ? { p_section_id: sectionId } : {}),
     ...(query ? { p_query: query } : {}),
     ...(after
-      ? {
-          p_after_section_position: after.section,
-          p_after_entry_position: after.entry,
-          p_after_item_id: after.itemId,
-        }
+      ? afterRow({
+          needed_by: after.neededBy,
+          section_position: after.section,
+          entry_position: after.entry,
+          item_id: after.itemId,
+        })
       : {}),
     p_limit: MENU_PAGE + 1,
   })
@@ -246,6 +280,7 @@ export async function listManagerMenuItems(
     items: page.map(menuItemView),
     nextCursor: last
       ? itemsCursor.encode({
+          neededBy: last.needed_by ?? null,
           section: last.section_position,
           entry: last.entry_position,
           itemId: last.item_id,
@@ -333,15 +368,9 @@ async function itemsWithVariants(ctx: ManagerPhotoCtx): Promise<Set<string>> {
   const found = new Set<string>()
   let after: ItemRow | null = null
   for (let page = 0; page < VARIANT_SCAN_PAGES; page++) {
-    const { data, error } = await ctx.actor.db.rpc("manager_menu_photo_items", {
+    const { data, error } = await itemsRpc(ctx, {
       p_venue_id: ctx.venueId,
-      ...(after
-        ? {
-            p_after_section_position: after.section_position,
-            p_after_entry_position: after.entry_position,
-            p_after_item_id: after.item_id,
-          }
-        : {}),
+      ...(after ? afterRow(after) : {}),
       p_limit: 101,
     })
     if (error) {
@@ -537,17 +566,11 @@ async function findMenuItemRow(
 ): Promise<{ row: ItemRow | null } | { error: { message?: string } }> {
   let after: ItemRow | null = null
   for (let page = 0; page < 5; page++) {
-    const { data, error } = await ctx.actor.db.rpc("manager_menu_photo_items", {
+    const { data, error } = await itemsRpc(ctx, {
       p_venue_id: ctx.venueId,
       p_section_id: sectionId,
       p_query: name.slice(0, QUERY_MAX),
-      ...(after
-        ? {
-            p_after_section_position: after.section_position,
-            p_after_entry_position: after.entry_position,
-            p_after_item_id: after.item_id,
-          }
-        : {}),
+      ...(after ? afterRow(after) : {}),
       p_limit: 101,
     })
     if (error) return { error }
@@ -611,6 +634,7 @@ export async function getManagerItem(
         candidateCount: waiting.items.length,
         preferred: effective?.asset ?? null,
         itemRevision: r.item_revision,
+        neededBy: null,
       }
   return {
     ok: true,

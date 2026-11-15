@@ -65,6 +65,7 @@ export function ItemDetail({
   history,
   loadEvents,
   waiting,
+  neededBy,
 }: {
   detail: ManagerItemDetail
   backHref: string
@@ -74,6 +75,8 @@ export function ItemDetail({
   loadEvents: LoadItemEvents
   /** The "Waiting for review" body (the item's queue). */
   waiting: React.ReactNode
+  /** G-7: the "Needed by" control, while the dish is still needed. */
+  neededBy?: React.ReactNode
 }) {
   const copy = MANAGER_COPY.item
   const router = useRouter()
@@ -196,6 +199,8 @@ export function ItemDetail({
         notice={notice}
         onDismiss={() => setNotice(null)}
       />
+
+      {neededBy}
 
       <section aria-labelledby="item-menu-photo" className="grid gap-3">
         <h2 id="item-menu-photo" className={SECTION_TITLE}>
