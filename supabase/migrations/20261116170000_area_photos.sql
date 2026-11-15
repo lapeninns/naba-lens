@@ -37,7 +37,7 @@ set lock_timeout = '5s';
 -- stays on the photo until a reviewer accepts it or the uploader removes the
 -- area.
 --
--- Rollback: re-apply private.monthly_credit_items from 20261115100000 and
+-- Rollback: re-apply private.monthly_credit_items from 20261115140000 and
 -- private.month_photo_states and public.my_month_photos from 20261116110000,
 -- then revoke execute on the four new public functions below. Tables stay.
 
@@ -507,13 +507,28 @@ as $$
       and (a.deleted_at is null or a.deleted_at >= private.london_month_end(p_month))
   ),
   menu as (
+    -- As 20261115140000 (PR #31, ORP decision 2): credit read from the
+    -- decision history, so a recheck or a later request keeps it; only a
+    -- withdrawal removes it. Carried forward unchanged.
     -- One row per asset however many items it was accepted for; the earliest
-    -- decision decides whether it was a late acceptance.
-    select m.author_id, m.venue_id, m.asset_id, min(m.decided_at) as decided_at,
+    -- acceptance decides whether it was a late one.
+    select m.author_id, m.venue_id, m.asset_id, min(acc.accepted_at) as decided_at,
       bool_or(a.deleted_at is not null) as evidence_removed
     from public.menu_item_photos m
     join public.media_assets a on a.id = m.asset_id
-    where m.state in ('accepted', 'needs_recheck')
+    -- Earned by an acceptance in the row's history that no withdrawal
+    -- followed. Withdrawn and invalidated rows are final and earn nothing.
+    join lateral (
+      select min(e.created_at) as accepted_at
+      from public.menu_item_photo_events e
+      where e.photo_id = m.id
+        and e.action = 'accepted'
+        and not exists (
+          select 1 from public.menu_item_photo_events w
+          where w.photo_id = m.id and w.action = 'withdrawn' and w.id > e.id
+        )
+    ) acc on acc.accepted_at is not null
+    where m.state in ('accepted', 'needs_recheck', 'better_photo_requested')
       and private.london_month(a.created_at) = p_month
       and a.media_type = 'image'
       and a.upload_state = 'ready'

@@ -572,6 +572,63 @@ describe("month credit for area photos", () => {
     expect(m.photo(asset)!.item_names).toEqual(["Tikka", "Bar"])
   })
 
+  it("counts a photo once with a dish credit and an area credit, and the area holds it after the dish is withdrawn (PR #31 carried forward)", async () => {
+    const s = await newStaff("area-credit-dish-and-area", f.venue)
+    const tikka = { itemId: f.items["mains--tikka"]!.itemId, variantId: null }
+    const asset = (await reserveReady(service, s)).id
+    await saveOk(s, {
+      asset,
+      revision: 0,
+      items: [tikka],
+      catalogue: f.version,
+    })
+    const [area] = (await ok(setArea(s, asset, f.places.bar)))!
+    await ok(decide(f.manager, area!.label_id!, "accepted"))
+    const head = async () =>
+      (
+        await service
+          .from("menu_item_photo_heads")
+          .select("revision")
+          .eq("item_id", tikka.itemId)
+          .maybeSingle()
+      ).data?.revision ?? 1
+    const [menuPhoto] = (await ok(
+      f.manager.client.rpc("review_menu_item_photo", {
+        p_asset_id: asset,
+        p_item_id: tikka.itemId,
+        p_variant_id: null as unknown as string,
+        p_decision: "accepted",
+        p_expected_revision: await head(),
+        p_make_primary: false,
+      })
+    ))!
+    // Dish (decision history) and area both credit it: one photo.
+    expect(await counts(s, f.venue)).toEqual({
+      accepted: 1,
+      waiting: 0,
+      needs: 0,
+    })
+    // Withdrawing the dish ends the menu credit; the accepted area keeps it.
+    await ok(
+      f.manager.client.rpc("withdraw_menu_item_photo", {
+        p_photo_id: menuPhoto!.photo_id,
+        p_expected_revision: await head(),
+        p_reason: "Wrong dish",
+      })
+    )
+    expect(await counts(s, f.venue)).toEqual({
+      accepted: 1,
+      waiting: 0,
+      needs: 0,
+    })
+    await ok(decide(f.manager, area!.label_id!, "withdrawn", "Shows a guest"))
+    expect(await counts(s, f.venue)).toEqual({
+      accepted: 0,
+      waiting: 0,
+      needs: 0,
+    })
+  })
+
   it("removes the credit when a reviewer withdraws the photo", async () => {
     const s = await newStaff("area-credit-withdraw", f.venue)
     const { label } = await areaPhoto(s, f.places.toilets)
