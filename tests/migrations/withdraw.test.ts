@@ -22,6 +22,12 @@ const MIGRATIONS = [
   "20261107100400_manager_item_photo_writes.sql",
   "20261107100500_manager_item_photo_reads.sql",
   "20261107100700_manager_review_queue_dedupe.sql",
+  // Goals sprint (G-1 to G-7): their new coverage RPCs and tables.
+  "20261116100000_menu_item_review_states.sql",
+  "20261116110000_my_month_photos.sql",
+  "20261116120000_retake_notes.sql",
+  "20261116140000_venue_default_photo_target.sql",
+  "20261116150000_menu_item_needed_by.sql",
 ]
 const script = readFileSync(
   join(import.meta.dirname, "coverage-withdraw-access.sql"),
@@ -31,9 +37,14 @@ const sources = MIGRATIONS.map((f) =>
   readFileSync(join("supabase", "migrations", f), "utf8")
 ).join("\n")
 
+// G-7 recreates two item lists, so a name can be created twice: count it once.
 const publicFunctions = [
-  ...sources.matchAll(/^create function public\.([a-z_]+)\(/gm),
-].map((m) => m[1]!)
+  ...new Set(
+    [...sources.matchAll(/^create function public\.([a-z_]+)\(/gm)].map(
+      (m) => m[1]!
+    )
+  ),
+]
 const publicTables = [
   ...sources.matchAll(/^create table public\.([a-z_]+) \(/gm),
 ].map((m) => m[1]!)
@@ -72,8 +83,8 @@ function privilegesAfterScript(): { fn: string; role: string; ok: boolean }[] {
 
 describe("coverage access withdrawal", () => {
   it("names every coverage RPC and table", () => {
-    expect(publicFunctions.length).toBe(45)
-    expect(publicTables.length).toBe(16)
+    expect(publicFunctions.length).toBe(53)
+    expect(publicTables.length).toBe(19)
     for (const fn of publicFunctions)
       expect(script, fn).toContain(`public.${fn}(`)
     for (const t of publicTables) expect(script, t).toContain(`public.${t}`)
@@ -85,8 +96,10 @@ describe("coverage access withdrawal", () => {
   it("leaves signed-in users no coverage capability and stops the scheduled run", () => {
     const rows = privilegesAfterScript()
     expect(rows).toHaveLength(publicFunctions.length * 2 + publicTables.length)
+    // The scheduled run is revoked; menu_item_review_states and
+    // my_month_photos (G-1, G-2) were only ever granted to authenticated.
     expect(rows.filter((r) => r.ok && r.role === "service_role").length).toBe(
-      publicFunctions.length - 1
+      publicFunctions.length - 3
     )
     const stillGranted = rows.filter(
       (r) =>
