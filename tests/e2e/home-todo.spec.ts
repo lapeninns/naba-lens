@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto"
+
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { staffCaptureHref } from "../../lib/amenities/contract"
@@ -15,6 +17,7 @@ import {
   submitAndComplete,
 } from "./helpers/amenities-world"
 import {
+  legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
   type CoverageWorld,
@@ -47,6 +50,35 @@ const PHONE = {
   viewport: { width: 390, height: 844 },
   isMobile: true,
   hasTouch: true,
+}
+const DESKTOP = { viewport: { width: 1280, height: 800 } }
+
+type RpcResult<T> = {
+  data: T | null
+  error: { message: string; code: string; details?: string | null } | null
+}
+async function ok<T>(call: PromiseLike<RpcResult<T>>): Promise<T> {
+  const { data, error } = await call
+  if (error) {
+    throw new Error(`${error.message} (${error.code}) ${error.details ?? ""}`)
+  }
+  return data as T
+}
+const key = () => `home-goals-${randomUUID()}`
+
+/** The AppBar's Manage link (md up); its name carries the review badge. */
+const manageLink = (page: Page) =>
+  page
+    .getByRole("navigation", { name: "Staff" })
+    .getByRole("link", { name: /^Manage\b/ })
+const manageName = (count: string) =>
+  new RegExp(`^Manage ?, ?${count} to review$`)
+
+/** The link's accessible name, as Playwright's accessibility snapshot has it. */
+async function accessibleName(link: Locator) {
+  const quoted = /^- link ("(?:[^"\\]|\\.)*")/.exec(await link.ariaSnapshot())
+  expect(quoted, "the link has an accessible name").not.toBeNull()
+  return JSON.parse(quoted![1]!) as string
 }
 
 /** Staff pages whose phone TabBar shows the Home badge (Home itself does not). */
@@ -273,5 +305,103 @@ test.describe("Home: goals, not tasks", () => {
       await page.goto(path)
       await expect(homeTab(page), path).toHaveAccessibleName(homeName(1))
     }
+  })
+
+  test("an old request for another photo stays on Home after 101 newer photos; the Manage badge matches on every page at 1280", async ({
+    browser,
+  }) => {
+    const w = await provisionCoverageWorld()
+    const service = provisioner()
+    const manager: Db = await signIn(service, w.manager.email)
+    const staff: Db = await signIn(service, w.staffA.email)
+    await legacyStaffGrant(w.admin, w.manager, w.venue1)
+    const title = `Home goals shelf ${w.tag}`
+    const [task] = await ok<{ requirement_id: string }[]>(
+      manager.rpc("save_coverage_requirement", {
+        p_venue_id: w.venue1.id,
+        p_requirement_id: null as never,
+        p_expected_revision: null as never,
+        p_kind: "venue_specific",
+        p_title: title,
+        p_guidance: "Bottles facing out.",
+        p_photo_target: 2,
+        p_due_on: null as never,
+        p_client_request_key: key(),
+      })
+    )
+    await ok(
+      manager.rpc("set_coverage_requirement_assignees", {
+        p_requirement_id: task!.requirement_id,
+        p_staff_ids: [w.staffA.id],
+      })
+    )
+    const send = (assetIds: string[]) =>
+      ok<{ item_id: string; revision: number }[]>(
+        staff.rpc("submit_coverage_photos", {
+          p_asset_ids: assetIds,
+          p_requirement_id: task!.requirement_id,
+          p_client_request_key: key(),
+        })
+      )
+
+    // The request is made first; then 101 newer photos are sent.
+    const [first] = await send(await seedImages(w.staffA, w.venue1, 1))
+    const reason = `Home goals: shelf out of focus (${w.tag})`
+    await ok(
+      manager.rpc("review_coverage_item", {
+        p_item_id: first!.item_id,
+        p_expected_revision: first!.revision,
+        p_decision: "needs_another_photo",
+        p_reason: reason,
+        p_client_request_key: key(),
+      })
+    )
+    const newer = await seedImages(w.staffA, w.venue1, 101)
+    for (let i = 0; i < newer.length; i += 10)
+      await send(newer.slice(i, i + 10))
+
+    // The retake note on Home still holds the old request (my_retake_notes).
+    const page = await signedInPage(browser, w.staffA, PHONE)
+    await expect(page).toHaveURL(STAFF_LANDING)
+    const notes = page.getByRole("region", { name: "Needs another photo" })
+    await expect(notes.getByText(reason)).toBeVisible()
+    await expect(
+      notes.getByRole("link", { name: `Reshoot: ${title}` })
+    ).toHaveAttribute(
+      "href",
+      `/staff/tasks/${task!.requirement_id}?replaces=${first!.item_id}`
+    )
+    // Three cards ask this person to act: the retake note, the labels row
+    // (the 102 seeded photos have no label; decision 19) and Other jobs.
+    for (const path of BADGE_PAGES) {
+      await page.goto(path)
+      await expect(homeTab(page), path).toHaveAccessibleName(homeName(3))
+    }
+
+    // A staff-held venue manager at 1280: the same Manage badge everywhere.
+    const desk = await signedInPage(browser, w.manager, DESKTOP)
+    let count: string | undefined
+    for (const path of [
+      "/staff/tasks",
+      ...BADGE_PAGES,
+      `/staff/people/${w.staffA.id}`,
+      "/staff/profile",
+      "/staff/tasks/guide",
+      "/staff/tasks/month",
+      "/staff/tasks/other",
+    ]) {
+      await desk.goto(path)
+      await expect(manageLink(desk), path).toBeVisible()
+      if (count === undefined) {
+        const match = /\d+/.exec(await accessibleName(manageLink(desk)))
+        expect(match, "the Manage name includes a count").not.toBeNull()
+        count = match![0]
+      }
+      await expect(manageLink(desk), path).toHaveAccessibleName(
+        manageName(count)
+      )
+    }
+    // 101 photos wait for review.
+    expect(Number(count)).toBeGreaterThan(0)
   })
 })

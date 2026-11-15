@@ -11,7 +11,11 @@ import { getVenueTargets } from "@/lib/server/coverage/targets"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 
 import { failedRead, isRefusal } from "../load-overview"
-import { setPersonTargetAction, setVenueDefaultTargetAction } from "./actions"
+import {
+  setPersonTargetAction,
+  setVenueDefaultTargetAction,
+  backToVenueDefaultAction,
+} from "./actions"
 
 export const metadata = { title: "Team targets" }
 
@@ -57,6 +61,7 @@ export default async function ManagerTeamPage() {
         view={view}
         onSetDefault={setVenueDefaultTargetAction}
         onSetPerson={setPersonTargetAction}
+        onUseDefault={backToVenueDefaultAction}
       />
     </div>
   )

@@ -229,12 +229,31 @@ release day (decision 18, amended by the user on 15 Nov 2026).
 > shows **Our menu**: the dishes and drinks at your venue that still need a
 > photo. Anyone can photograph any of them, and a dish leaves the list once a
 > photo of it is accepted. **Your month** still shows your own target; it
-> ends with the calendar month and has no due date. Accepted food and drink
-> photos you labelled, and photos you sent to the month, count. If a manager
-> asks for another photo of a dish, Home shows it as **Needs another photo**
-> with **Reshoot** and **Later**. Photos you have already sent keep counting.
-> Amenity checks and other venue jobs keep their dates; find them under
-> **Other jobs** on Home.
+> ends with the calendar month and has no due date. Accepted photos you
+> labelled — dishes, drinks and venue areas — and photos you sent to the
+> month, count. A photo that isn't a dish or a drink (the bar set-up, the
+> garden) counts once you label it with a **Venue area** and a manager
+> accepts it. If a manager asks for another photo of a dish, Home shows it as
+> **Needs another photo** with **Reshoot** and **Later**. Photos you have
+> already sent keep counting. Amenity checks and other venue jobs keep their
+> dates; find them under **Other jobs** on Home.
+
+**Note for venue managers** (send with the note above):
+
+> - **Team targets** (Overview → Team targets): set the venue's default photo target
+>   once; new starters get it without you doing anything. You can give
+>   someone their own number (a reason is needed to change one) and move
+>   them back to the default later.
+> - **Needed by** (Menu → a dish): put a date on a dish to show it first
+>   in Still needed for everyone. It clears when a photo is accepted, and it
+>   never shows as Overdue.
+> - **Venue area photos** (Review): photos staff labelled with a part of the
+>   venue wait here. Accept, ask for another photo (with a reason) or
+>   withdraw. You can't decide on your own photos.
+> - Menu sections no longer have assignees or due dates; section shots count
+>   toward each person's month.
+> - Known limit: when you ask for another photo of a venue area, the person
+>   sees it on Your month but gets no retake note yet.
 
 **Steps for the user, in order.** Environment changes need the user; agents
 never make them.

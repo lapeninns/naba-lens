@@ -500,7 +500,7 @@ describe("Goal-led Home: model", () => {
       labels: { needsLabels: 3, needsAttention: 0 },
     })
     const row = screen.getByRole("link", {
-      name: /3 photos need a dish or drink label/,
+      name: /3 photos need a label/,
     })
     expect(row.getAttribute("href")).toBe("/staff#needs-labels-heading")
     expect(primaries()).toEqual([
@@ -660,7 +660,7 @@ describe("Goal-led Home: the page", () => {
     await home()
     expect(shell.props).toMatchObject({ todoCount: 1, todoUnknown: false })
     expect(
-      screen.getByRole("link", { name: /2 photos need a dish or drink label/ })
+      screen.getByRole("link", { name: /2 photos need a label/ })
     ).toBeTruthy()
   })
 

@@ -73,6 +73,8 @@ type StaffPortfolioProps = {
   menuPhotos?: MyMenuPhotoState[]
   /** The caller's retake notes (my_retake_notes); Me shows all but cleared. */
   retakeNotes?: RetakeNote[]
+  /** Photos on the first page with the uploader's venue area (G-9, S-1). */
+  areaLabelled?: readonly string[]
   /** The own photos those decisions are on, whichever gallery page they are on. */
   menuPhotoItems?: MediaItem[]
   /** "Your findings" (B01-06), after the menu decisions; null to leave it out. */
@@ -346,6 +348,7 @@ export function StaffPortfolio({
   menuPhotos = [],
   menuPhotoItems = [],
   retakeNotes = [],
+  areaLabelled = [],
   findings = null,
 }: StaffPortfolioProps) {
   const router = useRouter()
@@ -374,8 +377,9 @@ export function StaffPortfolio({
   const addDiscarded = useAddDiscarded()
   // Labels saved from "Needs labels": hide those photos here and refresh the
   // gallery so its badges catch up.
+  // A venue area counts as a label (S-1), so those photos never show here.
   const [labelled, setLabelled] = React.useState<ReadonlySet<string>>(
-    () => new Set()
+    () => new Set(areaLabelled)
   )
   const [labelSaves, setLabelSaves] = React.useState(0)
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)

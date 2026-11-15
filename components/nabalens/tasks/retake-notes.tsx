@@ -340,9 +340,15 @@ export function RetakeNotes({
   tasksPath = "/staff/tasks",
   uploadBlocked = false,
   onLater,
+  focusAfterLaterId,
 }: {
   notes: readonly RetakeNote[]
   surface: "home" | "me"
+  /**
+   * S-2: Later hides the button that had focus, so focus moves here (a
+   * heading with tabIndex -1). Defaults to this block's own heading on Me.
+   */
+  focusAfterLaterId?: string
   tasksPath?: string
   /** Uploads are paused for this account: no camera (the reason shows elsewhere). */
   uploadBlocked?: boolean
@@ -356,13 +362,21 @@ export function RetakeNotes({
     () => new Set()
   )
   const [failed, setFailed] = React.useState(false)
+  const [announced, setAnnounced] = React.useState("")
   const keyOf = retakeNoteKey
+  const focusTarget =
+    focusAfterLaterId ?? (surface === "me" ? "better-heading" : undefined)
 
   const later = onLater
     ? (note: RetakeNote) => {
         const key = keyOf(note)
         setFailed(false)
         setHidden((prev) => new Set(prev).add(key))
+        setAnnounced(RETAKE_COPY.laterDone)
+        // The card (and its Later button) is gone after this render.
+        requestAnimationFrame(() => {
+          if (focusTarget) document.getElementById(focusTarget)?.focus()
+        })
         void onLater(refOf(note))
           .then((result) => {
             if (!result.ok) throw new Error(result.message)
@@ -374,6 +388,7 @@ export function RetakeNotes({
               next.delete(key)
               return next
             })
+            setAnnounced("")
             setFailed(true)
           })
       }
@@ -388,11 +403,24 @@ export function RetakeNotes({
       {RETAKE_COPY.laterFailed}
     </Notice>
   ) : null
+  // Always rendered, so the polite message is read even once the block goes.
+  const live = (
+    <p className="sr-only" aria-live="polite" role="status">
+      {announced}
+    </p>
+  )
 
   if (surface === "home") {
-    if (shown.length === 0) return failure
+    if (shown.length === 0)
+      return (
+        <>
+          {live}
+          {failure}
+        </>
+      )
     return (
       <section aria-label={RETAKE_COPY.heading} className="grid gap-gutter">
+        {live}
         {failure}
         <HomeNotes
           notes={shown}
@@ -405,16 +433,18 @@ export function RetakeNotes({
     )
   }
 
-  if (shown.length === 0) return null
+  if (shown.length === 0) return live
   const waiting = shown.filter(
     (note) => note.status !== "retaken" && note.canRetake
   ).length
   return (
     <section aria-labelledby="better-heading" className="grid gap-3 pt-2">
       <div className="grid gap-1 px-1">
+        {live}
         <h2
           id="better-heading"
-          className="flex items-center gap-2 type-section-title text-ink"
+          tabIndex={-1}
+          className="flex items-center gap-2 rounded-control type-section-title text-ink focus-ring outline-none"
         >
           {RETAKE_COPY.heading}
           <CountBadge

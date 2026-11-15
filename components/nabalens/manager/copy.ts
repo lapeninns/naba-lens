@@ -221,6 +221,9 @@ export const MANAGER_COPY = {
     savePerson: "Save target",
     cancel: "Cancel",
     personSaved: (name: string) => `${name}'s target is saved.`,
+    useDefault: "Use the venue default",
+    defaultUsed: (name: string) =>
+      `${name} uses the venue default now. Their own number won't carry into next month.`,
     reasonLabel: "Reason for the change",
     reasonHelp: "Admins can see this reason.",
     saving: "Saving…",

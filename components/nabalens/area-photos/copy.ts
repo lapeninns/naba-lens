@@ -13,7 +13,10 @@ export const AREA_COPY = {
   none: "No area",
   noPlaces: "Your manager hasn't listed this venue's areas yet.",
   loadFailed: "Venue areas couldn't be loaded.",
-  saveFailed: "The venue area wasn't saved. Try again.",
+  saveFailed: "The venue area wasn't saved.",
+  retry: "Try again",
+  mixed:
+    "These photos have different areas. Choose one to give them all the same area.",
   saving: "Saving…",
   saved: "Saved",
   state: {

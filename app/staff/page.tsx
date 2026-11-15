@@ -29,6 +29,8 @@ import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { workServices } from "@/lib/work-client/services"
 
 import { myWorkingList, staffShellStatus } from "./_shell/shell-status"
+import { getMyAreaLabels } from "@/lib/server/area-photos"
+
 import { StaffPortfolio } from "./staff-portfolio"
 
 const BLOCKED_COPY = {
@@ -70,6 +72,23 @@ async function menuPhotoDecisions(
     return { states: result.states, items: media.ok ? media.items : [] }
   } catch {
     return { states: [], items: [] }
+  }
+}
+
+/**
+ * Photos on Me's first page that carry my venue area (G-9): they are
+ * labelled, so "Needs labels" leaves them out. A failed read leaves none out.
+ */
+async function myAreaLabelled(
+  actor: MediaActor,
+  ids: string[]
+): Promise<string[]> {
+  if (ids.length === 0) return []
+  try {
+    const result = await getMyAreaLabels(actor, ids.slice(0, 100))
+    return result.ok ? result.labels.map((label) => label.assetId) : []
+  } catch {
+    return []
   }
 }
 
@@ -166,6 +185,10 @@ export default async function StaffPage({
     retakeNotes(auth.actor),
   ])
   if (!page.ok) throw new Error(page.message)
+  const areaLabelled = await myAreaLabelled(
+    auth.actor,
+    page.items.map((item) => item.id)
+  )
   const blocked = uploadBlockReason(profile)
   // A failed count read keeps the row (Manage re-reads it) without a number.
   const { canManage, reviewCount, avatarUrl: avatar } = shell
@@ -207,6 +230,7 @@ export default async function StaffPage({
         menuPhotos={menuPhotos.states}
         menuPhotoItems={menuPhotos.items}
         retakeNotes={notes}
+        areaLabelled={areaLabelled}
         findings={
           !findings.show ? null : findings.kind === "b02" ? (
             <MyContributions

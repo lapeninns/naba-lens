@@ -245,6 +245,36 @@ export function assignBeforeCutOver(
   `)
 }
 
+/**
+ * A send to a menu section as it could be made before the G-8 cut-over
+ * (decision 7 keeps that history; fresh section sends are closed now): the
+ * real submit_coverage_photos as `staffId`, with the menu-section rule held
+ * aside inside this one transaction (psql as the owner).
+ */
+export function sendBeforeCutOver(
+  staffId: string,
+  requirementId: string,
+  assetIds: string[]
+): { item_id: string; asset_id: string; state: string; revision: number }[] {
+  if (![staffId, requirementId, ...assetIds].every((id) => UUID.test(id)))
+    throw new Error("not a uuid")
+  const ids = assetIds.map((id) => `'${id}'::uuid`).join(", ")
+  const out = psql(`begin;
+    alter function private.menu_section_send_closed(uuid, uuid) rename to menu_section_send_closed_held;
+    create function private.menu_section_send_closed(uuid, uuid) returns boolean language sql as 'select false';
+    select set_config('request.jwt.claims', '{"sub":"${staffId}","role":"authenticated"}', true) is null;
+    select coalesce(json_agg(t), '[]') from public.submit_coverage_photos(array[${ids}], '${requirementId}'::uuid, 'pre-cut-over-${randomUUID()}') t;
+    drop function private.menu_section_send_closed(uuid, uuid);
+    alter function private.menu_section_send_closed_held(uuid, uuid) rename to menu_section_send_closed;
+    commit;`)
+  // psql prints command tags around the result: keep the JSON array only.
+  const start = out.search(/^\[/m)
+  const end = out.lastIndexOf("]")
+  if (start < 0 || end < start)
+    throw new Error(`pre-cut-over send failed: ${out}`)
+  return JSON.parse(out.slice(start, end + 1))
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/
 

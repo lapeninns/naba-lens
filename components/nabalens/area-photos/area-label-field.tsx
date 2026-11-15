@@ -9,6 +9,7 @@ import {
 import { Notice } from "@/components/nabalens/notice"
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { StatusChip } from "@/components/nabalens/status-chip"
+import { Button } from "@/components/ui/button"
 import { FormField } from "@/components/ui/field"
 
 import { AREA_COPY } from "./copy"
@@ -19,9 +20,12 @@ type Current = { subjectId: string; state: string; reason: string | null }
 /**
  * G-9: the "Venue area" choice beside the dish and drink labels, for a photo
  * that is not a dish or a drink (the bar set-up, the garden, the toilets).
- * The places are the venue's own (B03 venue knowledge). The choice applies
- * to every photo in `assetIds` and is saved straight away, also on photos
- * that arrive later in the same sheet (their asset is reserved later).
+ * The places are the venue's own (B03 venue knowledge). Nothing is saved
+ * until the person chooses (or clears) an area: opening the field never
+ * changes a photo's labels. Once they choose, the choice applies to every
+ * photo in `assetIds` and is saved straight away, also on photos that arrive
+ * later in the same sheet (their asset is reserved later). Photos with
+ * different areas start at "No area" with a note, never at one photo's area.
  * Staff only; the database checks that each photo is the caller's own.
  */
 export function AreaLabelField({
@@ -37,6 +41,9 @@ export function AreaLabelField({
   const [failed, setFailed] = React.useState(false)
   const [offered, setOffered] = React.useState(true)
   const [choice, setChoice] = React.useState<string | null>(null)
+  // B-1: only a choice the person made is ever saved.
+  const [touched, setTouched] = React.useState(false)
+  const [mixed, setMixed] = React.useState(false)
   const [current, setCurrent] = React.useState<Current | null>(null)
   // What each photo has on the server ("" = no area), as far as we know.
   const saved = React.useRef(new Map<string, string>())
@@ -67,16 +74,19 @@ export function AreaLabelField({
           result.places.map((p) => ({ subjectId: p.subjectId, label: p.label }))
         )
         for (const l of result.labels) saved.current.set(l.assetId, l.subjectId)
+        // One area shared by every photo starts selected; anything else
+        // (different areas, or some photos without one) starts at No area.
+        const areas = new Set(ids.map((id) => saved.current.get(id) ?? ""))
+        const [only] = areas
+        if (areas.size === 1 && only) setChoice(only)
+        else if (areas.size > 1) setMixed(true)
         const first = result.labels[0]
-        if (first) {
-          setChoice(first.subjectId)
-          if (ids.length === 1)
-            setCurrent({
-              subjectId: first.subjectId,
-              state: first.state,
-              reason: first.reason,
-            })
-        }
+        if (first && ids.length === 1)
+          setCurrent({
+            subjectId: first.subjectId,
+            state: first.state,
+            reason: first.reason,
+          })
       })
       .catch(() => live && setFailed(true))
     return () => {
@@ -88,7 +98,7 @@ export function AreaLabelField({
   // per photo and choice; the latest choice wins once each answer is in.
   const [round, setRound] = React.useState(0)
   React.useEffect(() => {
-    if (!places) return
+    if (!places || !touched) return
     const ids = idsKey ? idsKey.split(",") : []
     const want = choice ?? ""
     const todo = ids.filter(
@@ -119,7 +129,7 @@ export function AreaLabelField({
       // A choice changed meanwhile: go round again.
       if (done) setRound((n) => n + 1)
     })
-  }, [places, choice, idsKey, round])
+  }, [places, touched, choice, idsKey, round])
 
   if (!offered) return null
   if (failed)
@@ -145,11 +155,32 @@ export function AreaLabelField({
         <OptionSelect
           options={options}
           value={choice}
-          onValueChange={(value) => setChoice(value)}
+          onValueChange={(value) => {
+            setTouched(true)
+            setMixed(false)
+            setChoice(value)
+          }}
           emptyLabel={AREA_COPY.none}
           placeholder={AREA_COPY.none}
         />
       </FormField>
+      {mixed ? (
+        <p className="text-meta text-ink-muted">{AREA_COPY.mixed}</p>
+      ) : null}
+      {status === "error" ? (
+        // S-3: the same choice again changes nothing, so retry explicitly.
+        <Button
+          variant="secondary"
+          size="sm"
+          className="w-fit"
+          onClick={() => {
+            setStatus("idle")
+            setRound((n) => n + 1)
+          }}
+        >
+          {AREA_COPY.retry}
+        </Button>
+      ) : null}
       <p className="text-meta text-ink-muted" aria-live="polite">
         {status === "saving" || (choice && waitingCount > 0)
           ? AREA_COPY.saving

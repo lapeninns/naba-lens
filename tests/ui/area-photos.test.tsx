@@ -2,7 +2,13 @@
 // G-9: venue-area photos on Review (Accept, "Ask for another photo" with a
 // required reason, no actions on the reviewer's own photo) and the staff
 // copy, which never says that any photo counts.
-import { cleanup, render, screen, within } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -115,6 +121,33 @@ const labelActions = vi.hoisted(() => ({
   setAreaLabelAction: vi.fn(),
 }))
 vi.mock("@/app/_labels/area-actions", () => labelActions)
+// A native select stands in for the Base UI one.
+vi.mock("@/components/nabalens/option-select", () => ({
+  OptionSelect: ({
+    options,
+    value,
+    emptyLabel,
+    onValueChange,
+  }: {
+    options: { id: string; name: string }[]
+    value: string | null
+    emptyLabel?: string
+    onValueChange: (value: string | null) => void
+  }) => (
+    <select
+      aria-label="Venue area"
+      value={value ?? ""}
+      onChange={(event) => onValueChange(event.currentTarget.value || null)}
+    >
+      <option value="">{emptyLabel}</option>
+      {options.map((o) => (
+        <option key={o.id} value={o.id}>
+          {o.name}
+        </option>
+      ))}
+    </select>
+  ),
+}))
 
 import { AreaLabelField } from "@/components/nabalens/area-photos/area-label-field"
 import { waitFor } from "@testing-library/react"
@@ -122,6 +155,17 @@ import { waitFor } from "@testing-library/react"
 const BAR = "33333333-3333-4333-8333-333333333333"
 const A = "44444444-4444-4444-8444-444444444444"
 const B = "55555555-5555-4555-8555-555555555555"
+const C = "66666666-6666-4666-8666-666666666666"
+const D = "77777777-7777-4777-8777-777777777777"
+const GARDEN = "88888888-8888-4888-8888-888888888888"
+const area = (assetId: string, subjectId: string, state: string) => ({
+  assetId,
+  labelId: `l-${assetId}`,
+  subjectId,
+  label: subjectId === BAR ? "Bar" : "Garden",
+  state,
+  reason: null,
+})
 
 describe("AreaLabelField", () => {
   it("offers nothing to an account that earns no month", async () => {
@@ -154,16 +198,7 @@ describe("AreaLabelField", () => {
       ok: true,
       offered: true,
       places: [{ subjectId: BAR, kind: "area", label: "Bar" }],
-      labels: [
-        {
-          assetId: A,
-          labelId: "l",
-          subjectId: BAR,
-          label: "Bar",
-          state: "pending",
-          reason: null,
-        },
-      ],
+      labels: [],
     })
     labelActions.setAreaLabelAction.mockResolvedValue({
       ok: true,
@@ -172,13 +207,85 @@ describe("AreaLabelField", () => {
     const { rerender } = render(
       <AreaLabelField assetIds={[A]} waitingCount={1} />
     )
-    expect(await screen.findByText(AREA_COPY.fieldLabel)).toBeTruthy()
+    const select = await screen.findByLabelText("Venue area")
     expect(labelActions.setAreaLabelAction).not.toHaveBeenCalled()
+    fireEvent.change(select, { target: { value: BAR } })
+    await waitFor(() =>
+      expect(labelActions.setAreaLabelAction).toHaveBeenCalledWith(A, BAR)
+    )
     rerender(<AreaLabelField assetIds={[A, B]} />)
     await waitFor(() =>
       expect(labelActions.setAreaLabelAction).toHaveBeenCalledWith(B, BAR)
     )
-    expect(labelActions.setAreaLabelAction).toHaveBeenCalledTimes(1)
+    expect(labelActions.setAreaLabelAction).toHaveBeenCalledTimes(2)
+    expect(await screen.findByText(AREA_COPY.saved)).toBeTruthy()
+  })
+
+  it("never changes any photo's area when a batch with different areas opens (B-1)", async () => {
+    labelActions.loadAreaLabelsAction.mockResolvedValue({
+      ok: true,
+      offered: true,
+      places: [
+        { subjectId: BAR, kind: "area", label: "Bar" },
+        { subjectId: GARDEN, kind: "area", label: "Garden" },
+      ],
+      labels: [
+        area(A, BAR, "pending"),
+        area(B, GARDEN, "accepted"),
+        // C has no area.
+      ],
+    })
+    const { rerender } = render(<AreaLabelField assetIds={[A, B, C]} />)
+    const select = (await screen.findByLabelText(
+      "Venue area"
+    )) as HTMLSelectElement
+    // Starts at No area with a note, never at the first photo's area.
+    expect(select.value).toBe("")
+    expect(screen.getByText(AREA_COPY.mixed)).toBeTruthy()
+    // More photos arriving, and time passing, still save nothing.
+    rerender(<AreaLabelField assetIds={[A, B, C, D]} />)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(labelActions.setAreaLabelAction).not.toHaveBeenCalled()
+  })
+
+  it("keeps a shared area selected without saving it again", async () => {
+    labelActions.loadAreaLabelsAction.mockResolvedValue({
+      ok: true,
+      offered: true,
+      places: [{ subjectId: BAR, kind: "area", label: "Bar" }],
+      labels: [area(A, BAR, "accepted"), area(B, BAR, "pending")],
+    })
+    render(<AreaLabelField assetIds={[A, B]} />)
+    const select = (await screen.findByLabelText(
+      "Venue area"
+    )) as HTMLSelectElement
+    expect(select.value).toBe(BAR)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(labelActions.setAreaLabelAction).not.toHaveBeenCalled()
+  })
+
+  it("Try again resends the same choice after a failed save (S-3)", async () => {
+    labelActions.loadAreaLabelsAction.mockResolvedValue({
+      ok: true,
+      offered: true,
+      places: [{ subjectId: BAR, kind: "area", label: "Bar" }],
+      labels: [],
+    })
+    labelActions.setAreaLabelAction
+      .mockResolvedValueOnce({ ok: false, code: "unavailable", message: "x" })
+      .mockResolvedValue({ ok: true, subjectId: BAR })
+    render(<AreaLabelField assetIds={[A]} />)
+    fireEvent.change(await screen.findByLabelText("Venue area"), {
+      target: { value: BAR },
+    })
+    const retry = await screen.findByRole("button", {
+      name: AREA_COPY.retry,
+    })
+    fireEvent.click(retry)
+    await waitFor(() =>
+      expect(labelActions.setAreaLabelAction).toHaveBeenCalledTimes(2)
+    )
+    expect(labelActions.setAreaLabelAction).toHaveBeenLastCalledWith(A, BAR)
     expect(await screen.findByText(AREA_COPY.saved)).toBeTruthy()
   })
 })

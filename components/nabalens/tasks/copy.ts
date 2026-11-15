@@ -281,8 +281,7 @@ export const SECTION_SEND_COPY = {
 
 /** Decision 19: the person's own photo work, as compact rows on Home. */
 export const OWN_WORK_COPY = {
-  labels: (n: number) =>
-    `${plural(n, "photo needs", "photos need")} a dish or drink label`,
+  labels: (n: number) => `${plural(n, "photo needs", "photos need")} a label`,
   labelAttention: (n: number) =>
     `${plural(n, "label save needs", "label saves need")} attention`,
   labelAction: "Label these",
@@ -306,6 +305,7 @@ export const RETAKE_COPY = {
     "This dish isn't on your venue's menu now, so a new photo can't be sent for it.",
   closed: "This is no longer open to you, so no new photo is needed.",
   laterFailed: "We couldn't set this aside. Try again.",
+  laterDone: "Set aside for later. It stays on Me.",
   meIntro:
     "A reviewer would like another photo. Take a new one and it goes to them for review.",
   listLabel: "Photos that need another photo",

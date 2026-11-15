@@ -164,6 +164,7 @@ export function GoalsHome({
         tasksPath={tasksPath}
         uploadBlocked={!canAdd}
         onLater={onLater}
+        focusAfterLaterId={OUR_MENU_HEADING_ID}
       />
 
       {/* Decision 19: my own photo work, as compact rows (never blue). */}

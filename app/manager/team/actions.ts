@@ -4,6 +4,7 @@ import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 import {
   setPersonTarget,
   setVenueDefaultTarget,
+  applyVenueDefaultForPerson,
 } from "@/lib/server/coverage/targets"
 
 // Server Functions of the manager team screen (G-6). Every input is
@@ -29,4 +30,11 @@ export async function setPersonTargetAction(input: unknown) {
   const scope = await getManagerPhotoCtx(venueOf(input))
   if (!scope.ok) return scope
   return setPersonTarget(scope.ctx, input)
+}
+
+/** `{ staffId, reason, expectedRevision }`: back to the venue default. */
+export async function backToVenueDefaultAction(input: unknown) {
+  const scope = await getManagerPhotoCtx(venueOf(input))
+  if (!scope.ok) return scope
+  return applyVenueDefaultForPerson(scope.ctx, input)
 }

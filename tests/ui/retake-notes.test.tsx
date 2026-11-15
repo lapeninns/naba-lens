@@ -88,7 +88,9 @@ describe("RetakeNotes on Home", () => {
     const { container } = render(
       <RetakeNotes surface="home" notes={NOTES.slice(2)} onLater={vi.fn()} />
     )
-    expect(container.innerHTML).toBe("")
+    // Only the empty polite status (for Later's announcement) is there.
+    expect(container.textContent).toBe("")
+    expect(screen.queryByRole("region")).toBeNull()
   })
 
   it("leads with the first note: Reshoot is the one primary action and opens the camera with the dish", () => {
@@ -147,6 +149,41 @@ describe("RetakeNotes on Home", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Bar set-up" })
     ).toBeTruthy()
+  })
+
+  it("Later moves focus to the given heading and says it was set aside (S-2)", async () => {
+    const onLater = vi.fn(async () => ({
+      ok: true as const,
+      setAsideAt: "2026-11-15T10:00:00Z",
+      replayed: false,
+    }))
+    render(
+      <>
+        <RetakeNotes
+          surface="home"
+          notes={NOTES.slice(0, 1)}
+          onLater={onLater}
+          focusAfterLaterId="next-heading"
+        />
+        <h2 id="next-heading" tabIndex={-1}>
+          Our menu
+        </h2>
+      </>
+    )
+    const later = screen.getByRole("button", {
+      name: "Later: Korma (Chicken)",
+    })
+    later.focus()
+    await act(async () => {
+      fireEvent.click(later)
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(0)))
+    })
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { name: "Our menu" })
+    )
+    expect(screen.getByRole("status").textContent).toBe(
+      "Set aside for later. It stays on Me."
+    )
   })
 
   it("brings the note back and says so when Later fails", async () => {

@@ -190,6 +190,62 @@ describe("TeamTargets", () => {
     })
   })
 
+  it("moves someone with their own number back to the venue default, with a reason", async () => {
+    const onUseDefault = vi.fn().mockResolvedValue({ ok: true, revision: 3 })
+    const user = userEvent.setup()
+    render(
+      <TeamTargets
+        view={view()}
+        onSetDefault={vi.fn()}
+        onSetPerson={vi.fn()}
+        onUseDefault={onUseDefault}
+      />
+    )
+    const row = (name: string) =>
+      within(rows().find((li) => within(li).queryByText(name))!)
+    // Zoe already takes the default: nothing to go back to.
+    await user.click(
+      screen.getByRole("button", { name: copy.change("Zoe Adams") })
+    )
+    expect(
+      row("Zoe Adams").queryByRole("button", { name: copy.useDefault })
+    ).toBeNull()
+    await user.click(
+      screen.getByRole("button", { name: copy.change("Amy Zed") })
+    )
+    await user.click(
+      row("Amy Zed").getByRole("button", { name: copy.useDefault })
+    )
+    expect(onUseDefault).not.toHaveBeenCalled()
+    expect(row("Amy Zed").getByText("Enter a reason.")).toBeTruthy()
+    await user.type(row("Amy Zed").getByLabelText(copy.reasonLabel), "Back")
+    await user.click(
+      row("Amy Zed").getByRole("button", { name: copy.useDefault })
+    )
+    expect(onUseDefault).toHaveBeenCalledWith({
+      staffId: AMY.person.id,
+      reason: "Back",
+      expectedRevision: 2,
+    })
+    expect(await screen.findByText(copy.defaultUsed("Amy Zed"))).toBeTruthy()
+  })
+
+  it("offers no way back when the venue has no default", async () => {
+    const user = userEvent.setup()
+    render(
+      <TeamTargets
+        view={view({ venueDefault: { targetCount: null, revision: null } })}
+        onSetDefault={vi.fn()}
+        onSetPerson={vi.fn()}
+        onUseDefault={vi.fn()}
+      />
+    )
+    await user.click(
+      screen.getByRole("button", { name: copy.change("Amy Zed") })
+    )
+    expect(screen.queryByRole("button", { name: copy.useDefault })).toBeNull()
+  })
+
   it("shows a refused save and re-reads after a conflict", async () => {
     const { user, onSetDefault } = setup()
     onSetDefault.mockResolvedValueOnce({

@@ -171,6 +171,28 @@ Taken while integrating G-1 to G-8 on `feat/goals-sprint`.
     v0.5 rule 25's "credit for photos that are not a menu item is not part
     of this amendment".
 
+### Release repair pass (15 Nov 2026)
+
+From the three release reviews of `636f8897`:
+
+- A fresh send to a menu section is refused unless it answers an open
+  request (`p_replaces_item_id`). The unassign-only call (an empty list)
+  still ends pre-cut-over section assignments; assigning is still refused.
+- A withdrawn area photo is final: the uploader cannot give it a new area
+  (`area_photo_withdrawn`); clearing it is allowed.
+- An uploader's live area label counts as a label: the photo leaves "needs
+  labels" (Home's labels row, the badge, Me, `my_label_work`). The row now
+  says "N photos need a label".
+- The area field saves only a choice the person made; a batch with different
+  areas starts at "No area".
+- Managers open area-photo images through `/api/area-photos/{id}/…`, checked
+  by `area_photo_asset` like menu review's route; `/api/media` is unchanged.
+- A manager can move a person back to the venue default
+  (`use_venue_default_target`, reason required); the rollover then stops at
+  that month and does not bring their old number back.
+- Every `20261116*` migration sets `lock_timeout = '5s'`, and the audit entity
+  check is added `not valid`, then validated.
+
 No decisions are open. G-10 waits for pilot counts.
 
 ## Order of work
@@ -260,9 +282,10 @@ What the review found for phase 2:
   that table bumps the revision that reviewers use for compare-and-set. The
   pinned order means dropping and recreating `menu_item_photo_items` and
   `manager_menu_photo_items`, with a wider cursor.
-- **G-8 knock-ons.** `submit_coverage_photos` refuses senders who are not
-  assigned, so removing assignees ends menu-section sending (consistent with
-  G-4 and decision 15). `views.ts` flags `no_assignees`, and that check and
+- **G-8 knock-ons.** Old assignee rows stay (decision 7), so
+  `submit_coverage_photos` itself refuses a fresh send to a menu section
+  (`menu_section_send_closed`); an answer to an open request still works
+  (consistent with G-4 and decision 15). `views.ts` flags `no_assignees`, and that check and
   needs-reassignment must skip `menu_section`.
   `set_coverage_requirement_assignees` must refuse `menu_section`, admins
   included. `overdue_count` must leave out `menu_section`. The roster's due

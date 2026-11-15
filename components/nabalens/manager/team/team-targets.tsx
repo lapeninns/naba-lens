@@ -23,6 +23,7 @@ import { Notice } from "@/components/nabalens/notice"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
+import { FieldError } from "@/components/ui/field"
 import type {
   CoverageResult,
   MonthlyProgress,
@@ -38,6 +39,12 @@ type DefaultInput = {
   reason?: string
   expectedRevision: number | null
 }
+
+type UseDefaultInput = {
+  staffId: string
+  reason: string
+  expectedRevision: number
+}
 type PersonInput = {
   staffId: string
   targetCount: number
@@ -52,14 +59,6 @@ function countError(value: string): string | null {
   return value === "" || !Number.isInteger(n) || n < 1 || n > 500
     ? "Enter a whole number from 1 to 500."
     : null
-}
-
-function FieldError({ id, children }: { id: string; children: string }) {
-  return (
-    <p id={id} className="text-meta font-bold text-warn-fg">
-      {children}
-    </p>
-  )
 }
 
 /** Runs a save; a thrown call (offline, session ended) becomes text. */
@@ -89,12 +88,15 @@ export function TeamTargets({
   view,
   onSetDefault,
   onSetPerson,
+  onUseDefault,
 }: {
   view: VenueTargetsView
   onSetDefault: (
     input: DefaultInput
   ) => Promise<CoverageResult<{ targetCount: number | null }>>
   onSetPerson: (input: PersonInput) => Promise<CoverageResult<object>>
+  /** Review c (5): move one person back to the venue default. */
+  onUseDefault?: (input: UseDefaultInput) => Promise<CoverageResult<object>>
 }) {
   const people = [...view.people].sort(rosterOrder)
   // The default's outcome outlives the card, which a fresh read remounts.
@@ -125,6 +127,11 @@ export function TeamTargets({
                   row={row}
                   locked={view.wholeVenue}
                   onSetPerson={onSetPerson}
+                  onUseDefault={
+                    view.venueDefault.targetCount != null
+                      ? onUseDefault
+                      : undefined
+                  }
                 />
               ))}
             </ul>
@@ -303,10 +310,13 @@ function PersonRow({
   row,
   locked,
   onSetPerson,
+  onUseDefault,
 }: {
   row: MonthlyProgress
   locked: boolean
   onSetPerson: (input: PersonInput) => Promise<CoverageResult<object>>
+  /** Set only when the venue has a default. */
+  onUseDefault?: (input: UseDefaultInput) => Promise<CoverageResult<object>>
 }) {
   const router = useRouter()
   const save = useSave()
@@ -323,6 +333,46 @@ function PersonRow({
   const [saving, setSaving] = React.useState(false)
   const reasonNeeded = targetReasonRequired(row, "current")
   const completion = !!row.completionProgress
+  // Only someone with their own number can go back to the default.
+  const canUseDefault =
+    !!onUseDefault &&
+    row.revision != null &&
+    row.targetCount != null &&
+    row.source !== "venue_default" &&
+    row.source !== "placeholder"
+
+  async function backToDefault() {
+    if (!onUseDefault || row.revision == null) return
+    if (!reason.trim()) {
+      setErrors({ reason: "Enter a reason." })
+      return
+    }
+    setErrors({})
+    setSaving(true)
+    const revision = row.revision
+    const result = await save(() =>
+      onUseDefault({
+        staffId: row.person.id,
+        reason: reason.trim(),
+        expectedRevision: revision,
+      })
+    )
+    setSaving(false)
+    if (result.ok) {
+      setEditing(false)
+      setFeedback({ tone: "positive", text: copy.defaultUsed(name) })
+      router.refresh()
+      return
+    }
+    if ("thrown" in result) {
+      setFeedback({ tone: "negative", text: result.thrown })
+      return
+    }
+    if (result.fieldErrors?.reason)
+      setErrors({ reason: result.fieldErrors.reason })
+    setFeedback({ tone: "negative", text: failureText(result) })
+    if (needsRefresh(result)) router.refresh()
+  }
 
   function start() {
     setValue(row.targetCount == null ? "" : String(row.targetCount))
@@ -455,6 +505,16 @@ function PersonRow({
             >
               {copy.cancel}
             </Button>
+            {canUseDefault ? (
+              <Button
+                type="button"
+                variant="quiet"
+                disabled={saving}
+                onClick={() => void backToDefault()}
+              >
+                {copy.useDefault}
+              </Button>
+            ) : null}
             <Button type="submit" variant="secondary" disabled={saving}>
               {saving ? copy.saving : copy.savePerson}
             </Button>

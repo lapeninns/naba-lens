@@ -5,6 +5,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { signIn, type Db } from "../support/identities"
 import {
   assignBeforeCutOver,
+  sendBeforeCutOver,
   legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
@@ -417,13 +418,12 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     // AC-04: the section completes on accepted photos alone; pending photos
     // do not count, and no photo carries a dish label.
     const starterPhotos = await seedImages(w.staffA, w.venue1, 2)
-    const sent = (await ok(
-      staffA.rpc("submit_coverage_photos", {
-        p_asset_ids: starterPhotos,
-        p_requirement_id: starters1.requirement_id,
-        p_client_request_key: key(),
-      })
-    )) as unknown as SubmitRow[]
+    // Sent before the cut-over (G-8 closes fresh section sends).
+    const sent = sendBeforeCutOver(
+      w.staffA.id,
+      starters1.requirement_id,
+      starterPhotos
+    ) as unknown as SubmitRow[]
     const starters = async () =>
       (await progressOf(manager, v1)).find(
         (r) => r.requirement_id === starters1.requirement_id
@@ -492,13 +492,11 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     })
 
     // D11 setup: one more photo waits for review on the v1 section.
-    const [waiting] = (await ok(
-      staffA.rpc("submit_coverage_photos", {
-        p_asset_ids: await seedImages(w.staffA, w.venue1, 1),
-        p_requirement_id: starters1.requirement_id,
-        p_client_request_key: key(),
-      })
-    )) as unknown as SubmitRow[]
+    const [waiting] = sendBeforeCutOver(
+      w.staffA.id,
+      starters1.requirement_id,
+      await seedImages(w.staffA, w.venue1, 1)
+    ) as unknown as SubmitRow[]
 
     // AC-11: a new menu version with the same section names has new section
     // ids; nothing is matched by name.

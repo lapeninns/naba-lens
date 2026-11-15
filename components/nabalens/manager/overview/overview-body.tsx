@@ -154,13 +154,9 @@ export function OverviewBody({
     <>
       {triage ?? <ConfirmRow count={confirmCount} />}
       <NeedsLabelsRow count={needsLabels} />
-      {/* Setup pending offers no action (the menu isn't there yet). */}
-      {overview.menuState !== "no_menu" ? (
-        <>
-          <SearchRow />
-          <TeamRow />
-        </>
-      ) : null}
+      {/* Search needs a menu; photo targets don't (review c, 6). */}
+      {overview.menuState !== "no_menu" ? <SearchRow /> : null}
+      <TeamRow />
     </>
   )
 
