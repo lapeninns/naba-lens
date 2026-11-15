@@ -32,9 +32,6 @@ import { CoverageNotice, type Notice as PageNotice } from "./coverage-notice"
 import {
   COVERAGE_LIMITS,
   failureText,
-  firstDayOfPeriod,
-  lastDayOfPeriod,
-  localDateLabel,
   monthName,
   needsRefresh,
   plural,
@@ -239,12 +236,10 @@ type Draft = {
   /** The row and revision the draft was started from. */
   base: string
   count: string
-  dueOn: string
   reason: string
-  dueOpen: boolean
 }
 
-type RowErrors = { count?: string; dueOn?: string; reason?: string }
+type RowErrors = { count?: string; reason?: string }
 
 function rowKey(row: MonthlyProgress) {
   return `${row.person.id}:${row.revision ?? "new"}`
@@ -254,20 +249,10 @@ function originalCount(row: MonthlyProgress) {
   return row.targetCount != null ? String(row.targetCount) : ""
 }
 
-function originalDue(row: MonthlyProgress, period: PeriodKey) {
-  return row.due?.dueOn ?? lastDayOfPeriod(period)
-}
-
-function isChanged(
-  row: MonthlyProgress,
-  draft: Draft | null,
-  period: PeriodKey
-) {
-  return (
-    !!draft &&
-    (draft.count !== originalCount(row) ||
-      draft.dueOn !== originalDue(row, period))
-  )
+// v0.5 rule 23: staff work has no due date. The roster shows none, and a
+// save keeps whatever date the target already holds (no history rewritten).
+function isChanged(row: MonthlyProgress, draft: Draft | null) {
+  return !!draft && draft.count !== originalCount(row)
 }
 
 type TeamRosterProps = {
@@ -370,7 +355,7 @@ function TeamRosterMonth({
   const canEditRow = (row: MonthlyProgress) =>
     inPlace && !row.completionProgress && (row.isCurrentMember || isAdmin)
   const changes = rows.filter(
-    (row) => canEditRow(row) && isChanged(row, draftFor(row), period.key)
+    (row) => canEditRow(row) && isChanged(row, draftFor(row))
   )
 
   function update(row: MonthlyProgress, patch: Partial<Draft>) {
@@ -382,9 +367,7 @@ function TeamRosterMonth({
           : {
               base: rowKey(row),
               count: originalCount(row),
-              dueOn: originalDue(row, period.key),
               reason: "",
-              dueOpen: false,
             }
       return { ...all, [row.person.id]: { ...base, ...patch } }
     })
@@ -408,10 +391,6 @@ function TeamRosterMonth({
     const found: RowErrors = {}
     const count = countError(draft.count)
     if (count) found.count = count
-    const min = firstDayOfPeriod(period.key)
-    const max = lastDayOfPeriod(period.key)
-    if (draft.dueOn && (draft.dueOn < min || draft.dueOn > max))
-      found.dueOn = `Choose a date in ${period.label}.`
     if (targetReasonRequired(row, timing) && !draft.reason.trim())
       found.reason = "Add a reason. It's saved with the change."
     else if (draft.reason.length > COVERAGE_LIMITS.reasonMax)
@@ -452,7 +431,7 @@ function TeamRosterMonth({
           staffId: row.person.id,
           period: period.key,
           targetCount: count,
-          dueOn: draft.dueOn || null,
+          dueOn: row.due?.dueOn ?? null,
           reason: reason || null,
           expectedRevision: row.revision,
         })
@@ -482,7 +461,6 @@ function TeamRosterMonth({
           setErrors({
             [row.person.id]: {
               count: fields.targetCount,
-              dueOn: fields.dueOn,
               reason: fields.reason,
             },
           })
@@ -523,7 +501,7 @@ function TeamRosterMonth({
     const name = row.person.displayName
     const draft = draftFor(row)
     const editable = canEditRow(row)
-    const changed = editable && isChanged(row, draft, period.key)
+    const changed = editable && isChanged(row, draft)
     const rowErrors = errors[id] ?? {}
     const count = draft?.count ?? originalCount(row)
     const shownTarget = changed
@@ -538,7 +516,6 @@ function TeamRosterMonth({
       : row.complete
     const source = targetSourceText(row, period.key, timing)
     const reasonId = `${ids}-${id}-reason`
-    const dueId = `${ids}-${id}-due`
     const countErrorId = `${ids}-${id}-count-error`
 
     let due: string
@@ -547,7 +524,7 @@ function TeamRosterMonth({
         ? "Progress before the move stays here."
         : "Photos sent before the move still count here."
     } else if (completion) {
-      due = missingTeam ? "An admin assigns the team." : (row.due?.label ?? "")
+      due = missingTeam ? "An admin assigns the team." : ""
     } else if (changed) {
       due =
         row.targetCount == null
@@ -568,7 +545,6 @@ function TeamRosterMonth({
       due = parts.join(" ")
     } else {
       due = [
-        row.due?.label ?? null,
         row.lateAcceptances > 0 ? `${row.lateAcceptances} accepted late` : null,
         row.evidenceRemoved > 0
           ? `${row.evidenceRemoved} credited, photo since removed`
@@ -579,7 +555,7 @@ function TeamRosterMonth({
     }
 
     // An unsaved target previews progress; it isn't a state yet, so no chip
-    // (Target met, Overdue) is drawn from it.
+    // (Target met) is drawn from it. No Overdue: the month has no due date.
     const chip = changed ? (
       <span className="text-meta text-ink-muted">
         {draft && unconfirmed[id] === draft
@@ -590,8 +566,6 @@ function TeamRosterMonth({
       <StatusChip state="needs_setup" />
     ) : met ? (
       <StatusChip state="target_met" />
-    ) : row.due?.overdue && timing !== "past" ? (
-      <StatusChip state="overdue" />
     ) : null
 
     let progress: React.ReactNode
@@ -673,18 +647,6 @@ function TeamRosterMonth({
             </p>
           ) : null}
           {due ? <p className="text-meta text-ink-muted">{due}</p> : null}
-          {editable && !draft?.dueOpen ? (
-            <Button
-              variant="link"
-              size="sm"
-              className="text-meta"
-              onClick={() => update(row, { dueOpen: true })}
-              disabled={saving}
-              aria-label={`Change due date for ${name}`}
-            >
-              Change due date
-            </Button>
-          ) : null}
           {correcting && !completion ? (
             <Button
               variant="secondary"
@@ -700,34 +662,6 @@ function TeamRosterMonth({
             </Button>
           ) : null}
         </div>
-        {editable && draft?.dueOpen ? (
-          <div className="col-span-full grid max-w-xs gap-1.5">
-            <label htmlFor={dueId} className={fieldLabel}>
-              Due date
-            </label>
-            <Input
-              id={dueId}
-              type="date"
-              min={firstDayOfPeriod(period.key)}
-              max={lastDayOfPeriod(period.key)}
-              value={draft.dueOn}
-              onChange={(e) => update(row, { dueOn: e.currentTarget.value })}
-              aria-invalid={!!rowErrors.dueOn || undefined}
-              aria-describedby={`${dueId}-hint`}
-              disabled={saving}
-              className={fieldInput}
-            />
-            {rowErrors.dueOn ? (
-              <FieldError id={`${dueId}-hint`}>{rowErrors.dueOn}</FieldError>
-            ) : (
-              <p id={`${dueId}-hint`} className={fieldHint}>
-                Defaults to {localDateLabel(lastDayOfPeriod(period.key))}. An
-                earlier date is for follow-up only; photos can still be sent all
-                month.
-              </p>
-            )}
-          </div>
-        ) : null}
         {needsReason ? (
           <div className="col-span-full grid gap-1.5">
             <label htmlFor={reasonId} className={fieldLabel}>
