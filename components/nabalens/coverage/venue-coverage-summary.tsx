@@ -37,9 +37,8 @@ function Tile({
       <Link
         href={href}
         className={cn(
-          "flex h-full min-h-11 flex-col gap-2 rounded-card bg-surface p-4 text-ink no-underline shadow-card transition-colors duration-(--duration-quick) outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid",
-          attention &&
-            "shadow-[var(--elevation-card),inset_4px_0_0_var(--warn-fg)]"
+          "flex h-full min-h-11 flex-col gap-2 rounded-card bg-surface p-4 text-ink no-underline shadow-card focus-ring transition-colors duration-quick outline-none hover:bg-surface-2",
+          attention && "shadow-card rail-start-warn"
         )}
       >
         <span className="flex items-center gap-2 text-meta font-semibold text-ink-muted">
@@ -48,10 +47,10 @@ function Tile({
         </span>
         <span
           className={cn(
-            "font-display text-ink",
+            "text-ink",
             textValue
-              ? "text-item-title"
-              : "text-section-title font-extrabold tabular-nums"
+              ? "font-display text-item-title"
+              : "type-section-title font-extrabold tabular-nums"
           )}
         >
           {value}
@@ -83,7 +82,7 @@ export function MenuChangedBanner({
   return (
     <p
       role="status"
-      className="flex items-start gap-2 rounded-card bg-warn-bg px-4 py-3 text-body text-ink shadow-[inset_4px_0_0_var(--warn-fg)]"
+      className="flex items-start gap-2 rounded-card bg-warn-bg px-4 py-3 text-body text-ink rail-start-warn"
     >
       <WarningIcon
         className="mt-0.5 size-5 shrink-0 text-warn-fg"
@@ -122,13 +121,10 @@ export function VenueCoverageSummary({
   return (
     <section
       aria-labelledby="coverage-summary-title"
-      className="grid min-w-0 gap-(--gutter)"
+      className="grid min-w-0 gap-gutter"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pt-2">
-        <h2
-          id="coverage-summary-title"
-          className="font-display text-section-title text-ink"
-        >
+        <h2 id="coverage-summary-title" className="type-section-title text-ink">
           Venue coverage
         </h2>
         {summary.complete ? (
@@ -141,7 +137,7 @@ export function VenueCoverageSummary({
         )}
       </div>
       <MenuChangedBanner state={summary.menuState} href={hrefs.menu} />
-      <ul className="grid gap-(--gutter) sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid gap-gutter sm:grid-cols-2 lg:grid-cols-3">
         <Tile
           href={hrefs.checklist}
           title="Checklist complete"

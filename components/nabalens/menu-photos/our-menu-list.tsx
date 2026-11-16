@@ -105,7 +105,7 @@ export function OurMenuList({
   }
 
   return (
-    <div className="grid gap-(--gutter)">
+    <div className="grid gap-gutter">
       {groupBySection(items).map((group) => {
         const total = totals.get(group.sectionId)
         const headingId = `our-menu-section-${group.sectionId}`
@@ -120,12 +120,12 @@ export function OurMenuList({
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 pt-3.5 pb-1 sm:px-4">
               <h2
                 id={headingId}
-                className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+                className="type-section-title [overflow-wrap:anywhere] text-ink"
               >
                 {group.name}
               </h2>
               {total ? (
-                <p className="font-mono text-meta-strong text-ink-muted tabular-nums">
+                <p className="font-mono text-meta font-semibold text-ink-muted tabular-nums">
                   {sectionCount(total.covered, total.eligible)}
                 </p>
               ) : null}

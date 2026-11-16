@@ -32,7 +32,7 @@ export function CoverageNotice({
       ref={ref}
       tabIndex={ref ? -1 : undefined}
       role="status"
-      className="rounded-card outline-none empty:hidden focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+      className="rounded-card focus-ring outline-none empty:hidden"
     >
       {notice ? (
         <NoticeBox

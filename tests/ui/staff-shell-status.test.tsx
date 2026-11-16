@@ -268,6 +268,7 @@ describe("staff pages", () => {
       "app/staff/people/page.tsx",
       "app/staff/profile/page.tsx",
       "app/staff/tasks/[requirementId]/page.tsx",
+      "app/staff/tasks/all/page.tsx",
       "app/staff/tasks/amenities/[checkId]/page.tsx",
       "app/staff/tasks/guide/page.tsx",
       "app/staff/tasks/month/page.tsx",
@@ -547,7 +548,11 @@ describe("staffShellStatus on the B02 Home", () => {
     // D13: only a dish still on the menu asks anything of me.
     coverage.listMyMenuPhotoDecisions.mockResolvedValue({
       ok: true,
-      states: [request("p1", true), request("p2", false), request("p3", undefined)],
+      states: [
+        request("p1", true),
+        request("p2", false),
+        request("p3", undefined),
+      ],
     })
   })
   afterEach(() => vi.stubEnv("NABALENS_HOME_LAYOUT", "b01"))

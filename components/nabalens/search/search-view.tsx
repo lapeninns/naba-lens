@@ -265,12 +265,7 @@ export function SearchView({
         title={SEARCH_COPY.emptyFiltered}
         description={<p>{widenHint(filters, mode)}</p>}
         action={
-          <Button
-            type="button"
-            variant="secondary"
-            size="touch"
-            onClick={clear}
-          >
+          <Button type="button" variant="secondary" onClick={clear}>
             {SEARCH_COPY.clearFilters}
           </Button>
         }
@@ -289,7 +284,7 @@ export function SearchView({
     )
 
   return (
-    <div className="grid min-w-0 gap-(--gutter) md:gap-4">
+    <div className="grid min-w-0 gap-gutter md:gap-4">
       <SearchFilters
         mode={mode}
         value={shown}
@@ -308,7 +303,7 @@ export function SearchView({
           id="search-results-heading"
           ref={headingRef}
           tabIndex={-1}
-          className="px-1 font-display text-section-title text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="px-1 font-display text-section-title text-ink focus-ring outline-none"
         >
           {SEARCH_COPY.resultsHeading}
         </h2>

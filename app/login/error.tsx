@@ -25,7 +25,7 @@ export default function LoginError({ retry }: { retry: () => void }) {
         <SignInHeading id="login-error-title" title="Sign-in couldn't load">
           Check your connection and try again. Nothing was sent.
         </SignInHeading>
-        <Button size="touch" className="w-full" onClick={() => retry()}>
+        <Button variant="primary" className="w-full" onClick={() => retry()}>
           <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
           Try again
         </Button>

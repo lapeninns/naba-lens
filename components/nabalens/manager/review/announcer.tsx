@@ -22,7 +22,7 @@ export function Announcer({
   ref?: React.Ref<HTMLDivElement>
 }) {
   return (
-    <div className="sticky top-2 z-20 empty:hidden">
+    <div className="sticky top-2 z-sticky empty:hidden">
       <CoverageNotice ref={ref} notice={announcement} onDismiss={onDismiss} />
     </div>
   )

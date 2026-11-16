@@ -24,8 +24,8 @@ export function TargetSetup({ monthly }: { monthly: MonthlyProgress }) {
       ) : null}
       {monthly.setupMissing.includes("team") ? (
         <p>
-          Your team (FOH or BOH) isn&apos;t set yet, so this month
-          can&apos;t be completed. Ask an admin to set it.
+          Your team (FOH or BOH) isn&apos;t set yet, so this month can&apos;t be
+          completed. Ask an admin to set it.
         </p>
       ) : null}
       <p className="text-meta text-ink-muted">
@@ -52,10 +52,8 @@ export function TargetProgress({ monthly }: { monthly: MonthlyProgress }) {
   return (
     <div className="grid gap-3">
       <p className="flex flex-wrap items-baseline gap-x-2">
-        <span className="font-display text-count text-ink tabular-nums">
-          {count}
-        </span>
-        <span className="font-display text-section-title text-ink-muted">
+        <span className="type-count text-ink tabular-nums">{count}</span>
+        <span className="type-section-title text-ink-muted">
           {" "}
           {hasTarget ? `of ${target} ${unit}` : unit}
         </span>
@@ -140,7 +138,7 @@ export function MonthlyProgressCard({
       >
         <Heading
           id={headingId}
-          className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+          className="type-section-title [overflow-wrap:anywhere] text-ink"
         >
           Your photos for {label}
         </Heading>
@@ -163,7 +161,7 @@ export function MonthlyProgressCard({
       <CardHead>
         <Heading
           id={headingId}
-          className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+          className="type-section-title [overflow-wrap:anywhere] text-ink"
         >
           {completion ? "Your target for" : "Your photos for"} {label}
         </Heading>
@@ -237,7 +235,6 @@ export function MonthlyProgressCard({
             href={addHref}
             className={buttonVariants({
               variant: "secondary",
-              size: "touch",
               className: "w-full sm:w-auto",
             })}
           >

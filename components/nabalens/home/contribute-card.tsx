@@ -44,7 +44,7 @@ export function ContributeCard({
       <div className="grid gap-1">
         <h2
           id="contribute-heading"
-          className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+          className="type-section-title [overflow-wrap:anywhere] text-ink"
         >
           {prompt}
         </h2>
@@ -69,7 +69,6 @@ export function ContributeCard({
               <Button
                 type="button"
                 variant="secondary"
-                size="touch"
                 onClick={() => openAdd({ entry: "question" })}
               >
                 <ChatCircleTextIcon data-icon="inline-start" aria-hidden />
@@ -81,7 +80,7 @@ export function ContributeCard({
           <Link
             href={fallbackHref}
             className={cn(
-              buttonVariants({ variant: "secondary", size: "touch" }),
+              buttonVariants({ variant: "secondary" }),
               "w-full sm:w-auto"
             )}
           >
@@ -91,7 +90,7 @@ export function ContributeCard({
       </div>
       <Link
         href={GUIDE_PATH}
-        className="inline-flex min-h-11 items-center self-start text-body font-semibold text-accent-text underline underline-offset-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+        className="inline-flex min-h-11 items-center self-start text-body font-semibold text-accent-text underline underline-offset-3 focus-ring outline-none"
       >
         How to photograph a dish
       </Link>

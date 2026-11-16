@@ -31,39 +31,33 @@ export function OldFactsSection({
 }) {
   return (
     <details className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card">
-      <summary className="min-h-11 cursor-pointer content-center rounded-control font-display text-section-title-touch text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:text-section-title">
+      <summary className="min-h-11 cursor-pointer content-center rounded-control font-display text-section-title text-ink focus-ring outline-none">
         {OLD_FACTS_COPY.title(items?.length ?? 0)}
       </summary>
-      <p className="text-body-touch text-ink md:text-body">
-        {OLD_FACTS_COPY.line}
-      </p>
+      <p className="text-body text-ink">{OLD_FACTS_COPY.line}</p>
       {items === null ? (
-        <p className="text-body-touch text-ink md:text-body">
-          {OLD_FACTS_COPY.failed}
-        </p>
+        <p className="text-body text-ink">{OLD_FACTS_COPY.failed}</p>
       ) : items.length === 0 ? (
-        <p className="text-body-touch text-ink md:text-body">
-          {OLD_FACTS_COPY.empty}
-        </p>
+        <p className="text-body text-ink">{OLD_FACTS_COPY.empty}</p>
       ) : (
         <ul className="grid gap-3">
           {items.map((item) => (
             <li
               key={item.legacyKey}
-              className="grid gap-1 rounded-control bg-well p-3"
+              className="grid gap-1 rounded-control bg-surface-2 p-3"
             >
-              <p className="text-label-touch [overflow-wrap:anywhere] text-ink md:text-label">
+              <p className="text-label [overflow-wrap:anywhere] text-ink">
                 {item.label || item.legacyKey}:{" "}
                 {OLD_FACTS_COPY.presence[item.presence]}
               </p>
               {item.facts ? (
-                <p className="text-body-touch [overflow-wrap:anywhere] whitespace-pre-line text-ink md:text-body">
+                <p className="text-body [overflow-wrap:anywhere] whitespace-pre-line text-ink">
                   <span className="font-semibold">{OLD_FACTS_COPY.facts}:</span>{" "}
                   {item.facts}
                 </p>
               ) : null}
               {item.policy ? (
-                <p className="text-body-touch [overflow-wrap:anywhere] whitespace-pre-line text-ink md:text-body">
+                <p className="text-body [overflow-wrap:anywhere] whitespace-pre-line text-ink">
                   <span className="font-semibold">
                     {OLD_FACTS_COPY.policy}:
                   </span>{" "}
@@ -71,7 +65,7 @@ export function OldFactsSection({
                 </p>
               ) : null}
               {item.savedAsConfirmedAt ? (
-                <p className="text-meta-touch text-ink-muted md:text-meta">
+                <p className="text-meta text-ink-muted">
                   {OLD_FACTS_COPY.confirmed(longDate(item.savedAsConfirmedAt))}
                 </p>
               ) : null}

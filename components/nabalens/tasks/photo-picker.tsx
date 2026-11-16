@@ -79,7 +79,7 @@ export function PhotoPicker({
                       "absolute top-2 right-2 grid size-7 place-items-center rounded-[6px] border-2",
                       isSelected
                         ? "border-select bg-select text-on-select"
-                        : "border-border-strong bg-surface"
+                        : "border-edge-strong bg-surface"
                     )}
                   >
                     {isSelected ? (
@@ -97,7 +97,7 @@ export function PhotoPicker({
                     if (!blocked) onToggle(photo.assetId)
                   }}
                   className={cn(
-                    "absolute inset-0 z-10 rounded-[inherit] outline-none focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid",
+                    "absolute inset-0 z-local rounded-[inherit] focus-ring-inset outline-none",
                     blocked ? "cursor-not-allowed" : "cursor-pointer"
                   )}
                 />

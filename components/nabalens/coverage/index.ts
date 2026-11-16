@@ -9,7 +9,7 @@ export {
   type ManageSection,
 } from "./manage-nav"
 export { PhotoProgress } from "./photo-progress"
-export { ReasonDialog, ReasonField, textareaClass } from "./reason-dialog"
+export { ReasonDialog, ReasonField } from "./reason-dialog"
 export { RequirementList } from "./requirement-list"
 export {
   CHECKLIST_KIND_ORDER,

@@ -239,12 +239,12 @@ describe("Menu list", () => {
     const nav = screen.getByRole("navigation", { name: "Show" })
     const links = within(nav).getAllByRole("link")
     expect(links.map((a) => a.textContent)).toEqual([
-      "All3",
-      "Still needs a photo1",
-      "Awaiting review1",
-      "Has a photo1",
-      "New photo waiting1",
-      "Needs a recheck1",
+      "All 3",
+      "Still needs a photo 1",
+      "Awaiting review 1",
+      "Has a photo 1",
+      "New photo waiting 1",
+      "Needs a recheck 1",
     ])
     expect(
       links.filter((a) => a.getAttribute("aria-current") === "page")

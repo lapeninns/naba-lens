@@ -6,10 +6,10 @@ import { PROFILE_COPY } from "../people"
 /** The profile's real layout: the profile card, the heading, the photo grid. */
 export default function ColleagueLoading() {
   return (
-    <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <SkeletonRegion
         label={PROFILE_COPY.loading}
-        className="flex flex-col gap-(--gutter)"
+        className="flex flex-col gap-gutter"
       >
         <div className="flex min-w-0 items-center gap-4 rounded-card bg-surface p-4 shadow-card">
           <Skeleton shape="av" className="size-21" />
@@ -27,7 +27,7 @@ export default function ColleagueLoading() {
         <div className="px-1 pt-2">
           <Skeleton className="h-7 w-[45%]" />
         </div>
-        <div className="grid grid-cols-3 gap-0.5 overflow-hidden rounded-card md:grid-cols-[repeat(auto-fill,minmax(var(--size-tile-min),1fr))] md:gap-1">
+        <div className="grid grid-cols-3 gap-0.5 overflow-hidden rounded-card md:grid-cols-tiles md:gap-1">
           {Array.from({ length: 9 }, (_, i) => (
             <Skeleton key={i} shape="tile" className="rounded-none" />
           ))}

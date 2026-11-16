@@ -4,7 +4,7 @@ import { adminVenueContext } from "@/app/staff/manage/_shared/context"
 import { AmenitiesScreen } from "@/app/staff/manage/_shared/screens/amenities"
 
 export const metadata: Metadata = {
-  title: "Amenities · Venue coverage · Naba-Lens",
+  title: "Amenities · Venue coverage",
 }
 
 /** Admins also enable Amenities for the venue. */

@@ -24,7 +24,7 @@ import { AccountTypePanel } from "./account-type-panel"
 import { AdminPortfolio } from "./admin-portfolio"
 import { StaffMonth } from "./staff-month"
 
-export const metadata: Metadata = { title: "Staff member · Naba-Lens" }
+export const metadata: Metadata = { title: "Staff member" }
 
 export default async function StaffPortfolioPage({
   params,
@@ -131,10 +131,7 @@ export default async function StaffPortfolioPage({
             aria-labelledby="photos-heading"
             className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
           >
-            <h2
-              id="photos-heading"
-              className="font-display text-section-title text-ink"
-            >
+            <h2 id="photos-heading" className="type-section-title text-ink">
               Photos
             </h2>
             {media.ok ? (

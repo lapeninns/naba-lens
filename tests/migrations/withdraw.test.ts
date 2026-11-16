@@ -120,7 +120,8 @@ describe("coverage access withdrawal", () => {
       {
         encoding: "utf8",
         input: `begin;\n${script}\nselect 'manager' = any(enum_range(null::public.app_role))
-          and position('v_role not in (''staff'', ''admin'')' in
+          -- B02c (20261110090145) lets manager accounts label their own uploads.
+          and position('v_role not in (''staff'', ''admin'', ''manager'')' in
             pg_get_functiondef('private.save_media_labels_as'::regproc)) > 0
           and position('private.save_media_labels_as(' in
             pg_get_functiondef('public.save_media_labels'::regproc)) > 0

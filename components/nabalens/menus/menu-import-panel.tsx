@@ -1,10 +1,10 @@
 "use client"
 
+import { Spinner } from "@/components/ui/spinner"
 import * as React from "react"
 import {
   FileTextIcon,
   PaperclipIcon,
-  SpinnerGapIcon,
   WarningCircleIcon,
   WarningIcon,
 } from "@phosphor-icons/react"
@@ -190,9 +190,7 @@ export function MenuImportPanel({
           <div
             className={cn(
               "flex items-center gap-3 rounded-card bg-surface-2 px-3 py-2",
-              file.rejection
-                ? "shadow-[inset_0_0_0_2px_var(--warn-fg)]"
-                : "shadow-[inset_0_0_0_1px_var(--border-strong)]"
+              file.rejection ? "edge-invalid" : "edge-strong"
             )}
           >
             <span className="flex size-11 shrink-0 items-center justify-center rounded-round bg-surface text-ink-muted">
@@ -205,10 +203,7 @@ export function MenuImportPanel({
               <span className="flex items-center gap-1.5 font-mono text-meta text-ink-muted tabular-nums">
                 {pending ? (
                   <>
-                    <SpinnerGapIcon
-                      aria-hidden
-                      className="size-5 motion-safe:animate-spin"
-                    />
+                    <Spinner />
                     Comparing…
                   </>
                 ) : (
@@ -228,7 +223,6 @@ export function MenuImportPanel({
         ) : (
           <Button
             variant="secondary"
-            size="touch"
             className="w-full md:w-fit"
             onClick={open}
             disabled={disabled || pending}
@@ -274,7 +268,7 @@ export function MenuImportPanel({
       ) : null}
 
       <details className="group rounded-card bg-surface-2">
-        <summary className="flex min-h-11 cursor-pointer items-center rounded-card px-4 text-label text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid">
+        <summary className="flex min-h-11 cursor-pointer items-center rounded-card px-4 text-label text-ink focus-ring outline-none">
           Supported formats
         </summary>
         <div className="grid gap-4 border-t border-line px-4 py-3 text-body">

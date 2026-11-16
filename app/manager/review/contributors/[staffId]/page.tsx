@@ -17,7 +17,7 @@ import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 
 import { failedRead } from "../../../load-overview"
 
-export const metadata = { title: "Contributor · Naba-Lens" }
+export const metadata = { title: "Contributor" }
 
 /** One contributor's photos at the manager's venue, with their status and tallies. */
 export default async function ManagerContributorPage({

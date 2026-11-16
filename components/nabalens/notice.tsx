@@ -18,19 +18,19 @@ export type NoticeTone =
 const TONE: Record<NoticeTone, { ground: string; icon: string }> = {
   plain: { ground: "bg-surface shadow-card", icon: "text-ink-muted" },
   info: {
-    ground: "bg-info-bg shadow-[inset_4px_0_0_var(--info-fg)]",
+    ground: "bg-info-bg rail-start-info",
     icon: "text-info-fg",
   },
   attention: {
-    ground: "bg-warn-bg shadow-[inset_4px_0_0_var(--warn-fg)]",
+    ground: "bg-warn-bg rail-start-warn",
     icon: "text-warn-fg",
   },
   negative: {
-    ground: "bg-warn-bg shadow-[inset_4px_0_0_var(--warn-fg)]",
+    ground: "bg-warn-bg rail-start-warn",
     icon: "text-warn-fg",
   },
   positive: {
-    ground: "bg-ok-bg shadow-[inset_4px_0_0_var(--ok-fg)]",
+    ground: "bg-ok-bg rail-start-ok",
     icon: "text-ok-fg",
   },
 }
@@ -87,13 +87,13 @@ export function Notice({
       data-tone={tone}
       role={resolvedRole === "none" ? undefined : resolvedRole}
       className={cn(
-        "@container rounded-card text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid",
+        "@container rounded-card text-ink focus-ring outline-none",
         TONE[tone].ground,
         className
       )}
       {...props}
     >
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2.5 py-3.5 pr-4 pl-5 text-body @max-[32.5rem]:grid-cols-[auto_minmax(0,1fr)]">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2.5 py-3.5 pr-4 pl-5 text-body @max-compact:grid-cols-[auto_minmax(0,1fr)]">
         <Icon
           aria-hidden
           className={cn("mt-0.5 size-6 shrink-0", TONE[tone].icon)}
@@ -103,7 +103,7 @@ export function Notice({
           {children ? <div className="min-w-0">{children}</div> : null}
         </div>
         {action ? (
-          <div className="flex flex-wrap gap-2 self-center @max-[32.5rem]:col-start-2 @max-[32.5rem]:self-start">
+          <div className="flex flex-wrap gap-2 self-center @max-compact:col-start-2 @max-compact:self-start">
             {action}
           </div>
         ) : null}

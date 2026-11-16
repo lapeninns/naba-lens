@@ -1,8 +1,8 @@
 import { WarningCircleIcon } from "@phosphor-icons/react"
 
 /** Labels and help text of the capture forms. */
-export const LABEL = "text-label-touch text-ink md:text-label"
-export const MUTED = "text-meta-touch text-ink-muted md:text-meta"
+export const LABEL = "text-label text-ink"
+export const MUTED = "text-meta text-ink-muted"
 
 /**
  * A field's error, read through the field's aria-describedby: a failed check
@@ -14,7 +14,7 @@ export function FieldMessage({ id, error }: { id: string; error?: string }) {
   return (
     <p
       id={id}
-      className="flex items-start gap-1.5 text-meta-touch font-semibold text-negative md:text-meta-strong"
+      className="flex items-start gap-1.5 text-meta font-semibold text-warn-fg"
     >
       <WarningCircleIcon aria-hidden className="mt-px size-4 shrink-0" />
       {error}

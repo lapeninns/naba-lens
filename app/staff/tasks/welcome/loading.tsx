@@ -7,15 +7,13 @@ export default function WelcomeLoading() {
     <div className="flex min-h-dvh w-full flex-col">
       <div className="border-b border-line bg-surface">
         <div className="mx-auto grid w-full max-w-xl gap-1 px-4 py-3">
-          <p className="font-display text-page-title-compact text-ink">
-            Naba-Lens
-          </p>
+          <p className="type-page-title text-ink">Naba-Lens</p>
           <Skeleton shape="line" className="w-48" />
         </div>
       </div>
       <SkeletonRegion
         label="Loading the welcome guide…"
-        className="mx-auto grid w-full max-w-xl gap-(--gutter) px-(--page-gutter) py-4 md:py-8"
+        className="mx-auto grid w-full max-w-xl gap-gutter px-page-gutter py-4 md:py-8"
       >
         <div className={card}>
           <Skeleton className="h-10 w-2/3" />

@@ -5,7 +5,7 @@ import { requireActiveAdmin } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
 
 export const metadata: Metadata = {
-  title: "Search photos and videos · Naba-Lens",
+  title: "Search photos and videos",
 }
 
 /**

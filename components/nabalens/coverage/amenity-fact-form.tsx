@@ -1,7 +1,9 @@
 "use client"
 
+import { OptionRow } from "@/components/ui/option-row"
+import { SegmentedControl } from "@/components/ui/segmented-control"
 import * as React from "react"
-import { CheckIcon, SpinnerGapIcon } from "@phosphor-icons/react"
+import { CheckIcon } from "@phosphor-icons/react"
 
 import { formatDate } from "@/components/nabalens/format"
 import { Notice } from "@/components/nabalens/notice"
@@ -108,47 +110,19 @@ function FactChoice({
   onChange: (value: AmenityPresence) => void
   disabled?: boolean
 }) {
-  const refs = React.useRef<(HTMLButtonElement | null)[]>([])
-
-  function onKeyDown(event: React.KeyboardEvent, index: number) {
-    const step =
-      event.key === "ArrowRight" || event.key === "ArrowDown"
-        ? 1
-        : event.key === "ArrowLeft" || event.key === "ArrowUp"
-          ? -1
-          : 0
-    if (step === 0) return
-    event.preventDefault()
-    const next = (index + step + PRESENCE_ORDER.length) % PRESENCE_ORDER.length
-    refs.current[next]?.focus()
-    onChange(PRESENCE_ORDER[next])
-  }
-
   return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="grid w-full grid-cols-2 gap-1 rounded-control bg-surface-2 p-1 md:grid-cols-3"
-    >
-      {PRESENCE_ORDER.map((option, i) => (
-        <button
-          key={option}
-          ref={(el) => {
-            refs.current[i] = el
-          }}
-          type="button"
-          role="radio"
-          aria-checked={value === option}
-          tabIndex={value === option ? 0 : -1}
-          disabled={disabled}
-          onClick={() => onChange(option)}
-          onKeyDown={(e) => onKeyDown(e, i)}
-          className="min-h-11 rounded-control px-2 py-1.5 text-center text-label leading-tight font-bold text-ink-muted transition-[background-color,color,box-shadow] duration-(--duration-quick) outline-none hover:bg-raised hover:text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed disabled:opacity-60 aria-checked:bg-surface aria-checked:text-ink aria-checked:shadow-[0_1px_2px_oklch(0.2_0.01_250/0.16),0_0_0_1.5px_var(--border-strong)]"
-        >
-          {labelFor(PRESENCE_LABEL, option)}
-        </button>
-      ))}
-    </div>
+    <SegmentedControl
+      label={label}
+      // Three long labels: one column on a phone.
+      stack="phone"
+      value={value}
+      onValueChange={onChange}
+      disabled={disabled}
+      options={PRESENCE_ORDER.map((option) => ({
+        value: option,
+        label: labelFor(PRESENCE_LABEL, option),
+      }))}
+    />
   )
 }
 
@@ -293,17 +267,13 @@ export function AmenityFactForm({
   const notice = action.notice
   const submit = (
     <Button
+      variant="primary"
       type="submit"
-      size="touch"
-      disabled={action.pending}
-      aria-busy={action.pending || undefined}
+      loading={action.pending}
+      loadingLabel="Saving…"
     >
-      {action.pending ? (
-        <SpinnerGapIcon aria-hidden className="animate-spin" />
-      ) : (
-        <CheckIcon aria-hidden />
-      )}
-      {action.pending ? "Saving…" : "Save facts"}
+      <CheckIcon aria-hidden />
+      Save facts
     </Button>
   )
 
@@ -371,7 +341,7 @@ export function AmenityFactForm({
               const reason = refused[photo.id]
               return (
                 <li key={photo.id}>
-                  <label className="grid cursor-pointer gap-1.5 rounded-control bg-surface-2 p-1.5 has-checked:bg-accent-soft has-checked:shadow-[inset_0_0_0_3px_var(--select)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus has-focus-visible:outline-solid">
+                  <label className="grid cursor-pointer gap-1.5 rounded-control bg-surface-2 p-1.5 focus-ring-within has-checked:bg-accent-soft has-checked:ring-selected">
                     <EvidenceThumb
                       src={photo.available ? photo.thumbnailUrl : null}
                     />
@@ -409,26 +379,18 @@ export function AmenityFactForm({
           ) : null}
         </fieldset>
       ) : null}
-      <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-control bg-surface-2 px-3 py-3 hover:bg-raised has-checked:bg-accent-soft has-disabled:cursor-not-allowed has-disabled:hover:bg-surface-2">
-        <input
-          type="checkbox"
-          checked={draft.confirm}
-          onChange={(e) => set("confirm", e.currentTarget.checked)}
-          disabled={action.pending || draft.presence === "unknown"}
-          aria-describedby={`${ids}-confirm-help`}
-          className="size-6 shrink-0 accent-select"
-        />
-        <span className="grid min-w-0 gap-0.5">
-          <span className="text-label text-ink">
-            I have checked this at the venue
-          </span>
-          <span id={`${ids}-confirm-help`} className="text-meta text-ink-muted">
-            {draft.presence === "unknown"
-              ? "Needs verification can't be checked. Choose Present or Not present first."
-              : "Records you as the person who checked it, with today’s date."}
-          </span>
-        </span>
-      </label>
+      <OptionRow
+        type="checkbox"
+        checked={draft.confirm}
+        onCheckedChange={(checked) => set("confirm", checked)}
+        disabled={action.pending || draft.presence === "unknown"}
+        label="I have checked this at the venue"
+        hint={
+          draft.presence === "unknown"
+            ? "Needs verification can't be checked. Choose Present or Not present first."
+            : "Records you as the person who checked it, with today’s date."
+        }
+      />
       <p className={MUTED}>{presenceNote(draft.presence, draft.confirm)}</p>
       <p className={MUTED}>
         A photo never proves a claim. Record what you have checked yourself.{" "}
@@ -439,7 +401,6 @@ export function AmenityFactForm({
           <Button
             type="button"
             variant="secondary"
-            size="touch"
             onClick={onCancel}
             disabled={action.pending}
           >

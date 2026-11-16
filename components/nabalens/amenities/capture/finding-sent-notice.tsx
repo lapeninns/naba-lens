@@ -71,7 +71,7 @@ export function FindingSentNotice({
       role="status"
       title={copy.title}
       action={
-        <Button variant="quiet" size="touch" onClick={dismiss}>
+        <Button variant="quiet" onClick={dismiss}>
           Dismiss
         </Button>
       }

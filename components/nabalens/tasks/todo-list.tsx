@@ -137,25 +137,17 @@ export type Tone = "warn" | "info"
 export function cardClass(primary: boolean, tone?: Tone) {
   return cn(
     "relative grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card",
-    primary &&
-      tone === "warn" &&
-      "pt-5 shadow-[var(--elevation-card),inset_0_4px_0_var(--warn-fg)]",
-    primary &&
-      tone === "info" &&
-      "pt-5 shadow-[var(--elevation-card),inset_0_4px_0_var(--info-fg)]",
-    !primary &&
-      tone === "warn" &&
-      "shadow-[var(--elevation-card),inset_4px_0_0_var(--warn-fg)]",
-    !primary &&
-      tone === "info" &&
-      "shadow-[var(--elevation-card),inset_4px_0_0_var(--info-fg)]"
+    primary && tone === "warn" && "pt-5 shadow-card rail-top-warn",
+    primary && tone === "info" && "pt-5 shadow-card rail-top-info",
+    !primary && tone === "warn" && "shadow-card rail-start-warn",
+    !primary && tone === "info" && "shadow-card rail-start-info"
   )
 }
 
 export function titleClass(primary: boolean) {
   return cn(
     "[overflow-wrap:anywhere] text-ink",
-    primary ? "font-display text-card-title" : "text-item-title"
+    primary ? "type-section-title" : "text-item-title"
   )
 }
 
@@ -185,7 +177,7 @@ export function TopRow({
 export function action(primary: boolean) {
   return buttonVariants({
     variant: primary ? "primary" : "secondary",
-    size: primary ? "lg" : "touch",
+    size: primary ? "lg" : "md",
     className: primary ? "w-full" : "w-full sm:w-auto sm:justify-self-start",
   })
 }
@@ -332,7 +324,7 @@ export function TaskCard({
 
 /**
  * Amenity checks as one card: the first check (a recheck when there is one)
- * is a tap away; the full list follows To do.
+ * is a tap away; the full list is in All tasks.
  */
 function AmenityCard({
   checks,
@@ -364,7 +356,7 @@ function AmenityCard({
       <p className="text-body text-ink-muted">
         Evidence: {EVIDENCE_RULE_LABEL[first.entry.evidenceRule]}
         {more > 0
-          ? ` · ${more} more ${more === 1 ? "check" : "checks"} below`
+          ? ` · ${more} more ${more === 1 ? "check" : "checks"} in All tasks`
           : null}
       </p>
       <Link
@@ -426,7 +418,7 @@ export function ReadFailed({
       action={
         <Link
           href={retryHref}
-          className={buttonVariants({ variant: "secondary", size: "touch" })}
+          className={buttonVariants({ variant: "secondary" })}
         >
           Try again
         </Link>
@@ -454,6 +446,31 @@ function hasAction(
 }
 
 /**
+ * New starters' way into the first-run screen (§5a "First photo"). It comes
+ * after every real job, so it leads only when nothing else has an action.
+ */
+/** The first-run card in To do; Home's next actions share it. */
+export function WelcomeCard({
+  href,
+  primary,
+}: {
+  href: string
+  primary: boolean
+}) {
+  return (
+    <li className={cardClass(primary, "info")}>
+      <h3 className={titleClass(primary)}>New to Naba-Lens?</h3>
+      <p className="text-body text-ink-muted">
+        A short welcome shows what to do first.
+      </p>
+      <Link href={href} className={action(primary)}>
+        Start here
+      </Link>
+    </li>
+  )
+}
+
+/**
  * The one thing to do next, first. The first card with an action leads: its
  * button is the page's primary action; the rest are secondary.
  */
@@ -465,6 +482,8 @@ export function TodoSection({
   portfolioPath,
   amenityError = false,
   reviewError = false,
+  welcomeHref = null,
+  allTasksHref = null,
 }: {
   items: TodoItem[]
   scope: CoverageScope
@@ -475,12 +494,17 @@ export function TodoSection({
   amenityError?: boolean
   /** A manager's photos to review couldn't be counted: To do may be incomplete. */
   reviewError?: boolean
+  /** The first-run screen for a new starter; null to leave it out. */
+  welcomeHref?: string | null
+  /** All tasks (`/staff/tasks/all`); null to leave the link out. */
+  allTasksHref?: string | null
 }) {
   const count = todoCount(items)
   const lead = items.findIndex((item) => hasAction(item, scope, profile))
+  const welcomeLeads = lead === -1
   return (
-    <section aria-labelledby={TODO_HEADING_ID} className="grid gap-(--gutter)">
-      <div className="px-1 pt-2">
+    <section aria-labelledby={TODO_HEADING_ID} className="grid gap-gutter">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 px-1 pt-2">
         <h2
           id={TODO_HEADING_ID}
           tabIndex={-1}
@@ -489,11 +513,19 @@ export function TodoSection({
           aria-label={
             count > 0 ? `To do, ${count} ${thingsToDo(count)}` : "To do"
           }
-          className="flex items-center gap-2 rounded-control font-display text-section-title text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="flex items-center gap-2 rounded-control type-section-title text-ink focus-ring outline-none"
         >
           To do
           <CountBadge count={count} label={thingsToDo(count)} />
         </h2>
+        {allTasksHref ? (
+          <Link
+            href={allTasksHref}
+            className="inline-flex min-h-11 items-center text-body font-semibold text-accent-text underline underline-offset-3 focus-ring outline-none"
+          >
+            All tasks
+          </Link>
+        ) : null}
       </div>
       {reviewError ? (
         <ReadFailed retryHref={tasksPath}>
@@ -505,16 +537,16 @@ export function TodoSection({
           {"We couldn't check your amenity checks."}
         </ReadFailed>
       ) : null}
-      {items.length === 0 ? (
+      {items.length === 0 && !welcomeHref ? (
         amenityError || reviewError ? null : (
           <div className="rounded-card bg-surface p-4 shadow-card">
-            <p className="font-display text-section-title text-ink">
+            <p className="type-section-title text-ink">
               Nothing to do right now.
             </p>
           </div>
         )
       ) : (
-        <ul className="grid gap-(--gutter)">
+        <ul className="grid gap-gutter">
           {items.map((item, index) => {
             const primary = index === lead
             switch (item.kind) {
@@ -577,6 +609,9 @@ export function TodoSection({
                 )
             }
           })}
+          {welcomeHref ? (
+            <WelcomeCard href={welcomeHref} primary={welcomeLeads} />
+          ) : null}
         </ul>
       )}
     </section>

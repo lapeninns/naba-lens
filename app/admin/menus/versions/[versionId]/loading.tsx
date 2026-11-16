@@ -12,13 +12,13 @@ const ROWS = [
 /** The sections beside the About this version card, as they will load. */
 export default function MenuVersionLoading() {
   return (
-    <div className="mx-auto w-full max-w-(--size-page) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <div className="mx-auto w-full max-w-page px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader title="Menu version" />
       <SkeletonRegion
         label="Loading the draft…"
-        className="grid items-start gap-(--gutter) lg:grid-cols-[minmax(0,1fr)_22rem]"
+        className="grid items-start gap-gutter lg:grid-cols-[minmax(0,1fr)_22rem]"
       >
-        <div className="grid gap-(--gutter)">
+        <div className="grid gap-gutter">
           {ROWS.map(([title, meta], index) => (
             <div
               key={index}

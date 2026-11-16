@@ -503,11 +503,17 @@ describe("labels (W4)", () => {
     // The staff member holding the venue's grant may decide it.
     const decided = await review(w.staffManager, mine, korma.itemId)
     expect(decided.error).toBeNull()
-    // Accepted menu photos are not credit inputs (credit comes from task
-    // sends only), so the manager account has no credit row.
+    // One review per photo (ORP-1, docs/plans/one-review-per-photo.md
+    // decision 1): an accepted photo its uploader labelled is a credit input,
+    // so the manager's own photo has one credit row. A manager account has no
+    // monthly target and no roster row, so the credit is shown nowhere.
     expect(
       count(`select count(*) from private.monthly_credit_items(private.current_london_month())
         where author_id = '${w.manager.id}'`)
+    ).toBe(1)
+    expect(
+      count(`select count(*) from private.completion_staff_venue_memberships
+        where staff_id = '${w.manager.id}'`)
     ).toBe(0)
   })
 

@@ -34,7 +34,7 @@ export function OurMenuCard({
   const browse = (
     <Link
       href={menuHref}
-      className="inline-flex min-h-11 w-fit items-center gap-1 rounded-control text-body font-bold text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+      className="inline-flex min-h-11 w-fit items-center gap-1 rounded-control text-body font-bold text-ink underline underline-offset-3 focus-ring outline-none"
     >
       Browse our menu
       <CaretRightIcon aria-hidden weight="bold" className="size-5" />
@@ -53,10 +53,7 @@ export function OurMenuCard({
           <ForkKnifeIcon />
         </span>
         <div className="grid min-w-0 gap-0.5">
-          <h2
-            id="our-menu-heading"
-            className="font-display text-section-title text-ink"
-          >
+          <h2 id="our-menu-heading" className="type-section-title text-ink">
             Our menu
           </h2>
           <p className="text-meta [overflow-wrap:anywhere] text-ink-muted">
@@ -80,6 +77,8 @@ export function OurMenuCard({
                 : 0
             }
             aria-label={`${progress.covered} of ${progress.total} menu items have an accepted photo`}
+            // Green: the bar counts accepted photos.
+            tone="ok"
           />
           {browse}
         </>

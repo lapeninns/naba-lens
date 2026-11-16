@@ -174,7 +174,7 @@ export function YourFindings({
               ? `${YOUR_FINDINGS_COPY.title}, ${asked} needs attention`
               : YOUR_FINDINGS_COPY.title
           }
-          className="flex items-center gap-2 rounded-control font-display text-section-title text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="flex items-center gap-2 rounded-control font-display text-section-title text-ink focus-ring outline-none"
         >
           {YOUR_FINDINGS_COPY.title}
           <CountBadge count={asked} label="needs attention" />
@@ -190,7 +190,6 @@ export function YourFindings({
               href={retryHref}
               className={buttonVariants({
                 variant: "secondary",
-                size: "touch",
               })}
             >
               Try again
@@ -204,7 +203,7 @@ export function YourFindings({
           <p className="text-body text-ink">{YOUR_FINDINGS_COPY.empty}</p>
           <Link
             href={homeHref}
-            className={buttonVariants({ variant: "secondary", size: "touch" })}
+            className={buttonVariants({ variant: "secondary" })}
           >
             {YOUR_FINDINGS_COPY.emptyAction}
           </Link>
@@ -270,7 +269,6 @@ export function YourFindings({
                   ref={retryRef}
                   type="button"
                   variant="secondary"
-                  size="touch"
                   onClick={() => void more()}
                 >
                   Try again
@@ -283,7 +281,6 @@ export function YourFindings({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               className="justify-self-start max-sm:w-full"
               aria-busy={status === "loading"}
               // aria-disabled keeps focus on it while loading (HM-06).
@@ -342,7 +339,7 @@ export function FindingRow({
         <h3
           id={id}
           tabIndex={-1}
-          className="min-w-0 rounded-control text-item-title [overflow-wrap:anywhere] text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="min-w-0 rounded-control text-item-title [overflow-wrap:anywhere] text-ink focus-ring outline-none"
         >
           {finding.question}
         </h3>
@@ -377,7 +374,6 @@ export function FindingRow({
           aria-label={`${action}: ${finding.question}`}
           className={buttonVariants({
             variant: action === "View" ? "quiet" : "secondary",
-            size: "touch",
             className: "justify-self-start max-sm:w-full",
           })}
         >
@@ -389,7 +385,6 @@ export function FindingRow({
           <Button
             type="button"
             variant="quiet"
-            size="touch"
             className="justify-self-start"
             aria-label={`Discard draft: ${finding.question}`}
             onClick={() => setConfirming(true)}

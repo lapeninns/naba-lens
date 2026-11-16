@@ -90,12 +90,11 @@ export function ReviewActions({
     <Button
       key={action}
       type="button"
-      size="touch"
       variant={
         index === 0 && PRIMARY.includes(action)
           ? "primary"
           : action === "withdraw"
-            ? "destructive"
+            ? "danger-quiet"
             : "secondary"
       }
       disabled={busy}
@@ -110,12 +109,11 @@ export function ReviewActions({
 
   return (
     <div className="grid gap-2">
-      <div className="flex flex-wrap gap-2 @max-[40rem]:*:flex-auto">
+      <div className="flex flex-wrap gap-2 @max-wide:*:flex-auto">
         {direct.map(button)}
         {hidden.length > 0 ? (
           <Button
             type="button"
-            size="touch"
             variant="quiet"
             aria-expanded={more}
             aria-controls={`${id}-more`}
@@ -135,7 +133,7 @@ export function ReviewActions({
         <div
           id={`${id}-more`}
           hidden={!more}
-          className="flex flex-wrap gap-2 @max-[40rem]:*:flex-auto"
+          className="flex flex-wrap gap-2 @max-wide:*:flex-auto"
         >
           {more ? hidden.map((a, i) => button(a, i + direct.length)) : null}
         </div>

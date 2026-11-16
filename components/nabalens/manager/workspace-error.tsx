@@ -75,7 +75,7 @@ export function ManagerWorkspaceError({
       ) : null}
       <h1
         tabIndex={-1}
-        className="font-display text-page-title [overflow-wrap:anywhere] text-ink outline-none"
+        className="type-page-title [overflow-wrap:anywhere] text-ink outline-none"
       >
         {title}
       </h1>

@@ -24,7 +24,6 @@ export default async function StaffMemberNotFound() {
               href="/admin/staff"
               className={buttonVariants({
                 variant: "secondary",
-                size: "touch",
               })}
             >
               Back to Staff

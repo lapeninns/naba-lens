@@ -32,6 +32,7 @@ certification or proof of publishing permission. See the
 | Filter/download originals, invite/manage/deactivate staff                 | [Admin guide](docs/usage-admin.md)                          |
 | Handle capture safety, failed uploads, cleanup, retention or a lost phone | [Operations](docs/operations.md)                            |
 | Check the release status, the pilot and what is still open                | [Release checklist](docs/release-checklist.md)              |
+| Change a screen, a component or a token                                   | [Design system](docs/design-system/README.md)               |
 
 ## Local development
 

@@ -21,7 +21,7 @@ export function ScopeLabel({
     <p
       data-slot="cr-scope-label"
       className={cn(
-        "flex items-start gap-2 font-mono text-meta-strong text-ink-muted tabular-nums [&_svg]:mt-px [&_svg]:size-[18px] [&_svg]:shrink-0",
+        "flex items-start gap-2 font-mono text-meta font-semibold text-ink-muted tabular-nums [&_svg]:mt-px [&_svg]:size-[18px] [&_svg]:shrink-0",
         className
       )}
     >

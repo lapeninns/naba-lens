@@ -1,16 +1,46 @@
 import * as React from "react"
 import { Input as InputPrimitive } from "@base-ui/react/input"
+
+import {
+  fieldControlVariants,
+  isAriaDisabled,
+  type FieldControlSize,
+} from "@/components/ui/field-control"
 import { cn } from "@/lib/utils"
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+type InputProps = Omit<React.ComponentProps<"input">, "size"> & {
+  /** sm 44px, md 56px (default), lg 60px. Replaces the native character-count `size`. */
+  size?: FieldControlSize
+}
+
+/*
+ * Text input (DESIGN.md §4 Field): the shared field recipe, at least 56px
+ * tall and full width. Put it in a FormField so it has a label, and so its
+ * hint and error are linked.
+ *
+ * Prefer `aria-disabled` to `disabled` (DESIGN.md §7): the field stays in the
+ * focus order, so the reason beside it can be reached. It is made read-only
+ * here, because `aria-disabled` alone does not stop typing.
+ */
+function Input({
+  className,
+  type,
+  size = "md",
+  readOnly,
+  "aria-disabled": ariaDisabled,
+  ...props
+}: InputProps) {
   return (
     <InputPrimitive
       type={type}
       data-slot="input"
+      data-size={size}
+      aria-disabled={ariaDisabled}
+      readOnly={readOnly || isAriaDisabled(ariaDisabled) || undefined}
       className={cn(
-        // Common Room field: 56px, 8px radius, grey fill, a 1px strong inset edge;
-        // invalid is a 2px warn edge and the error under it carries icon + words.
-        "h-14 w-full min-w-0 rounded-control border-0 bg-surface-2 px-4 py-2 text-[1.125rem] leading-snug text-ink shadow-[inset_0_0_0_1px_var(--border-strong)] transition-[box-shadow,background-color] outline-none file:mr-3 file:inline-flex file:h-9 file:rounded-control file:border-0 file:bg-surface file:px-3 file:text-label file:text-ink placeholder:text-ink-muted placeholder:opacity-100 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed disabled:text-ink-muted disabled:shadow-[inset_0_0_0_1px_var(--line)] aria-invalid:shadow-[inset_0_0_0_2px_var(--warn-fg)]",
+        fieldControlVariants({ size }),
+        // A file input's own button, drawn as a small grey control.
+        "file:mr-3 file:inline-flex file:h-9 file:rounded-control file:border-0 file:bg-surface file:px-3 file:text-label file:text-ink",
         className
       )}
       {...props}
@@ -19,3 +49,4 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
 }
 
 export { Input }
+export type { InputProps }

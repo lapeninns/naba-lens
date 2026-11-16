@@ -30,7 +30,9 @@ export const OUR_MENU_COPY = {
   search: "Search the menu",
   searchPlaceholder: "Dish or drink",
   find: "Search",
-  clear: "Clear search",
+  // Not "Clear search": that names the cross inside the search box, which
+  // only empties it. This link reloads the list without the search.
+  clear: "Stop searching",
   hasPhoto: "Has an accepted photo",
   recheck: "Being checked after a menu change",
   /** UP-25: the person's own photos of this dish still to be decided. */

@@ -7,7 +7,7 @@ export function SignOutButton({ className }: { className?: string }) {
   return (
     <form action="/auth/logout" method="post" className={className}>
       {/* The only way on from Account unavailable: the screen's one blue. */}
-      <Button type="submit" variant="primary" size="touch">
+      <Button type="submit" variant="primary">
         <SignOutIcon data-icon="inline-start" aria-hidden />
         Sign out
       </Button>

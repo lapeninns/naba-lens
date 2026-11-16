@@ -59,7 +59,7 @@ export function ProfileHeader({
       <div className="flex min-w-0 items-center gap-4">
         <ProfileAvatar name={displayName} src={avatarUrl} size="lg" />
         <div className="grid min-w-0 gap-1">
-          <Heading className="font-display text-card-title [overflow-wrap:anywhere] text-ink">
+          <Heading className="type-page-title [overflow-wrap:anywhere] text-ink">
             {displayName}
           </Heading>
           {role.length > 0 ? (
@@ -87,7 +87,10 @@ export function ProfileHeader({
         </div>
       </div>
       {actions ? (
-        <div className="flex flex-col-reverse gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end [&>*]:w-full md:[&>*]:w-auto">
+        // Callers pass grey first and blue last (DESIGN.md §4): stacked on
+        // phones blue is at the bottom, from md it is on the right, and the
+        // focus order matches both.
+        <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end [&>*]:w-full md:[&>*]:w-auto">
           {actions}
         </div>
       ) : null}

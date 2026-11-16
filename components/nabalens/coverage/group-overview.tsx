@@ -28,10 +28,7 @@ export function GroupCoverageTable({ rows }: { rows: GroupOverviewRow[] }) {
   return (
     <section aria-labelledby="group-coverage-title" className="grid gap-3">
       <div className="grid gap-1">
-        <h2
-          id="group-coverage-title"
-          className="font-display text-section-title text-ink"
-        >
+        <h2 id="group-coverage-title" className="type-section-title text-ink">
           Venue coverage
         </h2>
         <p className="max-w-prose text-meta text-ink-muted">
@@ -115,7 +112,7 @@ export function GroupParticipationTable({
       <div className="grid gap-1">
         <h2
           id="group-participation-title"
-          className="font-display text-section-title text-ink"
+          className="type-section-title text-ink"
         >
           Staff participation, {periodLabel}
         </h2>

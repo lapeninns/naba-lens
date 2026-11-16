@@ -10,16 +10,13 @@ const WIDTHS = ["58%", "44%", "66%", "50%"]
  */
 export default function OurMenuLoading() {
   return (
-    <div className="mx-auto flex w-full max-w-(--size-page) flex-col gap-(--gutter) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <div className="mx-auto flex w-full max-w-page flex-col gap-gutter px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader
         scope={OUR_MENU_COPY.title}
         title={OUR_MENU_COPY.title}
         className="pb-1 md:pb-1"
       />
-      <SkeletonRegion
-        label={OUR_MENU_COPY.loading}
-        className="grid gap-(--gutter)"
-      >
+      <SkeletonRegion label={OUR_MENU_COPY.loading} className="grid gap-gutter">
         <div className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
           <Skeleton shape="title" />
           <Skeleton className="h-3 w-full rounded-round" />

@@ -155,7 +155,15 @@ export type QueueCard = {
   itemRevision: number
   /** Other cards of the same item in this status set. */
   groupCount: number
+  /**
+   * What accepting this card's item also counts for (ORP-3b): the venue's
+   * current menu-section tasks holding the dish, and the uploader's month
+   * (`YYYY-MM-01`) when they labelled it themselves. Absent when unknown.
+   */
+  alsoCounts?: AlsoCounts
 }
+
+export type AlsoCounts = { tasks: string[]; month: string | null }
 
 export type ItemPhoto = {
   photoId: string

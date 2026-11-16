@@ -14,7 +14,7 @@ export default function ManagerMenuItemNotFound() {
       action={
         <Link
           href={managerHrefs.menu()}
-          className={buttonVariants({ variant: "secondary", size: "touch" })}
+          className={buttonVariants({ variant: "secondary" })}
         >
           <ArrowLeftIcon data-icon="inline-start" aria-hidden />
           {MANAGER_COPY.notFoundItem.back}

@@ -32,7 +32,7 @@ export function SectionHead({
 }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-      <h2 id={id} className="font-display text-section-title text-ink">
+      <h2 id={id} className="type-section-title text-ink">
         {title}
       </h2>
       {note ? (
@@ -117,11 +117,11 @@ function TallyItem({
   const active = tone !== "plain" && tone !== "positive" && value > 0
   const Icon = tone === "negative" ? ClockCountdownIcon : WarningIcon
   return (
-    <div className="grid content-start gap-1 rounded-card bg-surface px-4 py-3 shadow-[inset_0_0_0_1px_var(--line)]">
+    <div className="grid content-start gap-1 rounded-card bg-surface px-4 py-3 edge">
       <dt className="text-meta text-ink-muted">{label}</dt>
       <dd
         className={cn(
-          "flex items-baseline gap-1.5 font-display text-count text-ink tabular-nums",
+          "flex items-baseline gap-1.5 type-count text-ink tabular-nums",
           active && "text-warn-fg",
           tone === "positive" && "text-ok-fg"
         )}
@@ -155,7 +155,7 @@ export function Tallies({
   const setupVenues = rows.filter((r) => r.coverage.needsSetup > 0).length
   const withoutTarget = sum(rows, (r) => r.participation.staffWithoutTarget)
   return (
-    <div className="grid items-start gap-(--gutter) lg:grid-cols-2">
+    <div className="grid items-start gap-gutter lg:grid-cols-2">
       <section
         aria-labelledby="venue-coverage-title"
         className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
@@ -259,7 +259,7 @@ function Frames({
       </p>
       <div
         aria-hidden
-        className="h-2 overflow-hidden rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+        className="h-2 overflow-hidden rounded-round bg-surface-2 edge-strong"
       >
         <span
           className="block h-full rounded-round bg-ok-fg"
@@ -287,7 +287,7 @@ export function VenueList({ rows }: { rows: GroupOverviewRow[] }) {
           <li key={row.venue.id}>
             <Link
               href={venueHref(row.venue.id)}
-              className="grid min-h-16 gap-3 px-4 py-3.5 outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center md:gap-6"
+              className="grid min-h-16 gap-3 px-4 py-3.5 focus-ring-inset outline-none hover:bg-surface-2 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center md:gap-6"
             >
               <div className="grid min-w-0 gap-1.5">
                 <p className="flex items-center gap-2 text-item-title text-ink">

@@ -5,11 +5,12 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu"
 import { cn } from "@/lib/utils"
 import { CaretRightIcon, CheckIcon } from "@phosphor-icons/react"
 
-// Keyboard focus on an item: the project's focus outline, inset because the
-// popup scrolls (and so clips anything outside an item). The focus tint alone
-// is about 1.2:1 against the menu, below WCAG 1.4.11's 3:1.
-const ITEM_FOCUS =
-  "focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+import { OPTION_ITEM_FOCUS } from "@/components/ui/option-item"
+
+// Keyboard focus on an item comes from the shared option recipe, so a menu
+// item and a select option cannot drift apart. The old name is still
+// exported for the tests and callers that import it from here.
+const ITEM_FOCUS = OPTION_ITEM_FOCUS
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />
@@ -38,7 +39,7 @@ function DropdownMenuContent({
   return (
     <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
-        className="isolate z-50 outline-none"
+        className="isolate z-overlay outline-none"
         align={align}
         alignOffset={alignOffset}
         side={side}
@@ -47,7 +48,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            "z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-card bg-surface p-1 text-ink shadow-float duration-150 outline-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95",
+            "z-overlay max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-card bg-surface p-1 text-ink shadow-float duration-quick outline-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95",
             className
           )}
           {...props}
@@ -73,7 +74,7 @@ function DropdownMenuLabel({
       data-slot="dropdown-menu-label"
       data-inset={inset}
       className={cn(
-        "px-3 py-2 text-meta-strong text-ink-muted data-inset:pl-9",
+        "px-3 py-2 text-meta font-semibold text-ink-muted data-inset:pl-9",
         className
       )}
       {...props}
@@ -84,11 +85,12 @@ function DropdownMenuLabel({
 function DropdownMenuItem({
   className,
   inset,
-  variant = "default",
+  variant,
   ...props
 }: MenuPrimitive.Item.Props & {
   inset?: boolean
-  variant?: "default" | "destructive"
+  /** `danger` for an action that removes or ends something; leave out otherwise. */
+  variant?: "danger"
 }) {
   return (
     <MenuPrimitive.Item
@@ -96,7 +98,7 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/dropdown-menu-item relative flex min-h-11 cursor-default items-center gap-2.5 rounded-control px-3 py-2 text-body outline-hidden select-none focus:bg-surface-2 focus:text-ink not-data-[variant=destructive]:focus:**:text-ink data-inset:pl-9 data-[variant=destructive]:text-warn-fg data-[variant=destructive]:focus:bg-warn-bg data-[variant=destructive]:focus:text-warn-fg data-disabled:pointer-events-none data-disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5 data-[variant=destructive]:*:[svg]:text-warn-fg",
+        "group/dropdown-menu-item relative flex min-h-11 cursor-default items-center gap-2.5 rounded-control px-3 py-2 text-body outline-hidden select-none focus:bg-surface-2 focus:text-ink not-data-[variant=danger]:focus:**:text-ink data-inset:pl-9 data-[variant=danger]:text-warn-fg data-[variant=danger]:focus:bg-warn-bg data-[variant=danger]:focus:text-warn-fg data-disabled:pointer-events-none data-disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5 data-[variant=danger]:*:[svg]:text-warn-fg",
         ITEM_FOCUS,
         className
       )}
@@ -122,7 +124,7 @@ function DropdownMenuSubTrigger({
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
       className={cn(
-        "flex min-h-11 cursor-default items-center gap-2.5 rounded-control px-3 py-2 text-body outline-hidden select-none focus:bg-fill-hover focus:text-ink not-data-[variant=destructive]:focus:**:text-ink data-inset:pl-9 data-popup-open:bg-fill-hover data-popup-open:text-ink data-open:bg-fill-hover data-open:text-ink [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5",
+        "flex min-h-11 cursor-default items-center gap-2.5 rounded-control px-3 py-2 text-body outline-hidden select-none focus:bg-surface-2 focus:text-ink not-data-[variant=danger]:focus:**:text-ink data-inset:pl-9 data-popup-open:bg-surface-2 data-popup-open:text-ink data-open:bg-surface-2 data-open:text-ink [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5",
         ITEM_FOCUS,
         className
       )}
@@ -146,7 +148,7 @@ function DropdownMenuSubContent({
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
       className={cn(
-        "w-auto min-w-[96px] rounded-card bg-surface p-1 text-ink shadow-float duration-150 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+        "w-auto min-w-24 rounded-card bg-surface p-1 text-ink shadow-float duration-quick data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
         className
       )}
       align={align}
@@ -263,6 +265,7 @@ function DropdownMenuShortcut({
 }
 
 export {
+  ITEM_FOCUS,
   DropdownMenu,
   DropdownMenuPortal,
   DropdownMenuTrigger,

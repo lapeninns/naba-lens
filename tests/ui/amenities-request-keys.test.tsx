@@ -44,7 +44,8 @@ const ok = async () => ({ ok: true as const, revision: 5 })
 
 /** First call's reply is lost; the retry replays. */
 const lostThenReplayed = () =>
-  vi.fn<(input: { idempotencyKey: string }) => Promise<never>>()
+  vi
+    .fn<(input: { idempotencyKey: string }) => Promise<never>>()
     .mockImplementationOnce(lost)
     .mockImplementationOnce(replayed as never)
 
@@ -77,7 +78,9 @@ describe("MG-01: a retry after a lost reply replays", () => {
   it("assign", async () => {
     const user = userEvent.setup()
     const h = handlers({ assign: lostThenReplayed() })
-    render(<AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />)
+    render(
+      <AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />
+    )
     await user.click(screen.getByLabelText("Assignee"))
     await user.click((await screen.findAllByRole("option"))[1])
     await user.click(screen.getByRole("button", { name: UI_TEXT.assign }))
@@ -89,7 +92,9 @@ describe("MG-01: a retry after a lost reply replays", () => {
   it("unassign", async () => {
     const user = userEvent.setup()
     const h = handlers({ assign: lostThenReplayed() })
-    render(<AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />)
+    render(
+      <AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />
+    )
     await user.click(screen.getByRole("button", { name: UI_TEXT.unassign }))
     expect(await screen.findByText(NETWORK_ERROR)).toBeTruthy()
     await user.click(screen.getByRole("button", { name: UI_TEXT.unassign }))
@@ -99,7 +104,9 @@ describe("MG-01: a retry after a lost reply replays", () => {
   it("notes", async () => {
     const user = userEvent.setup()
     const h = handlers({ setNotes: lostThenReplayed() })
-    render(<AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />)
+    render(
+      <AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />
+    )
     await user.type(screen.getByLabelText(/Notes for this venue/), "Key at bar")
     await user.click(screen.getByRole("button", { name: "Save notes" }))
     expect(await screen.findByText(NETWORK_ERROR)).toBeTruthy()
@@ -110,7 +117,9 @@ describe("MG-01: a retry after a lost reply replays", () => {
   it("archive", async () => {
     const user = userEvent.setup()
     const h = handlers({ archive: lostThenReplayed() })
-    render(<AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />)
+    render(
+      <AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />
+    )
     await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
     expect(await screen.findByText(NETWORK_ERROR)).toBeTruthy()
     await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
@@ -142,14 +151,23 @@ describe("MG-01: a retry after a lost reply replays", () => {
   it("reopen, from its dialog", async () => {
     const user = userEvent.setup()
     const h = handlers({ reopen: lostThenReplayed() })
-    render(<AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />)
+    render(
+      <AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />
+    )
     await user.click(screen.getByRole("button", { name: UI_TEXT.reopen }))
     const dialog = await screen.findByRole("dialog")
     await user.click(within(dialog).getByRole("radio", { name: "Wrong area" }))
-    await user.click(within(dialog).getByRole("button", { name: UI_TEXT.reopen }))
+    await user.click(
+      within(dialog).getByRole("button", { name: UI_TEXT.reopen })
+    )
     expect(await within(dialog).findByText(NETWORK_ERROR)).toBeTruthy()
-    await user.click(within(dialog).getByRole("button", { name: UI_TEXT.reopen }))
-    await expectReplayed(h.reopen, "Reopened: staff will see it as Needs recheck.")
+    await user.click(
+      within(dialog).getByRole("button", { name: UI_TEXT.reopen })
+    )
+    await expectReplayed(
+      h.reopen,
+      "Reopened: staff will see it as Needs recheck."
+    )
     expect(screen.queryByRole("dialog")).toBeNull()
   })
 
@@ -307,16 +325,19 @@ describe("MG-08: Reopen keeps its draft on a conflict", () => {
     let dialog = await screen.findByRole("dialog")
     await user.click(within(dialog).getByRole("radio", { name: "Other" }))
     await user.type(within(dialog).getByLabelText(/Details/), "Sign moved")
-    await user.click(within(dialog).getByRole("button", { name: UI_TEXT.reopen }))
+    await user.click(
+      within(dialog).getByRole("button", { name: UI_TEXT.reopen })
+    )
     expect(await screen.findByText(CONFLICT_TEXT)).toBeTruthy()
     expect(screen.queryByRole("dialog")).toBeNull()
 
     await user.click(screen.getByRole("button", { name: UI_TEXT.reopen }))
     dialog = await screen.findByRole("dialog")
     expect(
-      (within(dialog).getByRole("radio", { name: "Other" }) as HTMLInputElement)
-        .checked
-    ).toBe(true)
+      within(dialog)
+        .getByRole("radio", { name: "Other" })
+        .getAttribute("aria-checked")
+    ).toBe("true")
     expect(
       (within(dialog).getByLabelText(/Details/) as HTMLTextAreaElement).value
     ).toBe("Sign moved")
@@ -330,24 +351,32 @@ describe("MG-09: notes drafts per check", () => {
   it("brings unsaved notes back after a reload, and forgets them once saved", async () => {
     const user = userEvent.setup()
     const h = handlers()
-    render(<AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />)
+    render(
+      <AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />
+    )
     await user.type(NOTES(), "Key at bar")
     cleanup()
 
-    render(<AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />)
+    render(
+      <AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />
+    )
     expect(NOTES().value).toBe("Key at bar")
     await user.click(screen.getByRole("button", { name: "Save notes" }))
     expect(await screen.findByText("Notes saved.")).toBeTruthy()
     cleanup()
 
-    render(<AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />)
+    render(
+      <AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />
+    )
     expect(NOTES().value).toBe(WIFI_CHECK.notes ?? "")
   })
 
   it("keeps each check's draft to that check", async () => {
     const user = userEvent.setup()
     const h = handlers()
-    render(<AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />)
+    render(
+      <AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />
+    )
     await user.type(NOTES(), "Wi-Fi note")
     cleanup()
     render(

@@ -74,7 +74,9 @@ describe("S12 photo viewer", () => {
     expect(onDelete).toHaveBeenCalledOnce()
   })
 
-  it("orders the admin actions with Download original first", () => {
+  // DOM order is the order seen: stacked on a phone the primary is at the
+  // bottom, side by side it is on the right (DESIGN.md §4).
+  it("orders the admin actions with Download original, the primary, last", () => {
     render(
       <MediaViewer
         item={{ ...photo, originalFilename: "IMG_2041.HEIC" }}
@@ -87,10 +89,10 @@ describe("S12 photo viewer", () => {
       />
     )
     expect(actionNames()).toEqual([
-      "Download original",
-      "Add labels",
-      "Open profile",
       "Delete",
+      "Open profile",
+      "Add labels",
+      "Download original",
     ])
   })
 

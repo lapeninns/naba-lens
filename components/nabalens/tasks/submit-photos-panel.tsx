@@ -2,11 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import {
-  ArrowClockwiseIcon,
-  PaperPlaneTiltIcon,
-  SpinnerGapIcon,
-} from "@phosphor-icons/react"
+import { ArrowClockwiseIcon, PaperPlaneTiltIcon } from "@phosphor-icons/react"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -475,9 +471,9 @@ export function SubmitPhotosPanel({
     list.photos.length > 0 && !list.photos.some((p) => p.eligible)
 
   return (
-    <div className="flex flex-col gap-(--gutter)">
+    <div className="flex flex-col gap-gutter">
       <Card className="gap-4">
-        <h2 className="font-display text-section-title [overflow-wrap:anywhere] text-ink">
+        <h2 className="type-section-title [overflow-wrap:anywhere] text-ink">
           {monthly || !taskTitle
             ? "Send photos"
             : `Send photos to ${taskTitle}`}
@@ -593,29 +589,21 @@ export function SubmitPhotosPanel({
             </p>
           ) : null}
           <Button
+            variant="primary"
             size="lg"
             onClick={() => void send()}
-            disabled={count === 0 || sending || !online}
-            aria-busy={sending}
+            disabled={count === 0 || !online}
+            loading={sending}
+            loadingLabel="Sending…"
             aria-describedby={!online && !sending ? offlineNoteId : undefined}
             className="w-full md:w-auto md:justify-self-start"
           >
-            {sending ? (
-              <SpinnerGapIcon
-                data-icon="inline-start"
-                className="motion-safe:animate-spin"
-                aria-hidden
-              />
-            ) : (
-              <PaperPlaneTiltIcon data-icon="inline-start" aria-hidden />
-            )}
-            {sending
-              ? "Sending…"
-              : replacesSubmissionId
-                ? "Send another photo"
-                : count === 0
-                  ? "Select photos to send"
-                  : `Send ${plural(count, "photo", "photos")}`}
+            <PaperPlaneTiltIcon data-icon="inline-start" aria-hidden />
+            {replacesSubmissionId
+              ? "Send another photo"
+              : count === 0
+                ? "Select photos to send"
+                : `Send ${plural(count, "photo", "photos")}`}
           </Button>
           {!online && !sending ? (
             <p id={offlineNoteId} className="text-meta text-ink-muted">
@@ -745,24 +733,19 @@ function OutcomeMessage({
   const { copy } = outcome
   const action =
     copy.action === "retry" ? (
-      <Button
-        variant="secondary"
-        size="touch"
-        onClick={onRetry}
-        disabled={retrying}
-      >
+      <Button variant="secondary" onClick={onRetry} disabled={retrying}>
         <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
         Try again
       </Button>
     ) : copy.action === "reload" ? (
-      <Button variant="secondary" size="touch" onClick={onReload}>
+      <Button variant="secondary" onClick={onReload}>
         <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
         Reload
       </Button>
     ) : copy.action === "sign_in" ? (
       <Link
         href={signInHref}
-        className={buttonVariants({ variant: "secondary", size: "touch" })}
+        className={buttonVariants({ variant: "secondary" })}
       >
         Sign in
       </Link>

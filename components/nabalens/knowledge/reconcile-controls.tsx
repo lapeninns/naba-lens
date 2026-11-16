@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { fieldControlVariants } from "@/components/ui/field-control"
 import {
   SOURCE_KINDS,
   type KnowledgeResult,
@@ -36,10 +37,10 @@ import {
   SOURCE_KIND_LABEL,
 } from "./reconcile-copy"
 
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
+// The shared field recipe on native controls (DESIGN.md §4 Field).
+const INPUT = `block ${fieldControlVariants()}`
 const ROW =
-  "flex min-h-11 cursor-pointer items-center gap-3 text-body-touch text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:text-body"
+  "flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink focus-ring-within"
 
 type Venue = { id: string; name: string }
 type Keyed<T> = (input: Record<string, unknown>) => Promise<KnowledgeResult<T>>
@@ -175,8 +176,8 @@ export function DeclareSourceForm({
       </div>
       <div>
         <Button
+          variant="primary"
           type="submit"
-          size="touch"
           disabled={pending}
           aria-busy={pending || undefined}
         >
@@ -203,12 +204,7 @@ export function RetireSourceControl({
   const scope = `source-retire:${sourceId}`
   return (
     <>
-      <Button
-        type="button"
-        variant="secondary"
-        size="touch"
-        onClick={() => setOpen(true)}
-      >
+      <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
         {COPY.retire}
       </Button>
       <ReasonDialog
@@ -262,12 +258,7 @@ export function MappingReviewControl({
   const scope = `mapping-review:${legacyFactId}`
   return (
     <>
-      <Button
-        type="button"
-        variant="secondary"
-        size="touch"
-        onClick={() => setOpen(true)}
-      >
+      <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
         {COPY.review}
       </Button>
       <ReasonDialog
@@ -341,7 +332,7 @@ export function MappingReviewControl({
               <input
                 type="radio"
                 name={`${id}-kind`}
-                className="size-5 shrink-0 accent-primary"
+                className="size-5 shrink-0 accent-accent"
                 checked={kind === k}
                 onChange={() => setKind(k)}
               />
@@ -431,7 +422,7 @@ export function StartDryRunForm({
             <input
               type="radio"
               name={`${id}-kind`}
-              className="size-5 shrink-0 accent-primary"
+              className="size-5 shrink-0 accent-accent"
               checked={kind === k}
               onChange={() => setKind(k)}
             />
@@ -461,8 +452,8 @@ export function StartDryRunForm({
       <div className="grid gap-2">
         <div>
           <Button
+            variant="primary"
             type="submit"
-            size="touch"
             disabled={pending}
             aria-busy={pending || undefined}
           >
@@ -536,17 +527,14 @@ export function ApplyRunControl({
     <div className="grid gap-2">
       <CoverageNotice notice={notice} onDismiss={() => setNotice(null)} />
       {notice?.tone === "error" && notice.text === COPY.lostApply ? (
-        <a
-          href={runsHref}
-          className="text-body-touch text-ink underline md:text-body"
-        >
+        <a href={runsHref} className="text-body text-ink underline">
           {COPY.runs}
         </a>
       ) : null}
       <div>
         <Button
+          variant="primary"
           type="button"
-          size="touch"
           disabled={pending || count === 0}
           onClick={() => setOpen(true)}
         >
@@ -566,15 +554,14 @@ export function ApplyRunControl({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               disabled={pending}
               onClick={() => setOpen(false)}
             >
               {COPY.cancel}
             </Button>
             <Button
+              variant="primary"
               type="button"
-              size="touch"
               disabled={pending}
               aria-busy={pending || undefined}
               onClick={() => void apply()}

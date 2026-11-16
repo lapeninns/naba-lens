@@ -7,7 +7,6 @@ import {
   ClockIcon,
   PlusIcon,
   ShieldCheckIcon,
-  SpinnerGapIcon,
   WarningIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
@@ -20,6 +19,7 @@ import {
 } from "@/components/nabalens/coverage"
 import { Notice } from "@/components/nabalens/notice"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { SegmentedControl } from "@/components/ui/segmented-control"
 import {
   PROGRESS_LABEL,
   UI_TEXT,
@@ -218,14 +218,10 @@ export function AmenitiesOverview({
             title={`Amenities aren't on for ${venue} yet`}
             action={
               <Button
-                size="touch"
+                variant="primary"
                 onClick={enable}
-                disabled={action.pending}
-                aria-busy={action.pending || undefined}
+                loading={action.pending}
               >
-                {action.pending ? (
-                  <SpinnerGapIcon aria-hidden className="animate-spin" />
-                ) : null}
                 {UI_TEXT.enable}
               </Button>
             }
@@ -324,7 +320,6 @@ export function AmenitiesOverview({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button
-          size="touch"
           variant="secondary"
           onClick={() => setPickerOpen(true)}
           disabled={!catalogue}
@@ -333,7 +328,7 @@ export function AmenitiesOverview({
           {UI_TEXT.addFromCatalogue}
         </Button>
         {!catalogue ? (
-          <p className="text-meta-touch text-ink-muted md:text-meta">
+          <p className="text-meta text-ink-muted">
             The catalogue couldn&apos;t be loaded. Reload the page to try again.
           </p>
         ) : null}
@@ -360,43 +355,32 @@ export function AmenitiesOverview({
           count={confirmCount}
         >
           {hasImports ? (
-            <fieldset className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
-              <legend className="sr-only">Show</legend>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
               <span
-                aria-hidden
-                className="text-label-touch text-ink md:text-label"
+                id="amenities-to-confirm-show"
+                className="text-label text-ink"
               >
                 Show:
               </span>
-              {(
-                [
-                  ["all", "All"],
-                  ["findings", "Findings"],
-                  ["imports", "Imports"],
-                ] as const
-              ).map(([value, label]) => (
-                <label
-                  key={value}
-                  className="flex min-h-11 cursor-pointer items-center gap-2 text-body-touch text-ink md:text-body"
-                >
-                  <input
-                    type="radio"
-                    name="amenities-to-confirm-show"
-                    className="size-5 shrink-0 accent-primary"
-                    checked={show === value}
-                    onChange={() => setShow(value)}
-                  />
-                  {label}
-                </label>
-              ))}
-            </fieldset>
+              <SegmentedControl<"all" | "findings" | "imports">
+                aria-labelledby="amenities-to-confirm-show"
+                width="fit"
+                value={show}
+                onValueChange={setShow}
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "findings", label: "Findings" },
+                  { value: "imports", label: "Imports" },
+                ]}
+              />
+            </div>
           ) : null}
           <ul className="grid min-w-0 divide-y divide-line">
             {[...confirmGroups].map(([checkId, rows]) => (
               <li key={checkId}>
                 <Link
                   href={`${hrefs.check(checkId)}#amenity-to-confirm`}
-                  className="grid min-h-16 min-w-0 gap-1 py-3 outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+                  className="grid min-h-16 min-w-0 gap-1 py-3 focus-ring-inset hover:bg-surface-2"
                 >
                   <span className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-item-title [overflow-wrap:anywhere] text-ink">
@@ -404,11 +388,11 @@ export function AmenitiesOverview({
                     </span>
                     <StatusChip state="awaiting_confirmation" />
                   </span>
-                  <span className="text-body-touch text-ink md:text-body">
+                  <span className="text-body text-ink">
                     {toConfirmLine(rows)}
                   </span>
                   {rows.length === 1 ? (
-                    <span className="text-meta-touch text-ink-muted md:text-meta">
+                    <span className="text-meta text-ink-muted">
                       {[
                         rows[0].answer
                           ? `Answer: ${KNOWLEDGE_ANSWER_LABEL[rows[0].answer]}`
@@ -422,7 +406,7 @@ export function AmenitiesOverview({
                     </span>
                   ) : null}
                   {rows.some((row) => row.disputes) ? (
-                    <span className="text-meta-touch text-ink-muted md:text-meta">
+                    <span className="text-meta text-ink-muted">
                       Readers are told it&apos;s being checked.
                     </span>
                   ) : null}
@@ -454,15 +438,15 @@ export function AmenitiesOverview({
                 >
                   <Link
                     href={hrefs.check(task.checkId)}
-                    className="grid min-h-11 min-w-0 gap-1 outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+                    className="grid min-h-11 min-w-0 gap-1 focus-ring-inset hover:bg-surface-2"
                   >
                     <span className="text-item-title [overflow-wrap:anywhere] text-ink">
                       {task.question}
                     </span>
-                    <span className="text-body-touch text-ink md:text-body">
+                    <span className="text-body text-ink">
                       {recheckCauseLine(task)}
                     </span>
-                    <span className="text-meta-touch text-ink-muted md:text-meta">
+                    <span className="text-meta text-ink-muted">
                       {[
                         VENUE_RECHECKS_COPY.due(task.dueAt),
                         assignee ?? VENUE_RECHECKS_COPY.notAssigned,
@@ -490,7 +474,7 @@ export function AmenitiesOverview({
       ) : null}
 
       {view.active.length === 0 ? (
-        <p className="text-body-touch text-ink-muted md:text-body">
+        <p className="text-body text-ink-muted">
           No active checks. Add questions from the catalogue, or restore an
           archived check.
         </p>
@@ -503,9 +487,7 @@ export function AmenitiesOverview({
             count={checks.length}
           >
             {checks.length === 0 ? (
-              <p className="text-body-touch text-ink-muted md:text-body-sm">
-                None.
-              </p>
+              <p className="text-body text-ink-muted">None.</p>
             ) : (
               <ul className="grid min-w-0">
                 {checks.map((check) => (
@@ -545,9 +527,7 @@ export function AmenitiesOverview({
         count={view.recentlyCompleted.length || undefined}
       >
         {view.recentlyCompleted.length === 0 ? (
-          <p className="text-body-touch text-ink-muted md:text-body-sm">
-            Nothing answered yet.
-          </p>
+          <p className="text-body text-ink-muted">Nothing answered yet.</p>
         ) : (
           <ul className="grid min-w-0">
             {view.recentlyCompleted.map((check) => (

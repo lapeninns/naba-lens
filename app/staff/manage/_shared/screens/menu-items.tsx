@@ -1,3 +1,4 @@
+import { FilterPill } from "@/components/ui/filter-pill"
 import Link from "next/link"
 import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
@@ -31,11 +32,6 @@ import {
 } from "../menu-items-controls"
 
 import { failed, param, type ManageSearch } from "./common"
-
-// Select pills (DESIGN.md §4 filters): grey, the current one accent-soft
-// with an accent-text edge.
-const SEGMENT =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-round bg-surface-2 px-3.5 py-1.5 text-center text-label leading-tight font-bold text-ink transition-[background-color,box-shadow] duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus aria-[current=page]:bg-accent-soft aria-[current=page]:shadow-[inset_0_0_0_1.5px_var(--accent-text)]"
 
 /** "12 of 40 menu items have an accepted photo · 3 photos to review, oldest waiting 2 days". */
 function figures(menu: OurMenuView, now: string) {
@@ -123,21 +119,13 @@ export async function MenuItemsScreen({
   const pending = menu.review?.pendingCandidates ?? 0
   const tabs = (
     <nav aria-label="Show" className="flex flex-wrap gap-2">
-      <Link
-        href={base}
-        aria-current={view === "queue" ? "page" : undefined}
-        className={SEGMENT}
-      >
+      <FilterPill href={base} selected={view === "queue"}>
         {ITEM_REVIEW_COPY.toReview}
         {pending ? <CountBadge count={pending} label="to review" /> : null}
-      </Link>
-      <Link
-        href={`${base}?view=items`}
-        aria-current={view === "items" ? "page" : undefined}
-        className={SEGMENT}
-      >
+      </FilterPill>
+      <FilterPill href={`${base}?view=items`} selected={view === "items"}>
         {ITEM_REVIEW_COPY.allDishes}
-      </Link>
+      </FilterPill>
     </nav>
   )
   const labelling = (

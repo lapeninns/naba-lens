@@ -263,7 +263,7 @@ export function OverviewBody({
         </Card>
       ) : null}
 
-      <div className="grid gap-(--gutter) md:grid-cols-2 md:gap-4">
+      <div className="grid gap-gutter md:grid-cols-2 md:gap-4">
         <CoverageSection
           id="venue-coverage"
           title="Venue coverage"

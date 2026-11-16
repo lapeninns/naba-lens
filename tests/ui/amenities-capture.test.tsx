@@ -357,8 +357,9 @@ describe("CaptureForm", () => {
       const second = setup({ newKey: () => "fresh-key" })
       await waitFor(() =>
         expect(
-          (screen.getByRole("radio", { name: "Yes" }) as HTMLInputElement)
-            .checked
+          screen
+            .getByRole("radio", { name: "Yes" })
+            .getAttribute("aria-checked") === "true"
         ).toBe(true)
       )
       expect((photoBox() as HTMLInputElement).checked).toBe(true)
@@ -554,7 +555,9 @@ describe("CaptureForm: whose draft, and which revision", () => {
       ).toHaveLength(1)
     )
     expect(
-      (screen.getByRole("radio", { name: "Yes" }) as HTMLInputElement).checked
+      screen
+        .getByRole("radio", { name: "Yes" })
+        .getAttribute("aria-checked") === "true"
     ).toBe(false)
     expect(loadDraft(CHECK_ID, "someone-else")).toBeNull()
   })
@@ -702,24 +705,24 @@ describe("CaptureForm: whose draft, and which revision", () => {
 describe("CaptureForm: Wi-Fi redaction tick follows the evidence", () => {
   const wifi = () => withRule("both", "guest_wifi")
   const tick = () =>
-    screen.getByRole("checkbox", {
-      name: UI_TEXT.redactionConfirm,
-    }) as HTMLInputElement
+    screen.getByRole("checkbox", { name: UI_TEXT.redactionConfirm })
+  // A Base UI checkbox: its state is in aria-checked.
+  const ticked = () => tick().getAttribute("aria-checked") === "true"
 
   it("clears the tick when a photo or video is added or removed", async () => {
     const { user } = setup({ summary: wifi() })
     await user.click(photoBox())
     await user.click(tick())
-    expect(tick().checked).toBe(true)
+    expect(ticked()).toBe(true)
     await user.click(videoBox())
-    expect(tick().checked).toBe(false)
+    expect(ticked()).toBe(false)
     await user.click(tick())
-    expect(tick().checked).toBe(true)
+    expect(ticked()).toBe(true)
     await user.click(videoBox())
-    expect(tick().checked).toBe(false)
+    expect(ticked()).toBe(false)
     // Putting the same evidence back doesn't bring an old tick back.
     await user.click(videoBox())
-    expect(tick().checked).toBe(false)
+    expect(ticked()).toBe(false)
   })
 
   it("keeps the tick across a reload only while the evidence is unchanged", async () => {
@@ -733,13 +736,13 @@ describe("CaptureForm: Wi-Fi redaction tick follows the evidence", () => {
     await waitFor(() =>
       expect((photoBox() as HTMLInputElement).checked).toBe(true)
     )
-    expect(tick().checked).toBe(true)
+    expect(ticked()).toBe(true)
     same.unmount()
 
     // The ticked photo is gone (deleted) and another is listed instead.
     setup({ summary: wifi(), assets: [VIDEO] })
     await waitFor(() => expect(loadDraft()?.assetIds).toEqual([PHOTO.assetId]))
-    expect(tick().checked).toBe(false)
+    expect(ticked()).toBe(false)
   })
 
   it("asks for the tick again when the check was reopened since", async () => {
@@ -755,7 +758,7 @@ describe("CaptureForm: Wi-Fi redaction tick follows the evidence", () => {
     await waitFor(() =>
       expect((photoBox() as HTMLInputElement).checked).toBe(true)
     )
-    expect(tick().checked).toBe(false)
+    expect(ticked()).toBe(false)
   })
 
   it("asks for the tick again on a sent draft from an older revision, and still replays its key", async () => {
@@ -777,7 +780,7 @@ describe("CaptureForm: Wi-Fi redaction tick follows the evidence", () => {
     await waitFor(() =>
       expect((photoBox() as HTMLInputElement).checked).toBe(true)
     )
-    expect(tick().checked).toBe(false)
+    expect(ticked()).toBe(false)
     await user.click(tick())
     await user.click(submitButton())
     expect(lastInput(submit)).toMatchObject({

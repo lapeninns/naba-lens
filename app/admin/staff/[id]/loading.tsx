@@ -11,7 +11,7 @@ const LINES = [
 /** One account in its real layout: the Photos card beside the Account card. */
 export default function StaffMemberLoading() {
   return (
-    <div className="mx-auto grid w-full max-w-(--size-page) gap-4 px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <div className="mx-auto grid w-full max-w-page gap-4 px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader
         venueScope
         scope="All venues"
@@ -20,7 +20,7 @@ export default function StaffMemberLoading() {
       />
       <SkeletonRegion
         label="Loading account…"
-        className="grid items-start gap-(--gutter) lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]"
+        className="grid items-start gap-gutter lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]"
       >
         <div className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
           <Skeleton shape="title" className="w-32" />

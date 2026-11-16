@@ -340,10 +340,7 @@ function NoteDialog({
             disabled={pending}
           />
           {error ? (
-            <p
-              role="alert"
-              className="text-meta-touch font-semibold text-negative md:text-meta-strong"
-            >
+            <p role="alert" className="text-meta font-semibold text-warn-fg">
               {error}
             </p>
           ) : null}
@@ -351,15 +348,14 @@ function NoteDialog({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               disabled={pending}
               onClick={() => onOpenChange(false)}
             >
               Cancel
             </Button>
             <Button
+              variant="primary"
               type="submit"
-              size="touch"
               disabled={pending}
               aria-busy={pending || undefined}
             >
@@ -495,7 +491,7 @@ export function DecisionPanel({
     const blocked = policyConfirmBlock(finding.policyMissing)
     return (
       <Button
-        size="touch"
+        variant="primary"
         disabled={decision.pending}
         aria-disabled={blocked ? true : undefined}
         aria-describedby={blocked ? `${cardId(finding)}-policy` : undefined}
@@ -512,14 +508,13 @@ export function DecisionPanel({
   const actionsFor = (finding: PendingFinding): React.ReactNode => {
     if (finding.mine && !permissions.canSelfConfirm)
       return (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
+        <p className="text-body text-ink-muted">
           {KNOWLEDGE_FAILURE_COPY.decision.selfNotPermitted}
         </p>
       )
     const detail = permissions.canRequestDetail ? (
       <Button
         variant="secondary"
-        size="touch"
         disabled={decision.pending}
         onClick={() => setAsk({ kind: "detail", finding })}
       >
@@ -531,13 +526,13 @@ export function DecisionPanel({
       return (
         <>
           {onReopen ? (
-            <Button variant="secondary" size="touch" onClick={onReopen}>
+            <Button variant="secondary" onClick={onReopen}>
               <ArrowCounterClockwiseIcon aria-hidden />
               Reopen
             </Button>
           ) : null}
           <Button
-            size="touch"
+            variant="primary"
             disabled={decision.pending}
             onClick={() => setAsk({ kind: "reaffirm", finding })}
           >
@@ -552,7 +547,6 @@ export function DecisionPanel({
           {permissions.canDecline ? (
             <Button
               variant="secondary"
-              size="touch"
               disabled={decision.pending}
               onClick={() => setAsk({ kind: "decline", finding })}
             >
@@ -567,7 +561,6 @@ export function DecisionPanel({
       const seen = (primary: boolean) => (
         <Button
           variant={primary ? "primary" : "secondary"}
-          size="touch"
           disabled={decision.pending}
           onClick={() => void decide(finding, "seen", "Marked as seen.")}
         >
@@ -584,7 +577,7 @@ export function DecisionPanel({
             {seen(false)}
             {permissions.canDecline ? (
               <Button
-                size="touch"
+                variant="primary"
                 disabled={decision.pending}
                 onClick={() => setAsk({ kind: "keep_single", finding })}
               >
@@ -605,7 +598,7 @@ export function DecisionPanel({
       completeHref && policyConfirmBlock(finding.policyMissing) ? (
         <Link
           href={completeHref(finding)}
-          className={buttonVariants({ variant: "secondary", size: "touch" })}
+          className={buttonVariants({ variant: "secondary" })}
         >
           <PencilSimpleIcon aria-hidden />
           {POLICY_COPY.completePolicy}
@@ -618,7 +611,6 @@ export function DecisionPanel({
       const dontUse = permissions.canDecline ? (
         <Button
           variant="secondary"
-          size="touch"
           disabled={decision.pending}
           onClick={() => setAsk({ kind: "decline", finding })}
         >
@@ -638,7 +630,7 @@ export function DecisionPanel({
           {stateHref ? (
             <Link
               href={stateHref}
-              className={buttonVariants({ variant: "quiet", size: "touch" })}
+              className={buttonVariants({ variant: "quiet" })}
             >
               {IMPORT_COPY.stateAnswer}
             </Link>
@@ -656,7 +648,6 @@ export function DecisionPanel({
           {permissions.canConfirm ? (
             <Button
               variant="secondary"
-              size="touch"
               disabled={decision.pending}
               aria-disabled={blocked ? true : undefined}
               aria-describedby={
@@ -680,7 +671,6 @@ export function DecisionPanel({
         {permissions.canDecline ? (
           <Button
             variant="secondary"
-            size="touch"
             disabled={decision.pending}
             onClick={() => setAsk({ kind: "decline", finding })}
           >
@@ -743,7 +733,6 @@ export function DecisionPanel({
           action={
             <Button
               variant="secondary"
-              size="touch"
               onClick={decision.lost.retry}
               disabled={decision.pending}
             >
@@ -755,13 +744,9 @@ export function DecisionPanel({
           {decision.lost.text}
         </Notice>
       ) : null}
-      {readers ? (
-        <p className="text-body-touch text-ink md:text-body">{readers}</p>
-      ) : null}
+      {readers ? <p className="text-body text-ink">{readers}</p> : null}
       {pending.some(isImport) ? (
-        <p className="text-meta-touch text-ink-muted md:text-meta">
-          {IMPORT_COPY.order}
-        </p>
+        <p className="text-meta text-ink-muted">{IMPORT_COPY.order}</p>
       ) : null}
       {conflict ? (
         <Notice tone="attention" role="note">
@@ -770,7 +755,7 @@ export function DecisionPanel({
         </Notice>
       ) : null}
       {pending.length === 0 ? (
-        <p className="text-body-touch text-ink-muted md:text-body">
+        <p className="text-body text-ink-muted">
           Nothing left to confirm on this question.
         </p>
       ) : null}
@@ -783,7 +768,6 @@ export function DecisionPanel({
         <div>
           <Button
             variant="secondary"
-            size="touch"
             disabled={decision.pending}
             onClick={() => setAsk({ kind: "keep_all" })}
           >
@@ -794,10 +778,7 @@ export function DecisionPanel({
       ) : null}
       {conflict && unknowns.length > 0 ? (
         <section aria-labelledby="also-recorded" className="grid gap-3">
-          <h3
-            id="also-recorded"
-            className="text-label-touch text-ink md:text-label"
-          >
+          <h3 id="also-recorded" className="text-label text-ink">
             Also recorded
           </h3>
           <ul className="grid gap-3">{unknowns.map(card)}</ul>
@@ -997,13 +978,13 @@ function Fact({
 }) {
   return (
     <div className="grid min-w-0 gap-0.5">
-      <dt className="text-meta-touch text-ink-muted md:text-meta">
+      <dt className="text-meta text-ink-muted">
         {term}
         {different ? (
           <span className="ml-1.5 font-semibold text-ink">Different</span>
         ) : null}
       </dt>
-      <dd className="text-body-touch break-words whitespace-pre-line text-ink md:text-body">
+      <dd className="text-body break-words whitespace-pre-line text-ink">
         {children}
       </dd>
     </div>
@@ -1101,23 +1082,23 @@ function FindingCard({
         </div>
         {isCurrent ? (
           finding.recordedAt ? (
-            <p className="text-meta-touch text-ink-muted md:text-meta">
+            <p className="text-meta text-ink-muted">
               Recorded {dateAndTime(finding.recordedAt)}
             </p>
           ) : null
         ) : finding.sentAt ? (
-          <p className="text-meta-touch text-ink-muted md:text-meta">
+          <p className="text-meta text-ink-muted">
             Sent {dateAndTime(finding.sentAt)}
           </p>
         ) : null}
         {finding.kind === "answer_unconfirmed" ? (
-          <p className="text-body-touch text-ink md:text-body">
+          <p className="text-body text-ink">
             This answer is recorded but not confirmed, so readers are told
             it&apos;s awaiting confirmation.
           </p>
         ) : null}
         {finding.kind === "evidence_removed" ? (
-          <p className="text-body-touch text-ink md:text-body">
+          <p className="text-body text-ink">
             {finding.removedEvidence === 0
               ? "Evidence attached to this answer was deleted."
               : finding.removedEvidence === 1
@@ -1127,10 +1108,8 @@ function FindingCard({
           </p>
         ) : null}
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="grid content-start gap-3 rounded-control bg-well p-3">
-            <h4 className="text-label-touch text-ink md:text-label">
-              In use now
-            </h4>
+          <div className="grid content-start gap-3 rounded-control bg-surface-2 p-3">
+            <h4 className="text-label text-ink">In use now</h4>
             <dl className="grid gap-3">
               <Fact term="Answer">
                 {answer.value ? ANSWER_LABEL[answer.value] : "None"}
@@ -1147,10 +1126,8 @@ function FindingCard({
             </dl>
           </div>
           {isCurrent ? null : (
-            <div className="grid content-start gap-3 rounded-control bg-well p-3">
-              <h4 className="text-label-touch text-ink md:text-label">
-                This finding
-              </h4>
+            <div className="grid content-start gap-3 rounded-control bg-surface-2 p-3">
+              <h4 className="text-label text-ink">This finding</h4>
               <dl className="grid gap-3">
                 <Fact term="Answer" different={differs}>
                   {KNOWLEDGE_ANSWER_LABEL[finding.answer]}
@@ -1210,7 +1187,7 @@ function FindingCard({
           </ul>
         ) : null}
         {finding.detailRequest ? (
-          <p className="text-body-touch text-ink-muted md:text-body-sm">
+          <p className="text-body text-ink-muted">
             {finding.detailRequest.at
               ? `You asked for more detail on ${longDate(finding.detailRequest.at)}`
               : "You asked for more detail"}
@@ -1220,26 +1197,17 @@ function FindingCard({
           </p>
         ) : null}
         {finding.policyMissing && finding.evidence.length && !isCurrent ? (
-          <p className="text-body-touch text-ink md:text-body">
+          <p className="text-body text-ink">
             {policyPhotoLine(firstName(finding.sender))}
           </p>
         ) : null}
         {isImport(finding) ? (
-          <p className="text-body-touch text-ink md:text-body">
-            {IMPORT_COPY.never}
-          </p>
+          <p className="text-body text-ink">{IMPORT_COPY.never}</p>
         ) : null}
-        {importNote ? (
-          <p className="text-body-touch text-ink md:text-body">{importNote}</p>
-        ) : null}
-        {note ? (
-          <p className="text-body-touch text-ink md:text-body">{note}</p>
-        ) : null}
+        {importNote ? <p className="text-body text-ink">{importNote}</p> : null}
+        {note ? <p className="text-body text-ink">{note}</p> : null}
         {policyBlock ? (
-          <p
-            id={`${titleId}-policy`}
-            className="text-body-touch text-ink md:text-body"
-          >
+          <p id={`${titleId}-policy`} className="text-body text-ink">
             {policyBlock}
           </p>
         ) : null}

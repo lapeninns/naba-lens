@@ -130,8 +130,7 @@ export function FirstRun({
     })
 
   const card = "grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
-  const sectionTitle =
-    "font-display text-section-title [overflow-wrap:anywhere] text-ink"
+  const sectionTitle = "type-section-title [overflow-wrap:anywhere] text-ink"
 
   const milestones = (
     <ol
@@ -159,7 +158,7 @@ export function FirstRun({
   )
 
   const middle = uploadBlocked ? (
-    <section aria-labelledby="blocked-heading" className="grid gap-(--gutter)">
+    <section aria-labelledby="blocked-heading" className="grid gap-gutter">
       <h2 id="blocked-heading" className={cn(sectionTitle, "px-1 pt-2")}>
         Photos can&apos;t be added yet
       </h2>
@@ -235,15 +234,13 @@ export function FirstRun({
           {back ? (
             <Link
               href={back.href}
-              className="-ml-1 inline-flex min-h-11 w-fit items-center gap-1 rounded-control px-1 text-meta font-bold text-ink outline-none hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+              className="-ml-1 inline-flex min-h-11 w-fit items-center gap-1 rounded-control px-1 text-meta font-bold text-ink focus-ring outline-none hover:underline"
             >
               <CaretLeftIcon aria-hidden weight="bold" className="size-5" />
               {back.label}
             </Link>
           ) : null}
-          <p className="font-display text-page-title-compact text-ink">
-            Naba-Lens
-          </p>
+          <p className="type-page-title text-ink">Naba-Lens</p>
           <p className="flex flex-wrap items-center gap-x-1.5 text-meta text-ink-muted">
             {venueName ? (
               <MapPinIcon aria-hidden className="size-[18px] shrink-0" />
@@ -259,11 +256,11 @@ export function FirstRun({
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-xl gap-(--gutter) px-(--page-gutter) py-4 md:py-8">
+      <main className="mx-auto grid w-full max-w-xl gap-gutter px-page-gutter py-4 md:py-8">
         <section aria-labelledby="welcome-heading" className={card}>
           <h1
             id="welcome-heading"
-            className="font-display text-display [overflow-wrap:anywhere] text-ink"
+            className="type-display [overflow-wrap:anywhere] text-ink"
           >
             Welcome, {firstName}
           </h1>
@@ -311,7 +308,7 @@ export function FirstRun({
             </Link>
             <Link
               href={profileHref}
-              className="inline-flex min-h-11 items-center rounded-control text-body font-bold text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+              className="inline-flex min-h-11 items-center rounded-control text-body font-bold text-ink underline underline-offset-3 focus-ring outline-none"
             >
               {hasAvatar ? "Change profile photo" : "Add a profile photo"}{" "}
               (optional)
@@ -327,7 +324,10 @@ export function FirstRun({
           ) : (
             <Link
               href={photoHref}
-              className={cn(buttonVariants({ size: "lg" }), "w-full")}
+              className={cn(
+                buttonVariants({ variant: "primary", size: "lg" }),
+                "w-full"
+              )}
             >
               Add your first photo
             </Link>
@@ -335,7 +335,6 @@ export function FirstRun({
           <Button
             type="button"
             variant="quiet"
-            size="touch"
             className="w-full"
             disabled={skipping}
             onClick={skip}

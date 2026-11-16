@@ -2,11 +2,11 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { XIcon } from "@phosphor-icons/react"
 
 import { OptionSelect } from "@/components/nabalens/option-select"
 import type { Option } from "@/components/nabalens/types"
 import type { QueueStatus } from "@/lib/server/menu-photos/types"
+import { FilterPill } from "@/components/ui/filter-pill"
 
 import { reviewHref, type ReviewScope, type ReviewView } from "./links"
 import {
@@ -14,15 +14,6 @@ import {
   REVIEW_STATUS_LABEL,
   REVIEW_STATUS_ORDER,
 } from "./review-copy"
-
-// Select pills (DESIGN.md §4 filters): grey, the current one accent-soft
-// with an accent-text edge.
-const SEGMENT =
-  "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-round bg-surface-2 px-3.5 py-1.5 text-center text-label leading-tight font-bold whitespace-nowrap text-ink transition-[background-color,box-shadow] duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus aria-pressed:bg-accent-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--accent-text)]"
-
-// The one-item filter is on, so it reads as a current pill with a remove mark.
-const CHIP =
-  "inline-flex min-h-11 items-center gap-2 rounded-round bg-accent-soft px-3.5 py-1.5 text-label leading-tight font-bold [overflow-wrap:anywhere] text-ink shadow-[inset_0_0_0_1.5px_var(--accent-text)] transition-colors duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus"
 
 /**
  * Review filters: status, section and contributor, plus a removable chip
@@ -81,24 +72,18 @@ export function ReviewFilters({
       aria-label={REVIEW_COPY.filtersLabel}
       className="grid gap-3"
     >
-      <div
-        role="group"
-        aria-label={REVIEW_COPY.statusLabel}
-        className="py-1"
-      >
+      <div role="group" aria-label={REVIEW_COPY.statusLabel} className="py-1">
         {/* Wraps rather than scrolls: at 320px a scrolled row hides the last
             pills with no cue. */}
         <div className="flex flex-wrap gap-2">
           {statuses.map((status) => (
-            <button
+            <FilterPill
               key={status}
-              type="button"
-              aria-pressed={shown.status === status}
-              className={SEGMENT}
+              selected={shown.status === status}
               onClick={() => go({ status })}
             >
               {REVIEW_STATUS_LABEL[status]}
-            </button>
+            </FilterPill>
           ))}
         </div>
       </div>
@@ -134,17 +119,15 @@ export function ReviewFilters({
       </div>
       {shown.itemId ? (
         <div>
-          <button
-            type="button"
-            className={CHIP}
+          <FilterPill
+            removable
             aria-label={REVIEW_COPY.removeItemFilter(itemName ?? "one item")}
             onClick={() => go({ itemId: null })}
           >
             {itemName
               ? REVIEW_COPY.showingItem(itemName)
               : REVIEW_COPY.showingThisItem}
-            <XIcon aria-hidden className="size-[18px] shrink-0" />
-          </button>
+          </FilterPill>
         </div>
       ) : null}
     </div>

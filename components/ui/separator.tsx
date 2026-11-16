@@ -3,6 +3,7 @@
 import { Separator as SeparatorPrimitive } from "@base-ui/react/separator"
 import { cn } from "@/lib/utils"
 
+/** A hairline between two groups (DESIGN.md §2 Boundaries). Decoration: `line`, never a control's edge. */
 function Separator({
   className,
   orientation = "horizontal",

@@ -14,12 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { fieldControlVariants } from "@/components/ui/field-control"
 import type { KnowledgeResult } from "@/lib/knowledge-client/contract"
 
 import { LABEL, MUTED } from "../amenities/capture/field-parts"
 
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well md:text-body"
+// The shared field recipe on native controls (DESIGN.md §4 Field).
+const INPUT = `block ${fieldControlVariants()}`
 
 export const UPGRADE_COPY = {
   title: "Schema upgrades",
@@ -179,7 +180,6 @@ export function UpgradeControl({
         <Button
           type="button"
           variant="secondary"
-          size="touch"
           disabled={pending}
           aria-busy={pending || undefined}
           onClick={() => void run("dry_run")}
@@ -189,13 +189,13 @@ export function UpgradeControl({
       </div>
       {dry && dry.key === key ? (
         <div className="grid gap-2">
-          <p className="text-body-touch text-ink md:text-body">
+          <p className="text-body text-ink">
             {UPGRADE_COPY.counts(dry.counts)}
           </p>
           <div>
             <Button
+              variant="primary"
               type="button"
-              size="touch"
               disabled={
                 pending || dry.counts.lossless + dry.counts.needsChecking === 0
               }
@@ -216,15 +216,14 @@ export function UpgradeControl({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               disabled={pending}
               onClick={() => setOpen(false)}
             >
               {UPGRADE_COPY.cancel}
             </Button>
             <Button
+              variant="primary"
               type="button"
-              size="touch"
               disabled={pending}
               aria-busy={pending || undefined}
               onClick={() => void run("apply")}

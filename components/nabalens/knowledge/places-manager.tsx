@@ -15,6 +15,7 @@ import { formatDate } from "@/components/nabalens/format"
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import type {
   KnowledgeResult,
   Place,
@@ -201,15 +202,13 @@ export function PlacesManager({
 
   return (
     <div className="grid min-w-0 gap-6">
-      <p className="max-w-(--size-reading) text-body-touch text-ink md:text-body">
+      <p className="max-w-reading text-body text-ink">
         {PLACES_COPY.intro(venueName)}
       </p>
       <CoverageNotice notice={notice} onDismiss={() => setNotice(null)} />
 
       {active.length === 0 ? (
-        <p className="text-body-touch text-ink-muted md:text-body">
-          {PLACES_COPY.empty}
-        </p>
+        <p className="text-body text-ink-muted">{PLACES_COPY.empty}</p>
       ) : (
         KINDS.map(({ kind: k, many }) => {
           const rows = active.filter((p) => p.kind === k)
@@ -233,10 +232,10 @@ export function PlacesManager({
                     key={place.subjectId}
                     id={placeRowId(place.subjectId)}
                     tabIndex={-1}
-                    className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-card bg-surface p-3 shadow-card outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+                    className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-card bg-surface p-3 shadow-card focus-ring outline-none"
                   >
                     <div className="grid min-w-0 gap-0.5">
-                      <span className="text-body-touch font-semibold [overflow-wrap:anywhere] text-ink md:text-body">
+                      <span className="text-body font-semibold [overflow-wrap:anywhere] text-ink">
                         {place.label}
                       </span>
                       {place.addedOn ? (
@@ -299,7 +298,7 @@ export function PlacesManager({
           <label htmlFor={`${ids}-label`} className={LABEL}>
             {PLACES_COPY.name}
           </label>
-          <input
+          <Input
             id={`${ids}-label`}
             value={label}
             maxLength={80}
@@ -311,7 +310,6 @@ export function PlacesManager({
                 : `${ids}-label-help`
             }
             onChange={(e) => setLabel(e.currentTarget.value)}
-            className="block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus focus-visible:outline-solid aria-invalid:border-negative md:text-body"
           />
           <p id={`${ids}-label-help`} className={MUTED}>
             {PLACES_COPY.nameHelp}
@@ -321,7 +319,7 @@ export function PlacesManager({
         <div>
           <Button
             type="submit"
-            size="touch"
+            variant="primary"
             aria-busy={pending || undefined}
             aria-disabled={pending || undefined}
           >
@@ -333,16 +331,16 @@ export function PlacesManager({
 
       {retired.length > 0 ? (
         <details className="grid gap-2">
-          <summary className="min-h-11 cursor-pointer content-center text-body-touch font-semibold text-ink md:text-body">
+          <summary className="min-h-11 cursor-pointer content-center text-body font-semibold text-ink">
             {PLACES_COPY.retiredGroup(retired.length)}
           </summary>
           <ul className="grid gap-2 pt-2">
             {retired.map((place) => (
               <li
                 key={place.subjectId}
-                className="grid gap-0.5 rounded-card bg-well p-3"
+                className="grid gap-0.5 rounded-card bg-surface-2 p-3"
               >
-                <span className="text-body-touch [overflow-wrap:anywhere] text-ink md:text-body">
+                <span className="text-body [overflow-wrap:anywhere] text-ink">
                   {place.label}
                 </span>
                 {place.retiredOn ? (

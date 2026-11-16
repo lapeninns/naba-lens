@@ -190,8 +190,8 @@ export function ManagerGrants({
           />
           <div>
             <Button
+              variant="primary"
               type="submit"
-              size="touch"
               disabled={action.pending}
               aria-busy={action.pending || undefined}
             >
@@ -204,10 +204,7 @@ export function ManagerGrants({
 
       <section aria-labelledby={`${ids}-list`} className="grid gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2
-            id={`${ids}-list`}
-            className="font-display text-section-title text-ink"
-          >
+          <h2 id={`${ids}-list`} className="type-section-title text-ink">
             {includeRevoked ? "All grants" : "Current grants"}
           </h2>
           <Link
@@ -282,7 +279,6 @@ export function ManagerGrants({
                   {!grant.revokedAt ? (
                     <Button
                       variant="secondary"
-                      size="touch"
                       onClick={() => setRevoking(grant)}
                       disabled={action.pending}
                       aria-label={`Revoke ${grant.staff.displayName}’s manager grant`}

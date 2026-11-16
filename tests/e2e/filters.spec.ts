@@ -29,8 +29,8 @@ test("venue + staff + type filters combine across pages, then clear", async ({
   await chooseOption(admin, admin, "Venue", w.venue1.name)
   await chooseOption(admin, admin, "Staff member", w.staffA.name)
   await admin
-    .getByRole("group", { name: "Media type" })
-    .getByRole("button", { name: "Photos", exact: true })
+    .getByRole("radiogroup", { name: "Media type" })
+    .getByRole("radio", { name: "Photos", exact: true })
     .click()
   await expect(admin).toHaveURL(
     new RegExp(`venue=${w.venue1.id}&staff=${w.staffA.id}&type=image`)
@@ -52,8 +52,8 @@ test("venue + staff + type filters combine across pages, then clear", async ({
 
   // Same staff + venue, videos only.
   await admin
-    .getByRole("group", { name: "Media type" })
-    .getByRole("button", { name: "Videos", exact: true })
+    .getByRole("radiogroup", { name: "Media type" })
+    .getByRole("radio", { name: "Videos", exact: true })
     .click()
   await expect(tiles).toHaveCount(4)
   for (const name of await tiles.evaluateAll((els) =>
@@ -66,8 +66,8 @@ test("venue + staff + type filters combine across pages, then clear", async ({
   await chooseOption(admin, admin, "Venue", w.venue2.name)
   await expect(admin.getByText("Nothing matches these filters.")).toBeVisible()
   await admin
-    .getByRole("group", { name: "Media type" })
-    .getByRole("button", { name: "Photos and videos", exact: true })
+    .getByRole("radiogroup", { name: "Media type" })
+    .getByRole("radio", { name: "Photos and videos", exact: true })
     .click()
   await expect(tiles).toHaveCount(3)
 

@@ -103,11 +103,13 @@ describe("OurMenuCard", () => {
     expect(
       screen.getByText("Menu items with an accepted photo at TEST Inn")
     ).toBeTruthy()
+    const bar = screen.getByRole("progressbar", {
+      name: "7 of 30 menu items have an accepted photo",
+    })
+    // It counts accepted photos, so it asks for green; the plain bar is ink.
     expect(
-      screen.getByRole("progressbar", {
-        name: "7 of 30 menu items have an accepted photo",
-      })
-    ).toBeTruthy()
+      bar.closest('[data-slot="progress"]')?.getAttribute("data-tone")
+    ).toBe("ok")
     expect(
       screen.getByRole("link", { name: "Browse our menu" }).getAttribute("href")
     ).toBe("/staff/menu")

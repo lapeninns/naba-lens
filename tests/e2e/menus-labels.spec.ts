@@ -928,8 +928,8 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
     }
     await admin.route(photosNavigation, hold)
     await admin
-      .getByRole("group", { name: "Media type" })
-      .getByRole("button", { name: "Photos", exact: true })
+      .getByRole("radiogroup", { name: "Media type" })
+      .getByRole("radio", { name: "Photos", exact: true })
       .click()
     // The outgoing list's Load more is still drawn, but inert: it takes no
     // click (Playwright's role queries still list inert elements).
@@ -957,8 +957,8 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
 
   await test.step("+ content type Preparation, all types: the 2 videos", async () => {
     await admin
-      .getByRole("group", { name: "Media type" })
-      .getByRole("button", { name: "Photos and videos", exact: true })
+      .getByRole("radiogroup", { name: "Media type" })
+      .getByRole("radio", { name: "Photos and videos", exact: true })
       .click()
     await chooseOption(admin, admin, "Content type", "Preparation")
     await expect(tiles).toHaveCount(2)

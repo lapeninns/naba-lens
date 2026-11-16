@@ -1,0 +1,42 @@
+# Design system decisions
+
+A decision is recorded here once, with who made it and when. `DESIGN.md` states the rule; this file says why it is the rule and what it replaced. Add new decisions at the end and never renumber.
+
+Status is one of: **open** (needs an answer), **decided**, **deferred** (with the date it comes back).
+
+## Open decisions
+
+None.
+
+## Decided
+
+D1 to D7 were answered together on 14 Nov 2026 with "proceed with recommended": each recommendation in [strategy.md](strategy.md) section 9 is the decision. D3 sets the direction only; the date `/staff/manage` is retired is still to be set, and nothing redirects until it is.
+
+| ID  | Question                                                                                                                                                                                  | Decision                                                                                                                                                       | Decided by          | Date        |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ----------- |
+| D1  | Is Common Room v0.3 signed off as the product's design language? The spec has been headed "proposal, not yet signed off by product" since 7 Nov 2026, the day it shipped to every screen. | Yes, with the changes in strategy.md section 4.3.                                                                                                              | Aman Kumar Shrestha | 14 Nov 2026 |
+| D2  | Theme policy. The spec says light by default and dark by choice. The app follows the OS, and the only control is pressing `d`.                                                            | Follow the OS. Add a visible setting (System, Light, Dark) on Me and on Account. Remove the hotkey from production.                                            | Aman Kumar Shrestha | 14 Nov 2026 |
+| D3  | Which venue-manager workspace is canonical: `/manager`, or `/staff/manage` with its admin twin at `/admin/coverage/[venueId]`? When is the other retired?                                 | `/manager`. New grants already go to manager accounts only. Redirect `/staff/manage` on a set date.                                                            | Aman Kumar Shrestha | 14 Nov 2026 |
+| D4  | One verb and one resulting state per review decision. Today: "Ask for another photo" and "Ask for a better photo"; "Withdraw acceptance" and "Undo acceptance".                           | "Ask for another photo", giving "Needs another photo". "Undo acceptance".                                                                                      | Aman Kumar Shrestha | 14 Nov 2026 |
+| D5  | Is "Done" banned as a button label, or only as a state word? Two buttons say "Done" today (`upload-dialog.tsx`, `session-guard.tsx`).                                                     | Only as a state word.                                                                                                                                          | Aman Kumar Shrestha | 14 Nov 2026 |
+| D6  | Is "Ready" ever drawn as a chip? Which upload words do staff see? The spec, the chip table, the upload sheet and the media tile each use a different set.                                 | Staff see Saved, Saving… and Needs attention. Ready is text on a tile, not a chip. Remove its reserved shape, or use it.                                       | Aman Kumar Shrestha | 14 Nov 2026 |
+| D7  | Token names. Text uses the earlier names (`ink`, `ink-muted`, `line`); surfaces use the Common Room names (`surface`, `surface-2`). Which set is public?                                  | Keep both as they are used, rename `bg` to `canvas` and `border-strong` to `edge-strong`, and make the shadcn slot names private. See strategy.md section 5.2. | Aman Kumar Shrestha | 14 Nov 2026 |
+
+| ID  | Decision                                                                                                                                                                                            | Decided by  | Date        | Notes                                                                                                                                                  |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| R1  | The repo is the source of truth for the design system. `docs/design-system/DESIGN.md` is the spec, `app/globals.css` holds the values, `components/nabalens/status-chip.tsx` holds the state words. | Engineering | 14 Nov 2026 | Replaces the research folder named in `app/globals.css` and the claude.ai Design System artifact from PR #14. See "Superseded sources" in `DESIGN.md`. |
+| R2  | Section numbers in `DESIGN.md` do not change. New material is added as a new section or a lettered subsection.                                                                                      | Engineering | 14 Nov 2026 | Code comments cite sections by number. `tests/unit/design-citations.test.ts` fails when a cited section is missing.                                    |
+
+## Decisions already in the spec
+
+These were settled in the spec before it came into the repo. They are listed so nobody reopens them by accident.
+
+| Rule                                                                                | Where              | Why                                                                                           |
+| ----------------------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------- |
+| Three tones (ok, warn, info) plus neutral. Errors and warnings share the warn tone. | `DESIGN.md` §2     | State is carried by the word and the shape. A fourth colour would invite colour-only meaning. |
+| Blue never marks a state or progress. Progress is green.                            | `DESIGN.md` §2     | Blue means "the next step" or "you chose this".                                               |
+| Solid blue may mark a selection the person made.                                    | `DESIGN.md` §2, §9 | Added in v0.3 for ticked boxes, chosen radios and picked tiles.                               |
+| Text is 17px or larger. The only exception is the 15px caption over a photo.        | `DESIGN.md` §2     | Staff read it mid-shift, at arm's length.                                                     |
+| No toasts. Feedback is written on the page.                                         | `DESIGN.md` §5     | A message that disappears cannot be re-read.                                                  |
+| Lists grow with "Load more". No page numbers, no infinite scroll.                   | Shipped behaviour  | One consistent pattern across every list.                                                     |
+| The stepper's minus and plus carry no visible word.                                 | `DESIGN.md` §4     | They are drawn signs beside a labelled field, each with an `aria-label`.                      |

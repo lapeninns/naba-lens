@@ -1,10 +1,8 @@
 "use client"
 
+import { Radio, RadioGroup } from "@/components/ui/radio-group"
 import * as React from "react"
-import {
-  ArrowCounterClockwiseIcon,
-  SpinnerGapIcon,
-} from "@phosphor-icons/react"
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react"
 
 import { ReasonField } from "@/components/nabalens/coverage"
 import { useStillWaiting } from "@/components/nabalens/use-still-waiting"
@@ -141,31 +139,35 @@ export function ReopenDialog({
             className="grid gap-2"
             aria-describedby={presetError ? `${id}-preset-error` : undefined}
           >
-            <legend className="mb-1 text-label-touch text-ink md:text-label">
+            <legend
+              id={`${id}-preset-legend`}
+              className="mb-1 text-label text-ink"
+            >
               Why does it need a recheck?
             </legend>
-            {REOPEN_PRESETS.map((value) => (
-              <label
-                key={value}
-                className="flex min-h-11 items-center gap-3 text-body-touch text-ink md:text-body"
-              >
-                <input
-                  type="radio"
-                  name={`${id}-preset`}
-                  value={value}
-                  checked={preset === value}
-                  onChange={() => setPreset(value)}
-                  disabled={pending}
-                  className="size-5 shrink-0 accent-accent"
-                />
-                {REOPEN_PRESET_LABEL[value]}
-              </label>
-            ))}
+            <RadioGroup<ReopenPreset>
+              aria-labelledby={`${id}-preset-legend`}
+              // "" while nothing is chosen, so the group stays controlled.
+              value={preset ?? ("" as ReopenPreset)}
+              onValueChange={(value) => setPreset(value)}
+              disabled={pending}
+              className="gap-0"
+            >
+              {REOPEN_PRESETS.map((value) => (
+                <label
+                  key={value}
+                  className="flex min-h-11 items-center gap-3 text-body text-ink"
+                >
+                  <Radio<ReopenPreset> value={value} />
+                  {REOPEN_PRESET_LABEL[value]}
+                </label>
+              ))}
+            </RadioGroup>
             {presetError ? (
               <p
                 id={`${id}-preset-error`}
                 role="alert"
-                className="text-meta-touch font-semibold text-negative md:text-meta-strong"
+                className="text-meta font-semibold text-warn-fg"
               >
                 {presetError}
               </p>
@@ -183,18 +185,12 @@ export function ReopenDialog({
             disabled={pending}
           />
           {error ? (
-            <p
-              role="alert"
-              className="text-body-touch text-negative md:text-body-sm"
-            >
+            <p role="alert" className="text-body text-warn-fg">
               {error}
             </p>
           ) : null}
           {still ? (
-            <p
-              role="status"
-              className="text-body-touch text-ink-muted md:text-body-sm"
-            >
+            <p role="status" className="text-body text-ink-muted">
               {STILL_SAVING}
             </p>
           ) : null}
@@ -202,24 +198,19 @@ export function ReopenDialog({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               onClick={() => close(false)}
               disabled={pending}
             >
               Cancel
             </Button>
             <Button
+              variant="primary"
               type="submit"
-              size="touch"
-              disabled={pending}
-              aria-busy={pending || undefined}
+              loading={pending}
+              loadingLabel={SAVING}
             >
-              {pending ? (
-                <SpinnerGapIcon aria-hidden className="animate-spin" />
-              ) : (
-                <ArrowCounterClockwiseIcon aria-hidden />
-              )}
-              {pending ? SAVING : UI_TEXT.reopen}
+              <ArrowCounterClockwiseIcon aria-hidden />
+              {UI_TEXT.reopen}
             </Button>
           </DialogFooter>
         </form>

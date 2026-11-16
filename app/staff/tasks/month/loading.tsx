@@ -4,14 +4,14 @@ import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 /** Monthly photos in its real shape: month switch, month card, sent rows. */
 export default function MonthLoading() {
   return (
-    <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader
         title="Monthly photos"
         summary="Accepted photos count toward your target. Each photo counts for the month its upload started."
       />
       <SkeletonRegion
         label="Loading your month…"
-        className="flex flex-col gap-(--gutter)"
+        className="flex flex-col gap-gutter"
       >
         <div className="grid grid-cols-[minmax(3rem,1fr)_auto_minmax(3rem,1fr)] items-center gap-2 rounded-card bg-surface p-2 shadow-card">
           <Skeleton className="h-12" />

@@ -3,7 +3,12 @@
 
 import type { MediaItem, Option, StaffMember } from "@/components/nabalens"
 
-function sampleImage(label: string, colour: string, w: number, h: number) {
+export function sampleImage(
+  label: string,
+  colour: string,
+  w: number,
+  h: number
+) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="100%" height="100%" fill="${colour}"/><circle cx="${w * 0.7}" cy="${h * 0.35}" r="${Math.min(w, h) * 0.16}" fill="rgba(255,255,255,0.35)"/><rect x="0" y="${h * 0.68}" width="${w}" height="${h * 0.32}" fill="rgba(0,0,0,0.18)"/><text x="${w * 0.06}" y="${h * 0.9}" font-family="sans-serif" font-size="${Math.round(Math.min(w, h) * 0.09)}" fill="#fff">${label}</text></svg>`
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }

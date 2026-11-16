@@ -19,12 +19,8 @@ import {
 
 afterEach(cleanup)
 
-const FOCUS = [
-  "focus-visible:outline-3",
-  "focus-visible:-outline-offset-3",
-  "focus-visible:outline-focus",
-  "focus-visible:outline-solid",
-]
+// One utility sets the outline's width, style, colour and inset offset.
+const FOCUS = ["focus-ring-inset"]
 
 describe("DropdownMenu items", () => {
   it("each kind of item draws the focus outline", async () => {
@@ -33,7 +29,7 @@ describe("DropdownMenu items", () => {
         <DropdownMenuTrigger>More</DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuItem>Edit</DropdownMenuItem>
-          <DropdownMenuItem variant="destructive">Deactivate</DropdownMenuItem>
+          <DropdownMenuItem variant="danger">Deactivate</DropdownMenuItem>
           <DropdownMenuCheckboxItem checked>
             Show photos
           </DropdownMenuCheckboxItem>
@@ -60,6 +56,6 @@ describe("DropdownMenu items", () => {
     ])
     for (const item of items)
       for (const cls of FOCUS)
-        expect(item.className, item.textContent!).toContain(cls)
+        expect(item.className.split(/\s+/), item.textContent!).toContain(cls)
   })
 })

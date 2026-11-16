@@ -38,12 +38,12 @@ function AssetTile({
     <li className="flex min-w-0 flex-col gap-1">
       <label
         className={cn(
-          "relative grid cursor-pointer gap-1 rounded-chip p-1 has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus",
+          "relative grid cursor-pointer gap-1 rounded-square p-1 focus-ring-within has-checked:bg-accent-soft",
           (blocked || disabled) && !checked && "cursor-not-allowed opacity-60"
         )}
       >
         {asset.kind === "video" && !asset.thumbUrl ? (
-          <span className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-1 rounded-print bg-media-placeholder text-meta text-ink-muted">
+          <span className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-1 rounded-stamp bg-media-placeholder text-meta text-ink-muted">
             <FilmStripIcon className="size-6" aria-hidden />
             Video
           </span>
@@ -51,7 +51,7 @@ function AssetTile({
           <span className="relative block">
             <EvidenceThumb src={asset.thumbUrl} />
             {asset.kind === "video" ? (
-              <span className="absolute bottom-1 left-1 inline-flex items-center gap-1 rounded-round bg-ink/80 px-1.5 py-0.5 text-chip text-paper">
+              <span className="absolute bottom-1 left-1 inline-flex items-center gap-1 rounded-round bg-ink/80 px-1.5 py-0.5 text-chip text-canvas">
                 <FilmStripIcon className="size-3.5" aria-hidden />
                 Video
               </span>
@@ -59,11 +59,11 @@ function AssetTile({
           </span>
         )}
         {checked ? (
-          <span className="absolute top-2 right-2 rounded-full bg-background text-primary">
+          <span className="absolute top-2 right-2 rounded-round bg-canvas text-select">
             <CheckCircleIcon weight="fill" className="size-6" aria-hidden />
           </span>
         ) : null}
-        <span className="flex min-h-11 items-center gap-2 text-meta-touch md:text-meta">
+        <span className="flex min-h-11 items-center gap-2 text-meta">
           <input
             type="checkbox"
             checked={checked}
@@ -75,7 +75,7 @@ function AssetTile({
                 .filter(Boolean)
                 .join(" ") || undefined
             }
-            className="size-5 shrink-0 accent-primary md:size-4"
+            className="size-5 shrink-0 accent-accent md:size-4"
           />
           <span className="min-w-0 break-words">
             {asset.kind === "video" ? "Video" : "Photo"}
@@ -89,7 +89,7 @@ function AssetTile({
       {note ? (
         <p
           id={noteId}
-          className="flex items-start gap-1 text-meta-touch break-words text-negative md:text-meta"
+          className="flex items-start gap-1 text-meta break-words text-warn-fg"
         >
           <ProhibitIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           {note}
@@ -177,9 +177,7 @@ export function EvidencePicker({
       ) : null}
       {legacy.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <h4 className="text-label-touch text-ink md:text-label">
-            {UI_TEXT.legacyMedia}
-          </h4>
+          <h4 className="text-label text-ink">{UI_TEXT.legacyMedia}</h4>
           <AssetGrid label={UI_TEXT.legacyMedia} assets={legacy} {...shared} />
         </div>
       ) : null}

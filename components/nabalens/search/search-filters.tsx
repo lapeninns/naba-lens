@@ -7,7 +7,6 @@ import {
   XIcon,
 } from "@phosphor-icons/react"
 
-import { Segmented } from "@/app/_media/segmented"
 import {
   EMPTY_SEARCH_FILTERS,
   type SearchFilterValue,
@@ -15,6 +14,10 @@ import {
 } from "@/app/_media/search-params"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@/components/ui/segmented-control"
 import {
   ANSWER_FRESHNESS_STATES,
   ANSWER_USES,
@@ -86,6 +89,7 @@ const MEDIA_OPTIONS = [
   { value: "image", label: SEARCH_COPY.mediaPhotos },
   { value: "video", label: SEARCH_COPY.mediaVideos },
 ] as const
+type MediaValue = (typeof MEDIA_OPTIONS)[number]["value"]
 
 const FIELD_LABEL = "text-label text-ink"
 const HINT = "text-body text-ink-muted"
@@ -171,6 +175,9 @@ export function SearchFilters({
     ([k, x]) => x && (admin || k !== "venue")
   )
 
+  const mediaValue: MediaValue =
+    v.mediaType === "image" || v.mediaType === "video" ? v.mediaType : "all"
+
   const err = (key: SearchFilterKey) =>
     fieldErrors[key] ? fieldErrorText(key, fieldErrors[key]!) : null
   const describe = (key: SearchFilterKey, extra?: string | null) =>
@@ -218,17 +225,30 @@ export function SearchFilters({
           >
             {SEARCH_COPY.mediaType}
           </legend>
-          <Segmented
-            id={fieldId("mediaType")}
+          <SegmentedControl
             name={fieldId("mediaType")}
             aria-labelledby={`${fieldId("mediaType")}-legend`}
             aria-describedby={describe("mediaType")}
-            options={[...MEDIA_OPTIONS]}
-            value={(v.mediaType as "image" | "video" | null) ?? "all"}
+            aria-invalid={err("mediaType") ? true : undefined}
+            value={mediaValue}
             onValueChange={(next) =>
               set({ mediaType: next === "all" ? null : next })
             }
-          />
+          >
+            {MEDIA_OPTIONS.map((option) => (
+              <SegmentedControlItem
+                key={option.value}
+                value={option.value}
+                // The chosen segment carries the filter's id, so its label,
+                // error and focus (search-view) reach the group.
+                id={
+                  option.value === mediaValue ? fieldId("mediaType") : undefined
+                }
+              >
+                {option.label}
+              </SegmentedControlItem>
+            ))}
+          </SegmentedControl>
           <FieldError id={errorId("mediaType")} text={err("mediaType")} />
         </fieldset>
         <div className="grid min-w-0 content-start gap-1.5">
@@ -283,7 +303,6 @@ export function SearchFilters({
         <Button
           type="button"
           variant="secondary"
-          size="touch"
           aria-expanded={open}
           aria-controls={`${fieldId("variant")}-more`}
           onClick={() => setOpen((o) => !o)}
@@ -293,12 +312,7 @@ export function SearchFilters({
           <CountBadge count={moreCount} label={SEARCH_COPY.moreOn} />
         </Button>
         {active ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="touch"
-            onClick={onClear}
-          >
+          <Button type="button" variant="secondary" onClick={onClear}>
             <XIcon aria-hidden />
             {SEARCH_COPY.clearFilters}
           </Button>

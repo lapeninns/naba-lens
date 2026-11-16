@@ -4,7 +4,7 @@ import { SEARCH_COPY } from "./search-copy"
 
 /** The result list's columns, so the placeholder holds its place. */
 export const RESULTS_GRID =
-  "grid min-w-0 grid-cols-1 gap-(--gutter) md:grid-cols-2 xl:grid-cols-3"
+  "grid min-w-0 grid-cols-1 gap-gutter md:grid-cols-2 xl:grid-cols-3"
 
 /** Twelve card placeholders while the first page loads. */
 export function SearchGridSkeleton() {

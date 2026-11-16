@@ -47,7 +47,7 @@ export function SetupChecklist({
   setup,
   profile,
   editProfileHref,
-  actionClassName = buttonVariants({ variant: "secondary", size: "touch" }),
+  actionClassName = buttonVariants({ variant: "secondary" }),
 }: {
   setup: CoverageScope["setup"]
   profile: SetupProfile
@@ -61,7 +61,7 @@ export function SetupChecklist({
   const editLink = (
     <Link
       href={editProfileHref}
-      className="font-bold text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+      className="font-bold text-ink underline underline-offset-3 focus-ring outline-none"
     >
       Edit profile
     </Link>
@@ -114,7 +114,7 @@ export function SetupChecklist({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <h2
           id="setup-heading"
-          className="min-w-0 font-display text-card-title [overflow-wrap:anywhere] text-ink"
+          className="min-w-0 type-section-title [overflow-wrap:anywhere] text-ink"
         >
           Your setup isn&apos;t finished
         </h2>

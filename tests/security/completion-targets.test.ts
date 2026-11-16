@@ -299,7 +299,10 @@ describe("venue completion targets", () => {
       menu_items_completed: 2,
       amenity_checks_completed: 3,
       completion_count: 5,
-      accepted_count: 1,
+      // One review per photo (ORP-1, docs/plans/one-review-per-photo.md
+      // decision 1): the author's three labelled, accepted dish photos count
+      // toward the month as well as the one photo sent to it.
+      accepted_count: 4,
       needs_setup: false,
       setup_missing: [],
       complete: true,
@@ -312,7 +315,7 @@ describe("venue completion targets", () => {
       targets_set: 2,
       staff_without_target: 0,
       participation_complete: 1,
-      accepted_photos: 1,
+      accepted_photos: 4,
     })
     const [prep] = await ok(
       admin.client.rpc("coverage_preparation_status", { p_venue_id: venue })
@@ -326,7 +329,7 @@ describe("venue completion targets", () => {
     )
     expect(old[0]).toMatchObject({
       target_count: 9,
-      accepted_count: 1,
+      accepted_count: 4, // v1 counts the same photos as v2 (ORP-1)
       complete: false,
     })
 

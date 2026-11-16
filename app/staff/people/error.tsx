@@ -10,7 +10,7 @@ import { PEOPLE_COPY } from "./people"
 
 export default function PeopleError({ retry }: { retry: () => void }) {
   return (
-    <main className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <main className="mx-auto flex w-full max-w-feed flex-col gap-gutter px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader
         scope={PEOPLE_COPY.scope}
         title={PEOPLE_COPY.title}

@@ -36,7 +36,7 @@ const BLOCKED_COPY = {
     "Your venue is not taking uploads right now, so uploads are paused. Ask an admin to check your venue.",
 } as const
 
-export const metadata = { title: "Your portfolio · Naba-Lens" }
+export const metadata = { title: "Your portfolio" }
 
 // finaliseUpload (Server Action on this page) decodes HEIC/images; keep the
 // bound explicit and below MEDIA_LIMITS.staleProcessingMinutes.

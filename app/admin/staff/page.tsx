@@ -14,7 +14,7 @@ import { RetryButton } from "./retry-button"
 import { STAFF_SUMMARY } from "./copy"
 import { StaffDirectory } from "./staff-directory"
 
-export const metadata: Metadata = { title: "Staff · Naba-Lens" }
+export const metadata: Metadata = { title: "Staff" }
 
 export default async function StaffDirectoryPage() {
   const admin = await requireActiveAdmin()

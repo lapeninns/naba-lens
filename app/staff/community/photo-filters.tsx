@@ -1,11 +1,11 @@
 "use client"
 
+import { SegmentedControl } from "@/components/ui/segmented-control"
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { FunnelSimpleIcon } from "@phosphor-icons/react"
 
-import { Segmented } from "@/app/_media/segmented"
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { CountBadge } from "@/components/nabalens/status-chip"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -71,7 +71,6 @@ export function PhotoFilters({
     <>
       <Button
         variant="secondary"
-        size="touch"
         onClick={() => {
           setVenue(filters.venueId)
           setTeam(filters.department)
@@ -129,11 +128,11 @@ export function PhotoFilters({
               <FieldLegend
                 id="photos-media"
                 variant="label"
-                className="mb-0 text-label-touch text-ink md:text-label"
+                className="mb-0 text-label text-ink"
               >
                 Media
               </FieldLegend>
-              <Segmented
+              <SegmentedControl
                 aria-labelledby="photos-media"
                 name="type"
                 options={MEDIA}
@@ -147,12 +146,11 @@ export function PhotoFilters({
                 onClick={() => setOpen(false)}
                 className={buttonVariants({
                   variant: "secondary",
-                  size: "touch",
                 })}
               >
                 Clear filters
               </Link>
-              <Button type="submit" variant="primary" size="touch">
+              <Button type="submit" variant="primary">
                 Apply filters
               </Button>
             </DialogFooter>

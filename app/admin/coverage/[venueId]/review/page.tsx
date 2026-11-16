@@ -7,7 +7,7 @@ import {
 } from "@/app/staff/manage/_shared/screens"
 
 export const metadata: Metadata = {
-  title: "Review · Venue coverage · Naba-Lens",
+  title: "Review · Venue coverage",
 }
 
 export default async function AdminVenueReviewPage({

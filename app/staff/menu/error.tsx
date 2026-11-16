@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 
 export default function OurMenuError({ retry }: { retry: () => void }) {
   return (
-    <main className="mx-auto flex w-full max-w-(--size-page) flex-col gap-(--gutter) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <main className="mx-auto flex w-full max-w-page flex-col gap-gutter px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader
         scope={OUR_MENU_COPY.title}
         title={OUR_MENU_COPY.title}

@@ -52,7 +52,7 @@ export function OurMenuItemRow({
   return (
     <article
       aria-labelledby={nameId}
-      className="grid min-h-16 grid-cols-[3.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 py-3 @min-[36rem]:grid-cols-[3.5rem_minmax(0,1fr)_auto] @min-[36rem]:items-center"
+      className="grid min-h-16 grid-cols-[3.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 py-3 @regular:grid-cols-[3.5rem_minmax(0,1fr)_auto] @regular:items-center"
     >
       {item.primary ? (
         <EvidenceThumb
@@ -62,7 +62,7 @@ export function OurMenuItemRow({
       ) : (
         <span
           aria-hidden
-          className="grid aspect-square w-14 place-items-center rounded-control border-2 border-dashed border-border-strong text-ink-muted"
+          className="grid aspect-square w-14 place-items-center rounded-control border-2 border-dashed border-edge-strong text-ink-muted"
         >
           <CameraIcon className="size-6" />
         </span>
@@ -111,7 +111,7 @@ export function OurMenuItemRow({
         </p>
       </div>
       {(canAdd && openAdd) || reviewHref ? (
-        <div className="col-span-2 flex flex-wrap gap-2 @max-[36rem]:*:flex-auto @min-[36rem]:col-span-1">
+        <div className="col-span-2 flex flex-wrap gap-2 @max-regular:*:flex-auto @regular:col-span-1">
           {reviewHref ? (
             <Link
               href={reviewHref}

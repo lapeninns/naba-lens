@@ -14,17 +14,19 @@ import { Button } from "@/components/ui/button"
  */
 export default function AppError({ retry }: { retry: () => void }) {
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-(--size-feed) flex-col items-center justify-center gap-3 bg-bg px-(--page-gutter) py-6 text-center text-ink">
+    <main className="mx-auto flex min-h-svh w-full max-w-feed flex-col items-center justify-center gap-3 bg-canvas px-page-gutter py-6 text-center text-ink">
       <IconDisc tone="warn">
         <WarningIcon />
       </IconDisc>
-      <h1 className="font-display text-page-title text-balance">
-        This page could not load
-      </h1>
+      <h1 className="type-page-title text-balance">This page could not load</h1>
       <p className="text-body text-ink-muted">
         Check your connection and try again.
       </p>
-      <Button size="touch" className="mt-2 min-w-55" onClick={() => retry()}>
+      <Button
+        variant="primary"
+        className="mt-2 min-w-55"
+        onClick={() => retry()}
+      >
         <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
         Try again
       </Button>

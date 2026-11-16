@@ -333,13 +333,35 @@ export async function staffProgress(
   month: string,
   staffId: string | null = null
 ) {
-  return ok(
-    actor.client.rpc("coverage_staff_progress", {
-      p_venue_id: venueId as string,
-      p_period_month: month,
-      p_staff_id: staffId as string,
-    })
-  )
+  const args = {
+    p_venue_id: venueId as string,
+    p_period_month: month,
+    p_staff_id: staffId as string,
+  }
+  const [v1, v2] = await Promise.all([
+    ok(actor.client.rpc("coverage_staff_progress", args)),
+    ok(actor.client.rpc("coverage_staff_progress_v2", args)),
+  ])
+  // Screens read v2 (G-0, docs/plans/goals-not-tasks.md); v1 stays for
+  // deployed clients. Photo columns must agree, so every count assertion made
+  // on v1 rows also holds for v2. v2 may add rows for former members.
+  const photoCounts = (rows: typeof v1 | typeof v2) =>
+    rows
+      .map((r) => ({
+        key: `${r.staff_id}:${r.venue_id}`,
+        accepted: r.accepted_count,
+        late: r.late_accepted_count,
+        pending: r.pending_count,
+        needsAnother: r.needs_another_photo_count,
+        removed: r.evidence_removed_count,
+      }))
+      .sort((a, b) => a.key.localeCompare(b.key))
+  const v1Keys = new Set(v1.map((r) => `${r.staff_id}:${r.venue_id}`))
+  expect(
+    photoCounts(v2).filter((r) => v1Keys.has(r.key)),
+    "coverage_staff_progress_v2 photo counts match v1"
+  ).toEqual(photoCounts(v1))
+  return v1
 }
 
 export async function requirementProgress(

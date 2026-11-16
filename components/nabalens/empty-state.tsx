@@ -64,7 +64,7 @@ export function EmptyState({
           <ImageIcon className="size-9" />
         )}
       </span>
-      <Title className="max-w-[32ch] font-display text-section-title text-ink">
+      <Title className="max-w-[32ch] type-section-title text-ink">
         {title}
       </Title>
       {description ? (

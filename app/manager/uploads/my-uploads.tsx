@@ -162,10 +162,7 @@ export function MyUploads({
           action={
             <Link
               href={managerHrefs.uploads}
-              className={buttonVariants({
-                variant: "secondary",
-                size: "touch",
-              })}
+              className={buttonVariants({ variant: "secondary" })}
             >
               Try again
             </Link>
@@ -203,7 +200,6 @@ export function MyUploads({
               ref={retryRef}
               type="button"
               variant="secondary"
-              size="touch"
               onClick={() => void more()}
             >
               Try again
@@ -216,7 +212,6 @@ export function MyUploads({
         <Button
           type="button"
           variant="secondary"
-          size="touch"
           className="justify-self-start max-sm:w-full"
           aria-busy={status === "loading"}
           // aria-disabled keeps focus on it while loading (HM-06).
@@ -259,7 +254,7 @@ function UploadRow({
         <h3
           id={id}
           tabIndex={-1}
-          className="min-w-0 rounded-control text-item-title [overflow-wrap:anywhere] text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="min-w-0 rounded-control text-item-title [overflow-wrap:anywhere] text-ink focus-ring outline-none"
         >
           {titleOf(row)}
         </h3>
@@ -277,7 +272,6 @@ function UploadRow({
           <Button
             type="button"
             variant="secondary"
-            size="touch"
             className="mt-1 justify-self-start max-sm:w-full"
             aria-describedby={id}
             onClick={onLabel}
@@ -297,7 +291,7 @@ function Thumb({ row }: { row: PhotoContributionRow }) {
   // read) says so, as evidence images do, rather than a bare icon.
   if (failed)
     return (
-      <PreviewUnavailable className="size-16 shrink-0 rounded-control px-1 text-center text-[0.6875rem] leading-tight" />
+      <PreviewUnavailable className="size-16 shrink-0 rounded-control px-1 text-center text-caption" />
     )
   return (
     <span

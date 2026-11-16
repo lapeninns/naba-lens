@@ -40,13 +40,13 @@ export type ChipTone =
  */
 export const CHIP_SHAPES = {
   ready: "rounded-round border-info-fg text-info-fg",
-  submitted: "rounded-round border-border-strong text-ink",
+  submitted: "rounded-round border-edge-strong text-ink",
   accepted: "rounded-square border-ok-bg bg-ok-bg text-ok-fg",
   needs: "rounded-round border-warn-fg bg-warn-bg text-warn-fg",
   closed: "rounded-square border-line bg-surface-2 text-ink-muted",
   overdue: "rounded-square border-warn-fg text-warn-fg",
   complete:
-    "rounded-stamp border-4 border-double border-stamp-fg py-px font-display font-extrabold tracking-[0.06em] text-stamp-fg uppercase",
+    "rounded-stamp border-4 border-double border-stamp-fg py-px type-stamp text-stamp-fg",
   setup:
     "rounded-square border-2 border-dashed border-ink-muted bg-hatch text-ink",
   na: "rounded-square border-2 border-dotted border-ink-muted text-ink-muted",
@@ -54,11 +54,11 @@ export const CHIP_SHAPES = {
   met: "rounded-square border-ok-fg text-ok-fg",
   self: "rounded-square border-info-fg bg-info-bg text-info-fg",
   present: "rounded-square border-ok-fg text-ok-fg",
-  waiting: "rounded-round border-dashed border-border-strong text-ink",
-  neutralSquare: "rounded-square border-border-strong text-ink",
-  menuActive: "rounded-square border-border-strong bg-surface-2 text-ink",
+  waiting: "rounded-round border-dashed border-edge-strong text-ink",
+  neutralSquare: "rounded-square border-edge-strong text-ink",
+  menuActive: "rounded-square border-edge-strong bg-surface-2 text-ink",
   changed:
-    "rounded-square border-border-strong border-l-[5px] border-l-warn-fg text-ink",
+    "rounded-square border-edge-strong border-l-[5px] border-l-warn-fg text-ink",
   plain: "rounded-round border-transparent bg-surface-2 text-ink",
   /** Problem with a fill (tone-only negative): square, warn tint and edge. */
   warnSquare: "rounded-square border-warn-fg bg-warn-bg text-warn-fg",
@@ -474,7 +474,7 @@ export function CountBadge({
       data-slot="count"
       data-tone={tone}
       className={cn(
-        "inline-grid h-[26px] min-w-[26px] place-items-center rounded-round px-[7px] font-mono text-[1.0625rem] leading-none font-bold tabular-nums",
+        "inline-grid h-[26px] min-w-[26px] place-items-center rounded-round px-[7px] font-mono text-mono leading-none font-bold tabular-nums",
         tone === "warn" ? "bg-warn-fg text-surface" : "bg-ink text-surface",
         className
       )}

@@ -10,7 +10,7 @@ import { PROFILE_COPY } from "../people"
 /** One white card: what happened, why, and the one way back. */
 export default function ColleagueNotFound() {
   return (
-    <main className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
+    <main className="mx-auto flex w-full max-w-feed flex-col gap-gutter px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <div className="grid justify-items-center gap-3 rounded-card bg-surface px-5 py-8 text-center shadow-card">
         <IconDisc size="lg" className="text-ink-muted">
           <UsersIcon />
@@ -25,7 +25,6 @@ export default function ColleagueNotFound() {
           href="/staff/people"
           className={buttonVariants({
             variant: "primary",
-            size: "touch",
             className: "mt-2 w-full",
           })}
         >

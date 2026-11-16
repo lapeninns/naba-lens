@@ -13,7 +13,7 @@ import { IconDisc } from "@/components/nabalens/common-room/icon-disc"
 import { getAuthState, homePathFor, ROUTES } from "@/lib/auth"
 
 export const metadata: Metadata = {
-  title: "Account unavailable · Naba-Lens",
+  title: "Account unavailable",
 }
 
 /** Shown to a signed-in account without an active Naba-Lens profile. */

@@ -17,7 +17,7 @@ import { CommunityGallery } from "../../community/community-gallery"
 import { firstName, movedNotice, photoCount, PROFILE_COPY } from "../people"
 import { RoleLine } from "../person-card"
 
-export const metadata = { title: "Profile · Naba-Lens" }
+export const metadata = { title: "Profile" }
 
 export default async function ColleaguePage({
   params,
@@ -50,7 +50,7 @@ export default async function ColleaguePage({
       {...shell}
       userName={profile.displayName}
     >
-      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
+      <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
         <OfflineNotice />
         {/* Common Room profile card: a face, a name, where they work and
             how many photos they've shared. No likes or rankings. */}
@@ -91,7 +91,7 @@ export default async function ColleaguePage({
         ) : null}
         <section
           aria-labelledby="shared-photos-heading"
-          className="flex flex-col gap-(--gutter)"
+          className="flex flex-col gap-gutter"
         >
           <SectionHeader
             id="shared-photos-heading"

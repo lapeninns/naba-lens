@@ -36,7 +36,6 @@ export function ArchiveItemControl({
     <>
       <Button
         variant="secondary"
-        size="touch"
         disabled={disabled}
         onClick={() => setOpen(true)}
         aria-label={`${archived ? "Unarchive item" : "Archive item"}: ${itemName}`}

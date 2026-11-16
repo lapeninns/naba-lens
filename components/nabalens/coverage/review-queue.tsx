@@ -258,7 +258,7 @@ export function ReviewQueue({
   const asker = asking ? whoTook(asking, viewerId) : null
 
   return (
-    <div className="grid min-w-0 gap-(--gutter)">
+    <div className="grid min-w-0 gap-gutter">
       <CoverageNotice
         ref={noticeRef}
         notice={notice}
@@ -277,7 +277,7 @@ export function ReviewQueue({
             ref={listRef}
             tabIndex={-1}
             aria-label="Photos"
-            className="@container grid w-full max-w-(--size-feed) gap-(--gutter) outline-none"
+            className="@container grid w-full max-w-feed gap-gutter outline-none"
           >
             {items.map((submission) => {
               const busy = pendingId === submission.id
@@ -293,7 +293,6 @@ export function ReviewQueue({
                           {/* A deleted photo cannot count; it can only be replaced. */}
                           {submission.asset.available ? (
                             <Button
-                              size="touch"
                               variant={
                                 submission.id === oldestId
                                   ? "primary"
@@ -308,7 +307,6 @@ export function ReviewQueue({
                             </Button>
                           ) : null}
                           <Button
-                            size="touch"
                             variant="secondary"
                             disabled={pendingId !== null}
                             onClick={() => setAsking(submission)}

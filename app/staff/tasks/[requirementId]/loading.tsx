@@ -5,7 +5,7 @@ export default function TaskLoading() {
   return (
     <SkeletonRegion
       label="Loading task…"
-      className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8"
+      className="mx-auto flex w-full max-w-feed flex-col gap-gutter px-page-gutter pt-4 pb-8 md:px-6 md:py-8"
     >
       <Skeleton shape="line" className="h-11 w-24" />
       <div className="grid gap-3.5 rounded-card bg-surface p-4 shadow-card">

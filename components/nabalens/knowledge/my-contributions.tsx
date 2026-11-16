@@ -201,7 +201,7 @@ export function MyContributions({
           aria-label={
             asked > 0 ? `${copy.title}, ${asked} needs attention` : copy.title
           }
-          className="flex items-center gap-2 rounded-control font-display text-section-title text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="flex items-center gap-2 rounded-control font-display text-section-title text-ink focus-ring outline-none"
         >
           {copy.title}
           <CountBadge count={asked} label="needs attention" />
@@ -264,7 +264,6 @@ export function MyContributions({
               href={retryHref}
               className={buttonVariants({
                 variant: "secondary",
-                size: "touch",
               })}
             >
               Try again
@@ -298,7 +297,6 @@ export function MyContributions({
               ref={retryRef}
               type="button"
               variant="secondary"
-              size="touch"
               onClick={() => void more()}
             >
               Try again
@@ -311,7 +309,6 @@ export function MyContributions({
         <Button
           type="button"
           variant="secondary"
-          size="touch"
           className="justify-self-start max-sm:w-full"
           aria-busy={status === "loading"}
           // aria-disabled keeps focus on it while loading (HM-06).
@@ -355,7 +352,7 @@ function ContributionItem({
       <h3
         id={contributionId(row.key)}
         tabIndex={-1}
-        className="min-w-0 rounded-control text-item-title [overflow-wrap:anywhere] text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+        className="min-w-0 rounded-control text-item-title [overflow-wrap:anywhere] text-ink focus-ring outline-none"
       >
         {titleOf(row)}
       </h3>

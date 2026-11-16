@@ -106,7 +106,7 @@ export function ReplacementNote({
           Your photo · sent {formatDate(submission.submittedAt)}
         </p>
       </div>
-      <div className="grid gap-1.5 rounded-control bg-warn-bg p-3 shadow-[inset_4px_0_0_var(--warn-fg)]">
+      <div className="grid gap-1.5 rounded-control bg-warn-bg p-3 rail-start-warn">
         <p className="text-lead font-bold text-ink">
           <span className="sr-only">Reason: </span>
           <span className="break-words whitespace-pre-line">{reason}</span>
@@ -160,7 +160,7 @@ export function ReplacementClosed({
   homeHref: string
 }) {
   return (
-    <div className="grid gap-(--gutter)">
+    <div className="grid gap-gutter">
       <Notice
         tone="attention"
         title="This task has closed"
@@ -169,7 +169,6 @@ export function ReplacementClosed({
             href={homeHref}
             className={buttonVariants({
               variant: "secondary",
-              size: "touch",
               className: "w-full sm:w-auto",
             })}
           >
@@ -216,16 +215,13 @@ export function NeedsAnotherPhotoList({
 }) {
   if (submissions.length === 0) return null
   return (
-    <section aria-labelledby="replace-heading" className="grid gap-(--gutter)">
+    <section aria-labelledby="replace-heading" className="grid gap-gutter">
       <div className="px-1 pt-2">
-        <h2
-          id="replace-heading"
-          className="font-display text-section-title text-ink"
-        >
+        <h2 id="replace-heading" className="type-section-title text-ink">
           Needs another photo
         </h2>
       </div>
-      <ul className="grid gap-(--gutter)">
+      <ul className="grid gap-gutter">
         {submissions.map((submission) => {
           const title = submissionTitle(submission)
           const closed =
@@ -234,7 +230,7 @@ export function NeedsAnotherPhotoList({
           return (
             <li
               key={submission.id}
-              className="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-3 rounded-card bg-surface p-3 shadow-[var(--elevation-card),inset_4px_0_0_var(--warn-fg)]"
+              className="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-3 rounded-card bg-surface p-3 shadow-card rail-start-warn"
             >
               <EvidenceThumb
                 thumbnailUrl={submission.asset.thumbnailUrl}
@@ -262,7 +258,7 @@ export function NeedsAnotherPhotoList({
                     href={replacementHref(tasksPath, submission)}
                     aria-label={`Send another photo for ${title}`}
                     className={buttonVariants({
-                      size: "touch",
+                      variant: "primary",
                       className: "w-full sm:w-auto sm:justify-self-start",
                     })}
                   >

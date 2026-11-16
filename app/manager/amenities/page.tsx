@@ -9,7 +9,7 @@ import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { entryMenu, type EntryMenu } from "@/lib/work-client/entry"
 import { workServices } from "@/lib/work-client/services"
 
-export const metadata: Metadata = { title: "Amenities · Naba-Lens" }
+export const metadata: Metadata = { title: "Amenities" }
 
 type Workspace = Awaited<ReturnType<typeof workspaceManagerContext>>
 

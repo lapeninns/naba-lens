@@ -132,7 +132,7 @@ export function CaptureResumeBlock({
             ) : null}
             {onDismiss ? (
               <Button
-                variant="ghost"
+                variant="quiet"
                 size="sm"
                 aria-label={CAPTURE_COPY.dismissLabel(entry.displayName)}
                 onClick={() => onDismiss(entry)}

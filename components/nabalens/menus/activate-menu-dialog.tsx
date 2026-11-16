@@ -133,14 +133,12 @@ export function ActivateMenuDialog({
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <p className="text-body-touch text-ink-muted md:text-body">
+        <p className="text-body text-ink-muted">
           {currentActiveTitle && venueName
             ? coverageAfterActivationCopy(venueName)
             : "Nothing carries over automatically."}
         </p>
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
-          {ACTIVE_MEANING_COPY}
-        </p>
+        <p className="text-body text-ink-muted">{ACTIVE_MEANING_COPY}</p>
         {blocked ? (
           <Notice id={reasonsId} tone="attention" title="Activation is blocked">
             <ul className="mt-1 grid list-disc gap-0.5 pl-5">
@@ -152,11 +150,9 @@ export function ActivateMenuDialog({
         ) : null}
         {error ? <Notice tone="negative">{error}</Notice> : null}
         <AlertDialogFooter>
-          <AlertDialogCancel size="touch" disabled={pending}>
-            Cancel
-          </AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
           <Button
-            size="touch"
+            variant="primary"
             onClick={confirm}
             disabled={blocked || pending}
             aria-busy={pending || undefined}

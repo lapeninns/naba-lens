@@ -37,6 +37,7 @@ import type { MediaItem } from "@/components/nabalens/types"
 import { formatBytes } from "@/components/nabalens/format"
 import { GUIDE_PATH } from "@/components/nabalens/guide"
 import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
+import { ThemeSetting } from "@/components/nabalens/theme-setting"
 import {
   useAdd,
   useAddDiscarded,
@@ -189,7 +190,7 @@ export async function saveProfile(
 
 /** A Common Room row inside a white card: icon disc, two lines, chevron. */
 const ROW_LINK =
-  "grid min-h-16 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+  "grid min-h-16 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 text-ink transition-colors duration-quick outline-none hover:bg-surface-2 focus-ring-inset"
 
 /** The row's 44px grey disc around a decorative icon. */
 function RowIcon({ children }: { children: React.ReactNode }) {
@@ -491,7 +492,6 @@ function BetterPhotoRow({
           <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
             <Button
               variant="quiet"
-              size="touch"
               aria-describedby={nameId}
               onClick={() =>
                 retake({ source: "camera", imagesOnly: true, preset })
@@ -505,7 +505,6 @@ function BetterPhotoRow({
           <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
             <Button
               variant="secondary"
-              size="touch"
               aria-describedby={nameId}
               // openAdd clicks the camera input inside this click handler.
               onClick={() =>
@@ -517,7 +516,6 @@ function BetterPhotoRow({
             </Button>
             <Button
               variant="quiet"
-              size="touch"
               aria-describedby={nameId}
               onClick={() =>
                 retake({ source: "library", imagesOnly: true, preset })
@@ -619,11 +617,7 @@ export function StaffPortfolio({
 
   const uploadButton = (variant: "primary" | "secondary" = "primary") =>
     uploadBlocked || !openAdd ? null : (
-      <Button
-        variant={variant}
-        size="touch"
-        onClick={() => openAdd({ dialog: true })}
-      >
+      <Button variant={variant} onClick={() => openAdd({ dialog: true })}>
         <UploadSimpleIcon data-icon="inline-start" aria-hidden />
         Upload photos or videos
       </Button>
@@ -631,7 +625,7 @@ export function StaffPortfolio({
 
   return (
     // Common Room Me: a feed of white cards on the grey canvas.
-    <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
+    <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
       <ProfileHeader
         displayName={profile.displayName}
         avatarUrl={profile.avatarUrl}
@@ -640,8 +634,8 @@ export function StaffPortfolio({
         venueName={profile.venueName}
         workRole={profile.workRole}
         actions={
-          // Grey first, blue last: on phones the order flips, so Upload sits
-          // on top with Edit profile under it; from md blue is on the right.
+          // Grey first, blue last, in DOM order: stacked on phones Upload is
+          // at the bottom, nearest the thumb; from md blue is on the right.
           <>
             {/* From md, Log out is in the AppBar; on phones it lives on Me. */}
             {/* A plain POST, not a Server Action: it still signs out after the
@@ -652,14 +646,13 @@ export function StaffPortfolio({
               className="md:hidden"
               data-logout
             >
-              <Button type="submit" variant="quiet" size="touch">
+              <Button type="submit" variant="quiet">
                 <SignOutIcon data-icon="inline-start" aria-hidden />
                 Log out
               </Button>
             </form>
             <Button
               variant="secondary"
-              size="touch"
               onClick={() => {
                 setProfileSaved(false)
                 setEditOpen(true)
@@ -730,7 +723,7 @@ export function StaffPortfolio({
           <div className="grid gap-1 px-1">
             <h2
               id="needs-labels-heading"
-              className="flex items-center gap-2 font-display text-section-title text-ink"
+              className="flex items-center gap-2 type-section-title text-ink"
             >
               Needs labels
               <CountBadge count={needsLabels.length} label={needsLabelsNoun} />
@@ -742,7 +735,6 @@ export function StaffPortfolio({
             </p>
           </div>
           <Button
-            size="touch"
             variant="secondary"
             className="w-full md:w-fit"
             onClick={() => setLabelIds(needsLabels.map((item) => item.id))}
@@ -758,7 +750,7 @@ export function StaffPortfolio({
         <section aria-labelledby="accepted-heading" className="grid gap-3 pt-2">
           <h2
             id="accepted-heading"
-            className="px-1 font-display text-section-title text-ink"
+            className="px-1 type-section-title text-ink"
           >
             {MILESTONES.accepted}
           </h2>
@@ -779,7 +771,7 @@ export function StaffPortfolio({
           <div className="grid gap-1 px-1">
             <h2
               id="better-heading"
-              className="flex items-center gap-2 font-display text-section-title text-ink"
+              className="flex items-center gap-2 type-section-title text-ink"
             >
               {MILESTONES.better}
               <CountBadge
@@ -832,6 +824,10 @@ export function StaffPortfolio({
         // state repeats it in grey.
         empty={<EmptyState action={uploadButton("secondary")} />}
       />
+      {/* Last on Me, after the portfolio: a setting above the grid pushes its
+          lazy thumbnails past the browser's load distance, so a reload would
+          not fetch them (or find a failed one) until the person scrolls. */}
+      <ThemeSetting />
       <LabelEditorHost
         assetIds={labelIds ?? []}
         open={labelIds !== null}

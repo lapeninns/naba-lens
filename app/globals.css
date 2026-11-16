@@ -5,38 +5,54 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Naba-Lens "Common Room" tokens (DESIGN.md v0.3). The source of truth is
- * research/naba-lens-common-room-2026-11-07/assets/common-room.css §0.
+ * Naba-Lens "Common Room" tokens. docs/design-system/DESIGN.md §2 says what
+ * each token is for and §10 lists the names; this file holds the values.
  *
- * A staff room you already know: a light grey canvas, white cards, grey
- * buttons, one solid blue primary per screen. Blue is rationed: solid
- * --accent fills the one primary button (and marks a selection the person
- * made); --accent-text marks the active tab; --accent-soft marks a selected
- * filter, segment, side nav item or row. Blue never marks a state. State is a
- * word, a shape and a tone (ok / warn / info), never colour alone.
+ * Three tiers, top to bottom:
+ *  1. Values. Raw colours and shadows per theme, on :root and .dark. Only
+ *     tier 2 reads them.
+ *  2. Tokens. @theme binds one role name to one value and Tailwind turns it
+ *     into utilities: bg-surface, text-ink, gap-gutter, max-w-feed, z-nav.
+ *     Sizes, type, radius, layers and motion are the same in both themes, so
+ *     their values sit in @theme directly.
+ *  3. Recipes. @utility rules for anything that needs more than one
+ *     property: edges, rails, the focus ring, heading type with its family.
  *
- * Two name sets resolve to the same values:
- *  - Common Room names: --bg --surface --surface-2 --raised --fg --border
- *    --border-strong --accent* --focus --ok-* --warn-* --info-fg/-bg …
- *  - The app's earlier names (--paper --panel --well --ink --ink-muted
- *    --line --positive --attention --negative …), kept as aliases so every
- *    existing component reads the new system. CR "--muted" (secondary text)
- *    is --ink-muted here: shadcn already owns --muted as a fill.
+ * One public vocabulary. Application code uses the tier 2 and tier 3 names
+ * and nothing else. One block exists for another reason and is not part of
+ * it: the shadcn slot names (private, so `shadcn add` output resolves).
+ *
+ * Blue is rationed: solid accent fills the one primary button and marks a
+ * selection the person made; accent-text marks the active tab; accent-soft
+ * marks a selected filter, segment, side nav item or row. Blue never marks a
+ * state. State is a word, a shape and a tone (ok / warn / info), never
+ * colour alone.
  */
+
+/* ------------------------------------------------------------------------
+ * Tier 1: values
+ * --------------------------------------------------------------------- */
 :root {
-  /* Common Room: surfaces and ink */
-  --bg: oklch(0.955 0.004 250); /* #eef0f3 grey canvas */
+  /* Surfaces */
+  --canvas: oklch(0.955 0.004 250); /* #eef0f3 grey page */
   --surface: oklch(1 0 0); /* #ffffff cards, bars, sheets */
   --surface-2: oklch(0.935 0.005 250); /* #e7eaed grey buttons, fields */
   --raised: oklch(0.895 0.006 250); /* #d9dde0 hover on grey */
-  --fg: oklch(0.2 0.01 250); /* #13161a */
-  --fg-muted: oklch(0.45 0.012 250); /* #50565c (CR --muted) */
-  --border-strong: oklch(0.56 0.012 250); /* #6f757b */
+  /* Text */
+  --ink: oklch(0.2 0.01 250); /* #13161a */
+  --ink-muted: oklch(0.45 0.012 250); /* #50565c secondary text */
+  --ink-subtle: oklch(0.49 0.012 250); /* still 6:1 on surface */
+  /* Boundaries. --line is decoration (1.43:1); a live control's only
+     boundary is --edge-strong, which holds 3:1 against its neighbours. */
+  --line: oklch(0.88 0.006 250); /* #d5d8db dividers */
+  --edge-strong: oklch(0.56 0.012 250); /* #6f757b */
   /* Accent */
   --accent: oklch(0.5 0.16 252); /* #0063ba primary fill */
   --accent-hover: oklch(0.44 0.15 252); /* #0052a1 */
   --on-accent: oklch(1 0 0);
-  --accent-text: oklch(0.5 0.16 252); /* active tab */
+  /* The primary button's edge. Light draws none: the fill is the boundary. */
+  --accent-edge: oklch(0.5 0.16 252 / 0);
+  --accent-text: oklch(0.5 0.16 252); /* active tab, selected edge */
   --accent-soft: oklch(0.93 0.035 252); /* selected filter, side nav item */
   --focus: oklch(0.5 0.16 252);
   --select: var(--accent); /* ticked box, chosen radio, picked tile ring */
@@ -50,54 +66,40 @@
   --info-bg: oklch(0.95 0.03 215);
   --stamp-fg: oklch(0.2 0.01 250);
   --hatch: oklch(0.88 0.006 250);
+  /* Photo surfaces. The stage and what sits on it are dark in both themes. */
+  --stage: oklch(0.12 0.005 250); /* camera and viewer */
+  --on-stage: oklch(0.97 0 0);
+  --on-stage-muted: oklch(0.78 0.005 250);
   --plate: oklch(0.15 0.01 250 / 0.86); /* solid plate under text on photos */
-  --stage: oklch(0.12 0.005 250); /* camera and viewer stage */
-  /* Elevation. Use as shadow-card / shadow-float. */
+  --scrim: oklch(0.15 0.01 250 / 0.5);
+  /* Elevation: card, things that float (sheets, dialogs, menus), a raised
+     segment or switch thumb, and the hairline above a bottom bar. */
   --elevation-card:
     0 1px 2px oklch(0.2 0.01 250 / 0.12), 0 0 0 1px oklch(0.2 0.01 250 / 0.04);
   --elevation-float:
     0 12px 28px oklch(0.2 0.01 250 / 0.18), 0 2px 4px oklch(0.2 0.01 250 / 0.1);
-  --gutter: 0.75rem; /* card gap in a feed: 12px */
-
-  /* Earlier names with their own values (the var() aliases are below) */
-  --line: oklch(0.88 0.006 250); /* #d5d8db dividers (CR --border) */
-  --ink-subtle: oklch(0.49 0.012 250); /* still 6:1 on surface */
-  --viewer: var(--stage);
-  --on-viewer: oklch(0.97 0 0);
-  --on-viewer-muted: oklch(0.78 0.005 250);
-  --on-tile-badge: oklch(0.97 0 0);
-  --scrim: oklch(0.15 0.01 250 / 0.5);
-  --radius: 0.5rem;
-  /* Sizes that are not on Tailwind's 4px scale. Use as max-w-(--size-page). */
-  --size-reading: 40rem;
-  --size-dialog: 35rem;
-  --size-dialog-wide: 47.5rem;
-  --size-page: 75rem;
-  --size-feed: 37.5rem;
-  --size-tile-min: 10rem;
-  --size-tabbar: 4rem; /* tab 60px + 4px; the bar adds the safe area */
-  /* Phone page gutter (feed gutter 12px). Full-bleed: -mx-(--page-gutter). */
-  --page-gutter: 0.75rem;
-  /* Motion: hover 150ms, sheets rise in 260ms */
-  --duration-quick: 150ms;
-  --duration-move: 180ms;
-  --duration-sheet: 260ms;
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --elevation-control: 0 1px 2px oklch(0.2 0.01 250 / 0.16);
+  --elevation-bar: 0 -1px 0 var(--line);
   color-scheme: light;
 }
 
 .dark {
-  --bg: oklch(0.19 0.003 250); /* #131415 */
+  --canvas: oklch(0.19 0.003 250); /* #131415 */
   --surface: oklch(0.245 0.004 250); /* #1f2122 */
   --surface-2: oklch(0.31 0.005 250); /* #2e3133 */
   --raised: oklch(0.36 0.006 250); /* #3b3d40 */
-  --fg: oklch(0.95 0.003 250); /* #edeff0 */
-  --fg-muted: oklch(0.77 0.008 250); /* #b0b5b9 */
-  --border-strong: oklch(0.6 0.008 250);
+  --ink: oklch(0.95 0.003 250); /* #edeff0 */
+  --ink-muted: oklch(0.77 0.008 250); /* #b0b5b9 */
+  --ink-subtle: oklch(0.7 0.008 250);
+  --line: oklch(0.36 0.005 250);
+  /* 0.65, not 0.6: a field's edge has to hold 3:1 on surface-2 */
+  --edge-strong: oklch(0.65 0.008 250);
   --accent: oklch(0.5 0.16 252);
   --accent-hover: oklch(0.44 0.15 252);
   --on-accent: oklch(1 0 0);
+  /* solid accent is 2.7:1 on dark surface, so the primary button gets a
+     lighter 1px edge to hold 3:1 */
+  --accent-edge: var(--accent-text);
   --accent-text: oklch(0.76 0.12 250); /* #73b6fa */
   --accent-soft: oklch(0.32 0.06 252); /* #1a3450 */
   --focus: oklch(0.76 0.12 250);
@@ -113,247 +115,63 @@
   --stamp-fg: oklch(0.95 0.003 250);
   --hatch: oklch(0.38 0.005 250);
   --plate: oklch(0.12 0.005 250 / 0.9);
+  --scrim: oklch(0 0 0 / 0.6);
   --elevation-card: 0 0 0 1px oklch(1 0 0 / 0.06);
   --elevation-float:
     0 12px 28px oklch(0 0 0 / 0.5), 0 0 0 1px oklch(1 0 0 / 0.08);
-  --line: oklch(0.36 0.005 250);
-  --ink-subtle: oklch(0.7 0.008 250);
-  --scrim: oklch(0 0 0 / 0.6);
+  /* a 16% shadow does not show on a dark fill */
+  --elevation-control: 0 1px 2px oklch(0 0 0 / 0.5);
+  /* Repeated because a var() in a custom property is resolved on the element
+     that declares it: a dark subtree has to read its own --line. */
+  --elevation-bar: 0 -1px 0 var(--line);
   color-scheme: dark;
 }
 
-/*
- * Aliases. A var() in a custom property is resolved on the element that
- * declares it and inherited as a value, so each alias is declared on .dark
- * too: a dark subtree then reads its own Common Room values.
- */
-:root,
-.dark {
-  --paper: var(--bg);
-  --panel: var(--surface);
-  --well: var(--surface-2);
-  --fill-hover: var(--surface-2);
-  --fill-press: var(--raised);
-  --line-control: var(--border-strong);
-  --ink: var(--fg);
-  --ink-muted: var(--fg-muted);
-  --positive: var(--ok-fg);
-  --positive-soft: var(--ok-bg);
-  --positive-fill: var(--ok-fg);
-  --on-positive-fill: var(--surface);
-  --attention: var(--warn-fg);
-  --attention-soft: var(--warn-bg);
-  --negative: var(--warn-fg);
-  --negative-soft: var(--warn-bg);
-  --negative-fill: var(--warn-fg);
-  --on-negative-fill: var(--surface);
-  --media-placeholder: var(--surface-2);
-  --tile-badge: var(--plate);
-  --shadow-overlay: var(--elevation-float);
-  --shadow-sheet: var(--elevation-float);
-  --shadow-bar: 0 -1px 0 var(--line);
-}
+/* ------------------------------------------------------------------------
+ * Tier 2: tokens (DESIGN.md §10)
+ * --------------------------------------------------------------------- */
 
 /*
- * shadcn slot names, kept so the existing primitives read the system.
- * shadcn's own "accent" slot (a neutral hover fill) is fill-hover here:
- * --accent is the brand colour. shadcn "--muted" is a grey fill (surface-2).
+ * Colour, elevation and fonts. "inline" writes var(--ink) into the utility
+ * instead of a second variable on :root, so a .dark subtree reads its own
+ * value. One utility name per role.
  */
-:root,
-.dark {
-  --background: var(--paper);
-  --foreground: var(--ink);
-  --card: var(--panel);
-  --card-foreground: var(--ink);
-  --popover: var(--panel);
-  --popover-foreground: var(--ink);
-  --primary: var(--accent);
-  --primary-foreground: var(--on-accent);
-  --secondary: var(--well);
-  --secondary-foreground: var(--ink);
-  --muted: var(--well);
-  --muted-foreground: var(--ink-muted);
-  --destructive: var(--negative);
-  --border: var(--line);
-  --input: var(--line-control);
-  --ring: var(--focus);
-  /* Earlier status names. Waiting states (submitted, uploading, invited,
-     draft) are neutral, so "info" stays ink-muted on well. The Common Room
-     info tone (Ready, self-review) is --info-fg on --info-bg. */
-  --positive-surface: var(--positive-soft);
-  --warning: var(--attention);
-  --warning-surface: var(--attention-soft);
-  --negative-surface: var(--negative-soft);
-  --info: var(--ink-muted);
-  --info-surface: var(--well);
-}
-
 @theme inline {
   /* next/font sets --font-figtree, --font-atkinson-next and
      --font-atkinson-mono on <html> (app/layout.tsx).
-     sans = body (Atkinson Hyperlegible Next); display and heading = Figtree
-     (titles, counts, tab labels, the Complete stamp); mono = meta, times and
+     sans = body (Atkinson Hyperlegible Next); display = Figtree (titles,
+     counts, tab labels, the Complete stamp); mono = meta, times and
      percentages (Atkinson Hyperlegible Mono, tabular). */
   --font-sans:
     var(--font-atkinson-next), "Atkinson Hyperlegible", system-ui,
     -apple-system, "Segoe UI", sans-serif;
   --font-display:
     var(--font-figtree), system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-heading:
-    var(--font-figtree), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono:
     var(--font-atkinson-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /*
-   * Type styles (DESIGN.md §2 Type). The floor is 17px for product text at
-   * every width; the only exception is text-caption (15px), for a caption
-   * laid over a photo. The *-touch names are kept for components that pair
-   * them with the compact name from md up; both now resolve to the same
-   * Common Room size. Tailwind's text-xs/sm/base are lifted to the floor.
-   */
-  --text-xs: 1.0625rem;
-  --text-xs--line-height: 1.4;
-  --text-sm: 1.0625rem;
-  --text-sm--line-height: 1.45;
-  --text-base: 1.0625rem;
-  --text-base--line-height: 1.5;
-  /* Display XL 34/1.05/800 */
-  --text-display: 2.125rem;
-  --text-display--line-height: 1.05;
-  --text-display--font-weight: 800;
-  --text-display--letter-spacing: -0.02em;
-  /* Heading LG 26/1.15/750: a page's <h1> */
-  --text-page-title: 1.625rem;
-  --text-page-title--line-height: 1.15;
-  --text-page-title--font-weight: 750;
-  --text-page-title--letter-spacing: -0.01em;
-  /* Top bar title 24/1.15/800 */
-  --text-page-title-compact: 1.5rem;
-  --text-page-title-compact--line-height: 1.15;
-  --text-page-title-compact--font-weight: 800;
-  --text-page-title-compact--letter-spacing: -0.01em;
-  /* Count 46/0.95/800, tabular (pair with font-display tabular-nums) */
-  --text-count: 2.875rem;
-  --text-count--line-height: 0.95;
-  --text-count--font-weight: 800;
-  --text-count--letter-spacing: -0.03em;
-  --text-count-sm: 1.625rem;
-  --text-count-sm--line-height: 1.1;
-  --text-count-sm--font-weight: 800;
-  --text-count-touch: 2.875rem;
-  --text-count-touch--line-height: 0.95;
-  --text-count-touch--font-weight: 800;
-  /* Heading MD / card title 21/1.25/700 (lead card title: text-card-title) */
-  --text-section-title: 1.3125rem;
-  --text-section-title--line-height: 1.25;
-  --text-section-title--font-weight: 700;
-  --text-section-title-touch: 1.3125rem;
-  --text-section-title-touch--line-height: 1.25;
-  --text-section-title-touch--font-weight: 700;
-  --text-card-title: 1.5rem;
-  --text-card-title--line-height: 1.15;
-  --text-card-title--font-weight: 750;
-  --text-card-title--letter-spacing: -0.01em;
-  /* Row title 18/1.3/700 */
-  --text-item-title: 1.125rem;
-  --text-item-title--line-height: 1.3;
-  --text-item-title--font-weight: 700;
-  --text-item-title-touch: 1.125rem;
-  --text-item-title-touch--line-height: 1.3;
-  --text-item-title-touch--font-weight: 700;
-  /* Body 17/1.5/400, lead 18 */
-  --text-body: 1.0625rem;
-  --text-body--line-height: 1.5;
-  --text-body-touch: 1.0625rem;
-  --text-body-touch--line-height: 1.5;
-  --text-body-sm: 1.0625rem;
-  --text-body-sm--line-height: 1.45;
-  --text-lead: 1.125rem;
-  --text-lead--line-height: 1.5;
-  /* Field labels 17/700; button 18/1.2/700 */
-  --text-label: 1.0625rem;
-  --text-label--line-height: 1.3;
-  --text-label--font-weight: 700;
-  --text-label-touch: 1.0625rem;
-  --text-label-touch--line-height: 1.3;
-  --text-label-touch--font-weight: 700;
-  --text-button: 1.125rem;
-  --text-button--line-height: 1.2;
-  --text-button--font-weight: 700;
-  /* Meta, times: 17 (use font-mono for times and %) */
-  --text-meta: 1.0625rem;
-  --text-meta--line-height: 1.35;
-  --text-meta-strong: 1.0625rem;
-  --text-meta-strong--line-height: 1.35;
-  --text-meta-strong--font-weight: 600;
-  --text-meta-touch: 1.0625rem;
-  --text-meta-touch--line-height: 1.35;
-  /* State chip 17/1.2/700 */
-  --text-chip: 1.0625rem;
-  --text-chip--line-height: 1.2;
-  --text-chip--font-weight: 700;
-  --text-chip-touch: 1.0625rem;
-  --text-chip-touch--line-height: 1.2;
-  --text-chip-touch--font-weight: 700;
-  /* Tab label 17/1.1/600 (Figtree; active 800) */
-  --text-tab-label: 1.0625rem;
-  --text-tab-label--line-height: 1.1;
-  --text-tab-label--font-weight: 600;
-  /* Caption on a photo only */
-  --text-caption: 0.9375rem;
-  --text-caption--line-height: 1.25;
-  --text-mono: 1.0625rem;
-  --text-mono--line-height: 1.3;
-
-  /* Shadows: cards, and things that float (sheets, dialogs, menus) */
-  --shadow-card: var(--elevation-card);
-  --shadow-float: var(--elevation-float);
-
-  /* System colours */
-  --color-paper: var(--paper);
-  --color-panel: var(--panel);
-  --color-well: var(--well);
-  --color-fill-hover: var(--fill-hover);
-  --color-fill-press: var(--fill-press);
-  --color-line: var(--line);
-  --color-line-control: var(--line-control);
-  --color-ink: var(--ink);
-  --color-ink-muted: var(--ink-muted);
-  --color-ink-subtle: var(--ink-subtle);
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-on-accent: var(--on-accent);
-  --color-accent-text: var(--accent-text);
-  --color-accent-soft: var(--accent-soft);
-  --color-focus: var(--focus);
-  --color-positive: var(--positive);
-  --color-positive-soft: var(--positive-soft);
-  --color-positive-fill: var(--positive-fill);
-  --color-on-positive-fill: var(--on-positive-fill);
-  --color-attention: var(--attention);
-  --color-attention-soft: var(--attention-soft);
-  --color-negative: var(--negative);
-  --color-negative-soft: var(--negative-soft);
-  --color-negative-fill: var(--negative-fill);
-  --color-on-negative-fill: var(--on-negative-fill);
-  --color-media-placeholder: var(--media-placeholder);
-  --color-viewer: var(--viewer);
-  --color-on-viewer: var(--on-viewer);
-  --color-on-viewer-muted: var(--on-viewer-muted);
-  --color-tile-badge: var(--tile-badge);
-  --color-on-tile-badge: var(--on-tile-badge);
-  --color-scrim: var(--scrim);
-
-  /* Common Room names */
-  --color-bg: var(--bg);
+  /* Surfaces and text */
+  --color-canvas: var(--canvas);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-raised: var(--raised);
-  --color-fg: var(--fg);
-  --color-fg-muted: var(--fg-muted);
-  --color-border-strong: var(--border-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  /* Boundaries */
+  --color-line: var(--line);
+  --color-edge-strong: var(--edge-strong);
+  /* Accent, selection, focus */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-edge: var(--accent-edge);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
   --color-select: var(--select);
   --color-on-select: var(--on-select);
+  --color-focus: var(--focus);
+  /* Tones. Errors and warnings share warn (DESIGN.md §2). */
   --color-ok-fg: var(--ok-fg);
   --color-ok-bg: var(--ok-bg);
   --color-warn-fg: var(--warn-fg);
@@ -362,60 +180,208 @@
   --color-info-bg: var(--info-bg);
   --color-stamp-fg: var(--stamp-fg);
   --color-hatch: var(--hatch);
-  --color-plate: var(--plate);
+  /* Photo surfaces */
   --color-stage: var(--stage);
+  --color-on-stage: var(--on-stage);
+  --color-on-stage-muted: var(--on-stage-muted);
+  --color-plate: var(--plate);
+  --color-scrim: var(--scrim);
+  /* The fill behind a photo before it loads. Its own role, so the 14 places
+     that use it can change together; today it is surface-2. */
+  --color-media-placeholder: var(--surface-2);
+  /* Avatar: initials on a per-person tint. --ah (the hue) is set on the
+     avatar itself, so the colour is written out here and not held in a
+     :root variable, which would resolve --ah on :root and lose it. */
+  --color-avatar-fill: oklch(0.42 0.06 var(--ah, 250));
+  --color-on-avatar: oklch(0.98 0 0);
 
-  /* shadcn slots and earlier status names */
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-positive-surface: var(--positive-surface);
-  --color-warning: var(--warning);
-  --color-warning-surface: var(--warning-surface);
-  --color-negative-surface: var(--negative-surface);
-  --color-info: var(--info);
-  --color-info-surface: var(--info-surface);
+  /* Elevation: shadow-card, shadow-float, shadow-control, shadow-bar */
+  --shadow-card: var(--elevation-card);
+  --shadow-float: var(--elevation-float);
+  --shadow-control: var(--elevation-control);
+  --shadow-bar: var(--elevation-bar);
+}
 
-  /* Radii (DESIGN.md §2): button and field 8, card/post/row 12, sheet top 16,
-     square state 4, stamp 2, pills full. Tailwind's scale set to the same. */
-  --radius-print: 2px;
+/* Type, space, size, radius, layers and motion: the same in both themes. */
+@theme {
+  /*
+   * Type roles (DESIGN.md §2 Type). The floor is 17px for product text at
+   * every width; the only exception is text-caption (15px), for a caption
+   * laid over a photo. Tailwind's text-xs/sm/base are lifted to the floor as
+   * a guard; do not use them in source.
+   */
+  --text-xs: 1.0625rem;
+  --text-xs--line-height: 1.4;
+  --text-sm: 1.0625rem;
+  --text-sm--line-height: 1.45;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.5;
+  /* Count 46/0.95/800: the one big number on a card (type-count) */
+  --text-count: 2.875rem;
+  --text-count--line-height: 0.95;
+  --text-count--font-weight: 800;
+  --text-count--letter-spacing: -0.03em;
+  /* Display 34/1.05/800: first-run and sign-in headings (type-display) */
+  --text-display: 2.125rem;
+  --text-display--line-height: 1.05;
+  --text-display--font-weight: 800;
+  --text-display--letter-spacing: -0.02em;
+  /* Page title 26/1.15/750: a page's <h1> (type-page-title) */
+  --text-page-title: 1.625rem;
+  --text-page-title--line-height: 1.15;
+  --text-page-title--font-weight: 750;
+  --text-page-title--letter-spacing: -0.01em;
+  /* Section title 21/1.25/700: section <h2>, card title (type-section-title) */
+  --text-section-title: 1.3125rem;
+  --text-section-title--line-height: 1.25;
+  --text-section-title--font-weight: 700;
+  /* Small heading 19/1.3/700: a sub-heading inside a card (type-heading-sm) */
+  --text-heading-sm: 1.1875rem;
+  --text-heading-sm--line-height: 1.3;
+  --text-heading-sm--font-weight: 700;
+  /* Row title 18/1.3/700 */
+  --text-item-title: 1.125rem;
+  --text-item-title--line-height: 1.3;
+  --text-item-title--font-weight: 700;
+  /* Lead 18/1.5: an intro paragraph */
+  --text-lead: 1.125rem;
+  --text-lead--line-height: 1.5;
+  /* Field 18/1.3/400: text inside an input */
+  --text-field: 1.125rem;
+  --text-field--line-height: 1.3;
+  --text-field--font-weight: 400;
+  /* Button 18/1.2/700 */
+  --text-button: 1.125rem;
+  --text-button--line-height: 1.2;
+  --text-button--font-weight: 700;
+  /* Body 17/1.5: the default */
+  --text-body: 1.0625rem;
+  --text-body--line-height: 1.5;
+  /* Label 17/1.3/700: field label, strong inline text */
+  --text-label: 1.0625rem;
+  --text-label--line-height: 1.3;
+  --text-label--font-weight: 700;
+  /* Meta 17/1.35: a secondary line (with text-ink-muted) */
+  --text-meta: 1.0625rem;
+  --text-meta--line-height: 1.35;
+  /* Mono 17/1.3: times, counts, percentages (with font-mono) */
+  --text-mono: 1.0625rem;
+  --text-mono--line-height: 1.3;
+  /* Tab label 17/1.1/600 (type-tab-label; active 800) */
+  --text-tab-label: 1.0625rem;
+  --text-tab-label--line-height: 1.1;
+  --text-tab-label--font-weight: 600;
+  /* State chip 17/1.2/700 */
+  --text-chip: 1.0625rem;
+  --text-chip--line-height: 1.2;
+  --text-chip--font-weight: 700;
+  /* Caption 15/1.25: only over a photo, on a plate */
+  --text-caption: 0.9375rem;
+  --text-caption--line-height: 1.25;
+
+  /* Space: gap-gutter (card gap in a feed) and px-page-gutter (phone page
+     gutter; full-bleed is -mx-page-gutter). Both 12px. The page gutter is
+     not "page": Tailwind reads --spacing before --container, so max-w-page
+     would become 12px. */
+  --spacing-gutter: 0.75rem;
+  --spacing-page-gutter: 0.75rem;
+  /* Sizes off the 4px scale. tabbar: tab 60px + 4px; the bar adds the safe
+     area. tile-min: the narrowest photo tile; grid-cols-tiles fills a row
+     with tiles at least that wide. */
+  --spacing-tabbar: 4rem;
+  --spacing-tile-min: 10rem;
+  --grid-template-columns-tiles: repeat(
+    auto-fill,
+    minmax(var(--spacing-tile-min), 1fr)
+  );
+  /* Page widths: max-w-feed, max-w-reading, max-w-page, max-w-dialog … */
+  --container-feed: 37.5rem;
+  --container-reading: 40rem;
+  --container-page: 75rem;
+  --container-dialog: 35rem;
+  --container-dialog-wide: 47.5rem;
+  /* Container-query sizes for reusable components: @compact:, @max-compact:,
+     @regular:, @wide: and so on. */
+  --container-compact: 32.5rem;
+  --container-regular: 36rem;
+  --container-wide: 40rem;
+
+  /* Radius (DESIGN.md §2): one name per value. Button and field 8,
+     card/post/row 12, sheet top 16, square state 4, stamp 2, pills full. */
   --radius-stamp: 2px;
-  --radius-chip: 0.25rem;
   --radius-square: 0.25rem;
   --radius-control: 0.5rem;
-  --radius-touch: 0.75rem;
-  --radius-panel: 0.75rem;
   --radius-card: 0.75rem;
   --radius-sheet: 1rem;
   --radius-round: 9999px;
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --radius-3xl: 1.25rem;
-  --radius-4xl: 1.5rem;
+
+  /* Layers, lowest first: z-local (inside a component), z-sticky (sticky
+     headers), z-dock (action docks), z-nav (tab bar, side nav), z-overlay
+     (sheets, dialogs, menus). */
+  --z-index-local: 10;
+  --z-index-sticky: 20;
+  --z-index-dock: 30;
+  --z-index-nav: 40;
+  --z-index-overlay: 50;
+
+  /* Motion: duration-quick (hover, press), duration-move (disclosure,
+     reorder), duration-sheet (sheets rise), and one easing, ease-out. A bare
+     transition-* utility gets quick and ease-out. */
+  --transition-duration-quick: 150ms;
+  --transition-duration-move: 180ms;
+  --transition-duration-sheet: 260ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --default-transition-duration: var(--transition-duration-quick);
+  --default-transition-timing-function: var(--ease-out);
 }
 
+/* ------------------------------------------------------------------------
+ * shadcn slot names: private (DESIGN.md §10)
+ *
+ * Plain custom properties so anything `shadcn add` writes with var(--…)
+ * still resolves. They have no utilities on purpose: bg-background or
+ * text-muted-foreground is not part of the vocabulary. shadcn's own "accent"
+ * slot (a neutral hover fill) is surface-2 here; --accent is the brand
+ * colour. Declared on .dark too, so a dark subtree reads its own values.
+ * --------------------------------------------------------------------- */
+:root,
+.dark {
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent);
+  --primary-foreground: var(--on-accent);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-muted);
+  --destructive: var(--warn-fg);
+  --border: var(--line);
+  --input: var(--edge-strong);
+  --ring: var(--focus);
+}
+
+/* ------------------------------------------------------------------------
+ * Base
+ * --------------------------------------------------------------------- */
 @layer base {
+  /* Every border is a hairline unless it says otherwise, and every outline
+     is the full focus colour. The colour alone draws nothing: an outline
+     shows only where a rule also gives it a style. */
   * {
-    @apply border-border outline-ring/50;
+    @apply border-line outline-focus;
   }
   body {
-    @apply bg-background text-body-touch text-foreground md:text-body;
+    @apply bg-canvas text-body text-ink;
+    /* viewport-fit=cover (app/layout.tsx) lets the page run under a notch
+       when the phone is on its side. Everything in the flow stays clear of
+       it; the canvas fills the strip. Both are zero in portrait. Fixed bars
+       and sheets are outside the flow and keep clear themselves (w-safe). */
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
   html {
     @apply font-sans;
@@ -423,7 +389,7 @@
   /* Below md the TabBar is fixed to the bottom; keep a control that Tab
      scrolls to clear of it (WCAG 2.4.11), outline included. */
   html:has([data-slot="tabbar"]) {
-    @apply max-md:scroll-pb-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px)+0.5rem)];
+    @apply max-md:scroll-pb-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+0.5rem)];
   }
   h1,
   h2,
@@ -432,14 +398,92 @@
   }
 }
 
-/* Kept for older markup. Figtree and Atkinson have no width axis, so these
-   are no-ops now; long words wrap instead (DESIGN.md §7: nothing scrolls
-   sideways from 320px). */
-@utility wdth-92 {
-  font-variation-settings: "wdth" 92;
+/* ------------------------------------------------------------------------
+ * Tier 3: recipes
+ * --------------------------------------------------------------------- */
+
+/*
+ * Heading type. A text token cannot set a family, so each Figtree role has a
+ * recipe that sets the family with the size, line height, weight and
+ * tracking. Use these for headings, counts and tab labels; no separate
+ * font-display class is needed.
+ */
+@utility type-count {
+  @apply font-display text-count;
 }
-@utility wdth-88 {
-  font-variation-settings: "wdth" 88;
+@utility type-display {
+  @apply font-display text-display;
+}
+@utility type-page-title {
+  @apply font-display text-page-title;
+}
+@utility type-section-title {
+  @apply font-display text-section-title;
+}
+@utility type-heading-sm {
+  @apply font-display text-heading-sm;
+}
+@utility type-tab-label {
+  @apply font-display text-tab-label;
+}
+/* The Complete stamp's lettering (DESIGN.md §3). The chip sets the size. */
+@utility type-stamp {
+  @apply font-display font-extrabold tracking-[0.06em] uppercase;
+}
+
+/*
+ * Edges: a boundary drawn inside the box, so it takes no space and follows
+ * the radius. They use Tailwind's inset-ring layer of box-shadow, so an edge
+ * and a shadow-card on one element both draw. One edge per element.
+ */
+/* Hairline on a tile or a disabled field. Decoration only. */
+@utility edge {
+  @apply inset-ring inset-ring-line;
+}
+/* The boundary of a field or a grey control. */
+@utility edge-strong {
+  @apply inset-ring inset-ring-edge-strong;
+}
+/* The primary button. It shows in dark only, where the fill is faint. */
+@utility edge-accent {
+  @apply inset-ring inset-ring-accent-edge;
+}
+/* A selected pill or row. */
+@utility edge-selected {
+  @apply inset-ring-[1.5px] inset-ring-accent-text;
+}
+/* An invalid field. The message beside it says what is wrong. */
+@utility edge-invalid {
+  @apply inset-ring-2 inset-ring-warn-fg;
+}
+/* A picked photo tile. */
+@utility ring-selected {
+  @apply inset-ring-3 inset-ring-select;
+}
+
+/*
+ * Rails: a 4px tone bar on the leading side of a card or notice, or along
+ * the top of a lead card. They use the inset-shadow layer, so
+ * "shadow-card rail-start-warn" draws both, and an edge as well. One rail
+ * per element.
+ */
+@utility rail-start-ok {
+  @apply inset-shadow-[4px_0_0_0_var(--ok-fg)];
+}
+@utility rail-start-warn {
+  @apply inset-shadow-[4px_0_0_0_var(--warn-fg)];
+}
+@utility rail-start-info {
+  @apply inset-shadow-[4px_0_0_0_var(--info-fg)];
+}
+@utility rail-top-ok {
+  @apply inset-shadow-[0_4px_0_0_var(--ok-fg)];
+}
+@utility rail-top-warn {
+  @apply inset-shadow-[0_4px_0_0_var(--warn-fg)];
+}
+@utility rail-top-info {
+  @apply inset-shadow-[0_4px_0_0_var(--info-fg)];
 }
 
 /* Needs setup / Needs verification: the hatched fill of the dashed square. */
@@ -455,15 +499,48 @@
   background-image: repeating-linear-gradient(
     135deg,
     var(--surface-2) 0 4px,
-    var(--border-strong) 4px 6px
+    var(--edge-strong) 4px 6px
   );
 }
 
 /*
- * Focus (DESIGN.md §7): a 3px --focus outline on every interactive element,
- * in both themes. Unlayered, so it wins over the `outline-2` utilities that
- * components set; their colour and offset still apply.
+ * A fixed sheet or dialog is as wide as the screen less the notch, counted
+ * on both sides so it stays centred. The same as w-full in portrait.
  */
+@utility w-safe {
+  width: calc(
+    100% - 2 *
+      max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))
+  );
+}
+
+/*
+ * Focus (DESIGN.md §7): a 3px --focus outline, 2px clear of the control, in
+ * both themes. focus-ring-inset draws it inside the box, for rows and tiles
+ * whose parent clips. focus-ring-within marks a wrapper whose child holds
+ * focus. Each rule sets the style itself, so it draws even beside
+ * outline-none.
+ */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+@utility focus-ring-inset {
+  &:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: -3px;
+  }
+}
+@utility focus-ring-within {
+  &:has(:focus-visible) {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+/* Unlayered, so it wins over the `outline-2` utilities that components set;
+   their colour and offset still apply. */
 :focus-visible {
   outline-width: 3px;
 }

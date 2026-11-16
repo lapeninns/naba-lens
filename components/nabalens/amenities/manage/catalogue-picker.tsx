@@ -1,11 +1,8 @@
 "use client"
 
+import { SearchField } from "@/components/ui/search-field"
 import * as React from "react"
-import {
-  MagnifyingGlassIcon,
-  PlusIcon,
-  SpinnerGapIcon,
-} from "@phosphor-icons/react"
+import { PlusIcon } from "@phosphor-icons/react"
 
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
@@ -119,7 +116,7 @@ export function CataloguePicker({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="flex max-h-[90svh] flex-col sm:max-w-2xl">
+      <DialogContent size="wide" className="flex flex-col">
         <form
           onSubmit={submit}
           className="flex min-h-0 flex-1 flex-col gap-4"
@@ -131,42 +128,24 @@ export function CataloguePicker({
               Choose the questions {venueName} should answer with evidence.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-1.5">
-            <label
-              htmlFor={`${id}-search`}
-              className="text-label-touch text-ink md:text-label"
-            >
-              Search the catalogue
-            </label>
-            <div className="relative">
-              <MagnifyingGlassIcon
-                aria-hidden
-                className="pointer-events-none absolute start-3 top-1/2 size-[18px] -translate-y-1/2 text-ink-muted"
-              />
-              <input
-                id={`${id}-search`}
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.currentTarget.value)}
-                placeholder="Question, category or key"
-                autoComplete="off"
-                className="block h-11 w-full min-w-0 rounded-control border border-line-control bg-panel ps-10 pe-3 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus focus-visible:outline-solid md:text-body"
-              />
-            </div>
-          </div>
+          <SearchField
+            id={`${id}-search`}
+            label="Search the catalogue"
+            value={query}
+            onValueChange={setQuery}
+            placeholder="Question, category or key"
+            autoComplete="off"
+          />
           <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
             {groups.length === 0 ? (
-              <p
-                role="status"
-                className="text-body-touch text-ink-muted md:text-body"
-              >
+              <p role="status" className="text-body text-ink-muted">
                 Nothing in the catalogue matches “{query.trim()}”.
               </p>
             ) : (
               <div className="grid gap-5">
                 {groups.map(([category, entries]) => (
                   <fieldset key={category} className="grid min-w-0 gap-2">
-                    <legend className="mb-1 text-meta-touch font-semibold text-ink-muted uppercase md:text-meta-strong">
+                    <legend className="mb-1 text-meta font-semibold text-ink-muted uppercase">
                       {category}
                     </legend>
                     {entries.map((option) => (
@@ -185,40 +164,27 @@ export function CataloguePicker({
             )}
           </div>
           {error ? (
-            <p
-              role="alert"
-              className="text-body-touch text-negative md:text-body-sm"
-            >
+            <p role="alert" className="text-body text-warn-fg">
               {error}
             </p>
           ) : null}
           <DialogFooter className="items-center">
             <p
               aria-live="polite"
-              className="me-auto text-meta-touch text-ink-muted tabular-nums md:text-meta"
+              className="me-auto text-meta text-ink-muted tabular-nums"
             >
               {selected.length} selected
             </p>
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               onClick={() => close(false)}
               disabled={pending}
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              size="touch"
-              disabled={pending}
-              aria-busy={pending || undefined}
-            >
-              {pending ? (
-                <SpinnerGapIcon aria-hidden className="animate-spin" />
-              ) : (
-                <PlusIcon aria-hidden />
-              )}
+            <Button variant="primary" type="submit" loading={pending}>
+              <PlusIcon aria-hidden />
               {UI_TEXT.addSelected}
             </Button>
           </DialogFooter>
@@ -262,13 +228,13 @@ function CatalogueRow({
       <span className="grid min-w-0 gap-1">
         <span
           id={`${id}-question`}
-          className="text-body-touch font-semibold break-words text-ink md:text-body"
+          className="text-body font-semibold break-words text-ink"
         >
           {option.question}
         </span>
         <span
           id={`${id}-meta`}
-          className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta-touch text-ink-muted md:text-meta"
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-ink-muted"
         >
           <span>Evidence: {EVIDENCE_RULE_LABEL[option.evidenceRule]}</span>
           <span aria-hidden>·</span>
@@ -283,7 +249,7 @@ function CatalogueRow({
         </span>
         <span
           id={`${id}-brief`}
-          className="text-body-touch break-words text-ink-muted md:text-body-sm"
+          className="text-body break-words text-ink-muted"
         >
           {option.captureBrief}
         </span>

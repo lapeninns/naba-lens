@@ -12,6 +12,7 @@ import {
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { fieldControlVariants } from "@/components/ui/field-control"
 import { requireActiveAdmin } from "@/lib/auth"
 import type { RegistryItem } from "@/lib/knowledge-client/contract"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
@@ -19,16 +20,16 @@ import { getCoverageActor } from "@/lib/server/coverage"
 import type { MediaActor } from "@/lib/server/media/types"
 
 export const metadata: Metadata = {
-  title: "Check dates · Knowledge · Naba-Lens",
+  title: "Check dates · Knowledge",
 }
 
 const PATH = "/admin/knowledge/check-dates"
 const KEY = /^[a-z0-9_]{1,40}$/
 const RULE = /^[a-z][a-z0-9_]{0,39}$/
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus md:text-body"
-const LABEL = "text-label-touch text-ink md:text-label"
-const MUTED = "text-meta-touch text-ink-muted md:text-meta"
+// Native selects take the shared field recipe (DESIGN.md §4 Field).
+const INPUT = fieldControlVariants()
+const LABEL = "text-label text-ink"
+const MUTED = "text-meta text-ink-muted"
 
 type Search = Record<string, string | string[] | undefined>
 const one = (v: string | string[] | undefined) =>
@@ -134,7 +135,7 @@ export default async function CheckDatesPreviewPage({
 
   return (
     <AppShell variant="admin" active="coverage" userName={profile.displayName}>
-      <div className="mx-auto grid w-full max-w-(--size-reading) min-w-0 gap-(--gutter)">
+      <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
         <PageHeader title={COPY.title} />
         <Notice tone="plain" role="note">
           {COPY.intro}
@@ -203,7 +204,7 @@ export default async function CheckDatesPreviewPage({
             {COPY.ruleHelp}
           </p>
           <div>
-            <Button type="submit" variant="secondary" size="touch">
+            <Button type="submit" variant="secondary">
               {COPY.show}
             </Button>
           </div>
@@ -216,10 +217,7 @@ export default async function CheckDatesPreviewPage({
               !preview || preview.code === "unavailable" ? (
                 <Link
                   href={`${PATH}?${new URLSearchParams({ key, for: key, internal, public: publicRule })}`}
-                  className={buttonVariants({
-                    variant: "secondary",
-                    size: "touch",
-                  })}
+                  className={buttonVariants({ variant: "secondary" })}
                 >
                   {COPY.tryAgain}
                 </Link>
@@ -235,9 +233,7 @@ export default async function CheckDatesPreviewPage({
         {preview?.ok ? (
           <CoverageSection id="check-dates-preview" title={COPY.title}>
             {preview.preview.items.length === 0 ? (
-              <p className="text-body-touch text-ink md:text-body">
-                {COPY.none}
-              </p>
+              <p className="text-body text-ink">{COPY.none}</p>
             ) : (
               <ul className="grid gap-3">
                 {preview.preview.items.map((item) => (
@@ -249,7 +245,7 @@ export default async function CheckDatesPreviewPage({
                       {names.get(item.venueId) ?? COPY.aVenue}
                     </p>
                     <p className={MUTED}>{COPY.use[item.use]}</p>
-                    <ul className="grid gap-0.5 text-body-touch text-ink md:text-body">
+                    <ul className="grid gap-0.5 text-body text-ink">
                       <li>{COPY.answers(item.answers)}</li>
                       <li>{COPY.expired(item.expired)}</li>
                       <li>{COPY.basisMissing(item.basisMissing)}</li>

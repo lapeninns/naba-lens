@@ -1,5 +1,6 @@
 "use client"
 
+import { Textarea } from "@/components/ui/textarea"
 import * as React from "react"
 import Link from "next/link"
 import {
@@ -22,7 +23,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import type { CatalogueIndex } from "./catalogue-search"
-import { FIELD_CONTROL, FIELD_HINT, FIELD_LABEL } from "./field-styles"
+import { FIELD_HINT, FIELD_LABEL } from "./field-styles"
 import {
   isUnspecifiedVariant,
   type DraftItem,
@@ -135,9 +136,8 @@ function SelectedItems({
             key={item.key}
             data-unavailable={unavailable || undefined}
             className={cn(
-              "flex max-w-full min-w-0 items-center gap-1 rounded-card bg-accent-soft py-1 ps-3.5 text-ink shadow-[inset_0_0_0_1.5px_var(--accent-text)]",
-              unavailable &&
-                "bg-warn-bg shadow-[inset_0_0_0_2px_var(--warn-fg)]"
+              "flex max-w-full min-w-0 items-center gap-1 rounded-card bg-accent-soft py-1 ps-3.5 text-ink edge-selected",
+              unavailable && "bg-warn-bg edge-invalid"
             )}
           >
             <span className="min-w-0 py-0.5">
@@ -149,7 +149,7 @@ function SelectedItems({
             <Button
               type="button"
               variant="quiet"
-              size="icon-sm"
+              size="icon"
               className="shrink-0 text-current"
               aria-label={`Remove ${accessibleName}${nameSuffix ? ` ${nameSuffix}` : ""}`}
               disabled={disabled}
@@ -228,11 +228,10 @@ function ContentTypeChips({
                 if (!blocked) onToggle(type)
               }}
               className={cn(
-                "inline-flex min-h-11 items-center gap-1.5 rounded-round bg-surface-2 px-4 text-label text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed",
-                pressed &&
-                  "bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent-text)] hover:bg-accent-soft",
+                "inline-flex min-h-11 items-center gap-1.5 rounded-round bg-surface-2 px-4 text-label text-ink focus-ring transition-colors duration-quick outline-none hover:bg-raised disabled:cursor-not-allowed",
+                pressed && "bg-accent-soft edge-selected hover:bg-accent-soft",
                 blocked &&
-                  "cursor-not-allowed bg-transparent text-ink-muted shadow-[inset_0_0_0_1px_var(--line)] hover:bg-transparent"
+                  "cursor-not-allowed bg-transparent text-ink-muted edge hover:bg-transparent"
               )}
             >
               {pressed ? (
@@ -284,7 +283,7 @@ function NoteField({
       <label htmlFor={id} className={FIELD_LABEL}>
         {label}
       </label>
-      <textarea
+      <Textarea
         id={id}
         value={value}
         maxLength={LABEL_LIMITS.maxNoteLength}
@@ -292,7 +291,6 @@ function NoteField({
         aria-describedby={`${id}-count${help ? ` ${id}-help` : ""}`}
         disabled={disabled}
         rows={2}
-        className={cn("w-full min-w-0 resize-y outline-none", FIELD_CONTROL)}
       />
       <div className="flex items-start gap-3">
         {help ? (
@@ -362,7 +360,6 @@ function MissingItemField({
         aria-describedby={`${id}-help`}
         disabled={disabled}
         placeholder="e.g. Lamb shank special"
-        className={FIELD_CONTROL}
       />
       <div id={`${id}-help`}>
         {withdrawing ? (

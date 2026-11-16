@@ -1,5 +1,7 @@
 "use client"
 
+import { fieldControlVariants } from "@/components/ui/field-control"
+import { cn } from "@/lib/utils"
 import { FieldMessage, LABEL, MUTED } from "../amenities/capture/field-parts"
 
 import {
@@ -10,8 +12,7 @@ import {
   type CheckedOn,
 } from "./checked-on"
 
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
+const INPUT = cn("block", fieldControlVariants())
 
 /**
  * "When did you check?" (B03 UI design §3.2). 44 px or more at every width.
@@ -63,10 +64,7 @@ export function CheckedOnField({
         {CHECKED_ON_COPY.help}
       </p>
       {notice ? (
-        <p
-          id={`${id}-notice`}
-          className="text-body-touch text-ink md:text-body"
-        >
+        <p id={`${id}-notice`} className="text-body text-ink">
           {notice}
         </p>
       ) : null}

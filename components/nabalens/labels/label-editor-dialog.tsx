@@ -238,7 +238,7 @@ function FileProblem({
           {status.current ? (
             <>
               <div className="rounded-card bg-surface p-3 shadow-card">
-                <p className="mb-1 text-meta-strong text-ink-muted">
+                <p className="mb-1 text-meta font-semibold text-ink-muted">
                   Saved now
                 </p>
                 <LabelSummary labels={status.current} />
@@ -925,10 +925,9 @@ function LabelEditor({
       }}
     >
       <DialogContent
-        className={cn(
-          "gap-0 p-0 pt-3 pb-0 md:p-0",
-          audience === "admin" && "md:max-w-(--size-dialog-wide)"
-        )}
+        size={audience === "admin" ? "wide" : "md"}
+        // No size is unpadded with a grip: the form pads its own parts.
+        className="gap-0 p-0 pt-3 pb-0 md:p-0"
       >
         <form
           noValidate
@@ -1072,7 +1071,7 @@ function LabelEditor({
                   </div>
                   <ul
                     aria-label={`${noun[0].toUpperCase()}${nouns.slice(1)}`}
-                    className="divide-y divide-line overflow-hidden rounded-card shadow-[inset_0_0_0_1px_var(--line)]"
+                    className="divide-y divide-line overflow-hidden rounded-card edge"
                   >
                     {assets.map((asset) => {
                       const f = files[asset.id]
@@ -1188,16 +1187,15 @@ function LabelEditor({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               onClick={requestClose}
               disabled={pending}
             >
               {dismissText}
             </Button>
             <Button
+              variant="primary"
               id={`${uid}-save`}
               type="submit"
-              size="touch"
               disabled={pending || catalogue.state === "loading" || fixPending}
               aria-busy={pending || catalogue.state === "loading" || fixPending}
             >
@@ -1218,11 +1216,10 @@ function LabelEditor({
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel size="touch">Keep editing</AlertDialogCancel>
+              <AlertDialogCancel>Keep editing</AlertDialogCancel>
               <Button
                 type="button"
                 variant="danger"
-                size="touch"
                 onClick={() => {
                   setConfirmOpen(false)
                   onOpenChange(false)

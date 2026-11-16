@@ -1,12 +1,14 @@
 "use client"
 
+import { Radio, RadioGroup } from "@/components/ui/radio-group"
+import { SearchField } from "@/components/ui/search-field"
+import { Textarea } from "@/components/ui/textarea"
 import * as React from "react"
 import {
   ArrowDownIcon,
   ArrowUpIcon,
   CaretDownIcon,
   CaretRightIcon,
-  MagnifyingGlassIcon,
   PlusIcon,
   TrashIcon,
   WarningCircleIcon,
@@ -51,9 +53,6 @@ const KINDS: MenuSectionKind[] = ["food", "drinks", "other"]
 const EXPAND_ALL_UP_TO = 40
 
 const L = MENU_IMPORT_LIMITS
-
-const textareaClass =
-  "min-h-24 w-full min-w-0 rounded-control bg-surface-2 px-4 py-3 text-[1.125rem] leading-snug text-ink shadow-[inset_0_0_0_1px_var(--border-strong)] outline-none placeholder:text-ink-muted focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus aria-invalid:shadow-[inset_0_0_0_2px_var(--warn-fg)]"
 
 export type MenuDocumentEditorProps = {
   value: MenuDocument
@@ -263,9 +262,7 @@ export function MenuDocumentEditor({
   return (
     <div className={cn("grid min-w-0 gap-4", className)}>
       {!showTitle && readOnly ? null : readOnly ? (
-        <h2 className="font-display text-section-title text-ink">
-          {value.title}
-        </h2>
+        <h2 className="type-section-title text-ink">{value.title}</h2>
       ) : (
         <Field className="gap-1.5">
           <FieldLabel htmlFor={ids.title}>Menu title</FieldLabel>
@@ -284,28 +281,18 @@ export function MenuDocumentEditor({
       <ImportIssueList issues={allIssues} />
 
       <div className="flex flex-col gap-2 md:flex-row md:items-end">
-        <Field className="min-w-0 flex-1 gap-1.5">
-          <FieldLabel htmlFor={ids.search}>Search items</FieldLabel>
-          <div className="relative">
-            <MagnifyingGlassIcon
-              className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
-              aria-hidden
-            />
-            <Input
-              id={ids.search}
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.currentTarget.value)}
-              placeholder="Name or alias"
-              className="pl-11"
-              aria-describedby={`${base}-search-result`}
-            />
-          </div>
-        </Field>
+        <SearchField
+          id={ids.search}
+          label="Search items"
+          value={query}
+          onValueChange={setQuery}
+          placeholder="Name or alias"
+          aria-describedby={`${base}-search-result`}
+          className="min-w-0 flex-1"
+        />
         <div className="flex gap-2">
           <Button
             variant="secondary"
-            size="touch"
             className="flex-1"
             onClick={() =>
               setExpandedSections(new Set(value.sections.map((s) => s.slug)))
@@ -315,7 +302,6 @@ export function MenuDocumentEditor({
           </Button>
           <Button
             variant="secondary"
-            size="touch"
             className="flex-1"
             onClick={() => setExpandedSections(new Set())}
           >
@@ -486,7 +472,7 @@ function SectionPanel({
             // Below md the row also holds three 44px buttons, so the count
             // and flags take a second line and the name wraps instead of
             // being cut off.
-            className="flex min-h-12 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-control px-2 py-1.5 text-left outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:flex-nowrap"
+            className="flex min-h-12 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-control px-2 py-1.5 text-left focus-ring outline-none hover:bg-surface-2 md:flex-nowrap"
           >
             {expanded ? (
               <CaretDownIcon className="size-5 shrink-0" aria-hidden />
@@ -547,7 +533,7 @@ function SectionPanel({
         <div
           role="group"
           aria-label={`Confirm removing section ${sectionLabel}`}
-          className="mx-2 mb-2 grid gap-2 rounded-card bg-warn-bg p-3 text-body text-ink shadow-[inset_4px_0_0_var(--warn-fg)]"
+          className="mx-2 mb-2 grid gap-2 rounded-card bg-warn-bg p-3 text-body text-ink rail-start-warn"
         >
           <p>
             Remove “{sectionLabel}” and its{" "}
@@ -557,7 +543,6 @@ function SectionPanel({
           <div className="flex flex-wrap gap-2">
             <Button
               variant="danger"
-              size="touch"
               onClick={() => {
                 setConfirmRemove(false)
                 onRemove()
@@ -567,7 +552,6 @@ function SectionPanel({
             </Button>
             <Button
               variant="secondary"
-              size="touch"
               autoFocus
               onClick={() => setConfirmRemove(false)}
             >
@@ -597,25 +581,29 @@ function SectionPanel({
                 />
               </Field>
               <fieldset className="grid gap-1">
-                <legend className="mb-1 text-label text-ink">Kind</legend>
-                <div className="flex flex-wrap gap-x-4">
+                <legend
+                  id={`${ids.sectionName(section.slug)}-kind`}
+                  className="mb-1 text-label text-ink"
+                >
+                  Kind
+                </legend>
+                <RadioGroup<MenuSectionKind>
+                  aria-labelledby={`${ids.sectionName(section.slug)}-kind`}
+                  orientation="horizontal"
+                  value={section.kind}
+                  onValueChange={(kind) => onKind(kind)}
+                  className="gap-x-4 gap-y-0"
+                >
                   {KINDS.map((kind) => (
                     <label
                       key={kind}
                       className="flex min-h-11 items-center gap-2 text-body"
                     >
-                      <input
-                        type="radio"
-                        name={`${ids.sectionName(section.slug)}-kind`}
-                        value={kind}
-                        checked={section.kind === kind}
-                        onChange={() => onKind(kind)}
-                        className="size-5 accent-select"
-                      />
+                      <Radio<MenuSectionKind> value={kind} />
                       {SECTION_KIND_LABEL[kind]}
                     </label>
                   ))}
-                </div>
+                </RadioGroup>
               </fieldset>
             </FieldSet>
           )}
@@ -623,7 +611,7 @@ function SectionPanel({
           {items.length > 0 ? (
             <ul
               aria-label={`Items in ${sectionLabel}`}
-              className="divide-y divide-line overflow-hidden rounded-card shadow-[inset_0_0_0_1px_var(--line)]"
+              className="divide-y divide-line overflow-hidden rounded-card edge"
             >
               {items.map((item) => (
                 <ItemRow
@@ -720,7 +708,7 @@ function ItemRow({
         aria-expanded={expanded}
         aria-controls={panelId}
         onClick={onToggle}
-        className="flex min-h-12 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-body outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+        className="flex min-h-12 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-body focus-ring-inset outline-none hover:bg-surface-2"
       >
         <span className="min-w-0 font-bold break-words text-ink">{name}</span>
         {variants.length > 0 ? (
@@ -743,7 +731,7 @@ function ItemRow({
           className="grid gap-3 border-t border-line bg-surface-2 px-3 py-3"
         >
           {item.review ? (
-            <p className="rounded-control bg-warn-bg px-3 py-2 text-body text-ink shadow-[inset_4px_0_0_var(--warn-fg)]">
+            <p className="rounded-control bg-warn-bg px-3 py-2 text-body text-ink rail-start-warn">
               Needs a decision: {item.review.reason}
             </p>
           ) : null}
@@ -783,14 +771,13 @@ function ItemRow({
                 <FieldLabel htmlFor={`${ids.itemName(key)}-description`}>
                   Description (optional)
                 </FieldLabel>
-                <textarea
+                <Textarea
                   id={`${ids.itemName(key)}-description`}
                   value={item.description ?? ""}
                   maxLength={L.descriptionMax}
                   onChange={(e) =>
                     onChange({ description: e.currentTarget.value || null })
                   }
-                  className={textareaClass}
                 />
               </Field>
               <StringListEditor
@@ -868,7 +855,6 @@ function ItemRow({
                 <Button
                   id={ids.itemUp(key)}
                   variant="secondary"
-                  size="touch"
                   disabled={index === 0}
                   onClick={() => onMove(-1)}
                   aria-label={`Move ${name} up`}
@@ -879,7 +865,6 @@ function ItemRow({
                 <Button
                   id={ids.itemDown(key)}
                   variant="secondary"
-                  size="touch"
                   disabled={index === total - 1}
                   onClick={() => onMove(1)}
                   aria-label={`Move ${name} down`}
@@ -889,7 +874,6 @@ function ItemRow({
                 </Button>
                 <Button
                   variant="danger-quiet"
-                  size="touch"
                   onClick={onRemove}
                   aria-label={`Remove ${name}`}
                 >
@@ -978,7 +962,6 @@ function StringListEditor({
           buttonLabel={`Add ${itemLabel.toLowerCase()}`}
           maxLength={maxLength}
           onAdd={onAdd}
-          compact
         />
       ) : (
         <p className="text-meta text-ink-muted">
@@ -997,7 +980,6 @@ function AddInlineForm({
   buttonLabel,
   maxLength,
   onAdd,
-  compact = false,
 }: {
   inputId: string
   label: string
@@ -1005,7 +987,6 @@ function AddInlineForm({
   buttonLabel: string
   maxLength: number
   onAdd: (value: string) => void
-  compact?: boolean
 }) {
   const [draft, setDraft] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
@@ -1046,8 +1027,7 @@ function AddInlineForm({
           }}
         />
         <Button
-          variant={compact ? "outline" : "secondary"}
-          size="touch"
+          variant="secondary"
           onClick={submit}
           aria-label={`${buttonLabel}: ${label}`}
         >
@@ -1075,21 +1055,20 @@ function AddSectionForm({
   return (
     <FieldSet className="gap-2 rounded-card bg-surface-2 p-3">
       <FieldLegend variant="label">Add a section</FieldLegend>
-      <div className="flex flex-wrap gap-x-4">
+      <RadioGroup<MenuSectionKind>
+        aria-label="Kind"
+        orientation="horizontal"
+        value={kind}
+        onValueChange={(next) => setKind(next)}
+        className="gap-x-4 gap-y-0"
+      >
         {KINDS.map((k) => (
           <label key={k} className="flex min-h-11 items-center gap-2 text-body">
-            <input
-              type="radio"
-              name={`${inputId}-kind`}
-              value={k}
-              checked={kind === k}
-              onChange={() => setKind(k)}
-              className="size-5 accent-select"
-            />
+            <Radio<MenuSectionKind> value={k} />
             {SECTION_KIND_LABEL[k]}
           </label>
         ))}
-      </div>
+      </RadioGroup>
       <AddInlineForm
         inputId={inputId}
         label="New section name"

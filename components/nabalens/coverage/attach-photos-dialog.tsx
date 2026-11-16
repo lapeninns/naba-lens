@@ -1,5 +1,6 @@
 "use client"
 
+import { OptionRow } from "@/components/ui/option-row"
 import * as React from "react"
 import { PaperclipIcon } from "@phosphor-icons/react"
 
@@ -189,7 +190,7 @@ export function AttachPhotosDialog({
 
   return (
     <>
-      <Button variant="secondary" size="touch" onClick={openDialog}>
+      <Button variant="secondary" onClick={openDialog}>
         <PaperclipIcon data-icon="inline-start" aria-hidden />
         Attach existing photos
       </Button>
@@ -199,7 +200,7 @@ export function AttachPhotosDialog({
           if (!pending) setOpen(next)
         }}
       >
-        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-3xl">
+        <DialogContent size="wide">
           <DialogHeader>
             <DialogTitle>Attach photos to “{requirementTitle}”</DialogTitle>
             <DialogDescription>
@@ -211,7 +212,7 @@ export function AttachPhotosDialog({
           {skipped.length > 0 ? (
             <div
               role="alert"
-              className="grid gap-1 rounded-card bg-warn-bg px-4 py-3 text-body text-ink shadow-[inset_4px_0_0_var(--warn-fg)]"
+              className="grid gap-1 rounded-card bg-warn-bg px-4 py-3 text-body text-ink rail-start-warn"
             >
               <p>
                 {plural(skipped.length, "photo was", "photos were")} not
@@ -249,7 +250,7 @@ export function AttachPhotosDialog({
                     <label
                       className={
                         photo.eligible
-                          ? "grid cursor-pointer gap-1.5 rounded-control bg-surface-2 p-1.5 has-checked:bg-accent-soft has-checked:shadow-[inset_0_0_0_3px_var(--select)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus has-focus-visible:outline-solid"
+                          ? "grid cursor-pointer gap-1.5 rounded-control bg-surface-2 p-1.5 focus-ring-within has-checked:bg-accent-soft has-checked:ring-selected"
                           : "grid gap-1.5 rounded-control bg-surface-2 p-1.5 text-ink-muted"
                       }
                     >
@@ -296,23 +297,18 @@ export function AttachPhotosDialog({
               {loadError}
             </p>
           ) : null}
-          <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-control bg-surface-2 px-3 py-3 hover:bg-raised has-checked:bg-accent-soft">
-            <input
-              type="checkbox"
-              checked={acceptNow}
-              onChange={(e) => setAcceptNow(e.currentTarget.checked)}
-              disabled={pending}
-              className="mt-0.5 size-6 accent-select"
-            />
-            <span className="grid gap-0.5 text-body">
-              <span className="font-bold">Accept them now</span>
-              <span className="text-ink-muted">
-                {ownSelected
-                  ? "You took at least one of these: accepting it is recorded as a self-review."
-                  : "Otherwise they wait in the review queue."}
-              </span>
-            </span>
-          </label>
+          <OptionRow
+            type="checkbox"
+            checked={acceptNow}
+            onCheckedChange={(checked) => setAcceptNow(checked)}
+            disabled={pending}
+            label="Accept them now"
+            hint={
+              ownSelected
+                ? "You took at least one of these: accepting it is recorded as a self-review."
+                : "Otherwise they wait in the review queue."
+            }
+          />
           {error ? (
             <p role="alert" className="text-body font-semibold text-warn-fg">
               {error}
@@ -321,14 +317,13 @@ export function AttachPhotosDialog({
           <DialogFooter>
             <Button
               variant="secondary"
-              size="touch"
               onClick={() => setOpen(false)}
               disabled={pending}
             >
               Cancel
             </Button>
             <Button
-              size="touch"
+              variant="primary"
               onClick={() => void attach()}
               disabled={selected.length === 0 || pending}
               aria-busy={pending || undefined}

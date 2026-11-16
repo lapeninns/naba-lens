@@ -13,7 +13,7 @@ import { getCoverageActor } from "@/lib/server/coverage"
 import { staffShellStatus } from "../../_shell/shell-status"
 import { TASKS_PATH, unwrap } from "../result"
 
-export const metadata = { title: "Photo guide · Naba-Lens" }
+export const metadata = { title: "Photo guide" }
 
 /**
  * How to photograph a dish: the checklist and the four example angles, with
@@ -32,7 +32,7 @@ export default async function PhotoGuidePage() {
       {...shell}
       userName={profile.displayName}
     >
-      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) pb-4">
+      <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter pb-4">
         <BackToTasks href={TASKS_PATH} />
         <PageHeader
           title="Photo guide"
@@ -40,13 +40,10 @@ export default async function PhotoGuidePage() {
         />
 
         <Card as="section" aria-labelledby="every-shot-heading">
-          <h2
-            id="every-shot-heading"
-            className="font-display text-section-title text-ink"
-          >
+          <h2 id="every-shot-heading" className="type-section-title text-ink">
             Every shot
           </h2>
-          <ul className="grid max-w-(--size-reading) gap-2.5">
+          <ul className="grid max-w-reading gap-2.5">
             {GUIDE_RULES.map((rule) => (
               <li
                 key={rule}
@@ -67,18 +64,15 @@ export default async function PhotoGuidePage() {
           {GUIDE_SAFETY}
         </Notice>
 
-        <section
-          aria-labelledby="angles-heading"
-          className="grid gap-(--gutter)"
-        >
+        <section aria-labelledby="angles-heading" className="grid gap-gutter">
           <h2
             id="angles-heading"
-            className="px-1 pt-2 font-display text-section-title text-ink"
+            className="px-1 pt-2 type-section-title text-ink"
           >
             The four angles
           </h2>
           <DishGuide suggested={[]} layout="posts" />
-          <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
+          <p className="max-w-reading px-1 text-body text-ink-muted">
             Examples, not your menu.
           </p>
         </section>

@@ -5,7 +5,7 @@ export default function ManageTeamLoading() {
   return (
     <SkeletonRegion
       label="Loading the team…"
-      className="mx-auto grid w-full max-w-(--size-page) gap-(--gutter) px-(--page-gutter) py-4 md:gap-4 md:px-6 md:py-8"
+      className="mx-auto grid w-full max-w-page gap-gutter px-page-gutter py-4 md:gap-4 md:px-6 md:py-8"
     >
       <div className="grid gap-2 px-1">
         <Skeleton shape="title" className="w-[40%]" />

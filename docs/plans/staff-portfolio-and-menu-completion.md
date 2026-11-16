@@ -2,6 +2,8 @@
 
 **Status** · Implementation proposal. Product rules below are proposed defaults for the first release.
 
+> **15 Nov 2026:** the rule to keep the monthly and section measures separate from menu photo review is replaced by `one-review-per-photo.md`.
+
 ## Product goal
 
 Staff build a record of what they make and capture at work. Their venue builds a library with a usable photo for every item on its active menu. The daily flow starts with what staff already made or photographed during a shift. A shared menu view gives anyone who wants to contribute a way to see which items still need photos.
@@ -10,15 +12,15 @@ A chef should be able to sign in, choose a photo, label it with the dish they ma
 
 ## Staff experience
 
-| Surface | First release behaviour |
-| --- | --- |
-| Sign in | Enter email once. The email contains a sign-in link and a one-time code. The waiting screen lets staff enter the code, resend, or change email. |
-| Home | Show a broad contribution prompt based on the work profile, a primary **Choose from your photos** action, and a secondary **Take a photo** action. Show **Our menu** progress for the current venue and a link to browse it. |
-| Start here | Explain what the portfolio is for, offer work profile setup, then open the photo picker. Provide **Skip for now** and a way back from **Me**. Existing staff can open the guide on demand. |
-| Add | Open the same library-first picker and upload queue from Home, welcome and the global Add control. Honour unfinished uploads and use the same priority on existing task submission screens. |
-| Me | Show the staff member's role, venue, optional profile photo, and their own recent work. Provide direct actions to edit work details and add or correct photo labels. |
-| Our menu | Show the active venue menu grouped by section. Let staff search and filter to **Still needs a photo**. A tap on a dish may preselect it for upload when staff explicitly choose to contribute there. |
-| Review | Let an authorised reviewer accept a ready photo for a particular item, ask for a better photo, or undo acceptance with a reason. Show the item, variant, upload venue and contributor. |
+| Surface    | First release behaviour                                                                                                                                                                                                      |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sign in    | Enter email once. The email contains a sign-in link and a one-time code. The waiting screen lets staff enter the code, resend, or change email.                                                                              |
+| Home       | Show a broad contribution prompt based on the work profile, a primary **Choose from your photos** action, and a secondary **Take a photo** action. Show **Our menu** progress for the current venue and a link to browse it. |
+| Start here | Explain what the portfolio is for, offer work profile setup, then open the photo picker. Provide **Skip for now** and a way back from **Me**. Existing staff can open the guide on demand.                                   |
+| Add        | Open the same library-first picker and upload queue from Home, welcome and the global Add control. Honour unfinished uploads and use the same priority on existing task submission screens.                                  |
+| Me         | Show the staff member's role, venue, optional profile photo, and their own recent work. Provide direct actions to edit work details and add or correct photo labels.                                                         |
+| Our menu   | Show the active venue menu grouped by section. Let staff search and filter to **Still needs a photo**. A tap on a dish may preselect it for upload when staff explicitly choose to contribute there.                         |
+| Review     | Let an authorised reviewer accept a ready photo for a particular item, ask for a better photo, or undo acceptance with a reason. Show the item, variant, upload venue and contributor.                                       |
 
 ### A first contribution
 
@@ -34,16 +36,16 @@ Use **Saved to your portfolio**, **Ready to label**, and **Accepted for menu use
 
 Ask **What do you do at [venue]?** Show the current name and venue. Ask for one main job role and allow optional additional work areas. Saving the main role completes the work profile. A profile photo stays optional, and staff can edit or skip the form. Where staff already have a department or title, prefill values that can be matched reliably and let them confirm. Preserve unfamiliar titles and offer **Other** with a short title.
 
-| Example job role | Home prompt | Helpful picker order |
-| --- | --- | --- |
-| Head chef, sous chef, line chef, kitchen team | What did you cook today? | Food sections, then the full menu |
-| Curry chef | What did you cook today? | Curries and associated sides first |
-| Tandoor chef | What did you cook today? | Tandoori dishes and breads first |
-| Middle man / plating | What did you plate today? | Finished dishes and plating labels first |
-| Bartender, bar team | What did you make at the bar today? | Drinks first, with venue and event labels available |
-| Waiter / server, host | What did service look like today? | Table setups, dining areas, food as served and events |
-| Manager, venue team | What did you capture around the venue today? | Amenities, dining areas, events and venue details |
-| Other or profile skipped | What did you make or capture today? | Full menu and general labels |
+| Example job role                              | Home prompt                                  | Helpful picker order                                  |
+| --------------------------------------------- | -------------------------------------------- | ----------------------------------------------------- |
+| Head chef, sous chef, line chef, kitchen team | What did you cook today?                     | Food sections, then the full menu                     |
+| Curry chef                                    | What did you cook today?                     | Curries and associated sides first                    |
+| Tandoor chef                                  | What did you cook today?                     | Tandoori dishes and breads first                      |
+| Middle man / plating                          | What did you plate today?                    | Finished dishes and plating labels first              |
+| Bartender, bar team                           | What did you make at the bar today?          | Drinks first, with venue and event labels available   |
+| Waiter / server, host                         | What did service look like today?            | Table setups, dining areas, food as served and events |
+| Manager, venue team                           | What did you capture around the venue today? | Amenities, dining areas, events and venue details     |
+| Other or profile skipped                      | What did you make or capture today?          | Full menu and general labels                          |
 
 Use stable keys for the initial role options and editable display titles where useful. Confirm the kitchen's preferred wording for **Middle man / plating** with pilot staff. Where menu section names vary, use known section kinds or an explicit mapping and fall back to the normal menu order. Search always covers the full eligible catalogue. Choosing a role only influences prompts and picker order. Staff can contribute across areas, and their role never supplies a photo's dish label automatically.
 
@@ -82,14 +84,14 @@ For existing media, surface valid labelled images as review candidates. Managers
 
 Work through these slices locally and bundle them into one repository PR under the shared runner policy.
 
-| Slice | Work and exit condition |
-| --- | --- |
+| Slice                           | Work and exit condition                                                                                                                                                                                                                                    |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. Reproduce and simplify entry | Trace the reported Start here behaviour on the current build with new and returning staff. Check route access, welcome dismissal, direct profile links and Add context. Make welcome re-openable and prove its primary actions reach the intended screens. |
-| 2. Photo library first | Align global Add, welcome, portfolio and existing task submissions. Reuse the existing picker, processing, progress and retry path. Verify picker cancellation, mobile file selection, camera, mixed outcomes and preservation of queued uploads. |
-| 3. Email sign-in | Add the combined template and code-entry UI, then run real local email journeys for both methods and interrupted-upload recovery. |
-| 4. Work profile and Home | Add self-service work details and role-aware prompts, with generic defaults and a direct profile setup route. Reuse the label picker for batch and per-photo labels. |
-| 5. Our menu and item review | Add the venue-scoped item read model, explicit acceptance, gap list and reviewer candidate view. Verify the rules with existing media, version changes and concurrent review. |
-| 6. Pilot and rollout | Use one venue with an active catalogue, chef, front-of-house contributor and authorised reviewer. Walk through sign-in, first contribution, a review and a changed menu item. Expand once the end-to-end workflow and coverage count are verified. |
+| 2. Photo library first          | Align global Add, welcome, portfolio and existing task submissions. Reuse the existing picker, processing, progress and retry path. Verify picker cancellation, mobile file selection, camera, mixed outcomes and preservation of queued uploads.          |
+| 3. Email sign-in                | Add the combined template and code-entry UI, then run real local email journeys for both methods and interrupted-upload recovery.                                                                                                                          |
+| 4. Work profile and Home        | Add self-service work details and role-aware prompts, with generic defaults and a direct profile setup route. Reuse the label picker for batch and per-photo labels.                                                                                       |
+| 5. Our menu and item review     | Add the venue-scoped item read model, explicit acceptance, gap list and reviewer candidate view. Verify the rules with existing media, version changes and concurrent review.                                                                              |
+| 6. Pilot and rollout            | Use one venue with an active catalogue, chef, front-of-house contributor and authorised reviewer. Walk through sign-in, first contribution, a review and a changed menu item. Expand once the end-to-end workflow and coverage count are verified.         |
 
 ## Verification and release evidence
 

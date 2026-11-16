@@ -27,6 +27,149 @@ const KNOWN_FINDINGS = [
     message: "target type is different type than source type",
     count: 3,
   },
+  // Pre-existing on main (B03 venue knowledge, #27): warnings in the knowledge
+  // and schedule validators (unused or shadowed loop variables, IMMUTABLE on
+  // STABLE date expressions, one cast). Listed during G-0
+  // (docs/plans/goals-not-tasks.md) so the suite reports only new findings;
+  // remove each entry when its function is fixed.
+  {
+    fn: "public.knowledge_submit",
+    level: "warning extra",
+    message: 'never read variable "v_uid"',
+    count: 1,
+  },
+  {
+    fn: "public.knowledge_source_import",
+    level: "warning extra",
+    message: 'auto variable "v_i" shadows a previously defined variable',
+    count: 1,
+  },
+  {
+    fn: "public.knowledge_source_import",
+    level: "warning",
+    message: 'unused variable "v_i"',
+    count: 1,
+  },
+  {
+    fn: "public.knowledge_occurrences",
+    level: "warning",
+    message: "target type is different type than source type",
+    count: 1,
+  },
+  {
+    fn: "private.knowledge_detail_problems",
+    level: "warning extra",
+    message: 'auto variable "v_i" shadows a previously defined variable',
+    count: 3,
+  },
+  {
+    fn: "private.knowledge_detail_problems",
+    level: "warning",
+    message: 'unused variable "v_i"',
+    count: 1,
+  },
+  {
+    fn: "private.knowledge_safe_date",
+    level: "warning",
+    message: "routine is marked as IMMUTABLE, but expression is STABLE",
+    count: 1,
+  },
+  {
+    fn: "private.knowledge_policy_problems",
+    level: "warning extra",
+    message: 'auto variable "v_i" shadows a previously defined variable',
+    count: 2,
+  },
+  {
+    fn: "private.knowledge_policy_problems",
+    level: "warning",
+    message: 'unused variable "v_i"',
+    count: 1,
+  },
+  {
+    fn: "private.knowledge_schedule_event_problems",
+    level: "warning",
+    message: "routine is marked as IMMUTABLE, but expression is STABLE",
+    count: 13,
+  },
+  {
+    fn: "private.knowledge_detail_venue_problems_for",
+    level: "warning extra",
+    message: 'auto variable "v_i" shadows a previously defined variable',
+    count: 1,
+  },
+  {
+    fn: "private.knowledge_detail_venue_problems_for",
+    level: "warning",
+    message: 'unused variable "v_i"',
+    count: 1,
+  },
+  {
+    fn: "private.schedule_window_problems",
+    level: "warning",
+    message: "routine is marked as IMMUTABLE, but expression is STABLE",
+    count: 2,
+  },
+  {
+    fn: "private.schedule_window_problems",
+    level: "warning extra",
+    message: 'auto variable "v_i" shadows a previously defined variable',
+    count: 1,
+  },
+  {
+    fn: "private.schedule_window_problems",
+    level: "warning",
+    message: 'unused variable "v_i"',
+    count: 1,
+  },
+  {
+    fn: "private.schedule_problems",
+    level: "warning",
+    message: "routine is marked as IMMUTABLE, but expression is STABLE",
+    count: 13,
+  },
+  {
+    fn: "private.schedule_exception_problems",
+    level: "warning",
+    message: "routine is marked as IMMUTABLE, but expression is STABLE",
+    count: 3,
+  },
+  {
+    fn: "private.schedule_exception_problems",
+    level: "warning extra",
+    message: 'auto variable "v_i" shadows a previously defined variable',
+    count: 1,
+  },
+  {
+    fn: "private.schedule_exception_problems",
+    level: "warning",
+    message: 'unused variable "v_i"',
+    count: 1,
+  },
+  {
+    fn: "private.knowledge_service_problems",
+    level: "warning extra",
+    message: 'auto variable "v_i" shadows a previously defined variable',
+    count: 2,
+  },
+  {
+    fn: "private.knowledge_service_problems",
+    level: "warning",
+    message: 'unused variable "v_i"',
+    count: 1,
+  },
+  {
+    fn: "private.knowledge_service_stop_problems",
+    level: "warning",
+    message: "routine is marked as IMMUTABLE, but expression is STABLE",
+    count: 5,
+  },
+  {
+    fn: "private.knowledge_answer_at",
+    level: "warning",
+    message: 'unused variable "v_basis"',
+    count: 1,
+  },
 ]
 
 type LintResult = {
@@ -51,8 +194,17 @@ describe("schema checks", () => {
 
   it("reports no supabase db lint findings beyond the known ones", () => {
     const out = supabase(
-      "db", "lint", "--local", "--schema", "public,private",
-      "--level", "warning", "--fail-on", "none", "--output-format", "json"
+      "db",
+      "lint",
+      "--local",
+      "--schema",
+      "public,private",
+      "--level",
+      "warning",
+      "--fail-on",
+      "none",
+      "--output-format",
+      "json"
     )
     console.log(out.trim())
     const found = countFindings(JSON.parse(out).results as LintResult[])
@@ -65,7 +217,10 @@ describe("schema checks", () => {
     const parse = (key: string) => JSON.parse(key).join(" | ")
     const unexpected = [...found]
       .filter(([key, n]) => n > (known.get(key) ?? 0))
-      .map(([key, n]) => `${parse(key)} (found ${n}, allowed ${known.get(key) ?? 0})`)
+      .map(
+        ([key, n]) =>
+          `${parse(key)} (found ${n}, allowed ${known.get(key) ?? 0})`
+      )
     const stale = [...known]
       .filter(([key, n]) => (found.get(key) ?? 0) < n)
       .map(
@@ -77,10 +232,19 @@ describe("schema checks", () => {
 
   it("shows no drift between the migrations and the database", () => {
     const out = supabase(
-      "db", "diff", "--local", "--schema", "public,private", "--output-format", "json"
+      "db",
+      "diff",
+      "--local",
+      "--schema",
+      "public,private",
+      "--output-format",
+      "json"
     )
     console.log(out.trim())
-    const result = JSON.parse(out) as { diff: string; dropStatements: unknown[] }
+    const result = JSON.parse(out) as {
+      diff: string
+      dropStatements: unknown[]
+    }
     expect(result.diff).toBe("")
     expect(result.dropStatements).toEqual([])
   })
@@ -159,12 +323,15 @@ describe("restore ACL inventory (scripts/db/app-acls.sql)", () => {
     ) as InventoryEntry[]
     const grants = (kind: string, name: string) =>
       inventory.find(
-        (e) => e.kind === kind && e.name.replace(/\(.*$/, "") === `private.${name}`
+        (e) =>
+          e.kind === kind && e.name.replace(/\(.*$/, "") === `private.${name}`
       )?.grants
     for (const p of PROBES) {
       const nul = grants(p.kind, `acl_probe_null_${p.stem}`)
       expect(nul, p.stem).toBeDefined()
-      expect(nul, p.stem).toEqual(grants(p.kind, `acl_probe_explicit_${p.stem}`))
+      expect(nul, p.stem).toEqual(
+        grants(p.kind, `acl_probe_explicit_${p.stem}`)
+      )
     }
     // The case a restore hit: a sequence owner's default is SELECT, UPDATE, USAGE.
     expect(

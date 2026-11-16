@@ -42,7 +42,7 @@ import {
 import { WELCOME_PATH, PORTFOLIO_PATH, TASKS_PATH, unwrap } from "./result"
 import { withRecheckSent } from "./sent-recheck"
 
-export const metadata = { title: "Home · Naba-Lens" }
+export const metadata = { title: "Home" }
 
 type SearchParams = Record<string, string | string[] | undefined>
 

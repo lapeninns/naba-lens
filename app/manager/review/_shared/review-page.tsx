@@ -76,7 +76,7 @@ function MenuNotReady({ empty }: { empty: boolean }) {
     <Notice
       tone="plain"
       title={empty ? REVIEW_COPY.emptyMenuTitle : REVIEW_COPY.noMenuTitle}
-      className="max-w-(--size-reading)"
+      className="max-w-reading"
     >
       <p>{empty ? REVIEW_COPY.emptyMenuBody : REVIEW_COPY.noMenuBody}</p>
     </Notice>

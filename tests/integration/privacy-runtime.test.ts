@@ -15,7 +15,9 @@
 // this checkout must be the one being served (Server Function IDs are read from
 // it). See docs/privacy-audit.md. Without PRIVACY_BASE_URL the suite is skipped.
 import { createHash, randomUUID } from "node:crypto"
-import { readFileSync, writeFileSync } from "node:fs"
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
+import { join, relative, sep } from "node:path"
+import { fileURLToPath } from "node:url"
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
@@ -29,6 +31,46 @@ import {
   type Db,
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
+
+/*
+ * Every dev-only preview, read from the filesystem: each page in the `(dev)`
+ * route group, as the URL it answers at. tests/unit/scope-guard.test.ts
+ * proves each one refuses production; this suite then asks the running
+ * production server for every one of them, as every role, so a new preview is
+ * audited without being added to a list. A preview with a dynamic segment has
+ * no single address to request, so it fails here until it is given one.
+ */
+function devOnlyPages(): string[] {
+  const devDir = fileURLToPath(new URL("../../app/(dev)", import.meta.url))
+  const walk = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const path = join(dir, name)
+      return statSync(path).isDirectory() ? walk(path) : [path]
+    })
+  const urls = walk(devDir)
+    .filter((file) => /^page\.(tsx?|jsx?|mdx?)$/.test(file.split(sep).pop()!))
+    .map((file) => relative(devDir, file).split(sep).slice(0, -1))
+    // Private folders are never routable; route groups are not in the URL.
+    .filter((segments) => !segments.some((s) => s.startsWith("_")))
+    .map(
+      (segments) =>
+        "/" +
+        segments
+          .filter((s) => !(s.startsWith("(") && s.endsWith(")")))
+          .join("/")
+    )
+    .sort()
+  const dynamic = urls.filter((url) => url.includes("["))
+  if (dynamic.length > 0) {
+    throw new Error(
+      `Dev-only pages with a dynamic segment cannot be audited by address: ${dynamic.join(", ")}`
+    )
+  }
+  if (!urls.includes("/ui-preview")) {
+    throw new Error("Expected /ui-preview among the dev-only pages")
+  }
+  return urls
+}
 
 const BASE = process.env.PRIVACY_BASE_URL?.replace(/\/+$/, "")
 const LOG = process.env.PRIVACY_SERVER_LOG
@@ -375,7 +417,7 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
     "/admin/staff",
     `/admin/staff/${ids.staffA}`,
     `/admin/staff/${ids.staffB}`,
-    "/ui-preview",
+    ...devOnlyPages(),
   ]
   const mediaRoutes = () => [
     `/api/media/${assetId}/thumb`,
@@ -511,7 +553,8 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
       const cc = (r.headers.get("cache-control") ?? "").toLowerCase()
       const where = `${r.role} ${r.method} ${r.path} -> ${r.status} [${cc}]`
       if (sharedCacheable.test(cc)) {
-        // Only a build-time prerender (the production 404 for /ui-preview) may
+        // Only a build-time prerender (the production 404 for a dev-only
+        // preview such as /ui-preview) may
         // be shared, and only if every role received the same bytes.
         expect(r.headers.get("x-nextjs-prerender"), where).toMatch(/^1(, 1)*$/)
         const variants = observed.filter(

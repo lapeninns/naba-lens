@@ -261,10 +261,10 @@ export function LeaveGuard({ children }: { children: React.ReactNode }) {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <Button variant="outline" size="touch" onClick={leave}>
+                <Button variant="secondary" onClick={leave}>
                   {copy.leave}
                 </Button>
-                <AlertDialogCancel ref={stayRef} variant="primary" size="touch">
+                <AlertDialogCancel ref={stayRef} variant="primary">
                   {copy.stay}
                 </AlertDialogCancel>
               </AlertDialogFooter>

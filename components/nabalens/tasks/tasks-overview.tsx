@@ -7,17 +7,13 @@ import {
   FindingSentNotice,
   type FindingSentCopy,
 } from "../amenities/capture/finding-sent-notice"
-import { EmptyState } from "../empty-state"
 import { ContributeCard } from "../home/contribute-card"
 import { OurMenuCard, type OurMenuProgress } from "../home/our-menu-card"
 import { WorkingListSection } from "../knowledge/working-list"
 import { Notice } from "../notice"
 import { PageHeader } from "../page-header"
-import { CountBadge } from "../status-chip"
 import type { MediaItem } from "../types"
-import { AssignmentList } from "./assignment-list"
 import { ColleaguePosts } from "./colleague-posts"
-import { FirstRunEntry } from "./first-run-entry"
 import { MonthlyProgressCard } from "./monthly-progress-card"
 import { PhotosSentNotice } from "./photos-sent-notice"
 import { TODO_HEADING_ID, todoItems, TodoSection } from "./todo-list"
@@ -47,11 +43,17 @@ export function sentNotice(justSent: JustSent) {
     : `${justSent.count === 1 ? "1 photo" : `${justSent.count} photos`} sent to ${task}. A reviewer reviews ${justSent.count === 1 ? "it" : "them"} next.`
 }
 
-/** Staff Home: the one thing to do next, this month's photos, then all tasks. */
+/**
+ * Staff Home on the B01 layout (DESIGN.md §5a): one notice, the share box, To
+ * do with its lead card, the working list and the checks it doesn't hold, Your
+ * month, Our menu, then colleagues' posts. Every task is in All tasks, linked
+ * from To do. The B02 layout is HomeOverview.
+ */
 export function TasksOverview({
   tasks,
   profile,
   tasksPath,
+  allTasksPath = `${tasksPath}/all`,
   portfolioPath,
   justSent = null,
   colleagues = [],
@@ -78,6 +80,8 @@ export function TasksOverview({
   }
   /** "/staff/tasks" */
   tasksPath: string
+  /** "/staff/tasks/all" */
+  allTasksPath?: string
   /** Me ("/staff"); its Edit profile opens with `?edit=profile`. */
   portfolioPath: string
   justSent?: JustSent | null
@@ -95,7 +99,7 @@ export function TasksOverview({
   contribute?: { prompt: string; blocked: string | null } | null
   /** The venue's menu photo progress; null to hide the card (no venue). */
   ourMenu?: OurMenuProgress | null
-  /** Amenity checks assigned to me: counted in To do, listed after it. Null when they couldn't be read. */
+  /** Amenity checks assigned to me: one card in To do, listed in All tasks. Null when they couldn't be read. */
   amenityTasks?: MyAmenityTask[] | null
   /**
    * The amenity check whose finding was just sent: its question (a legacy
@@ -111,11 +115,9 @@ export function TasksOverview({
   /** This month's findings outside the target number (§4.7). */
   alsoPending?: { awaitingConfirmation: number; unknownRecorded: number } | null
 }) {
-  const { scope, period, monthly, assignments, needsAnotherPhoto } = tasks
-  const blocked = submitBlockedCopy(scope)
-  const replacing = new Set(
-    needsAnotherPhoto.flatMap((s) => (s.requirement ? [s.requirement.id] : []))
-  )
+  const { scope, period, monthly } = tasks
+  // The share box already says why adding is blocked; don't say it twice.
+  const blocked = contribute?.blocked ? null : submitBlockedCopy(scope)
   const items = todoItems(
     tasks,
     new Date(),
@@ -132,7 +134,7 @@ export function TasksOverview({
       : findingSent
 
   return (
-    <div className="mx-auto grid w-full max-w-(--size-feed) min-w-0 gap-(--gutter)">
+    <div className="mx-auto grid w-full max-w-feed min-w-0 gap-gutter">
       <PageHeader
         scope={[scope.venue?.name, period.label]}
         venueScope={Boolean(scope.venue)}
@@ -140,11 +142,10 @@ export function TasksOverview({
         className="pb-1 md:pb-2"
       />
 
+      {/* One notice at most: a send lands on Home from one place at a time. */}
       {justSent ? (
         <PhotosSentNotice>{sentNotice(justSent)}</PhotosSentNotice>
-      ) : null}
-
-      {sent ? (
+      ) : sent ? (
         <FindingSentNotice
           question={sent.question}
           copy={sent.copy}
@@ -152,15 +153,12 @@ export function TasksOverview({
         />
       ) : null}
 
-      {/* The share box comes first; Start here sits between it and To do. */}
       {contribute ? (
         <ContributeCard
           prompt={contribute.prompt}
           blocked={contribute.blocked}
         />
       ) : null}
-
-      {welcomeHref ? <FirstRunEntry href={welcomeHref} /> : null}
 
       {blocked && scope.venue ? <Notice role="status">{blocked}</Notice> : null}
 
@@ -172,19 +170,23 @@ export function TasksOverview({
         portfolioPath={portfolioPath}
         amenityError={amenityTasks === null || workingListError}
         reviewError={reviewError}
+        welcomeHref={welcomeHref}
+        allTasksHref={allTasksPath}
       />
 
       {workingList ? (
         <WorkingListSection list={workingList} onDismiss={onDismissClosed} />
       ) : null}
 
-      {/* Two lists of checks can share this screen: name them apart (HM-11). */}
-      <AmenityTaskList
-        tasks={offList}
-        heading={workingList ? "Other amenity checks" : undefined}
-      />
+      {/*
+       * Beside the working list, the checks it doesn't hold are listed under
+       * their own name (HM-11). Without one, the list is in All tasks only.
+       */}
+      {workingList ? (
+        <AmenityTaskList tasks={offList} heading="Other amenity checks" />
+      ) : null}
 
-      <div className="mt-3 grid gap-(--gutter)">
+      <div className="mt-3 grid gap-gutter">
         <MonthlyProgressCard
           monthly={monthly}
           periodLabel={period.label}
@@ -193,7 +195,7 @@ export function TasksOverview({
           alsoPending={alsoPending}
         />
 
-        <p className="max-w-(--size-reading) px-1 text-meta text-ink-muted">
+        <p className="max-w-reading px-1 text-meta text-ink-muted">
           {RULE_SENTENCE}
         </p>
       </div>
@@ -209,42 +211,6 @@ export function TasksOverview({
           peopleHref={peoplePath}
         />
       </div>
-
-      <section
-        aria-labelledby="all-tasks-heading"
-        className="mt-3 grid gap-(--gutter)"
-      >
-        <div className="grid gap-1 px-1 pt-2">
-          <h2
-            id="all-tasks-heading"
-            className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
-          >
-            All tasks
-          </h2>
-          <p className="max-w-(--size-reading) text-body text-ink-muted">
-            Tasks assigned to you at {scope.venue?.name ?? "your venue"}.
-            Overdue tasks still take photos.
-          </p>
-        </div>
-        <h3 className="flex items-center gap-2 px-1 text-item-title text-ink">
-          Assigned to you
-          <CountBadge count={assignments.length} label="tasks" />
-        </h3>
-        {assignments.length > 0 ? (
-          <AssignmentList
-            assignments={assignments}
-            tasksPath={tasksPath}
-            needsAnotherPhoto={replacing}
-          />
-        ) : (
-          <EmptyState
-            variant="done"
-            className="rounded-card bg-surface px-4 shadow-card"
-            title="Nothing is assigned to you this month."
-            description={`Your manager assigns tasks at ${scope.venue?.name ?? "your venue"}. You can still add photos to your profile.`}
-          />
-        )}
-      </section>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-// Staff Home: the "Amenity checks" section lists my open checks (recheck
-// first, with the manager's reason) and Home still renders when that read
-// fails or throws.
+// Staff Home and All tasks: All tasks lists my open amenity checks (recheck
+// first, with the manager's reason), Home carries one card for them in To do,
+// and Home still renders when that read fails or throws.
 import { cleanup, render, screen, within } from "@testing-library/react"
 import type * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -98,6 +98,7 @@ vi.mock("@/lib/knowledge-client/services", () => ({
   },
 }))
 
+import AllTasksPage from "@/app/staff/tasks/all/page"
 import TasksPage from "@/app/staff/tasks/page"
 
 function setup({
@@ -176,7 +177,7 @@ afterEach(() => {
 })
 
 describe("Home: amenity checks", () => {
-  it("links each open check to its capture page, recheck first with the reason", async () => {
+  it("lists each open check in All tasks, not on Home, recheck first with the reason", async () => {
     setup()
     amenities.getMyAmenityTasks.mockResolvedValue({
       ok: true,
@@ -189,7 +190,19 @@ describe("Home: amenity checks", () => {
         }),
       ],
     })
-    await home()
+    const { unmount } = await home()
+    // Home keeps one card for them in To do; the list is in All tasks.
+    expect(
+      screen.queryByRole("list", { name: UI_TEXT.staffSection })
+    ).toBeNull()
+    expect(
+      screen.getByRole("link", { name: "All tasks" }).getAttribute("href")
+    ).toBe("/staff/tasks/all")
+    unmount()
+    render(await AllTasksPage())
+    expect(
+      screen.getByRole("heading", { level: 1, name: "All tasks" })
+    ).toBeTruthy()
     const list = screen.getByRole("list", { name: UI_TEXT.staffSection })
     const links = within(list).getAllByRole("link")
     expect(links.map((l) => l.textContent)).toEqual([
@@ -258,7 +271,7 @@ describe("Home: amenity check cards", () => {
       level: 2,
       name: /Amenity checks/,
     })
-    expect(heading.className).toContain("text-section-title")
+    expect(heading.className).toContain("type-section-title")
     expect(heading.className).not.toContain("text-2xl")
     const cards = within(
       screen.getByRole("list", { name: UI_TEXT.staffSection })
@@ -271,7 +284,7 @@ describe("Home: amenity check cards", () => {
       )
     }
     // The recheck card carries the warn bar, like a replacement request.
-    expect(cards[0].className).toContain("inset_4px_0_0_var(--warn-fg)")
+    expect(cards[0].className.split(/\s+/)).toContain("rail-start-warn")
     expect(document.body.innerHTML).not.toContain("text-muted-foreground")
   })
 })
@@ -336,7 +349,9 @@ describe("Home: Finding sent", () => {
     } finally {
       workingList.fail = false
     }
-    const notice = screen.getByText("Sent").closest<HTMLElement>('[role="status"]')!
+    const notice = screen
+      .getByText("Sent")
+      .closest<HTMLElement>('[role="status"]')!
     expect(notice.textContent).toContain("Is there step-free access?")
     expect(notice.textContent).not.toContain("complete")
   })

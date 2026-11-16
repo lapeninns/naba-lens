@@ -1,11 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {
-  ArrowClockwiseIcon,
-  CalendarCheckIcon,
-  SpinnerGapIcon,
-} from "@phosphor-icons/react"
+import { ArrowClockwiseIcon, CalendarCheckIcon } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 
 import { prepareMonthAction } from "@/app/_coverage/actions"
@@ -113,22 +109,14 @@ export function PrepareButton({ primary }: { primary: boolean }) {
     <Button
       type="button"
       variant={primary ? "primary" : "secondary"}
-      size="touch"
       onClick={prepare}
-      aria-disabled={pending || undefined}
-      aria-busy={pending || undefined}
-      disabled={pending}
+      loading={pending}
+      loadingLabel={PREPARATION_COPY.preparing}
     >
-      {pending ? (
-        <SpinnerGapIcon aria-hidden className="motion-safe:animate-spin" />
-      ) : (
-        <CalendarCheckIcon aria-hidden />
-      )}
-      {pending
-        ? PREPARATION_COPY.preparing
-        : primary
-          ? PREPARATION_COPY.prepareThisMonth
-          : PREPARATION_COPY.prepareAgain}
+      <CalendarCheckIcon aria-hidden />
+      {primary
+        ? PREPARATION_COPY.prepareThisMonth
+        : PREPARATION_COPY.prepareAgain}
     </Button>
   )
 }

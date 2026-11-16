@@ -95,10 +95,7 @@ export function TriageCard({
   }
   if (lines.length === 0) return null
   return (
-    <section
-      aria-labelledby={TRIAGE_HEADING_ID}
-      className="grid gap-(--gutter)"
-    >
+    <section aria-labelledby={TRIAGE_HEADING_ID} className="grid gap-gutter">
       <SectionHeader id={TRIAGE_HEADING_ID} title={TRIAGE_COPY.title} />
       <ul className={ROW_LIST}>
         {lines.map((line) => (

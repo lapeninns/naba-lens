@@ -11,7 +11,7 @@ import { getMediaActor } from "@/lib/server/media/context"
 import { staffShellStatus } from "../_shell/shell-status"
 import { initialWorkValues, safeNext } from "./work-values"
 
-export const metadata = { title: "Work details · Naba-Lens" }
+export const metadata = { title: "Work details" }
 
 type SearchParams = Record<string, string | string[] | undefined>
 
@@ -40,7 +40,7 @@ export default async function WorkProfilePage({
       {...shell}
       userName={profile.displayName}
     >
-      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
+      <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
         <PageHeader
           scope={venueName}
           venueScope={Boolean(venueName)}

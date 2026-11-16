@@ -14,7 +14,8 @@ import { ConfirmSignInButton } from "@/components/nabalens/login-card"
 import { parseEmailLink } from "@/lib/auth/email-link"
 
 export const metadata: Metadata = {
-  title: "Continue to Naba-Lens",
+  // Already names the app, so it skips the root title template.
+  title: { absolute: "Continue to Naba-Lens" },
   robots: { index: false, follow: false },
   // The token hash is in this page's URL; never send it to another site in a
   // Referer. ("no-referrer" would also make the Continue POST send Origin: null.)

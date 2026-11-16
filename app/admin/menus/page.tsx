@@ -10,7 +10,7 @@ import { listMenuVenues } from "@/lib/server/menus"
 import { MenusHeader } from "./menus-header"
 import { RetryButton } from "./retry-button"
 
-export const metadata: Metadata = { title: "Menus · Naba-Lens" }
+export const metadata: Metadata = { title: "Menus" }
 
 const venueHref = (venueId: string) =>
   `/admin/menus/${encodeURIComponent(venueId)}`

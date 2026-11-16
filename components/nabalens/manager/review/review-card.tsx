@@ -16,7 +16,12 @@ import { cn } from "@/lib/utils"
 
 import { ownPhotoBlocked, type ListCard } from "./card-model"
 import { contributorHref, itemHref, type ReviewScope } from "./links"
-import { CONTRIBUTOR_CHIP, RECHECK_LABEL, REVIEW_COPY } from "./review-copy"
+import {
+  alsoCountsText,
+  CONTRIBUTOR_CHIP,
+  RECHECK_LABEL,
+  REVIEW_COPY,
+} from "./review-copy"
 
 export type CardError = { text: string; refresh?: boolean }
 
@@ -95,6 +100,11 @@ export function ReviewCard({
   const chip = CONTRIBUTOR_CHIP[card.contributor.status]
   const label = REVIEW_COPY.photoBy(card.contributor.name)
   const Heading = headingLevel === 2 ? "h2" : "h3"
+  // Only while accepting is still the reviewer's to do (ORP-3b).
+  const alsoCounts =
+    card.state === "accepted" || card.settled
+      ? null
+      : alsoCountsText(card.alsoCounts, card.contributor.name)
 
   if (card.settled) {
     return (
@@ -131,7 +141,7 @@ export function ReviewCard({
       as="article"
       data-card-key={card.key}
       aria-labelledby={titleId}
-      className="gap-4 @min-[40rem]:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+      className="gap-4 @wide:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
     >
       <div className="relative">
         <EvidenceThumb src={card.asset.thumbnailUrl ?? card.asset.previewUrl} />
@@ -140,7 +150,7 @@ export function ReviewCard({
           data-preview-trigger={card.key}
           onClick={(event) => onOpenPreview(event.currentTarget)}
           aria-label={REVIEW_COPY.openPreview(card.contributor.name)}
-          className="absolute inset-0 z-10 min-h-11 rounded-control outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="absolute inset-0 z-local min-h-11 rounded-control focus-ring outline-none"
         />
       </div>
       <div className="grid min-w-0 content-start gap-3">
@@ -162,7 +172,7 @@ export function ReviewCard({
             showItemLink ? (
               <Link
                 href={itemHref(scope, card.item.itemId)}
-                className="rounded-control underline-offset-3 outline-none hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+                className="rounded-control underline-offset-3 focus-ring outline-none hover:underline"
               >
                 {dishName(card.item)}
               </Link>
@@ -190,6 +200,12 @@ export function ReviewCard({
               </dd>
             </div>
           ) : null}
+          {alsoCounts ? (
+            <div className="flex flex-wrap gap-x-2">
+              <dt className="text-ink-muted">{REVIEW_COPY.alsoCounts}</dt>
+              <dd className="break-words text-ink">{alsoCounts}</dd>
+            </div>
+          ) : null}
           {card.reason ? (
             <div className="flex flex-wrap gap-x-2">
               <dt className="text-ink-muted">{REVIEW_COPY.reason}</dt>
@@ -203,7 +219,7 @@ export function ReviewCard({
           ) : (
             <Link
               href={contributorHref(scope, card.contributor.id)}
-              className="rounded-control font-bold break-words text-ink underline underline-offset-3 outline-none hover:decoration-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:inline-flex max-md:min-h-11 max-md:items-center"
+              className="rounded-control font-bold break-words text-ink underline underline-offset-3 focus-ring outline-none hover:decoration-2 max-md:inline-flex max-md:min-h-11 max-md:items-center"
             >
               {who}
             </Link>

@@ -36,7 +36,7 @@ import {
   VersionRowActions,
 } from "../venue-controls"
 
-export const metadata: Metadata = { title: "Menus · Naba-Lens" }
+export const metadata: Metadata = { title: "Menus" }
 
 const versionHref = (id: string) =>
   `/admin/menus/versions/${encodeURIComponent(id)}`
@@ -73,7 +73,7 @@ function VersionsTable({
         className="w-full border-collapse text-body"
       >
         <thead>
-          <tr className="border-b border-line text-left text-meta-strong text-ink-muted">
+          <tr className="border-b border-line text-left text-meta font-semibold text-ink-muted">
             <th scope="col" className={cell}>
               Version
             </th>
@@ -103,7 +103,7 @@ function VersionsTable({
                   <Link
                     href={versionHref(v.id)}
                     className={cn(
-                      "rounded-chip font-bold break-words underline decoration-1 underline-offset-4 outline-none hover:decoration-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid",
+                      "rounded-square font-bold break-words underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2",
                       closed ? "text-ink-muted" : "text-ink"
                     )}
                   >

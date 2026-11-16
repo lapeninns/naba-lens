@@ -64,6 +64,35 @@ describe("department assignment form", () => {
     })
   })
 
+  it("draws no box round the profile photo picker in any state", () => {
+    render(
+      <EditProfileDialog
+        open
+        variant="staff"
+        initial={initial}
+        maxAvatarBytes={4 << 20}
+        onOpenChange={() => {}}
+        onSubmit={vi.fn()}
+      />
+    )
+    const classes = screen.getByLabelText("Profile photo").className.split(" ")
+    // The shared field recipe's fill, hover fill and edges must all be
+    // cancelled here: the picker's own grey button is the only box.
+    for (const boxed of [
+      "bg-surface-2",
+      "edge-strong",
+      "hover:bg-raised",
+      "disabled:edge",
+      "disabled:hover:bg-surface-2",
+      "data-disabled:edge",
+      "data-disabled:hover:bg-surface-2",
+    ]) {
+      expect(classes, boxed).not.toContain(boxed)
+    }
+    expect(classes).toContain("bg-transparent")
+    expect(classes).toContain("hover:bg-transparent")
+  })
+
   it("the staff edit dialog sends clearing the team explicitly", async () => {
     const onSubmit = vi.fn().mockResolvedValue({ ok: true })
     render(
@@ -87,12 +116,10 @@ describe("department assignment form", () => {
     )
     const user = userEvent.setup()
     expect(
-      (
-        screen.getByRole("radio", {
-          name: "Front of house",
-        }) as HTMLInputElement
-      ).checked
-    ).toBe(true)
+      screen
+        .getByRole("radio", { name: "Front of house" })
+        .getAttribute("aria-checked")
+    ).toBe("true")
     await user.click(screen.getByRole("radio", { name: "Unassigned" }))
     await user.click(screen.getByRole("button", { name: "Save changes" }))
     expect(onSubmit).toHaveBeenCalledWith(

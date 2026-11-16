@@ -258,6 +258,14 @@ describe("Our menu (staff)", () => {
         .getByRole("link", { name: OUR_MENU_COPY.clear })
         .getAttribute("href")
     ).toBe("/staff/menu")
+    // The cross in the box and the link do different things, so they must
+    // not share a name: one control is called "Clear search", not two.
+    const named = [
+      ...screen.queryAllByRole("button", { name: "Clear search" }),
+      ...screen.queryAllByRole("link", { name: "Clear search" }),
+    ]
+    expect(named).toHaveLength(1)
+    expect(named[0].getAttribute("data-slot")).toBe("search-field-clear")
   })
 
   it("keeps the gaps filter and section in the search form", () => {

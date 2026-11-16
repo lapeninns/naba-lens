@@ -16,7 +16,7 @@ import { workServices } from "@/lib/work-client/services"
 import { managerUploadsOn } from "../entry"
 import { MyUploads } from "./my-uploads"
 
-export const metadata = { title: "My uploads · Naba-Lens" }
+export const metadata = { title: "My uploads" }
 
 /** R5's first page; null when it couldn't be read, "missing" before B02. */
 async function firstPage(): Promise<ContributionsFeedPage | null | "missing"> {
@@ -42,7 +42,7 @@ export default async function ManagerUploadsPage() {
   const page = await firstPage()
   const copy = MANAGER_COPY.uploads
   return (
-    <div className="grid gap-(--gutter)">
+    <div className="grid gap-gutter">
       <OfflineNotice
         className={OFFLINE_BANNER_CLASS}
         loadedAt={new Date().toISOString()}

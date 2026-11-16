@@ -13,7 +13,7 @@ import { listManagerMenuItems } from "@/lib/server/menu-photos"
 import { loadMenuItemsPageAction } from "../actions"
 import { failedRead, loadManagerOverview } from "../load-overview"
 
-export const metadata = { title: "Menu · Naba-Lens" }
+export const metadata = { title: "Menu" }
 
 type MenuSearch = Record<string, string | string[] | undefined>
 

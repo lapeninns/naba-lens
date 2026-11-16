@@ -36,7 +36,7 @@ const monthFormatter = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/London",
 })
 
-export const metadata = { title: "Task · Naba-Lens" }
+export const metadata = { title: "Task" }
 
 // finaliseUpload (Server Action used by the upload dialog on this page) decodes
 // HEIC/images; same bound as /staff, below MEDIA_LIMITS.staleProcessingMinutes.
@@ -88,7 +88,7 @@ export default async function TaskPage({
       {...shell}
       userName={profile.displayName}
     >
-      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) pb-4">
+      <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter pb-4">
         <BackToTasks {...back} />
         <OfflineNotice />
         {replacing || closedRequest ? (
@@ -125,7 +125,7 @@ export default async function TaskPage({
           <section
             id="send"
             aria-label="Send photos"
-            className="flex scroll-mt-4 flex-col gap-(--gutter)"
+            className="flex scroll-mt-4 flex-col gap-gutter"
           >
             {assignment.canSubmit ? (
               <>
@@ -152,11 +152,11 @@ export default async function TaskPage({
 
         <section
           aria-labelledby="mine-heading"
-          className="flex flex-col gap-(--gutter)"
+          className="flex flex-col gap-gutter"
         >
           <h2
             id="mine-heading"
-            className="px-1 pt-2 font-display text-section-title text-ink"
+            className="px-1 pt-2 type-section-title text-ink"
           >
             Your photos for this task
           </h2>

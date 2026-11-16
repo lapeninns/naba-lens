@@ -18,6 +18,7 @@ import {
   ThisMonthCard,
 } from "@/components/nabalens/home/this-month-card"
 import { AddProvider } from "@/components/nabalens/shell/add-context"
+import { AllTasks } from "@/components/nabalens/tasks/all-tasks"
 import { HomeOverview } from "@/components/nabalens/tasks/home-overview"
 import { TasksOverview } from "@/components/nabalens/tasks/tasks-overview"
 
@@ -498,7 +499,11 @@ describe("Home switch (homeLayout)", () => {
   it("renders today's Home exactly with b01", async () => {
     vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
     await home()
-    expect(screen.getByRole("heading", { name: "All tasks" })).toBeTruthy()
+    // B01 Home links to All tasks (/staff/tasks/all) instead of listing them.
+    expect(
+      screen.getByRole("link", { name: "All tasks" }).getAttribute("href")
+    ).toBe("/staff/tasks/all")
+    expect(screen.queryByRole("heading", { name: "All tasks" })).toBeNull()
     expect(screen.getByRole("heading", { name: "Our menu" })).toBeTruthy()
     expect(screen.queryByRole("heading", { name: "This month" })).toBeNull()
     expect(work.getLabelWork).not.toHaveBeenCalled()
@@ -514,7 +519,11 @@ describe("Home switch (homeLayout)", () => {
     unmount()
     vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
     render(<TasksLoading />)
-    expect(screen.getByRole("heading", { name: "All tasks" })).toBeTruthy()
+    // B01 Home has no task list of its own: they are in All tasks.
+    expect(screen.queryByRole("heading", { name: "All tasks" })).toBeNull()
+    expect(
+      screen.queryByRole("heading", { name: "Other tasks this month" })
+    ).toBeNull()
   })
 })
 
@@ -539,11 +548,21 @@ describe("B01 Home: two lists of checks are named apart (HM-11)", () => {
     ).toBeTruthy()
   })
 
-  it("keeps the legacy heading when there is no working list", () => {
-    render(
+  it("keeps the legacy heading in All tasks when there is no working list", () => {
+    const { unmount } = render(
       <TasksOverview
         {...base}
         tasks={tasksView()}
+        amenityTasks={[amenityCheck("x9")]}
+      />
+    )
+    // Without a working list, Home has one card in To do; the list is in All tasks.
+    expect(screen.queryByRole("list", { name: "Amenity checks" })).toBeNull()
+    unmount()
+    render(
+      <AllTasks
+        tasks={tasksView()}
+        tasksPath="/staff/tasks"
         amenityTasks={[amenityCheck("x9")]}
       />
     )

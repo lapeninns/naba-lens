@@ -11,10 +11,8 @@ export default function ManageRequirementError({
   retry: () => void
 }) {
   return (
-    <main className="mx-auto grid w-full max-w-(--size-page) gap-(--gutter) px-(--page-gutter) py-4 md:gap-4 md:px-6 md:py-8">
-      <h1 className="px-1 font-display text-page-title text-ink">
-        Checklist item
-      </h1>
+    <main className="mx-auto grid w-full max-w-page gap-gutter px-page-gutter py-4 md:gap-4 md:px-6 md:py-8">
+      <h1 className="px-1 type-page-title text-ink">Checklist item</h1>
       <ErrorState
         title={ERROR_COPY.couldNotLoad("this item")}
         action={

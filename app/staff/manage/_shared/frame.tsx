@@ -63,7 +63,7 @@ export async function ManageFrame({
     reviewCount = read.coverage.summary.pendingReview
   }
   const body = (
-    <div className="grid min-w-0 gap-(--gutter) md:gap-4">
+    <div className="grid min-w-0 gap-gutter md:gap-4">
       <div className="grid min-w-0 gap-1">
         <PageHeader
           venueScope={!venueScope}
@@ -119,7 +119,7 @@ export async function NotManagerPage({ viewerName }: { viewerName: string }) {
   return (
     <AppShell variant="staff" active="manage" {...shell} userName={viewerName}>
       <PageHeader scope={currentMonthLabel()} title="Manage isn't available" />
-      <Card className="max-w-(--size-reading) text-body">
+      <Card className="max-w-reading text-body">
         <p>
           Manage is for venue managers. To manage your venue, ask an admin to
           change your account to a venue manager account.
@@ -130,7 +130,7 @@ export async function NotManagerPage({ viewerName }: { viewerName: string }) {
         <div>
           <Link
             href="/staff/tasks"
-            className={buttonVariants({ variant: "primary", size: "touch" })}
+            className={buttonVariants({ variant: "primary" })}
           >
             Go to Home
           </Link>

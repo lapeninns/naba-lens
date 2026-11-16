@@ -43,7 +43,8 @@ describe("branded not-found pages", () => {
     expect(links).toHaveLength(1)
     expect(links[0].textContent).toBe("Go to Naba-Lens")
     expect(links[0].getAttribute("href")).toBe("/")
-    expect(metadata.title).toBe("Page not found · Naba-Lens")
+    // The root layout's title template adds " · Naba-Lens".
+    expect(metadata.title).toBe("Page not found")
   })
 
   it("the way back is a 52px primary button", () => {

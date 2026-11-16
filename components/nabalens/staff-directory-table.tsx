@@ -121,7 +121,7 @@ export function StaffActionsMenu({
         className="w-auto max-w-[min(20rem,var(--available-width))] min-w-52"
       >
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="text-meta-strong break-words text-ink-muted">
+          <DropdownMenuLabel className="text-meta font-semibold break-words text-ink-muted">
             {member.displayName}
           </DropdownMenuLabel>
           <DropdownMenuItem disabled={!!pending} onClick={() => onEdit(member)}>
@@ -163,7 +163,7 @@ export function StaffActionsMenu({
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem
-            variant="destructive"
+            variant="danger"
             disabled={!!pending}
             onClick={() => onSetActive(member, false)}
           >
@@ -217,7 +217,7 @@ export function StaffDirectoryTable({
       href={getPortfolioHref(member)}
       // On phones the padding makes a 44px+ hit area; the negative margin keeps
       // the text where it was, and `relative` keeps it above the meta line.
-      className="relative block truncate rounded-chip text-item-title text-ink underline decoration-1 underline-offset-4 outline-none hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:-my-3.5 max-md:py-3.5"
+      className="relative block truncate rounded-square text-item-title text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2 max-md:-my-3.5 max-md:py-3.5"
     >
       {member.displayName}
     </Link>

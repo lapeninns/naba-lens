@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { fieldControlVariants } from "@/components/ui/field-control"
 import type {
   KnowledgeResult,
   Occurrence,
@@ -32,10 +33,10 @@ import {
   occurrenceLine,
 } from "./schedule-detail"
 
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
+// The shared field recipe on native controls (DESIGN.md §4 Field).
+const INPUT = `block ${fieldControlVariants()}`
 const ROW =
-  "flex min-h-11 cursor-pointer items-center gap-3 text-body-touch text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:text-body"
+  "flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink focus-ring-within"
 const SHOWN = 8
 const WEEKS = 13
 
@@ -66,15 +67,12 @@ export function UpcomingSection({
       <p className={MUTED}>{SCHEDULE_COPY.timezone(timezone)}</p>
       {!read.ok ? (
         <div className="grid gap-2">
-          <p className="text-body-touch text-ink md:text-body">
-            {SCHEDULE_COPY.upcomingFailed}
-          </p>
+          <p className="text-body text-ink">{SCHEDULE_COPY.upcomingFailed}</p>
           {read.retry ? (
             <div>
               <Button
                 type="button"
                 variant="secondary"
-                size="touch"
                 onClick={() => router.refresh()}
               >
                 <ArrowClockwiseIcon aria-hidden />
@@ -84,7 +82,7 @@ export function UpcomingSection({
           ) : null}
         </div>
       ) : shown.length ? (
-        <ul className="grid gap-1 text-body-touch text-ink md:text-body">
+        <ul className="grid gap-1 text-body text-ink">
           {shown.map((o) => (
             <li key={`${o.localDate}-${o.startsAt}`}>
               {occurrenceLine(o, timezone)}
@@ -92,7 +90,7 @@ export function UpcomingSection({
           ))}
         </ul>
       ) : (
-        <p className="text-body-touch text-ink md:text-body">
+        <p className="text-body text-ink">
           {lastDay && lastDay < today
             ? SCHEDULE_COPY.lastDayPassed(localDateWords(lastDay))
             : SCHEDULE_COPY.upcomingNone(WEEKS)}
@@ -227,12 +225,7 @@ export function DateChangeControl({
     <>
       <CoverageNotice notice={notice} onDismiss={() => setNotice(null)} />
       <div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="touch"
-          onClick={() => setOpen(true)}
-        >
+        <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
           <CalendarPlusIcon aria-hidden />
           {DC.open}
         </Button>
@@ -289,7 +282,7 @@ export function DateChangeControl({
                   <input
                     type="radio"
                     name={`${id}-kind`}
-                    className="size-5 shrink-0 accent-primary"
+                    className="size-5 shrink-0 accent-accent"
                     checked={kind === k}
                     onChange={() => setKind(k)}
                   />
@@ -356,7 +349,7 @@ export function DateChangeControl({
             </div>
             {failure ? (
               <div role="alert" className="grid gap-2">
-                <p className="text-meta-touch font-semibold text-negative md:text-meta-strong">
+                <p className="text-meta font-semibold text-warn-fg">
                   {failure.text}
                 </p>
                 {failure.reload ? (
@@ -364,7 +357,6 @@ export function DateChangeControl({
                     <Button
                       type="button"
                       variant="secondary"
-                      size="touch"
                       onClick={() => {
                         router.refresh()
                         reset()
@@ -382,7 +374,6 @@ export function DateChangeControl({
               <Button
                 type="button"
                 variant="secondary"
-                size="touch"
                 disabled={pending}
                 onClick={() => {
                   reset()
@@ -392,8 +383,8 @@ export function DateChangeControl({
                 {DC.cancel}
               </Button>
               <Button
+                variant="primary"
                 type="submit"
-                size="touch"
                 disabled={pending}
                 aria-busy={pending || undefined}
               >

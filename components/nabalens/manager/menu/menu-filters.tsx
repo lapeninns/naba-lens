@@ -1,13 +1,12 @@
 "use client"
 
+import { FilterPill } from "@/components/ui/filter-pill"
+import { SearchField } from "@/components/ui/search-field"
 import * as React from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { CheckIcon, MagnifyingGlassIcon } from "@phosphor-icons/react"
 
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 
 import type {
   ManagerOverview,
@@ -23,14 +22,6 @@ import {
 } from "./menu-query"
 
 const SEARCH_DEBOUNCE_MS = 300
-
-/*
- * Select pills (DESIGN.md §4 filters): grey; the current one is accent-soft
- * with an accent-text inset edge and a tick. Pills wrap; nothing scrolls
- * sideways.
- */
-const PILL =
-  "group/pill inline-flex min-h-11 items-center justify-center gap-1.5 rounded-round bg-surface-2 px-4 text-center text-label text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid aria-[current=page]:bg-accent-soft aria-[current=page]:shadow-[inset_0_0_0_1.5px_var(--accent-text)]"
 
 /** The overview count for each status choice ("All" is every eligible item). */
 function statusCount(
@@ -122,26 +113,15 @@ export function MenuFilters({
         }}
         className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(12rem,16rem)] md:items-end"
       >
-        <Field>
-          <FieldLabel htmlFor="manager-menu-q">{copy.search}</FieldLabel>
-          <span className="relative block">
-            <MagnifyingGlassIcon
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
-            />
-            <Input
-              id="manager-menu-q"
-              type="search"
-              autoComplete="off"
-              enterKeyHint="search"
-              value={query}
-              onChange={(event) => onSearch(event.currentTarget.value)}
-              placeholder={copy.searchPlaceholder}
-              maxLength={MENU_QUERY_MAX}
-              className="pl-11"
-            />
-          </span>
-        </Field>
+        <SearchField
+          id="manager-menu-q"
+          label={copy.search}
+          autoComplete="off"
+          value={query}
+          onValueChange={onSearch}
+          placeholder={copy.searchPlaceholder}
+          maxLength={MENU_QUERY_MAX}
+        />
         {overview.sections.length > 1 ? (
           <Field>
             <FieldLabel htmlFor="manager-menu-section">
@@ -180,23 +160,15 @@ export function MenuFilters({
             const count = statusCount(overview, status)
             return (
               <li key={status ?? "all"} className="min-w-0">
-                <Link
+                <FilterPill
                   href={menuHref({ ...filter, status })}
                   replace
                   scroll={false}
-                  aria-current={filter.status === status ? "page" : undefined}
-                  className={PILL}
+                  selected={filter.status === status}
+                  count={count}
                 >
-                  <CheckIcon
-                    aria-hidden
-                    weight="bold"
-                    className="hidden size-4 shrink-0 group-aria-[current=page]/pill:inline"
-                  />
-                  <span className="[overflow-wrap:anywhere]">{label}</span>
-                  <span className="font-mono font-semibold text-ink-muted tabular-nums">
-                    {count}
-                  </span>
-                </Link>
+                  {label}
+                </FilterPill>
               </li>
             )
           })}

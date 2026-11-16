@@ -25,7 +25,7 @@ export function WorkspacePending({
   back?: { href: string; label: string }
 }) {
   return (
-    <div className="grid gap-(--gutter)">
+    <div className="grid gap-gutter">
       {back ? (
         <Link
           href={back.href}
@@ -44,7 +44,7 @@ export function WorkspacePending({
         title={title}
         className="pb-0 md:pb-0"
       />
-      <Notice tone="plain" title={noteTitle} className="max-w-(--size-reading)">
+      <Notice tone="plain" title={noteTitle} className="max-w-reading">
         <p>{note}</p>
       </Notice>
     </div>

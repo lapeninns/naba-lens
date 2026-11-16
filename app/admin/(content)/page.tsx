@@ -12,7 +12,7 @@ import { AdminLibrary } from "../admin-library"
 import type { LibraryPageResult } from "../library-actions"
 import { toFilterValue } from "../library-search"
 
-export const metadata = { title: "Content · Naba-Lens" }
+export const metadata = { title: "Content" }
 
 /**
  * Admin library: every ready upload across venues, newest first, filtered

@@ -1,5 +1,6 @@
 "use client"
 
+import { SegmentedControl } from "@/components/ui/segmented-control"
 import * as React from "react"
 import Link from "next/link"
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react"
@@ -22,7 +23,6 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { isDepartment, type Department } from "@/lib/config/departments"
-import { cn } from "@/lib/utils"
 
 import { Notice } from "./notice"
 import { OfflineNotice, useOnline } from "./offline-notice"
@@ -109,35 +109,21 @@ export function TeamField({
       aria-describedby={`${id}-hint`}
       aria-invalid={!!error || undefined}
     >
-      <legend className="mb-1.5 text-label">Team</legend>
-      <div className="grid grid-cols-3 gap-1 rounded-round bg-surface-2 p-1">
-        {TEAMS.map((team) => {
-          const checked = (value ?? "") === team.id
-          return (
-            <label
-              key={team.name}
-              className={cn(
-                "flex min-h-11 cursor-pointer items-center justify-center rounded-round px-2 py-1.5 text-center text-label leading-tight font-bold has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus has-focus-visible:outline-solid",
-                checked
-                  ? "bg-surface text-ink shadow-[0_1px_2px_oklch(0.2_0.01_250/0.16),0_0_0_1.5px_var(--border-strong)]"
-                  : "text-ink-muted hover:bg-raised hover:text-ink"
-              )}
-            >
-              <input
-                type="radio"
-                name={id}
-                value={team.id}
-                checked={checked}
-                onChange={() =>
-                  onChange(isDepartment(team.id) ? team.id : null)
-                }
-                className="sr-only"
-              />
-              {team.name}
-            </label>
-          )
-        })}
-      </div>
+      <legend id={`${id}-legend`} className="mb-1.5 text-label">
+        Team
+      </legend>
+      <SegmentedControl
+        aria-labelledby={`${id}-legend`}
+        aria-describedby={`${id}-hint`}
+        aria-invalid={!!error || undefined}
+        // "none" stands for no team: a segment needs a value of its own.
+        value={value ?? "none"}
+        onValueChange={(next) => onChange(isDepartment(next) ? next : null)}
+        options={TEAMS.map((team) => ({
+          value: team.id || "none",
+          label: team.name,
+        }))}
+      />
       <p id={`${id}-hint`} className="text-meta text-ink-muted">
         {hint}
       </p>
@@ -230,7 +216,7 @@ function InviteForm({
           <Notice tone="attention">{result.message}</Notice>
         ) : null}
         <DialogFooter>
-          <Button size="touch" onClick={() => onOpenChange(false)}>
+          <Button variant="primary" onClick={() => onOpenChange(false)}>
             Close
           </Button>
         </DialogFooter>
@@ -368,15 +354,14 @@ function InviteForm({
         <Button
           type="button"
           variant="secondary"
-          size="touch"
           onClick={() => onOpenChange(false)}
           disabled={pending}
         >
           Cancel
         </Button>
         <Button
+          variant="primary"
           type="submit"
-          size="touch"
           disabled={pending}
           aria-busy={pending}
         >

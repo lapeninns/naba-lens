@@ -12,6 +12,7 @@ import {
 } from "@/components/nabalens/coverage/reason-dialog"
 import { useRequestIds } from "@/components/nabalens/coverage/use-request-id"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import type {
   KnowledgeResult,
   SlotEventView,
@@ -31,9 +32,6 @@ import {
   londonInstant,
   whenWords,
 } from "./corrections-copy"
-
-const INPUT =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
 
 type Withdraw = (input: {
   checkId: string
@@ -85,12 +83,7 @@ export function WithdrawControl({
   return (
     <>
       <CoverageNotice notice={notice} onDismiss={() => setNotice(null)} />
-      <Button
-        type="button"
-        variant="secondary"
-        size="touch"
-        onClick={() => setOpen(true)}
-      >
+      <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
         <ProhibitIcon aria-hidden />
         {WITHDRAW_COPY.open}
       </Button>
@@ -197,14 +190,11 @@ export function HistorySection({
       ) : null}
       {first === null ? (
         <div className="grid gap-2">
-          <p className="text-body-touch text-ink md:text-body">
-            {HISTORY_COPY.failed}
-          </p>
+          <p className="text-body text-ink">{HISTORY_COPY.failed}</p>
           <div>
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               onClick={() => router.refresh()}
             >
               <ArrowClockwiseIcon aria-hidden />
@@ -213,9 +203,7 @@ export function HistorySection({
           </div>
         </div>
       ) : items.length === 0 ? (
-        <p className="text-body-touch text-ink md:text-body">
-          {HISTORY_COPY.empty}
-        </p>
+        <p className="text-body text-ink">{HISTORY_COPY.empty}</p>
       ) : (
         <ol className="grid gap-2">
           {items.map((e) => (
@@ -223,9 +211,9 @@ export function HistorySection({
               key={e.eventId}
               id={`history-${e.eventId}`}
               tabIndex={-1}
-              className="grid gap-0.5 rounded-control outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid"
+              className="grid gap-0.5 rounded-control focus-ring outline-none"
             >
-              <span className="text-body-touch [overflow-wrap:anywhere] text-ink md:text-body">
+              <span className="text-body [overflow-wrap:anywhere] text-ink">
                 {eventLine(e)}
               </span>
               <span className={MUTED}>{eventWhen(e)}</span>
@@ -234,7 +222,7 @@ export function HistorySection({
         </ol>
       )}
       {failed ? (
-        <p role="alert" className="text-body-touch text-ink md:text-body">
+        <p role="alert" className="text-body text-ink">
           {HISTORY_COPY.failed}
         </p>
       ) : null}
@@ -243,7 +231,6 @@ export function HistorySection({
           <Button
             type="button"
             variant="secondary"
-            size="touch"
             disabled={pending}
             aria-busy={pending || undefined}
             onClick={() => void older()}
@@ -329,14 +316,13 @@ export function AnswerOnDate({
             <label htmlFor={`${id}-date`} className={LABEL}>
               {AT_DATE_COPY.date}
             </label>
-            <input
+            <Input
               id={`${id}-date`}
               type="date"
               required
               aria-required
               max={today}
               value={date}
-              className={INPUT}
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? `${id}-date-error` : undefined}
               onChange={(e) => setDate(e.currentTarget.value)}
@@ -347,11 +333,10 @@ export function AnswerOnDate({
             <label htmlFor={`${id}-time`} className={LABEL}>
               {AT_DATE_COPY.time}
             </label>
-            <input
+            <Input
               id={`${id}-time`}
               type="time"
               value={time}
-              className={INPUT}
               aria-describedby={`${id}-time-help`}
               onChange={(e) => setTime(e.currentTarget.value)}
             />
@@ -364,7 +349,6 @@ export function AnswerOnDate({
           <Button
             type="submit"
             variant="secondary"
-            size="touch"
             disabled={pending}
             aria-busy={pending || undefined}
           >
@@ -375,22 +359,19 @@ export function AnswerOnDate({
       <div aria-live="polite" className="grid gap-1">
         {result?.kind === "shown"
           ? result.lines.map((line) => (
-              <p key={line} className="text-body-touch text-ink md:text-body">
+              <p key={line} className="text-body text-ink">
                 {line}
               </p>
             ))
           : null}
         {result?.kind === "failed" ? (
           <div className="grid gap-2">
-            <p className="text-body-touch text-ink md:text-body">
-              {AT_DATE_COPY.failed}
-            </p>
+            <p className="text-body text-ink">{AT_DATE_COPY.failed}</p>
             {result.retry ? (
               <div>
                 <Button
                   type="button"
                   variant="secondary"
-                  size="touch"
                   onClick={() => void show()}
                 >
                   {AT_DATE_COPY.tryAgain}

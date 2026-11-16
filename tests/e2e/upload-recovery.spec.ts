@@ -972,7 +972,7 @@ test.describe("upload queue on a phone", () => {
     ).toHaveCount(0)
     await expect(
       dialog.getByRole("button", { name: "Done", exact: true })
-    ).toHaveAttribute("data-variant", "default")
+    ).toHaveAttribute("data-variant", "primary")
 
     drop = false
     await retry.click()
@@ -1078,7 +1078,7 @@ test.describe("session ends mid-queue", () => {
     // Done stays the sheet's one primary action, always available.
     await expect(
       dialog.getByRole("button", { name: "Done", exact: true })
-    ).toHaveAttribute("data-variant", "default")
+    ).toHaveAttribute("data-variant", "primary")
     const beforeSignIn = await rowsOf(staff.id)
     expect(beforeSignIn.filter((r) => r.upload_state === "ready")).toHaveLength(
       1

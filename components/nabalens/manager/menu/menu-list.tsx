@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { SpinnerGapIcon } from "@phosphor-icons/react"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { failureText } from "@/components/nabalens/coverage/copy"
@@ -114,7 +113,7 @@ export function MenuList({
   }
 
   return (
-    <div ref={listRef} className="grid gap-(--gutter)">
+    <div ref={listRef} className="grid gap-gutter">
       {groupBySection(items).map((group, index) => {
         const total = totals.get(group.sectionId)
         const headingId = `menu-section-${group.sectionId}-${index}`
@@ -129,12 +128,12 @@ export function MenuList({
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 pt-3.5 pb-1 sm:px-4">
               <h2
                 id={headingId}
-                className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+                className="type-section-title [overflow-wrap:anywhere] text-ink"
               >
                 {group.name}
               </h2>
               {total ? (
-                <p className="font-mono text-meta-strong text-ink-muted tabular-nums">
+                <p className="font-mono text-meta font-semibold text-ink-muted tabular-nums">
                   {copy.sectionCount(total.covered, total.eligible)}
                 </p>
               ) : null}
@@ -167,19 +166,11 @@ export function MenuList({
             // focus, and focus stays here while the next page loads.
             <Button
               variant="secondary"
-              size="touch"
-              aria-disabled={loading || undefined}
-              aria-busy={loading || undefined}
+              loading={loading}
+              loadingLabel={copy.loadingMore}
               onClick={() => void loadMore()}
             >
-              {loading ? (
-                <SpinnerGapIcon
-                  data-icon="inline-start"
-                  className="motion-safe:animate-spin"
-                  aria-hidden
-                />
-              ) : null}
-              {loading ? copy.loadingMore : copy.showMore}
+              {copy.showMore}
             </Button>
           ) : null}
         </div>

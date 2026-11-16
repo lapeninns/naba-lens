@@ -1,11 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {
-  SpinnerGapIcon,
-  TrashIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react"
+import { TrashIcon, WarningCircleIcon } from "@phosphor-icons/react"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
@@ -185,34 +181,17 @@ export function ConfirmDeleteDialog({
           </p>
         ) : null}
         <AlertDialogFooter>
-          <AlertDialogCancel
-            variant="secondary"
-            size="touch"
-            disabled={pending}
-          >
+          <AlertDialogCancel variant="secondary" disabled={pending}>
             {ownerName === undefined ? `Keep ${noun}` : "Keep file"}
           </AlertDialogCancel>
           <Button
             variant="danger"
-            size="touch"
             onClick={confirm}
-            aria-disabled={busy || undefined}
-            aria-busy={busy || undefined}
+            loading={busy}
+            loadingLabel={pending ? "Deleting…" : "Checking…"}
           >
-            {busy ? (
-              <SpinnerGapIcon
-                data-icon="inline-start"
-                aria-hidden
-                className="motion-safe:animate-spin"
-              />
-            ) : (
-              <TrashIcon data-icon="inline-start" aria-hidden />
-            )}
-            {pending
-              ? "Deleting…"
-              : checking
-                ? "Checking…"
-                : (warning?.confirmLabel ?? "Delete")}
+            <TrashIcon data-icon="inline-start" aria-hidden />
+            {warning?.confirmLabel ?? "Delete"}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -28,16 +28,15 @@ export function CoverageSection({
     <section
       id={id}
       aria-labelledby={titleId}
-      className={cn("grid min-w-0 scroll-mt-4 gap-(--gutter)", className)}
+      className={cn("grid min-w-0 scroll-mt-4 gap-gutter", className)}
     >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pt-2">
         <h2
           id={titleId}
           tabIndex={focusableTitle ? -1 : undefined}
           className={cn(
-            "font-display text-section-title text-balance text-ink",
-            focusableTitle &&
-              "rounded-control outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+            "type-section-title text-balance text-ink",
+            focusableTitle && "rounded-control focus-ring outline-none"
           )}
         >
           {title}
@@ -110,7 +109,7 @@ export function TallyItem({
       <span className="text-meta font-semibold text-ink-muted">{label}</span>
       <span
         className={cn(
-          "flex items-baseline gap-1.5 font-display text-section-title font-extrabold tabular-nums",
+          "flex items-baseline gap-1.5 type-section-title font-extrabold tabular-nums",
           TALLY_TONE[shownTone]
         )}
       >
@@ -136,7 +135,7 @@ export function TallyItem({
           href={href}
           className={cn(
             cell,
-            "w-full outline-offset-2 transition-colors duration-(--duration-quick) hover:bg-raised"
+            "w-full outline-offset-2 transition-colors duration-quick hover:bg-raised"
           )}
         >
           {body}
@@ -182,15 +181,15 @@ export function Frames({
       <p
         className={cn(
           "flex flex-wrap items-baseline gap-x-2 gap-y-1",
-          compact && "text-body-sm"
+          compact && "text-body"
         )}
       >
         <span
           className={cn(
             "tabular-nums",
             compact
-              ? "font-mono text-meta-strong text-ink"
-              : "font-display text-count text-ink"
+              ? "font-mono text-meta font-semibold text-ink"
+              : "type-count text-ink"
           )}
         >
           {accepted}
@@ -199,8 +198,8 @@ export function Frames({
           className={cn(
             "text-ink-muted",
             compact
-              ? "font-mono text-meta-strong tabular-nums"
-              : "font-display text-section-title"
+              ? "font-mono text-meta font-semibold tabular-nums"
+              : "type-section-title"
           )}
         >
           of {target} {verb}
@@ -212,7 +211,7 @@ export function Frames({
           <div
             aria-hidden
             className={cn(
-              "flex overflow-hidden rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]",
+              "flex overflow-hidden rounded-round bg-surface-2 edge-strong",
               compact ? "h-2" : "h-3"
             )}
           >
@@ -237,7 +236,7 @@ export function Frames({
                     ? "bg-ok-fg"
                     : i < filled + waiting
                       ? "bg-stripe"
-                      : "bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+                      : "bg-surface-2 edge-strong"
                 )}
               />
             ))}
@@ -344,7 +343,7 @@ export function ItemRow({
         ) : null}
       </div>
       {aside ? (
-        <div className="min-w-0 @max-[520px]:col-start-1 @max-[520px]:row-start-2">
+        <div className="min-w-0 @max-compact:col-start-1 @max-compact:row-start-2">
           {aside}
         </div>
       ) : (
@@ -354,7 +353,7 @@ export function ItemRow({
         <CaretRightIcon
           aria-hidden
           weight="bold"
-          className="mt-0.5 size-5 text-ink-muted @max-[520px]:col-start-2 @max-[520px]:row-start-1"
+          className="mt-0.5 size-5 text-ink-muted @max-compact:col-start-2 @max-compact:row-start-1"
         />
       ) : (
         <span aria-hidden />
@@ -362,7 +361,7 @@ export function ItemRow({
     </>
   )
   const grid = cn(
-    "grid min-h-16 grid-cols-[minmax(0,1fr)_168px_20px] items-start gap-4 p-3 text-ink no-underline md:px-4 @max-[520px]:grid-cols-[minmax(0,1fr)_20px] @max-[520px]:gap-y-3",
+    "grid min-h-16 grid-cols-[minmax(0,1fr)_168px_20px] items-start gap-4 p-3 text-ink no-underline md:px-4 @max-compact:grid-cols-[minmax(0,1fr)_20px] @max-compact:gap-y-3",
     className
   )
   return (
@@ -372,7 +371,7 @@ export function ItemRow({
           href={href}
           className={cn(
             grid,
-            "-outline-offset-3 transition-colors duration-(--duration-quick) hover:bg-surface-2"
+            "-outline-offset-3 transition-colors duration-quick hover:bg-surface-2"
           )}
         >
           {body}
@@ -397,7 +396,7 @@ export function Quote({
   return (
     <blockquote
       className={cn(
-        "grid gap-1 rounded-control bg-surface-2 px-3 py-2.5 ps-4 shadow-[inset_4px_0_0_var(--warn-fg)]",
+        "grid gap-1 rounded-control bg-surface-2 px-3 py-2.5 ps-4 rail-start-warn",
         className
       )}
     >

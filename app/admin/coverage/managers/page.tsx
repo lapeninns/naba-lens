@@ -22,7 +22,7 @@ import { isUuid } from "@/lib/server/coverage/validate"
 import { MANAGERS_COPY } from "./managers-copy"
 import { ManagersView } from "./managers-view"
 
-export const metadata: Metadata = { title: "Venue managers · Naba-Lens" }
+export const metadata: Metadata = { title: "Venue managers" }
 
 const BASE = "/admin/coverage/managers"
 

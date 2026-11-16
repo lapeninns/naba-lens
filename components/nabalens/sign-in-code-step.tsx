@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { SpinnerGapIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
@@ -209,20 +208,13 @@ export function SignInCodeStep({
           {error ? <FieldError id={errorId}>{error}</FieldError> : null}
         </Field>
         <Button
+          variant="primary"
           type="submit"
-          size="touch"
           className="w-full"
-          disabled={busy}
-          aria-busy={busy}
+          loading={busy}
+          loadingLabel="Signing in…"
         >
-          {busy ? (
-            <SpinnerGapIcon
-              data-icon="inline-start"
-              className="motion-safe:animate-spin"
-              aria-hidden
-            />
-          ) : null}
-          {busy ? "Signing in…" : "Sign in with code"}
+          Sign in with code
         </Button>
       </form>
 
@@ -254,7 +246,6 @@ export function SignInCodeStep({
         <Button
           type="button"
           variant="secondary"
-          size="touch"
           className="w-full"
           onClick={resend}
           disabled={
@@ -281,7 +272,6 @@ export function SignInCodeStep({
           <Button
             type="button"
             variant="quiet"
-            size="touch"
             className="w-full"
             disabled={busy}
             onClick={onChangeEmail}

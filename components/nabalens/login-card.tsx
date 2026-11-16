@@ -1,11 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {
-  ClockIcon,
-  EnvelopeSimpleIcon,
-  SpinnerGapIcon,
-} from "@phosphor-icons/react"
+import { ClockIcon, EnvelopeSimpleIcon } from "@phosphor-icons/react"
 
 import {
   SIGN_IN_CARD,
@@ -32,16 +28,6 @@ import { IconDisc } from "./common-room/icon-disc"
 import { Notice } from "./notice"
 import { RESEND_COOLDOWN_SECONDS, SignInCodeStep } from "./sign-in-code-step"
 import { TurnstileChallenge } from "./turnstile-challenge"
-
-function BusyIcon() {
-  return (
-    <SpinnerGapIcon
-      data-icon="inline-start"
-      className="motion-safe:animate-spin"
-      aria-hidden
-    />
-  )
-}
 
 type LoginCardProps = {
   /**
@@ -242,12 +228,7 @@ export function LoginCard({
             onChangeEmail={changeEmail}
           />
         ) : (
-          <Button
-            variant="secondary"
-            size="touch"
-            className="w-full"
-            onClick={changeEmail}
-          >
+          <Button variant="secondary" className="w-full" onClick={changeEmail}>
             Use a different email
           </Button>
         )}
@@ -318,18 +299,14 @@ export function LoginCard({
           )
         ) : null}
         <Button
+          variant="primary"
           type="submit"
-          size="touch"
           className="w-full"
-          disabled={sending || (requiresCaptcha && !captchaToken)}
-          aria-busy={sending}
+          disabled={requiresCaptcha && !captchaToken}
+          loading={sending}
+          loadingLabel="Sending…"
         >
-          {sending ? <BusyIcon /> : null}
-          {sending
-            ? "Sending…"
-            : expired
-              ? "Send a new link"
-              : "Send sign-in link"}
+          {expired ? "Send a new link" : "Send sign-in link"}
         </Button>
       </form>
       {/* On the canvas under the card, not inside it. */}
@@ -374,15 +351,14 @@ export function ConfirmSignInButton({ invite }: { invite: boolean }) {
 
   return (
     <Button
+      variant="primary"
       ref={button}
       type="submit"
-      size="touch"
       className="w-full"
-      aria-busy={pending}
-      aria-disabled={pending || undefined}
+      loading={pending}
+      loadingLabel="Signing in…"
     >
-      {pending ? <BusyIcon /> : null}
-      {pending ? "Signing in…" : invite ? "Accept your invitation" : "Continue"}
+      {invite ? "Accept your invitation" : "Continue"}
     </Button>
   )
 }

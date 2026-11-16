@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  AllTasks,
   AssignmentList,
   EvidenceImage,
   MonthCard,
@@ -285,7 +286,22 @@ describe("TasksOverview", () => {
     // The replacement request covers the overdue task, so it isn't listed twice.
     expect(within(todo).queryByText("Starters is overdue")).toBeNull()
 
-    expect(screen.getByRole("heading", { name: "All tasks" })).toBeTruthy()
+    // Home links to All tasks rather than listing every task a second time.
+    expect(screen.queryByRole("list", { name: "Assigned tasks" })).toBeNull()
+    expect(
+      within(todo).getByRole("link", { name: "All tasks" }).getAttribute("href")
+    ).toBe("/staff/tasks/all")
+
+    cleanup()
+    render(
+      <AllTasks
+        tasks={tasksView({
+          assignments: [starters, garden],
+          needsAnotherPhoto: [replace],
+        })}
+        tasksPath="/staff/tasks"
+      />
+    )
     const tasks = screen.getByRole("list", { name: "Assigned tasks" })
     const link = within(tasks).getByRole("link", { name: "Starters" })
     expect(link.getAttribute("href")).toBe(
@@ -296,6 +312,19 @@ describe("TasksOverview", () => {
     expect(within(card).getByText("Needs another photo")).toBeTruthy()
     expect(card.textContent).toContain("shared with 1 colleague")
 
+    cleanup()
+    render(
+      <TasksOverview
+        tasks={tasksView({
+          assignments: [starters, garden],
+          needsAnotherPhoto: [replace],
+          pendingReview: 3,
+        })}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+      />
+    )
     expect(screen.getByText("Too dark, use the pass lights.")).toBeTruthy()
     // The replacement answers the original item, so it leaves this list.
     expect(
@@ -320,11 +349,9 @@ describe("TasksOverview", () => {
       progress: { ...requirement().progress, overdue: true },
     })
     const { unmount } = render(
-      <TasksOverview
+      <AllTasks
         tasks={tasksView({ assignments: [later, sooner, late] })}
-        profile={PROFILE}
         tasksPath="/staff/tasks"
-        portfolioPath="/staff"
       />
     )
     const list = screen.getByRole("list", { name: "Assigned tasks" })
@@ -334,11 +361,9 @@ describe("TasksOverview", () => {
     expect(names).toEqual(["Late", "Sooner", "Later"])
     unmount()
     render(
-      <TasksOverview
+      <AllTasks
         tasks={tasksView({ assignments: [] })}
-        profile={PROFILE}
         tasksPath="/staff/tasks"
-        portfolioPath="/staff"
       />
     )
     expect(
@@ -363,6 +388,77 @@ describe("TasksOverview", () => {
     )
     expect(screen.getByRole("status").textContent).toMatch(
       /venue isn't taking photos/
+    )
+  })
+
+  it("says a paused venue once, in the share box, when the share box shows it", () => {
+    render(
+      <TasksOverview
+        tasks={tasksView({
+          scope: {
+            ...base.scope,
+            venue: { ...base.scope.venue!, active: false },
+            canSubmit: false,
+          },
+        })}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+        contribute={{ prompt: "What did you cook today?", blocked: "Paused." }}
+      />
+    )
+    const notices = screen.getAllByRole("status")
+    expect(notices).toHaveLength(1)
+    expect(notices[0].textContent).toContain("Paused.")
+  })
+
+  it("shows one notice after a send, never two", () => {
+    render(
+      <TasksOverview
+        tasks={base}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+        justSent={{ kind: "sent", count: 2, taskTitle: "Starters" }}
+        findingSent="Is there guest Wi-Fi?"
+      />
+    )
+    expect(screen.getByText(/2 photos sent to Starters/)).toBeTruthy()
+    expect(screen.queryByText(/Is there guest Wi-Fi\?/)).toBeNull()
+  })
+
+  it("puts Start here in To do, leading only when nothing else has an action", () => {
+    const view = (assignments: ReturnType<typeof assignment>[]) =>
+      render(
+        <TasksOverview
+          tasks={tasksView({ assignments })}
+          profile={PROFILE}
+          tasksPath="/staff/tasks"
+          portfolioPath="/staff"
+          welcomeHref="/staff/tasks/welcome"
+        />
+      )
+    view([])
+    let todo = screen.getByRole("region", { name: /^To do/ })
+    let start = within(todo).getByRole("link", { name: "Start here" })
+    expect(start.getAttribute("href")).toBe("/staff/tasks/welcome")
+    // Nothing else to do, so it is the lead: full width at every size.
+    expect(start.className).not.toContain("sm:w-auto")
+    expect(screen.queryByText("Nothing to do right now.")).toBeNull()
+    cleanup()
+    view([
+      assignment({
+        title: "Bar",
+        progress: { ...requirement().progress, overdue: true },
+        due: due({ overdue: true }),
+      }),
+    ])
+    todo = screen.getByRole("region", { name: /^To do/ })
+    start = within(todo).getByRole("link", { name: "Start here" })
+    // The overdue task leads; Start here comes last, in grey.
+    expect(start.className).toContain("sm:w-auto")
+    expect(within(todo).getAllByRole("listitem").at(-1)!.textContent).toContain(
+      "New to Naba-Lens?"
     )
   })
 })
@@ -953,17 +1049,15 @@ describe("To do: amenity checks", () => {
       within(todo).getByRole("heading", { name: "Is there guest Wi-Fi?" })
     ).toBeTruthy()
     expect(within(todo).getByText("Password or QR visible")).toBeTruthy()
-    expect(within(todo).getByText(/1 more check below/)).toBeTruthy()
+    expect(within(todo).getByText(/1 more check in All tasks/)).toBeTruthy()
     const start = within(todo).getByRole("link", {
       name: "Start check: Is there guest Wi-Fi?",
     })
     expect(start.getAttribute("href")).toBe("/staff/tasks/amenities/c2")
     // The lead card's action is the page's one primary button.
     expect(start.className).toContain("w-full")
-    // The full list still follows To do.
-    expect(
-      screen.getByRole("list", { name: "Amenity checks" }).children
-    ).toHaveLength(2)
+    // The full list is in All tasks, not repeated on Home.
+    expect(screen.queryByRole("list", { name: "Amenity checks" })).toBeNull()
   })
 
   it("puts overdue photo tasks before amenity checks and due-soon tasks after", () => {

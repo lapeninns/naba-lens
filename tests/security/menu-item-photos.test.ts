@@ -13,12 +13,17 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import {
+  assign,
+  createRequirement,
   currentMonth,
   fails,
   legacyStaffGrant,
   ok,
   requestKey,
+  requirementProgress,
+  review as reviewItem,
   staffProgress,
+  submit,
 } from "./coverage-fixtures"
 import {
   item,
@@ -1210,26 +1215,544 @@ describe("menu activation", () => {
   })
 })
 
-describe("separate measures and menu states", () => {
-  it("leaves the monthly and section totals unchanged", async () => {
-    const f = await venueWithMenu("mip-measures")
+// One review per photo (docs/plans/one-review-per-photo.md, ORP-1): an item
+// acceptance also counts toward the uploader's month and the menu-section task
+// holding the dish, read-through, without writing coverage rows.
+describe("one review per photo: month and section counts", () => {
+  let f: Fixture
+  let mains: string
+
+  /** The staff member's accepted count for this month at the venue. */
+  const month = async (who: TestIdentity) => {
+    const rows = await staffProgress(f.manager, f.venue, currentMonth(), who.id)
+    return rows.find((r) => r.staff_id === who.id)?.accepted_count ?? 0
+  }
+  const sectionCount = async (requirementId: string) =>
+    (await requirementProgress(f.manager, f.venue, true)).find(
+      (r) => r.requirement_id === requirementId
+    )?.accepted_count ?? 0
+
+  beforeAll(async () => {
+    f = await venueWithMenu("mip-measures")
+    // A confirmed plan with Mains as an active task; the rest left out.
+    const [started] = await ok(
+      f.manager.client.rpc("start_menu_coverage_plan", {
+        p_venue_id: f.venue,
+        p_menu_version_id: f.version,
+      })
+    )
+    const { data: reqs, error } = await service
+      .from("coverage_requirements")
+      .select("id, title, revision")
+      .eq("menu_plan_id", started!.plan_id)
+    if (error) throw error
+    for (const r of reqs!) {
+      await ok(
+        f.manager.client.rpc("set_coverage_requirement_status", {
+          p_requirement_id: r.id,
+          p_expected_revision: r.revision,
+          p_status: r.title === "Mains" ? "active" : "not_applicable",
+          p_reason: (r.title === "Mains"
+            ? null
+            : "TEST not photographed") as string,
+        })
+      )
+    }
+    await ok(
+      f.manager.client.rpc("confirm_menu_coverage_plan", {
+        p_plan_id: started!.plan_id,
+        p_expected_revision: 1,
+      })
+    )
+    mains = reqs!.find((r) => r.title === "Mains")!.id
+  })
+
+  it("counts an accepted labelled photo for the month and its section, and a withdrawal takes both back", async () => {
     const tikka = t(f.items["mains--tikka"]!)
     const asset = (await labelled(f.staff, f.version, [tikka])).id
-    const read = async () => ({
-      summary: await ok(
-        f.manager.client.rpc("venue_coverage_summary", { p_venue_id: f.venue })
-      ),
-      month: await staffProgress(f.manager, f.venue, currentMonth()),
-    })
-    const before = await read()
+    const before = {
+      month: await month(f.staff),
+      mains: await sectionCount(mains),
+    }
     const accepted = await accept(f.manager, asset, tikka)
-    expect(await read()).toEqual(before)
+    expect(await month(f.staff)).toBe(before.month + 1)
+    expect(await sectionCount(mains)).toBe(before.mains + 1)
+    // Nothing was written to the task tables: the counts are read-through.
+    const { data: items } = await service
+      .from("coverage_submission_items")
+      .select("id")
+      .eq("asset_id", asset)
+    expect(items).toEqual([])
+
     await ok(
       withdraw(f.manager, accepted.photo_id, await head(tikka.itemId), "Undo")
     )
-    expect(await read()).toEqual(before)
+    expect(await month(f.staff)).toBe(before.month)
+    expect(await sectionCount(mains)).toBe(before.mains)
   })
 
+  it("asks for a better photo without counting anything", async () => {
+    const dal = t(f.items["mains--dal"]!)
+    const asset = (await labelled(f.staff2, f.version, [dal])).id
+    const before = {
+      month: await month(f.staff2),
+      mains: await sectionCount(mains),
+    }
+    await ok(
+      review(
+        f.manager,
+        asset,
+        dal,
+        "better_photo_requested",
+        await head(dal.itemId),
+        {
+          reason: "Too dark",
+        }
+      )
+    )
+    expect(await month(f.staff2)).toBe(before.month)
+    expect(await sectionCount(mains)).toBe(before.mains)
+  })
+
+  it("counts a photo once when it was also sent to the task and accepted there", async () => {
+    const bhaji = t(f.items["mains--bhaji"]!)
+    const asset = (await labelled(f.staff2, f.version, [bhaji])).id
+    const before = {
+      month: await month(f.staff2),
+      mains: await sectionCount(mains),
+    }
+    await assign(f.manager, mains, [f.staff2.id])
+    const [sent] = await submit(f.staff2, [asset], mains)
+    await reviewItem(f.manager, sent!.item_id, sent!.revision, "accepted")
+    expect(await month(f.staff2)).toBe(before.month + 1)
+    expect(await sectionCount(mains)).toBe(before.mains + 1)
+    await accept(f.manager, asset, bhaji)
+    expect(await month(f.staff2)).toBe(before.month + 1)
+    expect(await sectionCount(mains)).toBe(before.mains + 1)
+  })
+
+  it("counts a photo accepted for two dishes once", async () => {
+    const korma = t(f.items["mains--korma"]!, 1)
+    const lassi = t(f.items["drinks--lassi"]!)
+    const asset = (await labelled(f.staff, f.version, [korma, lassi])).id
+    const before = {
+      month: await month(f.staff),
+      mains: await sectionCount(mains),
+    }
+    await accept(f.manager, asset, korma)
+    await accept(f.manager, asset, lassi)
+    expect(await month(f.staff)).toBe(before.month + 1)
+    // Lassi is in Drinks, which is not a task here; Korma counts once in Mains.
+    expect(await sectionCount(mains)).toBe(before.mains + 1)
+  })
+
+  // ORP-3a: a menu decision settles a submission of the same photo.
+  const pending = async () => ({
+    mains:
+      (await requirementProgress(f.manager, f.venue, true)).find(
+        (r) => r.requirement_id === mains
+      )?.pending_count ?? 0,
+    venue: (
+      await ok(
+        f.manager.client.rpc("venue_coverage_summary", { p_venue_id: f.venue })
+      )
+    )[0]!.pending_review_count,
+  })
+  const queue = async () =>
+    (
+      await ok(
+        f.manager.client.rpc("coverage_items_page", {
+          p_venue_id: f.venue,
+          p_states: ["submitted"],
+          p_limit: 101,
+        })
+      )
+    ).map((r) => r.asset_id)
+  const mine = async (who: TestIdentity, asset: string) =>
+    (
+      await ok(
+        who.client.rpc("coverage_items_page", {
+          p_author_id: who.id,
+          p_limit: 101,
+        })
+      )
+    ).find((r) => r.asset_id === asset)
+
+  it("settles a task submission when the menu accepts the same photo", async () => {
+    const tikka = t(f.items["mains--tikka"]!)
+    await assign(f.manager, mains, [f.staff.id, f.staff2.id])
+    const asset = (await labelled(f.staff, f.version, [tikka])).id
+    const before = await pending()
+    await submit(f.staff, [asset], mains)
+    expect(await pending()).toEqual({
+      mains: before.mains + 1,
+      venue: before.venue + 1,
+    })
+    expect(await queue()).toContain(asset)
+
+    await accept(f.manager, asset, tikka)
+    expect(await pending()).toEqual(before)
+    expect(await queue()).not.toContain(asset)
+    // The author sees it accepted, decided by the menu reviewer.
+    expect(await mine(f.staff, asset)).toMatchObject({
+      state: "accepted",
+      decided_by: f.manager.id,
+      self_review: false,
+    })
+    // The stored submission is untouched: read-through only.
+    const { data } = await service
+      .from("coverage_submission_items")
+      .select("state")
+      .eq("asset_id", asset)
+      .single()
+    expect(data!.state).toBe("submitted")
+  })
+
+  it("keeps a photo the menu asked another of out of the task queue, still submitted for its author", async () => {
+    const dal = t(f.items["mains--dal"]!)
+    const asset = (await labelled(f.staff, f.version, [dal])).id
+    const before = await pending()
+    await submit(f.staff, [asset], mains)
+    await ok(
+      review(
+        f.manager,
+        asset,
+        dal,
+        "better_photo_requested",
+        await head(dal.itemId),
+        { reason: "Too dark" }
+      )
+    )
+    expect(await pending()).toEqual(before)
+    expect(await queue()).not.toContain(asset)
+    expect(await mine(f.staff, asset)).toMatchObject({ state: "submitted" })
+  })
+
+  it("does not settle a photo sent to a task that is not a menu section", async () => {
+    const other = await createRequirement(f.manager, f.venue, {
+      title: "TEST Garden",
+    })
+    await assign(f.manager, other, [f.staff.id])
+    const korma = t(f.items["mains--korma"]!, 0)
+    const asset = (await labelled(f.staff, f.version, [korma])).id
+    await submit(f.staff, [asset], other)
+    await accept(f.manager, asset, korma)
+    expect(await queue()).toContain(asset)
+    expect(await mine(f.staff, asset)).toMatchObject({ state: "submitted" })
+  })
+
+  // ORP-3b: what accepting a labelled photo also counts for.
+  it("names the section task and the uploader's month a photo would also count for", async () => {
+    const tikka = t(f.items["mains--tikka"]!)
+    const lassi = t(f.items["drinks--lassi"]!)
+    const asset = (await labelled(f.staff2, f.version, [tikka, lassi])).id
+    const rows = await ok(
+      f.manager.client.rpc("menu_photo_also_counts", {
+        p_venue_id: f.venue,
+        p_asset_ids: [asset],
+      })
+    )
+    const by = Object.fromEntries(rows.map((r) => [r.item_id, r]))
+    expect(by[tikka.itemId]).toMatchObject({
+      task_titles: ["Mains"],
+      credit_month: currentMonth(),
+    })
+    // Drinks is not a current task here; the month still applies.
+    expect(by[lassi.itemId]).toMatchObject({
+      task_titles: [],
+      credit_month: currentMonth(),
+    })
+    // Staff and another venue's manager cannot read it.
+    await fails(
+      f.staff.client.rpc("menu_photo_also_counts", {
+        p_venue_id: f.venue,
+        p_asset_ids: [asset],
+      }),
+      "not_venue_manager"
+    )
+    const g = await venueWithMenu("mip-also-other")
+    await fails(
+      g.manager.client.rpc("menu_photo_also_counts", {
+        p_venue_id: f.venue,
+        p_asset_ids: [asset],
+      }),
+      "not_venue_manager"
+    )
+  })
+
+  it("keeps the month credit when a menu change sends the dish for recheck, and the section stops counting it", async () => {
+    // Its own venue: activating a new menu would disturb the shared fixture.
+    const g = await venueWithMenu("mip-measures-recheck")
+    const [started] = await ok(
+      g.manager.client.rpc("start_menu_coverage_plan", {
+        p_venue_id: g.venue,
+        p_menu_version_id: g.version,
+      })
+    )
+    const { data: reqs } = await service
+      .from("coverage_requirements")
+      .select("id, title, revision")
+      .eq("menu_plan_id", started!.plan_id)
+    for (const r of reqs!) {
+      await ok(
+        g.manager.client.rpc("set_coverage_requirement_status", {
+          p_requirement_id: r.id,
+          p_expected_revision: r.revision,
+          p_status: r.title === "Mains" ? "active" : "not_applicable",
+          p_reason: (r.title === "Mains"
+            ? null
+            : "TEST not photographed") as string,
+        })
+      )
+    }
+    await ok(
+      g.manager.client.rpc("confirm_menu_coverage_plan", {
+        p_plan_id: started!.plan_id,
+        p_expected_revision: 1,
+      })
+    )
+    const oldMains = reqs!.find((r) => r.title === "Mains")!.id
+    const tikka = t(g.items["mains--tikka"]!)
+    const asset = (await labelled(g.staff, g.version, [tikka])).id
+    const accepted = await accept(g.manager, asset, tikka)
+    const credit = async () =>
+      (
+        await staffProgress(g.manager, g.venue, currentMonth(), g.staff.id)
+      ).find((r) => r.staff_id === g.staff.id)?.accepted_count ?? 0
+    const oldSection = async () =>
+      (await requirementProgress(g.manager, g.venue, true)).find(
+        (r) => r.requirement_id === oldMains
+      )?.accepted_count ?? 0
+    expect(await credit()).toBe(1)
+    expect(await oldSection()).toBe(1)
+
+    // Tikka is renamed: its acceptance goes to needs_recheck.
+    const i = g.items
+    await publishMenu(
+      admin,
+      g.venue,
+      menu("TEST Our menu v2", [
+        section("mains", "Mains", [
+          item("mains--tikka", "Paneer tikka", {
+            itemId: i["mains--tikka"]!.itemId,
+          }),
+        ]),
+      ]),
+      g.version
+    )
+    expect(await photo(accepted.photo_id)).toMatchObject({
+      state: "needs_recheck",
+    })
+    expect(await credit()).toBe(1)
+    expect(await oldSection()).toBe(0)
+  })
+})
+
+// Codex review of PR #31: month credit follows the decision history, a
+// reviewer's label never settles a monthly submission, and "also counts for"
+// follows the month rule per variant.
+describe("one review per photo: credit from history, reviewer labels and variants", () => {
+  /** accepted_count and pending_count for one staff member this month. */
+  const progress = async (g: Fixture, who: TestIdentity) => {
+    const rows = await staffProgress(g.manager, g.venue, currentMonth(), who.id)
+    const r = rows.find((x) => x.staff_id === who.id)
+    return { accepted: r?.accepted_count ?? 0, pending: r?.pending_count ?? 0 }
+  }
+  const queue = async (g: Fixture) =>
+    (
+      await ok(
+        g.manager.client.rpc("coverage_items_page", {
+          p_venue_id: g.venue,
+          p_states: ["submitted"],
+          p_limit: 101,
+        })
+      )
+    ).map((r) => r.asset_id)
+  const mine = async (who: TestIdentity, asset: string) =>
+    (
+      await ok(
+        who.client.rpc("coverage_items_page", {
+          p_author_id: who.id,
+          p_limit: 101,
+        })
+      )
+    ).find((r) => r.asset_id === asset)
+  /** Adds `extra` to the photo's labels as the admin (a reviewer's label). */
+  const reviewerLabels = async (
+    g: Fixture,
+    asset: { id: string; revision: number },
+    own: Tuple[],
+    extra: Tuple[]
+  ) =>
+    saveOk(admin, {
+      asset: asset.id,
+      revision: asset.revision,
+      items: [...own, ...extra],
+      catalogue: g.version,
+    })
+  const addedBy = async (asset: string) => {
+    const { data, error } = await service
+      .from("media_label_items")
+      .select("item_id, variant_id, added_by")
+      .eq("asset_id", asset)
+    if (error) throw error
+    return data
+  }
+
+  it("keeps the month credit when a recheck asks for another photo, and a withdrawal still takes it back", async () => {
+    // Its own venue: activating a new menu would disturb a shared fixture.
+    const g = await venueWithMenu("mip-credit-history")
+    const tikka = t(g.items["mains--tikka"]!)
+    const asset = (await labelled(g.staff, g.version, [tikka])).id
+    const accepted = await accept(g.manager, asset, tikka)
+    expect((await progress(g, g.staff)).accepted).toBe(1)
+
+    // Tikka is renamed: its acceptance goes to needs_recheck.
+    const i = g.items
+    await publishMenu(
+      admin,
+      g.venue,
+      menu("TEST Our menu v2", [
+        section("mains", "Mains", [
+          item("mains--tikka", "Paneer tikka", {
+            itemId: i["mains--tikka"]!.itemId,
+          }),
+        ]),
+      ]),
+      g.version
+    )
+    expect(await photo(accepted.photo_id)).toMatchObject({
+      state: "needs_recheck",
+    })
+    expect((await progress(g, g.staff)).accepted).toBe(1)
+
+    // The reviewer asks for another photo of the renamed dish: same row.
+    const [asked] = await ok(
+      review(
+        g.manager,
+        asset,
+        tikka,
+        "better_photo_requested",
+        await head(tikka.itemId),
+        { reason: "Show the paneer" }
+      )
+    )
+    expect(asked!.photo_id).toBe(accepted.photo_id)
+    expect(await photo(accepted.photo_id)).toMatchObject({
+      state: "better_photo_requested",
+    })
+    expect((await progress(g, g.staff)).accepted).toBe(1)
+
+    // Only a withdrawal removes it.
+    await ok(
+      withdraw(
+        g.manager,
+        accepted.photo_id,
+        await head(tikka.itemId),
+        "Wrong dish"
+      )
+    )
+    expect((await progress(g, g.staff)).accepted).toBe(0)
+  })
+
+  it("gives no month credit to a photo asked for another without ever being accepted", async () => {
+    const g = await venueWithMenu("mip-credit-never")
+    const bhaji = t(g.items["mains--bhaji"]!)
+    const asset = (await labelled(g.staff, g.version, [bhaji])).id
+    await ok(
+      review(
+        g.manager,
+        asset,
+        bhaji,
+        "better_photo_requested",
+        await head(bhaji.itemId),
+        { reason: "Too dark" }
+      )
+    )
+    expect((await progress(g, g.staff)).accepted).toBe(0)
+  })
+
+  it("leaves a monthly submission pending when the menu accepts a reviewer's label, and settles it on the uploader's", async () => {
+    const g = await venueWithMenu("mip-credit-settle")
+    const tikka = t(g.items["mains--tikka"]!)
+    const dal = t(g.items["mains--dal"]!)
+    const bhaji = t(g.items["mains--bhaji"]!)
+    const start = await progress(g, g.staff)
+
+    // The uploader labelled Tikka; the reviewer adds Dal and accepts only Dal.
+    const theirs = await labelled(g.staff, g.version, [tikka])
+    await reviewerLabels(g, theirs, [tikka], [dal])
+    expect(await addedBy(theirs.id)).toEqual(
+      expect.arrayContaining([
+        { item_id: dal.itemId, variant_id: null, added_by: admin.id },
+      ])
+    )
+    await submit(g.staff, [theirs.id])
+    await accept(g.manager, theirs.id, dal)
+    // No month credit can come from the menu, so it stays to be reviewed.
+    expect(await progress(g, g.staff)).toEqual({
+      accepted: start.accepted,
+      pending: start.pending + 1,
+    })
+    expect(await queue(g)).toContain(theirs.id)
+    expect(await mine(g.staff, theirs.id)).toMatchObject({
+      state: "submitted",
+    })
+    // Accepting it as a submission earns the month credit.
+    const sent = (await mine(g.staff, theirs.id))!
+    await ok(reviewItem(g.manager, sent.item_id, sent.revision, "accepted"))
+    expect(await progress(g, g.staff)).toEqual({
+      accepted: start.accepted + 1,
+      pending: start.pending,
+    })
+
+    // The uploader's own label: the menu acceptance earns the credit and
+    // settles the submission.
+    const own = (await labelled(g.staff, g.version, [bhaji])).id
+    await submit(g.staff, [own])
+    expect((await progress(g, g.staff)).pending).toBe(start.pending + 1)
+    await accept(g.manager, own, bhaji)
+    expect(await progress(g, g.staff)).toEqual({
+      accepted: start.accepted + 2,
+      pending: start.pending,
+    })
+    expect(await queue(g)).not.toContain(own)
+    expect(await mine(g.staff, own)).toMatchObject({ state: "accepted" })
+  })
+
+  it("says the month counts only for the variant the uploader labelled, as accepting it does", async () => {
+    const g = await venueWithMenu("mip-credit-variant")
+    const chicken = t(g.items["mains--korma"]!, 0)
+    const lamb = t(g.items["mains--korma"]!, 1)
+    const asset = await labelled(g.staff, g.version, [chicken])
+    await reviewerLabels(g, asset, [chicken], [lamb])
+
+    const rows = await ok(
+      g.manager.client.rpc("menu_photo_also_counts", {
+        p_venue_id: g.venue,
+        p_asset_ids: [asset.id],
+      })
+    )
+    const by = Object.fromEntries(rows.map((r) => [r.variant_id, r]))
+    expect(rows).toHaveLength(2)
+    expect(by[chicken.variantId!]).toMatchObject({
+      item_id: chicken.itemId,
+      credit_month: currentMonth(),
+    })
+    expect(by[lamb.variantId!]).toMatchObject({
+      item_id: lamb.itemId,
+      credit_month: null,
+    })
+
+    // Accepting what the card promises: Lamb earns nothing, Chicken earns one.
+    await accept(g.manager, asset.id, lamb)
+    expect((await progress(g, g.staff)).accepted).toBe(0)
+    await accept(g.manager, asset.id, chicken)
+    expect((await progress(g, g.staff)).accepted).toBe(1)
+  })
+})
+
+describe("menu states", () => {
   it("distinguishes no menu, an empty menu and a ready one", async () => {
     const bare = (await createVenue(service, "mip-nomenu")).id
     const bareStaff = await createIdentity(service, {

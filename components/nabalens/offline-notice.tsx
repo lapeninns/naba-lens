@@ -22,7 +22,7 @@ export const OFFLINE_COPY = {
  * phones, a card in the page column from md (Common Room).
  */
 export const OFFLINE_BANNER_CLASS =
-  "-mx-(--page-gutter) -mt-4 mb-3 rounded-none md:mx-0 md:mt-0 md:mb-8 md:rounded-card"
+  "-mx-page-gutter -mt-4 mb-3 rounded-none md:mx-0 md:mt-0 md:mb-8 md:rounded-card"
 
 /** What the banner can truthfully say about the page's age. */
 type OfflineTimes = {

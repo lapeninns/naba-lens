@@ -6,7 +6,7 @@ import { amenityHrefs } from "@/lib/amenities/contract"
 import { managerCapabilities } from "@/app/manager/entry"
 import { contributionEntry } from "@/lib/config/contribution-entry"
 
-export const metadata: Metadata = { title: "Capture amenity · Naba-Lens" }
+export const metadata: Metadata = { title: "Capture amenity" }
 
 /**
  * "Capture myself": the manager captures a check of the workspace venue with

@@ -7,7 +7,7 @@ import { EvidencePreviewButton } from "@/components/nabalens/coverage"
 import type { EvidenceItem } from "@/lib/amenities/contract"
 import { cn } from "@/lib/utils"
 
-const FRAME = "aspect-[4/3] w-full rounded-print bg-media-placeholder"
+const FRAME = "aspect-[4/3] w-full rounded-stamp bg-media-placeholder"
 
 function Unavailable({
   kind,
@@ -98,7 +98,7 @@ export function EvidenceTile({
       preload="metadata"
       aria-label={label}
       onError={() => setFailed(true)}
-      className={cn(FRAME, "bg-viewer object-contain", className)}
+      className={cn(FRAME, "bg-stage object-contain", className)}
     />
   )
 }

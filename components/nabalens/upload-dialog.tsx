@@ -627,7 +627,7 @@ function QueueRow({
           // Takes focus when the action pressed in this row goes away.
           tabIndex={-1}
           className={cn(
-            "font-mono text-meta-strong [overflow-wrap:anywhere] tabular-nums outline-none",
+            "font-mono text-meta font-semibold [overflow-wrap:anywhere] tabular-nums outline-none",
             look?.tone ?? "text-ink-muted"
           )}
         >
@@ -664,7 +664,7 @@ function QueueRow({
         {labels.kind === "retry" && item.status === "done" ? (
           <Button
             variant="row-link"
-            size="touch"
+            size="sm"
             className="justify-self-start"
             onClick={onRetryLabels}
             aria-label={`Retry labels for ${item.file.name}`}
@@ -674,7 +674,7 @@ function QueueRow({
         ) : labels.kind === "attention" && item.status === "done" ? (
           <Button
             variant="row-link"
-            size="touch"
+            size="sm"
             className="justify-self-start"
             onClick={onFixLabels}
             aria-label={`Fix labels for ${item.file.name}`}
@@ -693,7 +693,7 @@ function QueueRow({
       >
         {item.status === "queued" || item.status === "uploading" ? (
           <Button
-            variant="ghost"
+            variant="quiet"
             size="sm"
             onClick={onCancel}
             aria-label={`Cancel ${item.file.name}`}
@@ -724,7 +724,7 @@ function QueueRow({
         ) : null}
         {removable ? (
           <Button
-            variant="ghost"
+            variant="quiet"
             size="icon-lg"
             onClick={onRemove}
             aria-label={`Remove ${item.file.name}`}
@@ -1448,7 +1448,6 @@ export function UploadDialog({
   const uploadDialog = (
     <Dialog open={open && fixing === null} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="md:max-w-lg"
         initialFocus={() => {
           const id = statusAfterFix.current
           statusAfterFix.current = null
@@ -1518,9 +1517,9 @@ export function UploadDialog({
           // A warn card: what wasn't added, then each file with its reason.
           <div
             role="alert"
-            className="grid gap-2 rounded-card bg-surface p-3 ps-4 shadow-[var(--elevation-card),inset_4px_0_0_var(--warn-fg)]"
+            className="grid gap-2 rounded-card bg-surface p-3 ps-4 shadow-card rail-start-warn"
           >
-            <p className="flex items-center gap-2 font-display text-section-title text-ink">
+            <p className="flex items-center gap-2 type-section-title text-ink">
               <WarningCircleIcon
                 aria-hidden
                 weight="bold"
@@ -1580,7 +1579,7 @@ export function UploadDialog({
           <ul
             ref={listRef}
             aria-label="Files"
-            className="-mx-1 grid gap-2 rounded-card bg-bg p-1.5"
+            className="-mx-1 grid gap-2 rounded-card bg-canvas p-1.5"
           >
             {items.map((item) => {
               const view = viewOf(item)
@@ -1699,18 +1698,14 @@ export function UploadDialog({
           {items.length > 0 && status ? (
             <p
               role="status"
-              className="font-mono text-meta-strong text-ink-muted tabular-nums md:mr-auto md:self-center"
+              className="font-mono text-meta font-semibold text-ink-muted tabular-nums md:mr-auto md:self-center"
             >
               {status}
             </p>
           ) : null}
           {needsSignIn ? (
             guard ? (
-              <Button
-                variant="secondary"
-                size="touch"
-                onClick={() => setSignInOpen(true)}
-              >
+              <Button variant="secondary" onClick={() => setSignInOpen(true)}>
                 Sign in again
               </Button>
             ) : (
@@ -1720,7 +1715,6 @@ export function UploadDialog({
                 rel="noopener"
                 className={buttonVariants({
                   variant: "secondary",
-                  size: "touch",
                 })}
               >
                 Sign in again
@@ -1731,13 +1725,12 @@ export function UploadDialog({
             <>
               <Button
                 variant="secondary"
-                size="touch"
                 onClick={() => handleOpenChange(false)}
               >
                 Cancel
               </Button>
               <Button
-                size="touch"
+                variant="primary"
                 onClick={() => {
                   setRejected([])
                   queue.start()
@@ -1751,18 +1744,13 @@ export function UploadDialog({
           ) : (
             <>
               {isActive && !keepRunningWhenClosed ? (
-                <Button
-                  variant="secondary"
-                  size="touch"
-                  onClick={queue.cancelAll}
-                >
+                <Button variant="secondary" onClick={queue.cancelAll}>
                   Cancel all
                 </Button>
               ) : null}
               {items.length > 0 ? (
                 <Button
                   variant="secondary"
-                  size="touch"
                   onClick={() => fileInput.current?.click()}
                 >
                   <PlusIcon data-icon="inline-start" aria-hidden />
@@ -1770,16 +1758,12 @@ export function UploadDialog({
                 </Button>
               ) : null}
               {!startOnPick && settled && retryableFailed > 0 ? (
-                <Button
-                  variant="secondary"
-                  size="touch"
-                  onClick={queue.retryFailed}
-                >
+                <Button variant="secondary" onClick={queue.retryFailed}>
                   <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
                   Retry {retryableFailed} failed
                 </Button>
               ) : null}
-              <Button size="touch" onClick={() => handleOpenChange(false)}>
+              <Button variant="primary" onClick={() => handleOpenChange(false)}>
                 Done
               </Button>
             </>
@@ -1795,8 +1779,7 @@ export function UploadDialog({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <Button
-                variant="outline"
-                size="touch"
+                variant="secondary"
                 onClick={() => {
                   setPanelPending(false)
                   setConfirmDiscard(false)
@@ -1811,7 +1794,7 @@ export function UploadDialog({
               >
                 Discard labels
               </Button>
-              <AlertDialogCancel variant="primary" size="touch">
+              <AlertDialogCancel variant="primary">
                 Keep labelling
               </AlertDialogCancel>
             </AlertDialogFooter>

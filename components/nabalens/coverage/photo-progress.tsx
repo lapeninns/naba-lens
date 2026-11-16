@@ -25,13 +25,14 @@ export function PhotoProgress({
   const text = `${accepted} of ${target} accepted`
   return (
     <div className={cn("grid min-w-32 gap-1.5", className)}>
-      <p className="flex flex-wrap gap-x-2 font-mono text-meta-strong tabular-nums">
+      <p className="flex flex-wrap gap-x-2 font-mono text-meta font-semibold tabular-nums">
         <span className="text-ink">{text}</span>
         {pending > 0 ? (
           <span className="text-ink-muted">{pending} to review</span>
         ) : null}
       </p>
-      <Progress value={value} aria-label={text} />
+      {/* Green: the bar counts accepted photos. */}
+      <Progress value={value} aria-label={text} tone="ok" />
     </div>
   )
 }

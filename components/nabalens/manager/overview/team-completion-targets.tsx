@@ -13,12 +13,12 @@ export function TeamCompletionTargets({
   return (
     <section
       aria-labelledby="team-completion-targets"
-      className="grid gap-(--gutter)"
+      className="grid gap-gutter"
     >
       <div className="grid gap-1 px-1">
         <h2
           id="team-completion-targets"
-          className="font-display text-section-title text-ink"
+          className="type-section-title text-ink"
         >
           Staff targets for {roster[0].period.label}
         </h2>

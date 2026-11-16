@@ -283,10 +283,10 @@ function DiffGroup<T>({
       id={id}
       tabIndex={id ? -1 : undefined}
       aria-labelledby={titleId}
-      className="overflow-hidden rounded-card bg-surface shadow-card outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+      className="overflow-hidden rounded-card bg-surface shadow-card focus-ring outline-none"
     >
       <details open={defaultOpen} className="group">
-        <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-baseline gap-x-2 px-4 py-3 outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
+        <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-baseline gap-x-2 px-4 py-3 focus-ring-inset outline-none hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
           <span id={titleId} className="font-display text-item-title text-ink">
             {title}
           </span>

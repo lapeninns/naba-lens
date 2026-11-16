@@ -29,7 +29,7 @@ import { PrepareActionControl, RetryLoadButton } from "../overview-controls"
 
 import { failed, needsAttention, onChecklist } from "./common"
 
-const primaryLink = buttonVariants({ variant: "primary", size: "touch" })
+const primaryLink = buttonVariants({ variant: "primary" })
 
 export async function OverviewScreen({ ctx }: { ctx: ManageContext }) {
   const coverage = await venueCoverage(ctx)

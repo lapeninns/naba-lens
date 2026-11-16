@@ -505,7 +505,7 @@ export function NeedsAttention({
           ref={headingRef}
           id="needs-attention-heading"
           tabIndex={-1}
-          className="flex items-center gap-2 font-display text-section-title text-ink outline-none"
+          className="flex items-center gap-2 type-section-title text-ink outline-none"
         >
           {ATTENTION_COPY.heading}
           {shown.length > 0 ? (
@@ -529,7 +529,6 @@ export function NeedsAttention({
             <Button
               type="button"
               variant="secondary"
-              size="touch"
               onClick={() => setReloads((n) => n + 1)}
             >
               {ATTENTION_COPY.tryAgain}
@@ -578,8 +577,7 @@ export function NeedsAttention({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <Button
-              variant="outline"
-              size="touch"
+              variant="secondary"
               onClick={() => {
                 const item = confirming
                 setConfirming(null)
@@ -588,7 +586,7 @@ export function NeedsAttention({
             >
               {ATTENTION_COPY.discard}
             </Button>
-            <AlertDialogCancel variant="primary" size="touch">
+            <AlertDialogCancel variant="primary">
               {ATTENTION_COPY.keep}
             </AlertDialogCancel>
           </AlertDialogFooter>

@@ -14,7 +14,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 
 export const metadata: Metadata = {
-  title: "Contributor · Venue coverage · Naba-Lens",
+  title: "Contributor · Venue coverage",
 }
 
 /** One contributor's photos at a venue, for an admin (the manager contributor view). */

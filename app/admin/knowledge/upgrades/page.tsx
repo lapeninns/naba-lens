@@ -14,7 +14,7 @@ import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCoverageActor } from "@/lib/server/coverage"
 
 export const metadata: Metadata = {
-  title: "Schema upgrades · Knowledge · Naba-Lens",
+  title: "Schema upgrades · Knowledge",
 }
 
 /** Admin (B03 UI design §8.3): a question's schema upgrade, dry run first. */
@@ -33,7 +33,7 @@ export default async function UpgradesPage() {
     : []
   return (
     <AppShell variant="admin" active="coverage" userName={profile.displayName}>
-      <div className="mx-auto grid w-full max-w-(--size-reading) min-w-0 gap-(--gutter)">
+      <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
         <PageHeader title={UPGRADE_COPY.title} />
         {registry && !registry.ok ? (
           <Notice tone="negative">{UPGRADE_COPY.failed}</Notice>

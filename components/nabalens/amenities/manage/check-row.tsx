@@ -107,18 +107,18 @@ export function CheckRow({
         <Link
           href={href}
           id={labelId}
-          className="rounded-control text-body-touch font-semibold break-words text-ink underline-offset-3 outline-none after:absolute after:inset-0 hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:text-body"
+          className="rounded-control text-body font-semibold break-words text-ink underline-offset-3 focus-ring outline-none after:absolute after:inset-0 hover:underline"
         >
           {check.entry.question}
         </Link>
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta-touch text-ink-muted md:text-meta">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-ink-muted">
           <span>{check.entry.category}</span>
           <span aria-hidden>·</span>
           <span>Evidence: {EVIDENCE_RULE_LABEL[check.entry.evidenceRule]}</span>
           <span aria-hidden>·</span>
           <span>{assigneeText(check)}</span>
         </p>
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta-touch text-ink-muted md:text-meta">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-ink-muted">
           <ProgressChip check={check} />
           <span>
             Answer:{" "}
@@ -138,7 +138,7 @@ export function CheckRow({
         // A withdrawn answer or an incomplete policy keeps its reason; only a
         // qualified answer in use shows its qualifier instead (§2.6, M3).
         !qualifiedInUse(check.qualification) ? (
-          <p className="text-meta-touch break-words text-ink md:text-meta">
+          <p className="text-meta break-words text-ink">
             Recheck: {check.recheckReason}
           </p>
         ) : null}

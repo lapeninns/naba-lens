@@ -11,13 +11,13 @@ export default function AmenityCaptureLoading() {
         <Skeleton shape="line" className="w-40" />
         <Skeleton shape="title" />
       </div>
-      <Skeleton className="h-24 rounded-panel" />
+      <Skeleton className="h-24 rounded-card" />
       <div className="grid gap-2 sm:grid-cols-3">
         {Array.from({ length: 3 }, (_, i) => (
           <Skeleton key={i} className="h-13 rounded-control" />
         ))}
       </div>
-      <Skeleton className="h-24 rounded-panel" />
+      <Skeleton className="h-24 rounded-card" />
     </SkeletonRegion>
   )
 }

@@ -27,8 +27,8 @@ function nameOf(person: PersonRef | null) {
 function Fact({ term, children }: { term: string; children: React.ReactNode }) {
   return (
     <div className="grid min-w-0 gap-0.5">
-      <dt className="text-meta-touch text-ink-muted md:text-meta">{term}</dt>
-      <dd className="text-body-touch break-words whitespace-pre-line text-ink md:text-body">
+      <dt className="text-meta text-ink-muted">{term}</dt>
+      <dd className="text-body break-words whitespace-pre-line text-ink">
         {children}
       </dd>
     </div>
@@ -51,10 +51,7 @@ function SubmissionCard({
         className="grid min-w-0 gap-3 rounded-control border border-line p-3 md:p-4"
       >
         <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h3
-            id={titleId}
-            className="text-body-touch font-semibold text-ink md:text-body"
-          >
+          <h3 id={titleId} className="text-body font-semibold text-ink">
             {ANSWER_LABEL[submission.answer]}
           </h3>
           {submission.isCurrent ? (
@@ -64,7 +61,7 @@ function SubmissionCard({
               <StatusChip tone="positive">Current answer</StatusChip>
             )
           ) : null}
-          <p className="text-meta-touch text-ink-muted md:text-meta">
+          <p className="text-meta text-ink-muted">
             Sent by {by} · {whenText(submission.submittedAt)}
           </p>
         </header>
@@ -86,9 +83,9 @@ function SubmissionCard({
         {submission.wifi ? (
           <section
             aria-label="Wi-Fi test (internal)"
-            className="grid gap-2 rounded-control bg-well p-3"
+            className="grid gap-2 rounded-control bg-surface-2 p-3"
           >
-            <p className="text-meta-touch font-semibold text-ink md:text-meta-strong">
+            <p className="text-meta font-semibold text-ink">
               Wi-Fi test (internal, never shown to guests)
             </p>
             <dl className="grid gap-2 sm:grid-cols-2">
@@ -116,9 +113,7 @@ function SubmissionCard({
             ))}
           </ul>
         ) : (
-          <p className="text-meta-touch text-ink-muted md:text-meta">
-            No evidence attached.
-          </p>
+          <p className="text-meta text-ink-muted">No evidence attached.</p>
         )}
       </article>
     </li>
@@ -140,9 +135,7 @@ export function SubmissionHistory({
       count={submissions.length || undefined}
     >
       {submissions.length === 0 ? (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
-          Nothing submitted yet.
-        </p>
+        <p className="text-body text-ink-muted">Nothing submitted yet.</p>
       ) : (
         <ul className="grid gap-3">
           {submissions.map((submission) => (
@@ -226,9 +219,7 @@ export function EventHistory({
   return (
     <CoverageSection id="amenity-events" title="History">
       {events.length === 0 ? (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
-          No history yet.
-        </p>
+        <p className="text-body text-ink-muted">No history yet.</p>
       ) : (
         <ol className="grid min-w-0">
           {events.map((event) => (
@@ -236,17 +227,15 @@ export function EventHistory({
               key={event.id}
               className="grid min-w-0 gap-0.5 border-b border-line py-2.5 last:border-b-0"
             >
-              <p className="text-body-touch break-words text-ink md:text-body-sm">
+              <p className="text-body break-words text-ink">
                 {eventText(event, people)}
               </p>
               {event.reason ? (
-                <p className="text-body-touch break-words text-ink-muted md:text-body-sm">
+                <p className="text-body break-words text-ink-muted">
                   “{event.reason}”
                 </p>
               ) : null}
-              <p className="text-meta-touch text-ink-muted md:text-meta">
-                {eventByline(event)}
-              </p>
+              <p className="text-meta text-ink-muted">{eventByline(event)}</p>
             </li>
           ))}
         </ol>

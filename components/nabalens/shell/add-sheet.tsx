@@ -107,14 +107,14 @@ export function AddSheet({
               />
               {picker.inputs}
             </div>
-            <p className="flex gap-2 text-meta-touch text-ink-muted md:text-meta">
+            <p className="flex gap-2 text-meta text-ink-muted">
               <InfoIcon aria-hidden className="mt-0.5 size-4 flex-none" />
               Photos start saving as soon as you pick them.
             </p>
             {keepOpenNote ? (
               <p
                 data-capture-keep-open=""
-                className="flex gap-2 text-meta-touch text-ink-muted md:text-meta"
+                className="flex gap-2 text-meta text-ink-muted"
               >
                 <InfoIcon aria-hidden className="mt-0.5 size-4 flex-none" />
                 {keepOpenNote}
@@ -123,7 +123,7 @@ export function AddSheet({
           </>
         )}
         <DialogFooter>
-          <DialogClose render={<Button variant="secondary" size="touch" />}>
+          <DialogClose render={<Button variant="secondary" />}>
             {blocked ? "Close" : "Cancel"}
           </DialogClose>
         </DialogFooter>
@@ -147,14 +147,14 @@ function AddOption({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-19 items-center gap-4 rounded-touch border border-line-control px-4 py-3 text-left transition-colors outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+      className="flex min-h-19 items-center gap-4 rounded-card border border-edge-strong px-4 py-3 text-left focus-ring transition-colors outline-none hover:bg-surface-2"
     >
       <span className="grid size-13 flex-none place-items-center rounded-round bg-accent-soft text-accent-text">
         {icon}
       </span>
       <span className="grid gap-0.5">
-        <span className="text-item-title-touch text-ink">{title}</span>
-        <span className="text-meta-touch text-ink-muted">{hint}</span>
+        <span className="text-item-title text-ink">{title}</span>
+        <span className="text-meta text-ink-muted">{hint}</span>
       </span>
     </button>
   )

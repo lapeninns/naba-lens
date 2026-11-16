@@ -650,14 +650,14 @@ describe("knowledge capture: Save for later", () => {
         "You saved this on 5 Nov 2026, 10:30. It hasn't been sent."
       )
     ).toBeTruthy()
-    expect((radio("No") as HTMLInputElement).checked).toBe(true)
+    expect(radio("No").getAttribute("aria-checked")).toBe("true")
     await user.click(screen.getByRole("button", { name: "Discard draft" }))
     const dialog = await screen.findByRole("alertdialog", {
       name: "Discard this draft?",
     })
     await user.click(within(dialog).getByRole("button", { name: "Discard" }))
     expect(discardDraft).toHaveBeenCalledTimes(1)
-    expect((radio("No") as HTMLInputElement).checked).toBe(false)
+    expect(radio("No").getAttribute("aria-checked")).toBe("false")
   })
 })
 
@@ -798,7 +798,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
         "Waiting for your photo to finish saving. It sends by itself when ready; keep this page open."
       )
     ).toBeTruthy()
-    expect(radio("No").matches(":disabled")).toBe(true)
+    expect(radio("No").getAttribute("aria-disabled")).toBe("true")
     // aria-disabled, so it keeps focus (CA-14).
     expect(
       screen
@@ -825,7 +825,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     const tick = () =>
       screen.getByRole("checkbox", {
         name: "I have covered the Wi-Fi password and join QR code",
-      }) as HTMLInputElement
+      })
     const LINE =
       "Your photo is still saving. When it's ready, tick that the password and join QR code are covered, then send."
 
@@ -850,7 +850,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
       expect(submit).not.toHaveBeenCalled()
       expect(screen.queryByText(LINE)).toBeNull()
       expect(screen.queryByText(/sends by itself/)).toBeNull()
-      expect(tick().checked).toBe(false)
+      expect(tick().getAttribute("aria-checked")).toBe("false")
 
       await user.click(tick())
       await user.click(screen.getByRole("button", { name: "Submit finding" }))
@@ -893,12 +893,12 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
       const { user, pick, ready } = withUpload(undefined, WIFI)
       await user.click(tick())
       await user.click(photoBox())
-      expect(tick().checked).toBe(false)
+      expect(tick().getAttribute("aria-checked")).toBe("false")
       await user.click(tick())
-      expect(tick().checked).toBe(true)
+      expect(tick().getAttribute("aria-checked")).toBe("true")
       await pick()
       await ready()
-      expect(tick().checked).toBe(false)
+      expect(tick().getAttribute("aria-checked")).toBe("false")
     })
   })
 
@@ -935,7 +935,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     await user.click(
       screen.getByRole("button", { name: "Stop waiting and edit" })
     )
-    expect(radio("No").matches(":disabled")).toBe(false)
+    expect(radio("No").getAttribute("aria-disabled")).toBeNull()
     await ready()
     expect(submit).not.toHaveBeenCalled()
     expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
@@ -957,7 +957,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     ).toContain(
       "We couldn't load your photos and videos. Nothing was sent. Try again when your photos and videos load."
     )
-    expect(radio("No").matches(":disabled")).toBe(false)
+    expect(radio("No").getAttribute("aria-disabled")).toBeNull()
   })
 
   it("says the question changed while the photo was saving when the send meets a newer revision", async () => {
@@ -1011,7 +1011,7 @@ describe("knowledge capture: credit lines only when the server says scored", () 
 describe("Change my finding (§4.6)", () => {
   it("starts from the undecided finding's answer", () => {
     setup({ prefill: { answer: "no", unknownPreset: null } })
-    expect((radio("No") as HTMLInputElement).checked).toBe(true)
+    expect(radio("No").getAttribute("aria-checked")).toBe("true")
   })
 })
 

@@ -307,7 +307,7 @@ describe("LibraryFilters", () => {
       />
     )
     expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull()
-    await userEvent.click(screen.getByRole("button", { name: "Videos" }))
+    await userEvent.click(screen.getByRole("radio", { name: "Videos" }))
     expect(onChange).toHaveBeenLastCalledWith({
       ...EMPTY_LIBRARY_FILTERS,
       type: "video",

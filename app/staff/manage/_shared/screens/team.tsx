@@ -67,7 +67,7 @@ function firstName(name: string) {
 const CARD = "grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
 /** A titled block of the feed: heading on the canvas, cards under it. */
 const SECTION =
-  "grid min-w-0 gap-(--gutter) [&>h2]:px-1 [&>h2]:pt-2 [&>div:first-child]:px-1 [&>div:first-child]:pt-2"
+  "grid min-w-0 gap-gutter [&>h2]:px-1 [&>h2]:pt-2 [&>div:first-child]:px-1 [&>div:first-child]:pt-2"
 
 /** Previous and next month, with Read-only on a past month (`nl-month`). */
 function MonthStepper({
@@ -85,7 +85,7 @@ function MonthStepper({
 }) {
   const previous = shiftPeriod(period.key, -1)
   const following = shiftPeriod(period.key, 1)
-  const icon = buttonVariants({ variant: "ghost", size: "icon" })
+  const icon = buttonVariants({ variant: "quiet", size: "icon" })
   return (
     <div
       role="group"
@@ -115,7 +115,7 @@ function MonthStepper({
         </Link>
       ) : (
         <Button
-          variant="ghost"
+          variant="quiet"
           size="icon"
           disabled
           aria-label="Next month (not started)"
@@ -362,7 +362,7 @@ function PersonMonth({
                 <span className="inline-flex items-center gap-1.5">
                   <i
                     aria-hidden
-                    className="block h-2.5 w-[22px] rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+                    className="block h-2.5 w-[22px] rounded-round bg-surface-2 edge-strong"
                   />
                   {toTake} to take
                 </span>
@@ -406,7 +406,6 @@ function PersonMonth({
               href={teamHref(ctx.basePath, period.key, current)}
               className={buttonVariants({
                 variant: "secondary",
-                size: "touch",
               })}
             >
               <PencilSimpleIcon aria-hidden />
@@ -432,20 +431,14 @@ function PersonMonth({
         </p>
       )}
       <section aria-labelledby="person-target" className={SECTION}>
-        <h2
-          id="person-target"
-          className="font-display text-section-title text-ink"
-        >
+        <h2 id="person-target" className="type-section-title text-ink">
           {name} target
         </h2>
         {targetBody}
       </section>
       <section aria-labelledby="person-photos" className={SECTION}>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2
-            id="person-photos"
-            className="font-display text-section-title text-ink"
-          >
+          <h2 id="person-photos" className="type-section-title text-ink">
             {period.key === current
               ? "Photos sent this month"
               : `Photos sent in ${name}`}
@@ -464,7 +457,7 @@ function PersonMonth({
               : null}
           </p>
         ) : (
-          <ul className="grid grid-cols-2 gap-(--gutter) sm:grid-cols-3 lg:grid-cols-4">
+          <ul className="grid grid-cols-2 gap-gutter sm:grid-cols-3 lg:grid-cols-4">
             {submissions.map((s) => {
               const title = s.requirement?.title ?? "Photo"
               const isLate =
@@ -520,7 +513,7 @@ function PersonMonth({
           <details className="group grid gap-3">
             <summary
               className={cn(
-                buttonVariants({ variant: "secondary", size: "touch" }),
+                buttonVariants({ variant: "secondary" }),
                 "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden"
               )}
             >

@@ -76,7 +76,7 @@ export function Post({
             {nameHref ? (
               <Link
                 href={nameHref}
-                className="-my-2.5 inline-flex min-h-11 items-center rounded-control outline-none hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+                className="-my-2.5 inline-flex min-h-11 items-center rounded-control focus-ring outline-none hover:underline"
               >
                 {name}
               </Link>
@@ -96,7 +96,7 @@ export function Post({
         <Link
           href={mediaHref}
           aria-label={mediaLabel}
-          className="block outline-none focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+          className="block focus-ring-inset outline-none"
         >
           {mediaBox}
         </Link>

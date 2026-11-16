@@ -87,19 +87,14 @@ export function ConfirmMenuActionDialog({
           <AlertDialogTitle className="break-words">{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        {detail ? (
-          <p className="text-body-touch text-ink-muted md:text-body">
-            {detail}
-          </p>
-        ) : null}
+        {detail ? <p className="text-body text-ink-muted">{detail}</p> : null}
         {error ? <Notice tone="negative">{error}</Notice> : null}
         <AlertDialogFooter>
-          <AlertDialogCancel size="touch" disabled={pending}>
+          <AlertDialogCancel disabled={pending}>
             {cancelLabel}
           </AlertDialogCancel>
           <Button
             variant={destructive ? "danger" : "primary"}
-            size="touch"
             onClick={confirm}
             disabled={pending}
             aria-busy={pending || undefined}
