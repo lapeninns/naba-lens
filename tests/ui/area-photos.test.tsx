@@ -100,6 +100,49 @@ describe("AreaReviewList", () => {
     expect(screen.getByText(AREA_COPY.review.own)).toBeTruthy()
   })
 
+  it("keeps decided photos actionable after a reload (Codex P2, PR #32)", async () => {
+    actions.decideAreaPhotoAction.mockResolvedValue({
+      ok: true,
+      state: "withdrawn",
+    })
+    render(
+      <AreaReviewList
+        initial={[]}
+        decided={[
+          card({ state: "accepted", decidedAt: "2026-11-15T09:00:00Z" }),
+          card({
+            labelId: "33333333-3333-4333-8333-333333333333",
+            area: "Bar",
+            state: "needs_another_photo",
+            reason: "Show the whole bar",
+          }),
+        ]}
+      />
+    )
+    expect(screen.getByText(AREA_COPY.review.empty)).toBeTruthy()
+    const decided = screen.getByRole("region", {
+      name: AREA_COPY.review.decidedHeading,
+    })
+    const [garden, bar] = within(decided).getAllByRole("listitem")
+    expect(within(bar!).getByRole("button", { name: "Accept" })).toBeTruthy()
+    await userEvent.click(
+      within(garden!).getByRole("button", { name: "Withdraw" })
+    )
+    await userEvent.type(
+      within(garden!).getByLabelText("Why is this photo withdrawn?"),
+      "Wrong venue"
+    )
+    await userEvent.click(within(garden!).getByRole("button", { name: "Send" }))
+    expect(actions.decideAreaPhotoAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        labelId: card().labelId,
+        decision: "withdrawn",
+        reason: "Wrong venue",
+      })
+    )
+    expect(await within(garden!).findByText("Withdrawn")).toBeTruthy()
+  })
+
   it("says so when nothing is waiting", () => {
     render(<AreaReviewList initial={[]} />)
     expect(screen.getByText(AREA_COPY.review.empty)).toBeTruthy()

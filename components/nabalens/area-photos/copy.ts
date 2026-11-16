@@ -30,6 +30,7 @@ export const AREA_COPY = {
     summary:
       "Photos staff labelled with a part of the venue. An accepted photo counts toward their month.",
     empty: "No venue area photos are waiting for review.",
+    decidedHeading: "Decided recently",
     accept: "Accept",
     askAnother: "Ask for another photo",
     withdraw: "Withdraw",

@@ -457,6 +457,69 @@ describe("back to the venue default (review c, 5)", () => {
     expect(kept).toEqual({ target_count: 12, source: "copied" })
   })
 
+  it("keeps a person's own number that equals the default when the default changes (Codex P2, PR #32)", async () => {
+    const setDefault = async (count: number) => {
+      const [current] = (await ok(
+        rpc(admin)("venue_default_target", { p_venue_id: v })
+      )) as { revision: number }[]
+      await ok(
+        rpc(admin)("set_venue_default_target", {
+          p_venue_id: v,
+          p_target_count: count,
+          p_reason: `TEST default ${count}`,
+          ...(current ? { p_expected_revision: current.revision } : {}),
+        })
+      )
+    }
+    await setDefault(4)
+    const cara = await staff("vdt-same-cara", v)
+    psql(
+      `select private.apply_monthly_targets('${v}'::uuid, '${month}'::date, '${admin.id}'::uuid)`
+    )
+    const onDefault = (await targetOf(cara.id))!
+    expect(onDefault).toMatchObject({
+      target_count: 4,
+      source: "venue_default",
+    })
+
+    // Saving 4 as her own number is recorded, not skipped as unchanged.
+    await ok(
+      mgr.client.rpc("set_monthly_target", {
+        p_venue_id: v,
+        p_staff_id: cara.id,
+        p_period_month: month,
+        p_target_count: 4,
+        p_reason: "Keep 4 whatever the default",
+        p_expected_revision: onDefault.revision,
+      })
+    )
+    const own = (await targetOf(cara.id))!
+    expect(own).toMatchObject({
+      target_count: 4,
+      source: "manager",
+      revision: onDefault.revision + 1,
+    })
+
+    // Changing the default leaves her own 4 alone.
+    await setDefault(6)
+    expect(await targetOf(cara.id)).toMatchObject({
+      target_count: 4,
+      source: "manager",
+    })
+
+    // Saving the same own number again is still a no-op.
+    await ok(
+      mgr.client.rpc("set_monthly_target", {
+        p_venue_id: v,
+        p_staff_id: cara.id,
+        p_period_month: month,
+        p_target_count: 4,
+        p_expected_revision: own.revision,
+      })
+    )
+    expect((await targetOf(cara.id))!.revision).toBe(own.revision)
+  })
+
   it("is refused when the venue has no default", async () => {
     const someone = await staff("vdt-reset-nodefault", w)
     psql(`insert into public.monthly_targets

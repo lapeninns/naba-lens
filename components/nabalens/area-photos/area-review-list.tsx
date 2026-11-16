@@ -55,12 +55,30 @@ const chipOf = (state: AreaPhotoState) =>
 export function AreaReviewList({
   venueId,
   initial,
+  decided = [],
 }: {
   /** Named by the admin page; a manager acts on their workspace venue. */
   venueId?: string
+  /** Photos waiting for review. */
   initial: AreaPhotoCard[]
+  /**
+   * Photos already decided, so an accepted photo can still be withdrawn and
+   * a "needs another photo" one accepted after a reload.
+   */
+  decided?: AreaPhotoCard[]
 }) {
   const [cards, setCards] = React.useState(initial)
+  const [done, setDone] = React.useState(decided)
+  const update =
+    (set: React.Dispatch<React.SetStateAction<AreaPhotoCard[]>>) =>
+    (labelId: string, state: AreaPhotoState, reason: string | null) =>
+      set((prev) =>
+        prev.map((c) =>
+          c.labelId === labelId
+            ? { ...c, state, reason, canDecide: state !== "withdrawn" }
+            : c
+        )
+      )
   return (
     <section aria-labelledby="area-review-heading" className="grid gap-3">
       <div className="grid gap-1">
@@ -72,41 +90,68 @@ export function AreaReviewList({
       {cards.length === 0 ? (
         <p className="text-body text-ink-muted">{R.empty}</p>
       ) : (
-        <ul className="grid gap-3">
-          {cards.map((card) => (
-            <AreaReviewCard
-              key={card.labelId}
-              card={card}
-              venueId={venueId}
-              onDecided={(state, reason) =>
-                setCards((prev) =>
-                  prev.map((c) =>
-                    c.labelId === card.labelId
-                      ? {
-                          ...c,
-                          state,
-                          reason,
-                          canDecide: state !== "withdrawn",
-                        }
-                      : c
-                  )
-                )
-              }
-            />
-          ))}
-        </ul>
+        <AreaCardList
+          cards={cards}
+          venueId={venueId}
+          onDecided={update(setCards)}
+        />
       )}
+      {done.length > 0 ? (
+        <section aria-labelledby="area-decided-heading" className="grid gap-3">
+          <Heading level={3} id="area-decided-heading">
+            {R.decidedHeading}
+          </Heading>
+          <AreaCardList
+            cards={done}
+            titleLevel={4}
+            venueId={venueId}
+            onDecided={update(setDone)}
+          />
+        </section>
+      ) : null}
     </section>
+  )
+}
+
+function AreaCardList({
+  cards,
+  venueId,
+  titleLevel = 3,
+  onDecided,
+}: {
+  cards: AreaPhotoCard[]
+  venueId?: string
+  titleLevel?: 3 | 4
+  onDecided: (
+    labelId: string,
+    state: AreaPhotoState,
+    reason: string | null
+  ) => void
+}) {
+  return (
+    <ul className="grid gap-3">
+      {cards.map((card) => (
+        <AreaReviewCard
+          key={card.labelId}
+          card={card}
+          venueId={venueId}
+          titleLevel={titleLevel}
+          onDecided={(state, reason) => onDecided(card.labelId, state, reason)}
+        />
+      ))}
+    </ul>
   )
 }
 
 function AreaReviewCard({
   card,
   venueId,
+  titleLevel,
   onDecided,
 }: {
   card: AreaPhotoCard
   venueId?: string
+  titleLevel: 3 | 4
   onDecided: (state: AreaPhotoState, reason: string | null) => void
 }) {
   const uid = React.useId()
@@ -151,7 +196,7 @@ function AreaReviewCard({
             className="size-16"
           />
           <div className="grid min-w-0 gap-0.5">
-            <Heading level={3} size="item-title">
+            <Heading level={titleLevel} size="item-title">
               {card.area}
             </Heading>
             <p className="text-meta text-ink-muted">

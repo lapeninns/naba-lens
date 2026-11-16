@@ -184,41 +184,63 @@ export async function setAreaLabel(
   return { ok: true, subjectId }
 }
 
-/** The venue's area photos: waiting for review, or already decided. */
+/**
+ * The venue's area photos: waiting for review, or already decided. "decided"
+ * reads the two states that still have an action (accepted can be withdrawn,
+ * needs another photo can be accepted) by state on the server, so a backlog
+ * of waiting or withdrawn photos never pushes them out of the limit.
+ */
 export async function listAreaPhotoQueue(
   ctx: ManagerPhotoCtx,
   status: AreaQueueStatus = "pending"
 ): Promise<Result<{ cards: AreaPhotoCard[] }>> {
-  const { data, error } = await ctx.actor.db.rpc("area_photo_queue", {
-    p_venue_id: ctx.venueId,
-    p_status: status === "pending" ? "pending" : "all",
-    p_limit: 50,
-  })
-  if (error) return areaFailure(error, "area photo queue")
-  const cards = (data ?? []).flatMap((r): AreaPhotoCard[] => {
-    if (!isUuid(r.label_id) || !isUuid(r.asset_id) || !isState(r.state))
-      return []
-    if (status === "decided" && r.state === "pending") return []
-    return [
-      {
-        labelId: r.label_id,
-        assetId: r.asset_id,
-        authorName: text(r.author_name) ?? "",
-        area: text(r.subject_label) ?? "",
-        uploadedAt: text(r.uploaded_at) ?? "",
-        labelledAt: text(r.labelled_at) ?? "",
-        creditMonth: text(r.credit_month) ?? "",
-        state: r.state,
-        reason: text(r.reason),
-        decidedAt: text(r.decided_at),
-        canDecide: r.can_decide === true,
-        thumbnailUrl: r.has_thumbnail
-          ? areaPhotoRoutes.thumbnail(r.asset_id)
-          : null,
-        previewUrl: r.has_preview ? areaPhotoRoutes.preview(r.asset_id) : null,
-      },
-    ]
-  })
+  const states: AreaPhotoState[] =
+    status === "pending" ? ["pending"] : ["accepted", "needs_another_photo"]
+  const reads = await Promise.all(
+    states.map((state) =>
+      ctx.actor.db.rpc("area_photo_queue", {
+        p_venue_id: ctx.venueId,
+        p_status: state,
+        p_limit: 50,
+      })
+    )
+  )
+  const failed = reads.find((r) => r.error)
+  if (failed?.error) return areaFailure(failed.error, "area photo queue")
+  const cards = reads
+    .flatMap((r) => r.data ?? [])
+    .flatMap((r): AreaPhotoCard[] => {
+      if (!isUuid(r.label_id) || !isUuid(r.asset_id) || !isState(r.state))
+        return []
+      if (!states.includes(r.state)) return []
+      return [
+        {
+          labelId: r.label_id,
+          assetId: r.asset_id,
+          authorName: text(r.author_name) ?? "",
+          area: text(r.subject_label) ?? "",
+          uploadedAt: text(r.uploaded_at) ?? "",
+          labelledAt: text(r.labelled_at) ?? "",
+          creditMonth: text(r.credit_month) ?? "",
+          state: r.state,
+          reason: text(r.reason),
+          decidedAt: text(r.decided_at),
+          canDecide: r.can_decide === true,
+          thumbnailUrl: r.has_thumbnail
+            ? areaPhotoRoutes.thumbnail(r.asset_id)
+            : null,
+          previewUrl: r.has_preview
+            ? areaPhotoRoutes.preview(r.asset_id)
+            : null,
+        },
+      ]
+    })
+  if (status === "decided")
+    cards.sort(
+      (a, b) =>
+        Date.parse(b.decidedAt ?? b.labelledAt) -
+        Date.parse(a.decidedAt ?? a.labelledAt)
+    )
   return { ok: true, cards }
 }
 

@@ -540,3 +540,130 @@ grant execute on function
   public.venue_default_target(uuid),
   public.set_venue_default_target(uuid, integer, text, integer)
 to authenticated, service_role;
+
+
+-- ---------------------------------------------------------------------------
+-- set_monthly_target: saving a person's own number equal to the venue
+-- default still records it as their own (source 'manager'). Unchanged from
+-- 20261102150000 except the no-op condition. Grants carry over.
+-- ---------------------------------------------------------------------------
+create or replace function public.set_monthly_target(
+  p_staff_id uuid,
+  p_venue_id uuid,
+  p_period_month date,
+  p_target_count integer,
+  p_due_on date default null,
+  p_reason text default null,
+  p_expected_revision integer default null
+)
+returns table (target_id uuid, revision integer)
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_uid uuid := private.assert_can_manage_venue(p_venue_id);
+  v_current date := private.current_london_month();
+  v_historical boolean;
+  v_due date;
+  v_reason text := private.clean_text(p_reason, 500, 'invalid_reason');
+  v_source text;
+  v_row public.monthly_targets;
+  v_revision integer;
+begin
+  if p_period_month is null or extract(day from p_period_month) <> 1 then
+    raise exception 'invalid_period' using errcode = '22023';
+  end if;
+  if p_target_count is null or p_target_count not between 1 and 500 then
+    raise exception 'invalid_target_count' using errcode = '22023';
+  end if;
+  v_due := coalesce(p_due_on, (p_period_month + interval '1 month')::date - 1);
+  if v_due < p_period_month or v_due >= (p_period_month + interval '1 month')::date then
+    raise exception 'invalid_due_date' using errcode = '22023',
+      detail = 'The due date must fall within the target month.';
+  end if;
+
+  v_historical := p_period_month < v_current;
+  if v_historical then
+    if not private.is_active_admin() then
+      raise exception 'historical_admin_only' using errcode = '42501';
+    end if;
+    v_reason := private.require_reason(p_reason);
+    v_source := 'admin_correction';
+    if not exists (select 1 from public.profiles p where p.id = p_staff_id and p.role = 'staff') then
+      raise exception 'staff_not_found' using errcode = 'P0002';
+    end if;
+  else
+    v_source := 'manager';
+    if not exists (
+      select 1 from public.profiles p
+      where p.id = p_staff_id and p.active and p.role = 'staff' and p.venue_id = p_venue_id
+    ) then
+      raise exception 'staff_not_eligible' using errcode = 'P0001',
+        detail = 'Targets are set for active staff at their current venue.';
+    end if;
+  end if;
+
+  select t.* into v_row from public.monthly_targets t
+  where t.staff_id = p_staff_id and t.venue_id = p_venue_id and t.period_month = p_period_month
+  for update;
+
+  if not found then
+    if p_expected_revision is not null then
+      raise exception 'coverage_conflict' using errcode = '40001',
+        detail = jsonb_build_object('revision', null, 'state', null)::text;
+    end if;
+    insert into public.monthly_targets as t
+      (staff_id, venue_id, period_month, target_count, due_on, source, created_by, updated_by)
+    values (p_staff_id, p_venue_id, p_period_month, p_target_count, v_due, v_source, v_uid, v_uid)
+    on conflict on constraint monthly_targets_period_key do nothing
+    returning t.* into v_row;
+    if not found then
+      raise exception 'coverage_conflict' using errcode = '40001',
+        detail = jsonb_build_object('revision', 1, 'state', null)::text;
+    end if;
+    perform private.coverage_audit(p_venue_id, 'monthly_target', v_row.id, 'created', v_reason, null,
+      jsonb_build_object('staffId', p_staff_id, 'month', p_period_month, 'target', p_target_count, 'dueOn', v_due),
+      v_historical);
+    target_id := v_row.id;
+    revision := v_row.revision;
+    return next;
+    return;
+  end if;
+
+  if p_expected_revision is distinct from v_row.revision then
+    raise exception 'coverage_conflict' using errcode = '40001',
+      detail = jsonb_build_object('revision', v_row.revision, 'state', v_row.source)::text;
+  end if;
+  -- A same-number save on a venue_default row is not a no-op: it makes the
+  -- number the person's own, so a later venue default change leaves it alone.
+  if v_row.target_count is not distinct from p_target_count and v_row.due_on = v_due
+     and v_row.source <> 'venue_default' then
+    target_id := v_row.id;
+    revision := v_row.revision;
+    return next;
+    return;
+  end if;
+  if p_period_month = v_current and v_row.target_count is not null then
+    v_reason := private.require_reason(p_reason);
+  end if;
+
+  update public.monthly_targets t
+  set target_count = p_target_count, due_on = v_due, source = v_source,
+      updated_by = v_uid, revision = t.revision + 1
+  where t.id = v_row.id
+  returning t.revision into v_revision;
+
+  perform private.coverage_audit(p_venue_id, 'monthly_target', v_row.id,
+    case when v_historical then 'corrected' else 'updated' end, v_reason,
+    jsonb_build_object('target', v_row.target_count, 'dueOn', v_row.due_on, 'source', v_row.source),
+    jsonb_build_object('target', p_target_count, 'dueOn', v_due, 'source', v_source),
+    v_historical);
+
+  target_id := v_row.id;
+  revision := v_revision;
+  return next;
+end;
+$$;
