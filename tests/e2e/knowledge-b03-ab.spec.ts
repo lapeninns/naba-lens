@@ -49,7 +49,7 @@ import {
   storedCheck,
 } from "./helpers/knowledge-b03-ab-world"
 import { horizontalOverflow } from "./helpers/overflow"
-import { escape, STAFF_LANDING } from "./helpers/ui"
+import { escape, OTHER_JOBS_PATH, STAFF_LANDING } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -259,6 +259,9 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     // ---- 375 px: staff choose Checked on and one entrance, and submit ------
     const staff = await signedInPage(browser, w.staffA, PHONE(375, 812))
     await expect(staff).toHaveURL(STAFF_LANDING)
+    // Goal-led Home: working-list questions are on Other jobs (an unassigned
+    // question waits on nobody, so Home may show no Other jobs row for it).
+    await staff.goto(OTHER_JOBS_PATH)
     const row = staff.getByRole("link", {
       name: new RegExp(`: ${escape(ask)}$`),
     })
@@ -356,8 +359,8 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     // Confirmation copies nothing: the detail row is still the one sent.
     expect(contributionsAt(w.venueA, id)).toEqual([sent])
 
-    // ---- Staff Home and the check page after confirmation ------------------
-    await staff.goto("/staff/tasks")
+    // ---- Other jobs and the check page after confirmation ------------------
+    await staff.goto(OTHER_JOBS_PATH)
     await settled(staff)
     // The answer in use names its entrance in the same sentence (UI §2.3
     // S1) and the day staffA checked it, as staffA's own finding (UI §3.5:

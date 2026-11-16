@@ -63,4 +63,5 @@ export {
   setPrimaryItemPhoto,
   withdrawItemPhoto,
 } from "./menu-items"
+export { listMyRetakeNotes, setRetakeNoteAside } from "./retake-notes"
 export { signEvidence } from "./evidence"

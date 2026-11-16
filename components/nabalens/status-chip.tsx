@@ -341,6 +341,14 @@ export const CHIP_STATES = {
     icon: FileTextIcon,
     shape: "plain",
   },
+  // A dish still needed whose photo waits for a first decision (goals
+  // decision 11). The dish stays in Still needed; anyone may add another.
+  waiting_for_review: {
+    word: "Waiting for review",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "waiting",
+  },
   awaiting_confirmation: {
     word: "Awaiting confirmation",
     tone: "pending",

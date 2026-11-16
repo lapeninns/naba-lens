@@ -19,6 +19,7 @@ vi.mock("@/app/staff/_shell/shell-status", () => ({
 import AdminNotFound from "@/app/admin/not-found"
 import RootNotFound, { metadata } from "@/app/not-found"
 import StaffNotFound from "@/app/staff/not-found"
+import TaskNotFound from "@/app/staff/tasks/[requirementId]/not-found"
 import { AppShell } from "@/components/nabalens/app-shell"
 import {
   NOT_FOUND_COPY,
@@ -67,6 +68,26 @@ describe("branded not-found pages", () => {
       type: NotFoundCard,
       props: { backHref: "/staff/tasks", backLabel: "Go to Home" },
     })
+  })
+
+  it("a missing task or menu-section link goes back to Home and never says task (G-4)", async () => {
+    // The page can't know whether the link was menu work, so it is the staff
+    // not-found: no "task", no "All tasks".
+    expect(TaskNotFound).toBe(StaffNotFound)
+    const page = (await TaskNotFound()) as unknown as Element
+    const card = cardIn(page)
+    expect(card.props).toMatchObject({
+      backHref: "/staff/tasks",
+      backLabel: "Go to Home",
+    })
+    render(
+      <NotFoundCard
+        {...(card.props as { backHref: string; backLabel: string })}
+      />
+    )
+    const text = document.body.textContent ?? ""
+    expect(text).not.toMatch(/\btasks?\b/i)
+    expect(screen.getByRole("link", { name: "Go to Home" })).toBeTruthy()
   })
 
   it("a missing admin page keeps the admin navigation and goes back to Content", async () => {

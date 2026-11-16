@@ -1,10 +1,10 @@
 # Common Room: Naba-Lens design system
 
-Version 0.3.2 · 14 Nov 2026 · Status: signed off on 14 Nov 2026 (decision D1 in [decisions.md](decisions.md)). It shipped to every screen on 7 Nov 2026.
+Version 0.4 · 15 Nov 2026 · Status: signed off on 14 Nov 2026 (decision D1 in [decisions.md](decisions.md)). It shipped to every screen on 7 Nov 2026.
 
 Applies to every Naba-Lens surface: the staff app (phone first), the venue manager workspace (phone, tablet, desktop) and the admin desktop app.
 
-Sections 1 to 9 are the v0.3 text of 7 Nov 2026, unchanged apart from where they point. Sections 10 to 13 were added when the spec moved into the repo. Section numbers never change, because code comments cite them ("DESIGN.md §4").
+Sections 1 to 9 are the v0.3 text of 7 Nov 2026, unchanged apart from where they point and the goals changes of 0.4 (NabaLens v0.5, see the changelog). Sections 10 to 13 were added when the spec moved into the repo. Section numbers never change, because code comments cite them ("DESIGN.md §4").
 
 | Subject                                               | Where it lives                        |
 | ----------------------------------------------------- | ------------------------------------- |
@@ -106,7 +106,7 @@ The four core states must never blur.
 | State           | Word        | Shape                                       | Tone     | Means                                                                         |
 | --------------- | ----------- | ------------------------------------------- | -------- | ----------------------------------------------------------------------------- |
 | **Ready**       | Ready       | Round pill, outline, open-dot icon          | info     | Uploaded and shared in Photos and on the profile. Says nothing about counting |
-| **Accepted**    | Accepted    | Square tag (4px), filled, tick              | ok       | Counts toward a task or target                                                |
+| **Accepted**    | Accepted    | Square tag (4px), filled, tick              | ok       | Counts toward a dish, a monthly target or a checklist item                    |
 | **Complete**    | COMPLETE    | Stamp: 2px radius, 4px double border, caps  | ink (fg) | A checklist item has enough accepted photos                                   |
 | **Needs setup** | Needs setup | Square tag, 2px dashed border, hatched fill | neutral  | Missing team, target or plan. Never complete                                  |
 
@@ -114,7 +114,15 @@ The four core states must never blur.
 
 Other photo states: **Submitted** (round pill, grey outline, up arrow), **Needs another photo** (round pill, warn fill and border, return arrow, always shown with the reason), **Closed** (grey square, padlock).
 
-Task and checklist states: **Overdue** (square, warn outline, clock; never blocks sending), **In progress** (round pill, neutral), **Not applicable** (dotted square, minus; stays visible with reason, not counted), **Retired** (grey square, padlock), **Needs reassignment** (square, warn outline, people), **Target met** (square, ok outline, no fill, target icon).
+Task and checklist states: **Overdue** (square, warn outline, clock; never blocks sending), **In progress** (round pill, neutral), **Not applicable** (dotted square, minus; stays visible with reason, not counted), **Retired** (grey square, padlock), **Needs reassignment** (square, warn outline, people), **Target met** (square, ok outline, no fill, target icon). Since 0.4, tasks, due dates and Overdue belong to service, venue-specific and amenity work only (NabaLens v0.5 rule 28). Food and drink work never shows them.
+
+Food and drink goals (0.4, NabaLens v0.5). Nobody owns a dish, and nothing about it has a due date:
+
+- **Still needed** is a list heading and a count on Our menu, not a chip: the dishes on the active menu with no accepted photo, shared by everyone at the venue.
+- **Waiting for review**: a dish whose only photo waits for a decision, and the striped frame of the month. It is Submitted in staff words and takes Submitted's shape (round pill, grey outline, up arrow). The dish stays in Still needed.
+- **Being checked**: a dish whose photo is rechecked after a menu change. It takes Menu changed's shape, never the Overdue clock. The dish stays in Still needed.
+- **Needed by 30 Nov**, then **Needed**: a manager's date on one dish, written as plain meta text beside it. It is not a chip and has no warn tone, clock or late state. After the date it reads "Needed" and the dish stays first.
+- **Needs another photo** is the retake note's word, always with the reviewer's reason. It has no date. Later sets it aside on Home; it stays on Me and never comes back as a reminder.
 
 Menu coverage: **Menu changed** (square, neutral outline with a thick warn bar on the left, menu icon). It means a coverage decision is waiting, not a missed deadline, so it never uses the Overdue clock. The other coverage states are words in a card: "No active menu", "Menu coverage needs setup" (Needs setup tag), "Menu coverage is current".
 
@@ -124,9 +132,9 @@ Roles and accounts: **Self-review** (info square). Staff **Invited** (dashed rou
 
 Upload states, written in mono beside each file: Waiting · Uploading 42% · Processing · Uploaded · Failed · Cancelled.
 
-After sending, Home confirms in words: "Sent 1 photo to Starters", "Sent 3 photos to Starters", "Sent your new photo to Desserts". Keeping a photo as shared only says so: "Kept as shared only… Nothing was sent for review."
+After sending, Home confirms in words: "Sent 1 photo to your month", "Sent 3 photos to Bar set-up", "Sent your new photo to your month". Keeping a photo as shared only says so: "Kept as shared only… Nothing was sent for review."
 
-Banned words: Approved, Rejected, Pending approval, Done, Published, Live.
+Banned words: Approved, Rejected, Pending approval, Done, Published, Live. Staff screens for food and drink work also never say task, due, overdue or better photo (0.4).
 
 ## 4. Components
 
@@ -136,13 +144,13 @@ The measured values for each component (heights, padding, radius, fill, edge, st
 - **Icon button** `.icon-btn`, `.labelled` and `.stacked` always show text (Back, Our menu, Close).
 - **Chip** `.chip.<state>` via `UI.chip(state, text?)`. Always icon + word, in the shapes in §3.
 - **Stamp** `UI.stamp()`: the large Complete stamp on a checklist item header.
-- **Share box** `.composer` via `UI.composer()`: avatar, a pill that opens Add, and Take a photo / Choose photos. Top of Home only. When adding is blocked (no venue, venue paused) the reason replaces the two actions.
+- **Share box** `.composer` via `UI.composer()`: avatar, a pill that opens Add, and Take a photo / Choose photos. When adding is blocked (no venue, venue paused) the reason replaces the two actions. Not on Home since 0.4 (§5a): the Add tab opens capture for any photo.
 - **Post** `UI.post()`, `article.post`: avatar, name, venue and time, the photo edge to edge, then what it shows, what it was for and its state chip. No likes, comments, reactions or counts. `compact` for accepted photos in a thread and the admin library.
 - **Lead card** `UI.leadCard()`, `.lead-card`: one job and its one blue action. At most one per screen, and none on a screen whose dock holds the primary. Its media is kept short enough that the action shows without scrolling on a 390 × 844 phone.
 - **Row** `UI.row()`, `.row` (+ `warn`, `info`, `ok`): icon, two lines, chevron. The to-do rail of secondary jobs. `UI.list()` groups rows in one card.
 - **Card** `.card`, `.card.flat`. Plain grouping.
 - **Thread** `UI.thread()`: a task as a post thread. The task's own post first (what to photograph, by when, the section's shared progress), then each photo sent as a post. `UI.reason()` puts the reviewer's reason directly under the old photo as its caption, with the action below it in the same post.
-- **Progress** `UI.progress()`, `UI.frames()`, `UI.framesKey()`. One rounded segment per photo: green accepted, striped submitted, grey still needed. Always paired with the words "N of M accepted".
+- **Progress** `UI.progress()`, `UI.frames()`, `UI.framesKey()`. One rounded segment per photo: green accepted, striped submitted, grey still needed. Always paired with the words "N of M accepted". The month's roll of frames is this component in its segments mode, not a component of its own (0.4). It has four frame states, keyed in this order: Accepted (green), Waiting for review (striped), Needs another photo (warn tint with a warn edge) and Still to take (grey).
 - **Scope label** `.scope-label`, **venue scope** `.venue-scope`, **separate note** `.separate-note`: who and where a number belongs to, and that the two counts are separate.
 - **Notice** `UI.notice(ok|info|warn, title, text, actions)`: what happened, then what to do. `warn` gets `role="alert"`, others `role="status"`. Home's sent confirmation is an ok notice.
 - **Offline banner** `.banner-off` under the status bar.
@@ -169,52 +177,57 @@ Prototype only, not product: the **Controls panel** beside the playable phone an
 ## 5. Patterns
 
 - **Screen anatomy (phone):** status bar → optional offline banner → top bar with venue → scroll area → tab bar or action dock.
-- **Home is a feed, in this order:** share box → one lead card with the one blue action → to-do rows → Your month → Our menu → From colleagues as posts. Lead card priority: photo to replace → overdue → photos to review (managers) → due soonest → your month. A manager's to-do rows also carry "Menu changed: review coverage" or "Menu coverage needs setup" when that applies. The full Home rules are in §5a.
-- **After sending,** the phone returns to Home and confirms what was sent, in words, in an ok notice at the top of the feed. The task keeps its Sent state.
-- **Task as a thread:** task post → your photos as posts → for Needs another photo, the old photo with the reason as its caption and the action under it.
+- **Home shows goals, not tasks (0.4),** in this order: setup notice → retake note → Our menu with what is still needed → Your month → Other jobs → From the team as posts. One main action: Reshoot when a retake note is open, else the first Still needed dish, else Open camera when the menu is complete. Food and drink work has no assignment, due date or Overdue. The full Home rules are in §5a.
+- **Goals, not tasks:** the menu belongs to the whole venue. Anyone at the venue may photograph any dish still needed, and it leaves Still needed for everyone once a photo of it is accepted. Your month is one person's goal, private to them, their venue manager and admins. No screen ranks or compares staff.
+- **After sending,** the phone returns to Home and confirms what was sent, in words, in an ok notice at the top of the feed. The photo keeps its Sent state.
+- **Task as a thread** (service, venue-specific and amenity work only): task post → your photos as posts → for Needs another photo, the old photo with the reason as its caption and the action under it.
 - **Two counts, never added:** "Your month" (person, month, venue) and "Venue progress" / "Checklist" (venue, month). Each has its own scope label and the sentence that they are counted separately.
-- **Offline:** uploads wait ("Waiting for a signal") and carry on when the signal returns. Sending to a task always needs a tap ("Send when you're back online" stays disabled until then). On the admin desktop every save is disabled with the reason "You're offline"; navigation still works.
+- **Offline:** uploads wait ("Waiting for a signal") and carry on when the signal returns. Sending to your month or a job always needs a tap ("Send when you're back online" stays disabled until then). On the admin desktop every save is disabled with the reason "You're offline"; navigation still works.
 - **Errors:** what happened, then what to do, then reassurance when true. "We couldn't reach Naba-Lens. Check your connection and try again. Nothing is sent twice."
 - **Empty states:** icon, what appears here, and how it gets there. One action at most.
-- **Loading:** skeletons in the real layout plus a status line ("Loading your tasks…").
+- **Loading:** skeletons in the real layout plus a status line ("Loading Home…").
 - **Destructive actions:** danger button, confirmation dialog naming the venue and the external effect, safe choice on the left.
 - **Reasons:** any change after the first (targets, not applicable, ask for another photo, revoking a grant) asks for a reason that admins can see. Suggested reasons fill the field and stay editable.
 - **Self-review:** allowed, and flagged on the photo, on the lead card, in the dialog and in the confirmation.
 
 ### 5a. Home (staff)
 
-Added in 0.3.2. The staff landing page (`/staff/tasks`, "Home" on screen). Prototype: the "v3 · Spec v0.3.1" page of the Home redesign canvas (14 Nov 2026). It keeps the photo-first lead card from the 9 Nov exploration and fits it to §1 to §8.
+Added in 0.3.2; rewritten in 0.4 for NabaLens v0.5 ("goals, not tasks"). The staff landing page (`/staff/tasks`, "Home" on screen). The "v3" prototype of the goals canvas (15 Nov 2026) shows the model only. Its tokens and drawings are not the spec: tokens come from §2 and components from §4.
+
+Home answers three questions: what does the venue still need, how is my month going, and has anyone asked me for another photo. It shows no assignment, due date or Overdue for food and drink work (v0.5 rule 21).
 
 Order, top to bottom. A block with nothing true to say is left out, never shown empty.
 
 1. **Top bar:** wordmark, the venue as a grey pill, the person's avatar linking to Me.
-2. **Sent notice**, only after a send: an ok notice in the words of §3 ("Sent your new photo to Chef's Specials."), then who reviews it next. It stays until closed or the page is left.
+2. **Sent notice**, only after a send: an ok notice in the words of §3 ("Sent your new photo to your month."), then who reviews it next. It stays until closed or the page is left.
 3. **Greeting:** the date ("Saturday 14 Nov 2026") above "Good evening, Priya", Heading LG. "Welcome, Priya" until the first photo.
-4. **Share box** (§4). The pill carries the person's role prompt ("What did you cook today?"); no separate prompt card. Its two quiet actions are Take a photo and Choose photos. When adding is blocked, the pill says so and the reason replaces both actions.
-5. **Lead card.** One per Home, holding the one solid blue button. The first that applies:
+4. **Setup notice**, only when the venue, team or name is missing: what is missing and who fixes it. Nothing on Home then says "complete", and no action leads to a camera that cannot save.
+5. **Start here**, for a new starter only: a row to the welcome guide (`/staff/tasks/welcome`).
+6. **Retake note**, when a reviewer asked for another photo: the old photo with the Needs another photo chip on the plate, the reviewer's reason in their words, then Later (grey) and Reshoot (blue). Reshoot opens the camera with the dish already labelled. Later hides the note from Home, on every device. The note stays on Me and clears when a new photo of the dish is accepted. It has no date and is never repeated or escalated. Its photo is 2:1 at most, so Reshoot shows without scrolling at 390 × 844.
+7. **Photos to review**, for a staff account with a legacy reviewer grant only: one row with the count.
+8. **Our menu:** "N of M dishes at The Railway have a photo", an ok bar, and "Counted for the venue, separately from your month." Under it, **Still needed**: up to four dish rows, then "See all N" to `/staff/menu?filter=gaps`. Each row offers Take a photo and Choose from photos, with the dish already labelled. A row carries Waiting for review or Being checked (§3) when that applies, and stays listed. A dish with a needed by date comes first, with the date as meta text; after the date it reads "Needed" (§3). Then menu order. When every dish has a photo, the block says so and Open camera is the main action.
+9. **Your month:** its own card with the scope label "You · November 2026 · The Railway", "N of M accepted" in mono, and Progress segments with the four frame states and their key (§4). The sentence under it says what counts: "Accepted photos you labelled — dishes, drinks and venue areas — and photos you sent to the month, count." Never "any photo counts". It shows no due date and no Overdue; the month ends with the London calendar month. Before a target exists, the card shows Needs setup and what is still missing, and says nothing is the person's to do.
+10. **Other jobs**, only when the person has service, venue-specific or amenity work: one row linking to the list of those jobs. Due dates and Overdue stay on that list (rule 28).
+11. **From the team:** posts (§4), newest first, then "See more in Photos". Target met adds nothing here: no collage, badge or other celebration (§8).
 
-   | Lead                      | Media                                                 | Words                                                            | Actions (grey left, blue right)       |
-   | ------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------- |
-   | Photo to replace          | The old photo, Needs another photo chip on the plate  | Reviewer's face and name, then the reason in their words         | Photo guide · Retake photo            |
-   | Overdue                   | The task's latest photo, or none                      | Task, Overdue chip, "N of M accepted"                            | Photo guide · Take photos             |
-   | Photos to review          | Up to three photos waiting, in a strip                | "N photos to review", who from, oldest sent date                 | Review photos                         |
-   | Due soonest               | Your latest photo for the task, due date on the plate | Task, section, "N of M accepted"                                 | Photo guide · Take photos             |
-   | Your month (no tasks)     | None                                                  | "No tasks right now" and how many more are needed, or Target met | Add photos                            |
-   | First photo (new starter) | None                                                  | "Add your first photo" and where it goes                         | Take a photo, then a link to the tour |
-   | No venue                  | None                                                  | Why, and who fixes it                                            | None                                  |
+**One main action.** Home has one solid blue button, the first that applies:
 
-   Lead media is 2:1 at most, so the blue button shows without scrolling at 390 × 844, with the sent notice showing.
+| When                             | The blue button                             |
+| -------------------------------- | ------------------------------------------- |
+| A retake note is open            | Reshoot, in the retake note                 |
+| A dish is still needed           | Take a photo, on the first Still needed row |
+| Every dish has a photo           | Open camera, in Our menu                    |
+| No venue, or setup is incomplete | None                                        |
 
-6. **Also to do:** the other jobs as rows in one card, with All tasks. A job in the lead is never repeated here. Each row carries its state chip (Overdue, Menu changed) or "Due date · N of M accepted".
-7. **Your month:** its own card with the scope label "You · November 2026 · The Railway", "N of M accepted" in mono, what is waiting and still to take, the segments and their key. Under them, up to two of the latest review decisions on the person's photos (accepted, set as menu photo, with who and when). Decisions only: no likes or views. Before a target exists, the card shows Needs setup and what is still missing, and says nothing is the person's to do.
-8. **Our menu:** one row, "N of M dishes at The Railway have a photo", an ok bar, and the sentence "Counted for the venue, separately from your month."
-9. **From your colleagues:** posts (§4), newest first, then "See more in Photos". Target met adds nothing here: no collage, badge or other celebration (§8).
+Every other action on Home is grey or a link. There is no share box on Home: the Add tab opens capture for any photo. The Home tab badge counts the cards on Home that ask the person to act, never dishes.
 
-The tab bar is the shipped five (Home, Photos, Add, People, Me; departure N2). Add is a grey pill around the plus, never blue, so the lead card's button stays the only solid blue on Home.
+The tab bar is the shipped five (Home, Photos, Add, People, Me; departure N2). Add is a grey pill around the plus, never blue, so Home's main action stays the only solid blue on Home.
 
 ## 6. Voice
 
-British English, sentence case, digits, correct plurals ("1 photo", "3 of 5 accepted"). UK dates in Europe/London: "2 Nov 2026", "2 Nov 2026, 14:06", "Due 30 Nov 2026". No exclamation marks, no emoji. Never imply that uploading publishes anything, or that a label is allergen information. Never invent numbers: every count on screen comes from the data.
+British English, sentence case, digits, correct plurals ("1 photo", "3 of 5 accepted"). UK dates in Europe/London: "2 Nov 2026", "2 Nov 2026, 14:06", "Needed by 30 Nov". No exclamation marks, no emoji. Never imply that uploading publishes anything, or that a label is allergen information. Never invent numbers: every count on screen comes from the data.
+
+Food and drink work (0.4, NabaLens v0.5) is a shared goal, so its words are the goal's words: "Our menu", "Still needed", "Your month", "Waiting for review", "Needs another photo", "Needed by 30 Nov", then "Needed". Staff screens for it never say task, due, overdue or better photo, and never rank or compare staff. "Due 30 Nov 2026" and Overdue stay on service, venue-specific and amenity work. Month copy says "Accepted photos you labelled — dishes, drinks and venue areas — and photos you sent to the month, count", never "any photo counts".
 
 ## 7. Accessibility
 
@@ -378,18 +391,18 @@ Names that no longer exist: the radius aliases `panel`, `touch`, `chip` and `pri
 
 A review checklist. It restates §1 to §8 as ten rules a screen either meets or does not.
 
-1. Home is a feed: share box, then one lead card with its one blue action, then to-do rows, then Your month, then Our menu, then colleague photos as posts (§5a). No likes, comments, reactions, stories, leaderboards or scores.
+1. Home shows goals, not tasks: a retake note when one exists, then Our menu with what is still needed, then Your month, then Other jobs when there are any, then colleague photos as posts (§5a). It has one main action: Reshoot, else the first Still needed dish, else Open camera. No assignment, due date or Overdue for food and drink work. No likes, comments, reactions, stories, leaderboards, scores or comparisons between staff.
 2. Exactly one solid blue primary button per screen (in the lead card, the action dock or a form). Everything else is a grey (secondary) button, a ghost button, a danger button or a link. Light blue is only for the active tab; accent-soft is only for a selected filter, segment or side nav item.
 3. Four states are distinct by word, shape and tone: Ready, Accepted, COMPLETE and Needs setup, each drawn as its state chip. Needs another photo always shows its reason.
 4. Words: Submitted, Accepted, Needs another photo, Closed. Upload states: Waiting, Uploading 42%, Processing, Uploaded, Failed, Cancelled. Never Approved, Rejected, Pending approval, Done, Published or Live, as whole words anywhere on a screen, so no "Done" button either.
 5. Every venue-specific screen names the venue (in the top bar, in the side nav on wide screens, or in the page head's scope line). Managers act only on their own venue. Self-review is allowed and always flagged, with the Self-review chip and an info notice.
 6. Staff and manager screens never show email addresses, original file names or "Download original". Those appear on admin screens only.
-7. Overdue never blocks sending. Not applicable stays visible and is not counted. Videos do not count toward photo tasks. Uploading is not publishing; a label is not allergen information.
-8. British English, sentence case, digits and correct plurals. Dates read "2 Nov 2026", "2 Nov 2026, 14:06", "Due 30 Nov 2026". Errors say what happened, then what to do. No emoji, no exclamation marks, no celebration, no invented statistics.
+7. Overdue never blocks sending, and only service, venue-specific and amenity work can be Overdue. Food and drink work has no due date, and a needed by date is never shown as late. Not applicable stays visible and is not counted. Videos do not count toward a dish, a month or a task. Uploading is not publishing; a label is not allergen information.
+8. British English, sentence case, digits and correct plurals. Dates read "2 Nov 2026", "2 Nov 2026, 14:06", "Needed by 30 Nov" ("Due 30 Nov 2026" on non-menu work only). Staff copy for food and drink work never says task, due, overdue or better photo. Errors say what happened, then what to do. No emoji, no exclamation marks, no celebration, no invented statistics.
 9. Text is 17px or larger (the device status bar and 15px photo captions excepted). Targets are 44px or larger. Main buttons are 52 to 60px (60px on phones). Labels sit under icons. Controls are real links and buttons. Dialogs use the shared sheet, dialog and drawer components. Status changes use `role="status"` or `aria-live`. Nothing is swipe-only or long-press-only; nothing moves on its own. No horizontal scroll at 320px: test every dense screen at 320px wide.
 10. Prototype photos are drawn stand-ins only. No other company's logo, colour or icon set.
 
-Rule 4's ban on a "Done" button is decision D5. Rule 1's Home order is under review in the Home prototypes; until `DESIGN.md` changes, the order above is the rule.
+Rule 4's ban on a "Done" button is decision D5. Rules 1, 7 and 8 follow NabaLens v0.5 since 0.4.
 
 ### How the rules are checked
 
@@ -399,6 +412,7 @@ The prototype folder had a script that tested every frame. The table lists each 
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Console and page errors | Any console message of type error, any uncaught page error, or a failed page load                                                                                                                       | None general. `tests/e2e/security-headers.spec.ts` listens to the console for Content Security Policy messages only                                                                                                                                                                                                          |
 | Failed frames           | A frame whose screen function threw (a red `pre` holding the error)                                                                                                                                     | None (prototype only)                                                                                                                                                                                                                                                                                                        |
+| Goal words (0.4)        | Staff copy for food and drink work says no task, due, overdue or better photo                                                                                                                           | `tests/unit/staff-copy-guard.test.ts` reads the string literals and JSX text of staff Home, `/staff/menu`, month, welcome, Me and `menu-photos`. Non-menu task screens are on its allow-list; files still being rebuilt are on a pending list that only shrinks                                                              |
 | Banned words            | Frame text contains Approved, Rejected, Pending approval, Done, Published or Live as a whole word (case sensitive)                                                                                      | None for on-screen copy. `tests/unit/scope-guard.test.ts` bans approval-workflow terms (`/approv/i`) and other out-of-scope features in application source, not these six words in rendered text                                                                                                                             |
 | Text under 17px         | Computed font size below 17px on any visible text node; skips `.status-bar`, `[aria-hidden="true"]`, `.ph`, `.ph-tag`, `.ph-state`, `.ph-video`, `.sr-only`, `.visually-hidden`                         | None found in `tests/`                                                                                                                                                                                                                                                                                                       |
 | Targets under 44px      | `a, button, input, select, textarea, [role=button], [tabindex="0"]` with width or height below 44px; skips hidden and `aria-hidden` elements, checkboxes, radios and `.link-inline`                     | `tests/e2e/visual.spec.ts` (`smallTouchTargets`, 44 × 44 CSS px at phone widths, 480px and under; run by `pnpm test:visual`). Single-control height checks in `tests/e2e/better-photo.spec.ts`, `tests/e2e/staff-accounts.spec.ts`, `tests/e2e/menus-responsive.spec.ts`                                                     |
@@ -425,6 +439,8 @@ Do not take tokens or rules from these. They are history.
 | The Home prototype canvases (2 Nov and 9 Nov 2026)              | Explorations of the staff Home page. The 9 Nov canvas proposed a photo-first order that differed from §5, used real dish photos and drew chips in shapes §3 reserves                                                              | §5a (0.3.2), drawn on the "v3 · Spec v0.3.1" page of the 9 Nov canvas. Pages v1 and v2 are history |
 
 ### Changelog
+
+- **0.4 · 15 Nov 2026.** Goals, not tasks (NabaLens v0.5; `docs/plans/goals-not-tasks.md` G-5). §3: Accepted counts toward a dish, a month or a checklist item; tasks, due dates and Overdue are for service, venue-specific and amenity work only; new goal words Still needed, Waiting for review (Submitted's shape), Being checked (Menu changed's shape) and Needed by / Needed (meta text, never a chip); task, due, overdue and better photo banned from staff food and drink copy. §4: the month roll is Progress segments with four frame states; the share box leaves Home. §5: Home shows goals in a new order, with one main action; the task thread is for non-menu work. §5a rewritten: setup notice, retake note with Later, Our menu with up to four Still needed rows, Your month, Other jobs, From the team. §6: the goal words, and "Needed by 30 Nov" in place of "Due 30 Nov 2026". §11 rules 1, 7 and 8 follow, and the goal words are checked by `staff-copy-guard.test.ts`. Code may cite "§5a". No token changed.
 
 - **0.3.2 · 14 Nov 2026.** Added §5a Home (staff): the order, the lead card table and what each block says. §5's Home line now names Our menu and the "your month" lead, and points to §5a; rule 1 in §11 follows. No token changed.
 - **0.3.1, Batch 1 · 14 Nov 2026.** §10 rewritten to the names that shipped with the Batch 1 foundations (decision D7). No rule in §1 to §9 changed. Two values now differ from §2 and are recorded in §10: the dark `--border-strong` is lighter, and the primary button has a 1px edge in dark.

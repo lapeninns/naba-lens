@@ -163,7 +163,7 @@ export function ReplacementClosed({
     <div className="grid gap-gutter">
       <Notice
         tone="attention"
-        title="This task has closed"
+        title="This job has closed"
         action={
           <Link
             href={homeHref}
@@ -185,15 +185,31 @@ export function ReplacementClosed({
   )
 }
 
+/**
+ * Where to send a replacement for the request `itemId`: its task, or this
+ * month's photos when it had no task.
+ */
+export function replacementPath(
+  tasksPath: string,
+  requirementId: string | null,
+  itemId: string
+): string {
+  const base = requirementId
+    ? `${tasksPath}/${requirementId}`
+    : `${tasksPath}/month`
+  return `${base}?${REPLACES_PARAM}=${itemId}`
+}
+
 /** Where to send a replacement for `submission`. */
 export function replacementHref(
   tasksPath: string,
   submission: SubmissionView
 ): string {
-  const base = submission.requirement
-    ? `${tasksPath}/${submission.requirement.id}`
-    : `${tasksPath}/month`
-  return `${base}?${REPLACES_PARAM}=${submission.id}`
+  return replacementPath(
+    tasksPath,
+    submission.requirement?.id ?? null,
+    submission.id
+  )
 }
 
 /**
@@ -250,7 +266,7 @@ export function NeedsAnotherPhotoList({
                 ) : null}
                 {closed ? (
                   <p className="text-meta text-ink-muted">
-                    This task is no longer open to you, so no replacement is
+                    This job is no longer open to you, so no replacement is
                     needed.
                   </p>
                 ) : canSubmit ? (

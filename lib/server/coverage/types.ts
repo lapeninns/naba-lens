@@ -80,7 +80,12 @@ export type CoverageScope = {
 // ---- Monthly targets ----------------------------------------------------------
 
 export type MonthlyTargetSource =
-  "manager" | "copied" | "placeholder" | "admin_correction"
+  | "manager"
+  | "copied"
+  | "placeholder"
+  | "admin_correction"
+  /** The venue default (G-6): the person has no number of their own. */
+  | "venue_default"
 
 export type MonthlySetupGap = "team" | "target"
 
@@ -357,12 +362,40 @@ export type MyTasksView = {
   pendingReview: number
 }
 
+/**
+ * One photo's state in a person's month (decision 13), in this order of
+ * precedence: accepted, needs another photo, waiting for review. "Still to
+ * take" is the rest of the target and has no photo.
+ */
+export type MonthPhotoState = "accepted" | "needs_another_photo" | "waiting"
+
+/** One of the person's own photos in their month (my_month_photos). */
+export type MonthPhotoView = {
+  assetId: string
+  venueId: string
+  state: MonthPhotoState
+  uploadedAt: Instant
+  /** Menu items the person labelled it with, by name. */
+  itemNames: string[]
+  /** Sent in the month: to a task (its title) or to the month (null title). */
+  sent: { requirementTitle: string | null } | null
+  /** The coverage item a send's "needs another photo" request is on. */
+  submissionId: string | null
+  /** The reviewer's reason, for needs another photo. */
+  reason: string | null
+  decision: { decidedAt: Instant; decidedBy: PersonRef } | null
+  asset: EvidenceAsset
+}
+
 export type MyMonthView = {
   period: PeriodView
   /** One per venue with a target or credit that month (a transfer can give two). */
   monthly: MonthlyProgress[]
-  /** Newest first (at most 100). */
-  submissions: SubmissionView[]
+  /**
+   * Own photos in the month, newest upload first (at most 100): the photos
+   * the counts in `monthly` count, one row each.
+   */
+  photos: MonthPhotoView[]
 }
 
 export type StaffMonthView = {
@@ -628,6 +661,13 @@ export type OurMenuView = {
 
 export type MenuItemVariant = { variantId: string; name: string }
 
+/**
+ * G-7: a manager's "needed by" date on a still-needed dish (London calendar
+ * date, "YYYY-MM-DD"). It has no overdue state: once the date has passed,
+ * `passed` words it "Needed" and the dish stays first.
+ */
+export type NeededBy = { date: string; passed: boolean }
+
 export type OurMenuItem = {
   itemId: string
   sectionId: string
@@ -651,7 +691,19 @@ export type OurMenuItem = {
    * that count could not be read, so the list still loads.
    */
   myWaiting?: number
+  /** G-7: set while a manager's date is live; such dishes lead the list. */
+  neededBy?: NeededBy | null
+  /**
+   * For a dish still needed (decision 11): "being_checked" when a photo is
+   * being checked after a menu change, "waiting" when a photo waits for a
+   * first decision, else null. Set by listOurMenuItems; left out when that
+   * read failed, so the list still loads.
+   */
+  reviewState?: OurMenuReviewState
 }
+
+/** A still-needed dish's review state; null when no photo waits. */
+export type OurMenuReviewState = "waiting" | "being_checked" | null
 
 /** A labelled photo a reviewer can decide for one item (and variant). */
 export type ItemPhotoCandidate = {
@@ -697,6 +749,41 @@ export type WithdrawnItemPhoto = {
 }
 
 export type PrimaryItemPhoto = { photoId: string; itemRevision: number }
+
+/**
+ * One "Needs another photo" note for its author (G-3, my_retake_notes): a menu
+ * request on a labelled photo, or a coverage request on a month or task send.
+ * The server decides the status: open, set aside (Later; hidden from Home,
+ * kept on Me), retaken (a new photo is waiting for review) or cleared
+ * (decision 4 for menu notes; a decided replacement for coverage notes).
+ */
+export type RetakeNote = {
+  kind: "menu" | "coverage"
+  /** The menu photo id, or the coverage submission item id. */
+  noteId: string
+  revision: number
+  assetId: string
+  /** The own photo the note is on; null when it couldn't be signed. */
+  thumbnailUrl: string | null
+  status: "open" | "set_aside" | "retaken" | "cleared"
+  /** A new photo can be taken for it now (dish on the menu, task open to me). */
+  canRetake: boolean
+  reason: string | null
+  askedBy: string | null
+  askedAt: string
+  setAsideAt: string | null
+  /** Menu notes: the dish, with the variant that was reviewed. */
+  dish: {
+    itemId: string
+    variantId: string | null
+    itemName: string
+    variantName: string | null
+  } | null
+  /** Coverage notes on a task; null for menu notes and month sends. */
+  requirement: { id: string; title: string; kind: string } | null
+}
+
+export type RetakeNoteRef = { kind: RetakeNote["kind"]; noteId: string }
 
 /** The uploader's own live item decisions (for "Accepted for menu use"). */
 export type MyMenuPhotoState = {

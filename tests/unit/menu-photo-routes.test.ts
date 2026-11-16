@@ -171,3 +171,36 @@ describe("signEvidence with the item-photo check", () => {
     expect(serviceFrom).not.toHaveBeenCalled()
   })
 })
+
+describe("Venue area photo routes (G-9)", () => {
+  it("sign with the area-photo check and redirect privately", async () => {
+    const thumb = await import("@/app/api/area-photos/[assetId]/thumb/route")
+    const preview =
+      await import("@/app/api/area-photos/[assetId]/preview/route")
+    mocks.getMediaActor.mockResolvedValue({ ok: true, actor })
+    mocks.signEvidence.mockResolvedValue({
+      ok: true,
+      url: "http://127.0.0.1/signed",
+    })
+    const id = crypto.randomUUID()
+    for (const [route, which] of [
+      [thumb, "thumbnail"],
+      [preview, "preview"],
+    ] as const) {
+      const res = await route.GET(new Request("http://local.test"), ctx(id))
+      expect(res.status).toBe(302)
+      expect(res.headers.get("cache-control")).toBe("private, no-store")
+      expect(mocks.signEvidence).toHaveBeenLastCalledWith(
+        actor,
+        id,
+        which,
+        "area_photo_asset"
+      )
+    }
+    expect(mocks.getMediaActor).toHaveBeenCalledWith([
+      "staff",
+      "manager",
+      "admin",
+    ])
+  })
+})

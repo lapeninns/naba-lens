@@ -14,7 +14,7 @@ import {
 import { activeItemId, labelledPhoto } from "./helpers/manager-world"
 import { activateMenu, createMenuDraft, ok } from "./helpers/menus"
 import { psql } from "./helpers/stack"
-import { startTodoCheck } from "./helpers/ui"
+import { OTHER_JOBS, startOtherJobsCheck } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 test("a staff target combines distinct menu items and completed amenity checks", async ({
@@ -90,7 +90,7 @@ test("a staff target combines distinct menu items and completed amenity checks",
       })
     ).toBeVisible()
     await expect(
-      currentTarget.getByRole("img", {
+      currentTarget.getByRole("progressbar", {
         name: `${count} of 5 items completed`,
         exact: true,
       })
@@ -106,7 +106,7 @@ test("a staff target combines distinct menu items and completed amenity checks",
     await expect(
       staff.getByRole("progressbar", { name: "4 of 5 items completed" })
     ).toBeVisible()
-    await staff.getByRole("link", { name: "See this month" }).click()
+    await staff.getByRole("link", { name: "See your month" }).click()
     await expect(
       staff.getByRole("heading", { name: "Monthly target", exact: true })
     ).toBeVisible()
@@ -118,10 +118,9 @@ test("a staff target combines distinct menu items and completed amenity checks",
       staff.getByRole("heading", { name: "Add photos for this month" })
     ).toHaveCount(0)
 
-    await staff
-      .getByRole("link", { name: "See assigned checks on Home" })
-      .click()
-    await startTodoCheck(staff, question("darts"), darts)
+    await staff.getByRole("link", { name: "See your other jobs" }).click()
+    await expect(staff).toHaveURL(OTHER_JOBS)
+    await startOtherJobsCheck(staff, question("darts"), darts)
     const form = captureForm(staff)
     await form.answer("yes")
     await form.attach(photo)
@@ -176,7 +175,7 @@ test("a staff target combines distinct menu items and completed amenity checks",
       legacy.getByRole("heading", { name: "Monthly photos", exact: true })
     ).toBeVisible()
     await expect(
-      legacy.getByRole("img", { name: "0 of 5 photos accepted" })
+      legacy.getByRole("progressbar", { name: "0 of 5 photos accepted" })
     ).toBeVisible()
     await expect(
       legacy.getByRole("heading", { name: "Add photos for this month" })

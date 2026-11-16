@@ -12,6 +12,11 @@ export {
 export { decideMenuPhoto } from "./decide"
 export { menuPhotoFailure, OWN_PHOTO_MESSAGE } from "./errors"
 export {
+  clearMenuItemNeededBy,
+  neededByBounds,
+  setMenuItemNeededBy,
+} from "./needed-by"
+export {
   getContributor,
   getManagerItem,
   getManagerOverview,

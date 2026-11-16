@@ -18,13 +18,15 @@ import {
   askerName,
   BackToTasks,
   isPeriodKey,
+  HOME_MONTH_COPY,
   MonthCard,
+  MonthPhotoList,
+  MONTH_PHOTOS_COPY,
   periodLabel,
   pickReplacement,
   plural,
   ReplacementNote,
   shiftPeriod,
-  SubmissionList,
   submitBlockedCopy,
 } from "@/components/nabalens/tasks"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -37,7 +39,7 @@ import {
 import { periodKeyOf } from "@/lib/server/coverage/time"
 
 import { myTasks, staffShellStatus } from "../../_shell/shell-status"
-import { PORTFOLIO_PATH, TASKS_PATH, unwrap } from "../result"
+import { OTHER_JOBS_PATH, PORTFOLIO_PATH, TASKS_PATH, unwrap } from "../result"
 import { backFrom } from "../back-from"
 import { TaskSubmit } from "../task-submit"
 
@@ -243,9 +245,9 @@ export default async function MonthPage({
     )
   }
   const { month, more } = monthResult
-  const sentCount = more
-    ? `${month.submissions.length}+ photos`
-    : plural(month.submissions.length, "photo", "photos")
+  const photoCount = more
+    ? `${month.photos.length}+ photos`
+    : plural(month.photos.length, "photo", "photos")
 
   const requested = typeof search.replaces === "string" ? search.replaces : null
   const open = isCurrent
@@ -309,6 +311,13 @@ export default async function MonthPage({
         />
       )}
 
+      {/* Decision 5 (amended by G-9): what earns month credit. A completion
+          venue lists its own rules below. */}
+      {!combined ? (
+        <p className="max-w-reading px-1 text-body text-ink-muted">
+          {HOME_MONTH_COPY.counts}
+        </p>
+      ) : null}
       {isCurrent && setupPending ? (
         <p className="max-w-reading px-1 text-body text-ink-muted">
           Your manager sets your target for {label}. Until then, photos you add
@@ -349,10 +358,10 @@ export default async function MonthPage({
               Browse menu items
             </Link>
             <Link
-              href={TASKS_PATH}
+              href={OTHER_JOBS_PATH}
               className={buttonVariants({ variant: "secondary" })}
             >
-              See assigned checks on Home
+              See your other jobs
             </Link>
           </div>
         </section>
@@ -401,32 +410,30 @@ export default async function MonthPage({
         </section>
       ) : null}
 
-      {!combined || month.submissions.length > 0 ? (
+      {!combined || month.photos.length > 0 ? (
         <section
-          aria-labelledby="sent-heading"
+          aria-labelledby="photos-heading"
           className="flex flex-col gap-gutter"
         >
           <SectionHeader
-            id="sent-heading"
-            title={`${combined ? "Coverage photos" : "Sent"} for ${monthName(period)}`}
+            id="photos-heading"
+            title={MONTH_PHOTOS_COPY.heading(monthName(period), combined)}
             action={
-              month.submissions.length > 0 ? (
-                <span className="text-body text-ink-muted">{sentCount}</span>
+              month.photos.length > 0 ? (
+                <span className="text-body text-ink-muted">{photoCount}</span>
               ) : null
             }
           />
-          {month.submissions.length > 0 ? (
+          {month.photos.length > 0 ? (
             <>
-              <SubmissionList
-                label={`Sent for ${monthName(period)}`}
-                submissions={month.submissions}
-                showTask
-                empty={null}
+              <MonthPhotoList
+                label={MONTH_PHOTOS_COPY.heading(monthName(period), false)}
+                photos={month.photos}
               />
               {more ? (
                 <p className="max-w-reading px-1 text-body text-ink-muted">
-                  These are your newest {month.submissions.length}. Every photo
-                  you sent is on{" "}
+                  These are your newest {month.photos.length}. Every photo you
+                  took is on{" "}
                   <Link
                     href={PORTFOLIO_PATH}
                     className="inline-flex min-h-11 items-center rounded-control font-semibold text-ink underline underline-offset-3 focus-ring outline-none"
@@ -438,10 +445,7 @@ export default async function MonthPage({
               ) : null}
             </>
           ) : (
-            <EmptyState
-              variant="done"
-              title="No photos were sent this month."
-            />
+            <EmptyState variant="done" title={MONTH_PHOTOS_COPY.empty} />
           )}
         </section>
       ) : null}

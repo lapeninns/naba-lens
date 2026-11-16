@@ -28,3 +28,5 @@ export function unwrap<T extends object>(result: CoverageResult<T>): T {
 export const TASKS_PATH = "/staff/tasks"
 export const PORTFOLIO_PATH = ROUTES.staffHome
 export const WELCOME_PATH = "/staff/tasks/welcome"
+/** Other jobs (G-4): non-menu tasks and amenity checks. Was `/staff/tasks/all`. */
+export const OTHER_JOBS_PATH = "/staff/tasks/other"

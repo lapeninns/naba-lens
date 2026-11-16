@@ -88,6 +88,35 @@ describe("entryMenu (§4.1, §5.3)", () => {
     { requirement: { id: "t2", title: "Closed" }, canSubmit: false },
   ]
 
+  it("never offers a menu-section task: section shots go to the month (G-4)", () => {
+    const menu = entryMenu(STAFF, {
+      venueName: "Lakeside",
+      slots: [],
+      tasks: [
+        {
+          requirement: { id: "s1", title: "Starters", kind: "menu_section" },
+          canSubmit: true,
+        },
+        {
+          requirement: { id: "t1", title: "Bar", kind: "service" },
+          canSubmit: true,
+        },
+      ],
+    })
+    expect(menu?.tasks).toEqual([{ id: "t1", title: "Bar" }])
+    const onlyMenu = entryMenu(STAFF, {
+      venueName: "Lakeside",
+      slots: [],
+      tasks: [
+        {
+          requirement: { id: "s1", title: "Starters", kind: "menu_section" },
+          canSubmit: true,
+        },
+      ],
+    })
+    expect(onlyMenu?.intents ?? []).not.toContain("task")
+  })
+
   it("offers staff every choice they can complete, with its lists", () => {
     const menu = entryMenu(STAFF, { venueName: "Lakeside", slots, tasks })
     expect(menu).toEqual({

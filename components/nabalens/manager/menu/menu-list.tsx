@@ -13,6 +13,8 @@ import type {
   Page,
 } from "@/lib/server/menu-photos/types"
 
+import { NEEDED_BY_COPY } from "@/components/nabalens/menu-photos/needed-by-chip"
+
 import { MANAGER_COPY } from "../copy"
 import { MENU_LIST_CLASS, MenuItemRow } from "./menu-item-row"
 import { itemHref, type MenuFilter } from "./menu-query"
@@ -25,20 +27,41 @@ export type LoadMenuItems = (input: {
   cursor: string
 }) => Promise<MenuPhotoResult<Page<ManagerMenuItem>>>
 
-type Group = { sectionId: string; name: string; items: ManagerMenuItem[] }
+type Group = {
+  /** A section id, or "needed" for the dishes with a date that lead (G-7). */
+  key: string
+  sectionId: string | null
+  name: string
+  items: ManagerMenuItem[]
+}
 
-/** Items in menu order, grouped by section (pages arrive in order). */
+/**
+ * Items in list order, grouped by section (pages arrive in order). Dishes
+ * with a "needed by" date lead the list, so they form one group of their own
+ * first, without a section count.
+ */
 function groupBySection(items: ManagerMenuItem[]): Group[] {
   const groups: Group[] = []
   for (const item of items) {
+    const key = item.neededBy ? "needed" : item.section.id
     const last = groups[groups.length - 1]
-    if (last && last.sectionId === item.section.id) last.items.push(item)
+    if (last && last.key === key) last.items.push(item)
     else
-      groups.push({
-        sectionId: item.section.id,
-        name: item.section.name,
-        items: [item],
-      })
+      groups.push(
+        item.neededBy
+          ? {
+              key,
+              sectionId: null,
+              name: NEEDED_BY_COPY.groupTitle,
+              items: [item],
+            }
+          : {
+              key,
+              sectionId: item.section.id,
+              name: item.section.name,
+              items: [item],
+            }
+      )
   }
   return groups
 }
@@ -115,13 +138,13 @@ export function MenuList({
   return (
     <div ref={listRef} className="grid gap-gutter">
       {groupBySection(items).map((group, index) => {
-        const total = totals.get(group.sectionId)
-        const headingId = `menu-section-${group.sectionId}-${index}`
+        const total = group.sectionId ? totals.get(group.sectionId) : null
+        const headingId = `menu-section-${group.key}-${index}`
         return (
           // One white card per section: its heading and count, then the
           // items split by hairlines (Common Room row list).
           <section
-            key={`${group.sectionId}-${index}`}
+            key={`${group.key}-${index}`}
             aria-labelledby={headingId}
             className="grid min-w-0 overflow-hidden rounded-card bg-surface shadow-card"
           >

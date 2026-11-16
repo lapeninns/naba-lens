@@ -10,6 +10,15 @@ const MAX_EVENT_ID = Number.MAX_SAFE_INTEGER
 const ISO_TIMESTAMP =
   /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}(:?\d{2})?)$/
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/** "YYYY-MM-DD" that is a real calendar date. */
+export function isIsoDate(v: unknown): v is string {
+  if (typeof v !== "string" || !ISO_DATE.test(v)) return false
+  const d = new Date(`${v}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v
+}
+
 const encode = (value: unknown[]) =>
   Buffer.from(JSON.stringify(value)).toString("base64url")
 
@@ -25,19 +34,34 @@ function decode(cursor: string): unknown[] | null {
   }
 }
 
-export type ItemsCursor = { section: number; entry: number; itemId: string }
+export type ItemsCursor = {
+  /** The last row's needed-by date (G-7), null for a dish without one. */
+  neededBy: string | null
+  section: number
+  entry: number
+  itemId: string
+}
 export type QueueCursor = { createdAt: string; key: string }
 export type EventsCursor = { before: number }
 
 export const itemsCursor = {
-  encode: (c: ItemsCursor) => encode([c.section, c.entry, c.itemId]),
+  encode: (c: ItemsCursor) =>
+    encode([c.neededBy, c.section, c.entry, c.itemId]),
   decode(cursor: string): ItemsCursor | null {
     const v = decode(cursor)
-    return v?.length === 3 &&
-      intInRange(v[0], 0, MAX_INT) &&
-      intInRange(v[1], 0, MAX_INT) &&
-      isUuid(v[2])
-      ? { section: v[0], entry: v[1], itemId: v[2] }
+    // A three-part cursor from before G-7 has no needed-by date.
+    const w = v?.length === 3 ? [null, ...v] : v
+    return w?.length === 4 &&
+      (w[0] === null || isIsoDate(w[0])) &&
+      intInRange(w[1], 0, MAX_INT) &&
+      intInRange(w[2], 0, MAX_INT) &&
+      isUuid(w[3])
+      ? {
+          neededBy: w[0] as string | null,
+          section: w[1] as number,
+          entry: w[2] as number,
+          itemId: w[3] as string,
+        }
       : null
   },
 }

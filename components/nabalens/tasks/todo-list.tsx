@@ -222,7 +222,7 @@ export function ReplaceCard({
       </div>
       {closed ? (
         <p className="text-meta text-ink-muted">
-          This task is no longer open to you, so no replacement is needed.
+          This job is no longer open to you, so no replacement is needed.
         </p>
       ) : canSubmit ? (
         <Link
@@ -356,7 +356,7 @@ function AmenityCard({
       <p className="text-body text-ink-muted">
         Evidence: {EVIDENCE_RULE_LABEL[first.entry.evidenceRule]}
         {more > 0
-          ? ` · ${more} more ${more === 1 ? "check" : "checks"} in All tasks`
+          ? ` · ${more} more ${more === 1 ? "check" : "checks"} in Other jobs`
           : null}
       </p>
       <Link
@@ -496,7 +496,7 @@ export function TodoSection({
   reviewError?: boolean
   /** The first-run screen for a new starter; null to leave it out. */
   welcomeHref?: string | null
-  /** All tasks (`/staff/tasks/all`); null to leave the link out. */
+  /** Other jobs (`/staff/tasks/other`); null to leave the link out. */
   allTasksHref?: string | null
 }) {
   const count = todoCount(items)
@@ -523,7 +523,7 @@ export function TodoSection({
             href={allTasksHref}
             className="inline-flex min-h-11 items-center text-body font-semibold text-accent-text underline underline-offset-3 focus-ring outline-none"
           >
-            All tasks
+            Other jobs
           </Link>
         ) : null}
       </div>

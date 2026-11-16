@@ -2,6 +2,11 @@ import "server-only"
 
 import { cache } from "react"
 
+import {
+  goalsHomeCards,
+  otherJobsCount,
+} from "@/components/nabalens/home/goals-home-model"
+import { homeRetakeNotes } from "@/components/nabalens/tasks/retake-notes-model"
 import { todoCount, todoItems } from "@/components/nabalens/tasks"
 import {
   nextActions,
@@ -18,7 +23,9 @@ import {
   getManagerReviewCount,
   getMyTasks,
   listMyMenuPhotoDecisions,
+  listMyRetakeNotes,
 } from "@/lib/server/coverage"
+import type { RetakeNote } from "@/lib/server/coverage/types"
 import { avatarUrl } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
 import type { LabelWork } from "@/lib/work-client/contract"
@@ -160,8 +167,26 @@ const retakesOf = cache(
   }
 )
 
-/** Better photos asked of me that I can take now; null when unread. */
+/** Better photos asked of me that I can take now; null when unread (B02). */
 export const myRetakes = (actor: MediaActor) => retakesOf(sharedActor(actor))
+
+const retakeNotesOf = cache(
+  async (actor: MediaActor): Promise<RetakeNote[] | null> => {
+    try {
+      const result = await listMyRetakeNotes(actor)
+      return result.ok ? result.notes : null
+    } catch {
+      return null
+    }
+  }
+)
+
+/**
+ * My retake notes (G-3), every status, read once per request for Home and
+ * its badge; null when unread.
+ */
+export const myRetakeNotes = (actor: MediaActor) =>
+  retakeNotesOf(sharedActor(actor))
 
 const entryOf = cache(
   async (actor: MediaActor, venueName: string): Promise<EntryMenu | null> => {
@@ -230,9 +255,11 @@ const managerStatus = (actor: MediaActor) => managerStatusOf(sharedActor(actor))
 export type StaffShellStatus = {
   canManage: boolean
   /**
-   * Home's To do count; none when the tasks, the checks, the working list or
-   * (for a manager) the photos to review can't be read: unknown, never a
-   * smaller number.
+   * The Home tab's badge. On goal-led Home, the number of actionable cards on
+   * Home (setup, the retake note, Other jobs, Photos to review), never
+   * dishes; on the B01/B02 rollback, To do's count. None when a read behind
+   * it fails (the tasks, the checks, the working list, the notes or, for a
+   * manager, the photos to review): unknown, never a smaller number.
    */
   todoCount: number | undefined
   /** The count above couldn't be read: the badge says so ("?"). */
@@ -252,7 +279,9 @@ export async function staffShellStatus(
   actor: MediaActor,
   profile: { id: string; avatarPath: string | null }
 ): Promise<StaffShellStatus> {
-  const b02 = homeLayout(actor.profile?.venueId) === "b02"
+  const layout = homeLayout(actor.profile?.venueId)
+  if (layout === "goals") return goalsShellStatus(actor, profile)
+  const b02 = layout === "b02"
   const [
     tasks,
     amenityTasks,
@@ -320,6 +349,80 @@ export async function staffShellStatus(
     reviewCount,
     avatarUrl: avatarUrl(profile.id, profile.avatarPath),
   }
+}
+
+/** The shell on goal-led Home: the badge counts Home's actionable cards. */
+async function goalsShellStatus(
+  actor: MediaActor,
+  profile: { id: string; avatarPath: string | null }
+): Promise<StaffShellStatus> {
+  const [
+    tasks,
+    amenityTasks,
+    { canManage, reviewCount },
+    workingList,
+    notes,
+    labels,
+    rechecks,
+  ] = await Promise.all([
+    myTasks(actor).catch(() => null),
+    myAmenityTasks(actor),
+    managerStatus(actor),
+    myWorkingList(actor),
+    myRetakeNotes(actor),
+    myLabelWork(actor),
+    myRechecks(actor),
+  ])
+  const view = tasks?.ok ? tasks.tasks : null
+  const known =
+    !!view &&
+    !!amenityTasks &&
+    (!canManage || reviewCount !== undefined) &&
+    workingList !== undefined &&
+    notes !== null &&
+    labels.status !== "failed" &&
+    rechecks !== null
+  const cards = view
+    ? goalsHomeCards({
+        setupComplete: view.scope.setup.complete,
+        notes: homeRetakeNotes(notes ?? []),
+        labels: hasLabelWork(labels),
+        otherJobs: otherJobsCount({
+          tasks: view,
+          amenityTasks,
+          slots: workingList?.slots ?? null,
+          rechecks,
+        }),
+        reviewCount: reviewCount ?? 0,
+      })
+    : null
+  return {
+    canManage,
+    todoUnknown: !known,
+    todoCount: known && cards ? cards.length : undefined,
+    reviewCount,
+    avatarUrl: avatarUrl(profile.id, profile.avatarPath),
+  }
+}
+
+const rechecksOf = cache(async (actor: MediaActor) => {
+  try {
+    const result = await knowledgeServices.listMyRechecks(actor)
+    return result.ok ? result.tasks : null
+  } catch {
+    return null
+  }
+})
+
+/** My open recheck tasks (B03-e), once per request; null when unread. */
+export const myRechecks = (actor: MediaActor) => rechecksOf(sharedActor(actor))
+
+/** Decision 19: Home shows a labels row (the person's own photo work). */
+export function hasLabelWork(labels: HomeLabels): boolean {
+  return (
+    labels.status === "ok" &&
+    (labels.work.needsLabels > 0 || labels.work.needsAttention > 0)
+  )
 }
 
 const NO_STATUS: StaffShellStatus = {

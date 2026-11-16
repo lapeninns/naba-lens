@@ -2,6 +2,10 @@
 // staff, venues or media. Shapes follow lib/server/coverage/types.ts and
 // lib/amenities/contract.ts; images are generated flat-colour SVGs.
 
+import type {
+  OurMenuGoal,
+  RetakeNote,
+} from "@/components/nabalens/home/goals-home-model"
 import type { OurMenuProgress } from "@/components/nabalens/home/our-menu-card"
 import type {
   CoveragePerson,
@@ -13,6 +17,7 @@ import type {
   SubmissionView,
 } from "@/components/nabalens/tasks"
 import type { MyAmenityTask } from "@/lib/amenities/contract"
+import type { OurMenuItem } from "@/lib/server/coverage/types"
 
 import { sampleImage } from "../fixtures"
 
@@ -351,3 +356,131 @@ export const HOME_PROFILE = {
   department: "foh" as const,
   hasAvatar: false,
 }
+
+// Goal-led Home (goals-not-tasks G-1): Our menu's Still needed dishes, the
+// retake note and the states the preview switches between (`?state=`).
+
+function dish(name: string, overrides: Partial<OurMenuItem> = {}): OurMenuItem {
+  return {
+    itemId: id("item"),
+    sectionId: "section-starters",
+    sectionName: "Starters",
+    sectionKind: "food",
+    name,
+    description: null,
+    variants: [],
+    covered: false,
+    acceptedCount: 0,
+    needsRecheck: false,
+    primary: null,
+    itemRevision: 1,
+    review: null,
+    myWaiting: 0,
+    reviewState: null,
+    ...overrides,
+  }
+}
+
+const STILL_NEEDED: OurMenuItem[] = [
+  dish("Onion bhaji"),
+  dish("Vegetable samosa", { reviewState: "waiting", myWaiting: 1 }),
+  dish("Chicken pakora", {
+    variants: [
+      { variantId: "v-half", name: "Half" },
+      { variantId: "v-full", name: "Full" },
+    ],
+  }),
+  dish("Paneer tikka", { needsRecheck: true, reviewState: "being_checked" }),
+]
+
+export const GOALS_STATES = [
+  "ready",
+  "retake",
+  "recheck",
+  "complete",
+  "no_menu",
+  "empty",
+  "unavailable",
+  "needs_setup",
+  "blocked",
+] as const
+
+export type GoalsPreviewState = (typeof GOALS_STATES)[number]
+
+export function goalsOurMenu(state: GoalsPreviewState): OurMenuGoal {
+  switch (state) {
+    case "complete":
+      return {
+        state: "ready",
+        covered: 40,
+        total: 40,
+        gaps: 0,
+        needsRecheck: 0,
+        stillNeeded: [],
+      }
+    case "recheck":
+      return {
+        state: "ready",
+        covered: 30,
+        total: 40,
+        gaps: 10,
+        needsRecheck: 3,
+        stillNeeded: STILL_NEEDED.slice(3).concat(STILL_NEEDED.slice(0, 3)),
+      }
+    case "no_menu":
+    case "empty":
+    case "unavailable":
+    case "needs_setup":
+      return { state }
+    default:
+      return {
+        state: "ready",
+        covered: 12,
+        total: 40,
+        gaps: 28,
+        needsRecheck: 1,
+        stillNeeded: STILL_NEEDED,
+      }
+  }
+}
+
+export const GOALS_RETAKE_NOTES: RetakeNote[] = [
+  {
+    kind: "menu",
+    noteId: "photo-korma",
+    revision: 1,
+    assetId: "asset-korma",
+    thumbnailUrl: NEEDS_ANOTHER.asset.thumbnailUrl,
+    status: "open",
+    canRetake: true,
+    reason: "The bowl is cut off. Shoot from above so the whole dish shows.",
+    askedBy: "TEST Riya Patel",
+    askedAt: "2026-11-12T10:00:00.000Z",
+    setAsideAt: null,
+    dish: {
+      itemId: "item-korma",
+      variantId: null,
+      itemName: "Lamb korma",
+      variantName: null,
+    },
+    requirement: null,
+  },
+  {
+    kind: "coverage",
+    noteId: MONTHLY_NEEDS_ANOTHER.id,
+    revision: 1,
+    assetId: "asset-monthly",
+    thumbnailUrl: MONTHLY_NEEDS_ANOTHER.asset.thumbnailUrl,
+    status: "open",
+    canRetake: true,
+    reason: "Too dark to see the plate. Try near the window.",
+    askedBy: "TEST Riya Patel",
+    askedAt: "2026-11-11T16:00:00.000Z",
+    setAsideAt: null,
+    dish: null,
+    requirement: null,
+  },
+]
+
+/** Decision 19: the person's own photos that need a dish label. */
+export const GOALS_LABEL_WORK = { needsLabels: 3, needsAttention: 1 }

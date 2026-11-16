@@ -9,7 +9,7 @@ export default function TasksError({ retry }: { retry: () => void }) {
     <div className="mx-auto grid w-full max-w-feed min-w-0 gap-gutter px-page-gutter py-4 md:px-0 md:py-8">
       <PageHeader title="Home" className="pb-1 md:pb-2" />
       <ErrorState
-        title="We couldn't load your tasks"
+        title="We couldn't load Home"
         action={
           <Button variant="secondary" size="sm" onClick={() => retry()}>
             Try again

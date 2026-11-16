@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation"
+
 import { AppShell } from "@/components/nabalens/app-shell"
 import { TaskPhotoGuide } from "@/components/nabalens/guide"
 import { Notice } from "@/components/nabalens/notice"
@@ -10,6 +12,7 @@ import {
   pickReplacement,
   ReplacementClosed,
   ReplacementNote,
+  SECTION_SEND_COPY,
   SubmissionList,
   submitBlockedCopy,
   TaskSummary,
@@ -24,6 +27,10 @@ import {
   getMyAssignment,
   listMySubmittablePhotos,
 } from "@/lib/server/coverage"
+import {
+  getMyRequirementRoute,
+  menuSectionHref,
+} from "@/lib/server/coverage/requirement-route"
 import { periodKeyOf } from "@/lib/server/coverage/time"
 
 import { staffShellStatus } from "../../_shell/shell-status"
@@ -63,6 +70,14 @@ export default async function TaskPage({
   const profile = await requireActiveStaff()
   const [{ requirementId }, search] = await Promise.all([params, searchParams])
   const { actor } = unwrap(await getCoverageActor())
+  const requested = typeof search.replaces === "string" ? search.replaces : null
+  // Menu work lives on Our menu (G-4, decision 15): a menu-section task is
+  // served only to answer an open "needs another photo" request.
+  const { route } = unwrap(
+    await getMyRequirementRoute(actor, { requirementId })
+  )
+  const menuSection = route.kind === "menu_section"
+  if (menuSection && !requested) redirect(menuSectionHref(route.menuSectionId))
   const [assignmentResult, scopeResult, photos, shell] = await Promise.all([
     getMyAssignment(actor, { requirementId }),
     getCoverageScope(actor),
@@ -71,14 +86,27 @@ export default async function TaskPage({
   ])
   const { assignment } = unwrap(assignmentResult)
   const { scope } = unwrap(scopeResult)
-  const requested = typeof search.replaces === "string" ? search.replaces : null
   const open = pickReplacement(
     openReplacementRequests(assignment.mySubmissions),
     requested
   )
+  if (menuSection && !open) redirect(menuSectionHref(route.menuSectionId))
   const replacing = assignment.canSubmit ? open : null
   const closedRequest = !assignment.canSubmit && requested ? open : null
   const currentPeriod = periodKeyOf(new Date())
+  const guide = showsDishGuide(assignment.requirement) ? (
+    <TaskPhotoGuide
+      photoTarget={assignment.requirement.photoTarget}
+      suggested={suggestedAngles(assignment.requirement.photoTarget)}
+    />
+  ) : null
+  // Menu work never says "task" on staff screens.
+  const mineCopy = menuSection
+    ? SECTION_SEND_COPY
+    : {
+        heading: "Your photos for this task",
+        empty: "You haven't sent photos for this task yet.",
+      }
   const back = backFrom(search.from, `${TASKS_PATH}/${requirementId}`)
 
   return (
@@ -102,22 +130,17 @@ export default async function TaskPage({
         ) : null}
         {closedRequest ? (
           <ReplacementClosed submission={closedRequest} homeHref={TASKS_PATH} />
+        ) : menuSection ? (
+          // No task post (title, due, Overdue) for menu work: the request
+          // above says what to retake, and the guide still helps.
+          guide
         ) : (
           <TaskSummary
             assignment={assignment}
             monthLabel={monthFormatter.format(new Date())}
             venueName={scope.venue?.name ?? null}
             sendHref={assignment.canSubmit ? "#send" : undefined}
-            guide={
-              showsDishGuide(assignment.requirement) ? (
-                <TaskPhotoGuide
-                  photoTarget={assignment.requirement.photoTarget}
-                  suggested={suggestedAngles(
-                    assignment.requirement.photoTarget
-                  )}
-                />
-              ) : null
-            }
+            guide={guide}
           />
         )}
 
@@ -158,13 +181,13 @@ export default async function TaskPage({
             id="mine-heading"
             className="px-1 pt-2 type-section-title text-ink"
           >
-            Your photos for this task
+            {mineCopy.heading}
           </h2>
           <SubmissionList
             variant="post"
-            label="Your photos for this task"
+            label={mineCopy.heading}
             submissions={assignment.mySubmissions}
-            empty="You haven't sent photos for this task yet."
+            empty={mineCopy.empty}
           />
         </section>
       </div>

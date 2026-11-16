@@ -102,6 +102,7 @@ export const TARGET_SOURCE_LABEL: CopyMap = {
   copied: "Copied from last month",
   placeholder: "Needs setup",
   admin_correction: "Corrected by an admin",
+  venue_default: "Venue default",
 }
 
 export const ASSET_REASON_LABEL: CopyMap = {

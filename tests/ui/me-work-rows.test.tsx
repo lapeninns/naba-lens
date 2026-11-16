@@ -53,7 +53,17 @@ type HostProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSaved?: (results: { ok: boolean; assetId: string }[]) => void
+  onAreaSaved?: (assetIds: string[], subjectId: string | null) => void
 }
+const areas = vi.hoisted(() => ({ ids: [] as string[] }))
+vi.mock("@/lib/server/area-photos", () => ({
+  getMyAreaLabels: async (_actor: unknown, ids: string[]) => ({
+    ok: true,
+    labels: ids
+      .filter((id) => areas.ids.includes(id))
+      .map((assetId) => ({ assetId })),
+  }),
+}))
 const host = vi.hoisted(() => ({ last: null as HostProps | null }))
 vi.mock("@/app/_labels/label-editor-host", () => ({
   LabelEditorHost: (props: HostProps) => {
@@ -120,6 +130,33 @@ function item(id: string, overrides: Partial<MediaItem> = {}): MediaItem {
 }
 const LABELLED = { ...EMPTY_LABEL_SUMMARY, hasLabels: true, revision: 1 }
 
+const NOW = "2026-11-07T09:00:00.000Z"
+const DISH = {
+  itemId: "i2",
+  variantId: null,
+  itemName: "Chicken curry",
+  variantName: null,
+}
+/** A retake note as my_retake_notes returns it (G-3). */
+function note(overrides: Partial<RetakeNote> = {}): RetakeNote {
+  return {
+    kind: "menu",
+    noteId: "p2",
+    revision: 1,
+    assetId: "b1",
+    thumbnailUrl: "https://storage.test/b1.webp",
+    status: "open",
+    canRetake: true,
+    reason: "Too dark",
+    askedBy: "TEST Chef",
+    askedAt: "2026-11-06T12:00:00.000Z",
+    setAsideAt: null,
+    dish: DISH,
+    requirement: null,
+    ...overrides,
+  }
+}
+
 const library = vi.hoisted(() => ({
   items: [] as MediaItem[],
   byId: [] as MediaItem[],
@@ -141,6 +178,7 @@ const coverage = vi.hoisted(() => ({
   getManagerReviewCount: vi.fn(),
   getMyTasks: vi.fn(),
   listMyMenuPhotoDecisions: vi.fn(),
+  listMyRetakeNotes: vi.fn(),
 }))
 vi.mock("@/lib/server/coverage", () => coverage)
 // No working list at this venue: the legacy screens, counts and badge.
@@ -153,8 +191,8 @@ vi.mock("@/lib/server/amenities", () => ({
   getMyAmenityTasks: vi.fn(async () => ({ ok: true, tasks: [] })),
 }))
 
+import type { RetakeNote } from "@/lib/server/coverage/types"
 import {
-  betterPhotoRequests,
   photoMilestone,
   photosNeedingLabels,
   PROFILE_SAVE_COPY,
@@ -220,6 +258,7 @@ describe("Me: work details and the guide", () => {
     library.items = [item("a1")]
     coverage.getMyTasks.mockRejectedValueOnce(new Error("down"))
     coverage.listMyMenuPhotoDecisions.mockRejectedValueOnce(new Error("down"))
+    coverage.listMyRetakeNotes.mockRejectedValueOnce(new Error("down"))
     const { container } = render(await StaffPage())
     expect((container.firstElementChild as HTMLElement).dataset.todo).toBe("")
     expect(
@@ -305,6 +344,37 @@ describe("Me: Needs labels and milestones", () => {
     expect(gallery.signals.at(-1)).toBe((before ?? 0) + 1)
   })
 
+  it("leaves photos with a venue area out, and follows area saves (S-1, note 7)", async () => {
+    library.items = [item("a1"), item("a2"), item("a3")]
+    areas.ids = ["a3"]
+    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+      ok: true,
+      states: [],
+    })
+    try {
+      render(await StaffPage())
+      const section = screen.getByRole("region", { name: /Needs labels/ })
+      // a3 has the uploader's area: labelled.
+      fireEvent.click(
+        within(section).getByRole("button", { name: "Label these 2 photos" })
+      )
+      expect(screen.getByRole("dialog", { name: "Labels" }).textContent).toBe(
+        "a1,a2"
+      )
+      // An area-only save takes a1 out at once; clearing a3's brings it back.
+      act(() => host.last?.onAreaSaved?.(["a1"], "place-bar"))
+      expect(
+        within(section).getByRole("button", { name: "Label this photo" })
+      ).toBeTruthy()
+      act(() => host.last?.onAreaSaved?.(["a3"], null))
+      expect(
+        within(section).getByRole("button", { name: "Label these 2 photos" })
+      ).toBeTruthy()
+    } finally {
+      areas.ids = []
+    }
+  })
+
   it("says files, not photos, when videos need labels too", async () => {
     const video = (id: string) =>
       item(id, { mediaType: "video", mimeType: "video/mp4" })
@@ -367,85 +437,58 @@ describe("Me: Needs labels and milestones", () => {
     expect(gallery.readEvidence).toBeTypeOf("function")
   })
 
-  it("shows a better photo request with the reviewer's reason", async () => {
+  it("shows a retake note with the reviewer's reason, read on the server", async () => {
     library.items = []
-    library.byId = [item("b1", { labels: LABELLED })]
-    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+    coverage.listMyRetakeNotes.mockResolvedValueOnce({
       ok: true,
-      states: [
-        {
-          photoId: "p2",
-          assetId: "b1",
-          itemId: "i2",
-          itemName: "Chicken curry",
-          variantId: null,
-          variantName: null,
-          state: "better_photo_requested",
-          isPrimary: false,
-          reason: "Too dark, shoot near the pass",
-        },
-      ],
+      notes: [note({ reason: "Too dark, shoot near the pass" })],
     })
     render(await StaffPage())
-    const tiles = within(
-      screen.getByRole("list", {
-        name: "Photos with a better photo requested",
-      })
+    const rows = within(
+      screen.getByRole("list", { name: "Photos that need another photo" })
     ).getAllByRole("listitem")
-    expect(tiles).toHaveLength(1)
-    expect(tiles[0].textContent).toContain("Better photo requested")
+    expect(rows).toHaveLength(1)
+    expect(rows[0].textContent).toContain("Needs another photo")
     const row = screen.getByRole("article", { name: "Chicken curry" })
     expect(row.textContent).toContain("Too dark, shoot near the pass")
+    expect(row.textContent).toContain("TEST Chef")
+    expect(row.textContent).not.toMatch(/better photo|task|due|overdue/i)
+    // The old browser-side rule read the decisions list; no longer.
     expect(
       screen.queryByRole("list", { name: "Photos accepted for menu use" })
     ).toBeNull()
   })
 
-  it("takes the replacement photo of a better-photo request in one tap, labelled with that dish", async () => {
+  it("reshoots a menu note in one tap, labelled with that dish, or from photos", async () => {
     library.items = []
-    library.byId = [
-      item("b1", { labels: LABELLED }),
-      item("b2", { labels: LABELLED }),
-    ]
-    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+    coverage.listMyRetakeNotes.mockResolvedValueOnce({
       ok: true,
-      states: [
-        {
-          photoId: "p2",
-          assetId: "b1",
-          itemId: "i2",
-          itemName: "Chicken curry",
-          variantId: null,
-          variantName: null,
-          state: "better_photo_requested",
-          isPrimary: false,
-          reason: "Too dark, shoot near the pass",
-        },
-        {
-          photoId: "p3",
+      notes: [
+        note(),
+        note({
+          noteId: "p3",
           assetId: "b2",
-          itemId: "i3",
-          itemName: "Momo",
-          variantId: "v-veg",
-          variantName: "Veg",
-          state: "better_photo_requested",
-          isPrimary: false,
+          dish: {
+            itemId: "i3",
+            variantId: "v-veg",
+            itemName: "Momo",
+            variantName: "Veg",
+          },
           reason: "Show all ten",
-        },
+        }),
       ],
     })
     const openAdd = vi.fn()
     render(<AddProvider value={{ openAdd }}>{await StaffPage()}</AddProvider>)
     const heading = screen.getByRole("heading", {
       level: 2,
-      name: /Better photo requested/,
+      name: /Needs another photo/,
     })
     expect(within(heading).getByText("2")).toBeTruthy()
 
     const momo = screen.getByRole("article", { name: "Momo (Veg)" })
-    expect(momo.textContent).toContain("Show all ten")
     fireEvent.click(
-      within(momo).getByRole("button", { name: "Take a new photo" })
+      within(momo).getByRole("button", { name: "Reshoot: Momo (Veg)" })
     )
     expect(openAdd).toHaveBeenLastCalledWith({
       source: "camera",
@@ -457,10 +500,11 @@ describe("Me: Needs labels and milestones", () => {
         variantName: "Veg",
       },
     })
-
     const curry = screen.getByRole("article", { name: "Chicken curry" })
     fireEvent.click(
-      within(curry).getByRole("button", { name: "Choose from photos" })
+      within(curry).getByRole("button", {
+        name: "Choose from photos: Chicken curry",
+      })
     )
     expect(openAdd).toHaveBeenLastCalledWith({
       source: "library",
@@ -472,106 +516,22 @@ describe("Me: Needs labels and milestones", () => {
         variantName: null,
       },
     })
-    expect(openAdd).toHaveBeenCalledTimes(2)
+    // Me has no Later: set-aside notes stay here.
+    expect(screen.queryByRole("button", { name: /^Later/ })).toBeNull()
   })
 
-  it("treats only a newer photo, never a video, as the retake", () => {
-    const momo = {
-      ...LABELLED,
-      items: [
-        {
-          itemId: "i3",
-          variantId: "v-Veg",
-          name: "Momo",
-          variantName: "Veg",
-          sectionName: "Starters",
-          labelledAs: null,
-          state: "current" as const,
-        },
-      ],
-    }
-    const later = "2026-11-07T09:00:00.000Z"
-    const request = {
-      photoId: "p1",
-      assetId: "b1",
-      itemId: "i3",
-      itemName: "Momo",
-      variantId: "v-Veg",
-      variantName: "Veg",
-      state: "better_photo_requested" as const,
-      isPrimary: false,
-      reason: "Brighter",
-    }
-    const old = item("b1", { labels: momo })
-    const video = item("n1", {
-      mediaType: "video",
-      mimeType: "video/mp4",
-      createdAt: later,
-      labels: momo,
-    })
-    const photo = item("n2", { createdAt: later, labels: momo })
-
-    // A labelled video can never be reviewed for the dish: still to retake.
-    expect(
-      betterPhotoRequests([request], [old], [old, video]).map((r) => r.sent)
-    ).toEqual([false])
-    // Nor does an accepted decision on a video close the request.
-    expect(
-      betterPhotoRequests(
-        [
-          request,
-          { ...request, photoId: "p2", assetId: "n1", state: "accepted" },
-        ],
-        [old],
-        [old, video]
-      ).map((r) => r.sent)
-    ).toEqual([false])
-    // A labelled newer photo is the retake, waiting for review.
-    expect(
-      betterPhotoRequests([request], [old], [old, video, photo]).map(
-        (r) => r.sent
-      )
-    ).toEqual([true])
-  })
-
-  it("keeps Take a new photo on Me when the newer upload of the dish is a video", async () => {
-    const momo = {
-      ...LABELLED,
-      items: [
-        {
-          itemId: "i3",
-          variantId: null,
-          name: "Momo",
-          variantName: null,
-          sectionName: "Starters",
-          labelledAs: null,
-          state: "current" as const,
-        },
-      ],
-    }
-    library.items = [
-      item("n1", {
-        mediaType: "video",
-        mimeType: "video/mp4",
-        createdAt: "2026-11-07T09:00:00.000Z",
-        labels: momo,
-      }),
-    ]
-    library.byId = [item("b1", { labels: momo })]
-    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+  it("links coverage requests to their send page, for the month and for a job", async () => {
+    library.items = []
+    coverage.listMyRetakeNotes.mockResolvedValueOnce({
       ok: true,
-      states: [
-        {
-          photoId: "p1",
-          assetId: "b1",
-          itemId: "i3",
-          itemName: "Momo",
-          variantId: null,
-          variantName: null,
-          state: "better_photo_requested",
-          isPrimary: false,
-          reason: "Brighter",
-        },
+      notes: [
+        note({ kind: "coverage", noteId: "c1", dish: null }),
+        note({
+          kind: "coverage",
+          noteId: "c2",
+          dish: null,
+          requirement: { id: "r1", title: "Bar set-up", kind: "service" },
+        }),
       ],
     })
     render(
@@ -579,158 +539,91 @@ describe("Me: Needs labels and milestones", () => {
         {await StaffPage()}
       </AddProvider>
     )
-    const row = screen.getByRole("article", { name: "Momo" })
-    expect(row.textContent).not.toContain("New photo sent")
+    const month = screen.getByRole("article", { name: "Photo for your month" })
     expect(
-      within(row).getByRole("button", { name: "Take a new photo" })
-    ).toBeTruthy()
+      within(month)
+        .getByRole("link", { name: "Reshoot: Photo for your month" })
+        .getAttribute("href")
+    ).toBe("/staff/tasks/month?replaces=c1")
+    const bar = screen.getByRole("article", { name: "Bar set-up" })
+    expect(
+      within(bar)
+        .getByRole("link", { name: "Reshoot: Bar set-up" })
+        .getAttribute("href")
+    ).toBe("/staff/tasks/r1?replaces=c2")
   })
-  it("says a retake was sent, and drops the request once the retake is accepted", async () => {
-    const labelled = (itemId: string, name: string, variant?: string) => ({
-      ...LABELLED,
-      items: [
-        {
-          itemId,
-          variantId: variant ? `v-${variant}` : null,
-          name,
-          variantName: variant ?? null,
-          sectionName: "Starters",
-          labelledAs: null,
-          state: "current" as const,
-        },
-      ],
-    })
-    const later = "2026-11-07T09:00:00.000Z"
-    const request = (
-      photoId: string,
-      assetId: string,
-      itemId: string,
-      itemName: string,
-      variant: string | null
-    ) => ({
-      photoId,
-      assetId,
-      itemId,
-      itemName,
-      variantId: variant ? `v-${variant}` : null,
-      variantName: variant,
-      state: "better_photo_requested" as const,
-      isPrimary: false,
-      reason: "Brighter",
-    })
-    // n1: a newer Momo (Veg) retake on the newest page, no decision yet.
-    // n2: a newer Chicken curry retake, accepted.
-    // n3: a newer Momo (Chicken): another variant, so not a retake of Veg.
-    library.items = [
-      item("n1", { createdAt: later, labels: labelled("i3", "Momo", "Veg") }),
-      item("n3", {
-        createdAt: later,
-        labels: labelled("i3", "Momo", "Chicken"),
-      }),
-    ]
-    library.byId = [
-      item("b1", { labels: labelled("i3", "Momo", "Veg") }),
-      item("b2", { labels: labelled("i2", "Chicken curry") }),
-      item("n2", {
-        createdAt: later,
-        labels: labelled("i2", "Chicken curry"),
-      }),
-      item("b4", { labels: labelled("i4", "Soup") }),
-    ]
-    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+
+  it("keeps set-aside and retaken notes, drops cleared ones, and counts only those still to take", async () => {
+    library.items = []
+    coverage.listMyRetakeNotes.mockResolvedValueOnce({
       ok: true,
-      states: [
-        request("p1", "b1", "i3", "Momo", "Veg"),
-        request("p2", "b2", "i2", "Chicken curry", null),
-        {
-          ...request("p3", "n2", "i2", "Chicken curry", null),
-          state: "accepted" as const,
-          reason: null,
-        },
-        request("p4", "b4", "i4", "Soup", null),
+      notes: [
+        note({ noteId: "p1", status: "set_aside", setAsideAt: NOW }),
+        note({
+          noteId: "p2",
+          status: "retaken",
+          dish: { ...DISH, itemId: "i4", itemName: "Soup" },
+        }),
+        note({
+          noteId: "p3",
+          status: "cleared",
+          canRetake: false,
+          dish: { ...DISH, itemId: "i5", itemName: "Dal" },
+        }),
       ],
     })
     const openAdd = vi.fn()
     render(<AddProvider value={{ openAdd }}>{await StaffPage()}</AddProvider>)
-
     const list = screen.getByRole("list", {
-      name: "Photos with a better photo requested",
+      name: "Photos that need another photo",
     })
     expect(
       within(list)
         .getAllByRole("article")
         .map((a) => a.querySelector("h3")?.textContent)
-    ).toEqual(["Momo (Veg)", "Soup"])
-    // Only Soup still needs a photo.
+    ).toEqual(["Chicken curry", "Soup"])
     const heading = screen.getByRole("heading", {
       level: 2,
-      name: /Better photo requested/,
+      name: /Needs another photo/,
     })
     expect(within(heading).getByText("1")).toBeTruthy()
 
-    const momo = within(list).getByRole("article", { name: "Momo (Veg)" })
-    expect(momo.textContent).toContain(
-      "New photo sent · waiting for manager review"
-    )
+    const aside = within(list).getByRole("article", { name: "Chicken curry" })
+    expect(aside.textContent).toContain("Set aside for later")
     expect(
-      within(momo).queryByRole("button", { name: "Take a new photo" })
-    ).toBeNull()
-    expect(
-      within(momo).queryByRole("button", { name: "Choose from photos" })
-    ).toBeNull()
-    const again = within(momo).getByRole("button", { name: "Take another" })
-    expect(again.className).toContain("min-h-13")
-    fireEvent.click(again)
-    expect(openAdd).toHaveBeenLastCalledWith({
-      source: "camera",
-      imagesOnly: true,
-      preset: {
-        itemId: "i3",
-        variantId: "v-Veg",
-        itemName: "Momo",
-        variantName: "Veg",
-      },
-    })
+      within(aside).getByRole("button", { name: "Reshoot: Chicken curry" })
+    ).toBeTruthy()
 
     const soup = within(list).getByRole("article", { name: "Soup" })
-    expect(soup.textContent).not.toContain("New photo sent")
+    expect(soup.textContent).toContain("New photo sent · waiting for review")
     expect(
-      within(soup).getByRole("button", { name: "Take a new photo" })
-    ).toBeTruthy()
+      within(soup).queryByRole("button", { name: /^Choose from photos/ })
+    ).toBeNull()
+    fireEvent.click(
+      within(soup).getByRole("button", { name: "Take another: Soup" })
+    )
+    expect(openAdd).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "camera" })
+    )
   })
-  it("offers no retake for a request whose dish is off the current menu, and leaves it out of the count (B9)", async () => {
+
+  it("offers no retake for a dish off the menu or a job no longer open, and leaves them out of the count", async () => {
     library.items = []
-    library.byId = [
-      item("b1", { labels: LABELLED }),
-      item("b2", { labels: LABELLED }),
-    ]
-    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+    coverage.listMyRetakeNotes.mockResolvedValueOnce({
       ok: true,
-      states: [
-        {
-          photoId: "p1",
-          assetId: "b1",
-          itemId: "i1",
-          itemName: "Soup",
-          variantId: null,
-          variantName: null,
-          state: "better_photo_requested",
-          isPrimary: false,
-          reason: "Brighter",
-          canRetake: true,
-        },
-        {
-          photoId: "p2",
-          assetId: "b2",
-          itemId: "i2",
-          itemName: "Old special",
-          variantId: null,
-          variantName: null,
-          state: "better_photo_requested",
-          isPrimary: false,
-          reason: "Closer",
+      notes: [
+        note({ noteId: "p1", canRetake: false }),
+        note({
+          kind: "coverage",
+          noteId: "c1",
+          dish: null,
           canRetake: false,
-        },
+          requirement: { id: "r1", title: "Bar set-up", kind: "service" },
+        }),
+        note({
+          noteId: "p2",
+          dish: { ...DISH, itemId: "i4", itemName: "Soup" },
+        }),
       ],
     })
     render(
@@ -740,68 +633,20 @@ describe("Me: Needs labels and milestones", () => {
     )
     const heading = screen.getByRole("heading", {
       level: 2,
-      name: /Better photo requested/,
+      name: /Needs another photo/,
     })
     expect(within(heading).getByText("1")).toBeTruthy()
-    const gone = screen.getByRole("article", { name: "Old special" })
+    const gone = screen.getByRole("article", { name: "Chicken curry" })
     expect(gone.textContent).toContain(
       "This dish isn't on your venue's menu now, so a new photo can't be sent for it."
     )
     expect(within(gone).queryByRole("button")).toBeNull()
-    const soup = screen.getByRole("article", { name: "Soup" })
-    expect(
-      within(soup).getByRole("button", { name: "Take a new photo" })
-    ).toBeTruthy()
+    const closed = screen.getByRole("article", { name: "Bar set-up" })
+    expect(closed.textContent).toContain("no longer open to you")
+    expect(within(closed).queryByRole("link")).toBeNull()
   })
-  it("doesn't say a retake was sent for a dish that left the menu (A4)", async () => {
-    const soup = {
-      ...LABELLED,
-      items: [
-        {
-          itemId: "i1",
-          variantId: null,
-          name: "Soup",
-          variantName: null,
-          sectionName: "Starters",
-          labelledAs: null,
-          state: "current" as const,
-        },
-      ],
-    }
-    library.items = [
-      item("n1", { createdAt: "2026-11-07T09:00:00.000Z", labels: soup }),
-    ]
-    library.byId = [item("b1", { labels: soup })]
-    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
-      ok: true,
-      states: [
-        {
-          photoId: "p1",
-          assetId: "b1",
-          itemId: "i1",
-          itemName: "Soup",
-          variantId: null,
-          variantName: null,
-          state: "better_photo_requested",
-          isPrimary: false,
-          reason: "Brighter",
-          canRetake: false,
-        },
-      ],
-    })
-    render(
-      <AddProvider value={{ openAdd: vi.fn() }}>
-        {await StaffPage()}
-      </AddProvider>
-    )
-    const row = screen.getByRole("article", { name: "Soup" })
-    expect(row.textContent).toContain(
-      "This dish isn't on your venue's menu now, so a new photo can't be sent for it."
-    )
-    expect(row.textContent).not.toContain("New photo sent")
-    expect(within(row).queryByRole("button")).toBeNull()
-  })
-  it("offers no camera on a better-photo request while uploads are paused", () => {
+
+  it("offers no camera and no send link while uploads are paused", () => {
     const openAdd = vi.fn()
     render(
       <AddProvider value={{ openAdd }}>
@@ -814,51 +659,20 @@ describe("Me: Needs labels and milestones", () => {
           }}
           uploadBlocked="Uploads are paused until you have a venue."
           initialPage={{ items: [], nextCursor: null }}
-          menuPhotos={[
-            {
-              photoId: "p2",
-              assetId: "b1",
-              itemId: "i2",
-              itemName: "Chicken curry",
-              variantId: null,
-              variantName: null,
-              state: "better_photo_requested",
-              isPrimary: false,
-              reason: "Too dark",
-            },
+          retakeNotes={[
+            note(),
+            note({ kind: "coverage", noteId: "c1", dish: null }),
           ]}
-          menuPhotoItems={[item("b1", { labels: LABELLED })]}
         />
       </AddProvider>
     )
     const row = screen.getByRole("article", { name: "Chicken curry" })
     expect(within(row).queryByRole("button")).toBeNull()
+    const month = screen.getByRole("article", { name: "Photo for your month" })
+    expect(within(month).queryByRole("link")).toBeNull()
     expect(
       screen.getByText("Uploads are paused until you have a venue.")
     ).toBeTruthy()
-  })
-
-  it("lists a better-photo request only once its photo is ready", () => {
-    const state = {
-      photoId: "p1",
-      assetId: "a1",
-      itemId: "i1",
-      itemName: "Soup",
-      variantId: null,
-      variantName: null,
-      state: "better_photo_requested" as const,
-      isPrimary: false,
-      reason: "Brighter",
-    }
-    expect(
-      betterPhotoRequests(
-        [state, { ...state, photoId: "p0", state: "accepted" as const }],
-        [item("a1", { labels: LABELLED })]
-      ).map((r) => [r.key, r.dish, r.reason])
-    ).toEqual([["p1", "Soup", "Brighter"]])
-    expect(
-      betterPhotoRequests([state], [item("a1", { uploadState: "processing" })])
-    ).toEqual([])
   })
 
   it("words each photo's milestone", () => {

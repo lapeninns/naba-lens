@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { ItemDetail } from "@/components/nabalens/manager/menu/item-detail"
+import { NeededByControl } from "@/components/nabalens/manager/menu/needed-by-control"
 import { ItemWaiting } from "@/components/nabalens/manager/menu/item-waiting"
 import { ItemWaitingReview } from "@/components/nabalens/manager/menu/item-waiting-review"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
@@ -15,9 +16,15 @@ import {
   getManagerItem,
   getManagerPhotoCtx,
   listItemEvents,
+  neededByBounds,
 } from "@/lib/server/menu-photos"
 
-import { decideMenuPhotoAction, loadItemEventsAction } from "../../actions"
+import {
+  clearMenuItemNeededByAction,
+  decideMenuPhotoAction,
+  loadItemEventsAction,
+  setMenuItemNeededByAction,
+} from "../../actions"
 import { failedRead } from "../../load-overview"
 
 export const metadata = { title: "Menu item" }
@@ -69,6 +76,19 @@ export default async function ManagerMenuItemPage({
             : null
         }
         loadEvents={loadItemEventsAction}
+        neededBy={
+          <NeededByControl
+            item={{
+              itemId: detail.item.itemId,
+              name: detail.item.name,
+              covered: detail.item.status === "covered",
+              neededBy: detail.item.neededBy ?? null,
+            }}
+            {...neededByBounds()}
+            setAction={setMenuItemNeededByAction}
+            clearAction={clearMenuItemNeededByAction}
+          />
+        }
         waiting={
           detail.waiting.items.length > 0 ? (
             <ItemWaitingReview

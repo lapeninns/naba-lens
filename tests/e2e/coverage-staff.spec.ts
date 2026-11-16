@@ -11,6 +11,7 @@ import {
 
 import { signIn, type Db } from "../support/identities"
 import {
+  assignBeforeCutOver,
   legacyStaffGrant,
   provisionCoverageWorld,
   type CoverageWorld,
@@ -161,12 +162,9 @@ async function menuSectionSetup(w: CoverageWorld, manager: Db) {
       })
     )
   }
-  await ok(
-    manager.rpc("set_coverage_requirement_assignees", {
-      p_requirement_id: starters,
-      p_staff_ids: [w.staffA.id],
-    })
-  )
+  // G-8: sections take no assignee now; Starters' assignment is history from
+  // before the cut-over (the send and replacement paths still honour it).
+  assignBeforeCutOver(starters, w.venue1.id, [w.staffA.id], w.manager.id)
   await ok(
     manager.rpc("confirm_menu_coverage_plan", {
       p_plan_id: planId,
@@ -327,9 +325,9 @@ async function staffJourney(
   setup: Setup,
   browser: Browser
 ) {
-  // "This month" exactly: "Other tasks this month" is a region too, and its
-  // task card shows the same "N of 2 photos accepted" as an img.
-  const monthly = page.getByRole("region", { name: "This month", exact: true })
+  // Goal-led Home (goals-not-tasks G-1): Your month on Home; the
+  // venue-specific job is one Other jobs row away, in the list page.
+  const monthly = page.getByRole("region", { name: "Your month", exact: true })
   const monthProgress = (accepted: number) =>
     monthly.getByRole("progressbar", {
       name: `${accepted} of 2 photos accepted`,
@@ -340,10 +338,12 @@ async function staffJourney(
     has: page.getByRole("link", { name: setup.title, exact: true }),
   })
 
-  // Landing: Home with the month's target and the assigned task.
+  // Landing: Home with the month's target; the job is in Other jobs.
   await expect(page).toHaveURL(STAFF_LANDING)
   await expect(page.getByRole("heading", { name: "Home" })).toBeVisible()
   await expect(monthProgress(0)).toBeVisible()
+  await page.getByRole("link", { name: /^Other jobs/ }).click()
+  await expect(page).toHaveURL(/\/staff\/tasks\/other$/)
   await expect(assigned.getByRole("link", { name: setup.title })).toBeVisible()
   await expect(
     taskCard.getByRole("img", { name: "0 of 2 photos accepted", exact: true })
@@ -398,10 +398,13 @@ async function staffJourney(
 
   await page.goto("/staff/tasks")
   await expect(monthProgress(1)).toBeVisible()
-  const replacements = page.getByRole("region", { name: /To do/ })
+  // The retake note on Home, with Reshoot as the one main action.
+  const replacements = page.getByRole("region", {
+    name: "Needs another photo",
+  })
   await expect(replacements.getByText(reason)).toBeVisible()
   await replacements
-    .getByRole("link", { name: `Send another photo for ${setup.title}` })
+    .getByRole("link", { name: `Reshoot: ${setup.title}` })
     .click()
   await expect(page).toHaveURL(
     new RegExp(`/staff/tasks/${setup.requirementId}\\?replaces=${sent[1]!.id}$`)
@@ -421,16 +424,13 @@ async function staffJourney(
   })
   await review(setup.manager, replacement, "accepted")
 
-  // Done: target met, task complete, nothing left to replace.
+  // Done: target met, nothing left to replace, the job complete in its list.
   await page.goto("/staff/tasks")
   await expect(monthProgress(2)).toBeVisible()
   await expect(monthly.getByText("Target met")).toBeVisible()
+  await expect(page.getByRole("link", { name: /^Reshoot / })).toHaveCount(0)
+  await page.goto("/staff/tasks/other")
   await expect(taskCard).toContainText("Complete")
-  await expect(
-    page
-      .getByRole("region", { name: /To do/ })
-      .getByRole("link", { name: /Send another photo/ })
-  ).toHaveCount(0)
 }
 
 test.describe("coverage: staff tasks journey (WS5)", () => {
@@ -466,7 +466,7 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     await expect(setupList).toContainText("Team (FOH or BOH)")
     await expect(setupList).toContainText("Ask an admin to set your team.")
     const monthly = page.getByRole("region", {
-      name: "This month",
+      name: "Your month",
       exact: true,
     })
     await expect(monthly).toBeVisible()
@@ -474,39 +474,37 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     await expect(page.getByText("Needs setup").first()).toBeVisible()
   })
 
-  test("photo guide: a food menu task teaches the four angles; other tasks do not (phone)", async ({
+  test("photo guide: a menu-section task goes to Our menu; the guide teaches the four angles (phone)", async ({
     browser,
     request,
   }) => {
     const w = await provisionCoverageWorld()
     const setup = await managerSetup(w)
     const startersId = await menuSectionSetup(w, setup.manager)
+    const sectionId = psql(
+      `select menu_section_id from public.coverage_requirements where id = '${startersId}'::uuid`
+    )
     const page = await signedInPage(browser, w.staffA, devices["Pixel 7"])
 
+    // G-4: menu work is on Our menu. With no open "needs another photo"
+    // request, the section's task link ends on its Still needed dishes
+    // (a soft redirect through loading.tsx).
     await page.goto(`/staff/tasks/${startersId}`)
+    await expect(page).toHaveURL(
+      new RegExp(`/staff/menu\\?section=${sectionId}&filter=gaps$`)
+    )
     await expect(
-      page.getByRole("heading", { level: 1, name: "Starters" })
+      page.getByRole("heading", { level: 1, name: "Our menu" })
     ).toBeVisible()
-    const guide = page.getByRole("region", { name: "How to photograph it" })
-    await expect(guide).toBeVisible()
-    await expect(
-      guide.getByText(
-        "This section needs 2 photos. Start with the marked angles."
-      )
-    ).toBeVisible()
-    await expect(guide.getByText("Suggested", { exact: true })).toHaveCount(2)
-    // Between "What to photograph" and "On this section".
-    const headings = await page
-      .getByRole("heading", { level: 2 })
-      .allTextContents()
-    const at = (name: string) => headings.indexOf(name)
-    expect(at("What to photograph")).toBeGreaterThanOrEqual(0)
-    expect(at("How to photograph it")).toBe(at("What to photograph") + 1)
-    expect(at("On this section")).toBe(at("How to photograph it") + 1)
+    await page.goto(`/staff/tasks/${startersId}?replaces=${randomUUID()}`)
+    await expect(page).toHaveURL(
+      new RegExp(`/staff/menu\\?section=${sectionId}&filter=gaps$`)
+    )
 
-    // The example loads as a static file, then opens full screen.
-    const tile = guide.getByRole("button", {
-      name: "45° angle, suggested. Open example",
+    // The full guide: the examples open full screen, no angle marked.
+    await page.goto("/staff/tasks/guide")
+    const tile = page.getByRole("button", {
+      name: "45° angle. Open example",
     })
     await tile.scrollIntoViewIfNeeded()
     await expect
@@ -538,8 +536,6 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(tile).toBeFocused()
 
-    // The full guide: checklist, safety note, no angle marked.
-    await guide.getByRole("link", { name: "See the full photo guide" }).click()
     await expect(page).toHaveURL(/\/staff\/tasks\/guide$/)
     await expect(
       page.getByRole("heading", { level: 1, name: "Photo guide" })

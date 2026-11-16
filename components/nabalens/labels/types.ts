@@ -1,3 +1,5 @@
+import type * as React from "react"
+
 import type { WorkFocus } from "@/lib/config/work-roles"
 import type {
   LabelCatalogue,
@@ -75,6 +77,8 @@ export type LabelEditorDialogProps = {
    * Omitted: every file. Other files of the batch never get it.
    */
   presetAssetIds?: readonly string[]
+  /** Shown under the labels, above Save (G-9: the venue-area choice). */
+  extra?: React.ReactNode
   /** Resolve with one result per input, matched by assetId. */
   onSave: (inputs: SaveLabelsInput[]) => Promise<SaveLabelsResult[]>
 }

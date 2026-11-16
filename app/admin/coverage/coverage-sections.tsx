@@ -11,7 +11,11 @@ import {
 import { periodKeyLabel } from "@/components/nabalens/coverage/copy"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { buttonVariants } from "@/components/ui/button"
-import type { GroupOverviewRow, PeriodKey } from "@/lib/server/coverage/types"
+import type {
+  GroupOverviewRow,
+  OurMenuTotals,
+  PeriodKey,
+} from "@/lib/server/coverage/types"
 import { shiftPeriod } from "@/lib/server/coverage/time"
 import { cn } from "@/lib/utils"
 
@@ -140,6 +144,12 @@ function TallyItem({
 const sum = (rows: GroupOverviewRow[], pick: (r: GroupOverviewRow) => number) =>
   rows.reduce((n, r) => n + pick(r), 0)
 
+/**
+ * Our menu per venue (this month only): dishes and drinks on the active menu
+ * and how many have an accepted photo. Null when the venue has no menu.
+ */
+export type VenueMenus = Map<string, OurMenuTotals | null>
+
 const isMenuChanged = (row: GroupOverviewRow) =>
   row.coverage.menuState === "menu_changed" ||
   row.coverage.menuState === "reconciliation_pending"
@@ -148,10 +158,15 @@ const isMenuChanged = (row: GroupOverviewRow) =>
 export function Tallies({
   rows,
   periodLabel,
+  menus,
 }: {
   rows: GroupOverviewRow[]
   periodLabel: string
+  menus?: VenueMenus
 }) {
+  const menuTotals = menus
+    ? [...menus.values()].filter((m): m is OurMenuTotals => m != null)
+    : []
   const setupVenues = rows.filter((r) => r.coverage.needsSetup > 0).length
   const withoutTarget = sum(rows, (r) => r.participation.staffWithoutTarget)
   return (
@@ -185,6 +200,15 @@ export function Tallies({
             label={COVERAGE_COPY.tally.toReview}
             value={sum(rows, (r) => r.coverage.pendingReview)}
           />
+          {menus ? (
+            <TallyItem
+              label={COVERAGE_COPY.tally.withoutPhoto}
+              value={menuTotals.reduce((n, m) => n + m.gaps, 0)}
+              of={menuTotals.reduce((n, m) => n + m.eligible, 0)}
+              note={COVERAGE_COPY.tally.acrossMenus(menuTotals.length)}
+              tone="attention"
+            />
+          ) : null}
           <TallyItem
             label={COVERAGE_COPY.tally.overdue}
             value={sum(rows, (r) => r.coverage.overdue)}
@@ -271,7 +295,13 @@ function Frames({
 }
 
 /** One row per venue: its flags, then coverage and participation apart. */
-export function VenueList({ rows }: { rows: GroupOverviewRow[] }) {
+export function VenueList({
+  rows,
+  menus,
+}: {
+  rows: GroupOverviewRow[]
+  menus?: VenueMenus
+}) {
   return (
     <section aria-labelledby="venues-title" className="grid gap-3">
       <SectionHead
@@ -287,7 +317,12 @@ export function VenueList({ rows }: { rows: GroupOverviewRow[] }) {
           <li key={row.venue.id}>
             <Link
               href={venueHref(row.venue.id)}
-              className="grid min-h-16 gap-3 px-4 py-3.5 focus-ring-inset outline-none hover:bg-surface-2 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center md:gap-6"
+              className={cn(
+                "grid min-h-16 gap-3 px-4 py-3.5 focus-ring-inset outline-none hover:bg-surface-2 md:items-center md:gap-6",
+                menus
+                  ? "md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+                  : "md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+              )}
             >
               <div className="grid min-w-0 gap-1.5">
                 <p className="flex items-center gap-2 text-item-title text-ink">
@@ -302,6 +337,7 @@ export function VenueList({ rows }: { rows: GroupOverviewRow[] }) {
                 total={row.coverage.applicable}
                 of={COVERAGE_COPY.itemsComplete(row.coverage.applicable)}
               />
+              {menus ? <MenuFrames totals={menus.get(row.venue.id)} /> : null}
               <Frames
                 label={COVERAGE_COPY.staffParticipation}
                 count={row.participation.complete}
@@ -317,6 +353,26 @@ export function VenueList({ rows }: { rows: GroupOverviewRow[] }) {
         ))}
       </ul>
     </section>
+  )
+}
+
+/** Our menu for one venue: dishes with an accepted photo, not overdue work. */
+function MenuFrames({ totals }: { totals: OurMenuTotals | null | undefined }) {
+  if (totals === undefined) return <span aria-hidden />
+  if (totals === null || totals.eligible === 0)
+    return (
+      <div className="grid content-start gap-1">
+        <p className="text-meta text-ink-muted">{COVERAGE_COPY.ourMenu}</p>
+        <p className="text-meta text-ink-muted">{COVERAGE_COPY.noMenu}</p>
+      </div>
+    )
+  return (
+    <Frames
+      label={COVERAGE_COPY.ourMenu}
+      count={totals.covered}
+      total={totals.eligible}
+      of={COVERAGE_COPY.dishesWithPhoto(totals.eligible)}
+    />
   )
 }
 

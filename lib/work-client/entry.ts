@@ -65,7 +65,7 @@ type EntrySlot = Pick<
 >
 
 type EntryTask = {
-  requirement: { id: string; title: string }
+  requirement: { id: string; title: string; kind?: string }
   canSubmit: boolean
 }
 
@@ -99,8 +99,11 @@ export function entryMenu(
   const answered = slots
     .filter(change)
     .map((slot) => ({ checkId: slot.checkId, question: slot.question }))
+  // Section shots go to the month, not a menu-section task (G-4, decision 15).
   const open = tasks
-    .filter((task) => task.canSubmit)
+    .filter(
+      (task) => task.canSubmit && task.requirement.kind !== "menu_section"
+    )
     .map((task) => ({
       id: task.requirement.id,
       title: task.requirement.title,

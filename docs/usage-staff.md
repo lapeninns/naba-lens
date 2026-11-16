@@ -35,7 +35,8 @@ tablet or computer the same sections are in the top bar, with **Add photos**
 in place of **Add**; venue managers also see **Manage** there. On a phone,
 **Manage** is the first row on **Me**.
 
-- **Home** (`/staff/tasks`): what to do next, your month and your tasks.
+- **Home** (`/staff/tasks`): what your venue's menu still needs, your month,
+  and any request for another photo.
 - **Photos** (`/staff/community`): ready photos and videos from colleagues
   across Lapen Inns.
 - **Add**: take or choose photos and upload them.
@@ -70,118 +71,141 @@ first when you label. Search still covers the whole menu, and your job never
 labels a photo for you or changes what you can see or do. Only you and admins
 see your work details. Your admin still sets your job title, team and venue.
 
-## Home: monthly photos and venue tasks
+## Home: our menu and your month
 
-**Home** shows what you need to photograph and how your month is going. Dates
-are UK time.
+**Home** shows two goals and, when it happens, a note. Dates are UK time.
+Nobody is given a dish to photograph, and food and drink photos have no due
+date: the menu belongs to everyone at the venue.
 
-- At the top, a question based on your work details (**What did you make or
-  capture today?** if you have none) with **Choose from your photos** (several
-  at a time) and **Take a photo**. Both open the same upload queue as **Add**.
-
-- **To do** lists what needs you first: **Needs another photo** requests from
-  your manager, with the reason and **Send another photo**, then tasks that are
-  **Overdue** or due soon, each with **Send photos**. With nothing to do it
-  says **Nothing to do right now.**
 - **Your setup isn't finished** appears until you have a name, a venue and a
   team (Front of house or Back of house). A profile photo is optional. An
-  admin assigns venue and team; your manager sets your monthly target. Until
-  all are set your month shows **Needs setup**, which never counts as
-  complete.
-- The month card (**Your photos for November 2026**, for example) shows your
-  target and progress, such as **2 of 5 accepted**. **Target met** appears once
-  accepted photos reach the target. Until your manager sets a target it says
-  **Your target appears here once your manager sets it.**
-- **All tasks** lists the venue tasks assigned to you, overdue first, then by
-  due date. **Overdue** is shown for follow-up only: you can still send photos.
-- **Our menu** shows how many menu items at your venue have an accepted
-  photo, such as **12 of 40 menu items have an accepted photo**, with **Browse
-  our menu**. This is a different measure from your monthly target and the
-  venue's section coverage. Before your venue has a menu it says **Menu photos
-  will appear once your venue’s menu is set up**; you can still add photos to
-  your portfolio.
-- **From your colleagues** shows a few of the newest photos. **See more
-  photos** opens **Photos**.
+  admin assigns venue and team. Until your month has a target it shows
+  **Needs setup**, which never counts as complete.
+- **Needs another photo** appears when a reviewer asked for another photo of
+  a dish you took. It shows your photo and the reviewer's reason.
+  **Reshoot** opens the camera with the dish already labelled. **Later**
+  hides the note from Home on every device you use; it stays on **Me**. The
+  note has no date and nobody chases it. It goes away once a new photo of
+  that dish is accepted, whoever took it.
+- **Our menu** says how many dishes at your venue have a photo, for example
+  **12 of 40 dishes at The Railway have a photo**. Under it, **Still needed**
+  lists up to four dishes without an accepted photo, each with **Take a
+  photo** and **Choose from photos**; the photo is labelled with that dish
+  for you. **See all** opens the full list on **Our menu**. Anyone at the
+  venue can photograph any of them.
+  - **Waiting for review** means someone's photo of the dish is waiting for a
+    decision. The dish stays on the list until a photo is accepted, and you
+    can still add one.
+  - **Being checked** means the menu changed and a manager is checking the
+    dish's photo. It stays on the list too.
+  - **Needed by 30 Nov** means your manager would like this dish soon. It
+    comes first. After the date it just says **Needed**; it is never late.
+- **Your month** (**You · November 2026 · The Railway**, for example) shows
+  your target and progress, such as **2 of 5 accepted**, with one frame per
+  photo: **Accepted**, **Waiting for review**, **Needs another photo** and
+  **Still to take**. Accepted photos you labelled (dishes, drinks and venue
+  areas) and photos you sent to the month count. The month ends with the calendar month; there
+  is no due date. **Target met** appears once accepted photos reach the
+  target. Only you, your venue manager and admins see your month.
+- **Other jobs** appears only when you have amenity checks or other venue
+  jobs. It opens the list of them. Those jobs keep their dates, and
+  **Overdue** is shown for follow-up only: you can still send photos.
+- **From the team** shows a few of the newest photos from colleagues. **See
+  more photos** opens **Photos**.
 
-Next to these, Home repeats the rule: **Ready photos are already in Photos and
-on your profile. Review decides whether they count, not whether they are
-shared.**
+Home has one main button: **Reshoot** when a note is open, otherwise **Take a
+photo** on the first dish still needed, or **Open camera** when every dish has
+a photo. To add any other photo, use **Add**.
 
-### Send photos to a task
+Ready photos are already in Photos and on your profile. Review decides whether
+they count, not whether they are shared.
 
-1. Open a task and read **What to photograph**.
-2. Choose **Send photos** (or **Send more photos**). Use **Choose from your
+### Send photos to your month or a job
+
+To count a photo that isn't of one dish (a section spread, the bar set-up, the
+garden), send it to your month: choose **Add photos for this month** on
+**Your month**. It opens **Monthly photos** (`/staff/tasks/month`), which also
+lists **Past months**, read-only. Amenity checks and other venue jobs are sent
+from their own page, opened from **Other jobs**.
+
+1. Choose **Send photos** (or **Send more photos**). Use **Choose from your
    photos** or **Take a photo** to add new ones, or pick your own ready photos
    from this venue under **Or send photos you've already added**; a photo that
    can't be sent says why under it. You can send up to 10 at a time. New
    photos are selected for you one by one, as soon as each is ready: you
    don't wait for a slow file, and photos you already selected stay selected.
-3. Choose the send button, which counts your selection ("Send 2 photos").
+2. Choose the send button, which counts your selection ("Send 2 photos").
 
-Only tasks assigned to you accept photos. Your team (FOH or BOH) can help your
-manager decide who to assign, but it never gives access to a task. To count
-photos toward your target without a task, choose **Add photos for this month**
-on the month card. It opens **Monthly photos** (`/staff/tasks/month`), which
-also lists **Past months**, read-only.
-
-If sending fails, **Try again** resends the same request, so nothing is sent
-twice. If the task changed while you were working, choose **Reload**.
+Only jobs assigned to you accept photos. If sending fails, **Try again**
+resends the same request, so nothing is sent twice. If something changed while
+you were working, choose **Reload**.
 
 ### Photo guide
 
-A food menu-section task shows **How to photograph it** between **What to
-photograph** and **On this section**: four example angles in order (**45°
-angle**, **Overhead**, **Close-up**, **Side view**), each with a short tip.
-The first angles are marked **Suggested** to match the section's photo target
-(all four from a target of 4). Dish buttons switch the example; tap an angle
-for a full-screen view with **Previous** and **Next** (arrow keys or a swipe
-also work). **See the full photo guide** (`/staff/tasks/guide`) adds the
-**Every shot** checklist and the safety note. You can open it at any time, even
-when your venue has no menu tasks yet: **How to photograph a dish** on Home's
-add-photos card and on **Monthly photos**, or **Photo guide** on **Me**. The pictures are examples only, not your menu,
-and your manager still decides which photos are accepted. Drinks sections and
-amenity, service and venue tasks do not show the guide.
+**How to photograph a dish** (`/staff/tasks/guide`) shows the **Every shot**
+checklist, the safety note and four example angles in order (**45° angle**,
+**Overhead**, **Close-up**, **Side view**), each with a short tip. Dish
+buttons switch the example; tap an angle for a full-screen view with
+**Previous** and **Next** (arrow keys or a swipe also work). Open it from
+**Monthly photos** or from **Photo guide** on **Me**. The pictures are
+examples only, not your menu, and your manager still decides which photos are
+accepted.
 
 ### What counts toward your monthly target
 
-A photo counts once a reviewer accepts it and all of these are true: you
-uploaded it yourself, it is a photo rather than a video, it was uploaded at
-your venue, and you uploaded **and** sent it in the same UK calendar month.
-A photo's month is set when its upload starts, so an upload started just
-before midnight at the end of the month belongs to that month.
+Two kinds of photo count, once a reviewer accepts them:
+
+- **Food and drink photos you labelled.** You uploaded the photo yourself and
+  labelled it with a dish or drink on your venue's menu, and a manager
+  accepted it for that dish. It counts for the month its upload started. If a
+  colleague's photo of the same dish is accepted too, each of you gets credit
+  for your own photo.
+- **Photos you sent to the month.** You uploaded and sent the photo in the same
+  UK calendar month.
+
+Other photos, such as the bar set-up or the garden, don't count on their own
+yet; send them to the month if you want them to. In every case the photo must
+be yours, a photo rather than a video, and uploaded at your venue. A photo's
+month is set when its upload starts, so an upload started just before midnight
+at the end of the month belongs to that month.
 
 - Each photo counts once. Labels, retries and sending it again add nothing.
-- A photo accepted after its month ended still counts for the month you sent
-  it, marked **Accepted late · counts for October 2026** (for example).
-- An older photo can still complete a task. It shows **Counts for the task
-  only, not your monthly target.**
-- Deleting a photo reopens any task it completed. Deleted during the month you
-  sent it, it also stops counting toward that month; earlier months keep their
-  accepted totals and mark the photo as removed.
-- Photos a manager adds to a task count for the task only, and stay yours.
+- A photo accepted after its month ended still counts for its month, marked
+  **Accepted late · counts for October 2026** (for example).
+- Deleting a photo stops it counting. Deleted during its month, it stops
+  counting toward that month; earlier months keep their accepted totals and
+  mark the photo as removed.
+- Photos a manager adds to a job count for the job only, and stay yours.
 
-### Review results and replacement photos
+### Needs another photo
 
-Each photo you send is **Submitted**, then **Accepted** or **Needs another
-photo** with a reason. Decisions are final. To answer a request for another
-photo, choose **Send another photo** on Home or on the task; it says **The
-photos you send now replace this one.** Take a new photo or choose one of
-yours, then send it. The earlier photo and its reason stay in your history,
-and the earlier photo stays in Photos and on your profile.
+Each photo is **Waiting for review** until a reviewer decides: **Accepted**, or
+**Needs another photo** with a reason. Decisions are final.
+
+- For a dish, the note shows on Home and on **Me**. Choose **Reshoot** to take
+  a new photo with the dish already labelled, or **Later** to hide it from
+  Home. It stays on **Me**, never comes back as a reminder, and clears once a
+  new photo of the dish is accepted.
+- For a photo you sent to the month or to a job, choose **Send another photo**;
+  it says **The photos you send now replace this one.** **Later** works here
+  too.
+
+The earlier photo and its reason stay in your history, and the earlier photo
+stays in Photos and on your profile.
 
 Ready photos are already in Photos and on your profile before anyone reviews
 them. Review decides whether a photo counts, not whether it is shared, and it
 is not publishing clearance. You cannot review photos, set targets or change
 assignments.
 
-If you move venue, your old venue's tasks stop taking new photos; accepted
+If you move venue, your old venue's jobs stop taking new photos; accepted
 photos and past months stay credited to the old venue.
 
 ### Amenity checks
 
 When your manager assigns you an amenity question (for example step-free
-entrance, parking or guest Wi-Fi), it shows on Home under **Amenity checks**
-with **Needs capture**, or **Needs recheck** and the manager's reason when they
+entrance, parking or guest Wi-Fi), Home shows **Other jobs**; the check is in
+that list with **Needs capture**, or **Needs recheck** and the manager's reason when they
 asked you to look again. Amenity checks are separate from monthly photo
 targets: they never count toward them.
 
@@ -268,7 +292,7 @@ next page load or action.
   - **Accept for this dish** counts the dish as covered (tick **Use as the
     dish's main photo** to make it the one shown). The uploader sees
     **Accepted for menu use** on **Me**.
-  - **Ask for a better photo** needs a reason the uploader can read.
+  - **Ask for another photo** needs a reason the uploader can read.
   - **Undo acceptance** needs a reason; if it was the main photo, another
     accepted photo takes its place or the dish needs a photo again.
   - **Make main photo** swaps which accepted photo is shown.
@@ -472,9 +496,9 @@ Each photo passes three separate milestones:
 2. **Ready to label**: say which dish or drink it shows, so it can be found.
 3. **Accepted for menu use**: a manager chose it to show a dish on your
    venue's menu. **Me** lists these photos under **Accepted for menu use**
-   with the dish, however long ago you uploaded them. If a manager asks for a
-   better photo instead, **Me** shows it under **Better photo requested** with
-   the dish and their note.
+   with the dish, however long ago you uploaded them. If a reviewer asks for
+   another photo instead, Home and **Me** show a **Needs another photo** note
+   with the dish and their reason.
 
 - The easiest time to label is while saving: **What's in these photos?** in
   the **Saving** sheet (see above). To skip, just choose **Done**.
@@ -511,7 +535,9 @@ dietary suitability, price or availability, and not permission to publish.
 by section, with how many menu items have an accepted photo overall and per
 section. Food and drinks count; other sections don't. A dish shows **Has an
 accepted photo**, **Still needs a photo**, or **Being checked after a menu
-change**.
+change**. Nobody is given a dish: anyone at the venue can photograph any dish
+that still needs a photo. A dish your manager marked **Needed by 30 Nov**
+comes first; after that date it just says **Needed**.
 
 - **Search the menu** by dish or drink, choose a section (or **All
   sections**), and switch between **All dishes** and **Still needs a photo**.

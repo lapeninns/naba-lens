@@ -17,13 +17,18 @@ import {
   createRequirement,
   currentMonth,
   fails,
+  insertAsset,
+  insertSubmittedItem,
   legacyStaffGrant,
+  midMonth,
+  monthOffset,
   ok,
   requestKey,
   requirementProgress,
   review as reviewItem,
   staffProgress,
   submit,
+  sendBeforeCutOver,
 } from "./coverage-fixtures"
 import {
   item,
@@ -1267,6 +1272,32 @@ describe("one review per photo: month and section counts", () => {
     mains = reqs!.find((r) => r.title === "Mains")!.id
   })
 
+  // v0.5 (G-8): nobody can be assigned to a menu section now. These cases
+  // model sends made before the cut-over, so the assignment is written as
+  // the history the old procedure left.
+  async function assignedBeforeCutOver(requirementId: string, ids: string[]) {
+    const { data: open, error } = await service
+      .from("coverage_requirement_assignees")
+      .select("staff_id")
+      .eq("requirement_id", requirementId)
+      .is("ended_at", null)
+    if (error) throw error
+    const have = new Set(open!.map((a) => a.staff_id))
+    const rows = ids
+      .filter((id) => !have.has(id))
+      .map((staff_id) => ({
+        requirement_id: requirementId,
+        venue_id: f.venue,
+        staff_id,
+        assigned_by: f.manager.id,
+      }))
+    if (rows.length === 0) return
+    const { error: insertError } = await service
+      .from("coverage_requirement_assignees")
+      .insert(rows)
+    if (insertError) throw insertError
+  }
+
   it("counts an accepted labelled photo for the month and its section, and a withdrawal takes both back", async () => {
     const tikka = t(f.items["mains--tikka"]!)
     const asset = (await labelled(f.staff, f.version, [tikka])).id
@@ -1321,8 +1352,8 @@ describe("one review per photo: month and section counts", () => {
       month: await month(f.staff2),
       mains: await sectionCount(mains),
     }
-    await assign(f.manager, mains, [f.staff2.id])
-    const [sent] = await submit(f.staff2, [asset], mains)
+    await assignedBeforeCutOver(mains, [f.staff2.id])
+    const [sent] = sendBeforeCutOver(f.staff2.id, mains, [asset])
     await reviewItem(f.manager, sent!.item_id, sent!.revision, "accepted")
     expect(await month(f.staff2)).toBe(before.month + 1)
     expect(await sectionCount(mains)).toBe(before.mains + 1)
@@ -1380,10 +1411,10 @@ describe("one review per photo: month and section counts", () => {
 
   it("settles a task submission when the menu accepts the same photo", async () => {
     const tikka = t(f.items["mains--tikka"]!)
-    await assign(f.manager, mains, [f.staff.id, f.staff2.id])
+    await assignedBeforeCutOver(mains, [f.staff.id, f.staff2.id])
     const asset = (await labelled(f.staff, f.version, [tikka])).id
     const before = await pending()
-    await submit(f.staff, [asset], mains)
+    sendBeforeCutOver(f.staff.id, mains, [asset])
     expect(await pending()).toEqual({
       mains: before.mains + 1,
       venue: before.venue + 1,
@@ -1412,7 +1443,7 @@ describe("one review per photo: month and section counts", () => {
     const dal = t(f.items["mains--dal"]!)
     const asset = (await labelled(f.staff, f.version, [dal])).id
     const before = await pending()
-    await submit(f.staff, [asset], mains)
+    sendBeforeCutOver(f.staff.id, mains, [asset])
     await ok(
       review(
         f.manager,
@@ -1798,5 +1829,369 @@ describe("menu states", () => {
         eligible_items: 0,
       }),
     ])
+  })
+})
+
+const monthPhotos = (
+  who: TestIdentity,
+  args: { p_period_month: string; p_limit?: number }
+) => who.client.rpc("my_month_photos", args)
+
+// G-2 (docs/plans/goals-not-tasks.md, decision 13): Your month reads both
+// sources through one SQL source. Each (author, venue, month, photo) has one
+// state, accepted before needs another photo before waiting, and
+// my_month_photos lists exactly the photos coverage_staff_progress(_v2) counts.
+describe("Your month: one state per photo", () => {
+  let f: Fixture
+
+  const newStaff = (label: string, venueId = f.venue) =>
+    createIdentity(service, { label, role: "staff", venueId })
+
+  /** The person's own counts at `venue`, checked against their own list. */
+  const month = async (
+    who: TestIdentity,
+    venue = f.venue,
+    period = currentMonth()
+  ) => {
+    const rows = await staffProgress(who, null, period, who.id)
+    const list = await ok(
+      monthPhotos(who, { p_period_month: period, p_limit: 201 })
+    )
+    // One row per photo.
+    expect(new Set(list.map((p) => p.asset_id)).size).toBe(list.length)
+    for (const r of rows) {
+      const here = list.filter((p) => p.venue_id === r.venue_id)
+      const n = (state: string) => here.filter((p) => p.state === state).length
+      expect(
+        {
+          accepted: n("accepted"),
+          waiting: n("waiting"),
+          needs: n("needs_another_photo"),
+        },
+        "the list length matches the counts"
+      ).toEqual({
+        accepted: r.accepted_count,
+        waiting: r.pending_count,
+        needs: r.needs_another_photo_count,
+      })
+    }
+    expect(list.every((p) => rows.some((r) => r.venue_id === p.venue_id))).toBe(
+      true
+    )
+    const row = rows.find((r) => r.venue_id === venue)
+    return {
+      accepted: row?.accepted_count ?? 0,
+      waiting: row?.pending_count ?? 0,
+      needs: row?.needs_another_photo_count ?? 0,
+      state: (asset: string) =>
+        list.find((p) => p.asset_id === asset)?.state ?? null,
+      venueOf: (asset: string) =>
+        list.find((p) => p.asset_id === asset)?.venue_id ?? null,
+    }
+  }
+
+  const counts = async (
+    who: TestIdentity,
+    venue = f.venue,
+    period?: string
+  ) => {
+    const m = await month(who, venue, period)
+    return { accepted: m.accepted, waiting: m.waiting, needs: m.needs }
+  }
+
+  const askAnother = async (asset: string, tuple: Tuple) =>
+    ok(
+      review(
+        f.manager,
+        asset,
+        tuple,
+        "better_photo_requested",
+        await head(tuple.itemId),
+        { reason: "Too dark" }
+      )
+    )
+
+  beforeAll(async () => {
+    f = await venueWithMenu("mip-month")
+  })
+
+  it("counts a photo labelled, sent to a service task and accepted on the menu as accepted, not waiting", async () => {
+    const s = await newStaff("mip-month-service")
+    const tikka = t(f.items["mains--tikka"]!)
+    const asset = (await labelled(s, f.version, [tikka])).id
+    const task = await createRequirement(f.manager, f.venue, {
+      kind: "service",
+      title: "TEST Service",
+    })
+    await assign(f.manager, task, [s.id])
+    await submit(s, [asset], task)
+    expect(await counts(s)).toEqual({ accepted: 0, waiting: 1, needs: 0 })
+
+    await accept(f.manager, asset, tikka)
+    const m = await month(s)
+    expect({ accepted: m.accepted, waiting: m.waiting }).toEqual({
+      accepted: 1,
+      waiting: 0,
+    })
+    expect(m.state(asset)).toBe("accepted")
+  })
+
+  it("counts an undecided send and an undecided label of one photo as one waiting photo", async () => {
+    const s = await newStaff("mip-month-both")
+    const dal = t(f.items["mains--dal"]!)
+    const asset = (await labelled(s, f.version, [dal])).id
+    expect(await counts(s)).toEqual({ accepted: 0, waiting: 1, needs: 0 })
+    await submit(s, [asset])
+    const m = await month(s)
+    expect({ accepted: m.accepted, waiting: m.waiting }).toEqual({
+      accepted: 0,
+      waiting: 1,
+    })
+    expect(m.state(asset)).toBe("waiting")
+  })
+
+  it("counts a photo accepted for dish A and waiting for dish B as accepted only", async () => {
+    const s = await newStaff("mip-month-ab")
+    const tikka = t(f.items["mains--tikka"]!)
+    const dal = t(f.items["mains--dal"]!)
+    const asset = (await labelled(s, f.version, [tikka, dal])).id
+    await accept(f.manager, asset, tikka)
+    const m = await month(s)
+    expect({ accepted: m.accepted, waiting: m.waiting }).toEqual({
+      accepted: 1,
+      waiting: 0,
+    })
+    expect(m.state(asset)).toBe("accepted")
+  })
+
+  it("counts a photo labelled with two variants of one dish once", async () => {
+    const s = await newStaff("mip-month-variants")
+    const asset = (
+      await labelled(s, f.version, [
+        t(f.items["mains--korma"]!, 0),
+        t(f.items["mains--korma"]!, 1),
+      ])
+    ).id
+    const m = await month(s)
+    expect(m.waiting).toBe(1)
+    expect(m.state(asset)).toBe("waiting")
+  })
+
+  it("takes a withdrawn photo out of every state", async () => {
+    const s = await newStaff("mip-month-withdraw")
+    const bhaji = t(f.items["mains--bhaji"]!)
+    const asset = (await labelled(s, f.version, [bhaji])).id
+    const accepted = await accept(f.manager, asset, bhaji)
+    expect(await counts(s)).toEqual({ accepted: 1, waiting: 0, needs: 0 })
+    await ok(
+      withdraw(f.manager, accepted.photo_id, await head(bhaji.itemId), "Undo")
+    )
+    const m = await month(s)
+    expect({
+      accepted: m.accepted,
+      waiting: m.waiting,
+      needs: m.needs,
+    }).toEqual({ accepted: 0, waiting: 0, needs: 0 })
+    expect(m.state(asset)).toBeNull()
+  })
+
+  it("follows a label that is removed and added again", async () => {
+    const s = await newStaff("mip-month-relabel")
+    const lassi = t(f.items["drinks--lassi"]!)
+    const photo = await labelled(s, f.version, [lassi])
+    expect((await month(s)).state(photo.id)).toBe("waiting")
+
+    const removed = await saveOk(s, {
+      asset: photo.id,
+      revision: photo.revision,
+      items: [],
+      catalogue: f.version,
+    })
+    const gone = await month(s)
+    expect(gone.waiting).toBe(0)
+    expect(gone.state(photo.id)).toBeNull()
+
+    await saveOk(s, {
+      asset: photo.id,
+      revision: removed!.revision,
+      items: [lassi],
+      catalogue: f.version,
+    })
+    const back = await month(s)
+    expect(back.waiting).toBe(1)
+    expect(back.state(photo.id)).toBe("waiting")
+  })
+
+  it("does not count a label an admin added as waiting", async () => {
+    const s = await newStaff("mip-month-admin-label")
+    const asset = await reserveReady(service, s)
+    await saveOk(admin, {
+      asset: asset.id,
+      revision: 0,
+      items: [t(f.items["mains--tikka"]!)],
+      catalogue: f.version,
+    })
+    const m = await month(s)
+    expect(m.waiting).toBe(0)
+    expect(m.state(asset.id)).toBeNull()
+  })
+
+  it("counts nothing for a photo sent in another month than its upload; its label waits in the upload's month", async () => {
+    const s = await newStaff("mip-month-earlier")
+    const previous = monthOffset(-1)
+    const asset = await insertAsset(service, {
+      uploader: s.id,
+      venue: f.venue,
+      createdAt: midMonth(previous),
+    })
+    await insertSubmittedItem(service, {
+      asset,
+      venue: f.venue,
+      author: s.id,
+      submittedAt: new Date().toISOString(),
+    })
+    expect(await counts(s)).toEqual({ accepted: 0, waiting: 0, needs: 0 })
+    expect(await counts(s, f.venue, previous)).toEqual({
+      accepted: 0,
+      waiting: 0,
+      needs: 0,
+    })
+
+    await saveOk(s, {
+      asset: asset.id,
+      revision: 0,
+      items: [t(f.items["mains--dal"]!)],
+      catalogue: f.version,
+    })
+    expect((await counts(s)).waiting).toBe(0)
+    const before = await month(s, f.venue, previous)
+    expect(before.waiting).toBe(1)
+    expect(before.state(asset.id)).toBe("waiting")
+  })
+
+  it("keeps a waiting photo at its upload venue after a move to another venue", async () => {
+    const s = await newStaff("mip-month-move")
+    // A target in this month keeps the old venue's month row after the move.
+    await ok(
+      f.manager.client.rpc("set_monthly_target", {
+        p_staff_id: s.id,
+        p_venue_id: f.venue,
+        p_period_month: currentMonth(),
+        p_target_count: 3,
+        p_due_on: null as unknown as string,
+        p_reason: null as unknown as string,
+        p_expected_revision: null as unknown as number,
+      })
+    )
+    const asset = (await labelled(s, f.version, [t(f.items["mains--dal"]!)])).id
+    expect((await counts(s)).waiting).toBe(1)
+
+    const elsewhere = (await createVenue(service, "mip-month-new")).id
+    const { error } = await service
+      .from("profiles")
+      .update({ venue_id: elsewhere })
+      .eq("id", s.id)
+    if (error) throw error
+
+    const old = await month(s, f.venue)
+    expect(old.waiting).toBe(1)
+    expect(old.venueOf(asset)).toBe(f.venue)
+    expect(await counts(s, elsewhere)).toEqual({
+      accepted: 0,
+      waiting: 0,
+      needs: 0,
+    })
+  })
+
+  it("shows a menu note as needs another photo until a photo of the dish is newly accepted", async () => {
+    const s = await newStaff("mip-month-note")
+    const other = await newStaff("mip-month-note-other")
+    const lassi = t(f.items["drinks--lassi"]!)
+    const asset = (await labelled(s, f.version, [lassi])).id
+    // Also sent to the month: the menu decision settles the send.
+    await submit(s, [asset])
+    await askAnother(asset, lassi)
+    const noted = await month(s)
+    expect({ waiting: noted.waiting, needs: noted.needs }).toEqual({
+      waiting: 0,
+      needs: 1,
+    })
+    expect(noted.state(asset)).toBe("needs_another_photo")
+
+    // Anyone's photo of the same dish, accepted after the note, clears it.
+    const theirs = (await labelled(other, f.version, [lassi])).id
+    await accept(f.manager, theirs, lassi)
+    const cleared = await month(s)
+    expect({ accepted: cleared.accepted, needs: cleared.needs }).toEqual({
+      accepted: 0,
+      needs: 0,
+    })
+    expect(cleared.state(asset)).toBeNull()
+  })
+
+  it("puts accepted before a menu note on the same photo", async () => {
+    const s = await newStaff("mip-month-note-accepted")
+    const tikka = t(f.items["mains--tikka"]!)
+    const korma = t(f.items["mains--korma"]!, 0)
+    const asset = (await labelled(s, f.version, [tikka, korma])).id
+    await askAnother(asset, korma)
+    expect((await month(s)).state(asset)).toBe("needs_another_photo")
+    await accept(f.manager, asset, tikka)
+    const m = await month(s)
+    expect({ accepted: m.accepted, needs: m.needs }).toEqual({
+      accepted: 1,
+      needs: 0,
+    })
+    expect(m.state(asset)).toBe("accepted")
+  })
+
+  it("shows a request for another photo on a send to the month as needs another photo", async () => {
+    const s = await newStaff("mip-month-request")
+    const asset = await reserveReady(service, s)
+    const [sent] = await submit(s, [asset.id])
+    expect((await month(s)).state(asset.id)).toBe("waiting")
+    await ok(
+      reviewItem(
+        f.manager,
+        sent!.item_id,
+        sent!.revision,
+        "needs_another_photo",
+        "Blurred"
+      )
+    )
+    const m = await month(s)
+    expect({ waiting: m.waiting, needs: m.needs }).toEqual({
+      waiting: 0,
+      needs: 1,
+    })
+    expect(m.state(asset.id)).toBe("needs_another_photo")
+  })
+
+  it("lists only the caller's own photos and refuses inactive accounts", async () => {
+    const s = await newStaff("mip-month-own")
+    const s2 = await newStaff("mip-month-own-2")
+    const asset = (await labelled(s, f.version, [t(f.items["mains--dal"]!)])).id
+    const theirs = await ok(monthPhotos(s2, { p_period_month: currentMonth() }))
+    expect(theirs.map((p) => p.asset_id)).not.toContain(asset)
+    // A manager reading is still self-scoped: their own photos only.
+    const managers = await ok(
+      monthPhotos(f.manager, {
+        p_period_month: currentMonth(),
+      })
+    )
+    expect(managers.map((p) => p.asset_id)).not.toContain(asset)
+    await fails(
+      monthPhotos(s, { p_period_month: "2026-11-15" }),
+      "invalid_period"
+    )
+    const { error } = await service
+      .from("profiles")
+      .update({ active: false })
+      .eq("id", s2.id)
+    if (error) throw error
+    await fails(
+      monthPhotos(s2, { p_period_month: currentMonth() }),
+      "not_active_user"
+    )
   })
 })

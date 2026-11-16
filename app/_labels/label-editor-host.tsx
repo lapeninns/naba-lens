@@ -3,6 +3,7 @@
 import * as React from "react"
 import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
+import { AreaLabelField } from "@/components/nabalens/area-photos/area-label-field"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { LabelEditorDialog, type CatalogueProp } from "@/components/nabalens"
 import { Notice } from "@/components/nabalens/notice"
@@ -39,6 +40,11 @@ export type LabelEditorHostProps = {
   onOpenChange: (open: boolean) => void
   /** After each save that stored at least one file: refresh the gallery. */
   onSaved?: (results: SaveLabelsResult[]) => void
+  /**
+   * After a venue area save (G-9): the photos that now have an area (or, for
+   * null, none). An area counts as a label, so "Needs labels" can drop them.
+   */
+  onAreaSaved?: (assetIds: string[], subjectId: string | null) => void
   /** Overrides the editor's default heading. */
   title?: string
   /**
@@ -137,6 +143,7 @@ function HostSession({
   assetIds,
   onOpenChange,
   onSaved,
+  onAreaSaved,
   title,
   focus,
   preset = null,
@@ -238,6 +245,16 @@ function HostSession({
         focus={focus === undefined ? phase.focus : focus}
         preset={preset}
         presetAssetIds={presetAssetIds}
+        extra={
+          phase.audience === "staff" ? (
+            <AreaLabelField
+              assetIds={phase.assets
+                .filter((a) => a.mediaType === "image")
+                .map((a) => a.id)}
+              onSaved={onAreaSaved}
+            />
+          ) : null
+        }
       />
     )
   }

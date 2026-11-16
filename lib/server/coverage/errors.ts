@@ -138,6 +138,15 @@ const STATE_CONFLICT_MESSAGES: Record<string, string> = {
   requirement_not_open:
     "This task is not open for photos now. Reload the page.",
   requirement_closed: "This task has been retired. Reload the page.",
+  // v0.5 rules 22 and 23 (G-8).
+  menu_section_shared:
+    "Menu sections are shared by everyone at the venue. Nobody is assigned to them.",
+  menu_section_no_due_date: "Menu sections have no due date.",
+  // Review c (5): the default was cleared meanwhile.
+  no_venue_default:
+    "The venue has no default target now. Reload the page and set one first.",
+  menu_section_send_closed:
+    "Photos of the menu count toward your month now. Add them from Our menu or your month.",
   menu_version_not_active:
     "This menu is no longer active. Reload to see the current menu.",
   plan_not_draft: "This menu plan was already confirmed or discarded.",

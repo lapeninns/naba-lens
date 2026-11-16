@@ -4,7 +4,11 @@
 -- Tables, rows, media, archive and monitoring objects are untouched; re-grant
 -- by re-running the grant statements of migrations 20261102130000..150000 and
 -- 20261106130000 (Our menu item photos), 20261107100100 and
--- 20261107100400..100500 (manager item photos). The venue manager security
+-- 20261107100400..100500 (manager item photos) and the goals sprint's
+-- 20261116100000 (review states), 20261116110000 (Your month list),
+-- 20261116120000 (retake notes), 20261116140000 (venue default target),
+-- 20261116150000 (needed by on a dish, which also recreates the two item
+-- lists with a wider cursor) and 20261116170000 (venue area photos). The venue manager security
 -- fixes (effective grant, revoke trigger, denials, audit policy, item-photo
 -- rules of 20261107100300) and the 'manager' enum value stay in place:
 -- convert any manager accounts back to staff first.
@@ -41,7 +45,7 @@ revoke execute on function
   public.withdraw_menu_item_photo(uuid, integer, text, text),
   public.set_menu_item_primary_photo(uuid, integer, text),
   public.menu_item_photo_summary(uuid),
-  public.menu_item_photo_items(uuid, uuid, boolean, text, integer, integer, uuid, integer),
+  public.menu_item_photo_items(uuid, uuid, boolean, text, date, integer, integer, uuid, integer),
   public.menu_item_photo_candidates(uuid, uuid, boolean, timestamptz, uuid, integer),
   public.menu_item_photo_asset(uuid),
   public.manager_grant_candidates(uuid),
@@ -50,12 +54,29 @@ revoke execute on function
   public.convert_manager_to_staff(uuid, uuid, text, text),
   public.assign_menu_item_photo(uuid, uuid, uuid, uuid, uuid, text, integer, boolean, text),
   public.manager_menu_photo_overview(uuid),
-  public.manager_menu_photo_items(uuid, text, uuid, text, integer, integer, uuid, integer),
+  public.manager_menu_photo_items(uuid, text, uuid, text, date, integer, integer, uuid, integer),
   public.manager_menu_photo_queue(uuid, text, uuid, uuid, uuid, timestamptz, uuid, integer),
   public.manager_menu_photo_item(uuid, uuid),
   public.manager_menu_photo_item_events(uuid, uuid, bigint, integer),
   public.manager_menu_photo_contributors(uuid),
-  public.manager_menu_photo_contributor(uuid, uuid)
+  public.manager_menu_photo_contributor(uuid, uuid),
+  -- G-2 (20261116110000): the caller's own month list.
+  public.my_month_photos(date, integer),
+  public.set_menu_item_needed_by(uuid, date, uuid),
+  public.clear_menu_item_needed_by(uuid, uuid),
+  -- G-1, G-3 and G-6: review states, retake notes and the venue default.
+  public.menu_item_review_states(uuid, uuid[]),
+  public.my_retake_notes(),
+  public.set_retake_note_aside(uuid, uuid),
+  public.venue_default_target(uuid),
+  public.set_venue_default_target(uuid, integer, text, integer),
+  public.use_venue_default_target(uuid, uuid, text, integer),
+  -- G-9: venue area labels and their review.
+  public.set_media_area_label(uuid, uuid),
+  public.my_area_labels(uuid[]),
+  public.area_photo_queue(uuid, text, integer),
+  public.decide_area_photo(uuid, text, text),
+  public.area_photo_asset(uuid)
 from authenticated;
 
 -- Stops the hourly preparation even if the scheduler keeps calling it.
@@ -77,5 +98,10 @@ revoke select on
   public.coverage_preparation_runs,
   public.menu_item_photos,
   public.menu_item_photo_heads,
-  public.menu_item_photo_events
+  public.menu_item_photo_events,
+  public.menu_item_needed_by,
+  public.menu_item_needed_by_events,
+  public.retake_note_set_asides,
+  public.media_area_labels,
+  public.area_photo_decisions
 from authenticated;

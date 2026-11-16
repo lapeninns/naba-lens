@@ -34,7 +34,7 @@ function props(overrides: Partial<Parameters<typeof FirstRun>[0]> = {}) {
     name: "Josh Smith",
     venueName: "The Railway",
     periodLabel: "November 2026",
-    monthly: { target: 3, accepted: 1, dueLabel: "Due 30 Nov 2026" },
+    monthly: { target: 3, accepted: 1 },
     gaps: [] as string[],
     uploadBlocked: null as string | null,
     hasAvatar: false,
@@ -91,13 +91,18 @@ describe("FirstRun", () => {
     expect(screen.queryByRole("navigation")).toBeNull()
   })
 
-  it("shows accepted of target for the month, with the due date", () => {
-    render(<FirstRun {...props()} />)
+  it("shows accepted of target for the month, with no due date", () => {
+    const { container } = render(<FirstRun {...props()} />)
     expect(
       screen.getByRole("heading", { name: "Your photos for November 2026" })
     ).toBeTruthy()
     expect(screen.getByText("1 of 3 accepted")).toBeTruthy()
-    expect(screen.getByText("Due 30 Nov 2026")).toBeTruthy()
+    // v0.5 rule 23: the month has no due date and nothing is Overdue.
+    expect(container.textContent).not.toMatch(/\b(due|overdue)\b/i)
+    // The frames are Progress segments, named by the count beside them.
+    const bar = screen.getByRole("progressbar", { name: "1 of 3 accepted" })
+    expect(bar.getAttribute("aria-valuenow")).toBe("1")
+    expect(bar.getAttribute("aria-valuemax")).toBe("3")
   })
 
   it("shows a combined target even if the staff team is unset", () => {
@@ -111,7 +116,6 @@ describe("FirstRun", () => {
             target: 5,
             accepted: 0,
             completionProgress: { total: 2, menuItems: 1, amenityChecks: 1 },
-            dueLabel: "Due 30 Nov 2026",
           },
         })}
       />
@@ -298,8 +302,22 @@ describe("Start here on Home", () => {
 
   it("still words the setup gaps", () => {
     expect(
-      setupGaps(tasksView({ monthly: monthly({ setupMissing: ["target"] }) }))
-    ).toContain("No target yet: your manager sets it")
+      setupGaps({
+        missing: [],
+        monthly: monthly({ setupMissing: ["target"] }),
+      })
+    ).toEqual(["No target yet: your manager sets it"])
+    expect(setupGaps({ missing: ["venue", "team"], monthly: null })).toEqual([
+      "No venue yet: an admin assigns your venue",
+      "No team yet: an admin assigns Front of house or Back of house",
+    ])
+    // The team gap is said once, from either source.
+    expect(
+      setupGaps({
+        missing: ["team"],
+        monthly: monthly({ setupMissing: ["team"] }),
+      })
+    ).toHaveLength(1)
   })
 
   it("shows the entry only when a link is given", () => {

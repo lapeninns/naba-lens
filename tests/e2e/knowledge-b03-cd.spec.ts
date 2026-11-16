@@ -42,7 +42,12 @@ import {
   type SeedQuestion,
 } from "./helpers/knowledge-b03-cd-world"
 import { psql } from "./helpers/stack"
-import { escape, STAFF_LANDING } from "./helpers/ui"
+import {
+  escape,
+  openOtherJobs,
+  OTHER_JOBS_PATH,
+  STAFF_LANDING,
+} from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -739,20 +744,27 @@ test.describe("B03 browser charters C and D", () => {
     await expect(rechecks).not.toContainText(q.service)
     expect(tasksOf(id.stopped)).toEqual(stopTasksBefore)
 
-    // ---- Staff A (assigned), 390: Home To do, then Send leaves the task open ---
+    // ---- Staff A (assigned), 390: Other jobs, then Send leaves the task open --
+    // Goal-led Home has no To do: the assigned recheck is one tap away, on
+    // Other jobs (decision 10), with its cause (B03-e §6.2).
     const staff = await signedInPage(browser, w.staffA, PHONE)
     await expect(staff).toHaveURL(STAFF_LANDING)
-    const todo = staff.getByRole("region", { name: /^To do/ })
-    const card = todo
-      .getByRole("listitem")
-      .filter({ has: staff.getByRole("heading", { name: q.stale }) })
-    const recheckLink = todo.getByRole("link", { name: `Recheck: ${q.stale}` })
+    await openOtherJobs(staff)
+    const todo = staff.getByRole("main")
+    // `has` resolves inside each list item, so the link is page-rooted.
+    const recheckLink = staff.getByRole("link", { name: `Recheck: ${q.stale}` })
+    const card = todo.getByRole("listitem").filter({ has: recheckLink })
     await expect(card).toContainText(
       `Recheck reason: Past its check date since ${longDate(staleTask!.dueAt)}.`
     )
-    // Only the assigned recheck: not the unassigned one, nor either service.
+    // Only the assigned recheck asks for one: not the unassigned one, nor
+    // either service (the working list may still show them as questions).
     for (const other of [q.later, q.archived, q.service, q.stopped])
-      await expect(todo).not.toContainText(other)
+      await expect(
+        todo.getByRole("link", {
+          name: new RegExp(`^(Recheck|Start check): ${escape(other)}$`),
+        })
+      ).toHaveCount(0)
     const recheckPhoto = await photo(w.staffA, "recheck")
     await card.getByRole("link", { name: `Recheck: ${q.stale}` }).click()
     await expect(staff).toHaveURL(
@@ -813,10 +825,9 @@ test.describe("B03 browser charters C and D", () => {
     expect(tasksOf(id.service)).toEqual(serviceTasksBefore)
     expect(tasksOf(id.later)).toEqual([laterTask])
 
-    // ---- Staff A, 390: To do no longer offers the closed recheck ----------------
-    await staff.goto("/staff/tasks")
+    // ---- Staff A, 390: Other jobs no longer offers the closed recheck -------
+    await staff.goto(OTHER_JOBS_PATH)
     await settled(staff)
-    await expect(staff).toHaveURL(STAFF_LANDING)
     await expect(recheckLink).toHaveCount(0)
     await expect(todo).not.toContainText(
       `Past its check date since ${longDate(staleTask!.dueAt)}.`

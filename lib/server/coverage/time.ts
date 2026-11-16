@@ -131,6 +131,43 @@ export function dueView(dueOn: LocalDate, overdue: boolean): DueView {
   }
 }
 
+/**
+ * A manager's "needed by" date on one still-needed dish (v0.5 rule 24,
+ * decision 1). Deliberately separate from `DueView`: it orders the list and is
+ * shown, but it has no overdue state, so it carries no flag a screen could
+ * draw as late. Until the end of the day (London) it reads "Needed by 30 Nov";
+ * after that just "Needed", and the dish stays first in the list.
+ */
+export type NeededByView = {
+  neededBy: LocalDate
+  /** "Needed by 30 Nov" (the year is added outside this year), then "Needed". */
+  label: string
+}
+
+const NEEDED_BY_SHORT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "short",
+})
+
+export const NEEDED_WORD = "Needed"
+
+/** Null for no date or a value that is not a calendar day. */
+export function neededByView(
+  neededBy: LocalDate | null | undefined,
+  now: Date = new Date()
+): NeededByView | null {
+  if (!isLocalDate(neededBy)) return null
+  const today = localDateOf(now)
+  if (neededBy < today) return { neededBy, label: NEEDED_WORD }
+  const [y, m, d] = neededBy.split("-").map(Number)
+  const day =
+    today.slice(0, 4) === neededBy.slice(0, 4)
+      ? NEEDED_BY_SHORT.format(new Date(Date.UTC(y, m - 1, d)))
+      : dayLabel(neededBy)
+  return { neededBy, label: `${NEEDED_WORD} by ${day}` }
+}
+
 /** Overdue for display: the due day has passed in London and the work is not complete. */
 export function isOverdue(
   dueOn: LocalDate | null,

@@ -23,6 +23,8 @@ export type {
   LocalDate,
   MonthlyProgress,
   MonthlySetupGap,
+  MonthPhotoState,
+  MonthPhotoView,
   MyAssignment,
   MyMonthView,
   MyTasksView,

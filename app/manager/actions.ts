@@ -1,11 +1,14 @@
 "use server"
 
+import type { NeededBy } from "@/lib/server/coverage/types"
 import {
+  clearMenuItemNeededBy,
   decideMenuPhoto,
   getManagerPhotoCtx,
   listItemEvents,
   listManagerMenuItems,
   listReviewQueue,
+  setMenuItemNeededBy,
   type DecisionOutcome,
   type ItemEvent,
   type ManagerMenuItem,
@@ -61,4 +64,22 @@ export async function loadItemEventsAction(
   const scope = await getManagerPhotoCtx(venueOf(input))
   if (!scope.ok) return scope
   return listItemEvents(scope.ctx, input)
+}
+
+/** G-7: puts a "needed by" date on a dish (`{ itemId, neededBy, venueId? }`). */
+export async function setMenuItemNeededByAction(
+  input: unknown
+): Promise<MenuPhotoResult<{ neededBy: NeededBy }>> {
+  const scope = await getManagerPhotoCtx(venueOf(input))
+  if (!scope.ok) return scope
+  return setMenuItemNeededBy(scope.ctx, input)
+}
+
+/** G-7: clears a dish's "needed by" date (`{ itemId, venueId? }`). */
+export async function clearMenuItemNeededByAction(
+  input: unknown
+): Promise<MenuPhotoResult<{ cleared: boolean }>> {
+  const scope = await getManagerPhotoCtx(venueOf(input))
+  if (!scope.ok) return scope
+  return clearMenuItemNeededBy(scope.ctx, input)
 }

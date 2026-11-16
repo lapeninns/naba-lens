@@ -11,6 +11,7 @@ import {
   PencilSimpleIcon,
   ShieldCheckIcon,
   UserIcon,
+  UsersThreeIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
 import { Card, Row, SectionHeader } from "@/components/nabalens/common-room"
@@ -109,6 +110,22 @@ function SearchRow() {
   )
 }
 
+/** G-6: the venue default and each person's monthly photo target. */
+function TeamRow() {
+  return (
+    <ul className={ROW_LIST}>
+      <li data-link="team">
+        <Row
+          href={managerHrefs.team}
+          icon={<UsersThreeIcon />}
+          title={MANAGER_COPY.team.entry}
+          subtitle={MANAGER_COPY.team.entryNote}
+        />
+      </li>
+    </ul>
+  )
+}
+
 export function OverviewBody({
   overview,
   now,
@@ -137,8 +154,9 @@ export function OverviewBody({
     <>
       {triage ?? <ConfirmRow count={confirmCount} />}
       <NeedsLabelsRow count={needsLabels} />
-      {/* Setup pending offers no action (the menu isn't there yet). */}
+      {/* Search needs a menu; photo targets don't (review c, 6). */}
       {overview.menuState !== "no_menu" ? <SearchRow /> : null}
+      <TeamRow />
     </>
   )
 

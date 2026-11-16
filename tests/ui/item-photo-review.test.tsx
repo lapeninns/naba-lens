@@ -330,7 +330,7 @@ describe("ItemPhotoReview", () => {
     )
   })
 
-  it("requires a reason before asking for a better photo", async () => {
+  it("requires a reason before asking for another photo", async () => {
     const user = userEvent.setup()
     const h = handlers()
     renderReview({ handlers: h })
@@ -344,7 +344,7 @@ describe("ItemPhotoReview", () => {
       within(dialog).getByRole("button", { name: ITEM_REVIEW_COPY.askBetter })
     )
     expect(
-      within(dialog).getByText("Add a reason. Say what a better photo needs.")
+      within(dialog).getByText(ITEM_REVIEW_COPY.askReasonMissing)
     ).toBeTruthy()
     expect(within(dialog).getByLabelText("Reason")).toHaveProperty(
       "ariaInvalid",
@@ -362,7 +362,7 @@ describe("ItemPhotoReview", () => {
       expectedRevision: 3,
     })
     expect(
-      await screen.findByText("Asked TEST for a better photo of Soup.")
+      await screen.findByText("Asked TEST for another photo of Soup.")
     ).toBeTruthy()
     expect(
       within(card()).getByText(ITEM_REVIEW_COPY.betterRequested)
@@ -608,7 +608,7 @@ describe("ItemPhotoSelfReviewList", () => {
     expect(within(list).getByText("Self-review")).toBeTruthy()
     expect(
       within(list).getByText(
-        /Asked for a better photo of Soup \(Large\) with their own photo at The Railway/
+        /Asked for another photo of Soup \(Large\) with their own photo at The Railway/
       )
     ).toBeTruthy()
     expect(within(list).getByText("Reason: Too dark")).toBeTruthy()

@@ -23,8 +23,10 @@ import type {
   ItemPhotoState,
   MenuItemVariant,
   MyMenuPhotoState,
+  NeededBy,
   OurMenuItem,
   OurMenuReviewFigures,
+  OurMenuReviewState,
   OurMenuSection,
   OurMenuState,
   OurMenuView,
@@ -205,24 +207,54 @@ export async function getOurMenu(
 
 function encodeItemCursor(row: ItemRow): string {
   return Buffer.from(
-    JSON.stringify([row.section_position, row.entry_position, row.item_id])
+    JSON.stringify([
+      row.needed_by ?? null,
+      row.section_position,
+      row.entry_position,
+      row.item_id,
+    ])
   ).toString("base64url")
 }
 
-function decodeItemCursor(
-  cursor: string
-): { section: number; entry: number; itemId: string } | null {
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+function decodeItemCursor(cursor: string): {
+  neededBy: string | null
+  section: number
+  entry: number
+  itemId: string
+} | null {
   try {
-    const value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"))
+    const raw = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"))
+    // A three-part cursor from before G-7 has no needed-by date.
+    const value = Array.isArray(raw) && raw.length === 3 ? [null, ...raw] : raw
     if (
       Array.isArray(value) &&
-      intInRange(value[0], 0, MAX_REVISION) &&
+      value.length === 4 &&
+      (value[0] === null ||
+        (typeof value[0] === "string" &&
+          ISO_DATE.test(value[0]) &&
+          !Number.isNaN(Date.parse(value[0])))) &&
       intInRange(value[1], 0, MAX_REVISION) &&
-      isUuid(value[2])
+      intInRange(value[2], 0, MAX_REVISION) &&
+      isUuid(value[3])
     )
-      return { section: value[0], entry: value[1], itemId: value[2] }
+      return {
+        neededBy: value[0],
+        section: value[1],
+        entry: value[2],
+        itemId: value[3],
+      }
   } catch {}
   return null
+}
+
+/** G-7: the row's live needed-by date, or null. Never an overdue state. */
+export function neededByView(
+  date: string | null | undefined,
+  passed: boolean | null | undefined
+): NeededBy | null {
+  return date ? { date, passed: passed === true } : null
 }
 
 function variantsOf(value: unknown): MenuItemVariant[] {
@@ -260,6 +292,7 @@ function itemView(row: ItemRow, canReview: boolean): OurMenuItem {
           }
         : null,
     itemRevision: row.item_revision,
+    neededBy: neededByView(row.needed_by, row.needed_by_passed),
     review:
       canReview && row.candidate_count !== null
         ? {
@@ -272,7 +305,8 @@ function itemView(row: ItemRow, canReview: boolean): OurMenuItem {
 
 /**
  * Eligible items in menu order, with search (name or alias), a section filter
- * and "Still needs a photo" (`gapsOnly`). Paged with an opaque cursor.
+ * and "Still needs a photo" (`gapsOnly`). Paged with an opaque cursor; `limit`
+ * (1 to 50, default 50) sizes the page, so Home can read just a few rows.
  */
 export async function listOurMenuItems(
   actor: MediaActor,
@@ -293,6 +327,9 @@ export async function listOurMenuItems(
     return invalid({ cursor: "Invalid page cursor." })
   const after = cursor ? decodeItemCursor(cursor) : null
   if (cursor && !after) return invalid({ cursor: "Invalid page cursor." })
+  if (args.limit != null && !intInRange(args.limit, 1, ITEMS_PAGE))
+    return invalid({ limit: `Choose 1 to ${ITEMS_PAGE} items.` })
+  const size = (args.limit as number | null | undefined) ?? ITEMS_PAGE
   const venue = await readVenue(actor, args.venueId)
   if (!venue.ok) return venue
 
@@ -303,40 +340,81 @@ export async function listOurMenuItems(
     ...(query ? { p_query: query } : {}),
     ...(after
       ? {
+          ...(after.neededBy ? { p_after_needed_by: after.neededBy } : {}),
           p_after_section_position: after.section,
           p_after_entry_position: after.entry,
           p_after_item_id: after.itemId,
         }
       : {}),
-    p_limit: ITEMS_PAGE + 1,
+    p_limit: size + 1,
   })
   if (error) return coverageRpcFailure(error, "our menu items")
   const rows = data ?? []
-  const page = rows.slice(0, ITEMS_PAGE)
-  const last = rows.length > ITEMS_PAGE ? page[page.length - 1] : null
-  const mine = await myWaitingByItem(
-    actor,
-    venue.venueId,
-    page.map((r) => r.item_id)
-  )
+  const page = rows.slice(0, size)
+  const last = rows.length > size ? page[page.length - 1] : null
+  const itemIds = page.map((r) => r.item_id)
+  const [mine, states] = await Promise.all([
+    myWaitingByItem(actor, venue.venueId, itemIds),
+    reviewStatesByItem(actor, venue.venueId, itemIds),
+  ])
   return {
     ok: true,
     items: page.map((r) => {
       const view = itemView(r, venue.canReview)
-      return mine ? { ...view, myWaiting: mine.get(r.item_id) ?? 0 } : view
+      const withMine = mine
+        ? { ...view, myWaiting: mine.get(r.item_id) ?? 0 }
+        : view
+      return states
+        ? {
+            ...withMine,
+            reviewState: reviewStateOf(withMine, states.get(r.item_id)),
+          }
+        : withMine
     }),
     nextCursor: last ? encodeItemCursor(last) : null,
   }
 }
 
-type WaitingRpc = {
-  rpc(
-    fn: "my_menu_waiting_items",
-    args: { p_venue_id: string; p_item_ids: string[] }
-  ): PromiseLike<{
-    data: { item_id: string; waiting: number }[] | null
-    error: { message?: string; code?: string; details?: string | null } | null
-  }>
+type ReviewStateRow = { item_id: string; waiting: boolean; rechecking: boolean }
+
+/**
+ * Decision 11: a dish still needed whose photo is being checked after a menu
+ * change says "Being checked"; one with a photo waiting for a first decision
+ * says "Waiting for review". A dish with an accepted photo needs neither.
+ */
+function reviewStateOf(
+  item: Pick<OurMenuItem, "covered" | "needsRecheck">,
+  row: ReviewStateRow | undefined
+): OurMenuReviewState {
+  if (item.covered) return null
+  if (item.needsRecheck || row?.rechecking) return "being_checked"
+  return row?.waiting ? "waiting" : null
+}
+
+/**
+ * Whether any photo of each listed item waits for review or a recheck
+ * (menu_item_review_states, every uploader), or null when that read fails:
+ * the list is still served, without reviewState.
+ */
+async function reviewStatesByItem(
+  actor: MediaActor,
+  venueId: string,
+  itemIds: string[]
+): Promise<Map<string, ReviewStateRow> | null> {
+  if (itemIds.length === 0) return new Map()
+  const { data, error } = await actor.db.rpc("menu_item_review_states", {
+    p_venue_id: venueId,
+    p_item_ids: itemIds,
+  })
+  if (error) {
+    console.error("[coverage] our menu review states failed", {
+      error: redactError(
+        new Error(`${error.code || "unknown"}: ${error.message ?? ""}`)
+      ),
+    })
+    return null
+  }
+  return new Map((data ?? []).map((r) => [r.item_id, r]))
 }
 
 /**
@@ -349,10 +427,10 @@ async function myWaitingByItem(
   itemIds: string[]
 ): Promise<Map<string, number> | null> {
   if (itemIds.length === 0) return new Map()
-  const { data, error } = await (actor.db as unknown as WaitingRpc).rpc(
-    "my_menu_waiting_items",
-    { p_venue_id: venueId, p_item_ids: itemIds }
-  )
+  const { data, error } = await actor.db.rpc("my_menu_waiting_items", {
+    p_venue_id: venueId,
+    p_item_ids: itemIds,
+  })
   if (error) {
     console.error("[coverage] our menu own waiting failed", {
       error: redactError(

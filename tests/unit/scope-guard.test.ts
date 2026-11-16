@@ -45,9 +45,12 @@ const ALLOWED_PAGES = new Set([
   "/staff/tasks/[requirementId]",
   "/staff/tasks/month",
   "/staff/tasks/welcome",
-  // All tasks (Common Room batch 0): every assignment and amenity check off
-  // Home. Becomes the "Other jobs" list in G-4 (docs/plans/goals-not-tasks.md,
-  // decision 10).
+  // Other jobs (G-4, docs/plans/goals-not-tasks.md decisions 8 and 10): the
+  // non-menu tasks and amenity checks, with due dates, until G-10. Menu
+  // sections are left out; a menu-section task page goes to Our menu unless
+  // it answers an open "needs another photo" request.
+  "/staff/tasks/other",
+  // Redirect only: All tasks (Common Room batch 0) became Other jobs.
   "/staff/tasks/all",
   // Dish photo guide (November 2026): static example angles and a checklist,
   // no media, no scoring (docs/usage-staff.md "Photo guide").
@@ -97,6 +100,9 @@ const ALLOWED_PAGES = new Set([
   "/manager/account",
   // A manager account's own uploads to label later (B02-c), while Add is on.
   "/manager/uploads",
+  // Monthly photo targets at the manager account's own venue: the venue
+  // default and each person's number (G-6, docs/plans/goals-not-tasks.md).
+  "/manager/team",
   // Amenities in the workspace: the /staff/manage amenity screens for the
   // manager account's own venue (docs/plans/amenity-catalogue.md).
   "/manager/amenities",
@@ -195,6 +201,11 @@ const ALLOWED_HANDLERS = new Set([
   "/api/amenities/evidence/[assetId]/preview",
   "/api/amenities/evidence/[assetId]/stream",
   "/api/menu-photos/[assetId]/preview",
+  // Venue area photos (G-9), checked by area_photo_asset like menu review:
+  // the venue's manager or an admin reviewing, and the uploader. Signed
+  // derivatives for 60 s; no originals or downloads.
+  "/api/area-photos/[assetId]/thumb",
+  "/api/area-photos/[assetId]/preview",
   // v0.4 §3 rule 9: hourly idempotent monthly preparation, cron-only bearer auth
   // like the other /api/internal routes; it sends nothing to staff.
   "/api/internal/coverage/monthly-preparation",

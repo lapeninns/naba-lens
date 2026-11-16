@@ -135,10 +135,13 @@ async function reviewJourney(
   ).toBeVisible()
   expect(itemState(items[w.manager.id]!)).toBe("accepted:true")
 
-  // Staff A sees the reason on Home; the admin sees the self-review.
+  // Staff A sees the reason in Home's retake note (G-3); the admin sees the
+  // self-review.
   const staffA = await signedInPage(browser, w.staffA, context)
   await expect(
-    staffA.getByRole("region", { name: /^To do/ }).getByText(reason)
+    staffA
+      .getByRole("region", { name: "Needs another photo" })
+      .getByText(reason)
   ).toBeVisible()
   await admin.goto("/admin/coverage")
   await expect(

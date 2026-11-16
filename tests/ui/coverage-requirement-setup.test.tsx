@@ -1186,3 +1186,61 @@ describe("NewRequirementDialog", () => {
     )
   })
 })
+
+describe("menu sections are shared (G-8, v0.5 rules 22 and 23)", () => {
+  const SECTION = {
+    id: "bbbbbbbb-0000-4000-8000-0000000000aa",
+    kind: "menu_section" as const,
+    title: "Starters",
+    templateKey: null,
+    menuSection: {
+      menuPlanId: "cccccccc-0000-4000-8000-000000000001",
+      menuPlanStatus: "confirmed" as const,
+      menuVersionId: "cccccccc-0000-4000-8000-000000000002",
+      sectionName: "Starters",
+      sectionSlug: "starters",
+      sectionKind: "food",
+      position: 1,
+      itemCount: 4,
+    },
+  }
+
+  it("offers no assignees and no due date, and confirms without anyone chosen", async () => {
+    const user = userEvent.setup()
+    const { onSetStatus, onSetAssignees, onUpdate } = setup(SECTION)
+    expect(screen.queryByRole("heading", { name: "Who photographs it" })).toBe(
+      null
+    )
+    expect(screen.queryByRole("checkbox")).toBeNull()
+    expect(screen.queryByLabelText("Due date")).toBeNull()
+    expect(
+      screen.getByText(
+        "Everyone at The Railway can photograph this section's dishes. Nobody is assigned, and there is no due date."
+      )
+    ).toBeTruthy()
+    expect(screen.getByText("Ready to confirm")).toBeTruthy()
+    await user.click(confirmButton())
+    expect(onSetStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "active" })
+    )
+    expect(onUpdate).not.toHaveBeenCalled()
+    expect(onSetAssignees).not.toHaveBeenCalled()
+  })
+
+  it("lists an active section without assignee text or Overdue", () => {
+    const { container } = render(
+      <RequirementList
+        requirements={[
+          requirement({
+            ...SECTION,
+            status: "active",
+            isCurrent: true,
+            setupIssues: [],
+          }),
+        ]}
+        hrefFor={(id) => `/x/${id}`}
+      />
+    )
+    expect(container.textContent).not.toMatch(/assigned|overdue|due /i)
+  })
+})

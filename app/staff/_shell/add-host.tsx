@@ -11,6 +11,7 @@ import {
 } from "@/app/_media/actions"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import { UploadDialog } from "@/components/nabalens"
+import { AreaLabelField } from "@/components/nabalens/area-photos/area-label-field"
 import {
   FixLabelsDialog,
   UploadLabelPanel,
@@ -1027,6 +1028,7 @@ export function AddHost({
           dishShown={(id) => dishShown.current.has(id)}
           onDishShown={(id) => dishShown.current.add(id)}
           held={heldLabels.current}
+          areas={role === "staff"}
         />
       ),
       renderFix: (props) => (
@@ -1254,6 +1256,7 @@ function PanelHost({
   onDishShown,
   held,
   discards,
+  areas = false,
 }: UploadLabelPanelHostProps & {
   catalogue: CatalogueProp
   venueId: string | null
@@ -1263,6 +1266,8 @@ function PanelHost({
   dishShown: (id: string) => boolean
   onDishShown: (id: string) => void
   held: Map<string, HeldLabels>
+  /** G-9: offer the venue-area label (staff accounts). */
+  areas?: boolean
 }) {
   const recorded = (id: string) => initial.find((i) => i.assetId === id)
   const heldFor = (id: string) => {
@@ -1293,85 +1298,98 @@ function PanelHost({
     const now = restored(id)
     return !dishShown(id) || (!!now && hasDish(now, dish)) ? dish : null
   }
-  return (
-    <UploadLabelPanel
-      catalogue={catalogue}
-      onRetryCatalogue={onRetryCatalogue}
-      focus={focus}
-      files={items.map((item) => ({
-        id: item.id,
-        name: item.file.name,
-        kind: item.kind,
-      }))}
-      presetFor={presetFor}
-      initial={items.flatMap((item) => {
-        const input = restored(item.id)
-        return input ? [input] : []
-      })}
-      disabledIds={disabledIds}
-      onChange={(inputs) => {
-        const kept = inputs.map((input) => {
-          const saved = recorded(input.assetId)
-          if (saved && disabledIds.includes(input.assetId)) return saved
-          const stored = restored(input.assetId)
-          const dish = dishOf(input.assetId)
-          if (!dish) return input
-          if (hasDish(input, dish)) {
-            onDishShown(input.assetId)
-            return input
-          }
-          // Removed by the person only once it was shown to them.
-          if (!stored || !hasDish(stored, dish) || dishShown(input.assetId))
-            return input
-          return {
-            ...input,
-            items: [
-              ...input.items,
-              ...stored.items.filter((ref) => ref.itemId === dish.itemId),
-            ],
-          }
-        })
-        if (venueId) {
-          onChange(venueId, kept)
-          if (held.size > 0) {
-            held.clear()
-            heldChanged()
-          }
-          return
-        }
-        for (const input of kept) {
-          const id = input.assetId
-          const base = heldFor(id)?.base ?? recorded(id)
-          const changed = !sameLabelChoice(input, base)
-          if (!heldFor(id) && !changed) continue
-          // The field names a file's dish only once the menu is known, so a
-          // change made before that lacks it. Held as restored labels, it
-          // would stop the dish being added later: keep a dish never shown.
-          const dish = dishOf(id)
-          const unseen =
-            changed &&
-            dish &&
-            !settledIds.includes(id) &&
-            !dishShown(id) &&
-            !hasDish(input, dish)
-          held.set(id, {
-            base,
-            input: unseen
-              ? {
-                  ...input,
-                  items: [
-                    ...input.items,
-                    { itemId: dish.itemId, variantId: dish.variantId },
-                  ],
-                }
-              : input,
-            discards,
-          })
-        }
-        heldChanged()
-      }}
-      onPendingChange={setPanelPending}
+  // G-9: images only; a photo still reserving gets the area when it can.
+  const images = items.filter(
+    (item) => item.kind === "image" && !disabledIds.includes(item.id)
+  )
+  const area = areas ? (
+    <AreaLabelField
+      assetIds={images.flatMap((item) => (item.assetId ? [item.assetId] : []))}
+      waitingCount={images.filter((item) => !item.assetId).length}
     />
+  ) : null
+  return (
+    <>
+      <UploadLabelPanel
+        catalogue={catalogue}
+        onRetryCatalogue={onRetryCatalogue}
+        focus={focus}
+        files={items.map((item) => ({
+          id: item.id,
+          name: item.file.name,
+          kind: item.kind,
+        }))}
+        presetFor={presetFor}
+        initial={items.flatMap((item) => {
+          const input = restored(item.id)
+          return input ? [input] : []
+        })}
+        disabledIds={disabledIds}
+        onChange={(inputs) => {
+          const kept = inputs.map((input) => {
+            const saved = recorded(input.assetId)
+            if (saved && disabledIds.includes(input.assetId)) return saved
+            const stored = restored(input.assetId)
+            const dish = dishOf(input.assetId)
+            if (!dish) return input
+            if (hasDish(input, dish)) {
+              onDishShown(input.assetId)
+              return input
+            }
+            // Removed by the person only once it was shown to them.
+            if (!stored || !hasDish(stored, dish) || dishShown(input.assetId))
+              return input
+            return {
+              ...input,
+              items: [
+                ...input.items,
+                ...stored.items.filter((ref) => ref.itemId === dish.itemId),
+              ],
+            }
+          })
+          if (venueId) {
+            onChange(venueId, kept)
+            if (held.size > 0) {
+              held.clear()
+              heldChanged()
+            }
+            return
+          }
+          for (const input of kept) {
+            const id = input.assetId
+            const base = heldFor(id)?.base ?? recorded(id)
+            const changed = !sameLabelChoice(input, base)
+            if (!heldFor(id) && !changed) continue
+            // The field names a file's dish only once the menu is known, so a
+            // change made before that lacks it. Held as restored labels, it
+            // would stop the dish being added later: keep a dish never shown.
+            const dish = dishOf(id)
+            const unseen =
+              changed &&
+              dish &&
+              !settledIds.includes(id) &&
+              !dishShown(id) &&
+              !hasDish(input, dish)
+            held.set(id, {
+              base,
+              input: unseen
+                ? {
+                    ...input,
+                    items: [
+                      ...input.items,
+                      { itemId: dish.itemId, variantId: dish.variantId },
+                    ],
+                  }
+                : input,
+              discards,
+            })
+          }
+          heldChanged()
+        }}
+        onPendingChange={setPanelPending}
+      />
+      {area}
+    </>
   )
 }
 

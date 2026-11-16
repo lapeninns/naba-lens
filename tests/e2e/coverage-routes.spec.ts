@@ -301,6 +301,8 @@ test.describe("signed out (R-X1)", () => {
     for (const path of [
       "/staff/tasks",
       "/staff/tasks/month",
+      "/staff/tasks/other",
+      "/staff/tasks/all",
       `/staff/tasks/${randomUUID()}`,
       "/staff/manage",
       "/staff/manage/review",
@@ -471,5 +473,32 @@ test.describe("scheduled monthly preparation route (AC-26)", () => {
         drop function if exists public.ws5_injected_fault();
       `)
     }
+  })
+})
+
+test.describe("staff task routes (G-4)", () => {
+  test("All tasks lands on Other jobs; a missing task goes back to Home without task words", async ({
+    browser,
+  }) => {
+    const w = await provisionCoverageWorld()
+    const page = await signedInPage(browser, w.staffA)
+
+    await page.goto("/staff/tasks/all")
+    await expect(page).toHaveURL(/\/staff\/tasks\/other$/)
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Other jobs" })
+    ).toBeVisible()
+
+    // The link may have been menu work, so the page never says "task".
+    // loading.tsx streams the shell first, so the status is 200: the page is
+    // the staff not-found.
+    await page.goto(`/staff/tasks/${randomUUID()}`)
+    await expect(
+      page.getByRole("heading", { name: "We can't find that page" })
+    ).toBeVisible()
+    const back = page.getByRole("link", { name: "Go to Home" })
+    await expect(back).toHaveAttribute("href", "/staff/tasks")
+    await expect(page.getByRole("main")).not.toContainText(/\btasks?\b/i)
+    await page.context().close()
   })
 })

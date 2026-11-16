@@ -57,6 +57,10 @@ Rule numbers continue from v0.4.
     toward the month its upload started. Each accepted photo of the same item
     counts for its own author. Credit for photos that are not a menu item is
     not part of this amendment beyond the existing send-to-month route.
+    _Amended 15 Nov 2026 (goals-not-tasks decision 24, G-9):_ an accepted
+    still image that its uploader labelled with one of the venue's areas (a
+    B03 place) also counts toward the month its upload started, once per
+    photo. Nobody reviews a photo they uploaded or labelled.
 26. **Rollover** (v0.4 rule 9) uses the person's latest manager-set target at
     the same venue, otherwise the venue default. With neither, the person is
     Needs setup. It still never copies an old venue's target.

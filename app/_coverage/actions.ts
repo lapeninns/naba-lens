@@ -30,6 +30,7 @@ import {
   setPrimaryItemPhoto,
   setRequirementAssignees,
   setRequirementStatus,
+  setRetakeNoteAside,
   startMenuCoverage,
   submitPhotos,
   updateRequirement,
@@ -79,6 +80,11 @@ async function write<T>(
 
 export async function submitPhotosAction(input: unknown) {
   return write(submitPhotos, input)
+}
+
+/** Later on one of my own retake notes (G-3): Home stops showing it. */
+export async function setRetakeNoteAsideAction(input: unknown) {
+  return write(setRetakeNoteAside, input)
 }
 
 export async function loadSubmittablePhotosAction(input: unknown) {

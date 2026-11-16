@@ -2,11 +2,11 @@ import Link from "next/link"
 import { PlusIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { buttonVariants } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 
 import { CardFoot, CardHead } from "../common-room"
 import { pendingLines } from "../knowledge/copy"
 import { completionBreakdown, plural } from "./copy"
-import { PhotoSegments } from "./month-card"
 import { DueLine, StatusChip } from "./status-badges"
 import type { MonthlyProgress } from "./types"
 
@@ -66,11 +66,17 @@ export function TargetProgress({ monthly }: { monthly: MonthlyProgress }) {
           aria-valuenow={Math.min(count, target)}
           aria-label={`${count} of ${target} ${completion ? "items completed" : "photos accepted"}`}
         >
-          <PhotoSegments
-            accepted={count}
-            pending={completion ? 0 : monthly.pending}
-            target={target}
-          />
+          {/* Decision 13: accepted, waiting, needs another photo, to take. */}
+          <div aria-hidden>
+            <Progress
+              mode="segments"
+              aria-label="Photo progress"
+              accepted={count}
+              submitted={completion ? 0 : monthly.pending}
+              needsAnother={completion ? 0 : monthly.needsAnotherPhoto}
+              total={target}
+            />
+          </div>
         </div>
       ) : null}
       {remaining ? (

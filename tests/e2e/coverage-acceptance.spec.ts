@@ -4,13 +4,15 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { signIn, type Db } from "../support/identities"
 import {
+  assignBeforeCutOver,
+  sendBeforeCutOver,
   legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
   type CoverageWorld,
 } from "./helpers/coverage-world"
 import { provisioner, psql } from "./helpers/stack"
-import { chooseOption, STAFF_LANDING } from "./helpers/ui"
+import { chooseOption, openOtherJobs, STAFF_LANDING } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -385,11 +387,21 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     const mains1 = sections1.find((r) => r.title === "Mains")!
     await confirmApplies(manager, starters1, 2)
     await confirmApplies(manager, mains1, 1)
-    await ok(
+    // G-8: a section takes no assignee now (menu_section_shared); Starters'
+    // assignment is history from before the cut-over.
+    await refused(
       manager.rpc("set_coverage_requirement_assignees", {
         p_requirement_id: starters1.requirement_id,
         p_staff_ids: [w.staffA.id],
-      })
+      }),
+      "menu_section_shared",
+      "P0001"
+    )
+    assignBeforeCutOver(
+      starters1.requirement_id,
+      v1,
+      [w.staffA.id],
+      w.manager.id
     )
     await ok(
       manager.rpc("confirm_menu_coverage_plan", {
@@ -406,13 +418,12 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     // AC-04: the section completes on accepted photos alone; pending photos
     // do not count, and no photo carries a dish label.
     const starterPhotos = await seedImages(w.staffA, w.venue1, 2)
-    const sent = (await ok(
-      staffA.rpc("submit_coverage_photos", {
-        p_asset_ids: starterPhotos,
-        p_requirement_id: starters1.requirement_id,
-        p_client_request_key: key(),
-      })
-    )) as unknown as SubmitRow[]
+    // Sent before the cut-over (G-8 closes fresh section sends).
+    const sent = sendBeforeCutOver(
+      w.staffA.id,
+      starters1.requirement_id,
+      starterPhotos
+    ) as unknown as SubmitRow[]
     const starters = async () =>
       (await progressOf(manager, v1)).find(
         (r) => r.requirement_id === starters1.requirement_id
@@ -481,13 +492,11 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     })
 
     // D11 setup: one more photo waits for review on the v1 section.
-    const [waiting] = (await ok(
-      staffA.rpc("submit_coverage_photos", {
-        p_asset_ids: await seedImages(w.staffA, w.venue1, 1),
-        p_requirement_id: starters1.requirement_id,
-        p_client_request_key: key(),
-      })
-    )) as unknown as SubmitRow[]
+    const [waiting] = sendBeforeCutOver(
+      w.staffA.id,
+      starters1.requirement_id,
+      await seedImages(w.staffA, w.venue1, 1)
+    ) as unknown as SubmitRow[]
 
     // AC-11: a new menu version with the same section names has new section
     // ids; nothing is matched by name.
@@ -750,6 +759,8 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     const [oldPhoto] = await seedImages(w.staffA, w.venue1, 1)
     const staffPage = await signedInPage(browser, w.staffA)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
+    // A non-menu task is on Other jobs, not Home (decision 10).
+    await staffPage.goto("/staff/tasks/other")
     await expect(
       staffPage.getByRole("link", { name: `WS5 transfer task ${w.tag}` })
     ).toBeVisible()
@@ -765,14 +776,18 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       await expect(edit).toBeHidden()
     }
 
-    await staffPage.goto("/staff/tasks")
+    await staffPage.goto("/staff/tasks/other")
     await expect(
       staffPage.getByRole("link", { name: `WS5 transfer task ${w.tag}` })
     ).toHaveCount(0)
     await staffPage.goto(`/staff/tasks/${task}`)
+    // G-4: the staff not-found, back to Home (the link may have been menu work).
     await expect(
-      staffPage.getByRole("heading", { name: "This task isn't yours" })
+      staffPage.getByRole("heading", { name: "We can't find that page" })
     ).toBeVisible()
+    await expect(
+      staffPage.getByRole("link", { name: "Go to Home" })
+    ).toHaveAttribute("href", "/staff/tasks")
     await refused(
       staffA.rpc("submit_coverage_photos", {
         p_asset_ids: [oldPhoto!],
@@ -890,12 +905,15 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     )
     const staffPage = await signedInPage(browser, w.staffA)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
-    // Home raises it on its To do card only (one home per piece of work).
-    const listed = staffPage
-      .getByRole("region", { name: /^To do/ })
+    // Goal-led Home names no task and no Overdue; it links to Other jobs,
+    // which keeps non-menu due dates and Overdue (G-4, rule 28).
+    await expect(staffPage.getByText("Overdue", { exact: true })).toHaveCount(0)
+    await openOtherJobs(staffPage)
+    const otherJob = staffPage
+      .getByRole("list", { name: "Assigned tasks" })
       .getByRole("listitem")
       .filter({ hasText: title })
-    await expect(listed.getByText("Overdue", { exact: true })).toBeVisible()
+    await expect(otherJob.getByText("Overdue", { exact: true })).toBeVisible()
     await staffPage.goto(`/staff/tasks/${task}`)
     const taskPage = staffPage.getByRole("main")
     const overdue = taskPage.getByText("Overdue", { exact: true })
@@ -919,7 +937,9 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     await accept(manager, sent!)
     expect(await progress()).toMatchObject({ overdue: false, satisfied: true })
     await staffPage.reload()
-    await expect(taskPage.getByRole("heading", { name: title, level: 1 })).toBeVisible()
+    await expect(
+      taskPage.getByRole("heading", { name: title, level: 1 })
+    ).toBeVisible()
     await expect(overdue).toHaveCount(0)
     await staffPage.context().close()
   })

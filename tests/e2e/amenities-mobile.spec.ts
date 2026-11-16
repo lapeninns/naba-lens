@@ -12,7 +12,12 @@ import {
   submitAndComplete,
 } from "./helpers/amenities-world"
 import { horizontalOverflow } from "./helpers/overflow"
-import { expectTodoCheck, STAFF_LANDING, startTodoCheck } from "./helpers/ui"
+import {
+  expectOtherJobsCheck,
+  openOtherJobs,
+  STAFF_LANDING,
+  startOtherJobsCheck,
+} from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -36,11 +41,14 @@ test.describe("amenity capture at phone width", () => {
 
     const staff = await signedInPage(browser, w.staffA, device)
     await expect(staff).toHaveURL(STAFF_LANDING)
-    const darts = await expectTodoCheck(staff, question("darts"), id)
+    expect((await horizontalOverflow(staff)).overflowPx).toBe(0)
+    // Goal-led Home: the check is one tap away, on Other jobs.
+    await openOtherJobs(staff)
+    const darts = await expectOtherJobsCheck(staff, question("darts"), id)
     await expect(darts.card).toContainText(PROGRESS_LABEL.needs_capture)
     expect((await horizontalOverflow(staff)).overflowPx).toBe(0)
 
-    await startTodoCheck(staff, question("darts"), id, "tap")
+    await startOtherJobsCheck(staff, question("darts"), id, "tap")
     const form = captureForm(staff)
     await form.answer("yes")
     await form.attach(photo)

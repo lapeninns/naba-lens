@@ -2,40 +2,22 @@ import Link from "next/link"
 import { PlusIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { buttonVariants } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { Progress } from "@/components/ui/progress"
 
 import { CardHead } from "../common-room"
-import { completionBreakdown } from "./copy"
+import { formatDate } from "../format"
+import { StatusChip as SystemChip } from "../status-chip"
+import { completionBreakdown, MONTH_PHOTOS_COPY } from "./copy"
+import { EvidenceThumb } from "./evidence-thumb"
 import { StatusChip } from "./status-badges"
-import type { MonthlyProgress } from "./types"
-
-type FrameState = "accepted" | "waiting" | "open"
-
-/** One frame per photo of the target: accepted, waiting for review, still to take. */
-function frames(
-  target: number,
-  accepted: number,
-  pending: number
-): FrameState[] {
-  const ok = Math.min(Math.max(0, accepted), target)
-  const waiting = Math.min(Math.max(0, pending), target - ok)
-  return Array.from({ length: target }, (_, i) =>
-    i < ok ? "accepted" : i < ok + waiting ? "waiting" : "open"
-  )
-}
-
-/** Common Room segment fills (DESIGN.md §4): green, striped, grey with an edge. */
-const SEGMENT_CLASS: Record<FrameState, string> = {
-  accepted: "bg-ok-fg",
-  waiting: "bg-stripe",
-  open: "bg-surface-2 edge-strong",
-}
+import { ReviewReason } from "./submission-list"
+import type { MonthlyProgress, MonthPhotoView } from "./types"
 
 /**
- * Photo progress as one rounded segment per photo (green accepted, striped
- * waiting, grey still needed); above 12 photos the segments merge into one
- * bar. Decorative: the words beside it always carry the numbers. Blue never
- * marks progress.
+ * Photo progress drawn by `Progress mode="segments"` (goals plan, decision 6):
+ * green accepted, striped waiting, grey still needed; merged into one bar
+ * above 12. Decorative: the caller's words carry the numbers. Being retired
+ * (DS-205): new code renders `Progress` with its own label.
  */
 export function PhotoSegments({
   accepted,
@@ -50,41 +32,16 @@ export function PhotoSegments({
 }) {
   const total = Math.max(0, Math.floor(target))
   if (total === 0) return null
-  if (total > 12) {
-    const ok = Math.min(Math.max(0, accepted), total)
-    const sent = Math.min(Math.max(0, pending), total - ok)
-    return (
-      <div
-        aria-hidden
-        className={cn(
-          "flex h-3 overflow-hidden rounded-round bg-surface-2 edge-strong",
-          className
-        )}
-      >
-        <i
-          className="block bg-ok-fg"
-          style={{ width: `${(ok / total) * 100}%` }}
-        />
-        <i
-          className="block bg-stripe"
-          style={{ width: `${(sent / total) * 100}%` }}
-        />
-      </div>
-    )
-  }
   return (
-    <ol
-      aria-hidden
-      className={cn("grid gap-1", className)}
-      style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
-    >
-      {frames(total, accepted, pending).map((state, index) => (
-        <li
-          key={index}
-          className={cn("block h-3 rounded-round", SEGMENT_CLASS[state])}
-        />
-      ))}
-    </ol>
+    <div aria-hidden className={className}>
+      <Progress
+        mode="segments"
+        aria-label="Photo progress"
+        accepted={accepted}
+        submitted={pending}
+        total={total}
+      />
+    </div>
   )
 }
 
@@ -121,7 +78,28 @@ export function MonthCard({
   const target = monthly?.targetCount ?? 0
   const count = completion?.total ?? monthly?.accepted ?? 0
   const pending = completion ? 0 : (monthly?.pending ?? 0)
-  const toTake = Math.max(0, target - count - pending)
+  // Decision 13: a photo a reviewer wants redone holds its own frame.
+  const redo = completion ? 0 : (monthly?.needsAnotherPhoto ?? 0)
+  const toTake = Math.max(0, target - count - pending - redo)
+  const unit = completion ? "items completed" : "photos accepted"
+  const key = {
+    accepted:
+      count > 0
+        ? `${count} ${completion ? "completed" : "accepted"}`
+        : undefined,
+    submitted:
+      pending > 0
+        ? `${pending}${monthly?.complete ? " more" : ""} waiting for review`
+        : undefined,
+    needsAnother:
+      redo > 0
+        ? `${redo} ${redo === 1 ? "needs" : "need"} another photo`
+        : undefined,
+    needed:
+      toTake > 0
+        ? `${toTake} ${completion ? "to complete" : "to take"}`
+        : undefined,
+  }
 
   return (
     <section
@@ -156,25 +134,23 @@ export function MonthCard({
               <StatusChip tone="positive">Target met</StatusChip>
             ) : null}
           </p>
-          <div
-            role="img"
-            aria-label={`${count} of ${target} ${completion ? "items completed" : "photos accepted"}`}
-          >
-            <PhotoSegments accepted={count} pending={pending} target={target} />
-          </div>
-          <p className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-muted">
-            {pending > 0 ? (
-              <span>
-                {pending}
-                {monthly.complete ? " more" : ""} waiting for review
-              </span>
-            ) : null}
-            {toTake > 0 ? (
-              <span>
-                {toTake} {completion ? "to complete" : "to take"}
-              </span>
-            ) : null}
-          </p>
+          <Progress
+            mode="segments"
+            aria-label={`${count} of ${target} ${unit}`}
+            valueText={[
+              `${count} of ${target} ${unit}`,
+              key.submitted,
+              key.needsAnother,
+              key.needed,
+            ]
+              .filter(Boolean)
+              .join(", ")}
+            accepted={count}
+            submitted={pending}
+            needsAnother={redo}
+            total={target}
+            keyLabels={key}
+          />
         </div>
       ) : null}
 
@@ -225,5 +201,84 @@ export function MonthCard({
         </div>
       ) : null}
     </section>
+  )
+}
+
+/** The state word of one photo in the month (decision 13). */
+function MonthPhotoChip({ state }: { state: MonthPhotoView["state"] }) {
+  if (state === "waiting")
+    return <SystemChip state="submitted">Waiting for review</SystemChip>
+  return <SystemChip state={state} />
+}
+
+/** What the photo is of: the dishes it was labelled with, or what it was sent to. */
+export function monthPhotoTitle(photo: MonthPhotoView): string {
+  if (photo.itemNames.length > 0) return photo.itemNames.join(", ")
+  return photo.sent?.requirementTitle ?? MONTH_PHOTOS_COPY.monthlyPhoto
+}
+
+/**
+ * The person's own photos in a month, one row each, with the same states the
+ * month card counts: accepted, needs another photo, waiting for review.
+ */
+export function MonthPhotoList({
+  photos,
+  label,
+}: {
+  photos: MonthPhotoView[]
+  /** Accessible name of the list. */
+  label: string
+}) {
+  return (
+    <ul
+      aria-label={label}
+      className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
+    >
+      {photos.map((photo) => {
+        const title = monthPhotoTitle(photo)
+        const uploaded = formatDate(photo.uploadedAt)
+        const by = photo.decision?.decidedBy.displayName
+        return (
+          <li
+            key={photo.assetId}
+            className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3 p-3"
+          >
+            <EvidenceThumb
+              thumbnailUrl={photo.asset.thumbnailUrl}
+              previewUrl={photo.asset.previewUrl}
+              label={`${title}: photo taken ${uploaded}`}
+              className="size-16 rounded-control sm:size-20"
+            />
+            <div className="flex min-w-0 flex-col gap-1">
+              <p className="text-item-title [overflow-wrap:anywhere] text-ink">
+                {title}
+              </p>
+              <p className="text-meta text-ink-muted">
+                {MONTH_PHOTOS_COPY.taken(uploaded)}
+                {photo.itemNames.length > 0 && photo.sent?.requirementTitle
+                  ? ` · Sent to ${photo.sent.requirementTitle}`
+                  : ""}
+              </p>
+              {photo.state === "needs_another_photo" ? (
+                <ReviewReason reason={photo.reason} />
+              ) : null}
+              {photo.decision ? (
+                <p className="text-meta text-ink-muted">
+                  {photo.state === "accepted" ? "Accepted" : "Reviewed"}
+                  {by ? ` by ${by}` : ""} on{" "}
+                  {formatDate(photo.decision.decidedAt)}
+                </p>
+              ) : null}
+              <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                <MonthPhotoChip state={photo.state} />
+                {!photo.asset.available ? (
+                  <StatusChip tone="negative">Photo removed</StatusChip>
+                ) : null}
+              </span>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

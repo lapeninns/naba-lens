@@ -88,17 +88,21 @@ const amenities = vi.hoisted(() => ({
 vi.mock("@/lib/server/amenities", () => amenities)
 // No working list at this venue: the legacy screens, counts and badge.
 // `fail` makes the read fail instead.
-const workingList = vi.hoisted(() => ({ fail: false }))
+const workingList = vi.hoisted(() => ({
+  fail: false,
+  rechecks: [] as unknown[],
+}))
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: {
     getWorkingList: async () =>
       workingList.fail
         ? { ok: false, code: "unavailable" }
         : { ok: true, view: null },
+    listMyRechecks: async () => ({ ok: true, tasks: workingList.rechecks }),
   },
 }))
 
-import AllTasksPage from "@/app/staff/tasks/all/page"
+import OtherJobsPage from "@/app/staff/tasks/other/page"
 import TasksPage from "@/app/staff/tasks/page"
 
 function setup({
@@ -196,12 +200,12 @@ describe("Home: amenity checks", () => {
       screen.queryByRole("list", { name: UI_TEXT.staffSection })
     ).toBeNull()
     expect(
-      screen.getByRole("link", { name: "All tasks" }).getAttribute("href")
-    ).toBe("/staff/tasks/all")
+      screen.getByRole("link", { name: "Other jobs" }).getAttribute("href")
+    ).toBe("/staff/tasks/other")
     unmount()
-    render(await AllTasksPage())
+    render(await OtherJobsPage())
     expect(
-      screen.getByRole("heading", { level: 1, name: "All tasks" })
+      screen.getByRole("heading", { level: 1, name: "Other jobs" })
     ).toBeTruthy()
     const list = screen.getByRole("list", { name: UI_TEXT.staffSection })
     const links = within(list).getAllByRole("link")
@@ -213,6 +217,30 @@ describe("Home: amenity checks", () => {
     expect(within(list).getByText("Password or QR visible")).toBeTruthy()
     expect(within(list).getByText("Needs recheck")).toBeTruthy()
     expect(within(list).getByText("Needs capture")).toBeTruthy()
+  })
+
+  it("lists my open rechecks on Other jobs with their cause (B03-e)", async () => {
+    setup()
+    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
+    workingList.rechecks = [
+      {
+        id: "r1",
+        checkId: "c7",
+        question: "Is the ramp still in place?",
+        dueAt: "2026-11-20T00:00:00Z",
+        cause: "policy_stale",
+      },
+    ]
+    try {
+      render(await OtherJobsPage())
+      const list = screen.getByRole("list", { name: "Checks to do again" })
+      const link = within(list).getByRole("link", {
+        name: "Recheck: Is the ramp still in place?",
+      })
+      expect(link.getAttribute("href")).toBe(staffCaptureHref("c7"))
+    } finally {
+      workingList.rechecks = []
+    }
   })
 
   it.each([

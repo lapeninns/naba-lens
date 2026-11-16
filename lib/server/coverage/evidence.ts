@@ -16,7 +16,10 @@ const notFound = { ok: false, status: 404, message: "Not found." } as const
  * `amenity_evidence_asset` for amenity check evidence.
  */
 export type EvidenceCheck =
-  "task_evidence_asset" | "menu_item_photo_asset" | "amenity_evidence_asset"
+  | "task_evidence_asset"
+  | "menu_item_photo_asset"
+  | "amenity_evidence_asset"
+  | "area_photo_asset"
 
 /**
  * Signed (at most 60 s) URL for a task-evidence derivative. The caller-scoped

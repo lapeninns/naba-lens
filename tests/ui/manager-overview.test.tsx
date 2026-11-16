@@ -69,11 +69,14 @@ const hrefOf = (name: string | RegExp) =>
   screen.getByRole("link", { name }).getAttribute("href")
 
 describe("Overview", () => {
-  it("no_menu: the setup-pending note and no action", () => {
+  it("no_menu: the setup-pending note; only Team targets is offered", () => {
     show(overview({ menuState: "no_menu", menu: null, eligible: 0 }))
     expect(screen.getByText(MANAGER_COPY.overview.noMenuTitle)).toBeTruthy()
     expect(screen.getByText(MANAGER_COPY.overview.noMenuBody)).toBeTruthy()
-    expect(screen.queryByRole("link")).toBeNull()
+    // Photo targets don't need a menu, so a new venue can still set them.
+    expect(
+      screen.getAllByRole("link").map((l) => l.getAttribute("href"))
+    ).toEqual(["/manager/team"])
     expect(screen.queryByRole("progressbar")).toBeNull()
   })
 

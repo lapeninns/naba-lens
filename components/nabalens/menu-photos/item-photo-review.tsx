@@ -318,7 +318,7 @@ export function ItemPhotoReview({
               }
             : c
         )
-        return `Asked ${candidate.self ? "yourself" : firstName(candidate.uploader.displayName)} for a better photo of ${candidate.item.name}.${photo.selfReview ? " Recorded as a self-review." : ""}`
+        return `Asked ${candidate.self ? "yourself" : firstName(candidate.uploader.displayName)} for another photo of ${candidate.item.name}.${photo.selfReview ? " Recorded as a self-review." : ""}`
       }
     )
   }
@@ -538,13 +538,13 @@ export function ItemPhotoReview({
           subject
             ? dialog?.kind === "undo"
               ? `Say why this photo no longer counts for ${subject.item.name}.`
-              : `${subject.self ? "You see" : `${firstName(subject.uploader.displayName)} sees`} this with the photo. Say what a better photo needs.`
+              : `${subject.self ? "You see" : `${firstName(subject.uploader.displayName)} sees`} this with the photo. ${ITEM_REVIEW_COPY.askReasonHelp}`
             : undefined
         }
         emptyError={
           dialog?.kind === "undo"
             ? "Add a reason for undoing the acceptance."
-            : "Add a reason. Say what a better photo needs."
+            : ITEM_REVIEW_COPY.askReasonMissing
         }
         note={
           subject

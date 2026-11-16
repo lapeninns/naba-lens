@@ -53,7 +53,11 @@ between photos, Esc closes).
   item and accepts it. It needs a reason; the card keeps the staff label and
   shows **Moved from {item}**.
 - **Ask for another photo** needs a reason (what the next photo should show).
-  The contributor sees **Better photo requested** in their own area.
+  The contributor sees a **Needs another photo** note with your reason on
+  their Home and on **Me**, with **Reshoot**. It has no date and is never
+  repeated. They may choose **Later** to hide it from Home. The note clears
+  once any new photo of the item is accepted, whoever took it. The item stays
+  in **Still needs a photo** for everyone at the venue until then.
 - **Withdraw acceptance** (under **More actions** when there are other
   choices) needs a reason. Another accepted photo becomes the menu photo, or
   the item needs a photo again. The photo stays in Photos.
@@ -83,6 +87,20 @@ the item's history. An id that is not on your venue's current menu shows
 **This item isn't on your current menu**.
 
 Staff see the same totals in **Our menu**.
+
+### What staff see
+
+The menu is the whole venue's goal. Staff Home lists the items that **still
+need a photo** (up to four, then **See all**), and anyone at the venue may
+photograph any of them; nobody is assigned an item and food and drink photos
+have no due date or **Overdue**. An item whose photo is waiting for your
+decision stays on their list marked **Waiting for review**, and an item you
+are rechecking after a menu change is marked **Being checked**. Each person
+also sees their own month: accepted food and drink photos they labelled, and
+photos they sent to the month, count toward their target. Staff never see
+each other's months, and no screen ranks or compares people. Amenity checks
+and other venue jobs keep their dates; staff reach them from **Other jobs** on
+Home.
 
 ## Amenities
 

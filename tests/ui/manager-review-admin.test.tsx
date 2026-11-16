@@ -265,11 +265,14 @@ describe("admin Review page", () => {
     })
     expect(server.adminVenueContext).toHaveBeenCalledWith(VENUE)
     expect(server.getManagerPhotoCtx).toHaveBeenCalledWith(VENUE)
-    const body = (page.props as { children: React.ReactElement }).children
-    expect(body.props).toMatchObject({
+    // The menu photos, then the venue-area photos (G-9).
+    const [body, areas] = (page.props as { children: React.ReactElement[] })
+      .children
+    expect(body!.props).toMatchObject({
       ctx,
       scope: { kind: "admin", venueId: VENUE },
       search: { status: "unlabelled" },
     })
+    expect(areas!.props).toMatchObject({ ctx, venueId: VENUE })
   })
 })
