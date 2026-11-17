@@ -193,6 +193,29 @@ people, change roles, venues or teams, publish menus, download originals or
 delete colleagues' photos. Manager screens show names, photos and progress,
 never email or account details.
 
+## Albums: every venue's album
+
+**Albums** (`/admin/albums`, in the admin nav) shows every active venue's
+album at once (docs/design-system/DESIGN.md §6.6). Only admins can open it.
+
+- At the top, how many slots are still empty across every venue (Needed or
+  Retake). Photos waiting for review are not empty.
+- **By venue** is a table: venues down; **Food**, **Drinks**, **Amenities** and
+  **Areas** across. Each cell says "{filled} of {total}", where filled means an
+  accepted photo, and a word: **None yet**, **{n} waiting** or **Full**. The
+  cell's green tint darkens as it fills (none yet, under half, half or more,
+  full), but the words always say it. Amenities answered **No** or **Not
+  applicable** are not counted. The last row adds up every venue. On a phone
+  the table scrolls inside its box.
+- A venue without an active menu shows **No menu** for Food and Drinks. A cell
+  whose read failed shows **Couldn't load**; the rest of the page is current.
+- An amenity question whose latest finding a manager sent back for more
+  detail counts as empty (Retake), as staff see it; one still to be decided
+  counts as waiting.
+- **Biggest gaps** lists the sections, amenity categories and venues' places
+  with the most empty slots, each linking to that venue's Review, Amenities or
+  Places.
+
 ## Amenities: evidence checks per venue
 
 **Amenities** is a tab in each venue's tools (`/admin/coverage/[venueId]/amenities`;

@@ -39,8 +39,37 @@ Overview says menu photos appear once it is set up.
 
 ## Review
 
-`/manager/review` lists photos staff labelled with a menu item, oldest first.
-**Status** chooses the list: **Waiting**, **Needs a recheck**, **Asked for
+### One photo at a time
+
+`/manager/review` opens on the waiting photos one at a time, oldest first:
+menu photos and area photos together (docs/design-system/DESIGN.md §6.5). The
+title counts the photos you can decide ("12 photos to review"). Each photo
+shows large, with its slot (the dish, or the place), the **Brief** staff were
+given, who added it and when, and where it sits in the album.
+
+- **Accept** puts the photo in the album. The page says so ("Soup is in the
+  album.") and the next photo comes up.
+- **Ask again** opens the reason chips: **Too dark**, **Out of focus**,
+  **Wrong item**, **Show more of it**, **Messy background** and **Other**.
+  Choosing a chip sends it as the reason. **Other** asks what the next photo
+  should show; it cannot be sent empty. **Cancel** goes back. The contributor
+  sees the reason, as with **Ask for another photo** below.
+- The brief is the one you wrote for the dish, else its section's (see
+  [Briefs](#briefs)); with neither, no brief shows. It is never the menu
+  description guests see.
+- Your own photos never come up: the page counts them under the photo ("1 of
+  your own photos is waiting. Another reviewer decides on it."). If someone
+  else decided on a photo first, the page says so and shows the next one.
+- More photos load as you go. When none are left the page says **Every photo
+  is reviewed**.
+- **See every photo as a list** opens the full list
+  (`/manager/review?view=list`) for everything else: rechecks, moving a photo
+  to another item, decided photos and withdrawing an acceptance.
+
+### The full list
+
+The full list shows photos staff labelled with a menu item, oldest first.
+Changing a filter keeps you in the list. **Status** chooses the list: **Waiting**, **Needs a recheck**, **Asked for
 another**, **Accepted**, **Labelled for an old menu**, **Unlabelled photos**,
 **Your photos** (only when you have some) and **All**. **Section** and
 **Contributor** narrow it. Select a photo to see it large (arrow keys move
@@ -135,7 +164,8 @@ Overview, which shows **Venue access unavailable**.
 
 `/manager/album` (linked from **Places**) says where staff photograph each
 menu section and each amenity category, so Album can show staff the empty
-slots wherever they are standing (docs/design-system/DESIGN.md §6.2).
+slots wherever they are standing (docs/design-system/DESIGN.md §6.2). It also
+holds each menu section's brief (see [Briefs](#briefs)).
 
 - Each menu section of the active menu and each amenity category has a list
   of your venue's places. Choosing one saves it straight away and says so
@@ -144,7 +174,26 @@ slots wherever they are standing (docs/design-system/DESIGN.md §6.2).
 - A section is kept by its name in the menu file, so the place carries over
   when a new menu version keeps the section.
 - Places come from **Places** (`/manager/amenities/places`). With none listed,
-  the page asks you to add the bar, the kitchen pass and the other places
-  first. Each place is also a slot of its own in Album: its own photo, from
-  area photos.
+  the page asks you to add the bar, the kitchen pass and the other places, and
+  each group shows **Not placed**; section briefs can still be written. Each
+  place is also a slot of its own in Album: its own photo, from area photos.
 - Until a group is placed, staff see its slots under **Not placed yet**.
+
+## Briefs
+
+A brief is one line on what a slot's photo must show ("The bowl from above,
+steam showing"), up to 140 characters. Staff read it on the slot and when
+they match a photo; you judge against the same words in Review
+(DESIGN.md §2, §5 Brief).
+
+- **Section brief:** on `/manager/album`, under each menu section. Every dish
+  in the section uses it unless the dish has its own. It is kept by the
+  section's name in the menu file, so it carries over to a new menu version
+  that keeps the section.
+- **Dish brief:** on the dish's page (`/manager/menu/{id}`), under **Brief**.
+  It comes first. The hint says which section brief staff see without it, or
+  that the section has none yet.
+- **Save brief** saves the line and says so beside the field; **Clear brief**
+  removes it. A failure is written beside the field and keeps what you typed.
+- Amenity questions have the catalogue's capture brief; there is nothing to
+  write for them here.
