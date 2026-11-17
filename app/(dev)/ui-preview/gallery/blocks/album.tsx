@@ -7,6 +7,13 @@ import {
   type AlbumPlacesGroup,
 } from "@/components/nabalens/album/album-places-form"
 import { SlotTile, type SlotState } from "@/components/nabalens/album/slot-tile"
+import type { MatchBoard } from "@/components/nabalens/album/match/model"
+import {
+  MatchScreen,
+  type MatchPhoto,
+} from "@/components/nabalens/album/match/match-screen"
+import { Button } from "@/components/ui/button"
+import * as React from "react"
 import { buildAlbum, currentPlace, type AlbumInput } from "@/lib/album/model"
 
 /*
@@ -66,6 +73,7 @@ export function AlbumBlock() {
   return (
     <div className="grid gap-8">
       <AlbumScreensBlock />
+      <MatchSpecimen />
       <div className="grid gap-4">
         <h3 className="type-heading-sm text-ink">Slot tile</h3>
         <ul className="grid max-w-feed grid-cols-3 gap-2 sm:grid-cols-4">
@@ -234,6 +242,84 @@ export function AlbumScreensBlock() {
           />
         </div>
       </div>
+    </div>
+  )
+}
+
+/* ---- A3: Match, on made-up photos (opens as a dialog) ---- */
+
+const MATCH_BOARD: MatchBoard = {
+  slots: [
+    {
+      id: "dish:a",
+      name: "Guinness, pint",
+      group: "Drinks",
+      place: BAR,
+      placeLabel: "The bar",
+      brief: "Side on at the counter, glass fills the frame",
+      target: { kind: "dish", itemId: "a", name: "Guinness, pint" },
+    },
+    {
+      id: "dish:b",
+      name: "Espresso martini",
+      group: "Drinks",
+      place: BAR,
+      placeLabel: "The bar",
+      brief: null,
+      target: { kind: "dish", itemId: "b", name: "Espresso martini" },
+    },
+    {
+      id: "dish:c",
+      name: "Sticky toffee pudding",
+      group: "Desserts",
+      place: PASS,
+      placeLabel: "Kitchen pass",
+      brief: "Side on, sauce pouring, on the slate plate",
+      target: { kind: "dish", itemId: "c", name: "Sticky toffee pudding" },
+    },
+    {
+      id: `area:${GARDEN}`,
+      name: "Garden",
+      group: "The space",
+      place: GARDEN,
+      placeLabel: "Garden",
+      brief: null,
+      target: { kind: "area", subjectId: GARDEN, name: "Garden" },
+    },
+  ],
+  amenities: ["Can guests play darts?"],
+}
+
+export function MatchSpecimen() {
+  const [open, setOpen] = React.useState(false)
+  const photos = React.useMemo<MatchPhoto[]>(
+    () =>
+      Array.from({ length: 20 }, (_, i) => ({
+        key: `p${i}`,
+        file: new File([new Uint8Array(8)], `photo-${i}.jpg`, {
+          type: "image/jpeg",
+        }),
+      })),
+    []
+  )
+  return (
+    <div className="grid gap-3">
+      <h3 className="type-heading-sm text-ink">Match (§6.1)</h3>
+      <div>
+        <Button onClick={() => setOpen(true)}>Open Match with 20 photos</Button>
+      </div>
+      <MatchScreen
+        open={open}
+        photos={photos}
+        outcomes={new Map()}
+        sendStates={new Map()}
+        board={{ state: "ready", board: MATCH_BOARD }}
+        onRetryBoard={() => {}}
+        current={BAR}
+        last={null}
+        onDecide={() => {}}
+        onClose={() => setOpen(false)}
+      />
     </div>
   )
 }

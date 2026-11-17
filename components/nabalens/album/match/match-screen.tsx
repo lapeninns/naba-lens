@@ -166,9 +166,11 @@ export function MatchScreen({
         showCloseButton={false}
         aria-labelledby={titleId}
         data-slot="match-screen"
-        className="grid-rows-[auto_1fr] bg-surface"
+        // minmax(0,1fr): the photo strip scrolls sideways; without it the
+        // strip's full length sets the dialog's width (320px reflow).
+        className="grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr] bg-surface"
       >
-        <div className="flex items-center justify-between gap-3 border-b border-line px-3 py-2">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-3 py-2">
           <DialogTitle
             id={titleId}
             ref={titleRef}
@@ -191,7 +193,7 @@ export function MatchScreen({
           </Button>
         </div>
 
-        <div className="grid content-start gap-4 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-4 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
           {notice ? (
             <div className="px-3 pt-3">
               <Notice tone="attention" role="status">
@@ -284,7 +286,7 @@ function Strip({
   return (
     <ul
       aria-label={MATCH_COPY.stripLabel}
-      className="flex gap-2 overflow-x-auto px-3 pt-3 pb-1"
+      className="flex min-w-0 gap-2 overflow-x-auto px-3 pt-3 pb-1"
       data-slot="match-strip"
     >
       {photos.map((photo, i) => {
@@ -429,7 +431,7 @@ function Summary({
   ).length
   return (
     <section
-      className="grid gap-4 px-3 pt-3"
+      className="grid grid-cols-[minmax(0,1fr)] gap-4 px-3 pt-3"
       data-slot="match-summary"
       aria-live="polite"
     >
