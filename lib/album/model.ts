@@ -34,7 +34,11 @@ export type AlbumSlot = {
   thumbnailUrl: string | null
   /** A manager's "needed by" date on a dish, as written (DESIGN.md §7). */
   neededBy: string | null
-  /** One line on what the photo must show (DESIGN.md §5 Brief); filled by AL-4. */
+  /**
+   * One line on what the photo must show (DESIGN.md §5 Brief): a dish's own
+   * brief, else its section's; an amenity's catalogue capture brief; null
+   * for an area or when none is set (see slotBrief).
+   */
   brief: string | null
   target: AlbumSlotTarget
 }
@@ -91,6 +95,8 @@ export type DishInput = {
 
 export type AmenityInput = {
   checkId: string
+  /** The catalogue question key, which finds its capture brief. */
+  key?: string
   question: string
   category: string
   progress: "needs_capture" | "complete" | "needs_recheck"
@@ -122,6 +128,51 @@ export type AlbumInput = {
   areas: AreaInput[]
   /** Dishes the viewer was asked to retake (their own open notes). */
   myRetakeItemIds: ReadonlySet<string>
+  /** The venue's briefs (20261117130000_album_briefs.sql); none when absent. */
+  briefs?: AlbumBriefs
+}
+
+/** Briefs as the loader reads them, keyed for lookup. */
+export type AlbumBriefs = {
+  /** Menu section slug to its brief. */
+  sections: ReadonlyMap<string, string>
+  /** Dish (menu item id) to its own brief. */
+  items: ReadonlyMap<string, string>
+  /** Amenity question key to the catalogue's capture brief. */
+  amenities: ReadonlyMap<string, string>
+}
+
+export const NO_BRIEFS: AlbumBriefs = {
+  sections: new Map(),
+  items: new Map(),
+  amenities: new Map(),
+}
+
+// ---- briefs ------------------------------------------------------------------
+
+/** A brief is one line (DESIGN.md §5 Brief); the database holds the same limit. */
+export const BRIEF_MAX = 140
+
+/**
+ * A slot's brief (DESIGN.md §5 Brief): a dish's own brief, else its
+ * section's, else none; an amenity's catalogue capture brief; an area none.
+ */
+export function slotBrief(
+  target:
+    | { kind: "dish"; itemId: string; sectionSlug: string | null }
+    | { kind: "amenity"; key: string | null }
+    | { kind: "area" },
+  briefs: AlbumBriefs
+): string | null {
+  if (target.kind === "dish")
+    return (
+      briefs.items.get(target.itemId) ??
+      (target.sectionSlug ? briefs.sections.get(target.sectionSlug) : null) ??
+      null
+    )
+  if (target.kind === "amenity")
+    return target.key ? (briefs.amenities.get(target.key) ?? null) : null
+  return null
 }
 
 // ---- state rules -------------------------------------------------------------
@@ -178,6 +229,7 @@ export const AREA_GROUP = "The space"
 export function buildAlbum(input: AlbumInput): AlbumView {
   const placeLabel = new Map(input.places.map((p) => [p.subjectId, p.label]))
   const slugOf = new Map(input.sections.map((s) => [s.sectionId, s.slug]))
+  const briefs = input.briefs ?? NO_BRIEFS
   const placeOf = new Map(
     input.placements
       .filter((p) => placeLabel.has(p.subjectId))
@@ -202,7 +254,10 @@ export function buildAlbum(input: AlbumInput): AlbumView {
             ? "Needed"
             : `Needed by ${dayLabel(dish.neededBy.date)}`
           : null,
-        brief: null,
+        brief: slotBrief(
+          { kind: "dish", itemId: dish.itemId, sectionSlug: slug ?? null },
+          briefs
+        ),
         target: { kind: "dish", itemId: dish.itemId, itemName: dish.name },
       },
     })
@@ -218,7 +273,7 @@ export function buildAlbum(input: AlbumInput): AlbumView {
         state: amenityState(check),
         thumbnailUrl: null,
         neededBy: null,
-        brief: null,
+        brief: slotBrief({ kind: "amenity", key: check.key ?? null }, briefs),
         target: { kind: "amenity", checkId: check.checkId },
       },
     })

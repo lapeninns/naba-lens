@@ -9,6 +9,93 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      album_brief_events: {
+        Row: {
+          brief: string | null
+          id: number
+          set_at: string
+          set_by: string
+          source: string
+          source_key: string
+          venue_id: string
+        }
+        Insert: {
+          brief?: string | null
+          id?: never
+          set_at?: string
+          set_by: string
+          source: string
+          source_key: string
+          venue_id: string
+        }
+        Update: {
+          brief?: string | null
+          id?: never
+          set_at?: string
+          set_by?: string
+          source?: string
+          source_key?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "album_brief_events_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "album_brief_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      album_briefs: {
+        Row: {
+          brief: string
+          set_at: string
+          set_by: string
+          source: string
+          source_key: string
+          venue_id: string
+        }
+        Insert: {
+          brief: string
+          set_at?: string
+          set_by: string
+          source: string
+          source_key: string
+          venue_id: string
+        }
+        Update: {
+          brief?: string
+          set_at?: string
+          set_by?: string
+          source?: string
+          source_key?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "album_briefs_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "album_briefs_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       album_place_events: {
         Row: {
           id: number
@@ -5177,6 +5264,16 @@ export type Database = {
         Returns: undefined
       }
       album_area_states: { Args: { p_venue_id?: string }; Returns: Json }
+      album_brief_set: {
+        Args: {
+          p_brief: string
+          p_key: string
+          p_source: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
+      album_briefs: { Args: { p_venue_id?: string }; Returns: Json }
       album_place_set: {
         Args: {
           p_key: string

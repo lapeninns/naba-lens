@@ -23,12 +23,14 @@ Update the row when you add, merge or retire a component. The roadmap in [strate
 
 Built to [DESIGN.md](DESIGN.md) §5. Each batch adds its rows.
 
-| Component                | File                                              | Layer   | Spec name                    | Files using it | Status  |
-| ------------------------ | ------------------------------------------------- | ------- | ---------------------------- | -------------- | ------- |
-| SlotTile                 | `components/nabalens/album/slot-tile.tsx`         | Pattern | Slot tile (§4, §5)           | 3 (A2)         | adopted |
-| AlbumHome, AlbumSlotTile | `components/nabalens/album/album-home.tsx`        | Feature | Album (Home) (§5a)           | 2 (A2)         | adopted |
-| AlbumPlaceScreen         | `components/nabalens/album/album-place.tsx`       | Feature | A place (§6.2)               | 1 (A2)         | adopted |
-| AlbumPlacesForm          | `components/nabalens/album/album-places-form.tsx` | Feature | Album places, manager (§6.2) | 1 (A2)         | adopted |
+| Component                | File                                              | Layer   | Spec name                              | Files using it | Status  |
+| ------------------------ | ------------------------------------------------- | ------- | -------------------------------------- | -------------- | ------- |
+| SlotTile                 | `components/nabalens/album/slot-tile.tsx`         | Pattern | Slot tile (§4, §5)                     | 3 (A2)         | adopted |
+| AlbumHome, AlbumSlotTile | `components/nabalens/album/album-home.tsx`        | Feature | Album (Home) (§5a)                     | 2 (A2)         | adopted |
+| AlbumPlaceScreen         | `components/nabalens/album/album-place.tsx`       | Feature | A place (§6.2)                         | 1 (A2)         | adopted |
+| AlbumPlacesForm          | `components/nabalens/album/album-places-form.tsx` | Feature | Album places, manager (§6.2)           | 1 (A2)         | adopted |
+| SlotBriefField           | `components/nabalens/album/slot-brief-field.tsx`  | Pattern | Brief, the manager's field (§5 Brief)  | 2 (A4)         | adopted |
+| DishBrief                | `components/nabalens/album/dish-brief.tsx`        | Feature | Brief for one dish, manager (§5 Brief) | 1 (A4)         | adopted |
 
 ## Primitives
 
