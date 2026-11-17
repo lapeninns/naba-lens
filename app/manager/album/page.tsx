@@ -19,7 +19,8 @@ export const metadata: Metadata = { title: "Album places" }
  * Album places (DESIGN.md §6.2, Album A2): where staff stand to photograph
  * each menu section and amenity category. Album groups every slot by these
  * places; a group with no place shows under "Not placed yet". Each menu
- * section also has its one-line brief (§5 Brief, Album AL-4).
+ * section also has its one-line brief (§5 Brief, Album AL-4), which can be
+ * written before any place is listed.
  */
 export default async function ManagerAlbumPlacesPage() {
   const ctx = await workspaceManagerContext()
@@ -88,33 +89,32 @@ export default async function ManagerAlbumPlacesPage() {
           >
             Add the bar, the kitchen pass and the other places
           </Link>{" "}
-          first, then come back here.
+          to choose where each section is photographed. Section briefs can be
+          written now.
         </Notice>
       ) : (
-        <>
-          <p className="text-body text-ink-muted">
-            Missing a place?{" "}
-            <Link
-              href="/manager/amenities/places"
-              className="font-bold text-accent-text underline underline-offset-4"
-            >
-              Add it under Places
-            </Link>
-            .
-          </p>
-          {briefs.ok ? null : (
-            <Notice tone="negative" role="alert">
-              Section briefs could not be read: {briefs.message}
-            </Notice>
-          )}
-          <AlbumPlacesForm
-            places={placements.places}
-            groups={groups}
-            onSet={setAlbumPlaceAction}
-            onSetBrief={briefs.ok ? setAlbumBriefAction : undefined}
-          />
-        </>
+        <p className="text-body text-ink-muted">
+          Missing a place?{" "}
+          <Link
+            href="/manager/amenities/places"
+            className="font-bold text-accent-text underline underline-offset-4"
+          >
+            Add it under Places
+          </Link>
+          .
+        </p>
       )}
+      {briefs.ok ? null : (
+        <Notice tone="negative" role="alert">
+          Section briefs could not be read: {briefs.message}
+        </Notice>
+      )}
+      <AlbumPlacesForm
+        places={placements.places}
+        groups={groups}
+        onSet={setAlbumPlaceAction}
+        onSetBrief={briefs.ok ? setAlbumBriefAction : undefined}
+      />
     </div>
   )
 }
