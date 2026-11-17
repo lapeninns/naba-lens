@@ -181,7 +181,7 @@ export function UiPreview() {
 
       <Section
         title="Common Room"
-        note="DESIGN.md v0.3: tokens, primitives, state shapes and the feed building blocks."
+        note="common-room.md v0.3: tokens, primitives, state shapes and the feed building blocks."
       >
         <CommonRoomPreview />
       </Section>
@@ -239,7 +239,7 @@ export function UiPreview() {
                       onClick={() => setUploadOpen(true)}
                     >
                       <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-                      Upload photos or videos
+                      Add photos or videos
                     </Button>
                   </>
                 }
@@ -265,7 +265,7 @@ export function UiPreview() {
             action={
               <Button variant="primary" onClick={() => setUploadOpen(true)}>
                 <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-                Upload photos or videos
+                Add photos or videos
               </Button>
             }
           />

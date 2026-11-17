@@ -48,7 +48,7 @@ export function TileBadge({
     <span
       data-slot="tile-badge"
       className={cn(
-        // A chip on a photo sits on the solid plate (DESIGN.md §4), so it
+        // A chip on a photo sits on the solid plate (common-room.md §4), so it
         // reads on any photo in both themes.
         "inline-flex min-h-7 items-center gap-1 rounded-square bg-plate px-2 text-chip whitespace-nowrap text-on-stage tabular-nums [&_svg]:size-4",
         className
@@ -284,7 +284,7 @@ export function MediaTile({
 }
 
 /**
- * A colleague's photo as a post (Common Room feed, DESIGN.md §4): their face,
+ * A colleague's photo as a post (Common Room feed, common-room.md §4): their face,
  * name, the venue and date, then the photo edge to edge. The photo is the
  * same button a tile is (same name, same viewer). No likes, comments or
  * counts.

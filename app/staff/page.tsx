@@ -4,6 +4,7 @@ import {
   loadMoreContributionsAction,
 } from "@/app/_knowledge/actions"
 import { AppShell } from "@/components/nabalens"
+import { YourMonthCard } from "@/components/nabalens/album/your-month-card"
 import { YourFindings } from "@/components/nabalens/knowledge/findings-history"
 import { MyContributions } from "@/components/nabalens/knowledge/my-contributions"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
@@ -17,7 +18,11 @@ import {
   listMyMenuPhotoDecisions,
   listMyRetakeNotes,
 } from "@/lib/server/coverage"
-import type { MyMenuPhotoState, RetakeNote } from "@/lib/server/coverage/types"
+import type {
+  MonthlyProgress,
+  MyMenuPhotoState,
+  RetakeNote,
+} from "@/lib/server/coverage/types"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listOwnMedia, listOwnMediaByIds } from "@/lib/server/media/library"
 import type { MediaActor, MediaItemView } from "@/lib/server/media/types"
@@ -28,20 +33,18 @@ import type {
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { workServices } from "@/lib/work-client/services"
 
-import { myWorkingList, staffShellStatus } from "./_shell/shell-status"
+import {
+  myOtherJobsCount,
+  myTasks,
+  myWorkingList,
+  staffShellStatus,
+} from "./_shell/shell-status"
 import { getMyAreaLabels } from "@/lib/server/area-photos"
 
+import { ADD_BLOCKED } from "./add-blocked"
 import { StaffPortfolio } from "./staff-portfolio"
 
-const BLOCKED_COPY = {
-  not_staff: "Only staff accounts can upload.",
-  no_venue:
-    "Your account is not assigned to a venue yet, so uploads are paused. Ask an admin to assign your venue.",
-  venue_inactive:
-    "Your venue is not taking uploads right now, so uploads are paused. Ask an admin to check your venue.",
-} as const
-
-export const metadata = { title: "Your portfolio" }
+export const metadata = { title: "Me" }
 
 // finaliseUpload (Server Action on this page) decodes HEIC/images; keep the
 // bound explicit and below MEDIA_LIMITS.staleProcessingMinutes.
@@ -102,6 +105,20 @@ async function retakeNotes(actor: MediaActor): Promise<RetakeNote[]> {
     return result.ok ? result.notes : []
   } catch {
     return []
+  }
+}
+
+/**
+ * The person's own month (Album shell, proposal §7.6: moved off Home to Me).
+ * Null when unread: the card says there is no target rather than leaving Me
+ * broken.
+ */
+async function ownMonth(actor: MediaActor): Promise<MonthlyProgress | null> {
+  try {
+    const result = await myTasks(actor)
+    return result.ok ? result.tasks.monthly : null
+  } catch {
+    return null
   }
 }
 
@@ -167,7 +184,7 @@ async function history(
   return { kind: "b02", show: sent || onList, page, drafts }
 }
 
-/** Staff home: own profile, Upload action and newest-first own gallery. */
+/** Me: own profile, Add photos, own month and links, and newest-first own gallery. */
 export default async function StaffPage({
   searchParams,
 }: {
@@ -176,14 +193,17 @@ export default async function StaffPage({
   const profile = await requireActiveStaff()
   const auth = await getMediaActor("staff")
   if (!auth.ok) throw new Error("Not authorised.")
-  const [page, shell, params, menuPhotos, findings, notes] = await Promise.all([
-    listOwnMedia(auth.actor),
-    staffShellStatus(auth.actor, profile),
-    searchParams ?? Promise.resolve({} as SearchParams),
-    menuPhotoDecisions(auth.actor),
-    history(auth.actor, myContributionsSurface()),
-    retakeNotes(auth.actor),
-  ])
+  const [page, shell, params, menuPhotos, findings, notes, month, otherJobs] =
+    await Promise.all([
+      listOwnMedia(auth.actor),
+      staffShellStatus(auth.actor, profile),
+      searchParams ?? Promise.resolve({} as SearchParams),
+      menuPhotoDecisions(auth.actor),
+      history(auth.actor, myContributionsSurface()),
+      retakeNotes(auth.actor),
+      ownMonth(auth.actor),
+      myOtherJobsCount(auth.actor),
+    ])
   if (!page.ok) throw new Error(page.message)
   const areaLabelled = await myAreaLabelled(
     auth.actor,
@@ -216,7 +236,7 @@ export default async function StaffPage({
             ? workRoleLabel(work.roleKey, work.roleTitle)
             : null,
         }}
-        uploadBlocked={blocked ? BLOCKED_COPY[blocked] : null}
+        uploadBlocked={blocked ? ADD_BLOCKED[blocked] : null}
         initialPage={{ items: page.items, nextCursor: page.nextCursor }}
         manage={
           canManage
@@ -231,6 +251,8 @@ export default async function StaffPage({
         menuPhotoItems={menuPhotos.items}
         retakeNotes={notes}
         areaLabelled={areaLabelled}
+        month={<YourMonthCard monthly={month} />}
+        otherJobs={otherJobs}
         findings={
           !findings.show ? null : findings.kind === "b02" ? (
             <MyContributions

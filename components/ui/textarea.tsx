@@ -9,12 +9,12 @@ import { cn } from "@/lib/utils"
 type TextareaProps = React.ComponentProps<"textarea">
 
 /*
- * Multi-line text (DESIGN.md §4 Field, `textarea.input`): the shared field
+ * Multi-line text (common-room.md §4 Field, `textarea.input`): the shared field
  * recipe, at least three rows and 120px tall, resized downwards only so it
  * never pushes the page sideways. It has one size.
  *
  * `aria-disabled` keeps it in the focus order and makes it read-only, as on
- * Input (DESIGN.md §7).
+ * Input (common-room.md §7).
  */
 function Textarea({
   className,

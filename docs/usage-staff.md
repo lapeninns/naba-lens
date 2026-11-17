@@ -22,40 +22,45 @@ confirm access or delivery, and never creates an account.
 Invitation emails stay link-only: open the invitation link to accept it, then
 sign in later with either the link or the code.
 
-Staff land on **Home** (`/staff/tasks`). If **Account unavailable** appears,
+Staff land on **Album**, the staff Home (`/staff/tasks`). If **Account unavailable** appears,
 ask an admin; that screen has **Sign out**. Use **Log out** when you finish,
 especially on shared devices: on a phone it is on **Me**, from a tablet or
 computer it is in the top bar.
 
 ## Find your way around
 
-On a phone, the TabBar at the bottom has **Home**, **Photos**, **Add**,
-**People** and **Me**. **Add** is the raised button in the middle. From a
-tablet or computer the same sections are in the top bar, with **Add photos**
-in place of **Add**; venue managers also see **Manage** there. On a phone,
-**Manage** is the first row on **Me**.
+On a phone, the tab bar at the bottom has **Album**, **Add photos** and
+**Me**. **Add photos** opens your phone's photos straight away. While a
+reviewer has asked you for another photo, the **Album** tab shows how many
+retakes are waiting. From a tablet or computer the same places are in the top
+bar, with **Add photos** as a button; venue managers also see **Manage** there.
+On a phone, **Manage** is the first row on **Me**. **Our menu**, **Photos**,
+**People** and **Other jobs** are rows on **Me**.
 
-- **Home** (`/staff/tasks`): what your venue's menu still needs, your month,
-  and any request for another photo.
-- **Photos** (`/staff/community`): ready photos and videos from colleagues
-  across Lapen Inns.
-- **Add**: take or choose photos and upload them.
-- **People** (`/staff/people`): find colleagues and see what they've shared.
-- **Me** (`/staff`): your profile, work details and your own photos and
-  videos (your portfolio) and, for venue managers, **Manage**.
-- **Our menu** (`/staff/menu`, linked from Home and **Me**): which dishes and
+- **Album** (`/staff/tasks`, the staff Home): every photo your venue still
+  needs, as empty slots grouped by place, and any request for another photo.
+- **Add photos**: choose photos from your phone's gallery and match each one
+  to the slot it fills.
+- **Me** (`/staff`): your profile, your month, work details, your own photos
+  and videos (your portfolio) and, for venue managers, **Manage**.
+- **Photos** (`/staff/community`, linked from **Me**): ready photos and
+  videos from colleagues across Lapen Inns.
+- **People** (`/staff/people`, linked from **Me**): find colleagues and see
+  what they've shared.
+- **Our menu** (`/staff/menu`, linked from **Me**): which dishes and
   drinks on your venue's menu still need a photo.
+- **Other jobs** (`/staff/tasks/other`, a row on **Album** and on **Me** when
+  any wait on you): assigned jobs, amenity checks and venue questions that
+  are not menu photos.
 
 ## Start here and your work details
 
-New staff see a **New to Naba-Lens?** card on Home with **Start here**. It
-opens a short welcome (`/staff/tasks/welcome`) that explains your portfolio
-and what happens to a photo, then offers **Add your work details**, an
-optional profile photo, and the photo buttons (**Choose from your photos**
-first, **Take a photo** second). Choosing a photo there, or **Skip for now**,
-hides the card from Home. It also stays away once you have added photos. To
-read the welcome again at any time, open **Me** and choose **How Naba-Lens
-works**; **Back to Me** returns you.
+A short welcome (`/staff/tasks/welcome`) explains your portfolio and what
+happens to a photo, then offers **Add your work details**, an optional
+profile photo, and the photo buttons. Until you add your first photo or
+dismiss the welcome, **Album** shows a **Start here** row that opens it. You
+can always open it from **Me** with **How Naba-Lens works**; **Back to Me**
+returns you.
 
 **Work details** (`/staff/profile`, or **Edit work details** on **Me**) asks
 **What do you do at [venue]?** and shows your name and venue. Choose one main
@@ -65,57 +70,53 @@ to 40 characters, then **Save**. **Skip for now** leaves it blank; you can
 come back to it from **Me**. If your admin already set a job title, the form
 may suggest a match for you to check.
 
-Your main job sets the question Home asks (for example **What did you cook
-today?** or **What did you make at the bar today?**) and which dishes come
-first when you label. Search still covers the whole menu, and your job never
+Your main job sets which dishes come first when you label. Search still covers the whole menu, and your job never
 labels a photo for you or changes what you can see or do. Only you and admins
 see your work details. Your admin still sets your job title, team and venue.
 
-## Home: our menu and your month
+## Album: what your venue still needs
 
-**Home** shows two goals and, when it happens, a note. Dates are UK time.
-Nobody is given a dish to photograph, and food and drink photos have no due
-date: the menu belongs to everyone at the venue.
+**Album** is the staff Home. It shows your venue's album: every dish and drink
+on the active menu, every amenity and every venue area that needs a photo is
+a **slot**, and the empty slots are drawn as dashed gaps you can tap. Nobody
+is given a dish to photograph, and no slot has a due date or Overdue: the
+album belongs to everyone at the venue. Nobody is ranked against a colleague;
+your own month is on **Me**.
 
-- **Your setup isn't finished** appears until you have a name, a venue and a
-  team (Front of house or Back of house). A profile photo is optional. An
-  admin assigns venue and team. Until your month has a target it shows
-  **Needs setup**, which never counts as complete.
-- **Needs another photo** appears when a reviewer asked for another photo of
-  a dish you took. It shows your photo and the reviewer's reason.
-  **Reshoot** opens the camera with the dish already labelled. **Later**
-  hides the note from Home on every device you use; it stays on **Me**. The
-  note has no date and nobody chases it. It goes away once a new photo of
-  that dish is accepted, whoever took it.
-- **Our menu** says how many dishes at your venue have a photo, for example
-  **12 of 40 dishes at The Railway have a photo**. Under it, **Still needed**
-  lists up to four dishes without an accepted photo, each with **Take a
-  photo** and **Choose from photos**; the photo is labelled with that dish
-  for you. **See all** opens the full list on **Our menu**. Anyone at the
-  venue can photograph any of them.
-  - **Waiting for review** means someone's photo of the dish is waiting for a
-    decision. The dish stays on the list until a photo is accepted, and you
-    can still add one.
-  - **Being checked** means the menu changed and a manager is checking the
-    dish's photo. It stays on the list too.
-  - **Needed by 30 Nov** means your manager would like this dish soon. It
-    comes first. After the date it just says **Needed**; it is never late.
-- **Your month** (**You · November 2026 · The Railway**, for example) shows
-  your target and progress, such as **2 of 5 accepted**, with one frame per
-  photo: **Accepted**, **Waiting for review**, **Needs another photo** and
-  **Still to take**. Accepted photos you labelled (dishes, drinks and venue
-  areas) and photos you sent to the month count. The month ends with the calendar month; there
-  is no due date. **Target met** appears once accepted photos reach the
-  target. Only you, your venue manager and admins see your month.
-- **Other jobs** appears only when you have amenity checks or other venue
-  jobs. It opens the list of them. Those jobs keep their dates, and
-  **Overdue** is shown for follow-up only: you can still send photos.
-- **From the team** shows a few of the newest photos from colleagues. **See
-  more photos** opens **Photos**.
+Top to bottom:
 
-Home has one main button: **Reshoot** when a note is open, otherwise **Take a
-photo** on the first dish still needed, or **Open camera** when every dish has
-a photo. To add any other photo, use **Add**.
+1. **The Railway album**, then how many slots are still empty (for example
+   **41 slots still empty**). The bar under it has three parts: in the album,
+   waiting for review, and empty, with the numbers written under it
+   (**65 in · 7 waiting · 113 in all**). Slots marked **Not here** are not
+   counted.
+2. A **retake** row, when a reviewer asked you for another photo of a dish:
+   the dish and the reviewer's reason. Choose it to add a new photo from your
+   gallery with the dish already chosen.
+3. **Where are you?** and the places at your venue (for example **The bar**,
+   **Kitchen pass**, **Garden**), each with its number of empty slots. Album
+   opens on the place you last opened, else the place with the most empty
+   slots. Your manager sets which part of the menu belongs to which place;
+   until then every slot is under **Not placed yet**.
+4. **Empty at the bar** and up to six empty slots there, with **All 8** to see
+   every slot in that place. Tap an empty dish slot to add its photo from your
+   gallery; tap an amenity slot to answer its question first.
+5. **Match later**, when you have photos that are not matched to a slot yet.
+6. **Other jobs**, when an assigned job, an amenity check or a venue question
+   waits on you. It opens the list of them (`/staff/tasks/other`).
+7. One main button, **Add photos from your gallery**.
+
+A new starter also sees **Start here** under the album count (see
+[Start here](#start-here-and-your-work-details)).
+
+Each slot shows its state with a frame, an icon and a word: **Add** (empty),
+**Sending**, **Waiting** (for review), **Retake** (with the reviewer's reason),
+**In the album** (accepted) and **Not here**. There is no in-app camera: take
+photos with your phone's own camera whenever service allows, and add them from
+your gallery later.
+
+After you answer an amenity question, Album says what happened to your answer
+at the top of the page until you choose **Dismiss**.
 
 Ready photos are already in Photos and on your profile. Review decides whether
 they count, not whether they are shared.
@@ -124,9 +125,10 @@ they count, not whether they are shared.
 
 To count a photo that isn't of one dish (a section spread, the bar set-up, the
 garden), send it to your month: choose **Add photos for this month** on
-**Your month**. It opens **Monthly photos** (`/staff/tasks/month`), which also
+**Your month** (on **Me**). It opens **Monthly photos** (`/staff/tasks/month`), which also
 lists **Past months**, read-only. Amenity checks and other venue jobs are sent
-from their own page, opened from **Other jobs**.
+from their own page, listed under **Other jobs** (`/staff/tasks/other`,
+the **Other jobs** row on **Album** or **Me**).
 
 1. Choose **Send photos** (or **Send more photos**). Use **Choose from your
    photos** or **Take a photo** to add new ones, or pick your own ready photos
@@ -182,10 +184,11 @@ at the end of the month belongs to that month.
 Each photo is **Waiting for review** until a reviewer decides: **Accepted**, or
 **Needs another photo** with a reason. Decisions are final.
 
-- For a dish, the note shows on Home and on **Me**. Choose **Reshoot** to take
-  a new photo with the dish already labelled, or **Later** to hide it from
-  Home. It stays on **Me**, never comes back as a reminder, and clears once a
-  new photo of the dish is accepted.
+- For a dish, the note shows as the retake row on **Album** and on **Me**.
+  Choose it to add a new photo from your gallery with the dish already
+  chosen. **Later** on **Me** hides it from Album; it stays on **Me**, never
+  comes back as a reminder, and clears once a new photo of the dish is
+  accepted.
 - For a photo you sent to the month or to a job, choose **Send another photo**;
   it says **The photos you send now replace this one.** **Later** works here
   too.
@@ -204,8 +207,9 @@ photos and past months stay credited to the old venue.
 ### Amenity checks
 
 When your manager assigns you an amenity question (for example step-free
-entrance, parking or guest Wi-Fi), Home shows **Other jobs**; the check is in
-that list with **Needs capture**, or **Needs recheck** and the manager's reason when they
+entrance, parking or guest Wi-Fi), it is a slot on **Album** in its place, and
+the check is listed under **Other jobs** (`/staff/tasks/other`, the **Other
+jobs** row on **Album** or **Me**) with **Needs capture**, or **Needs recheck** and the manager's reason when they
 asked you to look again. Amenity checks are separate from monthly photo
 targets: they never count toward them.
 
@@ -222,7 +226,7 @@ evidence** (**Photo**, **Video**, **Photo or video** or **Photo and video**).
    the evidence rule is met; a **Yes** cannot be sent until it is (a photo is
    not enough where a video is required).
 4. Choose **Submit finding**. There is no review step: the finding becomes the
-   venue's current answer straight away and you go back to Home.
+   venue's current answer straight away and you go back to Album.
 
 For **guest Wi-Fi**, cover the Wi-Fi password and the join QR code before you
 take any photo or video, then tick **I have covered the Wi-Fi password and
@@ -246,8 +250,7 @@ working until the admin converts the account.
 With such a grant for your current venue, **Manage**
 (`/staff/manage`) then appears in the top bar on a tablet or computer, with
 **Overview**, **Review**, **Checklist**, **Menu**, **Our menu** and **Team**. On a phone,
-open **Me** and choose **Manage {venue}** at the top. When photos are waiting,
-Home's **Review photos** card is a shortcut. Without the grant the page
+open **Me** and choose **Manage {venue}** at the top. Without the grant the page
 explains that the tools are for venue managers. A grant ends if you move venue,
 your account is deactivated or an admin revokes it; that takes effect on your
 next page load or action.
@@ -377,7 +380,7 @@ Choose **Add** in the TabBar (or **Add photos** in the top bar). On a phone the
 
 **Photos start saving as soon as you pick them.** There is no separate Upload
 button. If your account can't add photos yet, the sheet says **You can't add
-photos yet** and why. Home, the welcome, **Me**, **Our menu** and task screens
+photos yet** and why. Album, the welcome, **Me**, **Our menu** and task screens
 all use this one Add.
 
 ### Saving your photos
@@ -439,9 +442,9 @@ On task screens and amenity checks the sheet does not ask for labels. Each
 photo is handed to the screen as soon as it is ready, and you still choose
 **Send photos** (or **Submit finding**) there yourself.
 
-## Upload from Me
+## Add from Me
 
-On **Me**, **Upload photos or videos** opens the same Add with **Choose from
+On **Me**, **Add photos or videos** opens the same Add with **Choose from
 your photos** and, on some devices, **Take a photo**. The picker accepts JPEG,
 PNG, WebP and HEIC/HEIF photos, plus MP4, MOV and WebM videos; server
 validation can still reject a file.
@@ -497,8 +500,8 @@ Each photo passes three separate milestones:
 3. **Accepted for menu use**: a manager chose it to show a dish on your
    venue's menu. **Me** lists these photos under **Accepted for menu use**
    with the dish, however long ago you uploaded them. If a reviewer asks for
-   another photo instead, Home and **Me** show a **Needs another photo** note
-   with the dish and their reason.
+   another photo instead, **Album** shows it as a retake and **Me** shows a
+   **Needs another photo** note, each with the dish and their reason.
 
 - The easiest time to label is while saving: **What's in these photos?** in
   the **Saving** sheet (see above). To skip, just choose **Done**.

@@ -2,23 +2,27 @@ import type { Metadata, Viewport } from "next"
 import {
   Atkinson_Hyperlegible_Mono,
   Atkinson_Hyperlegible_Next,
-  Figtree,
+  Fraunces,
 } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 
-// Body face (Common Room): body text, buttons, fields, chips.
+// Body face (Album, DESIGN.md §3.3): body text, buttons, fields, chips,
+// tab labels.
 const fontSans = Atkinson_Hyperlegible_Next({
   subsets: ["latin"],
   variable: "--font-atkinson-next",
 })
 
-// Display face: the wordmark, titles, counts, tab labels, the Complete stamp.
-const fontDisplay = Figtree({
+// Display face: the wordmark, titles, counts and the section stamp, at 21px
+// and up or 17px caps. Variable, with the optical-size axis so large counts
+// and small headings each get their own cut.
+const fontDisplay = Fraunces({
   subsets: ["latin"],
-  variable: "--font-figtree",
+  axes: ["opsz"],
+  variable: "--font-fraunces",
 })
 
 // Meta, times and percentages (tabular), file names, request IDs.

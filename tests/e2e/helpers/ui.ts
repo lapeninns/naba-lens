@@ -57,7 +57,7 @@ export async function staffTile(
   return scope.locator(`button[data-media-id="${id ?? "no-such-asset"}"]`)
 }
 
-/** Where staff land after sign-in or a wrong-role redirect: Home. */
+/** Where staff land after sign-in or a wrong-role redirect: Album (Home). */
 export const STAFF_LANDING = /\/staff\/tasks$/
 
 /** Other jobs (G-4, decision 23): non-menu jobs, amenity checks and questions. */
@@ -65,8 +65,9 @@ export const OTHER_JOBS_PATH = "/staff/tasks/other"
 export const OTHER_JOBS = /\/staff\/tasks\/other$/
 
 /**
- * Goal-led Home has no To do: amenity checks and other jobs are one tap away,
- * through the Other jobs row (decision 10). Opens it from Home.
+ * Opens Other jobs the way staff do: the Other jobs row on Album (Home,
+ * under Match later). The row shows whenever a job waits on the person, so a
+ * spec that opens Other jobs proves it is reachable (revb B2).
  */
 export async function openOtherJobs(page: Page) {
   if (new URL(page.url()).pathname !== "/staff/tasks")
@@ -105,7 +106,7 @@ export async function expectOtherJobsCheck(
   return check
 }
 
-/** From Home: Other jobs, then the check (two taps), landing on its capture page. */
+/** Other jobs, then the check, landing on its capture page. */
 export async function startOtherJobsCheck(
   page: Page,
   question: string,
@@ -132,12 +133,12 @@ export const libraryList = (page: Page) =>
   page.getByRole("list", { name: "Library" })
 
 /**
- * The staff upload sheet. Before a pick it is "Upload photos or videos" (or
- * "Upload photos" for photos only); once files are picked it is the
- * "Saving N photos" sheet ("files" when a video is among them).
+ * The staff upload sheet. Before a pick it is "Add photos or videos" (or
+ * "Upload photos" for photos only, a task screen's sheet); once files are
+ * picked it is the "Saving N photos" sheet ("files" when a video is among them).
  */
 export const UPLOAD_SHEET =
-  /^(Upload photos( or videos)?|Saving \d+ (photos?|files?))$/
+  /^(Add photos or videos|Upload photos|Saving \d+ (photos?|files?))$/
 export const uploadSheet = (page: Page) =>
   page.getByRole("dialog", { name: UPLOAD_SHEET })
 
@@ -161,7 +162,7 @@ export async function uploadThroughDialog(
   { expectSettled = `${files.length} saved`, close = true } = {}
 ): Promise<Record<string, string[]>> {
   await page
-    .getByRole("button", { name: "Upload photos or videos" })
+    .getByRole("button", { name: "Add photos or videos" })
     .first()
     .click()
   const dialog = uploadSheet(page)

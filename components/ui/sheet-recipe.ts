@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority"
 
 /*
- * One recipe for every overlay (DESIGN.md §4, Sheet and Dialog): a sheet
+ * One recipe for every overlay (common-room.md §4, Sheet and Dialog): a sheet
  * that rises from the bottom edge on phones and a centred dialog from md.
  * Dialog and AlertDialog both draw from it, so the two cannot drift apart.
  * Width and height belong here: ask for a `size`, do not pass a class.

@@ -145,7 +145,7 @@ export function CommonRoomPreview() {
         </Card>
       </Block>
 
-      <Block title="State chips (DESIGN.md §3)">
+      <Block title="State chips (common-room.md §3)">
         <Card>
           <div className="flex flex-wrap gap-2">
             {Object.keys(CHIP_STATES).map((key) => (

@@ -46,11 +46,9 @@ const coverage = vi.hoisted(() => ({
   getCoverageActor: vi.fn(),
   getCoverageScope: vi.fn(),
   getManagerReviewCount: vi.fn(),
-  getMyTasks: vi.fn(),
+  listMyRetakeNotes: vi.fn(),
 }))
 vi.mock("@/lib/server/coverage", () => coverage)
-const amenities = vi.hoisted(() => ({ getMyAmenityTasks: vi.fn() }))
-vi.mock("@/lib/server/amenities", () => amenities)
 
 import { staffShellStatus } from "@/app/staff/_shell/shell-status"
 import StaffNotFound from "@/app/staff/not-found"
@@ -65,8 +63,7 @@ beforeEach(() => {
     scope: { ...tasksView().scope, canManageVenue: true },
   })
   coverage.getManagerReviewCount.mockResolvedValue({ ok: true, count: 3 })
-  coverage.getMyTasks.mockResolvedValue({ ok: true, tasks: tasksView() })
-  amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
+  coverage.listMyRetakeNotes.mockResolvedValue({ ok: true, notes: [] })
 })
 
 describe("shell status within one request", () => {
@@ -79,12 +76,11 @@ describe("shell status within one request", () => {
     })
     await staffShellStatus(pageActor as never, PROFILE)
     await StaffNotFound()
-    expect(coverage.getMyTasks).toHaveBeenCalledTimes(1)
-    expect(amenities.getMyAmenityTasks).toHaveBeenCalledTimes(1)
+    expect(coverage.listMyRetakeNotes).toHaveBeenCalledTimes(1)
     expect(coverage.getCoverageScope).toHaveBeenCalledTimes(1)
     expect(coverage.getManagerReviewCount).toHaveBeenCalledTimes(1)
     // Every read ran as the page's own actor for that person.
-    expect(coverage.getMyTasks).toHaveBeenCalledWith(pageActor)
+    expect(coverage.listMyRetakeNotes).toHaveBeenCalledWith(pageActor)
   })
 
   it("never shares one person's reads with another", async () => {
@@ -94,7 +90,7 @@ describe("shell status within one request", () => {
       id: "someone-else",
       avatarPath: null,
     })
-    expect(coverage.getMyTasks).toHaveBeenCalledTimes(2)
-    expect(coverage.getMyTasks).toHaveBeenLastCalledWith(other)
+    expect(coverage.listMyRetakeNotes).toHaveBeenCalledTimes(2)
+    expect(coverage.listMyRetakeNotes).toHaveBeenLastCalledWith(other)
   })
 })

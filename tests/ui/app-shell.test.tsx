@@ -38,20 +38,17 @@ function current(name: string, slot: "app-nav" | "tabbar" = "app-nav") {
 }
 
 describe("AppShell staff navigation", () => {
-  it("puts Home first and hides Manage by default", () => {
+  it("puts Album first and hides Manage by default", () => {
     render(
       <AppShell variant="staff" active="tasks">
         x
       </AppShell>
     )
     expect(links("Staff")).toEqual([
-      ["Home", "/staff/tasks"],
-      ["Our menu", "/staff/menu"],
-      ["Photos", "/staff/community"],
-      ["People", "/staff/people"],
+      ["Album", "/staff/tasks"],
       ["Me", "/staff"],
     ])
-    expect(current("Staff")).toEqual(["Home"])
+    expect(current("Staff")).toEqual(["Album"])
   })
 
   it("shows Manage last for a venue manager, with photos to review", () => {
@@ -67,33 +64,15 @@ describe("AppShell staff navigation", () => {
     expect(current("Staff")).toEqual(["Manage, 3 to review"])
   })
 
-  it("marks Our menu current; a manager's copy steps aside from md to xl", () => {
+  it("leaves Our menu, Photos and People to Me (DESIGN.md §5 Tab bar)", () => {
     render(
       <AppShell variant="staff" active="menu" canManage>
         x
       </AppShell>
     )
-    expect(current("Staff")).toEqual(["Our menu"])
-    const link = nav("Staff", "app-nav").getByRole("link", { name: "Our menu" })
-    // Six sections beside Add and Log out don't fit below 1280px; Home's
-    // card and Manage link to it.
-    expect(link.className).toContain("md:max-xl:hidden")
-    // The phone TabBar never gains a sixth tab for it.
-    expect(
-      nav("Staff", "tabbar").queryByRole("link", { name: "Our menu" })
-    ).toBeNull()
-  })
-
-  it("steps Our menu aside from md to lg only for other staff", () => {
-    render(
-      <AppShell variant="staff" active="menu">
-        x
-      </AppShell>
-    )
-    const link = nav("Staff", "app-nav").getByRole("link", { name: "Our menu" })
-    // Five sections beside Add and Log out don't fit below 1024px.
-    expect(link.className).toContain("md:max-lg:hidden")
-    expect(link.className).not.toContain("md:max-xl:hidden")
+    for (const name of ["Our menu", "Photos", "People", "Home"])
+      expect(screen.queryByRole("link", { name })).toBeNull()
+    expect(current("Staff")).toEqual([])
   })
 
   it("keeps Me current when no section is given", () => {
@@ -102,7 +81,7 @@ describe("AppShell staff navigation", () => {
     expect(screen.queryByRole("link", { name: "Manage" })).toBeNull()
   })
 
-  it("gives phones five tabs with Add raised in the middle, never a sixth", () => {
+  it("gives phones three tabs, Add photos in the middle, never Manage", () => {
     render(
       <AppShell variant="staff" active="community" canManage todoCount={2}>
         x
@@ -115,12 +94,11 @@ describe("AppShell staff navigation", () => {
           .getAllByRole("navigation", { name: "Staff" })
           .find((el) => el.dataset.slot === "tabbar")!.children
       ).map((el) => el.textContent)
-    ).toEqual(["Home, 2 things to do", "Photos", "Add", "People", "Me"])
-    expect(current("Staff", "tabbar")).toEqual(["Photos"])
+    ).toEqual(["Album, 2 retakes", "Add photos", "Me"])
     expect(tabbar.queryByRole("link", { name: /Manage/ })).toBeNull()
   })
 
-  it("names Add with the hidden queue's unfinished files and opens it", () => {
+  it("names Add photos with the hidden queue's unfinished files and opens it", () => {
     const openAdd = vi.fn()
     render(
       <AddProvider
@@ -135,7 +113,7 @@ describe("AppShell staff navigation", () => {
       </AddProvider>
     )
     const add = nav("Staff", "tabbar").getByRole("button", {
-      name: "Add, 2 in progress, 1 failed",
+      name: "Add photos, 2 in progress, 1 failed",
     })
     // The shared tab badge, hidden from the name (the name says it all).
     const badge = add.querySelector("[data-slot=add-busy]")!
@@ -143,11 +121,6 @@ describe("AppShell staff navigation", () => {
     expect(badge.querySelector("[data-slot=count]")?.textContent).toMatch(
       /\b3\b/
     )
-    expect(
-      screen.getByRole("button", {
-        name: "Add photos, 2 in progress, 1 failed",
-      })
-    ).toBeTruthy()
     add.click()
     expect(openAdd).toHaveBeenCalledOnce()
   })
@@ -165,6 +138,7 @@ describe("AppShell admin navigation", () => {
       ["Staff", "/admin/staff"],
       ["Menus", "/admin/menus"],
       ["Coverage", "/admin/coverage"],
+      ["Albums", "/admin/albums"],
     ])
     expect(links("Admin", "tabbar")).toEqual(links("Admin"))
     expect(current("Admin")).toEqual(["Coverage"])

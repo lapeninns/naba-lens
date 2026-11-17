@@ -95,7 +95,7 @@ describe("focus in the upload sheet (UP-08, UP-09)", () => {
     )
     await user.click(screen.getByRole("button", { name: "Remove two.jpg" }))
     expect(document.activeElement).toBe(
-      screen.getByRole("heading", { name: "Upload photos or videos" })
+      screen.getByRole("heading", { name: "Add photos or videos" })
     )
   })
 

@@ -14,7 +14,7 @@ Naba-Lens is not at zero. A design language called Common Room shipped to every 
 
 What is missing is the system around the look. Four problems account for most of the inconsistency:
 
-1. **The spec is not in the repo.** `app/globals.css` names a folder on one machine as its source of truth. 46 code comments in 38 files cite `DESIGN.md §n`, a file git has never held. The spec itself is headed "proposal, not yet signed off by product".
+1. **The spec is not in the repo.** `app/globals.css` names a folder on one machine as its source of truth. 46 code comments in 38 files cite `common-room.md §n`, a file git has never held. The spec itself is headed "proposal, not yet signed off by product".
 2. **Token values are disciplined but the names are not.** There are no raw palette colours anywhere, yet three naming layers coexist and the code uses a hybrid: text in the old names (`text-ink` 437, `text-ink-muted` 520), surfaces in the new ones (`bg-surface` 193). Borders and state rails have no token at all, so 121 of 288 shadow utilities are hand-written strings.
 3. **Shared components exist but are not used.** The shared `Card` is in 12 product files while the same white card is hand-typed on about 145 lines in 98 files. Six Common Room components have one consumer each. Textarea, Checkbox, Radio, Spinner, a segmented control and a filter pill do not exist as primitives, so each is rebuilt per feature.
 4. **Nothing enforces any of it.** ESLint is the stock Next.js config. The "visual" test suite takes screenshots but compares nothing and is skipped in every CI lane. The component preview shows 8 of 18 primitives and no test visits it.
@@ -81,11 +81,11 @@ Severity: **H** blocks consistency or accessibility broadly, **M** recurring inc
 
 **Source of truth**
 
-| ID  | Sev | Finding                                                                                                                                                                                                                                                         |
-| --- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S1  | H   | The spec, the token source and the "living reference" all sit outside the repo in an unversioned folder. The spec is still marked as an unapproved proposal                                                                                                     |
-| S2  | H   | At least five design sources disagree: `DESIGN.md` v0.3, its CSS and contract (still labelled v0.2), the superseded Pass Rail doc, the claude.ai Design System artifact from PR #14, and two later Home prototype canvases whose direction no spec has absorbed |
-| S3  | M   | `AGENTS.md` and `README.md` contain no design guidance, so an agent or new contributor has nothing to follow                                                                                                                                                    |
+| ID  | Sev | Finding                                                                                                                                                                                                                                                              |
+| --- | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1  | H   | The spec, the token source and the "living reference" all sit outside the repo in an unversioned folder. The spec is still marked as an unapproved proposal                                                                                                          |
+| S2  | H   | At least five design sources disagree: `common-room.md` v0.3, its CSS and contract (still labelled v0.2), the superseded Pass Rail doc, the claude.ai Design System artifact from PR #14, and two later Home prototype canvases whose direction no spec has absorbed |
+| S3  | M   | `AGENTS.md` and `README.md` contain no design guidance, so an agent or new contributor has nothing to follow                                                                                                                                                         |
 
 **Tokens**
 
@@ -287,7 +287,7 @@ Roles are defined by size, line height, weight and family together. Because a Ta
 
 Removed: the seven `*-touch` names, `body-sm`, `meta-strong` (use `label`), `count-sm`, `chip-touch`, `card-title` (use `section-title`), `page-title-compact` (use `page-title`), the `wdth` utilities. `text-xs`, `text-sm` and `text-base` stay remapped to 17px as a guard and are forbidden in source by test. Weight utilities may not override a role; `font-normal` used to undo a token weight (18 uses) is the sign of a wrong role.
 
-As shipped in Batch 1, `page-title` is 26px at every width. An earlier draft of this table gave it a 24px step below `md`; that would have shrunk every page heading that was already 26px on a phone, the shared page header included, to keep 7 compact ones at 24px. Folding `card-title` and `page-title-compact` into these roles changes what 16 headings draw; `DESIGN.md` section 10 lists them.
+As shipped in Batch 1, `page-title` is 26px at every width. An earlier draft of this table gave it a 24px step below `md`; that would have shrunk every page heading that was already 26px on a phone, the shared page header included, to keep 7 compact ones at 24px. Folding `card-title` and `page-title-compact` into these roles changes what 16 headings draw; `common-room.md` section 10 lists them.
 
 ### 5.5 Space, size and layout
 
@@ -468,14 +468,14 @@ Each batch is one bundled PR with a fixed task list, following `AGENTS.md`. Batc
 
 ### Batch 0: Source of truth (docs only, S)
 
-Status: written on branch `docs/design-system-batch-0` on 14 Nov 2026 ([DESIGN.md](DESIGN.md), [components.md](components.md), [catalogue.md](catalogue.md), [decisions.md](decisions.md), [departures.md](departures.md)). DS-002 is recorded but every decision is still open.
+Status: written on branch `docs/design-system-batch-0` on 14 Nov 2026 ([common-room.md](common-room.md), [components.md](components.md), [catalogue.md](catalogue.md), [decisions.md](decisions.md), [departures.md](departures.md)). DS-002 is recorded but every decision is still open.
 
-| ID     | Task                                                                                                                                                         | Done when                                                                   |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| DS-001 | Bring the spec into `docs/design-system/` as `DESIGN.md`, flattened so component values do not depend on two external CSS files; keep section numbers stable | The 46 code citations resolve; a test fails when a cited section is missing |
-| DS-002 | Record decisions D1 to D6 (section 9) with an owner and a date                                                                                               | Each is answered or explicitly deferred                                     |
-| DS-003 | Add a component catalogue (name, layer, status, adoption count) and a departures log seeded from the five open items in the research folder                  | Both are in the repo                                                        |
-| DS-004 | Add a "UI changes" section to `AGENTS.md` and a link from `README.md`; mark the research folder and the PR #14 artifact as superseded                        | An agent starting UI work is pointed at the in-repo spec                    |
+| ID     | Task                                                                                                                                                              | Done when                                                                   |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| DS-001 | Bring the spec into `docs/design-system/` as `common-room.md`, flattened so component values do not depend on two external CSS files; keep section numbers stable | The 46 code citations resolve; a test fails when a cited section is missing |
+| DS-002 | Record decisions D1 to D6 (section 9) with an owner and a date                                                                                                    | Each is answered or explicitly deferred                                     |
+| DS-003 | Add a component catalogue (name, layer, status, adoption count) and a departures log seeded from the five open items in the research folder                       | Both are in the repo                                                        |
+| DS-004 | Add a "UI changes" section to `AGENTS.md` and a link from `README.md`; mark the research folder and the PR #14 artifact as superseded                             | An agent starting UI work is pointed at the in-repo spec                    |
 
 ### Batch 1: Foundations (L, mostly mechanical)
 
@@ -575,7 +575,7 @@ Trade-offs to accept: batches 1 and 3 touch many files and will conflict with fe
 
 ## 10. Governance
 
-**Where things live.** `docs/design-system/DESIGN.md` is the spec. `app/globals.css` is the source of truth for values. `components/nabalens/status-chip.tsx` is the source of truth for state words, and the spec's state table is tested against it. `/ui-preview` is the living reference. The research folder and the claude.ai artifacts are for exploration; a direction chosen there lands as a change to `DESIGN.md` before code.
+**Where things live.** `docs/design-system/common-room.md` is the spec. `app/globals.css` is the source of truth for values. `components/nabalens/status-chip.tsx` is the source of truth for state words, and the spec's state table is tested against it. `/ui-preview` is the living reference. The research folder and the claude.ai artifacts are for exploration; a direction chosen there lands as a change to `common-room.md` before code.
 
 **Adding or changing a component.**
 

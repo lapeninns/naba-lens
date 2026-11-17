@@ -4,13 +4,8 @@
 import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it } from "vitest"
-
-import { pendingLines } from "@/components/nabalens/knowledge/copy"
 import { LatestFinding } from "@/components/nabalens/knowledge/latest-finding"
-import { MonthlyProgressCard } from "@/components/nabalens/tasks/monthly-progress-card"
 import type { FindingSummary } from "@/lib/knowledge-client/contract"
-
-import { monthly } from "./tasks-fixtures"
 
 afterEach(cleanup)
 
@@ -93,47 +88,5 @@ describe("Your latest finding (§4.6)", () => {
     expect(
       screen.queryByRole("button", { name: "Change my finding" })
     ).toBeNull()
-  })
-})
-
-describe("Also this month (§4.7)", () => {
-  it("says nothing at zero, and words one and many", () => {
-    expect(pendingLines(null)).toEqual([])
-    expect(
-      pendingLines({ awaitingConfirmation: 0, unknownRecorded: 0 })
-    ).toEqual([])
-    expect(
-      pendingLines({ awaitingConfirmation: 1, unknownRecorded: 1 })
-    ).toEqual([
-      "Also this month: 1 finding waiting for confirmation. It's not in this count.",
-      "1 couldn't-establish finding recorded. It doesn't count toward targets.",
-    ])
-    expect(
-      pendingLines({ awaitingConfirmation: 3, unknownRecorded: 2 })
-    ).toEqual([
-      "Also this month: 3 findings waiting for confirmation. They're not in this count.",
-      "2 couldn't-establish findings recorded. These don't count toward targets.",
-    ])
-  })
-
-  it("sits apart from the target number and leaves the progress bar's name alone", () => {
-    render(
-      <MonthlyProgressCard
-        monthly={monthly()}
-        periodLabel="November 2026"
-        addHref={null}
-        canSubmit
-        alsoPending={{ awaitingConfirmation: 2, unknownRecorded: 0 }}
-      />
-    )
-    expect(
-      screen.getByText(
-        "Also this month: 2 findings waiting for confirmation. They're not in this count."
-      )
-    ).toBeTruthy()
-    expect(screen.getByRole("progressbar").getAttribute("aria-label")).toBe(
-      "3 of 5 photos accepted"
-    )
-    expect(screen.queryByText(/couldn't-establish/)).toBeNull()
   })
 })

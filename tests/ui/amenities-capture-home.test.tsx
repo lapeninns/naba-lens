@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-// Staff Home and All tasks: All tasks lists my open amenity checks (recheck
-// first, with the manager's reason), Home carries one card for them in To do,
-// and Home still renders when that read fails or throws.
+// Other jobs lists my open amenity checks (recheck first, with the manager's
+// reason) and my open rechecks. Album Home's finding notice is tested in
+// home-page.test.tsx.
 import { cleanup, render, screen, within } from "@testing-library/react"
 import type * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -16,40 +16,18 @@ import {
 import { tasksView } from "./tasks-fixtures"
 
 vi.mock("server-only", () => ({}))
-// The B01 Home and badge; the B02 layout is tested in home-b02.test.tsx.
-vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   redirect: vi.fn(),
   notFound: vi.fn(),
 }))
-const jar = vi.hoisted(() => ({
-  has: vi.fn<(name: string) => boolean>(() => false),
-}))
-vi.mock("next/headers", () => ({ cookies: async () => jar }))
 vi.mock("@/components/nabalens/app-shell", () => ({
-  AppShell: ({
-    children,
-    todoCount,
-  }: {
-    children: React.ReactNode
-    todoCount?: number
-  }) => <div data-todo={todoCount ?? ""}>{children}</div>,
+  AppShell: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }))
 
-const media = vi.hoisted(() => ({ rows: [] as { id: string }[], fail: false }))
-function db() {
-  const query = {
-    select: () => query,
-    eq: () => query,
-    limit: async () =>
-      media.fail
-        ? { data: null, error: { message: "boom" } }
-        : { data: media.rows, error: null },
-  }
-  return { from: () => query }
-}
-const ACTOR = { profile: { id: "me" }, db: db() }
+const ACTOR = { profile: { id: "me" }, db: {} }
 
 const auth = vi.hoisted(() => ({
   profile: {
@@ -59,7 +37,7 @@ const auth = vi.hoisted(() => ({
     department: "foh",
     venueId: "v1",
     venue: { id: "v1", name: "TEST Inn", active: true },
-    work: null as null | Record<string, unknown>,
+    work: null,
   },
 }))
 vi.mock("@/lib/auth", () => ({
@@ -71,77 +49,35 @@ const coverage = vi.hoisted(() => ({
   getCoverageScope: vi.fn(),
   getMyTasks: vi.fn(),
   getManagerReviewCount: vi.fn(),
-  getOurMenu: vi.fn(),
+  listMyRetakeNotes: vi.fn(async () => ({ ok: true, notes: [] })),
 }))
 vi.mock("@/lib/server/coverage", () => coverage)
-vi.mock("@/lib/server/community", () => ({
-  listCommunityMedia: vi.fn(async () => ({ ok: true, items: [] })),
-}))
-vi.mock("@/lib/server/media/context", () => ({
-  getMediaActor: vi.fn(async () => ({ ok: true, actor: ACTOR })),
-}))
 vi.mock("@/lib/server/media/library", () => ({ avatarUrl: () => null }))
 const amenities = vi.hoisted(() => ({
   getMyAmenityTasks: vi.fn(),
-  getCheck: vi.fn(),
 }))
 vi.mock("@/lib/server/amenities", () => amenities)
-// No working list at this venue: the legacy screens, counts and badge.
-// `fail` makes the read fail instead.
+// No working list at this venue: the legacy screens.
 const workingList = vi.hoisted(() => ({
-  fail: false,
   rechecks: [] as unknown[],
 }))
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: {
-    getWorkingList: async () =>
-      workingList.fail
-        ? { ok: false, code: "unavailable" }
-        : { ok: true, view: null },
+    getWorkingList: async () => ({ ok: true, view: null }),
     listMyRechecks: async () => ({ ok: true, tasks: workingList.rechecks }),
   },
 }))
 
 import OtherJobsPage from "@/app/staff/tasks/other/page"
-import TasksPage from "@/app/staff/tasks/page"
 
-function setup({
-  work = null,
-  cookie = false,
-  rows = [],
-  menu,
-}: {
-  work?: Record<string, unknown> | null
-  cookie?: boolean
-  rows?: { id: string }[]
-  menu?: unknown
-} = {}) {
-  auth.profile.work = work
-  jar.has.mockImplementation(() => cookie)
-  media.rows = rows
-  media.fail = false
+function setup() {
   coverage.getCoverageActor.mockResolvedValue({ ok: true, actor: ACTOR })
   coverage.getMyTasks.mockResolvedValue({ ok: true, tasks: tasksView() })
   coverage.getCoverageScope.mockResolvedValue({
     ok: true,
     scope: tasksView().scope,
   })
-  coverage.getOurMenu.mockImplementation(async () => {
-    if (menu instanceof Error) throw menu
-    return (
-      menu ?? {
-        ok: true,
-        menu: {
-          menuState: "ready",
-          totals: { eligible: 40, covered: 12, gaps: 28, needsRecheck: 0 },
-        },
-      }
-    )
-  })
 }
-
-const home = async (params: Record<string, string> = {}) =>
-  render(await TasksPage({ searchParams: Promise.resolve(params) }))
 
 function task(
   id: string,
@@ -180,8 +116,8 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe("Home: amenity checks", () => {
-  it("lists each open check in All tasks, not on Home, recheck first with the reason", async () => {
+describe("Other jobs: amenity checks", () => {
+  it("lists each open check, recheck first with the reason", async () => {
     setup()
     amenities.getMyAmenityTasks.mockResolvedValue({
       ok: true,
@@ -194,15 +130,6 @@ describe("Home: amenity checks", () => {
         }),
       ],
     })
-    const { unmount } = await home()
-    // Home keeps one card for them in To do; the list is in All tasks.
-    expect(
-      screen.queryByRole("list", { name: UI_TEXT.staffSection })
-    ).toBeNull()
-    expect(
-      screen.getByRole("link", { name: "Other jobs" }).getAttribute("href")
-    ).toBe("/staff/tasks/other")
-    unmount()
     render(await OtherJobsPage())
     expect(
       screen.getByRole("heading", { level: 1, name: "Other jobs" })
@@ -242,46 +169,9 @@ describe("Home: amenity checks", () => {
       workingList.rechecks = []
     }
   })
-
-  it.each([
-    [
-      "fails",
-      () => ({ ok: false, code: "unavailable", status: 503, message: "x" }),
-    ],
-    [
-      "throws",
-      () => {
-        throw new Error("boom")
-      },
-    ],
-  ])("Home still renders when the amenity read %s", async (_, impl) => {
-    setup()
-    amenities.getMyAmenityTasks.mockImplementation(async () => impl())
-    const { container } = await home()
-    expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy()
-    expect(screen.queryByText(UI_TEXT.staffSection)).toBeNull()
-    // Unknown is not "nothing": To do says so and offers a retry, and the
-    // Home badge is left out rather than shown as zero.
-    expect(screen.queryByText("Nothing to do right now.")).toBeNull()
-    const todo = screen.getByRole("region", { name: /^To do/ })
-    expect(within(todo).getByRole("alert").textContent).toContain(
-      "We couldn't check your amenity checks."
-    )
-    expect(
-      within(todo).getByRole("link", { name: "Try again" }).getAttribute("href")
-    ).toBe("/staff/tasks")
-    expect((container.firstElementChild as HTMLElement).dataset.todo).toBe("")
-  })
-
-  it("shows nothing when no check is waiting", async () => {
-    setup()
-    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
-    await home()
-    expect(screen.queryByText(UI_TEXT.staffSection)).toBeNull()
-  })
 })
 
-describe("Home: amenity check cards", () => {
+describe("Amenity check cards", () => {
   // Common Room cards like the rest of Home, not the pre-redesign tokens.
   it("draws each check as a Common Room card with a section title", () => {
     render(
@@ -314,123 +204,5 @@ describe("Home: amenity check cards", () => {
     // The recheck card carries the warn bar, like a replacement request.
     expect(cards[0].className.split(/\s+/)).toContain("rail-start-warn")
     expect(document.body.innerHTML).not.toContain("text-muted-foreground")
-  })
-})
-
-describe("Home: amenity checks in To do", () => {
-  it("counts a staff member's only work, an amenity check, in To do and the Home badge", async () => {
-    setup()
-    amenities.getMyAmenityTasks.mockResolvedValue({
-      ok: true,
-      tasks: [
-        task("c1", "Is there step-free access?"),
-        task("c2", "Is there guest Wi-Fi?", { progress: "needs_recheck" }),
-      ],
-    })
-    const { container } = await home()
-    expect(screen.queryByText("Nothing to do right now.")).toBeNull()
-    const todo = screen.getByRole("region", { name: /^To do/ })
-    expect(
-      within(todo)
-        .getByRole("link", { name: "Start check: Is there guest Wi-Fi?" })
-        .getAttribute("href")
-    ).toBe(staffCaptureHref("c2"))
-    expect((container.firstElementChild as HTMLElement).dataset.todo).toBe("2")
-  })
-})
-
-describe("Home: Finding sent", () => {
-  const sentCheck = (overrides: Partial<MyAmenityTask> = {}) => ({
-    ok: true,
-    detail: {
-      check: task("c1", "Is there step-free access?", {
-        progress: "complete",
-        answer: "yes",
-        answeredBy: { id: "me", displayName: "TEST Sam" },
-        answeredAt: "2026-11-08T09:00:00.000Z",
-        ...overrides,
-      }),
-    },
-  })
-
-  it("names the check once the database shows it complete and answered by me", async () => {
-    setup()
-    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
-    amenities.getCheck.mockResolvedValue(sentCheck())
-    await home({ finding_sent: "c1" })
-    expect(amenities.getCheck).toHaveBeenCalledWith(ACTOR, { checkId: "c1" })
-    const notice = screen
-      .getByText("Finding sent")
-      .closest<HTMLElement>('[role="status"]')!
-    expect(notice).toBeTruthy()
-    expect(notice.textContent).toContain("Is there step-free access?")
-    expect(screen.getByRole("button", { name: "Dismiss" })).toBeTruthy()
-  })
-
-  it("says only Sent, never complete, when the working list can't be read (HM-16)", async () => {
-    setup()
-    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
-    amenities.getCheck.mockResolvedValue(sentCheck())
-    workingList.fail = true
-    try {
-      await home({ finding_sent: "c1" })
-    } finally {
-      workingList.fail = false
-    }
-    const notice = screen
-      .getByText("Sent")
-      .closest<HTMLElement>('[role="status"]')!
-    expect(notice.textContent).toContain("Is there step-free access?")
-    expect(notice.textContent).not.toContain("complete")
-  })
-
-  it.each([
-    ["answered by someone else", { answeredBy: { id: "x", displayName: "X" } }],
-    ["reopened since", { progress: "needs_recheck" as const }],
-  ])("says nothing when the check was %s", async (_, overrides) => {
-    setup()
-    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
-    amenities.getCheck.mockResolvedValue(sentCheck(overrides))
-    await home({ finding_sent: "c1" })
-    expect(screen.queryByText("Finding sent")).toBeNull()
-  })
-
-  it("never reads a check without the parameter, and survives a failed read", async () => {
-    setup()
-    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
-    await home()
-    expect(amenities.getCheck).not.toHaveBeenCalled()
-    amenities.getCheck.mockRejectedValue(new Error("down"))
-    cleanup()
-    await home({ finding_sent: "c1" })
-    expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy()
-    expect(screen.queryByText("Finding sent")).toBeNull()
-  })
-})
-
-describe("Home: a manager's photos to review can't be counted", () => {
-  it("says so with Try again instead of nothing to do, and shows no Home badge", async () => {
-    setup()
-    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
-    coverage.getCoverageScope.mockResolvedValue({
-      ok: true,
-      scope: { ...tasksView().scope, canManageVenue: true },
-    })
-    coverage.getManagerReviewCount.mockResolvedValue({
-      ok: false,
-      code: "unavailable",
-      status: 503,
-      message: "x",
-    })
-    const { container } = await home()
-    expect(screen.queryByText("Nothing to do right now.")).toBeNull()
-    const todo = screen.getByRole("region", { name: /^To do/ })
-    expect(within(todo).getByRole("alert").textContent).toContain(
-      "We couldn't check photos to review."
-    )
-    expect(
-      within(todo).getByRole("link", { name: "Try again" }).getAttribute("href")
-    ).toBe("/staff/tasks")
-    expect((container.firstElementChild as HTMLElement).dataset.todo).toBe("")
   })
 })

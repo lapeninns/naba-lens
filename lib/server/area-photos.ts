@@ -184,6 +184,9 @@ export async function setAreaLabel(
   return { ok: true, subjectId }
 }
 
+/** The most area photos one queue read returns (per state). */
+export const AREA_QUEUE_LIMIT = 50
+
 /**
  * The venue's area photos: waiting for review, or already decided. "decided"
  * reads the two states that still have an action (accepted can be withdrawn,
@@ -201,7 +204,7 @@ export async function listAreaPhotoQueue(
       ctx.actor.db.rpc("area_photo_queue", {
         p_venue_id: ctx.venueId,
         p_status: state,
-        p_limit: 50,
+        p_limit: AREA_QUEUE_LIMIT,
       })
     )
   )

@@ -14,11 +14,7 @@ import { LoadMoreButton } from "../load-more-button"
 import { EmptyState } from "../empty-state"
 import { Notice } from "../notice"
 import { useOnline } from "../offline-notice"
-import {
-  PhotoSourceActions,
-  usePhotoSource,
-  type PhotoSource,
-} from "../photo-source"
+import { PhotoSourceActions, usePhotoSource } from "../photo-source"
 import type { OpenAddOptions } from "../shell/add-context"
 import type { UploadLimits } from "../types"
 import { UploadDialog } from "../upload-dialog"
@@ -123,7 +119,7 @@ function initialState(result: SubmittablePhotosResult): PhotoList {
 }
 
 /**
- * Choose or take photos, or pick own ready photos, and send them for review.
+ * Choose photos from the phone, or pick own ready photos, and send them for review.
  * Uploads go through the staff layout's one Add queue (or, outside it, the
  * panel's own UploadDialog) and newly ready photos are selected
  * automatically. Each send carries one request ID per intent, so a
@@ -301,11 +297,14 @@ export function SubmitPhotosPanel({
     },
   })
 
-  /** Runs in the click handler: the picker needs its user activation. */
-  function choose(source: PhotoSource) {
+  /**
+   * Runs in the click handler: the picker needs its user activation. Always
+   * the phone's photos: gallery first, no in-app camera (DESIGN.md §2, §9).
+   */
+  function choose() {
     if (addQueue)
       addQueue.openAdd({
-        source,
+        source: "library",
         imagesOnly: true,
         // Several photos picked for the task make one set (B02-05).
         subject:
@@ -324,7 +323,7 @@ export function SubmitPhotosPanel({
           void reloadRef.current(ids)
         },
       })
-    else ownPicker.open(source)
+    else ownPicker.open("library")
   }
 
   const lastRefreshSignal = React.useRef(refreshSignal)
@@ -501,6 +500,7 @@ export function SubmitPhotosPanel({
                 ? "primary"
                 : "secondary"
             }
+            cameraHidden
             onChoose={choose}
           />
           <p className="text-meta text-ink-muted">
@@ -521,10 +521,10 @@ export function SubmitPhotosPanel({
             {monthly
               ? completionTarget
                 ? "Choose a photo from this month to answer the review request."
-                : "Photos you upload and send this month count toward your target once accepted."
+                : "Photos you add and send this month count toward your target once accepted."
               : "Photos from earlier months can still count for this task."}{" "}
             Only ready photos can be sent; photos still processing or that
-            failed to upload don&apos;t count.
+            failed to send don&apos;t count.
           </p>
         </div>
 

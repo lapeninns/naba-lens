@@ -33,7 +33,7 @@ import {
 /**
  * Media upload interruption and recovery against the real local Supabase
  * stack (real TUS resumable uploads and signed PUTs through the real upload
- * sheet: Me's "Upload photos or videos" opens Add's queue, which starts
+ * sheet: Me's "Add photos or videos" opens Add's queue, which starts
  * uploading as soon as files are picked and is titled "Saving N photos" from
  * then on). Every test asserts the CORRECT behaviour; the interruption is made
  * with Playwright routes or the browser's offline switch, never with Docker.
@@ -451,7 +451,7 @@ test.describe("media.reopen-states", () => {
     // Reopening the uploader starts a clean queue and claims nothing.
     // Its title is the picker's, not "Saving N …".
     dialog = await openUploadDialog(page)
-    await expect(dialog).toHaveAccessibleName("Upload photos or videos")
+    await expect(dialog).toHaveAccessibleName("Add photos or videos")
     await expect(dialog.getByRole("list", { name: "Files" })).toHaveCount(0)
     await expect(dialog.getByRole("status")).toHaveCount(0)
     await dialog.getByRole("button", { name: "Done" }).click()

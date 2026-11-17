@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import { toggleVariants } from "@/components/ui/toggle"
 
 /*
- * Internal. The older group of pressed buttons (DESIGN.md §4), kept for
+ * Internal. The older group of pressed buttons (common-room.md §4), kept for
  * components/nabalens/library-filters.tsx until it moves over. New code uses
  * SegmentedControl for one choice of a few and PillGroup with FilterPill for
  * filters. A group with no variant is the grey segmented track: it used to

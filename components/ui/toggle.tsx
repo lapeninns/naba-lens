@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 /*
- * One segment of a segmented control (DESIGN.md §4): muted words on the grey
+ * One segment of a segmented control (common-room.md §4): muted words on the grey
  * track, and the chosen one raised (white fill, control shadow, 1.5px strong
  * edge). The chosen state is read from `aria-checked` (a radio, in
  * SegmentedControl) or `aria-pressed` (a Toggle). Labels wrap. The 1.5px edge

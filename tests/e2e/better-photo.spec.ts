@@ -27,7 +27,7 @@ import { signedInPage } from "./helpers/world"
 /**
  * Batch B, ME-1 (G-3 words): a manager asks for another photo of a dish, and
  * the staff member who took it sends a new one from Me in at most two taps
- * (Reshoot, Done), already labelled with that dish and its variant. The service
+ * (Retake, Done), already labelled with that dish and its variant. The service
  * role only seeds the menu, the grant and the photo bytes; the first label is
  * saved by the uploader's own session and the request goes through the
  * manager's page. Chromium, phone context at 390 px (emulation, not a device).
@@ -113,15 +113,16 @@ test.describe("Needs another photo: retake from Me", () => {
     await expect(section).toBeVisible()
     const request = section.getByRole("article", { name: "Momo (Veg)" })
     await expect(request).toContainText(reason)
-    const take = request.getByRole("button", { name: "Reshoot: Momo (Veg)" })
+    const take = request.getByRole("button", { name: "Retake: Momo (Veg)" })
     const takeBox = await take.boundingBox()
     expect(takeBox?.height ?? 0).toBeGreaterThanOrEqual(44)
 
-    // Reshoot opens the camera straight away, with the dish applied.
+    // Retake opens the phone's photos straight away, with the dish applied
+    // (gallery first, DESIGN.md §2, §9).
     const taps = new TapCounter()
     const photo = await syntheticJpeg(`better-photo-${w.tag}.jpg`)
     const input = await pickFiles(page, take, [photo.path], taps)
-    expect(input.capture).toBe("environment")
+    expect(input.capture).toBeNull()
     const sheet = savingSheet(page, "Saving 1 photo")
     await expect(sheet).toBeVisible()
     await expect(
@@ -142,15 +143,15 @@ test.describe("Needs another photo: retake from Me", () => {
       .toBe(`Momo|${veg}|Veg`)
 
     // The server decides the note is retaken once the new photo is labelled:
-    // it says it was sent and offers only a quiet Take another.
+    // it says it was sent and offers only a quiet Add another.
     await page.reload()
     await settled(page)
     await expect(request).toContainText("New photo sent · waiting for review")
-    await expect(request.getByRole("button", { name: /^Reshoot/ })).toHaveCount(
+    await expect(request.getByRole("button", { name: /^Retake/ })).toHaveCount(
       0
     )
     const again = request.getByRole("button", {
-      name: "Take another: Momo (Veg)",
+      name: "Add another: Momo (Veg)",
     })
     await expect(again).toBeVisible()
     expect((await again.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)

@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 // B02-06: manager amenity screens, the shells' tab badges and the venue name.
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -274,7 +281,7 @@ describe("tab badges (UP-18, MG-24, HM-21, HM-22)", () => {
     expect(within(link).getByText("9+")).toBeTruthy()
   })
 
-  it("shows the To do count on the desktop Home link too", () => {
+  it("shows the retake count on the desktop Album link too", () => {
     render(
       <AppShell variant="staff" active="people" todoCount={3}>
         x
@@ -284,17 +291,17 @@ describe("tab badges (UP-18, MG-24, HM-21, HM-22)", () => {
     expect(bars).toHaveLength(2)
     for (const bar of bars)
       expect(within(bar).getAllByRole("link")[0].textContent).toMatch(
-        /^Home.*3 things to do$/
+        /^Album.*3 retakes$/
       )
   })
 
-  it("says couldn't check, not nothing, when To do couldn't be read", () => {
+  it("says couldn't check, not nothing, when the retakes couldn't be read", () => {
     render(
       <AppShell variant="staff" active="people" todoUnknown>
         x
       </AppShell>
     )
-    const homes = screen.getAllByRole("link", { name: /^Home/ })
+    const homes = screen.getAllByRole("link", { name: /^Album/ })
     expect(homes.length).toBe(2)
     for (const home of homes) {
       expect(home.textContent).toContain("?")

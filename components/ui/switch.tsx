@@ -5,7 +5,7 @@ import { Switch as SwitchPrimitive } from "@base-ui/react/switch"
 import { cn } from "@/lib/utils"
 
 /*
- * Switch (DESIGN.md §2 and §7): an on or off setting that takes effect at
+ * Switch (common-room.md §2 and §7): an on or off setting that takes effect at
  * once. One size: a 52 x 32px track whose hit area reaches 64 x 44px. On is
  * the person's selection mark (select) with the thumb at the end; off is
  * grey with a strong edge and the thumb at the start, so the state is a

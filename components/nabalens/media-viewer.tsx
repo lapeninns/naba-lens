@@ -256,7 +256,7 @@ export function MediaViewer({
     <Dialog open={open && !!item} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        // The stage behind the photo is always near black (DESIGN.md §2),
+        // The stage behind the photo is always near black (common-room.md §2),
         // in both themes; the details card below follows the theme.
         // Phones: full screen, details in a card below the media. From
         // md: media beside a 20rem details panel.
@@ -266,10 +266,10 @@ export function MediaViewer({
         {item ? (
           <>
             {/* `dark`: whatever sits on the stage reads the dark tokens in
-                both themes (DESIGN.md §2); the details panel is outside it. */}
+                both themes (common-room.md §2); the details panel is outside it. */}
             <div className="dark relative grid min-h-75 place-items-center bg-stage pt-15 pb-4 text-on-stage md:min-h-90 md:px-6 md:pb-6">
               <div className="absolute inset-x-2 top-2 flex items-center justify-between gap-2">
-                {/* A labelled Close (DESIGN.md §4): icon and word. */}
+                {/* A labelled Close (common-room.md §4): icon and word. */}
                 <DialogClose
                   render={
                     <Button
@@ -372,7 +372,7 @@ export function MediaViewer({
                     </DialogClose>
                   </div>
                 ) : downloadable || editLabels || profileHref || deletable ? (
-                  // Quiet and grey first, the primary last, in DOM order (DESIGN.md
+                  // Quiet and grey first, the primary last, in DOM order (common-room.md
                   // §4): stacked on phones Download is at the bottom, nearest the
                   // thumb; from md it is on the right. Focus follows what is seen.
                   <div className="flex flex-col gap-2 md:flex-row md:flex-wrap">

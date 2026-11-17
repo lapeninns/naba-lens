@@ -6,11 +6,11 @@ import { Radio, type RadioProps } from "@/components/ui/radio-group"
 import { cn } from "@/lib/utils"
 
 /*
- * Option row (DESIGN.md §4 "Radio row" and "checkbox"): one choice as a full
+ * Option row (common-room.md §4 "Radio row" and "checkbox"): one choice as a full
  * row. The whole row is the label and the target; the mark sits at the
  * leading side, then the label and its hint, then an optional end slot.
  *
- * A chosen row turns accent-soft with a selected edge (DESIGN.md §2, §9: a
+ * A chosen row turns accent-soft with a selected edge (common-room.md §2, §9: a
  * selected row uses accent-soft, not a card shadow). The mark still shows the
  * tick or the dot, so the state never rests on the fill. Focus is drawn on
  * the row, not on the mark inside it.

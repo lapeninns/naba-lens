@@ -43,7 +43,7 @@ type RowProps = {
 }
 
 /**
- * A to-do row (DESIGN.md §4): icon, two lines, chevron. The rail of secondary
+ * A to-do row (common-room.md §4): icon, two lines, chevron. The rail of secondary
  * jobs under the lead card. Use RowList to group rows in one card.
  */
 export function Row({

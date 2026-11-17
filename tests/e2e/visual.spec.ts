@@ -599,12 +599,12 @@ test("staff: upload dialog states and focus return", async ({
 
   // Open by keyboard so focus return is meaningful.
   const uploadButton = page
-    .getByRole("button", { name: "Upload photos or videos" })
+    .getByRole("button", { name: "Add photos or videos" })
     .first()
   await uploadButton.focus()
   await page.keyboard.press("Enter")
   const dialog = uploadSheet(page)
-  await expect(dialog).toHaveAccessibleName("Upload photos or videos")
+  await expect(dialog).toHaveAccessibleName("Add photos or videos")
   await capture(page, testInfo, "upload-dialog")
 
   // A valid photo plus a rejected file.
@@ -657,7 +657,7 @@ test("staff: upload dialog states and focus return", async ({
     .soft(
       await activeElementMatches(
         page,
-        page.getByRole("button", { name: "Upload photos or videos" }).first()
+        page.getByRole("button", { name: "Add photos or videos" }).first()
       ),
       "focus returns to the Upload button after the upload dialog closes"
     )
@@ -935,7 +935,7 @@ test("staff: dark mode portfolio, viewer, upload dialog", async ({
   })
   await page.keyboard.press("Escape")
   await expect(page.getByRole("dialog")).toBeHidden()
-  await page.getByRole("button", { name: "Upload photos or videos" }).click()
+  await page.getByRole("button", { name: "Add photos or videos" }).click()
   await expect(page.getByRole("dialog")).toBeVisible()
   await capture(page, testInfo, "upload-dialog", {
     widths: some(page, testInfo, [390, 1280]),
@@ -962,7 +962,7 @@ test("staff: long name and paused venue", async ({
   await openPortfolio(paused)
   await expect(paused.getByText("uploads are paused")).toBeVisible()
   await expect(
-    paused.getByRole("button", { name: "Upload photos or videos" })
+    paused.getByRole("button", { name: "Add photos or videos" })
   ).toHaveCount(0)
   await capture(paused, testInfo, "staff-paused-venue")
   await paused.context().close()
@@ -1269,15 +1269,18 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
   const { w, requirementId, askedAgain } = await seedCoverageScenes()
   const page = await signIn(browser, w.staffA.email, baseURL!)
   await expect(page).toHaveURL(STAFF_LANDING)
-  // Goal-led Home: the request is the retake note (G-3), which names who
-  // asked (decision 21).
-  const note = page.getByRole("region", { name: "Needs another photo" })
+  // Album is Home (§5a): its retake row is for dishes, so a task's request is
+  // the retake note on Me (G-3), which names who asked (decision 21).
+  await expect(page.locator('[data-slot="album-home"]')).toBeVisible()
+  await capture(page, testInfo, "coverage-staff-home")
+  await expectFocusVisibleEverywhere(page, "coverage-staff-home")
+  await page.goto("/staff")
+  const note = page.getByRole("region", { name: /^Needs another photo/ })
   await expect(
     note.getByText("The door is half open; take it closed, from the street.")
   ).toBeVisible()
   await expect(note).toContainText(w.manager.name)
-  await capture(page, testInfo, "coverage-staff-home")
-  await expectFocusVisibleEverywhere(page, "coverage-staff-home")
+  await capture(page, testInfo, "coverage-staff-me-retake")
 
   await page.goto(`/staff/tasks/${requirementId}`)
   await expect(
@@ -1291,10 +1294,10 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
       .getByText("The photos you send now replace this one.", { exact: true })
   ).toBeVisible()
   await capture(page, testInfo, "coverage-staff-task-replacement")
-  // "Take a photo" opens the camera (a file input); the Add sheet opens once
-  // a photo is picked and saves it at once. Sending it to the task stays a
-  // separate step ("Send photos"), not taken here.
-  const send = page.getByRole("button", { name: "Take a photo" })
+  // "Choose from your photos" opens the photo library (a file input); the
+  // Add sheet opens once a photo is picked and saves it at once. Sending it to
+  // the task stays a separate step ("Send photos"), not taken here.
+  const send = page.getByRole("button", { name: "Choose from your photos" })
   const dialog = uploadSheet(page)
   const photo = {
     name: "task-photo.jpg",

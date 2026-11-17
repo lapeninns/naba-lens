@@ -13,16 +13,8 @@ const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }))
 vi.mock("next/navigation", () => ({ useRouter: () => router }))
 
 import { AddProvider } from "@/components/nabalens/shell/add-context"
-import {
-  FIRST_RUN_COOKIE,
-  FirstRun,
-  setupGaps,
-  showWelcomeEntry,
-  TasksOverview,
-} from "@/components/nabalens/tasks"
+import { FirstRun } from "@/components/nabalens/tasks"
 import type { OpenAddOptions } from "@/components/nabalens/shell/add-context"
-
-import { monthly, PROFILE, tasksView } from "./tasks-fixtures"
 
 afterEach(() => {
   cleanup()
@@ -75,13 +67,14 @@ describe("FirstRun", () => {
       screen.getByRole("heading", { name: "What do you do at The Railway?" })
     ).toBeTruthy()
 
-    // Document order: work details, library (primary), camera, Skip.
+    // Document order: work details, library (primary), Skip. Gallery first:
+    // no in-app camera (DESIGN.md §2, §9; AL-6).
     const library = screen.getByRole("button", {
       name: "Choose from your photos",
     })
-    const camera = screen.getByRole("button", { name: "Take a photo" })
+    expect(screen.queryByRole("button", { name: "Take a photo" })).toBeNull()
     const skip = screen.getByRole("button", { name: "Skip for now" })
-    const order = [work, library, camera, skip]
+    const order = [work, library, skip]
     for (let i = 1; i < order.length; i++) {
       expect(
         order[i - 1].compareDocumentPosition(order[i]) &
@@ -149,10 +142,11 @@ describe("FirstRun", () => {
     expect(dismiss).not.toHaveBeenCalled()
     calls[0]?.onPicked?.()
     expect(dismiss).toHaveBeenCalledWith(true)
-    expect(document.cookie).not.toContain(FIRST_RUN_COOKIE)
+    // The old first-run cookie is never written: dismissal lives in the database.
+    expect(document.cookie).not.toContain("nl_first_run")
   })
 
-  it("does not dismiss when the camera picker is cancelled", () => {
+  it("does not dismiss when the picker is cancelled", () => {
     const calls: OpenAddOptions[] = []
     const dismiss = vi.fn(async () => ({ ok: true }))
     render(
@@ -160,8 +154,10 @@ describe("FirstRun", () => {
         <FirstRun {...props({ dismiss })} />
       </AddProvider>
     )
-    fireEvent.click(screen.getByRole("button", { name: "Take a photo" }))
-    expect(calls[0]?.source).toBe("camera")
+    fireEvent.click(
+      screen.getByRole("button", { name: "Choose from your photos" })
+    )
+    expect(calls[0]?.source).toBe("library")
     // A cancelled picker never calls onPicked.
     expect(dismiss).not.toHaveBeenCalled()
     expect(router.push).not.toHaveBeenCalled()
@@ -257,7 +253,7 @@ describe("FirstRun", () => {
     ).toBeTruthy()
   })
 
-  it("disables both pickers when uploads are blocked, but keeps Skip", () => {
+  it("disables the picker when uploads are blocked, but keeps Skip", () => {
     render(
       <AddProvider value={{ openAdd: vi.fn() }}>
         <FirstRun
@@ -271,11 +267,14 @@ describe("FirstRun", () => {
     expect(
       screen.getByRole("heading", { name: "Photos can't be added yet" })
     ).toBeTruthy()
-    for (const name of ["Choose from your photos", "Take a photo"]) {
-      expect(
-        (screen.getByRole("button", { name }) as HTMLButtonElement).disabled
-      ).toBe(true)
-    }
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Choose from your photos",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true)
+    expect(screen.queryByRole("button", { name: "Take a photo" })).toBeNull()
     expect(
       (
         screen.getByRole("button", {
@@ -283,60 +282,5 @@ describe("FirstRun", () => {
         }) as HTMLButtonElement
       ).disabled
     ).toBe(false)
-  })
-})
-
-describe("Start here on Home", () => {
-  it("shows only to someone who has not dismissed it and has no photos", () => {
-    const base = { dismissedAt: null, legacyCookie: false, hasOwnMedia: false }
-    expect(showWelcomeEntry(base)).toBe(true)
-    // Dismissed in the database (Skip, or a pick from the welcome).
-    expect(
-      showWelcomeEntry({ ...base, dismissedAt: "2026-11-06T10:00:00Z" })
-    ).toBe(false)
-    // The old per-browser cookie still counts as dismissed.
-    expect(showWelcomeEntry({ ...base, legacyCookie: true })).toBe(false)
-    // Anyone with a photo of their own is not a new starter.
-    expect(showWelcomeEntry({ ...base, hasOwnMedia: true })).toBe(false)
-  })
-
-  it("still words the setup gaps", () => {
-    expect(
-      setupGaps({
-        missing: [],
-        monthly: monthly({ setupMissing: ["target"] }),
-      })
-    ).toEqual(["No target yet: your manager sets it"])
-    expect(setupGaps({ missing: ["venue", "team"], monthly: null })).toEqual([
-      "No venue yet: an admin assigns your venue",
-      "No team yet: an admin assigns Front of house or Back of house",
-    ])
-    // The team gap is said once, from either source.
-    expect(
-      setupGaps({
-        missing: ["team"],
-        monthly: monthly({ setupMissing: ["team"] }),
-      })
-    ).toHaveLength(1)
-  })
-
-  it("shows the entry only when a link is given", () => {
-    const home = (welcomeHref: string | null) =>
-      render(
-        <TasksOverview
-          tasks={tasksView()}
-          profile={PROFILE}
-          tasksPath="/staff/tasks"
-          portfolioPath="/staff"
-          welcomeHref={welcomeHref}
-        />
-      )
-    home(null)
-    expect(screen.queryByText("Start here")).toBeNull()
-    cleanup()
-    home("/staff/tasks/welcome")
-    expect(
-      screen.getByRole("link", { name: "Start here" }).getAttribute("href")
-    ).toBe("/staff/tasks/welcome")
   })
 })

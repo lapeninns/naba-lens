@@ -15,7 +15,7 @@ import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
 import { Notice } from "../notice"
-import { PhotoSourceActions, type PhotoSource } from "../photo-source"
+import { PhotoSourceActions } from "../photo-source"
 import { useAdd } from "../shell/add-context"
 import { completionBreakdown } from "./copy"
 import { StatusChip } from "./status-badges"
@@ -50,7 +50,7 @@ export function setupGaps({
 const MILESTONES = [
   {
     word: "Saved to your portfolio",
-    text: "As soon as it uploads. Colleagues see it in Photos.",
+    text: "As soon as it is sent. Colleagues see it in Photos.",
   },
   {
     word: "Ready to label",
@@ -126,8 +126,9 @@ export function FirstRun({
     void dismiss(true).catch(() => undefined)
   }
 
-  const choose = (source: PhotoSource) => {
-    openAdd?.({ source, onPicked: recordPick })
+  // Gallery first: the phone's photos, never an in-app camera (DESIGN.md §2, §9).
+  const choose = () => {
+    openAdd?.({ source: "library", onPicked: recordPick })
   }
 
   const skip = () =>
@@ -220,7 +221,7 @@ export function FirstRun({
         {monthly.completionProgress?.total ?? monthly.accepted} of{" "}
         {monthly.target} {monthly.completionProgress ? "completed" : "accepted"}
       </p>
-      {/* The frames are Progress segments (DESIGN.md §4; decision 6). */}
+      {/* The frames are Progress segments (common-room.md §4; decision 6). */}
       <Progress
         mode="segments"
         accepted={monthly.completionProgress?.total ?? monthly.accepted}
@@ -329,9 +330,13 @@ export function FirstRun({
 
         <div className="mt-1 grid gap-2 rounded-card bg-surface p-3 shadow-card">
           {uploadBlocked ? (
-            <PhotoSourceActions onChoose={() => undefined} disabled />
+            <PhotoSourceActions
+              onChoose={() => undefined}
+              disabled
+              cameraHidden
+            />
           ) : openAdd ? (
-            <PhotoSourceActions onChoose={choose} />
+            <PhotoSourceActions onChoose={choose} cameraHidden />
           ) : (
             <Link
               href={photoHref}

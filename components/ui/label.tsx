@@ -2,7 +2,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /*
- * The visible name of a control (DESIGN.md §4 Field): 17px, weight 700.
+ * The visible name of a control (common-room.md §4 Field): 17px, weight 700.
  * Use FieldLabel inside a field; FormField wires `htmlFor` for you.
  */
 function Label({ className, ...props }: React.ComponentProps<"label">) {

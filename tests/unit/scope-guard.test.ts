@@ -58,6 +58,10 @@ const ALLOWED_PAGES = new Set([
   // Our menu (November 2026): the venue's active menu with how many items have
   // an accepted photo, search and "Still needs a photo"; no scoring.
   "/staff/menu",
+  // Album A2 (docs/design-system/DESIGN.md §6.2, decision D8): one place's
+  // slots by section. Photos only; no scoring or ranking.
+  "/staff/album/[placeId]",
+  "/staff/album/match-later",
   // Self-described work details (November 2026): main job and extra areas for
   // Home's prompt and the label picker's order; never access or team.
   "/staff/profile",
@@ -109,6 +113,8 @@ const ALLOWED_PAGES = new Set([
   // B03-b places: a venue's entrances, routes, rooms and areas, kept by its
   // manager or an admin for the capture form's choices.
   "/manager/amenities/places",
+  // Album A2: where staff photograph each menu section and amenity category.
+  "/manager/album",
   "/manager/amenities/[checkId]",
   "/manager/amenities/[checkId]/capture",
   // v0.4 admin coverage oversight: the same tools for any venue, plus grants.
@@ -125,6 +131,8 @@ const ALLOWED_PAGES = new Set([
   "/admin/coverage/[venueId]/menu-photos/contributors/[staffId]",
   "/admin/coverage/[venueId]/team",
   "/admin/coverage/managers",
+  // Album A4 (DESIGN.md §6.6): every venue's album and its biggest gaps.
+  "/admin/albums",
   // Shared amenity catalogue (November 2026): per-venue checks with photo or
   // video evidence; a valid submission is the answer, managers can reopen it.
   // Never part of monthly targets (docs/plans/amenity-catalogue.md).
@@ -206,6 +214,10 @@ const ALLOWED_HANDLERS = new Set([
   // derivatives for 60 s; no originals or downloads.
   "/api/area-photos/[assetId]/thumb",
   "/api/area-photos/[assetId]/preview",
+  // Album slot photos (AL-7), checked by album_slot_asset: the current photo
+  // of an accepted or waiting area slot or an accepted amenity slot, for
+  // everyone at the venue. A thumbnail signed for 60 s; nothing else.
+  "/api/album/[assetId]/thumb",
   // v0.4 §3 rule 9: hourly idempotent monthly preparation, cron-only bearer auth
   // like the other /api/internal routes; it sends nothing to staff.
   "/api/internal/coverage/monthly-preparation",

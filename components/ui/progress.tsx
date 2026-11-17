@@ -3,7 +3,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /*
- * Progress (DESIGN.md §4). One component, two modes.
+ * Progress (common-room.md §4). One component, two modes.
  *
  * `segments`: one rounded segment per unit, green when accepted, striped
  * while submitted and waiting, warn with a heavy edge when a reviewer asked

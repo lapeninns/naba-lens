@@ -24,7 +24,7 @@ import {
 } from "../fixtures"
 
 /*
- * Gallery block for the foundations (DESIGN.md §2 and §10): every token and
+ * Gallery block for the foundations (common-room.md §2 and §10): every token and
  * recipe in app/globals.css, drawn with the utility it produces. Nothing
  * here has a value of its own, so a token that changes shows here first.
  */

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 
 import { ThemeSetting } from "@/components/nabalens/theme-setting"
 
+import { AlbumBlock } from "./blocks/album"
 import { ButtonBlock } from "./blocks/button"
 import { ChoiceBlock } from "./blocks/choice"
 import { ComboboxBlock } from "./blocks/combobox"
@@ -24,6 +25,7 @@ export const metadata: Metadata = {
 }
 
 const BLOCKS: Record<GallerySectionId, React.ComponentType> = {
+  album: AlbumBlock,
   foundations: FoundationsBlock,
   button: ButtonBlock,
   fields: FieldsBlock,

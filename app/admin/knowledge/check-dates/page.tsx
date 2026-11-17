@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 const PATH = "/admin/knowledge/check-dates"
 const KEY = /^[a-z0-9_]{1,40}$/
 const RULE = /^[a-z][a-z0-9_]{0,39}$/
-// Native selects take the shared field recipe (DESIGN.md §4 Field).
+// Native selects take the shared field recipe (common-room.md §4 Field).
 const INPUT = fieldControlVariants()
 const LABEL = "text-label text-ink"
 const MUTED = "text-meta text-ink-muted"

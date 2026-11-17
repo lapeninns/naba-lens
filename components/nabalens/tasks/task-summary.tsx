@@ -51,7 +51,7 @@ const KIND_ICON: Record<RequirementKind, React.ReactNode> = {
   service: <CalendarBlankIcon />,
 }
 
-/** A sentence inside the task post: an icon and the words (DESIGN.md §5). */
+/** A sentence inside the task post: an icon and the words (common-room.md §5). */
 function Flag({
   tone = "neutral",
   icon,

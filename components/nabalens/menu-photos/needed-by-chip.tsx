@@ -7,7 +7,7 @@ import { NEEDED_BY_COPY } from "./copy"
 
 // G-7: a manager's "needed by" date on a still-needed dish (v0.5 rule 24).
 // It is never Overdue: after the date the word is "Needed" and the chip keeps
-// its quiet shape, never the Overdue square (DESIGN.md §3).
+// its quiet shape, never the Overdue square (common-room.md §3).
 
 export { NEEDED_BY_COPY }
 

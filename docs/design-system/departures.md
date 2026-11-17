@@ -1,11 +1,11 @@
 # Departures log
 
-A departure is a place where the product differs from [DESIGN.md](DESIGN.md). Each one is **open** (to fix, with an owner or a roadmap task), **decision** (waiting on an entry in [decisions.md](decisions.md)), **justified** (deliberate, with the reason written here) or **closed**.
+A departure is a place where the product differs from [common-room.md](common-room.md). Each one is **open** (to fix, with an owner or a roadmap task), **decision** (waiting on an entry in [decisions.md](decisions.md)), **justified** (deliberate, with the reason written here) or **closed**.
 
 Rules:
 
 - If you find a difference, add a row. If you make one on purpose, add a row with the reason before the change merges.
-- A justified departure that lasts becomes a change to `DESIGN.md`, and the row is closed.
+- A justified departure that lasts becomes a change to `common-room.md`, and the row is closed.
 - The log is reviewed at the start of each roadmap batch. It should get shorter.
 
 "Read from code" means nobody has looked at it in a browser yet. Task IDs (`DS-xxx`) are in [strategy.md](strategy.md) section 8. The per-property detail behind each row is in [components.md](components.md).
@@ -92,3 +92,11 @@ The prototype folder's rationale listed 16 departures: 10 fixed in v0.3, 1 justi
 | N8  | §5: self-review is allowed and flagged                                                                                                               | Manager accounts never decide their own photos; admins and legacy staff grants may                                                   | open: write the rule by account type in §5                                                                                                                   |
 | N9  | §7: focus order follows visual order                                                                                                                 | See X3                                                                                                                               | closed: see X3                                                                                                                                               |
 | N10 | §3, §6 and rule 8 (0.4): staff copy for food and drink work never says task, due, overdue or better photo                                            | Home's loading and error states, To do, the lead card, the retake list, Me's request tiles and the month's photo list still say them | open: listed as pending in `tests/unit/staff-copy-guard.test.ts`, owners goals G-1 (Home), G-2 (month list) and G-3 (retake note, Me). The list only shrinks |
+
+## Album
+
+Departures from [DESIGN.md](DESIGN.md) (Album). Same statuses as above.
+
+| ID  | The spec says                                                                               | The product does                                                                                                                                                                                                                                                                                                                             | Status                                                                                                                                                                                               |
+| --- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-1 | §5 Match picker, §6.1 step 5: Not for a slot sends the photo as a shared photo with no slot | Not for a slot asks one more question, "What does it show?" (Team, Kitchen, Venue, Event, Preparation, Plating), and saves that as the photo's content label. A photo with no label counts as "needs labels" in the database (`private.asset_needs_labels`), so without it a shared photo would wait under Match later like an unmatched one | justified (AL-1): keeps Match later to photos the person chose to match later, with no migration. Owner Aman Kumar Shrestha. Write the question into §6.1, or decide a "shared" mark in the database |

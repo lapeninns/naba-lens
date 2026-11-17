@@ -47,7 +47,7 @@ export function EmptyState({
     <div
       data-slot="empty-state"
       className={cn(
-        // Common Room empty state (DESIGN.md §5): icon, what appears here,
+        // Common Room empty state (common-room.md §5): icon, what appears here,
         // how it gets there, one action at most. A white card on the canvas.
         "grid justify-items-center gap-2.5 text-center",
         inline ? "px-4 py-8" : "rounded-card bg-surface px-5 py-8 shadow-card",

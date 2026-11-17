@@ -93,7 +93,7 @@ describe("RetakeNotes on Home", () => {
     expect(screen.queryByRole("region")).toBeNull()
   })
 
-  it("leads with the first note: Reshoot is the one primary action and opens the camera with the dish", () => {
+  it("leads with the first note: Retake is the one primary action and opens the phone's photos with the dish", () => {
     const openAdd = vi.fn()
     render(
       <AddProvider value={{ openAdd }}>
@@ -106,12 +106,12 @@ describe("RetakeNotes on Home", () => {
     expect(block.textContent).not.toMatch(/better photo|task|due|overdue/i)
     const primary = block.querySelectorAll('[data-variant="primary"]')
     expect(primary).toHaveLength(1)
-    expect(primary[0].textContent).toBe("Reshoot")
+    expect(primary[0].textContent).toBe("Retake")
     fireEvent.click(
-      screen.getByRole("button", { name: "Reshoot: Korma (Chicken)" })
+      screen.getByRole("button", { name: "Retake: Korma (Chicken)" })
     )
     expect(openAdd).toHaveBeenCalledWith({
-      source: "camera",
+      source: "library",
       imagesOnly: true,
       preset: {
         itemId: "i1",
@@ -123,7 +123,7 @@ describe("RetakeNotes on Home", () => {
     // The coverage request follows as a row, through its send page.
     expect(
       screen
-        .getByRole("link", { name: "Reshoot: Bar set-up" })
+        .getByRole("link", { name: "Retake: Bar set-up" })
         .getAttribute("href")
     ).toBe("/staff/tasks/r1?replaces=c1")
     // Set aside, retaken, cleared and unretakeable notes stay off Home.
@@ -216,7 +216,7 @@ describe("RetakeNotes on Home", () => {
     expect(router.refresh).not.toHaveBeenCalled()
   })
 
-  it("offers Later but no Reshoot while uploads are paused", () => {
+  it("offers Later but no Retake while uploads are paused", () => {
     render(
       <AddProvider value={{ openAdd: vi.fn() }}>
         <RetakeNotes
@@ -227,8 +227,8 @@ describe("RetakeNotes on Home", () => {
         />
       </AddProvider>
     )
-    expect(screen.queryByRole("button", { name: /^Reshoot/ })).toBeNull()
-    expect(screen.queryByRole("link", { name: /^Reshoot/ })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^Retake/ })).toBeNull()
+    expect(screen.queryByRole("link", { name: /^Retake/ })).toBeNull()
     expect(screen.getAllByRole("button", { name: /^Later/ })).toHaveLength(2)
   })
 })

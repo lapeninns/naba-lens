@@ -1,4 +1,4 @@
-// Shared label and hint classes for the label editor (DESIGN.md §4 Field).
+// Shared label and hint classes for the label editor (common-room.md §4 Field).
 // The control itself is Input or Textarea from components/ui.
 
 export const FIELD_LABEL =

@@ -43,7 +43,7 @@ const APP_MARKUP = [
   'href="/admin/staff"',
   ">Content<",
   'data-slot="skeleton"',
-  "Upload photos or videos",
+  "Add photos or videos",
 ]
 /** Other people's details, filled in once the identities exist. */
 const PEOPLE: string[] = []

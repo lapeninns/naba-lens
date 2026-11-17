@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
-import { addJustPhotos } from "./helpers/add-entry"
+import { syntheticJpeg } from "./helpers/media"
 import {
   adminPages,
   managerPages,
@@ -95,21 +95,21 @@ for (const size of SIZES) {
     await reflow(anon, size, "/login")
   })
 
-  test(`staff pages and the Add sheet reflow at ${size.name}`, async () => {
+  test(`staff pages, Add and Match reflow at ${size.name}`, async () => {
     for (const path of staffPages(m)) await reflow(staff, size, path)
-    await reflow(staff, size, "/staff/tasks")
+    // Me's Add: the upload sheet.
+    await reflow(staff, size, "/staff")
     await dialogReflows(
       staff,
       size,
-      "Add sheet",
+      "Upload sheet",
       () =>
-        addJustPhotos(
-          staff,
-          staff
-            .locator('[data-slot="tabbar"]')
-            .getByRole("button", { name: "Add", exact: true })
-        ),
-      staff.getByRole("dialog", { name: "Add photos" })
+        staff
+          .getByRole("main")
+          .getByRole("button", { name: "Add photos or videos" })
+          .first()
+          .click(),
+      staff.getByRole("dialog", { name: "Add photos or videos" })
     )
     await reflow(staff, size, "/staff/tasks/guide")
     await dialogReflows(
@@ -120,6 +120,27 @@ for (const size of SIZES) {
         staff.getByRole("button", { name: "45° angle. Open example" }).click(),
       staff.getByRole("dialog", { name: "45° angle" })
     )
+    // Album's Add photos: the phone's photos, then Match (DESIGN.md §6.1).
+    await reflow(staff, size, "/staff/tasks")
+    const photo = await syntheticJpeg(`reflow-${size.name}-${Date.now()}.jpg`)
+    const tab = staff
+      .locator('[data-slot="tabbar"], header')
+      .getByRole("button", { name: /^Add photos/ })
+      .filter({ visible: true })
+      .first()
+    const chooser = staff.waitForEvent("filechooser")
+    await tab.click()
+    await (await chooser).setFiles(photo.path)
+    await dialogReflows(
+      staff,
+      size,
+      "Match",
+      async () => undefined,
+      staff.getByRole("dialog", { name: /^Photo 1 of 1$/ })
+    )
+    // Closing sent it to Match later; let it finish before the next size
+    // navigates (a running upload holds navigation at the leave guard).
+    await expect(tab).toHaveAccessibleName("Add photos", { timeout: 60_000 })
   })
 
   test(`manager pages and Add a checklist item reflow at ${size.name}`, async () => {
@@ -284,18 +305,18 @@ test.describe("forced colours", () => {
     expect(chips, "status chips measured").toBeGreaterThan(0)
   })
 
-  test("the TabBar keeps its edge, current tab and Add disc", async () => {
-    await visit(fcStaff, 390, "/staff/community")
+  test("the TabBar keeps its edge and current tab", async () => {
+    // Me is a tab (Album shell, DESIGN.md §5 Tab bar), so one tab is current.
+    await visit(fcStaff, 390, "/staff")
     const bar = fcStaff.locator('[data-slot="tabbar"]')
+    const current = bar.locator('[aria-current="page"]')
+    // Measured, never vacuous: the bar has Album, Add photos and Me, and Me
+    // is current. Add photos is a plain tab now, with no disc to mark.
+    await expect(bar.locator("a, button")).toHaveCount(3)
+    await expect(current).toHaveCount(1)
+    await expect(bar.locator('[data-slot="album-add"]')).toHaveCount(1)
     expect(await unmarked(bar)).toEqual([])
-    expect(
-      await unmarked(bar.locator('[aria-current="page"]')),
-      "current tab"
-    ).toEqual([])
-    expect(
-      await unmarked(bar.locator('[data-slot="tabbar-disc"]')),
-      "Add disc"
-    ).toEqual([])
+    expect(await unmarked(current), "current tab").toEqual([])
   })
 
   test("a selected segment differs from the others by more than its fill", async () => {

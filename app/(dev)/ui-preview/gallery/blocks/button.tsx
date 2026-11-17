@@ -11,7 +11,7 @@ import { LinkButton } from "@/components/ui/link-button"
 import { Spinner } from "@/components/ui/spinner"
 
 /*
- * Gallery block for Button, LinkButton and Spinner (DESIGN.md §4): every
+ * Gallery block for Button, LinkButton and Spinner (common-room.md §4): every
  * variant, size and state, with fake data only. Hover cannot be forced, so
  * it is not shown; focus is described in a note.
  */

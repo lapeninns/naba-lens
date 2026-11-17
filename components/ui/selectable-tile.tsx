@@ -7,7 +7,7 @@ import { Checkbox, type CheckboxProps } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 
 /*
- * Selectable tile (DESIGN.md §4 "Tile check"): a photo that can be picked.
+ * Selectable tile (common-room.md §4 "Tile check"): a photo that can be picked.
  * The children are the photo. A tick box sits in a corner on a plate, so it
  * reads on any picture; picked, the box fills and the tile takes the 3px
  * select ring. The whole tile is the target.

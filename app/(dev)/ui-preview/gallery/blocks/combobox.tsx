@@ -11,7 +11,7 @@ import {
 import { FormField } from "@/components/ui/field"
 
 /*
- * Gallery block for Combobox (DESIGN.md §4): every size and state, with fake
+ * Gallery block for Combobox (common-room.md §4): every size and state, with fake
  * data only. Hover cannot be forced, so it is not shown; focus and the open
  * list are described in notes, because an open list would cover the page.
  */

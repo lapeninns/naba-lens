@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/segmented-control"
 
 /*
- * Gallery block for SegmentedControl, FilterPill and PillGroup (DESIGN.md
+ * Gallery block for SegmentedControl, FilterPill and PillGroup (common-room.md
  * §4): every layout and state, with fake data only. Hover cannot be forced,
  * so it is not shown; focus is described in a note. A client file because
  * the controlled specimens hold their own state.

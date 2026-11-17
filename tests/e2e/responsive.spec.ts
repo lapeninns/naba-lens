@@ -195,13 +195,13 @@ for (const width of WIDTHS) {
     const ownPhoto = await staffTile(portfolio, jpeg.name)
     await expect(ownPhoto).toBeVisible()
     const upload = staff
-      .getByRole("button", { name: "Upload photos or videos" })
+      .getByRole("button", { name: "Add photos or videos" })
       .first()
     await check(staff, width, "staff-portfolio", upload)
 
     await upload.click()
     const uploadDialog = uploadSheet(staff)
-    await expect(uploadDialog).toHaveAccessibleName("Upload photos or videos")
+    await expect(uploadDialog).toHaveAccessibleName("Add photos or videos")
     await check(
       staff,
       width,
@@ -392,7 +392,7 @@ test("keyboard only: upload, open the viewer, download", async () => {
   await staff.goto("/staff")
   // Wait for the streamed page, not just the load event, before tabbing.
   await expect(portfolioList(staff)).toBeVisible()
-  await tabTo(staff, /^Upload photos or videos$/)
+  await tabTo(staff, /^Add photos or videos$/)
   await staff.keyboard.press("Enter")
   const dialog = uploadSheet(staff)
   await expect(dialog).toBeVisible()

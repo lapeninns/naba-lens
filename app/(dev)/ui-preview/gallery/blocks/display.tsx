@@ -27,7 +27,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 
 /*
- * Gallery block for the display primitives (DESIGN.md §2 and §4): Heading,
+ * Gallery block for the display primitives (common-room.md §2 and §4): Heading,
  * Progress, Photo, Avatar, Skeleton and Switch, in every size and state,
  * with fake data only. Hover cannot be forced, so it is not shown; focus is
  * described in a note.
