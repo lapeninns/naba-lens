@@ -4,6 +4,7 @@ import {
   ForkKnifeIcon,
   HouseIcon,
   ImagesIcon,
+  ImagesSquareIcon,
   SignOutIcon,
   UserCircleIcon,
   UsersIcon,
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils"
 
 import { OfflineShell } from "./offline-notice"
 import { ProfileAvatar } from "./profile-avatar"
+import { AlbumAddTrigger } from "./album/album-add-trigger"
 import { AddTrigger } from "./shell/add-context"
 import { TabBadge } from "./shell/tab-badge"
 import { TAB_ITEM } from "./shell/tab-item"
@@ -47,6 +49,12 @@ type AppShellProps = {
       todoUnknown?: boolean
       /** Photos waiting for this manager's decision, counted on Manage. */
       reviewCount?: number
+      /**
+       * The Album shell (DESIGN.md §5 Tab bar, §5a): three tabs, Album, Add
+       * photos (straight to the gallery) and Me. Set by staffShellStatus on
+       * the album Home layout; other layouts keep today's tabs.
+       */
+      album?: boolean
     }
   | {
       variant: "admin"
@@ -111,6 +119,13 @@ const ME: NavItem<StaffSection> = {
   href: "/staff",
   icon: UserCircleIcon,
 }
+/** Album is Home on the album layout (DESIGN.md §5a): the same route. */
+const ALBUM: NavItem<StaffSection> = {
+  id: "tasks",
+  label: "Album",
+  href: "/staff/tasks",
+  icon: ImagesSquareIcon,
+}
 const MANAGE: NavItem<StaffSection> = {
   id: "manage",
   label: "Manage",
@@ -132,9 +147,11 @@ export function AppShell(props: AppShellProps) {
   const { children, userName, onLogout, className } = props
   const staff = props.variant === "staff" ? props : null
   const admin = props.variant === "admin" ? props : null
+  // Album has no To do (DESIGN.md §7, §9), so its tab carries no badge.
+  const album = !!staff?.album
 
   const todo = (id: string) =>
-    staff && id === "tasks" && active !== "tasks"
+    staff && !album && id === "tasks" && active !== "tasks"
       ? { count: staff.todoCount, unknown: !!staff.todoUnknown }
       : null
   const barItems: { item: NavItem<string>; href: string; count?: number }[] =
@@ -144,11 +161,9 @@ export function AppShell(props: AppShellProps) {
           href: admin.hrefs?.[item.id] ?? item.href,
         }))
       : [
-          HOME,
-          OUR_MENU,
-          PHOTOS,
-          PEOPLE,
-          ME,
+          // Album: its three places, and Manage. Our menu, Photos and
+          // People are reached from Me.
+          ...(album ? [ALBUM, ME] : [HOME, OUR_MENU, PHOTOS, PEOPLE, ME]),
           ...(staff?.canManage ? [MANAGE] : []),
         ].map((item) => ({
           item,
@@ -255,7 +270,11 @@ export function AppShell(props: AppShellProps) {
           <div className="ml-auto flex min-w-0 items-center gap-2">
             {staff ? (
               <div className="hidden md:block">
-                <AddTrigger kind="bar" />
+                {album ? (
+                  <AlbumAddTrigger kind="bar" />
+                ) : (
+                  <AddTrigger kind="bar" />
+                )}
               </div>
             ) : null}
             {userName ? (
@@ -274,7 +293,8 @@ export function AppShell(props: AppShellProps) {
                 </form>
               )}
             </div>
-            {staff ? (
+            {/* Album has Me as a tab, so no second way to it up here. */}
+            {staff && !album ? (
               <Link
                 href={ME.href}
                 className="-mr-1 grid size-12 place-items-center rounded-round focus-ring outline-none md:hidden"
@@ -318,19 +338,22 @@ export function AppShell(props: AppShellProps) {
                 current={active === item.id}
               />
             ))
-          : [HOME, PHOTOS, null, PEOPLE, ME].map((item) =>
-              item ? (
-                <TabLink
-                  key={item.id}
-                  item={item}
-                  href={item.href}
-                  current={active === item.id}
-                  count={todo(item.id)?.count}
-                  unknown={todo(item.id)?.unknown}
-                />
-              ) : (
-                <AddTrigger key="add" kind="tab" />
-              )
+          : (album ? [ALBUM, null, ME] : [HOME, PHOTOS, null, PEOPLE, ME]).map(
+              (item) =>
+                item ? (
+                  <TabLink
+                    key={item.id}
+                    item={item}
+                    href={item.href}
+                    current={active === item.id}
+                    count={todo(item.id)?.count}
+                    unknown={todo(item.id)?.unknown}
+                  />
+                ) : album ? (
+                  <AlbumAddTrigger key="add" kind="tab" />
+                ) : (
+                  <AddTrigger key="add" kind="tab" />
+                )
             )}
       </nav>
     </div>

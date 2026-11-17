@@ -29,6 +29,10 @@ Built to [DESIGN.md](DESIGN.md) §5. Each batch adds its rows.
 | AlbumHome, AlbumSlotTile | `components/nabalens/album/album-home.tsx`        | Feature | Album (Home) (§5a)           | 2 (A2)         | adopted |
 | AlbumPlaceScreen         | `components/nabalens/album/album-place.tsx`       | Feature | A place (§6.2)               | 1 (A2)         | adopted |
 | AlbumPlacesForm          | `components/nabalens/album/album-places-form.tsx` | Feature | Album places, manager (§6.2) | 1 (A2)         | adopted |
+| AlbumAddTrigger          | `components/nabalens/album/album-add-trigger.tsx` | Feature | Tab bar (Add photos) (§5)    | 1 (A3)         | adopted |
+| RememberPlace            | `components/nabalens/album/remember-place.tsx`    | Feature | Album (Home) step 3 (§5a)    | 1 (A3)         | adopted |
+
+AlbumAddTrigger is Add photos in the Album shell (tab and AppBar, through AppShell's `album` prop). It replaces AddTrigger once AL-8 removes the other Home layouts; until then AddTrigger serves them. `ALBUM_ADD_OPTIONS` in the same file is what every Album Add photos opens.
 
 ## Primitives
 

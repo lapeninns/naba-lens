@@ -10,10 +10,12 @@ import {
   CaretRightIcon,
   ClipboardTextIcon,
   ForkKnifeIcon,
+  ImagesIcon,
   PencilSimpleIcon,
   SignOutIcon,
   TagIcon,
   UploadSimpleIcon,
+  UsersIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -79,6 +81,16 @@ type StaffPortfolioProps = {
   menuPhotoItems?: MediaItem[]
   /** "Your findings" (B01-06), after the menu decisions; null to leave it out. */
   findings?: React.ReactNode
+  /**
+   * The person's own month (Album shell, proposal §7.6: moved off Home), shown
+   * under the profile; null to leave it out.
+   */
+  month?: React.ReactNode
+  /**
+   * The Album shell's tab bar has only Album, Add photos and Me (DESIGN.md
+   * §5), so Me lists Photos and People among its own links.
+   */
+  albumShell?: boolean
 }
 
 /** The three milestones of an own photo, in these exact words. */
@@ -350,6 +362,8 @@ export function StaffPortfolio({
   retakeNotes = [],
   areaLabelled = [],
   findings = null,
+  month = null,
+  albumShell = false,
 }: StaffPortfolioProps) {
   const router = useRouter()
   const [editOpen, setEditOpen] = React.useState(initialEditOpen)
@@ -465,6 +479,7 @@ export function StaffPortfolio({
       {profileSaved ? (
         <Notice tone="positive">{PROFILE_SAVE_COPY.saved}</Notice>
       ) : null}
+      {month}
       {manage ? (
         <ManageRow
           venueName={manage.venueName}
@@ -497,6 +512,22 @@ export function StaffPortfolio({
             title="Our menu"
             hint="See which dishes and drinks still need a photo"
           />
+          {albumShell ? (
+            <>
+              <MeRow
+                href="/staff/community"
+                icon={<ImagesIcon />}
+                title="Photos"
+                hint="Photos your colleagues have added, newest first"
+              />
+              <MeRow
+                href="/staff/people"
+                icon={<UsersIcon />}
+                title="People"
+                hint="Your colleagues and their photos"
+              />
+            </>
+          ) : null}
         </ul>
       </nav>
       <NeedsAttention
