@@ -18,7 +18,10 @@ const photos = vi.hoisted(() => ({
   listReviewQueue: vi.fn(),
 }))
 vi.mock("@/lib/server/menu-photos", () => photos)
-const areas = vi.hoisted(() => ({ listAreaPhotoQueue: vi.fn() }))
+const areas = vi.hoisted(() => ({
+  listAreaPhotoQueue: vi.fn(),
+  AREA_QUEUE_LIMIT: 2,
+}))
 vi.mock("@/lib/server/area-photos", () => areas)
 const album = vi.hoisted(() => ({
   getAlbumPlacements: vi.fn(),
@@ -443,6 +446,12 @@ describe("AlbumReviewBody (server read)", () => {
     })
     expect(p.areaCards).toEqual([])
     expect(p.total).toBe(1)
+  })
+
+  it("says more area photos may wait when the area read was a full page", async () => {
+    expect((await props()).areaMore).toBe(true)
+    areas.listAreaPhotoQueue.mockResolvedValue({ ok: true, cards: [area()] })
+    expect((await props()).areaMore).toBe(false)
   })
 
   it("a menu that is not ready has no dish photos to decide", async () => {

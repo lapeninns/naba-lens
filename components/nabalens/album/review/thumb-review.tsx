@@ -8,7 +8,10 @@ import {
 import Link from "next/link"
 import * as React from "react"
 
-import { decideAreaPhotoAction } from "@/app/manager/area-actions"
+import {
+  decideAreaPhotoAction,
+  loadAreaReviewAction,
+} from "@/app/manager/area-actions"
 import { loadReviewPageAction } from "@/app/manager/actions"
 import { useReviewCount } from "@/components/nabalens/manager/review-count"
 import { useDecision } from "@/components/nabalens/manager/review/use-decision"
@@ -54,8 +57,14 @@ export type ThumbReviewProps = {
   menuCards: QueueCard[]
   /** The next menu page's cursor, if any. */
   menuCursor: string | null
-  /** Waiting area photos. */
+  /** Waiting area photos, oldest first. */
   areaCards: AreaPhotoCard[]
+  /**
+   * The area read was a full page, so more may be waiting. The queue has no
+   * cursor: it is re-read, oldest first, once the line runs low, and photos
+   * already seen here are left out.
+   */
+  areaMore?: boolean
   /** Photos the caller can decide on across both queues (the title). */
   total: number
   /** Menu section id to album place and brief, item id to its own brief. */
@@ -100,6 +109,7 @@ export function ThumbReview({
   menuCards,
   menuCursor,
   areaCards,
+  areaMore = false,
   total,
   context,
   listHref,
@@ -123,8 +133,14 @@ export function ThumbReview({
     Math.max(total, start.line.length)
   )
   const [cursor, setCursor] = React.useState(menuCursor)
+  const [moreAreas, setMoreAreas] = React.useState(areaMore)
+  // Every area photo key this screen has read, own and refused ones too, so
+  // a re-read of the queue brings only photos not seen yet.
+  const seenAreas = React.useRef<Set<string> | null>(null)
+  seenAreas.current ??= new Set(areaCards.map((c) => fromAreaCard(c).key))
   const [loading, setLoading] = React.useState(false)
   const loadingRef = React.useRef(false)
+  const areaLoadingRef = React.useRef(false)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [mode, setMode] = React.useState<Mode>("bar")
   const [other, setOther] = React.useState("")
@@ -156,6 +172,7 @@ export function ThumbReview({
   }, [current?.key])
 
   async function loadMore() {
+    void loadMoreAreas()
     // A ref, not state: two decisions in a row must not read the same page.
     if (!cursor || loadingRef.current) return
     loadingRef.current = true
@@ -178,7 +195,38 @@ export function ThumbReview({
       setLoadFailed(true)
     } finally {
       loadingRef.current = false
-      setLoading(false)
+      setLoading(areaLoadingRef.current)
+    }
+  }
+
+  /** The next waiting area photos: the queue re-read, minus those seen. */
+  async function loadMoreAreas() {
+    if (!moreAreas || areaLoadingRef.current) return
+    areaLoadingRef.current = true
+    setLoading(true)
+    setLoadFailed(false)
+    try {
+      const page = await loadAreaReviewAction({})
+      if (!page.ok) {
+        setLoadFailed(true)
+        return
+      }
+      const seen = seenAreas.current!
+      const fresh = page.cards.map(fromAreaCard).filter((p) => !seen.has(p.key))
+      for (const p of fresh) seen.add(p.key)
+      const decidableFresh = reviewLine(fresh)
+      setOwn((n) => n + fresh.filter((p) => p.own).length)
+      setRemaining((n) => n + decidableFresh.length)
+      setLine((now) => {
+        const known = new Set(now.map((p) => p.key))
+        return [...now, ...decidableFresh.filter((p) => !known.has(p.key))]
+      })
+      setMoreAreas(page.more && fresh.length > 0)
+    } catch {
+      setLoadFailed(true)
+    } finally {
+      areaLoadingRef.current = false
+      setLoading(loadingRef.current)
     }
   }
 
@@ -425,7 +473,7 @@ export function ThumbReview({
             />
           )}
         </section>
-      ) : cursor ? (
+      ) : cursor || moreAreas ? (
         <div className="grid gap-3">
           {loadFailed ? (
             <Notice tone="negative" role="alert">

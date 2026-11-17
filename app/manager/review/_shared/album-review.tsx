@@ -10,7 +10,7 @@ import {
 import { ThumbReview } from "@/components/nabalens/album/review/thumb-review"
 import { ROUTES } from "@/lib/auth/routes"
 import { getAlbumBriefs, getAlbumPlacements } from "@/lib/server/album"
-import { listAreaPhotoQueue } from "@/lib/server/area-photos"
+import { AREA_QUEUE_LIMIT, listAreaPhotoQueue } from "@/lib/server/area-photos"
 import {
   getManagerOverview,
   listReviewQueue,
@@ -39,9 +39,7 @@ type ReviewContextRead = {
  * else none; it never falls back to the guest-facing menu description. Both
  * reads are extras: a failure leaves that part empty.
  */
-async function reviewContext(
-  ctx: ManagerPhotoCtx
-): Promise<ReviewContextRead> {
+async function reviewContext(ctx: ManagerPhotoCtx): Promise<ReviewContextRead> {
   const [placed, briefs] = await Promise.all([
     getAlbumPlacements(ctx.actor, ctx.venueId).catch(() => null),
     getAlbumBriefs(ctx.actor, ctx.venueId).catch(() => null),
@@ -112,6 +110,7 @@ export async function AlbumReviewBody({
       menuCursor={menuCursor}
       filter={filter}
       areaCards={areaCards}
+      areaMore={areaCards.length >= AREA_QUEUE_LIMIT}
       total={menuTotal + areaTotal}
       context={context}
       listHref={REVIEW_LIST_HREF}
