@@ -37,7 +37,25 @@ import type {
 } from "@/components/nabalens/upload-queue"
 import { SessionGuardProvider } from "@/components/nabalens/session-guard"
 import { useBrowserSessionGuard } from "@/components/nabalens/session-guard-host"
-import { usePhotoSource } from "@/components/nabalens/photo-source"
+import { setAreaLabelAction } from "@/app/_labels/area-actions"
+import { useGalleryPicker } from "@/components/nabalens/album/match/gallery-picker"
+import { MATCH_COPY } from "@/components/nabalens/album/match/copy"
+import {
+  readLastPlace,
+  writeLastPlace,
+} from "@/components/nabalens/album/match/last-place"
+import type { BoardState } from "@/components/nabalens/album/match/match-picker"
+import {
+  MatchScreen,
+  type MatchOutcome,
+  type MatchPhoto,
+  type SendState,
+} from "@/components/nabalens/album/match/match-screen"
+import {
+  byCaptureTime,
+  placeKey,
+  type MatchTarget,
+} from "@/components/nabalens/album/match/model"
 import {
   AddProvider,
   type AddLabelPreset,
@@ -84,6 +102,7 @@ import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
 import type { EntryIntent, EntryMenu } from "@/lib/work-client/entry"
 import type {
+  ContentType,
   LabelCatalogue,
   MediaLabelSummary,
   SaveLabelsInput,
@@ -98,6 +117,7 @@ import {
   saveUploadLabels,
   type UploadLabelContext,
 } from "./upload-label-api"
+import { loadMatchBoardAction } from "./match-actions"
 
 /** What one Add call brings for the files it picks. */
 type PickOwner = {
@@ -113,6 +133,22 @@ type PickOwner = {
   subject: SetSubject | null
   /** The set these files make, once picked while sets are on. */
   set: string | null
+  /** Match (DESIGN.md §6.1): the venue area these photos fill (G-9). */
+  area?: string | null
+  /** Match's Not for a slot: what the photos show, saved as their labels. */
+  contentTypes?: ContentType[] | null
+  /** Match hears how each of these files gets on: Waiting once ready. */
+  onSent?: ((file: File, state: SendState) => void) | null
+}
+
+/** Match takes at most this many photos from one pick (DESIGN.md §6.1). */
+export const MATCH_MAX = 20
+
+/** What an open Match holds. */
+type MatchRun = {
+  photos: MatchPhoto[]
+  current: string | null
+  notice: string | null
 }
 
 /** The catalogue item for a preset, when this menu still offers it. */
@@ -410,7 +446,10 @@ export function AddHost({
         owner.onUnfinished ||
         owner.preset ||
         owner.purpose !== "general" ||
-        owner.set
+        owner.set ||
+        owner.area ||
+        owner.contentTypes?.length ||
+        owner.onSent
       )
         for (const file of files) fileOwners.current.set(file, owner)
       for (const file of files) noteCapture(file, owner)
@@ -578,13 +617,230 @@ export function AddHost({
     />
   )
 
-  // Add's own pickers, for openAdd({ source }). Outside any dialog, so a
-  // click on them never lands on content a modal has made inert.
-  const picker = usePhotoSource({
-    imagesOnly,
+  // Match (DESIGN.md §6.1, D9): the photos picked for it, each one's answer
+  // and how each matched photo is getting on in the queue.
+  const [matchRun, setMatchRun] = React.useState<MatchRun | null>(null)
+  const [outcomes, setOutcomes] = React.useState<
+    ReadonlyMap<string, MatchOutcome>
+  >(() => new Map())
+  const [sendStates, setSendStates] = React.useState<
+    ReadonlyMap<string, SendState>
+  >(() => new Map())
+  const [board, setBoard] = React.useState<BoardState>({ state: "loading" })
+  const [boardTry, setBoardTry] = React.useState(0)
+  const [lastPlace, setLastPlace] = React.useState<string | null>(null)
+  const matchKeys = React.useRef(new WeakMap<File, string>())
+  const matchSeq = React.useRef(0)
+  const boardWanted = matchRun?.photos.some((p) => !outcomes.has(p.key))
+  React.useEffect(() => {
+    if (!boardWanted) return
+    let live = true
+    void loadMatchBoardAction()
+      .then((result) => {
+        if (!live) return
+        setBoard(
+          result.ok
+            ? { state: "ready", board: result.board }
+            : { state: "error", message: result.message }
+        )
+      })
+      .catch(() => {
+        if (live) setBoard({ state: "error", message: "" })
+      })
+    return () => {
+      live = false
+    }
+  }, [boardWanted, boardTry])
+  const retryBoard = React.useCallback(() => {
+    setBoard({ state: "loading" })
+    setBoardTry((n) => n + 1)
+  }, [])
+
+  const setSent = React.useCallback((file: File, state: SendState | null) => {
+    const key = matchKeys.current.get(file)
+    if (!key) return
+    setSendStates((current) => {
+      if (current.get(key) === state) return current
+      const next = new Map(current)
+      if (state) next.set(key, state)
+      else next.delete(key)
+      return next
+    })
+  }, [])
+  /** An area that could not be saved: the photo waits under Match later. */
+  const areaUnsaved = React.useCallback(
+    (file: File) => {
+      const key = matchKeys.current.get(file)
+      if (!key) return
+      setOutcomes((current) => new Map(current).set(key, { kind: "later" }))
+      setSent(file, null)
+    },
+    [setSent]
+  )
+
+  // Match's area labels by asset: tried when reserved, once more when ready,
+  // then the photo waits under Match later.
+  const areaTries = React.useRef(
+    new Map<string, "sending" | "failed" | "saved" | "gave-up">()
+  )
+  const areaReady = React.useRef(new Set<string>())
+  const saveArea = React.useCallback(
+    async (file: File, assetId: string, area: string) => {
+      const tries = areaTries.current
+      for (;;) {
+        const before = tries.get(assetId)
+        if (before && before !== "failed") return
+        tries.set(assetId, "sending")
+        const saved = await setAreaLabelAction(assetId, area).then(
+          (result) => result.ok,
+          () => false
+        )
+        if (saved) {
+          tries.set(assetId, "saved")
+          return
+        }
+        if (before === "failed") {
+          tries.set(assetId, "gave-up")
+          areaUnsaved(file)
+          return
+        }
+        tries.set(assetId, "failed")
+        // Ready already: its second try is now, not at a ready that passed.
+        if (!areaReady.current.has(assetId)) return
+      }
+    },
+    [areaUnsaved]
+  )
+
+  // Matched photos on their way to the queue. One with a label (a dish, or
+  // what it shows) waits for the menu: the hidden queue clears itself once
+  // every file is done, so a label that arrived after its upload finished
+  // would be lost.
+  const [outbox, setOutbox] = React.useState<File[]>([])
+  const menuKnown = labelContext !== null
+  React.useEffect(() => {
+    if (outbox.length === 0) return
+    const waitsForMenu = outbox.some((file) => {
+      const owner = fileOwners.current.get(file)
+      return !!owner?.preset || !!owner?.contentTypes?.length
+    })
+    if (waitsForMenu && !menuKnown) return
+    // Hands the files to the queue (an external store) in one array.
+    setImagesOnly(true)
+    setPickedFiles(outbox)
+    setOutbox([])
+  }, [outbox, menuKnown])
+
+  /** Matched photos go to the queue at once, with the sheet left closed. */
+  const sendMatched = (files: File[], outcome: MatchOutcome) => {
+    const slot = outcome.kind === "slot" ? outcome.slot.target : null
+    const owner: PickOwner = {
+      onReady: null,
+      onPicked: null,
+      onUnfinished: null,
+      preset:
+        slot?.kind === "dish"
+          ? {
+              itemId: slot.itemId,
+              variantId: null,
+              itemName: slot.name,
+              variantName: null,
+            }
+          : null,
+      purpose: "general",
+      subject: null,
+      set: null,
+      area: slot?.kind === "area" ? slot.subjectId : null,
+      contentTypes: outcome.kind === "shared" ? [outcome.shared] : null,
+      onSent: slot ? setSent : null,
+    }
+    claim(files, owner)
+    if (slot) for (const file of files) setSent(file, "sending")
+    setOutbox((current) => [...current, ...files])
+  }
+
+  const startMatch = (
+    files: File[],
+    current: string | null,
+    decided: MatchOutcome | null
+  ) => {
+    const run = (matchSeq.current += 1)
+    const kept = files.slice(0, MATCH_MAX)
+    const extra = files.length - kept.length
+    const photos = byCaptureTime(
+      kept.map((file, i) => ({ key: `m${run}-${i}`, file }))
+    )
+    for (const photo of photos) matchKeys.current.set(photo.file, photo.key)
+    // The menu, so a dish matched in a moment is labelled as it is sent.
+    setCatalogueWanted(true)
+    setOutcomes(
+      decided ? new Map(photos.map((p) => [p.key, decided])) : new Map()
+    )
+    setSendStates(new Map())
+    setBoard({ state: "loading" })
+    setLastPlace(readLastPlace())
+    setMatchRun({
+      photos,
+      current,
+      notice: extra > 0 ? MATCH_COPY.tooMany(MATCH_MAX, extra) : null,
+    })
+    if (decided)
+      sendMatched(
+        photos.map((p) => p.file),
+        decided
+      )
+  }
+
+  const decideMatch = (key: string, outcome: MatchOutcome) => {
+    const photo = matchRun?.photos.find((p) => p.key === key)
+    if (!photo || outcomes.has(key)) return
+    setOutcomes((current) => new Map(current).set(key, outcome))
+    if (outcome.kind === "slot") {
+      const place = placeKey(outcome.slot.place)
+      writeLastPlace(place)
+      setLastPlace(place)
+    }
+    sendMatched([photo.file], outcome)
+  }
+
+  /** Closing Match keeps every photo: the rest go under Match later. */
+  const closeMatch = () => {
+    const rest = matchRun?.photos.filter((p) => !outcomes.has(p.key)) ?? []
+    if (rest.length > 0)
+      sendMatched(
+        rest.map((p) => p.file),
+        { kind: "later" }
+      )
+    setMatchRun(null)
+  }
+
+  // What the gallery's next pick is for: today's Add, Match, or one slot.
+  const pickMode = React.useRef<
+    | { kind: "add" }
+    | { kind: "match"; place: string | null }
+    | { kind: "slot"; slot: MatchTarget }
+  >({ kind: "add" })
+
+  // Add's own picker (the phone's gallery; Add has no camera, DESIGN.md §9),
+  // for openAdd({ source }), Match and a slot. Outside any dialog, so a
+  // click on it never lands on content a modal has made inert.
+  const picker = useGalleryPicker({
     onFiles: (files) => {
+      const mode = pickMode.current
+      pickMode.current = { kind: "add" }
       const owner = pickerOwner.current
       pickerOwner.current = null
+      if (mode.kind === "match") {
+        startMatch(files, mode.place, null)
+        return
+      }
+      if (mode.kind === "slot") {
+        startMatch(files.slice(0, 1), null, {
+          kind: "slot",
+          slot: slotOf(mode.slot),
+        })
+        return
+      }
       claim(files, owner)
       queueFiles(files)
     },
@@ -651,6 +907,10 @@ export function AddHost({
   const reservedForSet = React.useCallback(
     (file: File, assetId: string) => {
       labelJournal.reserved(assetId, file)
+      // Match: an area slot's photo gets its venue-area label (G-9) as soon
+      // as the server has reserved it; a failure is tried again when ready.
+      const area = fileOwners.current.get(file)?.area
+      if (area) void saveArea(file, assetId, area)
       const swap = replacements.current.get(file)
       if (swap) {
         replacements.current.delete(file)
@@ -678,7 +938,7 @@ export function AddHost({
       const set = fileOwners.current.get(file)?.set
       if (set) photoSets.reserved(set, assetId)
     },
-    [photoSets, setReplaceState, labelJournal]
+    [photoSets, setReplaceState, labelJournal, saveArea]
   )
   const readSet = React.useCallback(
     (setId: string) => photoSets.read(setId),
@@ -720,11 +980,17 @@ export function AddHost({
         // A photo the server failed, retried and finished, counts again.
         if (owner?.set) photoSets.finished(owner.set, id)
         if (owner?.onReady?.([id]) === false) kept = false
+        if (owner?.area) {
+          areaReady.current.add(id)
+          if (areaTries.current.get(id) === "failed")
+            void saveArea(files[i], id, owner.area)
+        }
+        owner?.onSent?.(files[i], "waiting")
       })
       for (const listener of readyListeners.current) listener(ids)
       return kept
     },
-    [photoSets, labelJournal]
+    [photoSets, labelJournal, saveArea]
   )
 
   // Me's Fix labels and Discard labels reach the sheet's rows (C6).
@@ -802,11 +1068,32 @@ export function AddHost({
           setOwner.current = null
           setAddingToSet(false)
         }
+        // Match and a slot's own photo are staff work (area labels earn
+        // month credit): a manager account gets the gallery, a dish kept.
+        if ((opts.match || opts.slot) && !blocked && role === "staff") {
+          sheetOwner.current = null
+          pickerOwner.current = null
+          setImagesOnly(true)
+          pickMode.current = opts.slot
+            ? { kind: "slot", slot: opts.slot }
+            : { kind: "match", place: opts.match?.place ?? null }
+          openPicker({ multiple: !opts.slot, imagesOnly: true })
+          return
+        }
+        const slotPreset: AddLabelPreset | null =
+          opts.slot?.kind === "dish"
+            ? {
+                itemId: opts.slot.itemId,
+                variantId: null,
+                itemName: opts.slot.name,
+                variantName: null,
+              }
+            : null
         const owner: PickOwner = {
           onReady: opts.onReady ?? null,
           onPicked: opts.onPicked ?? null,
           onUnfinished: opts.onUnfinished ?? null,
-          preset: opts.preset ?? null,
+          preset: opts.preset ?? slotPreset,
           purpose: opts.purpose ?? "general",
           subject,
           set: joins,
@@ -819,15 +1106,19 @@ export function AddHost({
           }
           if (opts.entry === "question") return
         }
-        const toPicker = !!opts.source && !blocked
+        // Every source is the gallery (DESIGN.md §9); Match and a slot open
+        // it too where they are not offered.
+        const toPicker =
+          (!!opts.source || !!opts.match || !!opts.slot) && !blocked
         pickerOwner.current = toPicker ? owner : null
         sheetOwner.current = toPicker ? null : owner
-        const only = opts.imagesOnly ?? false
+        const only = opts.imagesOnly ?? (!!opts.match || !!opts.slot)
         setImagesOnly(only)
-        if (opts.source && !blocked) {
+        if (toPicker) {
           // Synchronous: the picker needs this click's user activation. The
           // accept list is set for this call before the click.
-          openPicker(opts.source, { imagesOnly: only })
+          pickMode.current = { kind: "add" }
+          openPicker({ multiple: !opts.slot, imagesOnly: only })
           return
         }
         showAdd(opts.dialog)
@@ -859,6 +1150,7 @@ export function AddHost({
       discarded,
       openPicker,
       holds,
+      role,
     ]
   )
 
@@ -933,11 +1225,14 @@ export function AddHost({
             venueId: resumed.venueId,
             input: { ...resumed.input, assetId: item.id },
           }
-        const preset = fileOwners.current.get(item.file)?.preset
-        if (!preset) return null
+        const owner = fileOwners.current.get(item.file)
+        const preset = owner?.preset ?? null
+        // Match's Not for a slot: what the photo shows.
+        const types = owner?.contentTypes ?? []
+        if (!preset && types.length === 0) return null
         if (labelContext && !labelContext.ok) return "unavailable"
         if (!catalogue) return undefined
-        if (!onMenu(catalogue, preset)) return null
+        if (preset && !onMenu(catalogue, preset)) return null
         return {
           venueId: catalogue.venueId,
           input: {
@@ -945,9 +1240,11 @@ export function AddHost({
             expectedRevision: 0,
             catalogueVersionId:
               catalogue.status === "active" ? catalogue.versionId : null,
-            contentTypes: [],
+            contentTypes: types,
             note: null,
-            items: [{ itemId: preset.itemId, variantId: preset.variantId }],
+            items: preset
+              ? [{ itemId: preset.itemId, variantId: preset.variantId }]
+              : [],
             missingItem: null,
           },
         }
@@ -1095,6 +1392,8 @@ export function AddHost({
                 limits={MEDIA_LIMITS}
                 imagesOnly={imagesOnly}
                 initialFiles={pickedFiles}
+                queueWhileClosed
+                allowCamera={false}
                 onPick={picked}
                 onUploaded={() => {
                   setRefreshSignal((signal) => signal + 1)
@@ -1113,6 +1412,7 @@ export function AddHost({
                   // Removed or cancelled: its asset needs no label clear (M5).
                   if (reason !== "failed") labelJournal.forgetFile(file)
                   fileOwners.current.get(file)?.onUnfinished?.(reason, file)
+                  fileOwners.current.get(file)?.onSent?.(file, "failed")
                 }}
                 onReserved={reservedForSet}
                 setOf={groupsOn ? setOf : undefined}
@@ -1141,6 +1441,19 @@ export function AddHost({
                   groupsOn && addingToSet ? ENTRY_COPY.addMoreToSet : undefined
                 }
               />
+              <MatchScreen
+                open={matchRun !== null}
+                photos={matchRun?.photos ?? []}
+                outcomes={outcomes}
+                sendStates={sendStates}
+                board={board}
+                onRetryBoard={retryBoard}
+                current={matchRun?.current ?? null}
+                last={lastPlace}
+                notice={matchRun?.notice ?? null}
+                onDecide={decideMatch}
+                onClose={closeMatch}
+              />
               <p role="status" className="sr-only">
                 {attentionSaid}
               </p>
@@ -1150,6 +1463,22 @@ export function AddHost({
       </LeaveGuard>
     </SessionGuardProvider>
   )
+}
+
+/** A slot's tile target as Match's slot (DESIGN.md §5 Slot tile). */
+function slotOf(target: MatchTarget) {
+  return {
+    id:
+      target.kind === "dish"
+        ? `dish:${target.itemId}`
+        : `area:${target.subjectId}`,
+    name: target.name,
+    group: "",
+    place: null,
+    placeLabel: "",
+    brief: null,
+    target,
+  }
 }
 
 /** A replacement's outcome as its old row says it (B05-01d). */

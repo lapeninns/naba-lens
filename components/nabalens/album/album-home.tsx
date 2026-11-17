@@ -28,10 +28,9 @@ import { cn } from "@/lib/utils"
  * where the person is, and one main button that opens the gallery. Nothing
  * else: no feed, no personal month, no ranking (§9).
  *
- * Adding is gallery first (§2, D9). A dish slot opens the gallery with the
- * dish already chosen; an amenity slot opens its question; an area slot
- * opens the gallery, where the place is picked. Matching many photos at
- * once (§6.1) arrives in batch A3.
+ * Adding is gallery first (§2, D9). A Needed dish or area slot opens the
+ * gallery for one photo that goes straight to it; an amenity slot opens its
+ * question. The main button opens the gallery for many, then Match (§6.1).
  */
 
 export const ALBUM_COPY = {
@@ -236,7 +235,13 @@ export function AlbumHome({
           size="lg"
           className="min-h-16 w-full"
           disabled={!canAdd}
-          onClick={() => add({ source: "library", imagesOnly: true })}
+          onClick={() =>
+            add({
+              match: {
+                place: current ? (current.subjectId ?? "unplaced") : null,
+              },
+            })
+          }
         >
           <ImagesIcon data-icon="inline-start" aria-hidden />
           {ALBUM_COPY.addMain}
@@ -313,20 +318,12 @@ export function AlbumSlotTile({
       name={slot.name}
       state={slot.state}
       onSelect={() =>
-        add(
-          target.kind === "dish"
-            ? {
-                source: "library",
-                imagesOnly: true,
-                preset: {
-                  itemId: target.itemId,
-                  variantId: null,
-                  itemName: target.itemName,
-                  variantName: null,
-                },
-              }
-            : { source: "library", imagesOnly: true }
-        )
+        add({
+          slot:
+            target.kind === "dish"
+              ? { kind: "dish", itemId: target.itemId, name: target.itemName }
+              : { kind: "area", subjectId: target.subjectId, name: slot.name },
+        })
       }
     />
   )

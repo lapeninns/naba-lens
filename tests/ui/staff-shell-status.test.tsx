@@ -262,6 +262,7 @@ describe("staff pages", () => {
   it("covers every staff page with a shell", () => {
     expect(pages.map((p) => relative(process.cwd(), p)).sort()).toEqual([
       "app/staff/album/[placeId]/page.tsx",
+      "app/staff/album/match-later/page.tsx",
       "app/staff/community/page.tsx",
       "app/staff/menu/page.tsx",
       "app/staff/page.tsx",

@@ -95,7 +95,9 @@ export function AlbumPlaceScreen({
             size="lg"
             className="min-h-16 w-full"
             disabled={!canAdd}
-            onClick={() => add({ source: "library", imagesOnly: true })}
+            onClick={() =>
+              add({ match: { place: place.subjectId ?? "unplaced" } })
+            }
           >
             <ImagesIcon data-icon="inline-start" aria-hidden />
             {place.empty === 1

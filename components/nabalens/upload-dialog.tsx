@@ -125,9 +125,15 @@ type UploadDialogProps = {
   imagesOnly?: boolean
   /**
    * Files already picked elsewhere (the Add sheet or Add's own picker). Each
-   * new array is queued once while the dialog is open.
+   * new array is queued once while the dialog is open, or at once with
+   * `queueWhileClosed`.
    */
   initialFiles?: File[]
+  /**
+   * Queue `initialFiles` even while the dialog is closed (Add's Match, which
+   * sends each photo as it is matched and keeps this sheet out of the way).
+   */
+  queueWhileClosed?: boolean
   /** Called when files are picked, here or as `initialFiles` (not on cancel). */
   onPick?: (files: File[]) => void
   /**
@@ -751,6 +757,7 @@ export function UploadDialog({
   allowCamera = true,
   imagesOnly = false,
   initialFiles,
+  queueWhileClosed = false,
   onPick,
   purpose = "general",
   purposeOf,
@@ -1283,7 +1290,7 @@ export function UploadDialog({
 
   const queuedInitial = React.useRef<File[] | null>(null)
   React.useEffect(() => {
-    if (!open || !initialFiles?.length) return
+    if ((!open && !queueWhileClosed) || !initialFiles?.length) return
     if (queuedInitial.current === initialFiles) return
     queuedInitial.current = initialFiles
     addFiles(initialFiles, null)

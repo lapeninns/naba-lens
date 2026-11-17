@@ -61,6 +61,7 @@ const ALLOWED_PAGES = new Set([
   // Album A2 (docs/design-system/DESIGN.md §6.2, decision D8): one place's
   // slots by section. Photos only; no scoring or ranking.
   "/staff/album/[placeId]",
+  "/staff/album/match-later",
   // Self-described work details (November 2026): main job and extra areas for
   // Home's prompt and the label picker's order; never access or team.
   "/staff/profile",

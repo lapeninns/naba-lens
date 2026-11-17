@@ -153,9 +153,14 @@ describe("Album Home (DESIGN.md §5a)", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Guinness, pint: needed" })
     )
+    // One photo from the gallery, straight to this slot (AL-1, §6.1).
     const opts = openAdd.mock.calls[0][0] as OpenAddOptions
-    expect(opts.source).toBe("library")
-    expect(opts.preset?.itemName).toBe("Guinness, pint")
+    expect(opts.slot).toEqual({
+      kind: "dish",
+      itemId: expect.any(String),
+      name: "Guinness, pint",
+    })
+    expect(opts.source).toBeUndefined()
   })
 
   it("has one main button, and it opens the gallery", async () => {
@@ -163,7 +168,10 @@ describe("Album Home (DESIGN.md §5a)", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Add photos from your gallery" })
     )
-    expect((openAdd.mock.calls[0][0] as OpenAddOptions).source).toBe("library")
+    // The gallery, then Match, suggesting where the person is (AL-1, §6.1).
+    expect((openAdd.mock.calls[0][0] as OpenAddOptions).match).toEqual({
+      place: expect.any(String),
+    })
     expect(document.body.innerHTML).not.toMatch(/camera/i)
   })
 
