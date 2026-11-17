@@ -1,6 +1,6 @@
 "use client"
 
-import type * as React from "react"
+import * as React from "react"
 import Link from "next/link"
 import {
   ArrowUUpLeftIcon,
@@ -10,10 +10,13 @@ import {
 
 import { SlotTile } from "@/components/nabalens/album/slot-tile"
 import { Notice } from "@/components/nabalens/notice"
+import { useOnline } from "@/components/nabalens/offline-notice"
 import {
   useAdd,
+  useAddContext,
   type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
+import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import { Button } from "@/components/ui/button"
 import type {
   AlbumCounts,
@@ -303,7 +306,12 @@ function RetakeRow({
   )
 }
 
-/** One slot as a tile that knows how to add to itself (§6.1). */
+/**
+ * One slot as a tile that knows how to add to itself (§6.1). A slot this
+ * phone matched a photo to shows that photo as Sending (Saved on this phone
+ * without a signal), then Waiting, until the album reads it (§4, §6.8): it
+ * can't be tapped meanwhile, so a slot is never sent twice.
+ */
 export function AlbumSlotTile({
   slot,
   add,
@@ -312,6 +320,25 @@ export function AlbumSlotTile({
   add: (opts: OpenAddOptions) => void
 }) {
   const fillable = slot.state === "needed" || slot.state === "retake"
+  const addContext = useAddContext()
+  const send = addContext?.slots?.get(slot.id)
+  const settleSlot = addContext?.settleSlot
+  const online = useOnline()
+  const sentSrc = useObjectUrl(fillable && send ? send.file : null)
+  // Once the album reads the slot as filled or waiting, the phone's own
+  // state is no longer needed (a later retake shows as Retake).
+  React.useEffect(() => {
+    if (send && !fillable) settleSlot?.(slot.id)
+  }, [send, fillable, settleSlot, slot.id])
+  if (fillable && send)
+    return (
+      <SlotTile
+        name={slot.name}
+        state={send.state}
+        photoSrc={sentSrc ?? undefined}
+        offline={send.state === "sending" && !online}
+      />
+    )
   if (slot.target.kind === "amenity")
     return (
       <SlotTile
