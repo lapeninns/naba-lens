@@ -69,11 +69,14 @@ export const ADMIN_ALBUMS_COPY = {
   emptyText: "When a venue is added, its album appears here.",
 }
 
-/** The cell tints, lightest to darkest (DESIGN.md §3.1 ok tones). */
+/**
+ * The cell tints, lightest to darkest (DESIGN.md §3.1 ok tones). Half or more
+ * has its own step, `ok-half`: `ok-waiting` means Waiting on a count bar.
+ */
 const TINT: Record<0 | 1 | 2 | 3, string> = {
   0: "bg-surface text-ink",
   1: "bg-ok-bg text-ink",
-  2: "bg-ok-waiting text-ink",
+  2: "bg-ok-half text-ink",
   3: "bg-ok-fg text-on-ok",
 }
 

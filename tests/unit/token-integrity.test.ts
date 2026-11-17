@@ -115,6 +115,8 @@ const PAIRS: Pair[] = [
   ...text("on-select", "select"),
   ...text("ok-fg", "ok-bg", "surface"),
   ...text("on-ok", "ok-fg"),
+  // Admin albums cell tints (DESIGN.md §6.6): ink on each step but the last.
+  ...text("ink", "ok-bg", "ok-half"),
   ...text("warn-fg", "warn-bg", "surface"),
   ...text("info-fg", "info-bg", "surface"),
   ...text("on-stage", "stage"),
