@@ -548,10 +548,10 @@ test("f photo batched with a slow video is labelled and selectable on the task s
   // The audit's 25-second video: its transfer waits until the photo checks
   // are done, so "before the video finishes" never depends on timing.
   const transfer = await gate(page, isTusTransfer)
-  await page.goto(`/staff/tasks/${taskId}`)
-  await expect(
-    page.getByRole("heading", { level: 1, name: title })
-  ).toBeVisible()
+  // Photos and videos are added from Me (the task screen and Album's Add
+  // photos take photos only); the task is then reached in the app, with no
+  // page load, through Me's Other jobs row while the video still uploads.
+  await page.goto("/staff")
   const photo = await syntheticJpeg(`${unique("f")}.jpg`)
   const video = supportedMp4(`${unique("f")}.mp4`)
 
@@ -568,9 +568,19 @@ test("f photo batched with a slow video is labelled and selectable on the task s
 
   await doneButton(sheet).click()
   await expect(sheet).toBeHidden()
+  await page
+    .getByRole("navigation", { name: "Your work" })
+    .getByRole("link", { name: /^Other jobs/ })
+    .click()
+  await expect(page).toHaveURL(/\/staff\/tasks\/other$/)
+  await page.getByRole("link", { name: title, exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`/staff/tasks/${taskId}$`))
+  await expect(
+    page.getByRole("heading", { level: 1, name: title })
+  ).toBeVisible()
   const tile = page
     .getByRole("list", { name: "Your photos" })
-    .getByRole("button", { name: /^Photo uploaded/ })
+    .getByRole("button", { name: /^Photo added/ })
   await expect(tile).toHaveCount(1, { timeout: 30_000 })
   await expect(tile).not.toHaveAttribute("aria-disabled", "true")
   await tile.click()
