@@ -9,22 +9,24 @@ import {
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
-import { getAlbumPlacements } from "@/lib/server/album"
+import { getAlbumBriefs, getAlbumPlacements } from "@/lib/server/album"
 
-import { setAlbumPlaceAction } from "./actions"
+import { setAlbumBriefAction, setAlbumPlaceAction } from "./actions"
 
 export const metadata: Metadata = { title: "Album places" }
 
 /**
  * Album places (DESIGN.md §6.2, Album A2): where staff stand to photograph
  * each menu section and amenity category. Album groups every slot by these
- * places; a group with no place shows under "Not placed yet".
+ * places; a group with no place shows under "Not placed yet". Each menu
+ * section also has its one-line brief (§5 Brief, Album AL-4).
  */
 export default async function ManagerAlbumPlacesPage() {
   const ctx = await workspaceManagerContext()
-  const [placements, list] = await Promise.all([
+  const [placements, list, briefs] = await Promise.all([
     getAlbumPlacements(ctx.actor, ctx.venueId),
     knowledgeServices.getWorkingList(ctx.actor, {}).catch(() => null),
+    getAlbumBriefs(ctx.actor, ctx.venueId),
   ])
 
   const header = (
@@ -32,7 +34,7 @@ export default async function ManagerAlbumPlacesPage() {
       venueScope
       scope={ctx.venue.name}
       title="Album places"
-      summary="Choose where staff photograph each menu section and amenity. Album shows staff the empty slots wherever they are standing."
+      summary="Choose where staff photograph each menu section and amenity, and write a one-line brief for each section. Album shows staff the empty slots wherever they are standing."
     />
   )
 
@@ -62,6 +64,9 @@ export default async function ManagerAlbumPlacesPage() {
       key: section.slug,
       name: section.name,
       subjectId: placedAt.get(`menu_section:${section.slug}`) ?? null,
+      brief: briefs.ok
+        ? (briefs.briefs.sections.get(section.slug) ?? null)
+        : null,
     })),
     ...categories.map((category) => ({
       source: "amenity_category" as const,
@@ -97,10 +102,16 @@ export default async function ManagerAlbumPlacesPage() {
             </Link>
             .
           </p>
+          {briefs.ok ? null : (
+            <Notice tone="negative" role="alert">
+              Section briefs could not be read: {briefs.message}
+            </Notice>
+          )}
           <AlbumPlacesForm
             places={placements.places}
             groups={groups}
             onSet={setAlbumPlaceAction}
+            onSetBrief={briefs.ok ? setAlbumBriefAction : undefined}
           />
         </>
       )}

@@ -3,6 +3,12 @@
 import * as React from "react"
 
 import { Notice } from "@/components/nabalens/notice"
+import {
+  SLOT_BRIEF_COPY,
+  SlotBriefField,
+  type SlotBriefSaver,
+} from "@/components/nabalens/album/slot-brief-field"
+import { BRIEF_MAX } from "@/lib/album/model"
 import { fieldControlVariants } from "@/components/ui/field-control"
 
 /*
@@ -10,7 +16,8 @@ import { fieldControlVariants } from "@/components/ui/field-control"
  * amenity category. One native select per group, saved as soon as it
  * changes; the result is written on the page beside the group (§6.7). A
  * native select works with every keyboard and screen reader and needs no
- * popup of our own.
+ * popup of our own. Album AL-4 (§5 Brief): each menu section also has its
+ * one-line brief, which every dish in it uses unless the dish has its own.
  */
 
 export type AlbumPlacesGroup = {
@@ -20,7 +27,20 @@ export type AlbumPlacesGroup = {
   /** What managers call it: "Desserts", "Games". */
   name: string
   subjectId: string | null
+  /** A menu section's brief (AL-4); amenity categories have none here. */
+  brief?: string | null
 }
+
+export const SECTION_BRIEF_HINT = `One line on what each photo in this section must show, up to ${BRIEF_MAX} characters. A dish's own brief, set on its menu page, comes first.`
+
+/** Sets or clears a menu section's brief (AL-4). */
+export type AlbumBriefSetter = (input: {
+  source: "menu_section"
+  key: string
+  brief: string | null
+}) => Promise<
+  { ok: true; brief: string | null } | { ok: false; message: string }
+>
 
 export type AlbumPlacesSetter = (input: {
   source: AlbumPlacesGroup["source"]
@@ -38,10 +58,13 @@ export function AlbumPlacesForm({
   places,
   groups,
   onSet,
+  onSetBrief,
 }: {
   places: Array<{ subjectId: string; label: string }>
   groups: AlbumPlacesGroup[]
   onSet: AlbumPlacesSetter
+  /** When given, each menu section gets a brief field (AL-4). */
+  onSetBrief?: AlbumBriefSetter
 }) {
   const menu = groups.filter((g) => g.source === "menu_section")
   const amenities = groups.filter((g) => g.source === "amenity_category")
@@ -53,6 +76,7 @@ export function AlbumPlacesForm({
         groups={menu}
         places={places}
         onSet={onSet}
+        onSetBrief={onSetBrief}
       />
       <GroupList
         title="Amenities"
@@ -71,12 +95,14 @@ function GroupList({
   groups,
   places,
   onSet,
+  onSetBrief,
 }: {
   title: string
   empty: string
   groups: AlbumPlacesGroup[]
   places: Array<{ subjectId: string; label: string }>
   onSet: AlbumPlacesSetter
+  onSetBrief?: AlbumBriefSetter
 }) {
   return (
     <section className="grid gap-3" aria-labelledby={`album-${title}`}>
@@ -93,6 +119,7 @@ function GroupList({
               group={group}
               places={places}
               onSet={onSet}
+              onSetBrief={onSetBrief}
             />
           ))}
         </ul>
@@ -105,10 +132,12 @@ function GroupRow({
   group,
   places,
   onSet,
+  onSetBrief,
 }: {
   group: AlbumPlacesGroup
   places: Array<{ subjectId: string; label: string }>
   onSet: AlbumPlacesSetter
+  onSetBrief?: AlbumBriefSetter
 }) {
   const id = React.useId()
   const [value, setValue] = React.useState(group.subjectId ?? "")
@@ -170,6 +199,24 @@ function GroupRow({
           ) : null}
         </div>
       </div>
+      {onSetBrief && group.source === "menu_section" ? (
+        <div className="sm:col-span-2">
+          <SlotBriefField
+            name={group.name}
+            brief={group.brief ?? null}
+            label={SLOT_BRIEF_COPY.labelFor(group.name)}
+            hint={SECTION_BRIEF_HINT}
+            onSave={
+              ((brief) =>
+                onSetBrief({
+                  source: "menu_section",
+                  key: group.key,
+                  brief,
+                })) satisfies SlotBriefSaver
+            }
+          />
+        </div>
+      ) : null}
     </li>
   )
 }

@@ -1,7 +1,9 @@
 import "server-only"
 
 import {
+  BRIEF_MAX,
   buildAlbum,
+  type AlbumBriefs,
   type AlbumInput,
   type AlbumView,
   type AmenityInput,
@@ -39,6 +41,14 @@ const MESSAGES: Record<string, CoverageFailure> = {
   unknown_place: failure(
     "state_conflict",
     "That place is no longer listed for this venue. Reload the page."
+  ),
+  invalid_brief: failure(
+    "invalid_input",
+    `Write the brief as one line of ${BRIEF_MAX} characters or fewer.`
+  ),
+  unknown_slot: failure(
+    "state_conflict",
+    "That section or dish is no longer on the active menu. Reload the page."
   ),
 }
 
@@ -130,6 +140,105 @@ export async function setAlbumPlace(
   }
 }
 
+export type BriefSource = "menu_section" | "menu_item"
+
+/**
+ * The venue's briefs (Album AL-4, 20261117130000_album_briefs.sql): each
+ * section's (by slug) and dish's own, and the catalogue's capture brief for
+ * each amenity question. Staff, managers and admins of the venue.
+ */
+export async function getAlbumBriefs(
+  actor: MediaActor,
+  venueId?: string
+): Promise<Result<{ briefs: AlbumBriefs }>> {
+  const { data, error } = await actor.db.rpc(
+    "album_briefs",
+    venueId ? { p_venue_id: venueId } : {}
+  )
+  if (error) return albumFailure(error, "album briefs")
+  const sections = new Map<string, string>()
+  const items = new Map<string, string>()
+  for (const row of rows(data, "items")) {
+    const key = text(row.key)
+    const brief = text(row.brief)
+    if (!key || !brief) continue
+    if (row.source === "menu_section") sections.set(key, brief)
+    else if (row.source === "menu_item") items.set(key, brief)
+  }
+  const amenities = new Map<string, string>()
+  for (const row of rows(data, "amenities")) {
+    const key = text(row.key)
+    const brief = text(row.brief)
+    if (key && brief) amenities.set(key, brief)
+  }
+  return { ok: true, briefs: { sections, items, amenities } }
+}
+
+/**
+ * One dish's own brief and its section's, for the manager's menu item page.
+ * Null when either read fails: the page then shows no brief field and its own
+ * reads decide what happens.
+ */
+export async function getDishBriefs(
+  actor: MediaActor,
+  venueId: string | undefined,
+  input: { itemId: string; sectionId: string }
+): Promise<{ own: string | null; section: string | null } | null> {
+  try {
+    const [briefs, placements] = await Promise.all([
+      getAlbumBriefs(actor, venueId),
+      getAlbumPlacements(actor, venueId),
+    ])
+    if (!briefs.ok || !placements.ok) return null
+    const slug = placements.sections.find(
+      (s) => s.sectionId === input.sectionId
+    )?.slug
+    return {
+      own: briefs.briefs.items.get(input.itemId) ?? null,
+      section: slug ? (briefs.briefs.sections.get(slug) ?? null) : null,
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Sets a section's (by slug) or a dish's brief, or clears it with null or blank. */
+export async function setAlbumBrief(
+  actor: MediaActor,
+  input: {
+    venueId?: string | null
+    source: unknown
+    key: unknown
+    brief: unknown
+  }
+): Promise<Result<{ changed: boolean; brief: string | null }>> {
+  if (input.source !== "menu_section" && input.source !== "menu_item")
+    return MESSAGES.invalid_source
+  if (typeof input.key !== "string" || !input.key.trim())
+    return MESSAGES.invalid_key
+  if (input.source === "menu_item" && !isUuid(input.key))
+    return MESSAGES.unknown_slot
+  if (input.brief !== null && typeof input.brief !== "string")
+    return MESSAGES.invalid_brief
+  const brief = input.brief?.trim() || null
+  if (brief && (brief.length > BRIEF_MAX || /[\r\n]/.test(brief)))
+    return MESSAGES.invalid_brief
+  const { data, error } = await actor.db.rpc("album_brief_set", {
+    // The generated types do not know null is allowed; the function takes it.
+    p_venue_id: (input.venueId ?? null) as string,
+    p_source: input.source,
+    p_key: input.key,
+    p_brief: brief as string,
+  })
+  if (error) return albumFailure(error, "album brief set")
+  const result = data as { changed?: unknown; brief?: unknown } | null
+  return {
+    ok: true,
+    changed: result?.changed === true,
+    brief: text(result?.brief),
+  }
+}
+
 /** Every dish on the active menu, page by page (50 a page). */
 async function allDishes(actor: MediaActor): Promise<DishInput[] | null> {
   const dishes: DishInput[] = []
@@ -163,6 +272,7 @@ async function allAmenities(actor: MediaActor): Promise<AmenityInput[]> {
   if (!result.ok || !result.view) return []
   return result.view.slots.map((slot) => ({
     checkId: slot.checkId,
+    key: slot.key,
     question: slot.question,
     category: slot.category,
     progress: slot.progress,
@@ -206,20 +316,29 @@ async function myRetakeItems(actor: MediaActor): Promise<Set<string>> {
   )
 }
 
+async function briefsOrNone(
+  actor: MediaActor
+): Promise<AlbumBriefs | undefined> {
+  const result = await getAlbumBriefs(actor)
+  return result.ok ? result.briefs : undefined
+}
+
 /**
- * The caller's album. Amenity and area reads that fail leave those slots out
- * rather than failing Home; the menu read is required.
+ * The caller's album. Amenity, area and brief reads that fail leave those
+ * slots (or briefs) out rather than failing Home; the menu read is required.
  */
 export async function loadAlbum(
   actor: MediaActor
 ): Promise<Result<{ album: AlbumView; placements: AlbumPlacements }>> {
-  const [placements, dishes, amenities, areas, retakes] = await Promise.all([
-    getAlbumPlacements(actor),
-    allDishes(actor),
-    allAmenities(actor),
-    allAreas(actor),
-    myRetakeItems(actor),
-  ])
+  const [placements, dishes, amenities, areas, retakes, briefs] =
+    await Promise.all([
+      getAlbumPlacements(actor),
+      allDishes(actor),
+      allAmenities(actor),
+      allAreas(actor),
+      myRetakeItems(actor),
+      briefsOrNone(actor),
+    ])
   if (!placements.ok) return placements
   if (!dishes) return unavailableFailure("album dishes", null)
   const input: AlbumInput = {
@@ -230,6 +349,7 @@ export async function loadAlbum(
     amenities,
     areas,
     myRetakeItemIds: retakes,
+    briefs,
   }
   return { ok: true, album: buildAlbum(input), placements }
 }
