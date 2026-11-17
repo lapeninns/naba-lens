@@ -19,32 +19,7 @@ import { PhotoSourceActions, type PhotoSource } from "../photo-source"
 import { useAdd } from "../shell/add-context"
 import { completionBreakdown } from "./copy"
 import { StatusChip } from "./status-badges"
-import type {
-  CompletionProgress,
-  MonthlySetupGap,
-  ProfileSetupGap,
-} from "./types"
-
-/**
- * What is still missing, in the words of the copy deck: the profile's own
- * gaps (venue, team) and this month's (team, target).
- */
-export function setupGaps({
-  missing,
-  monthly,
-}: {
-  missing: readonly ProfileSetupGap[]
-  monthly: { setupMissing: readonly MonthlySetupGap[] } | null
-}): string[] {
-  const gaps: string[] = []
-  if (missing.includes("venue"))
-    gaps.push("No venue yet: an admin assigns your venue")
-  if (missing.includes("team") || monthly?.setupMissing.includes("team"))
-    gaps.push("No team yet: an admin assigns Front of house or Back of house")
-  if (monthly?.setupMissing.includes("target"))
-    gaps.push("No target yet: your manager sets it")
-  return gaps
-}
+import type { CompletionProgress } from "./types"
 
 /** The three milestones of a photo, in order. */
 const MILESTONES = [

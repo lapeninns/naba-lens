@@ -26,8 +26,8 @@ export {
   retakeNoteKey,
   retakeNoteTitle,
 } from "./retake-notes-model"
-export { FIRST_RUN_COOKIE, showWelcomeEntry } from "./first-run-state"
-export { FirstRun, setupGaps } from "./first-run"
+export { FIRST_RUN_COOKIE, setupGaps, showWelcomeEntry } from "./first-run-state"
+export { FirstRun } from "./first-run"
 export { intentKey, useRequestIntent } from "./request-intent"
 export { SetupChecklist } from "./setup-checklist"
 export {
