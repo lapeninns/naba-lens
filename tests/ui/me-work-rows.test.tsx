@@ -15,8 +15,7 @@ import { AddProvider } from "@/components/nabalens/shell/add-context"
 import { EMPTY_LABEL_SUMMARY } from "@/lib/menus/types"
 
 vi.mock("server-only", () => ({}))
-// Me with the B01 Home badge; the B02 badge is tested in staff-shell-status.
-vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
+// Me with the Album badge (the retakes Album shows), tested in staff-shell-status.
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }))
@@ -205,6 +204,8 @@ import StaffPage from "@/app/staff/page"
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  // Me and the shell's Album badge both read the notes: keep each test's own.
+  coverage.listMyRetakeNotes.mockReset()
   gallery.signals = []
   library.byId = []
   me.profile.work = null
@@ -244,10 +245,11 @@ describe("Me: work details and the guide", () => {
     ).toBe("/staff/tasks/guide")
   })
 
-  it("passes the avatar and Home's To do count to the shell", async () => {
+  it("passes the avatar and the Album badge to the shell", async () => {
     library.items = []
     const { tasksView } = await import("./tasks-fixtures")
     coverage.getMyTasks.mockResolvedValueOnce({ ok: true, tasks: tasksView() })
+    coverage.listMyRetakeNotes.mockResolvedValue({ ok: true, notes: [] })
     const { container } = render(await StaffPage())
     const shell = container.firstElementChild as HTMLElement
     expect(shell.dataset.avatar).toBe("/api/avatars/me")
@@ -258,7 +260,7 @@ describe("Me: work details and the guide", () => {
     library.items = [item("a1")]
     coverage.getMyTasks.mockRejectedValueOnce(new Error("down"))
     coverage.listMyMenuPhotoDecisions.mockRejectedValueOnce(new Error("down"))
-    coverage.listMyRetakeNotes.mockRejectedValueOnce(new Error("down"))
+    coverage.listMyRetakeNotes.mockRejectedValue(new Error("down"))
     const { container } = render(await StaffPage())
     expect((container.firstElementChild as HTMLElement).dataset.todo).toBe("")
     expect(
@@ -439,7 +441,7 @@ describe("Me: Needs labels and milestones", () => {
 
   it("shows a retake note with the reviewer's reason, read on the server", async () => {
     library.items = []
-    coverage.listMyRetakeNotes.mockResolvedValueOnce({
+    coverage.listMyRetakeNotes.mockResolvedValue({
       ok: true,
       notes: [note({ reason: "Too dark, shoot near the pass" })],
     })
@@ -461,7 +463,7 @@ describe("Me: Needs labels and milestones", () => {
 
   it("reshoots a menu note in one tap, labelled with that dish, or from photos", async () => {
     library.items = []
-    coverage.listMyRetakeNotes.mockResolvedValueOnce({
+    coverage.listMyRetakeNotes.mockResolvedValue({
       ok: true,
       notes: [
         note(),
@@ -522,7 +524,7 @@ describe("Me: Needs labels and milestones", () => {
 
   it("links coverage requests to their send page, for the month and for a job", async () => {
     library.items = []
-    coverage.listMyRetakeNotes.mockResolvedValueOnce({
+    coverage.listMyRetakeNotes.mockResolvedValue({
       ok: true,
       notes: [
         note({ kind: "coverage", noteId: "c1", dish: null }),
@@ -555,7 +557,7 @@ describe("Me: Needs labels and milestones", () => {
 
   it("keeps set-aside and retaken notes, drops cleared ones, and counts only those still to take", async () => {
     library.items = []
-    coverage.listMyRetakeNotes.mockResolvedValueOnce({
+    coverage.listMyRetakeNotes.mockResolvedValue({
       ok: true,
       notes: [
         note({ noteId: "p1", status: "set_aside", setAsideAt: NOW }),
@@ -609,7 +611,7 @@ describe("Me: Needs labels and milestones", () => {
 
   it("offers no retake for a dish off the menu or a job no longer open, and leaves them out of the count", async () => {
     library.items = []
-    coverage.listMyRetakeNotes.mockResolvedValueOnce({
+    coverage.listMyRetakeNotes.mockResolvedValue({
       ok: true,
       notes: [
         note({ noteId: "p1", canRetake: false }),

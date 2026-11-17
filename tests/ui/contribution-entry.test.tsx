@@ -23,7 +23,6 @@ import {
 } from "@/components/nabalens/amenities/manage"
 import { FINDING_SENT_PARAM } from "@/components/nabalens/amenities/capture/finding-sent"
 import { PHOTO_TIPS_TITLE } from "@/components/nabalens/guide/photo-tips-copy"
-import { ContributeCard } from "@/components/nabalens/home/contribute-card"
 import { AddTrigger } from "@/components/nabalens/shell/add-context"
 import { ENTRY_COPY } from "@/components/nabalens/shell/entry-copy"
 import { ManagerEntrySection } from "@/components/nabalens/shell/manager-entry"
@@ -191,45 +190,6 @@ describe("Add with the entry off (b01)", () => {
     const sheet = await screen.findByRole("dialog", { name: "Add photos" })
     expect(within(sheet).queryByText("For Lakeside")).toBeNull()
     expect(within(sheet).queryByText(ENTRY_COPY.photosAudience)).toBeNull()
-  })
-})
-
-describe("Home's contribute card (§3.3)", () => {
-  it("adds Answer a venue question, which opens the question picker", async () => {
-    await host(
-      Promise.resolve(MENU),
-      <ContributeCard
-        prompt="What did you cook today?"
-        blocked={null}
-        canAnswer
-      />
-    )
-    await act(async () => {
-      fireEvent.click(
-        screen.getByRole("button", { name: "Answer a venue question" })
-      )
-    })
-    const dialog = await screen.findByRole("dialog")
-    expect(
-      within(dialog).getByRole("heading", { name: "Which question?" })
-    ).toBeTruthy()
-    expect(
-      within(dialog)
-        .getByRole("link", { name: /step-free/ })
-        .getAttribute("href")
-    ).toBe("/staff/tasks/amenities/c1?from=home")
-    // Opened at the question: there is no step to go back to.
-    expect(within(dialog).queryByRole("button", { name: "Back" })).toBeNull()
-  })
-
-  it("keeps two buttons without a working list", async () => {
-    await host(
-      Promise.resolve(MENU),
-      <ContributeCard prompt="What did you cook today?" blocked={null} />
-    )
-    expect(
-      screen.queryByRole("button", { name: "Answer a venue question" })
-    ).toBeNull()
   })
 })
 

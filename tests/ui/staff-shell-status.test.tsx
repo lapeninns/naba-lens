@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Every staff page's shell shows the same Home badge, Manage badge and avatar,
+// Every staff page's shell shows the same Album badge, Manage badge and avatar,
 // from one loader whose reads run side by side (and alongside the page's).
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
@@ -13,8 +13,6 @@ import type { MyAmenityTask } from "@/lib/amenities/contract"
 import { tasksView } from "./tasks-fixtures"
 
 vi.mock("server-only", () => ({}))
-// The B01 Home and badge; the B02 layout is tested in home-b02.test.tsx.
-vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   redirect: vi.fn(),
@@ -74,6 +72,7 @@ const coverage = vi.hoisted(() => ({
   getMyTasks: vi.fn(),
   getManagerReviewCount: vi.fn(),
   listMyMenuPhotoDecisions: vi.fn(),
+  listMyRetakeNotes: vi.fn(),
 }))
 vi.mock("@/lib/server/coverage", () => coverage)
 const amenities = vi.hoisted(() => ({ getMyAmenityTasks: vi.fn() }))
@@ -114,6 +113,7 @@ beforeEach(() => {
   coverage.getMyTasks.mockResolvedValue({ ok: true, tasks: tasksView() })
   coverage.getManagerReviewCount.mockResolvedValue({ ok: true, count: 3 })
   coverage.listMyMenuPhotoDecisions.mockResolvedValue({ ok: true, states: [] })
+  coverage.listMyRetakeNotes.mockResolvedValue({ ok: true, notes: [] })
   amenities.getMyAmenityTasks.mockResolvedValue({
     ok: true,
     tasks: [check("c1"), check("c2")],
@@ -133,8 +133,29 @@ afterEach(() => {
   shell.props = null
 })
 
+const note = (overrides: Record<string, unknown> = {}) => ({
+  kind: "menu",
+  noteId: "n1",
+  status: "open",
+  canRetake: true,
+  reason: "Too dark",
+  dish: { itemId: "i1", itemName: "Fish pie" },
+  ...overrides,
+})
+
 describe("staffShellStatus", () => {
-  it("counts amenity checks in Home's To do and reads no review count for staff", async () => {
+  it("counts the retakes Album shows on its badge and reads no review count for staff", async () => {
+    coverage.listMyRetakeNotes.mockResolvedValue({
+      ok: true,
+      notes: [
+        note(),
+        note({ noteId: "n2", dish: { itemId: "i2", itemName: "Pie" } }),
+        // Not on Album: set aside, a dish off the menu, a coverage note.
+        note({ noteId: "n3", status: "set_aside" }),
+        note({ noteId: "n4", canRetake: false }),
+        note({ noteId: "n5", kind: "coverage", dish: null }),
+      ],
+    })
     expect(await staffShellStatus(ACTOR as never, PROFILE)).toEqual({
       canManage: false,
       todoCount: 2,
@@ -145,23 +166,14 @@ describe("staffShellStatus", () => {
     expect(coverage.getManagerReviewCount).not.toHaveBeenCalled()
   })
 
-  it("counts a finding my manager asked about in Home's To do (B01-06)", async () => {
-    knowledge.getWorkingList.mockResolvedValue({
-      ok: true,
-      view: {
-        venue: { id: "v1", name: "The Old Crown" },
-        slots: [
-          {
-            checkId: "c9",
-            myLatest: { state: "needs_attention" },
-          },
-          { checkId: "c8", myLatest: { state: "awaiting_confirmation" } },
-        ],
-      },
-    })
+  it("never counts slots, tasks or checks on the badge", async () => {
     expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
-      todoCount: 3,
+      todoCount: 0,
+      todoUnknown: false,
     })
+    expect(coverage.getMyTasks).not.toHaveBeenCalled()
+    expect(amenities.getMyAmenityTasks).not.toHaveBeenCalled()
+    expect(knowledge.getWorkingList).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -173,72 +185,33 @@ describe("staffShellStatus", () => {
       },
     ],
   ])(
-    "gives no To do count, rather than a smaller one, when the working list read is %s",
+    "gives no count, rather than a smaller one, when the notes read is %s",
     async (_, impl) => {
-      knowledge.getWorkingList.mockImplementation(impl)
+      coverage.listMyRetakeNotes.mockImplementation(impl)
       expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
         todoCount: undefined,
         todoUnknown: true,
       })
     }
   )
-  it("adds a manager's photos to review to To do and the Manage badge", async () => {
+
+  it("gives a manager the Manage badge, kept apart from Album's", async () => {
     coverage.getCoverageScope.mockResolvedValue(scope(true))
     expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
       canManage: true,
       reviewCount: 3,
-      todoCount: 3,
+      todoCount: 0,
     })
   })
 
-  it.each([
-    ["fails", () => ({ ok: false, code: "unavailable", status: 503 })],
-    [
-      "throws",
-      () => {
-        throw new Error("down")
-      },
-    ],
-  ])(
-    "gives no To do count, rather than none to do, when the amenity read %s",
-    async (_, impl) => {
-      amenities.getMyAmenityTasks.mockImplementation(async () => impl())
-      expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
-        todoCount: undefined,
-      })
-    }
-  )
-
-  it.each([
-    ["fails", () => ({ ok: false, code: "unavailable", status: 503 })],
-    [
-      "throws",
-      () => {
-        throw new Error("down")
-      },
-    ],
-  ])(
-    "gives a manager no To do count, rather than one without reviews, when the review count %s",
-    async (_, impl) => {
-      coverage.getCoverageScope.mockResolvedValue(scope(true))
-      coverage.getManagerReviewCount.mockImplementation(async () => impl())
-      expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
-        canManage: true,
-        reviewCount: undefined,
-        todoCount: undefined,
-      })
-    }
-  )
-
-  it("keeps Manage and the avatar when the task read fails, without a To do count", async () => {
+  it("keeps Manage and the avatar when the review count fails, without a number", async () => {
     coverage.getCoverageScope.mockResolvedValue(scope(true))
-    coverage.getMyTasks.mockRejectedValue(new Error("down"))
-    amenities.getMyAmenityTasks.mockRejectedValue(new Error("down"))
+    coverage.getManagerReviewCount.mockRejectedValue(new Error("down"))
     expect(await staffShellStatus(ACTOR as never, PROFILE)).toEqual({
       canManage: true,
-      todoCount: undefined,
-      todoUnknown: true,
-      reviewCount: 3,
+      todoCount: 0,
+      todoUnknown: false,
+      reviewCount: undefined,
       avatarUrl: `/api/avatars/${PROFILE.id}`,
     })
   })
@@ -310,13 +283,14 @@ describe("staff pages", () => {
     }
   })
 
-  it("renders the guide with the Home badge, the Manage badge and the avatar", async () => {
+  it("renders the guide with the Album badge, the Manage badge and the avatar", async () => {
     coverage.getCoverageScope.mockResolvedValue(scope(true))
+    coverage.listMyRetakeNotes.mockResolvedValue({ ok: true, notes: [note()] })
     render(await PhotoGuidePage())
     expect(shell.props).toMatchObject({
       variant: "staff",
       canManage: true,
-      todoCount: 3,
+      todoCount: 1,
       reviewCount: 3,
       avatarUrl: `/api/avatars/${PROFILE.id}`,
     })
@@ -349,7 +323,7 @@ describe("currentStaffShell", () => {
     })
     expect(await currentStaffShell()).toEqual({
       canManage: false,
-      todoCount: 2,
+      todoCount: 0,
       todoUnknown: false,
       reviewCount: undefined,
       avatarUrl: `/api/avatars/${PROFILE.id}`,
@@ -382,7 +356,7 @@ describe("currentStaffShell", () => {
       actor: { ...ACTOR, profile: PROFILE },
     })
     render(await StaffNotFound())
-    expect(shell.props).toMatchObject({ variant: "staff", todoCount: 2 })
+    expect(shell.props).toMatchObject({ variant: "staff", todoCount: 0 })
     cleanup()
     coverage.getCoverageActor.mockRejectedValueOnce(new Error("down"))
     const { getByRole } = render(await StaffNotFound())
@@ -519,101 +493,5 @@ describe("Me: My contributions (B02 §6.1)", () => {
     const { getByRole } = render(await StaffPage())
     expect(getByRole("region", { name: "Your findings" })).toBeTruthy()
     expect(work.getContributions).not.toHaveBeenCalled()
-  })
-})
-
-describe("staffShellStatus on the B02 Home", () => {
-  const request = (photoId: string, canRetake: boolean | undefined) => ({
-    photoId,
-    assetId: `a-${photoId}`,
-    itemId: "i1",
-    itemName: "Fish pie",
-    variantId: null,
-    variantName: null,
-    state: "better_photo_requested",
-    isPrimary: false,
-    reason: "Too dark",
-    canRetake,
-  })
-
-  beforeEach(() => {
-    vi.stubEnv("NABALENS_HOME_LAYOUT", "b02")
-    work.getLabelWork.mockResolvedValue({
-      status: "ok",
-      value: { needsLabels: 2, needsAttention: 1 },
-    })
-    work.getCapabilities.mockResolvedValue({
-      status: "ok",
-      value: { canLabel: true },
-    })
-    // D13: only a dish still on the menu asks anything of me.
-    coverage.listMyMenuPhotoDecisions.mockResolvedValue({
-      ok: true,
-      states: [
-        request("p1", true),
-        request("p2", false),
-        request("p3", undefined),
-      ],
-    })
-  })
-  afterEach(() => vi.stubEnv("NABALENS_HOME_LAYOUT", "b01"))
-
-  it("counts checks, label work and better-photo requests I can take", async () => {
-    expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
-      todoCount: 2 + 3 + 1,
-      todoUnknown: false,
-    })
-    expect(coverage.listMyMenuPhotoDecisions).toHaveBeenCalledWith(ACTOR, {
-      requestsOnly: true,
-    })
-  })
-
-  it("leaves labels out before the B02 database, or for an account that can't label", async () => {
-    work.getLabelWork.mockResolvedValue({ status: "missing" })
-    expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
-      todoCount: 3,
-    })
-    vi.clearAllMocks()
-    work.getLabelWork.mockResolvedValue({
-      status: "ok",
-      value: { needsLabels: 2, needsAttention: 1 },
-    })
-    work.getCapabilities.mockResolvedValue({
-      status: "ok",
-      value: { canLabel: false },
-    })
-    expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
-      todoCount: 3,
-    })
-  })
-
-  it.each([
-    [
-      "the labels read fails",
-      () =>
-        work.getLabelWork.mockResolvedValue({
-          status: "failed",
-          failure: { ok: false, code: "unavailable", status: 503, message: "" },
-        }),
-    ],
-    [
-      "the better-photo read fails",
-      () =>
-        coverage.listMyMenuPhotoDecisions.mockResolvedValue({
-          ok: false,
-          code: "unavailable",
-        }),
-    ],
-    [
-      "the better-photo read throws",
-      () =>
-        coverage.listMyMenuPhotoDecisions.mockRejectedValue(new Error("down")),
-    ],
-  ])("is unknown, never smaller, when %s", async (_, fail) => {
-    fail()
-    expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
-      todoCount: undefined,
-      todoUnknown: true,
-    })
   })
 })

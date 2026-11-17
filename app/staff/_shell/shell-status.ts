@@ -2,19 +2,9 @@ import "server-only"
 
 import { cache } from "react"
 
-import {
-  goalsHomeCards,
-  otherJobsCount,
-} from "@/components/nabalens/home/goals-home-model"
-import { homeRetakeNotes } from "@/components/nabalens/tasks/retake-notes-model"
-import { todoCount, todoItems } from "@/components/nabalens/tasks"
-import {
-  nextActions,
-  type RetakeRequest,
-} from "@/components/nabalens/tasks/next-actions-model"
+import type { AlbumRetake } from "@/components/nabalens/album/album-home"
 import type { MyAmenityTask } from "@/lib/amenities/contract"
 import { contributionEntry } from "@/lib/config/contribution-entry"
-import { homeLayout } from "@/lib/config/home-layout"
 import type { WorkingList } from "@/lib/knowledge-client/contract"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getMyAmenityTasks } from "@/lib/server/amenities"
@@ -22,16 +12,13 @@ import {
   getCoverageActor,
   getManagerReviewCount,
   getMyTasks,
-  listMyMenuPhotoDecisions,
   listMyRetakeNotes,
 } from "@/lib/server/coverage"
 import type { RetakeNote } from "@/lib/server/coverage/types"
 import { avatarUrl } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
-import type { LabelWork } from "@/lib/work-client/contract"
 import { entryMenu, type EntryMenu } from "@/lib/work-client/entry"
 import { workServices } from "@/lib/work-client/services"
-import { todoBadge } from "@/lib/work-client/todo"
 
 import { canManageVenue } from "../can-manage"
 
@@ -73,7 +60,7 @@ const amenityTasksOf = cache(
 
 /**
  * Amenity checks assigned to me, or null when they can't be read: unknown,
- * never "none", so To do and the badge don't claim there is nothing to do.
+ * never "none", so Other jobs doesn't claim there is nothing to do.
  */
 export const myAmenityTasks = (actor: MediaActor) =>
   amenityTasksOf(sharedActor(actor))
@@ -107,68 +94,6 @@ const capabilitiesOf = cache(async (actor: MediaActor) => {
 /** My capabilities read (R8), once per request; null when it threw. */
 export const myCapabilities = (actor: MediaActor) =>
   capabilitiesOf(sharedActor(actor))
-
-/**
- * Home's labels card (B02): the counts, hidden when the account can't label
- * or the database predates B02, or failed (the card says so and the badge is
- * unknown).
- */
-export type HomeLabels =
-  | { status: "ok"; work: LabelWork }
-  | { status: "hidden" }
-  | { status: "failed" }
-
-const labelWorkOf = cache(async (actor: MediaActor): Promise<HomeLabels> => {
-  try {
-    const [work, capabilities] = await Promise.all([
-      workServices.getLabelWork(actor),
-      // Only to hide the card: R1 already gives zeros to anyone who can't label.
-      myCapabilities(actor),
-    ])
-    if (work.status === "failed") return { status: "failed" }
-    if (work.status === "missing") return { status: "hidden" }
-    if (capabilities?.status === "ok" && !capabilities.value.canLabel)
-      return { status: "hidden" }
-    return { status: "ok", work: work.value }
-  } catch {
-    return { status: "failed" }
-  }
-})
-
-export const myLabelWork = (actor: MediaActor) =>
-  labelWorkOf(sharedActor(actor))
-
-const retakesOf = cache(
-  async (actor: MediaActor): Promise<RetakeRequest[] | null> => {
-    try {
-      const result = await listMyMenuPhotoDecisions(actor, {
-        requestsOnly: true,
-      })
-      if (!result.ok) return null
-      // D13: a dish no longer on the menu (or one the menu read couldn't
-      // place) asks nothing of this person.
-      return result.states.flatMap((state) =>
-        state.state === "better_photo_requested" && state.canRetake === true
-          ? [
-              {
-                photoId: state.photoId,
-                itemId: state.itemId,
-                variantId: state.variantId,
-                itemName: state.itemName,
-                variantName: state.variantName,
-                reason: state.reason,
-              },
-            ]
-          : []
-      )
-    } catch {
-      return null
-    }
-  }
-)
-
-/** Better photos asked of me that I can take now; null when unread (B02). */
-export const myRetakes = (actor: MediaActor) => retakesOf(sharedActor(actor))
 
 const retakeNotesOf = cache(
   async (actor: MediaActor): Promise<RetakeNote[] | null> => {
@@ -255,11 +180,9 @@ const managerStatus = (actor: MediaActor) => managerStatusOf(sharedActor(actor))
 export type StaffShellStatus = {
   canManage: boolean
   /**
-   * The Home tab's badge. On goal-led Home, the number of actionable cards on
-   * Home (setup, the retake note, Other jobs, Photos to review), never
-   * dishes; on the B01/B02 rollback, To do's count. None when a read behind
-   * it fails (the tasks, the checks, the working list, the notes or, for a
-   * manager, the photos to review): unknown, never a smaller number.
+   * The Album tab's badge: the retakes Album shows (DESIGN.md §5a, the
+   * retake row), never the empty slots. None when the notes can't be read:
+   * unknown, never a smaller number.
    */
   todoCount: number | undefined
   /** The count above couldn't be read: the badge says so ("?"). */
@@ -270,7 +193,32 @@ export type StaffShellStatus = {
 }
 
 /**
- * Every staff page's shell status from the same reads, so the Home badge,
+ * The retakes Album shows (DESIGN.md §5a): open notes on a dish the person
+ * can photograph again now, with the reviewer's reason. Null when unread.
+ */
+export async function myAlbumRetakes(
+  actor: MediaActor
+): Promise<AlbumRetake[] | null> {
+  const notes = await myRetakeNotes(actor)
+  if (!notes) return null
+  return notes.flatMap((note) =>
+    note.kind === "menu" &&
+    note.dish &&
+    note.canRetake &&
+    note.status === "open"
+      ? [
+          {
+            itemId: note.dish.itemId,
+            itemName: note.dish.itemName,
+            reason: note.reason,
+          },
+        ]
+      : []
+  )
+}
+
+/**
+ * Every staff page's shell status from the same reads, so the Album badge,
  * the Manage badge and the avatar never differ between pages. The reads run
  * in parallel and are shared with the page through `cache`. Display only:
  * every page, action and RPC re-checks access.
@@ -279,127 +227,14 @@ export async function staffShellStatus(
   actor: MediaActor,
   profile: { id: string; avatarPath: string | null }
 ): Promise<StaffShellStatus> {
-  const layout = homeLayout(actor.profile?.venueId)
-  if (layout === "goals") return goalsShellStatus(actor, profile)
-  const b02 = layout === "b02"
-  const [
-    tasks,
-    amenityTasks,
-    { canManage, reviewCount },
-    workingList,
-    labels,
-    retakes,
-  ] = await Promise.all([
-    myTasks(actor).catch(() => null),
-    myAmenityTasks(actor),
+  const [retakes, { canManage, reviewCount }] = await Promise.all([
+    myAlbumRetakes(actor),
     managerStatus(actor),
-    myWorkingList(actor),
-    b02 ? myLabelWork(actor) : null,
-    b02 ? myRetakes(actor) : null,
   ])
-  const view = tasks?.ok ? tasks.tasks : null
-  const reviewKnown = !canManage || reviewCount !== undefined
-  if (b02) {
-    // Failed uploads on this device are added in the browser, on Home.
-    const failed =
-      !view ||
-      !amenityTasks ||
-      !reviewKnown ||
-      workingList === undefined ||
-      labels?.status === "failed" ||
-      retakes === null
-    const count = view
-      ? todoBadge(
-          nextActions({
-            tasks: view,
-            reviewCount: reviewCount ?? 0,
-            amenityChecks: amenityTasks ?? [],
-            slots: workingList?.slots ?? [],
-            retakes: retakes ?? [],
-            labels: labels?.status === "ok" ? labels.work : null,
-          }),
-          failed
-        )
-      : null
-    return {
-      canManage,
-      todoUnknown: count === null,
-      todoCount: count ?? undefined,
-      reviewCount,
-      avatarUrl: avatarUrl(profile.id, profile.avatarPath),
-    }
-  }
-  const known =
-    !!view && !!amenityTasks && reviewKnown && workingList !== undefined
   return {
     canManage,
-    todoUnknown: !known,
-    todoCount:
-      view && amenityTasks && reviewKnown && workingList !== undefined
-        ? todoCount(
-            todoItems(
-              view,
-              new Date(),
-              reviewCount,
-              amenityTasks,
-              workingList?.slots ?? []
-            )
-          )
-        : undefined,
-    reviewCount,
-    avatarUrl: avatarUrl(profile.id, profile.avatarPath),
-  }
-}
-
-/** The shell on goal-led Home: the badge counts Home's actionable cards. */
-async function goalsShellStatus(
-  actor: MediaActor,
-  profile: { id: string; avatarPath: string | null }
-): Promise<StaffShellStatus> {
-  const [
-    tasks,
-    amenityTasks,
-    { canManage, reviewCount },
-    workingList,
-    notes,
-    labels,
-    rechecks,
-  ] = await Promise.all([
-    myTasks(actor).catch(() => null),
-    myAmenityTasks(actor),
-    managerStatus(actor),
-    myWorkingList(actor),
-    myRetakeNotes(actor),
-    myLabelWork(actor),
-    myRechecks(actor),
-  ])
-  const view = tasks?.ok ? tasks.tasks : null
-  const known =
-    !!view &&
-    !!amenityTasks &&
-    (!canManage || reviewCount !== undefined) &&
-    workingList !== undefined &&
-    notes !== null &&
-    labels.status !== "failed" &&
-    rechecks !== null
-  const cards = view
-    ? goalsHomeCards({
-        setupComplete: view.scope.setup.complete,
-        notes: homeRetakeNotes(notes ?? []),
-        labels: hasLabelWork(labels),
-        otherJobs: otherJobsCount({
-          tasks: view,
-          amenityTasks,
-          slots: workingList?.slots ?? null,
-          rechecks,
-        }),
-        reviewCount: reviewCount ?? 0,
-      })
-    : null
-  return {
-    canManage,
-    todoUnknown: !known,
-    todoCount: known && cards ? cards.length : undefined,
+    todoUnknown: retakes === null,
+    todoCount: retakes?.length,
     reviewCount,
     avatarUrl: avatarUrl(profile.id, profile.avatarPath),
   }
@@ -416,14 +251,6 @@ const rechecksOf = cache(async (actor: MediaActor) => {
 
 /** My open recheck tasks (B03-e), once per request; null when unread. */
 export const myRechecks = (actor: MediaActor) => rechecksOf(sharedActor(actor))
-
-/** Decision 19: Home shows a labels row (the person's own photo work). */
-export function hasLabelWork(labels: HomeLabels): boolean {
-  return (
-    labels.status === "ok" &&
-    (labels.work.needsLabels > 0 || labels.work.needsAttention > 0)
-  )
-}
 
 const NO_STATUS: StaffShellStatus = {
   canManage: false,

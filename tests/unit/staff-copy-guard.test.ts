@@ -25,12 +25,12 @@ const root = fileURLToPath(new URL("../../", import.meta.url))
 /** The staff modules for food and drink work, by screen. */
 const SCOPE: { screen: string; paths: string[] }[] = [
   {
-    screen: "Home",
+    screen: "Album (Home)",
     paths: [
       "app/staff/tasks/page.tsx",
       "app/staff/tasks/loading.tsx",
       "app/staff/tasks/error.tsx",
-      "components/nabalens/home",
+      "components/nabalens/album",
       "components/nabalens/tasks",
     ],
   },
@@ -90,26 +90,6 @@ const ALLOWED_TEXT: { file: string; text: string; reason: string }[] = [
     text: "Task",
     reason: "kind label fallback for a requirement of an unknown kind",
   },
-  // The B01/B02 rollback Home (NABALENS_HOME_LAYOUT=b01|b02) lists non-menu
-  // tasks with their dates. Goal-led Home never renders these; they go when
-  // the rollback is retired after release.
-  ...[
-    ["app/staff/tasks/loading.tsx", "Other tasks this month"],
-    ["app/staff/tasks/loading.tsx", "Loading tasks…"],
-    ["components/nabalens/tasks/home-overview.tsx", "Other tasks this month"],
-    ["components/nabalens/tasks/home-overview.tsx", "Tasks assigned to you at"],
-    [
-      "components/nabalens/tasks/home-overview.tsx",
-      "Your manager assigns tasks at . You can still add photos to your profile.",
-    ],
-    ["components/nabalens/tasks/todo-list.tsx", "Overdue"],
-    ["components/nabalens/tasks/todo-list.tsx", "due soon"],
-    ["components/nabalens/tasks/todo-list.tsx", "Was due"],
-  ].map(([file, text]) => ({
-    file,
-    text,
-    reason: "non-menu task cards on the B01/B02 rollback Home (rule 28)",
-  })),
   {
     file: "components/nabalens/tasks/copy.ts",
     text: "Overdue jobs still take photos.",

@@ -57,7 +57,7 @@ export async function staffTile(
   return scope.locator(`button[data-media-id="${id ?? "no-such-asset"}"]`)
 }
 
-/** Where staff land after sign-in or a wrong-role redirect: Home. */
+/** Where staff land after sign-in or a wrong-role redirect: Album (Home). */
 export const STAFF_LANDING = /\/staff\/tasks$/
 
 /** Other jobs (G-4, decision 23): non-menu jobs, amenity checks and questions. */
@@ -65,13 +65,11 @@ export const OTHER_JOBS_PATH = "/staff/tasks/other"
 export const OTHER_JOBS = /\/staff\/tasks\/other$/
 
 /**
- * Goal-led Home has no To do: amenity checks and other jobs are one tap away,
- * through the Other jobs row (decision 10). Opens it from Home.
+ * Opens Other jobs. Album (Home, DESIGN.md §5a) shows only the album, so
+ * there is no Other jobs row on it any more: go to the page directly.
  */
 export async function openOtherJobs(page: Page) {
-  if (new URL(page.url()).pathname !== "/staff/tasks")
-    await page.goto("/staff/tasks")
-  await page.getByRole("link", { name: /^Other jobs/ }).click()
+  await page.goto(OTHER_JOBS_PATH)
   await expect(page).toHaveURL(OTHER_JOBS)
 }
 
@@ -105,7 +103,7 @@ export async function expectOtherJobsCheck(
   return check
 }
 
-/** From Home: Other jobs, then the check (two taps), landing on its capture page. */
+/** Other jobs, then the check, landing on its capture page. */
 export async function startOtherJobsCheck(
   page: Page,
   question: string,

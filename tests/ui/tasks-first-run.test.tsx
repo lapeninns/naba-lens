@@ -13,16 +13,8 @@ const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }))
 vi.mock("next/navigation", () => ({ useRouter: () => router }))
 
 import { AddProvider } from "@/components/nabalens/shell/add-context"
-import {
-  FIRST_RUN_COOKIE,
-  FirstRun,
-  setupGaps,
-  showWelcomeEntry,
-  TasksOverview,
-} from "@/components/nabalens/tasks"
+import { FirstRun } from "@/components/nabalens/tasks"
 import type { OpenAddOptions } from "@/components/nabalens/shell/add-context"
-
-import { monthly, PROFILE, tasksView } from "./tasks-fixtures"
 
 afterEach(() => {
   cleanup()
@@ -149,7 +141,8 @@ describe("FirstRun", () => {
     expect(dismiss).not.toHaveBeenCalled()
     calls[0]?.onPicked?.()
     expect(dismiss).toHaveBeenCalledWith(true)
-    expect(document.cookie).not.toContain(FIRST_RUN_COOKIE)
+    // The old first-run cookie is never written: dismissal lives in the database.
+    expect(document.cookie).not.toContain("nl_first_run")
   })
 
   it("does not dismiss when the camera picker is cancelled", () => {
@@ -283,60 +276,5 @@ describe("FirstRun", () => {
         }) as HTMLButtonElement
       ).disabled
     ).toBe(false)
-  })
-})
-
-describe("Start here on Home", () => {
-  it("shows only to someone who has not dismissed it and has no photos", () => {
-    const base = { dismissedAt: null, legacyCookie: false, hasOwnMedia: false }
-    expect(showWelcomeEntry(base)).toBe(true)
-    // Dismissed in the database (Skip, or a pick from the welcome).
-    expect(
-      showWelcomeEntry({ ...base, dismissedAt: "2026-11-06T10:00:00Z" })
-    ).toBe(false)
-    // The old per-browser cookie still counts as dismissed.
-    expect(showWelcomeEntry({ ...base, legacyCookie: true })).toBe(false)
-    // Anyone with a photo of their own is not a new starter.
-    expect(showWelcomeEntry({ ...base, hasOwnMedia: true })).toBe(false)
-  })
-
-  it("still words the setup gaps", () => {
-    expect(
-      setupGaps({
-        missing: [],
-        monthly: monthly({ setupMissing: ["target"] }),
-      })
-    ).toEqual(["No target yet: your manager sets it"])
-    expect(setupGaps({ missing: ["venue", "team"], monthly: null })).toEqual([
-      "No venue yet: an admin assigns your venue",
-      "No team yet: an admin assigns Front of house or Back of house",
-    ])
-    // The team gap is said once, from either source.
-    expect(
-      setupGaps({
-        missing: ["team"],
-        monthly: monthly({ setupMissing: ["team"] }),
-      })
-    ).toHaveLength(1)
-  })
-
-  it("shows the entry only when a link is given", () => {
-    const home = (welcomeHref: string | null) =>
-      render(
-        <TasksOverview
-          tasks={tasksView()}
-          profile={PROFILE}
-          tasksPath="/staff/tasks"
-          portfolioPath="/staff"
-          welcomeHref={welcomeHref}
-        />
-      )
-    home(null)
-    expect(screen.queryByText("Start here")).toBeNull()
-    cleanup()
-    home("/staff/tasks/welcome")
-    expect(
-      screen.getByRole("link", { name: "Start here" }).getAttribute("href")
-    ).toBe("/staff/tasks/welcome")
   })
 })
