@@ -473,7 +473,7 @@ test.describe("upload recovery in the real UI", () => {
     const files = dialog.getByRole("list", { name: "Files" })
     await expect(files).toHaveCount(0)
     await expect(dialog.getByRole("status")).toHaveCount(0)
-    await expect(dialog).toHaveAccessibleName("Upload photos or videos")
+    await expect(dialog).toHaveAccessibleName("Add photos or videos")
 
     const sent = actions.bodies.slice(before)
     expect(sent.filter((b) => b.includes('"assetId"'))).toHaveLength(0)
@@ -1169,11 +1169,11 @@ test.describe("leaving while uploads run", () => {
     if (new URL(page.url()).pathname !== "/staff") await page.goto("/staff")
     await page
       .getByRole("main")
-      .getByRole("button", { name: "Upload photos or videos" })
+      .getByRole("button", { name: "Add photos or videos" })
       .first()
       .click()
     const queue = uploadSheet(page)
-    await expect(queue).toHaveAccessibleName("Upload photos or videos")
+    await expect(queue).toHaveAccessibleName("Add photos or videos")
     // They start uploading as soon as they are picked.
     await queue
       .getByLabel("Choose photos or videos")
@@ -1269,16 +1269,16 @@ test.describe("leaving while uploads run", () => {
     })
 
     const tabbar = page.locator('[data-slot="tabbar"]')
-    const sheet = page.getByRole("dialog", { name: "Add photos" })
+    const sheet = page.getByRole("dialog", { name: "Add photos", exact: true })
     const queue = uploadSheet(page)
     // Me's Add opens the upload sheet (Album's Add photos opens Match).
     if (new URL(page.url()).pathname !== "/staff") await page.goto("/staff")
     await page
       .getByRole("main")
-      .getByRole("button", { name: "Upload photos or videos" })
+      .getByRole("button", { name: "Add photos or videos" })
       .first()
       .click()
-    await expect(queue).toHaveAccessibleName("Upload photos or videos")
+    await expect(queue).toHaveAccessibleName("Add photos or videos")
     const chooser = page.waitForEvent("filechooser")
     await queue.getByRole("button", { name: /Choose from your photos/ }).click()
     // The picked files start uploading at once, in the queue sheet.

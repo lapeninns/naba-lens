@@ -106,10 +106,10 @@ for (const size of SIZES) {
       () =>
         staff
           .getByRole("main")
-          .getByRole("button", { name: "Upload photos or videos" })
+          .getByRole("button", { name: "Add photos or videos" })
           .first()
           .click(),
-      staff.getByRole("dialog", { name: "Upload photos or videos" })
+      staff.getByRole("dialog", { name: "Add photos or videos" })
     )
     await reflow(staff, size, "/staff/tasks/guide")
     await dialogReflows(

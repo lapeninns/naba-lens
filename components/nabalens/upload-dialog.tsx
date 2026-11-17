@@ -1501,7 +1501,7 @@ export function UploadDialog({
               ? sheetTitle(items)
               : imagesOnly
                 ? "Upload photos"
-                : "Upload photos or videos"}
+                : "Add photos or videos"}
           </DialogTitle>
           <DialogDescription id={limitsId}>
             {imagesOnly ? (

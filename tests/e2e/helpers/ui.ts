@@ -133,12 +133,12 @@ export const libraryList = (page: Page) =>
   page.getByRole("list", { name: "Library" })
 
 /**
- * The staff upload sheet. Before a pick it is "Upload photos or videos" (or
- * "Upload photos" for photos only); once files are picked it is the
- * "Saving N photos" sheet ("files" when a video is among them).
+ * The staff upload sheet. Before a pick it is "Add photos or videos" (or
+ * "Upload photos" for photos only, a task screen's sheet); once files are
+ * picked it is the "Saving N photos" sheet ("files" when a video is among them).
  */
 export const UPLOAD_SHEET =
-  /^(Upload photos( or videos)?|Saving \d+ (photos?|files?))$/
+  /^(Add photos or videos|Upload photos|Saving \d+ (photos?|files?))$/
 export const uploadSheet = (page: Page) =>
   page.getByRole("dialog", { name: UPLOAD_SHEET })
 
@@ -162,7 +162,7 @@ export async function uploadThroughDialog(
   { expectSettled = `${files.length} saved`, close = true } = {}
 ): Promise<Record<string, string[]>> {
   await page
-    .getByRole("button", { name: "Upload photos or videos" })
+    .getByRole("button", { name: "Add photos or videos" })
     .first()
     .click()
   const dialog = uploadSheet(page)

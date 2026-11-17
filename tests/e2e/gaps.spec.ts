@@ -145,7 +145,7 @@ test.describe("GAP-19: leave warning during an active upload", () => {
     )
 
     await page
-      .getByRole("button", { name: "Upload photos or videos" })
+      .getByRole("button", { name: "Add photos or videos" })
       .first()
       .click()
     const dialog = uploadSheet(page)
@@ -297,7 +297,7 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
       staffPage.getByRole("status").filter({ hasText: /not taking uploads/ })
     ).toBeVisible()
     await expect(
-      staffPage.getByRole("button", { name: /Upload photos or videos/ })
+      staffPage.getByRole("button", { name: /Add photos or videos/ })
     ).toHaveCount(0)
     // Their own retained media is still listed for them.
     await expect(
