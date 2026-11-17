@@ -69,7 +69,9 @@ export function SlotBriefField({
   const statusId = React.useId()
 
   const trimmed = value.trim()
-  const tooLong = trimmed.length > BRIEF_MAX
+  // Characters as the database counts them (an emoji is one).
+  const length = [...trimmed].length
+  const tooLong = length > BRIEF_MAX
   const unchanged = (trimmed || null) === saved
 
   async function run(next: string | null, which: "save" | "clear") {
@@ -119,7 +121,7 @@ export function SlotBriefField({
           tooLong ? "text-meta text-warn-fg" : "text-meta text-ink-muted"
         }
       >
-        {SLOT_BRIEF_COPY.count(trimmed.length)}
+        {SLOT_BRIEF_COPY.count(length)}
       </p>
       <div className="flex flex-wrap gap-2">
         <Button

@@ -15,7 +15,10 @@ set lock_timeout = '5s';
 --             The third kind, an area, is a place itself.
 --   Writes    public.album_place_set: the venue's manager (account or grant)
 --             or an admin. One row per venue, source and key; setting null
---             removes it. Every change is also written to
+--             removes it. A place can be set only for a section slug on the
+--             venue's active menu or a category in public.amenity_catalogue
+--             (else unknown_slot, as album_brief_set); clearing takes any key,
+--             so a placement left by an old menu can still be removed. Every change is also written to
 --             public.album_place_events (append-only), so who placed what is
 --             never lost.
 --   Reads     public.album_places: everyone at the venue (staff read it to
@@ -25,7 +28,10 @@ set lock_timeout = '5s';
 --
 -- Nothing here changes coverage, amenity, credit or review rules.
 --
--- Rollback: revoke execute on the three public functions below. Tables stay.
+-- Rollback: roll back the app first (AL-8 and AL-2), then revoke execute on
+-- the three public functions below. Tables stay. Revoking alone leaves staff
+-- Home drawing every slot under Not placed yet and every area slot left out
+-- (lib/server/album.ts reads a failed placement read as none).
 
 -- ---------------------------------------------------------------------------
 -- Tables
@@ -196,7 +202,7 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_venue uuid := coalesce(p_venue_id, private.my_manager_venue_id());
-  v_key text := private.clean_text(p_key, 120, 'invalid_key');
+  v_key text;
   v_current uuid;
 begin
   perform private.amenity_assert_active_user();
@@ -209,11 +215,27 @@ begin
   end if;
   perform private.assert_can_manage_venue(v_venue);
   perform private.amenity_assert_venue_active(v_venue);
+  -- Input is checked only once the caller may write here.
+  v_key := private.clean_text(p_key, 120, 'invalid_key');
   if p_source is null or p_source not in ('menu_section', 'amenity_category') then
     raise exception 'invalid_source' using errcode = '22023';
   end if;
   if v_key is null then
     raise exception 'invalid_key' using errcode = '22023';
+  end if;
+  -- Placing needs a real group; clearing takes any key (see the header).
+  if p_subject_id is not null and p_source = 'menu_section' and not exists (
+    select 1
+    from public.menu_versions mv
+    join public.menu_sections ms on ms.version_id = mv.id and ms.venue_id = mv.venue_id
+    where mv.venue_id = v_venue and mv.status = 'active' and ms.slug = v_key
+  ) then
+    raise exception 'unknown_slot' using errcode = '22023';
+  end if;
+  if p_subject_id is not null and p_source = 'amenity_category' and not exists (
+    select 1 from public.amenity_catalogue t where t.category = v_key
+  ) then
+    raise exception 'unknown_slot' using errcode = '22023';
   end if;
   if p_subject_id is not null and not exists (
     select 1 from public.knowledge_subjects s

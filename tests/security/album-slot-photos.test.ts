@@ -16,7 +16,9 @@ import { legacyStaffGrant, ok, psql } from "./coverage-fixtures"
 import {
   admin as knowledgeAdmin,
   call,
+  decide,
   json,
+  londonToday,
   service,
   world,
   yes,
@@ -254,5 +256,54 @@ describe("album_slot_asset", () => {
            || ',' || has_function_privilege('anon', 'public.album_slot_photos(uuid)', 'execute')::text`
       )
     ).toBe("false,false,false")
+  })
+})
+
+describe("an amenity whose service has ended", () => {
+  // The app reads a Yes as No once its service end is in effect (answerInUse,
+  // B03 A40), so the slot is Not here; the photo is no longer shown either.
+  it("is not listed and its photo is not opened", async () => {
+    const w = await world("album-al7-ended")
+    const sent = await yes(w.staffA, w, "guest_toilets")
+    if (sent.outcome === "awaiting_confirmation")
+      expect(
+        (
+          await decide(
+            w.manager,
+            w,
+            "guest_toilets",
+            { type: "contribution", id: sent.contributionId },
+            "confirm"
+          )
+        ).error
+      ).toBeNull()
+    const asset = psql(
+      `select sa.asset_id from public.amenity_submission_assets sa
+       join public.venue_amenity_checks c on c.current_submission_id = sa.submission_id
+       where c.id = '${w.checks.guest_toilets}' limit 1`
+    )
+    const listed = async () =>
+      (await photos(w.staffB)).items.some((i) => i.assetId === asset)
+    expect(await listed()).toBe(true)
+    expect(await gate(w.staffB, asset)).toHaveLength(1)
+
+    // A stop from two days ago, attached as the B03 A40 suite does.
+    const twoDaysAgo = new Date(
+      Date.parse(`${londonToday()}T00:00:00Z`) - 2 * 86_400_000
+    )
+      .toISOString()
+      .slice(0, 10)
+    psql(`insert into public.knowledge_contribution_details
+        (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
+      select x.id, x.venue_id, 1, 'service', 1, '{"lastDayOffered": "${twoDaysAgo}"}'::jsonb,
+        encode(sha256(x.id::text::bytea), 'hex')
+      from public.knowledge_contributions x where x.id = '${sent.contributionId}'`)
+    expect(
+      psql(
+        `select (private.knowledge_check_service_end('${w.checks.guest_toilets}', now()) ->> 'inEffect')`
+      )
+    ).toBe("true")
+    expect(await listed()).toBe(false)
+    expect(await gate(w.staffB, asset)).toEqual([])
   })
 })

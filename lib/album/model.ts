@@ -157,6 +157,18 @@ export const NO_BRIEFS: AlbumBriefs = {
 /** A brief is one line (DESIGN.md §5 Brief); the database holds the same limit. */
 export const BRIEF_MAX = 140
 
+// Control characters, line breaks and tabs included; Postgres [[:cntrl:]].
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/
+
+/**
+ * A trimmed brief the database accepts: 1 to BRIEF_MAX characters (code
+ * points, as Postgres length() counts them) and no control characters.
+ */
+export function isBriefText(brief: string): boolean {
+  const length = [...brief].length
+  return length >= 1 && length <= BRIEF_MAX && !CONTROL.test(brief)
+}
+
 /**
  * A slot's brief (DESIGN.md §5 Brief): a dish's own brief, else its
  * section's, else none; an amenity's catalogue capture brief; an area none.

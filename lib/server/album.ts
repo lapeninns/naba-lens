@@ -3,6 +3,7 @@ import "server-only"
 import {
   BRIEF_MAX,
   buildAlbum,
+  isBriefText,
   type AlbumBriefs,
   type AlbumInput,
   type AlbumView,
@@ -38,6 +39,12 @@ const MESSAGES: Record<string, CoverageFailure> = {
   not_active_user: NOT_PERMITTED,
   not_venue_manager: NOT_PERMITTED,
   wrong_venue: NOT_PERMITTED,
+  not_admin: NOT_PERMITTED,
+  venue_inactive: failure(
+    "state_conflict",
+    "This venue is turned off, so changes are paused. Ask an admin to check the venue."
+  ),
+  venue_required: failure("invalid_input", "Choose a venue first."),
   invalid_source: failure("invalid_input", "Reload the page."),
   invalid_key: failure("invalid_input", "Reload the page."),
   unknown_place: failure(
@@ -50,7 +57,7 @@ const MESSAGES: Record<string, CoverageFailure> = {
   ),
   unknown_slot: failure(
     "state_conflict",
-    "That section or dish is no longer on the active menu. Reload the page."
+    "That section, dish or category is no longer listed. Reload the page."
   ),
 }
 
@@ -71,26 +78,44 @@ export type AlbumPlacements = {
   sections: Array<{ sectionId: string; slug: string; name: string }>
 }
 
-/** The venue's places, where each group is placed, and the active menu's sections. */
-export async function getAlbumPlacements(
+type PlacementReads = {
+  places: { ok: true; places: AlbumPlacements["places"] } | CoverageFailure
+  placed:
+    | ({ ok: true } & Pick<AlbumPlacements, "placements" | "sections">)
+    | CoverageFailure
+}
+
+/** The two placement reads, each parsed on its own so a caller can keep one. */
+async function readAlbumPlacements(
   actor: MediaActor,
   venueId?: string
-): Promise<Result<AlbumPlacements>> {
+): Promise<PlacementReads> {
   const args = venueId ? { p_venue_id: venueId } : {}
   const [placesRead, placedRead] = await Promise.all([
-    actor.db.rpc("knowledge_subjects", args),
-    actor.db.rpc("album_places", args),
+    Promise.resolve(actor.db.rpc("knowledge_subjects", args)).catch(
+      (error: unknown) => ({ data: null, error: error as DbError })
+    ),
+    Promise.resolve(actor.db.rpc("album_places", args)).catch(
+      (error: unknown) => ({ data: null, error: error as DbError })
+    ),
   ])
-  if (placesRead.error) return albumFailure(placesRead.error, "album places")
+  const places: PlacementReads["places"] = placesRead.error
+    ? albumFailure(placesRead.error, "album places")
+    : {
+        ok: true,
+        places: rows(placesRead.data, "items").flatMap((row) => {
+          const label = text(row.label)
+          const kind = text(row.kind)
+          return isUuid(row.subjectId) && row.active !== false && label && kind
+            ? [{ subjectId: row.subjectId, kind, label }]
+            : []
+        }),
+      }
   if (placedRead.error)
-    return albumFailure(placedRead.error, "album placements")
-  const places = rows(placesRead.data, "items").flatMap((row) => {
-    const label = text(row.label)
-    const kind = text(row.kind)
-    return isUuid(row.subjectId) && row.active !== false && label && kind
-      ? [{ subjectId: row.subjectId, kind, label }]
-      : []
-  })
+    return {
+      places,
+      placed: albumFailure(placedRead.error, "album placements"),
+    }
   const placements = rows(placedRead.data, "items").flatMap(
     (row): PlacementInput[] => {
       const key = text(row.key)
@@ -109,7 +134,37 @@ export async function getAlbumPlacements(
       ? [{ sectionId: row.sectionId, slug, name }]
       : []
   })
-  return { ok: true, places, placements, sections }
+  return { places, placed: { ok: true, placements, sections } }
+}
+
+/** The venue's places, where each group is placed, and the active menu's sections. */
+export async function getAlbumPlacements(
+  actor: MediaActor,
+  venueId?: string
+): Promise<Result<AlbumPlacements>> {
+  const { places, placed } = await readAlbumPlacements(actor, venueId)
+  if (!places.ok) return places
+  if (!placed.ok) return placed
+  return {
+    ok: true,
+    places: places.places,
+    placements: placed.placements,
+    sections: placed.sections,
+  }
+}
+
+/**
+ * For staff Home: a failed read never fails the album. A failed placements
+ * read (album_places) reads as nothing placed, so every slot shows under Not
+ * placed yet; a failed places read leaves the area slots out as well.
+ */
+async function placementsOrNone(actor: MediaActor): Promise<AlbumPlacements> {
+  const { places, placed } = await readAlbumPlacements(actor)
+  return {
+    places: places.ok ? places.places : [],
+    placements: placed.ok ? placed.placements : [],
+    sections: placed.ok ? placed.sections : [],
+  }
 }
 
 /** Places a menu section (by slug) or amenity category, or clears it with null. */
@@ -223,8 +278,7 @@ export async function setAlbumBrief(
   if (input.brief !== null && typeof input.brief !== "string")
     return MESSAGES.invalid_brief
   const brief = input.brief?.trim() || null
-  if (brief && (brief.length > BRIEF_MAX || /[\r\n]/.test(brief)))
-    return MESSAGES.invalid_brief
+  if (brief && !isBriefText(brief)) return MESSAGES.invalid_brief
   const { data, error } = await actor.db.rpc("album_brief_set", {
     // The generated types do not know null is allowed; the function takes it.
     p_venue_id: (input.venueId ?? null) as string,
@@ -380,8 +434,9 @@ async function briefsOrNone(
 }
 
 /**
- * The caller's album. Amenity, area and brief reads that fail leave those
- * slots (or briefs) out rather than failing Home; the menu read is required.
+ * The caller's album. Placement, amenity, area and brief reads that fail
+ * leave those placements, slots (or briefs) out rather than failing Home; the
+ * menu read is required.
  */
 export async function loadAlbum(
   actor: MediaActor
@@ -390,14 +445,13 @@ export async function loadAlbum(
   const photos = slotPhotos(actor)
   const [placements, dishes, amenities, areas, retakes, briefs] =
     await Promise.all([
-      getAlbumPlacements(actor),
+      placementsOrNone(actor),
       allDishes(actor),
       allAmenities(actor, photos),
       allAreas(actor, photos),
       myRetakeItems(actor),
       briefsOrNone(actor),
     ])
-  if (!placements.ok) return placements
   if (!dishes) return unavailableFailure("album dishes", null)
   const input: AlbumInput = {
     places: placements.places,

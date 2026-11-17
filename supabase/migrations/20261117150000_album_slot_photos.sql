@@ -15,8 +15,9 @@ set lock_timeout = '5s';
 --                      that place's state is accepted or waiting (a retake
 --                      or withdrawn photo is not shown)
 --             amenity  an accepted amenity slot (active, in scope, complete,
---                      answered neither No nor Not applicable): the newest
---                      photo evidence on the answer in use
+--                      answered neither No nor Not applicable, and no service
+--                      end in effect, which reads as No in the answer in use):
+--                      the newest photo evidence on that answer
 --           Ready, undeleted still images only.
 --   Read    public.album_slot_photos(venue): those rows for the caller's
 --           venue (staff and managers at the venue; an admin names it).
@@ -85,6 +86,8 @@ as $$
       and sub.answer is distinct from 'no'
       and sub.answer is distinct from 'not_applicable'
       and private.knowledge_in_scope(c.venue_id, c.template_key)
+      -- A Yes whose service has ended reads as No (answerInUse, B03 A40).
+      and coalesce((private.knowledge_check_service_end(c.id, now()) ->> 'inEffect')::boolean, false) = false
       and sa.evidence_kind = 'photo'
       and a.deleted_at is null
       and a.upload_state = 'ready'
