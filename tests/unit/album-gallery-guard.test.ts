@@ -32,7 +32,6 @@ const CAMERA_SCOPE = [
   "app/staff",
   "components/nabalens/album",
   "components/nabalens/amenities/capture",
-  "components/nabalens/home",
   "components/nabalens/menu-photos",
   "components/nabalens/tasks",
 ]
@@ -49,7 +48,6 @@ const ICON_SCOPE = [
   "app/staff/tasks",
   "components/nabalens/album",
   "components/nabalens/amenities/capture",
-  "components/nabalens/home",
   "components/nabalens/menu-photos",
   "components/nabalens/tasks",
 ]
@@ -58,7 +56,6 @@ const ICON_SCOPE = [
 const WORD_SCOPE = [
   "app/staff/tasks",
   "components/nabalens/album",
-  "components/nabalens/home",
   "components/nabalens/menu-photos",
   "components/nabalens/tasks",
 ]
@@ -167,7 +164,6 @@ describe("Album guard: gallery only (DESIGN.md §2, §9)", () => {
       expect.arrayContaining([
         "components/nabalens/menu-photos/item-row.tsx",
         "components/nabalens/tasks/retake-notes.tsx",
-        "components/nabalens/home/still-needed-list.tsx",
         "components/nabalens/amenities/capture/capture-form.tsx",
         "app/staff/tasks/month/page.tsx",
       ])

@@ -132,14 +132,4 @@ describe("Me on the Album layout (proposal §7.6)", () => {
       /rank|leaderboard|top contributor|than your colleagues/i
     )
   })
-
-  it("leaves the month on Home for other layouts", async () => {
-    vi.stubEnv("NABALENS_HOME_LAYOUT", "goals")
-    coverage.getMyTasks.mockResolvedValue({ ok: false, message: "unread" })
-    render(await StaffPage())
-    expect(screen.queryByRole("heading", { name: "Your month" })).toBeNull()
-    expect(screen.queryByRole("link", { name: /^People/ })).toBeNull()
-    // Only the shell's own read: Me asks for no month of its own.
-    expect(coverage.getMyTasks).toHaveBeenCalledTimes(1)
-  })
 })

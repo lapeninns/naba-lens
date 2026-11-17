@@ -212,6 +212,10 @@ goals at every venue in one release, with no per-venue stage. This entry does
 not authorise a deploy, a migration or an environment change; those stay with
 the user under Gate 4.
 
+Album (below) replaces this Home. If both ship in the same release, send
+Album's venue note instead of the one here, and follow Album's steps for the
+environment and rollback: the layout switch this section relies on is gone.
+
 **Who tells the venues and when.** Aman Kumar Shrestha tells every venue on
 release day (decision 18, amended by the user on 15 Nov 2026).
 
@@ -262,24 +266,62 @@ never make them.
 2. On release day, Aman Kumar Shrestha sends the note to every venue. Record
    each venue and the date sent.
 3. (No waiting period: venues are told on release day.)
-4. In the production hosting environment, check `NABALENS_HOME_LAYOUT`. It
-   must be unset or `goals`, so the new default applies. If it says `b01` or
-   `b02`, remove it.
-5. In the same environment, check `NABALENS_HOME_LAYOUT_B01_VENUES`. It must be
-   empty or unset: any venue listed there stays on the old B01 Home whatever
-   the default.
-6. Apply the phase 1 migrations and deploy through the normal release path
+4. Apply the phase 1 migrations and deploy through the normal release path
    (Gates 2 to 4, v0.4 §5 release and rollback rules). Nothing here applies
    them.
-7. On a phone at one venue, check Home: Our menu with Still needed, Your month
-   with no due date, no Overdue on any dish, and an amenity check reachable
-   from **Other jobs**.
-8. Rollback, if needed: set `NABALENS_HOME_LAYOUT=b02` in production and
-   redeploy so the new value is read. This restores B02's To do Home only; no
-   data changes. Tell the venues if you do.
-9. One release after the cut-over, `b01` and `b02` are removed from the code
-   (decision 9). Then delete `NABALENS_HOME_LAYOUT` and
-   `NABALENS_HOME_LAYOUT_B01_VENUES` from every environment.
+5. On a phone at one venue, check Your month on **Me** with no due date, no
+   Overdue on any dish, and an amenity check reachable from **Other jobs**.
+
+## Release: Album is Home (A5)
+
+[DESIGN.md](design-system/DESIGN.md) §5a, decisions D8 and D9: staff Home is
+Album at every venue. The goal-led, B01 and B02 Home layouts and their switch
+are removed from the code, so there is no per-venue stage and no layout
+rollback. This entry does not authorise a deploy, a migration or an
+environment change; those stay with the user under Gate 4.
+
+| Item                               | Value                                      |
+| ---------------------------------- | ------------------------------------------ |
+| Who tells each venue               | Aman Kumar Shrestha                        |
+| Release date                       | not set yet                                |
+| Date venues are told (release day) | not set yet; record the actual date here   |
+| Venues told                        | every venue (record each one and the date) |
+
+**Note for every venue** (send as written, or in the same words):
+
+> From [release date], Naba-Lens opens on your venue's **album**. Every dish
+> and drink on the menu, every amenity and every part of the venue that needs
+> a photo has a slot, and the empty ones are drawn as gaps you can tap. Take
+> photos with your phone's own camera whenever service allows, then add them
+> from your gallery and tap the slot each one fills. A photo waits for review,
+> then it is **In the album**; if a reviewer asks for another, Album shows a
+> **Retake** with the reason. There are no due dates and nobody is ranked.
+> Your own month is on **Me**.
+
+**Note for venue managers** (send with the note above): set which part of the
+menu and which amenities belong to which place on **Album places**
+(`/manager/album`);
+until then every slot is under **Not placed yet**.
+
+**Steps for the user, in order.** Environment changes need the user; agents
+never make them.
+
+1. Set the release date and record it in the table above. On release day,
+   Aman Kumar Shrestha sends the notes to every venue; record each venue and
+   the date sent.
+2. Apply the Album migrations (A2 to A5) on staging, then production, through
+   the normal release path (Gates 2 to 4). Nothing here applies them.
+3. The code no longer reads `NABALENS_HOME_LAYOUT`,
+   `NABALENS_HOME_LAYOUT_B01_VENUES` or `NABALENS_HOME_LAYOUT_ALBUM_VENUES`.
+   Delete them from every environment after the deploy; leaving them set has
+   no effect.
+4. On a phone at one venue (Safari on iPhone and Chromium), check Album: the
+   venue's name and empty count first, the places, the empty slots of the
+   current place, a retake when one is open, and **Add photos from your
+   gallery** opening the phone's photos. Check there is no in-app camera, no
+   due date, no Overdue and no ranking anywhere on it.
+5. Rollback, if needed: redeploy the previous release. There is no layout
+   switch to flip; no data changes. Tell the venues if you do.
 
 ## Gate 4: PRODUCTION
 

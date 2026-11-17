@@ -26,7 +26,7 @@ export type AllowEntry = {
  * red test to pass.
  */
 export const MAX_ALLOWED = 35
-export const MAX_ALLOWED_DEV = 12
+export const MAX_ALLOWED_DEV = 9
 
 const HEADER_HAIRLINE =
   "The hairline under a header has no utility: shadow-bar is the line above a bottom bar."
@@ -327,10 +327,4 @@ export const DEV_ALLOW: AllowEntry[] = [
     reason:
       "The highlight and shade drawn on a sample photo, inside an SVG data URL that cannot read a token.",
   },
-  ...["#8a6d2f", "#6e4a5a", "#3f6b5a"].map((match): AllowEntry => ({
-    file: "app/(dev)/ui-preview/home/home-fixtures.ts",
-    rule: "raw-colour",
-    match,
-    reason: SAMPLE_FILL,
-  })),
 ]

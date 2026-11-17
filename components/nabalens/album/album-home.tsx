@@ -1,5 +1,6 @@
 "use client"
 
+import type * as React from "react"
 import Link from "next/link"
 import {
   ArrowUUpLeftIcon,
@@ -78,6 +79,7 @@ export function AlbumHome({
   canAdd,
   headingLevel = 1,
   blocked,
+  matchLater = null,
 }: {
   venueName: string
   album: AlbumView
@@ -87,6 +89,8 @@ export function AlbumHome({
   /** The screen's title level; 1 on a page, deeper when embedded (the dev gallery). */
   headingLevel?: 1 | 2 | 3 | 4
   blocked: string | null
+  /** The Match later row (§5a step 5), between the empty slots and the main button. */
+  matchLater?: React.ReactNode
 }) {
   const openAdd = useAdd()
   const Title = `h${headingLevel}` as "h1"
@@ -239,6 +243,8 @@ export function AlbumHome({
           )}
         </section>
       ) : null}
+
+      {matchLater}
 
       <div className="sticky bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+0.5rem)] z-dock md:static">
         <Button

@@ -4,11 +4,10 @@ import {
   loadMoreContributionsAction,
 } from "@/app/_knowledge/actions"
 import { AppShell } from "@/components/nabalens"
-import { YourMonthCard } from "@/components/nabalens/home/your-month-card"
+import { YourMonthCard } from "@/components/nabalens/album/your-month-card"
 import { YourFindings } from "@/components/nabalens/knowledge/findings-history"
 import { MyContributions } from "@/components/nabalens/knowledge/my-contributions"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
-import { homeLayout } from "@/lib/config/home-layout"
 import {
   myContributionsSurface,
   type MyContributionsSurface,
@@ -200,7 +199,8 @@ export default async function StaffPage({
   const profile = await requireActiveStaff()
   const auth = await getMediaActor("staff")
   if (!auth.ok) throw new Error("Not authorised.")
-  const album = homeLayout(profile.venueId) === "album"
+  // Album is the only staff Home since A5 (AL-8).
+  const album = true
   const [page, shell, params, menuPhotos, findings, notes, month] =
     await Promise.all([
       listOwnMedia(auth.actor),
