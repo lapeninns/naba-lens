@@ -78,7 +78,7 @@ export type OpenAddOptions = {
   onReady?: (assetIds: string[]) => boolean | void
   /**
    * Show the upload dialog at every width instead of the phone sheet (Me's
-   * own "Upload photos or videos").
+   * own "Add photos or videos").
    */
   dialog?: boolean
   /**

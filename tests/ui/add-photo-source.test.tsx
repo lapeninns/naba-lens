@@ -320,7 +320,7 @@ describe("Add sheet (phones)", () => {
     host(<Opener opts={{ dialog: true }} />)
     await user.click(screen.getByRole("button", { name: "Open" }))
     expect(
-      screen.getByRole("dialog", { name: "Upload photos or videos" })
+      screen.getByRole("dialog", { name: "Add photos or videos" })
     ).toBeTruthy()
   })
 })

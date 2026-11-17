@@ -432,7 +432,7 @@ export function StaffPortfolio({
     uploadBlocked || !openAdd ? null : (
       <Button variant={variant} onClick={() => openAdd({ dialog: true })}>
         <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-        Upload photos or videos
+        Add photos or videos
       </Button>
     )
 

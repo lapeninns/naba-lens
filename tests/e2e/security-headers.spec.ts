@@ -121,7 +121,7 @@ test("security headers are sent and the CSP allows upload, thumbnails, preview a
 
   // Upload a photo (signed PUT) and a video (TUS) through the real dialog.
   await page
-    .getByRole("button", { name: "Upload photos or videos" })
+    .getByRole("button", { name: "Add photos or videos" })
     .first()
     .click()
   const dialog = uploadSheet(page)

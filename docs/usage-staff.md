@@ -442,9 +442,9 @@ On task screens and amenity checks the sheet does not ask for labels. Each
 photo is handed to the screen as soon as it is ready, and you still choose
 **Send photos** (or **Submit finding**) there yourself.
 
-## Upload from Me
+## Add from Me
 
-On **Me**, **Upload photos or videos** opens the same Add with **Choose from
+On **Me**, **Add photos or videos** opens the same Add with **Choose from
 your photos** and, on some devices, **Take a photo**. The picker accepts JPEG,
 PNG, WebP and HEIC/HEIF photos, plus MP4, MOV and WebM videos; server
 validation can still reject a file.

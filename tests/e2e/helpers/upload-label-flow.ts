@@ -180,10 +180,10 @@ export const addTab = (page: Page) =>
  * Match instead (AL-1), so the label journeys start here.
  */
 export const meAddButton = (page: Page) =>
-  page.getByRole("button", { name: "Upload photos or videos" }).first()
+  page.getByRole("button", { name: "Add photos or videos" }).first()
 
 export const addSheet = (page: Page) =>
-  page.getByRole("dialog", { name: "Add photos" })
+  page.getByRole("dialog", { name: "Add photos", exact: true })
 
 /** The upload sheet once files are picked: "Saving 1 photo", "Saving 2 files". */
 export const savingSheet = (page: Page, title?: string) =>
@@ -241,9 +241,9 @@ export async function addFromLibrary(
   const trigger = meAddButton(page)
   if (taps) await taps.tap(trigger, "Add")
   else await trigger.click()
-  const sheet = page.getByRole("dialog", { name: "Upload photos or videos" })
+  const sheet = page.getByRole("dialog", { name: "Add photos or videos" })
   await expect(sheet).toBeVisible()
-  taps?.dialog("Upload photos or videos")
+  taps?.dialog("Add photos or videos")
   await pickFiles(
     page,
     sheet.getByRole("button", { name: /^Choose from your photos/ }),

@@ -91,6 +91,13 @@ describe("SlotTile", () => {
   it("says a photo is held on the phone when offline", () => {
     render(<SlotTile name="Darts board" state="sending" offline />)
     expect(screen.getByText("Saved on this phone")).toBeTruthy()
+    // The name matches what the tile shows, not "sending".
+    expect(
+      screen.getByRole("group", { name: "Darts board: saved on this phone" })
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole("group", { name: "Darts board: sending" })
+    ).toBeNull()
   })
 
   it("is one link when it has somewhere to go", () => {

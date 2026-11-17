@@ -377,7 +377,7 @@ unknown, so dispatch it.
 - _Missing on base:_ two assertions:
   - `reserveAsset` or `reserveUpload` for active staff whose venue is inactive
     returns `ok: false` (route level; only the DB RPC is tested now);
-  - `/staff` for that person hides "Upload photos or videos" and shows the setup
+  - `/staff` for that person hides "Add photos or videos" and shows the setup
     message.
 - _In flight:_ **visual** has "staff: long name and paused venue", a screenshot that
   may or may not assert that the Upload button is absent. Unknown.

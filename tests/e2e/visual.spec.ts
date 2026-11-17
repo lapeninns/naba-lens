@@ -599,12 +599,12 @@ test("staff: upload dialog states and focus return", async ({
 
   // Open by keyboard so focus return is meaningful.
   const uploadButton = page
-    .getByRole("button", { name: "Upload photos or videos" })
+    .getByRole("button", { name: "Add photos or videos" })
     .first()
   await uploadButton.focus()
   await page.keyboard.press("Enter")
   const dialog = uploadSheet(page)
-  await expect(dialog).toHaveAccessibleName("Upload photos or videos")
+  await expect(dialog).toHaveAccessibleName("Add photos or videos")
   await capture(page, testInfo, "upload-dialog")
 
   // A valid photo plus a rejected file.
@@ -657,7 +657,7 @@ test("staff: upload dialog states and focus return", async ({
     .soft(
       await activeElementMatches(
         page,
-        page.getByRole("button", { name: "Upload photos or videos" }).first()
+        page.getByRole("button", { name: "Add photos or videos" }).first()
       ),
       "focus returns to the Upload button after the upload dialog closes"
     )
@@ -935,7 +935,7 @@ test("staff: dark mode portfolio, viewer, upload dialog", async ({
   })
   await page.keyboard.press("Escape")
   await expect(page.getByRole("dialog")).toBeHidden()
-  await page.getByRole("button", { name: "Upload photos or videos" }).click()
+  await page.getByRole("button", { name: "Add photos or videos" }).click()
   await expect(page.getByRole("dialog")).toBeVisible()
   await capture(page, testInfo, "upload-dialog", {
     widths: some(page, testInfo, [390, 1280]),
@@ -962,7 +962,7 @@ test("staff: long name and paused venue", async ({
   await openPortfolio(paused)
   await expect(paused.getByText("uploads are paused")).toBeVisible()
   await expect(
-    paused.getByRole("button", { name: "Upload photos or videos" })
+    paused.getByRole("button", { name: "Add photos or videos" })
   ).toHaveCount(0)
   await capture(paused, testInfo, "staff-paused-venue")
   await paused.context().close()

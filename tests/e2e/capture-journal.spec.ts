@@ -140,7 +140,7 @@ async function recordProbe(page: Page, info: TestInfo) {
  */
 async function openAddSheet(page: Page) {
   await meAddButton(page).click()
-  const sheet = page.getByRole("dialog", { name: "Upload photos or videos" })
+  const sheet = page.getByRole("dialog", { name: "Add photos or videos" })
   await expect(sheet).toBeVisible()
   return sheet
 }

@@ -112,7 +112,7 @@ function setup() {
 
 // E7 is modal over the upload sheet, which is hidden from the a11y tree meanwhile.
 const uploadDialog = () =>
-  screen.getByRole("dialog", { name: "Upload photos or videos", hidden: true })
+  screen.getByRole("dialog", { name: "Add photos or videos", hidden: true })
 const statusLine = () =>
   within(uploadDialog()).getAllByRole("status", { hidden: true }).at(-1)!
 

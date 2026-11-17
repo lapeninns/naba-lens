@@ -239,7 +239,7 @@ export function UiPreview() {
                       onClick={() => setUploadOpen(true)}
                     >
                       <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-                      Upload photos or videos
+                      Add photos or videos
                     </Button>
                   </>
                 }
@@ -265,7 +265,7 @@ export function UiPreview() {
             action={
               <Button variant="primary" onClick={() => setUploadOpen(true)}>
                 <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-                Upload photos or videos
+                Add photos or videos
               </Button>
             }
           />

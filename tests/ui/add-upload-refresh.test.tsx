@@ -267,7 +267,7 @@ describe("global Add gallery refresh", () => {
 
     // Me's own upload opens the same global queue (no second dialog).
     await user.click(
-      screen.getByRole("button", { name: "Upload photos or videos" })
+      screen.getByRole("button", { name: "Add photos or videos" })
     )
     expect(
       screen.getAllByRole("button", { name: "Complete upload" })

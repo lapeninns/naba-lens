@@ -113,7 +113,7 @@ export async function objectsOf(uploaderId: string, assetId: string) {
  */
 export async function openUploadDialog(page: Page) {
   await page
-    .getByRole("button", { name: "Upload photos or videos" })
+    .getByRole("button", { name: "Add photos or videos" })
     .first()
     .click()
   const dialog = uploadSheet(page)
