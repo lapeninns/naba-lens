@@ -21,6 +21,7 @@ import { activateMenu, createMenuDraft } from "./helpers/menus"
 import { provisioner, psql } from "./helpers/stack"
 import {
   escape,
+  openOtherJobs,
   openPortfolio,
   portfolioList,
   savingTitle,
@@ -325,8 +326,8 @@ async function staffJourney(
   setup: Setup,
   browser: Browser
 ) {
-  // Goal-led Home (goals-not-tasks G-1): Your month on Home; the
-  // venue-specific job is one Other jobs row away, in the list page.
+  // Album is Home (DESIGN.md §5a): Your month is on Me; the venue-specific
+  // job is one Other jobs row away from Album (revb B2), in the list page.
   const monthly = page.getByRole("region", { name: "Your month", exact: true })
   const monthProgress = (accepted: number) =>
     monthly.getByRole("progressbar", {
@@ -338,12 +339,12 @@ async function staffJourney(
     has: page.getByRole("link", { name: setup.title, exact: true }),
   })
 
-  // Landing: Home with the month's target; the job is in Other jobs.
+  // Landing: Album, with the Other jobs row; the month's target is on Me.
   await expect(page).toHaveURL(STAFF_LANDING)
-  await expect(page.getByRole("heading", { name: "Home" })).toBeVisible()
+  await expect(page.locator('[data-slot="album-home"]')).toBeVisible()
+  await openPortfolio(page)
   await expect(monthProgress(0)).toBeVisible()
-  await page.getByRole("link", { name: /^Other jobs/ }).click()
-  await expect(page).toHaveURL(/\/staff\/tasks\/other$/)
+  await openOtherJobs(page)
   await expect(assigned.getByRole("link", { name: setup.title })).toBeVisible()
   await expect(
     taskCard.getByRole("img", { name: "0 of 2 photos accepted", exact: true })
@@ -396,11 +397,11 @@ async function staffJourney(
   await review(setup.manager, sent[0]!, "accepted")
   await review(setup.manager, sent[1]!, "needs_another_photo", reason)
 
-  await page.goto("/staff/tasks")
+  await openPortfolio(page)
   await expect(monthProgress(1)).toBeVisible()
-  // The retake note on Home, with Retake as the one main action.
+  // The retake note is on Me: Album's retake row is for dishes only (§5a).
   const replacements = page.getByRole("region", {
-    name: "Needs another photo",
+    name: /^Needs another photo/,
   })
   await expect(replacements.getByText(reason)).toBeVisible()
   await replacements
@@ -425,7 +426,7 @@ async function staffJourney(
   await review(setup.manager, replacement, "accepted")
 
   // Done: target met, nothing left to replace, the job complete in its list.
-  await page.goto("/staff/tasks")
+  await openPortfolio(page)
   await expect(monthProgress(2)).toBeVisible()
   await expect(monthly.getByText("Target met")).toBeVisible()
   await expect(page.getByRole("link", { name: /^Retake/ })).toHaveCount(0)
@@ -436,7 +437,7 @@ async function staffJourney(
 test.describe("coverage: staff tasks journey (WS5)", () => {
   test.setTimeout(240_000)
 
-  test("desktop: land on Home, send, replace on request, reach the target", async ({
+  test("desktop: land on Album, send, replace on request, reach the target", async ({
     browser,
   }) => {
     const w = await provisionCoverageWorld()
@@ -462,14 +463,15 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     const w = await provisionCoverageWorld()
     const page = await signedInPage(browser, w.joiner)
     await expect(page).toHaveURL(STAFF_LANDING)
-    const setupList = page.getByRole("list", { name: "Profile setup" })
-    await expect(setupList).toContainText("Team (FOH or BOH)")
-    await expect(setupList).toContainText("Ask an admin to set your team.")
+    // Your month is on Me (Album shell); it says what setup is missing.
+    await openPortfolio(page)
     const monthly = page.getByRole("region", {
       name: "Your month",
       exact: true,
     })
     await expect(monthly).toBeVisible()
+    await expect(monthly).toContainText("Your team (FOH or BOH) isn't set yet")
+    await expect(monthly).toContainText("Ask an admin to set it.")
     await expect(monthly.getByText("Target met")).toHaveCount(0)
     await expect(page.getByText("Needs setup").first()).toBeVisible()
   })

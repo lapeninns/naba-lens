@@ -65,11 +65,14 @@ export const OTHER_JOBS_PATH = "/staff/tasks/other"
 export const OTHER_JOBS = /\/staff\/tasks\/other$/
 
 /**
- * Opens Other jobs. Album (Home, DESIGN.md §5a) shows only the album, so
- * there is no Other jobs row on it any more: go to the page directly.
+ * Opens Other jobs the way staff do: the Other jobs row on Album (Home,
+ * under Match later). The row shows whenever a job waits on the person, so a
+ * spec that opens Other jobs proves it is reachable (revb B2).
  */
 export async function openOtherJobs(page: Page) {
-  await page.goto(OTHER_JOBS_PATH)
+  if (new URL(page.url()).pathname !== "/staff/tasks")
+    await page.goto("/staff/tasks")
+  await page.getByRole("link", { name: /^Other jobs/ }).click()
   await expect(page).toHaveURL(OTHER_JOBS)
 }
 

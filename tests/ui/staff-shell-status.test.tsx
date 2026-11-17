@@ -157,7 +157,6 @@ describe("staffShellStatus", () => {
       ],
     })
     expect(await staffShellStatus(ACTOR as never, PROFILE)).toEqual({
-      album: true,
       canManage: false,
       todoCount: 2,
       todoUnknown: false,
@@ -209,7 +208,6 @@ describe("staffShellStatus", () => {
     coverage.getCoverageScope.mockResolvedValue(scope(true))
     coverage.getManagerReviewCount.mockRejectedValue(new Error("down"))
     expect(await staffShellStatus(ACTOR as never, PROFILE)).toEqual({
-      album: true,
       canManage: true,
       todoCount: 0,
       todoUnknown: false,
@@ -325,7 +323,6 @@ describe("currentStaffShell", () => {
       actor: { ...ACTOR, profile: PROFILE },
     })
     expect(await currentStaffShell()).toEqual({
-      album: true,
       canManage: false,
       todoCount: 0,
       todoUnknown: false,
@@ -345,7 +342,6 @@ describe("currentStaffShell", () => {
   ])("never fails when the account read is %s", async (how, impl) => {
     coverage.getCoverageActor.mockImplementationOnce(async () => impl())
     expect(await currentStaffShell()).toEqual({
-      album: true,
       canManage: false,
       todoCount: undefined,
       // A refusal is no account to count for; a failure is a count unknown.

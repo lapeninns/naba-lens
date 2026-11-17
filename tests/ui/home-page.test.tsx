@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 // Staff Home is Album (DESIGN.md §5a, batch A5): the venue's album count,
 // the retake row, the places and their empty slots, one gallery-first main
-// button. Nothing of the old Home (To do, Our menu, Your month, Start here)
-// remains, and no layout switch chooses it.
+// button. Nothing of the old Home (To do, Our menu, Your month) remains, and
+// no layout switch chooses it. Start here (a new starter) and Other jobs
+// (assigned tasks, checks, venue questions) keep a row each (R-2, revb B2).
 import { cleanup, render, screen, within } from "@testing-library/react"
 import type * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -36,7 +37,26 @@ vi.mock("@/components/nabalens/app-shell", () => ({
   ),
 }))
 
-const ACTOR = { profile: { id: "me", venueId: "v1" }, db: {} }
+const media = vi.hoisted(() => ({
+  own: [{ id: "a1" }] as { id: string }[],
+  error: null as null | { message: string },
+}))
+const ACTOR = {
+  profile: { id: "me", venueId: "v1" },
+  db: {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          limit: async () => ({ data: media.own, error: media.error }),
+        }),
+      }),
+    }),
+  },
+}
+const jar = vi.hoisted(() => ({ legacy: false }))
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ has: () => jar.legacy }),
+}))
 
 const auth = vi.hoisted(() => ({
   profile: {
@@ -50,7 +70,7 @@ const auth = vi.hoisted(() => ({
       name: string
       active: boolean
     },
-    work: null,
+    work: null as null | { welcomeDismissedAt: string | null },
   },
   blocked: null as null | "not_staff" | "no_venue" | "venue_inactive",
 }))
@@ -71,7 +91,10 @@ vi.mock("@/lib/server/coverage", () => coverage)
 vi.mock("@/lib/server/media/library", () => ({ avatarUrl: () => null }))
 const album = vi.hoisted(() => ({ loadAlbum: vi.fn() }))
 vi.mock("@/lib/server/album", () => album)
-const amenities = vi.hoisted(() => ({ getCheck: vi.fn() }))
+const amenities = vi.hoisted(() => ({
+  getCheck: vi.fn(),
+  getMyAmenityTasks: vi.fn(),
+}))
 vi.mock("@/lib/server/amenities", () => amenities)
 const knowledge = vi.hoisted(() => ({ fail: false }))
 vi.mock("@/lib/knowledge-client/services", () => ({
@@ -80,8 +103,17 @@ vi.mock("@/lib/knowledge-client/services", () => ({
       knowledge.fail
         ? { ok: false, code: "unavailable" }
         : { ok: true, view: null },
+    listMyRechecks: async () => ({ ok: true, tasks: [] }),
   },
 }))
+vi.mock("@/app/staff/_shell/match-later", () => ({
+  listMatchLater: async () => [],
+}))
+
+const job = (kind: string, satisfied = false) => ({
+  canSubmit: true,
+  requirement: { kind, progress: { satisfied } },
+})
 
 import AlbumHomePage from "@/app/staff/tasks/page"
 
@@ -151,6 +183,15 @@ function setup({
   albumResult = undefined as unknown,
 } = {}) {
   auth.blocked = null
+  auth.profile.work = null
+  media.own = [{ id: "a1" }]
+  media.error = null
+  jar.legacy = false
+  coverage.getMyTasks.mockResolvedValue({
+    ok: true,
+    tasks: { assignments: [] },
+  })
+  amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
   coverage.getCoverageActor.mockResolvedValue({ ok: true, actor: ACTOR })
   coverage.getCoverageScope.mockResolvedValue({
     ok: true,
@@ -201,15 +242,15 @@ describe("Album is Home", () => {
     ).toBeTruthy()
   })
 
-  it("shows nothing of the old Home and reads none of its data", async () => {
+  it("shows nothing of the old Home and reads none of its menu data", async () => {
     setup()
     await home()
     for (const name of [/To do/, /Our menu/, /Your photos for/, /^Home$/]) {
       expect(screen.queryByRole("heading", { name })).toBeNull()
     }
-    expect(screen.queryByRole("link", { name: "Start here" })).toBeNull()
-    expect(screen.queryByRole("link", { name: "Other jobs" })).toBeNull()
-    expect(coverage.getMyTasks).not.toHaveBeenCalled()
+    // Someone with photos and no other jobs gets neither row.
+    expect(screen.queryByRole("link", { name: /Start here/ })).toBeNull()
+    expect(screen.queryByRole("link", { name: /Other jobs/ })).toBeNull()
     expect(coverage.getOurMenu).not.toHaveBeenCalled()
   })
 
@@ -365,5 +406,70 @@ describe("Album: Finding sent (§6.7)", () => {
     await home({ finding_sent: "c1" })
     expect(screen.getByText("TEST Inn album")).toBeTruthy()
     expect(screen.queryByText("Finding sent")).toBeNull()
+  })
+})
+
+describe("Album: Other jobs stay reachable (revb B2)", () => {
+  const rowOf = () =>
+    screen.queryByRole("link", { name: /Other jobs/ }) as HTMLAnchorElement
+
+  it("links to Other jobs under the Match later row when jobs wait on me", async () => {
+    setup()
+    coverage.getMyTasks.mockResolvedValue({
+      ok: true,
+      tasks: {
+        assignments: [
+          job("service"),
+          // Menu sections and met jobs are never counted.
+          job("menu_section"),
+          job("venue", true),
+        ],
+      },
+    })
+    amenities.getMyAmenityTasks.mockResolvedValue({
+      ok: true,
+      tasks: [{ id: "c1" }],
+    })
+    await home()
+    const row = rowOf()
+    expect(row.getAttribute("href")).toBe("/staff/tasks/other")
+    expect(row.textContent).toContain("2 jobs")
+    // Below the empty slots, above the main button (§5a step 5).
+    const main = screen.getByRole("button", {
+      name: /Add photos from your gallery/,
+    })
+    expect(
+      row.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it("keeps the row, without a number, when the jobs can't be counted", async () => {
+    setup()
+    amenities.getMyAmenityTasks.mockResolvedValue({ ok: false })
+    await home()
+    expect(rowOf().textContent).toContain("We couldn't count them")
+  })
+})
+
+describe("Album: Start here for a new starter (revb nit)", () => {
+  const startHere = () => screen.queryByRole("link", { name: /Start here/ })
+
+  it("offers the welcome until the person has a photo", async () => {
+    setup()
+    media.own = []
+    await home()
+    expect(startHere()?.getAttribute("href")).toBe("/staff/tasks/welcome")
+  })
+
+  it.each([
+    ["dismissed it", () => (auth.profile.work = { welcomeDismissedAt: "x" })],
+    ["has the old cookie", () => (jar.legacy = true)],
+    ["can't be checked", () => (media.error = { message: "down" })],
+  ])("stays away once the person %s", async (_, arrange) => {
+    setup()
+    media.own = []
+    arrange()
+    await home()
+    expect(startHere()).toBeNull()
   })
 })

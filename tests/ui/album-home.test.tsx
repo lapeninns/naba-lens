@@ -206,6 +206,37 @@ describe("Album place (DESIGN.md §6.2)", () => {
       within(drinks).getByRole("group", { name: "Aperol spritz: in the album" })
     ).toBeTruthy()
   })
+
+  it("names each section region, even when its name has spaces (revb should-fix 4)", () => {
+    const spaced = buildAlbum({
+      ...input,
+      placements: [
+        ...input.placements.filter((p) => p.source !== "amenity_category"),
+        {
+          source: "amenity_category",
+          key: "Games and amenities",
+          subjectId: BAR,
+        },
+      ],
+      amenities: input.amenities.map((a) => ({
+        ...a,
+        category: "Games and amenities",
+      })),
+    })
+    render(
+      <AlbumPlaceScreen
+        venueName="The Bell"
+        place={currentPlace(spaced, BAR)!}
+        canAdd
+      />
+    )
+    expect(
+      screen.getByRole("region", { name: "Games and amenities" })
+    ).toBeTruthy()
+    expect(screen.getByRole("region", { name: "Drinks" })).toBeTruthy()
+    for (const region of screen.getAllByRole("region"))
+      expect(region.getAttribute("aria-labelledby")).not.toMatch(/\s/)
+  })
 })
 
 describe("Album places (manager)", () => {

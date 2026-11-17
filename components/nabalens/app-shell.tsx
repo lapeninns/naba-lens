@@ -2,7 +2,6 @@ import Link from "next/link"
 import {
   ClipboardTextIcon,
   ForkKnifeIcon,
-  HouseIcon,
   ImagesIcon,
   ImagesSquareIcon,
   SignOutIcon,
@@ -15,9 +14,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 import { OfflineShell } from "./offline-notice"
-import { ProfileAvatar } from "./profile-avatar"
 import { AlbumAddTrigger } from "./album/album-add-trigger"
-import { AddTrigger } from "./shell/add-context"
 import { TabBadge } from "./shell/tab-badge"
 import { TAB_ITEM } from "./shell/tab-item"
 import { CountBadge } from "./status-chip"
@@ -42,20 +39,17 @@ type AppShellProps = {
        * manager page, action and RPC re-checks the grant.
        */
       canManage?: boolean
-      /** The phone bar's link to Me shows this photo, or initials. */
+      /** Kept for callers that pass the shell status; Me is a tab, so unused. */
       avatarUrl?: string | null
-      /** Things in To do, counted on Home while another section is open. */
+      /**
+       * The retakes Album shows (DESIGN.md §5a), counted on the Album tab
+       * while another section is open.
+       */
       todoCount?: number
-      /** To do couldn't be read: Home shows "?" rather than no badge. */
+      /** The retakes couldn't be read: the Album tab shows "?", not nothing. */
       todoUnknown?: boolean
       /** Photos waiting for this manager's decision, counted on Manage. */
       reviewCount?: number
-      /**
-       * The Album shell (DESIGN.md §5 Tab bar, §5a): three tabs, Album, Add
-       * photos (straight to the gallery) and Me. Set by staffShellStatus on
-       * the album Home layout; other layouts keep today's tabs.
-       */
-      album?: boolean
     }
   | {
       variant: "admin"
@@ -65,7 +59,7 @@ type AppShellProps = {
     }
 )
 
-type Icon = typeof HouseIcon
+type Icon = typeof ImagesIcon
 
 type NavItem<Id extends string> = {
   id: Id
@@ -93,41 +87,13 @@ const ADMIN_NAV: NavItem<AdminSection>[] = [
   },
 ]
 
-const HOME: NavItem<StaffSection> = {
-  id: "tasks",
-  label: "Home",
-  href: "/staff/tasks",
-  icon: HouseIcon,
-}
-/**
- * Our menu (menu items with an accepted photo). In the AppBar only: the phone
- * TabBar keeps its five tabs, and phones reach Our menu from Home's card.
- */
-const OUR_MENU: NavItem<StaffSection> = {
-  id: "menu",
-  label: "Our menu",
-  href: "/staff/menu",
-  icon: ForkKnifeIcon,
-}
-const PHOTOS: NavItem<StaffSection> = {
-  id: "community",
-  label: "Photos",
-  href: "/staff/community",
-  icon: ImagesIcon,
-}
-const PEOPLE: NavItem<StaffSection> = {
-  id: "people",
-  label: "People",
-  href: "/staff/people",
-  icon: UsersIcon,
-}
 const ME: NavItem<StaffSection> = {
   id: "portfolio",
   label: "Me",
   href: "/staff",
   icon: UserCircleIcon,
 }
-/** Album is Home on the album layout (DESIGN.md §5a): the same route. */
+/** Album is the staff Home (DESIGN.md §5a). */
 const ALBUM: NavItem<StaffSection> = {
   id: "tasks",
   label: "Album",
@@ -148,18 +114,18 @@ const BAR_LINK =
 
 /**
  * Page frame for signed-in pages. From md: the AppBar with the role's
- * sections, Add photos (staff) and Log out. Below md: a slim bar (wordmark,
- * and a link to Me for staff) and the TabBar pinned to the bottom.
+ * sections, Add photos (staff) and Log out. Below md: a slim bar with the
+ * wordmark, and the TabBar pinned to the bottom (staff: Album, Add photos and
+ * Me, DESIGN.md §5 Tab bar; Me holds Log out).
  */
 export function AppShell(props: AppShellProps) {
   const { children, userName, onLogout, className } = props
   const staff = props.variant === "staff" ? props : null
   const admin = props.variant === "admin" ? props : null
-  // Album has no To do (DESIGN.md §7, §9), so its tab carries no badge.
-  const album = !!staff?.album
-
-  const todo = (id: string) =>
-    staff && !album && id === "tasks" && active !== "tasks"
+  // The Album tab counts the retakes Album shows (DESIGN.md §5a), never
+  // the empty slots, and only while another section is open.
+  const retakes = (id: string) =>
+    staff && id === "tasks" && active !== "tasks"
       ? { count: staff.todoCount, unknown: !!staff.todoUnknown }
       : null
   const barItems: { item: NavItem<string>; href: string; count?: number }[] =
@@ -169,9 +135,10 @@ export function AppShell(props: AppShellProps) {
           href: admin.hrefs?.[item.id] ?? item.href,
         }))
       : [
-          // Album: its three places, and Manage. Our menu, Photos and
-          // People are reached from Me.
-          ...(album ? [ALBUM, ME] : [HOME, OUR_MENU, PHOTOS, PEOPLE, ME]),
+          // Album's places (DESIGN.md §5 Tab bar), and Manage. Our menu,
+          // Photos and People are reached from Me.
+          ALBUM,
+          ME,
           ...(staff?.canManage ? [MANAGE] : []),
         ].map((item) => ({
           item,
@@ -231,7 +198,7 @@ export function AppShell(props: AppShellProps) {
           >
             {barItems.map(({ item, href, count }) => {
               const current = active === item.id
-              const todoBadge = todo(item.id)
+              const retakeBadge = retakes(item.id)
               return (
                 <Link
                   key={item.id}
@@ -241,14 +208,7 @@ export function AppShell(props: AppShellProps) {
                   className={cn(
                     BAR_LINK,
                     current &&
-                      "font-extrabold text-accent-text shadow-[inset_0_-3px_0_var(--accent-text)] hover:text-accent-text",
-                    // Staff's five sections beside Add and Log out don't fit
-                    // from md to lg, nor a manager's six below xl; there Our
-                    // menu is reached from Home (and Manage) instead.
-                    item.id === "menu" &&
-                      (staff?.canManage
-                        ? "md:max-xl:hidden"
-                        : "md:max-lg:hidden")
+                      "font-extrabold text-accent-text shadow-[inset_0_-3px_0_var(--accent-text)] hover:text-accent-text"
                   )}
                 >
                   {item.label}
@@ -260,15 +220,13 @@ export function AppShell(props: AppShellProps) {
                       className="-ml-0.5"
                     />
                   ) : null}
-                  {/* The same To do count as the phone's Home tab. */}
-                  {todoBadge ? (
+                  {/* The same retake count as the phone's Album tab. */}
+                  {retakeBadge ? (
                     <TabBadge
                       placement="inline"
-                      count={todoBadge.count}
-                      unknown={todoBadge.unknown}
-                      label={
-                        todoBadge.count === 1 ? "thing to do" : "things to do"
-                      }
+                      count={retakeBadge.count}
+                      unknown={retakeBadge.unknown}
+                      label={retakeLabel(retakeBadge.count)}
                     />
                   ) : null}
                 </Link>
@@ -278,11 +236,7 @@ export function AppShell(props: AppShellProps) {
           <div className="ml-auto flex min-w-0 items-center gap-2">
             {staff ? (
               <div className="hidden md:block">
-                {album ? (
-                  <AlbumAddTrigger kind="bar" />
-                ) : (
-                  <AddTrigger kind="bar" />
-                )}
+                <AlbumAddTrigger kind="bar" />
               </div>
             ) : null}
             {userName ? (
@@ -301,25 +255,6 @@ export function AppShell(props: AppShellProps) {
                 </form>
               )}
             </div>
-            {/* Album has Me as a tab, so no second way to it up here. */}
-            {staff && !album ? (
-              <Link
-                href={ME.href}
-                className="-mr-1 grid size-12 place-items-center rounded-round focus-ring outline-none md:hidden"
-              >
-                {/* The avatar is aria-hidden, so this text is the whole name.
-                    axe's label-content-name-mismatch flags an aria-label that
-                    omits the visible initials; a text name is not checked. */}
-                <span className="sr-only">
-                  {userName ? `Me: ${userName}` : "Me"}
-                </span>
-                <ProfileAvatar
-                  name={userName ?? "Me"}
-                  src={staff.avatarUrl}
-                  size="sm"
-                />
-              </Link>
-            ) : null}
           </div>
         </div>
       </header>
@@ -346,22 +281,19 @@ export function AppShell(props: AppShellProps) {
                 current={active === item.id}
               />
             ))
-          : (album ? [ALBUM, null, ME] : [HOME, PHOTOS, null, PEOPLE, ME]).map(
-              (item) =>
-                item ? (
-                  <TabLink
-                    key={item.id}
-                    item={item}
-                    href={item.href}
-                    current={active === item.id}
-                    count={todo(item.id)?.count}
-                    unknown={todo(item.id)?.unknown}
-                  />
-                ) : album ? (
-                  <AlbumAddTrigger key="add" kind="tab" />
-                ) : (
-                  <AddTrigger key="add" kind="tab" />
-                )
+          : [ALBUM, null, ME].map((item) =>
+              item ? (
+                <TabLink
+                  key={item.id}
+                  item={item}
+                  href={item.href}
+                  current={active === item.id}
+                  count={retakes(item.id)?.count}
+                  unknown={retakes(item.id)?.unknown}
+                />
+              ) : (
+                <AlbumAddTrigger key="add" kind="tab" />
+              )
             )}
       </nav>
     </div>
@@ -398,11 +330,11 @@ function TabLink({
     >
       <Icon aria-hidden className="size-[26px]" />
       {item.label}
-      <TabBadge
-        count={count}
-        unknown={unknown}
-        label={count === 1 ? "thing to do" : "things to do"}
-      />
+      <TabBadge count={count} unknown={unknown} label={retakeLabel(count)} />
     </Link>
   )
+}
+
+function retakeLabel(count: number | undefined) {
+  return count === 1 ? "retake" : "retakes"
 }

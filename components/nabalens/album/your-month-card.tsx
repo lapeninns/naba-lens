@@ -101,7 +101,7 @@ export function TargetProgress({ monthly }: { monthly: MonthlyProgress }) {
  */
 
 const LINK =
-  "inline-flex min-h-11 w-fit items-center gap-1 rounded-control text-body font-bold text-ink underline underline-offset-3 focus-ring outline-none"
+  "inline-flex min-h-12 w-fit items-center gap-1 rounded-control text-body font-bold text-ink underline underline-offset-3 focus-ring outline-none"
 
 /**
  * Your month, one person's goal (v0.5 §1): the monthly target and how far

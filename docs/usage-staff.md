@@ -29,29 +29,38 @@ computer it is in the top bar.
 
 ## Find your way around
 
-On a phone, the TabBar at the bottom has **Home**, **Photos**, **Add**,
-**People** and **Me**. **Add** is the raised button in the middle. From a
-tablet or computer the same sections are in the top bar, with **Add photos**
-in place of **Add**; venue managers also see **Manage** there. On a phone,
-**Manage** is the first row on **Me**.
+On a phone, the tab bar at the bottom has **Album**, **Add photos** and
+**Me**. **Add photos** opens your phone's photos straight away. While a
+reviewer has asked you for another photo, the **Album** tab shows how many
+retakes are waiting. From a tablet or computer the same places are in the top
+bar, with **Add photos** as a button; venue managers also see **Manage** there.
+On a phone, **Manage** is the first row on **Me**. **Our menu**, **Photos**,
+**People** and **Other jobs** are rows on **Me**.
 
 - **Album** (`/staff/tasks`, the staff Home): every photo your venue still
   needs, as empty slots grouped by place, and any request for another photo.
-- **Photos** (`/staff/community`): ready photos and videos from colleagues
-  across Lapen Inns.
-- **Add**: take or choose photos and upload them.
-- **People** (`/staff/people`): find colleagues and see what they've shared.
-- **Me** (`/staff`): your profile, work details and your own photos and
-  videos (your portfolio) and, for venue managers, **Manage**.
+- **Add photos**: choose photos from your phone's gallery and match each one
+  to the slot it fills.
+- **Me** (`/staff`): your profile, your month, work details, your own photos
+  and videos (your portfolio) and, for venue managers, **Manage**.
+- **Photos** (`/staff/community`, linked from **Me**): ready photos and
+  videos from colleagues across Lapen Inns.
+- **People** (`/staff/people`, linked from **Me**): find colleagues and see
+  what they've shared.
 - **Our menu** (`/staff/menu`, linked from **Me**): which dishes and
   drinks on your venue's menu still need a photo.
+- **Other jobs** (`/staff/tasks/other`, a row on **Album** and on **Me** when
+  any wait on you): assigned jobs, amenity checks and venue questions that
+  are not menu photos.
 
 ## Start here and your work details
 
 A short welcome (`/staff/tasks/welcome`) explains your portfolio and what
 happens to a photo, then offers **Add your work details**, an optional
-profile photo, and the photo buttons. Open it from **Me** with **How
-Naba-Lens works**; **Back to Me** returns you.
+profile photo, and the photo buttons. Until you add your first photo or
+dismiss the welcome, **Album** shows a **Start here** row that opens it. You
+can always open it from **Me** with **How Naba-Lens works**; **Back to Me**
+returns you.
 
 **Work details** (`/staff/profile`, or **Edit work details** on **Me**) asks
 **What do you do at [venue]?** and shows your name and venue. Choose one main
@@ -93,7 +102,12 @@ Top to bottom:
    every slot in that place. Tap an empty dish slot to add its photo from your
    gallery; tap an amenity slot to answer its question first.
 5. **Match later**, when you have photos that are not matched to a slot yet.
-6. One main button, **Add photos from your gallery**.
+6. **Other jobs**, when an assigned job, an amenity check or a venue question
+   waits on you. It opens the list of them (`/staff/tasks/other`).
+7. One main button, **Add photos from your gallery**.
+
+A new starter also sees **Start here** under the album count (see
+[Start here](#start-here-and-your-work-details)).
 
 Each slot shows its state with a frame, an icon and a word: **Add** (empty),
 **Sending**, **Waiting** (for review), **Retake** (with the reviewer's reason),
@@ -113,7 +127,8 @@ To count a photo that isn't of one dish (a section spread, the bar set-up, the
 garden), send it to your month: choose **Add photos for this month** on
 **Your month** (on **Me**). It opens **Monthly photos** (`/staff/tasks/month`), which also
 lists **Past months**, read-only. Amenity checks and other venue jobs are sent
-from their own page, listed under **Other jobs** (`/staff/tasks/other`).
+from their own page, listed under **Other jobs** (`/staff/tasks/other`,
+the **Other jobs** row on **Album** or **Me**).
 
 1. Choose **Send photos** (or **Send more photos**). Use **Choose from your
    photos** or **Take a photo** to add new ones, or pick your own ready photos
@@ -193,7 +208,8 @@ photos and past months stay credited to the old venue.
 
 When your manager assigns you an amenity question (for example step-free
 entrance, parking or guest Wi-Fi), it is a slot on **Album** in its place, and
-the check is listed under **Other jobs** (`/staff/tasks/other`) with **Needs capture**, or **Needs recheck** and the manager's reason when they
+the check is listed under **Other jobs** (`/staff/tasks/other`, the **Other
+jobs** row on **Album** or **Me**) with **Needs capture**, or **Needs recheck** and the manager's reason when they
 asked you to look again. Amenity checks are separate from monthly photo
 targets: they never count toward them.
 

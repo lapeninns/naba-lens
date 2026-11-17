@@ -16,11 +16,10 @@ import {
   TUS,
   watchStorage,
 } from "../fixtures/uploads/support"
-import { addJustPhotos } from "./helpers/add-entry"
 import { openEmailLink } from "./helpers/email-link"
 import { provisioner, requireIsolatedStack } from "./helpers/stack"
 import { STAFF_LANDING } from "./helpers/ui"
-import { addSheet, addTab, savingSheet } from "./helpers/upload-label-flow"
+import { meAddButton, savingSheet } from "./helpers/upload-label-flow"
 import { provisionWorld, signedInPage, type Person } from "./helpers/world"
 
 /**
@@ -135,11 +134,20 @@ async function recordProbe(page: Page, info: TestInfo) {
   })
 }
 
-/** Phone Add while idle: tab, Just photos, then the library in the Add sheet. */
-async function pickFromAdd(page: Page, files: string[]) {
-  await addJustPhotos(page, addTab(page))
-  const sheet = addSheet(page)
+/**
+ * Me's Add while idle: the upload sheet, which holds the resume block. The
+ * Album tab's Add photos opens Match (DESIGN.md §6.1), not this sheet.
+ */
+async function openAddSheet(page: Page) {
+  await meAddButton(page).click()
+  const sheet = page.getByRole("dialog", { name: "Upload photos or videos" })
   await expect(sheet).toBeVisible()
+  return sheet
+}
+
+/** Me's Add, then the library in the upload sheet. */
+async function pickFromAdd(page: Page, files: string[]) {
+  const sheet = await openAddSheet(page)
   const chooser = page.waitForEvent("filechooser")
   await sheet.getByRole("button", { name: /^Choose from your photos/ }).click()
   await (await chooser).setFiles(files)
@@ -162,9 +170,10 @@ async function holdPatchesFrom(page: Page, offset: number) {
   return held
 }
 
+/** Me, where Add with the upload sheet (and its resume block) lives. */
 async function openStaff(page: Page) {
-  await page.goto("/staff/tasks")
-  await expect(page).toHaveURL(STAFF_LANDING)
+  await page.goto("/staff")
+  await expect(page).toHaveURL(/\/staff$/)
 }
 
 /** Signs `who` in on this page (same browser context: same device). */
@@ -217,9 +226,7 @@ test("capture-journal: a photo closed mid-TUS continues with one tap, the same a
   await page.close()
   const again = await context.newPage()
   await openStaff(again)
-  await addJustPhotos(again, addTab(again))
-  const sheet = addSheet(again)
-  await expect(sheet).toBeVisible()
+  const sheet = await openAddSheet(again)
 
   const storage = watchStorage(again)
   if (entry!.bytes === 0) {
@@ -285,8 +292,7 @@ test("capture-journal: a video that didn't finish shows the re-pick copy, keeps 
   await page.close()
   const again = await context.newPage()
   await openStaff(again)
-  await addJustPhotos(again, addTab(again))
-  const sheet = addSheet(again)
+  const sheet = await openAddSheet(again)
   await expect(sheet).toContainText(CAPTURE_COPY.reselectLine(VIDEO))
   await expect(
     sheet.getByRole("button", { name: CAPTURE_COPY.continueLabel(VIDEO) })
@@ -334,9 +340,8 @@ test("capture-journal: sign-out mid-upload empties the journal and keys; account
   // Account B on the same device: nothing of A is shown.
   await signInHere(page, world.staffB)
   await expect(page).toHaveURL(STAFF_LANDING)
-  await addJustPhotos(page, addTab(page))
-  const sheet = addSheet(page)
-  await expect(sheet).toBeVisible()
+  await openStaff(page)
+  const sheet = await openAddSheet(page)
   await expect(sheet.locator("[data-capture-resume]")).toHaveCount(0)
   await expect(sheet).not.toContainText(PHOTO)
   expect(await journal(page)).toEqual([])

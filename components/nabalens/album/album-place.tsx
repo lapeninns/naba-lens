@@ -1,5 +1,6 @@
 "use client"
 
+import { useId } from "react"
 import Link from "next/link"
 import { ArrowLeftIcon, ImagesIcon } from "@phosphor-icons/react"
 
@@ -28,6 +29,9 @@ export function AlbumPlaceScreen({
   headingLevel?: 1 | 2 | 3 | 4
 }) {
   const openAdd = useAdd()
+  // Section names have spaces ("Games and amenities"), and aria-labelledby
+  // reads an id with spaces as several ids: name each heading by index.
+  const idBase = useId()
   const Title = `h${headingLevel}` as "h1"
   const Section = `h${headingLevel + 1}` as "h2"
   const add = (opts: OpenAddOptions) => {
@@ -56,15 +60,15 @@ export function AlbumPlaceScreen({
         </p>
       </header>
 
-      {place.groups.map((group) => (
+      {place.groups.map((group, index) => (
         <section
           key={group.name}
-          aria-labelledby={`group-${group.name}`}
+          aria-labelledby={`${idBase}-group-${index}`}
           className="grid gap-2"
         >
           <div className="flex items-baseline justify-between gap-3">
             <Section
-              id={`group-${group.name}`}
+              id={`${idBase}-group-${index}`}
               className="type-section-title text-ink"
             >
               {group.name}

@@ -1269,15 +1269,18 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
   const { w, requirementId, askedAgain } = await seedCoverageScenes()
   const page = await signIn(browser, w.staffA.email, baseURL!)
   await expect(page).toHaveURL(STAFF_LANDING)
-  // Goal-led Home: the request is the retake note (G-3), which names who
-  // asked (decision 21).
-  const note = page.getByRole("region", { name: "Needs another photo" })
+  // Album is Home (§5a): its retake row is for dishes, so a task's request is
+  // the retake note on Me (G-3), which names who asked (decision 21).
+  await expect(page.locator('[data-slot="album-home"]')).toBeVisible()
+  await capture(page, testInfo, "coverage-staff-home")
+  await expectFocusVisibleEverywhere(page, "coverage-staff-home")
+  await page.goto("/staff")
+  const note = page.getByRole("region", { name: /^Needs another photo/ })
   await expect(
     note.getByText("The door is half open; take it closed, from the street.")
   ).toBeVisible()
   await expect(note).toContainText(w.manager.name)
-  await capture(page, testInfo, "coverage-staff-home")
-  await expectFocusVisibleEverywhere(page, "coverage-staff-home")
+  await capture(page, testInfo, "coverage-staff-me-retake")
 
   await page.goto(`/staff/tasks/${requirementId}`)
   await expect(
