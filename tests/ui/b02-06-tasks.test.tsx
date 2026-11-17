@@ -39,7 +39,7 @@ describe("This month (HM-15, HM-23)", () => {
     ).toBeTruthy()
   })
 
-  it("draws no bar and no \"of\" without a target number", () => {
+  it('draws no bar and no "of" without a target number', () => {
     render(
       <MonthlyProgressCard
         monthly={monthly({ targetCount: null })}
@@ -79,17 +79,13 @@ describe("photos sent notice (HM-17)", () => {
     render(<PhotosSentNotice>2 photos sent to Soup.</PhotosSentNotice>)
     const notice = screen.getByRole("status")
     expect(document.activeElement).toBe(notice)
-    expect(replace).toHaveBeenCalledWith(
-      null,
-      "",
-      "/staff/tasks?view=all#todo"
-    )
+    expect(replace).toHaveBeenCalledWith(null, "", "/staff/tasks?view=all#todo")
   })
 })
 
 describe("send panel copy (UP-20, UP-22, UP-24)", () => {
-  it("says a photo was uploaded for another venue, not taken there", () => {
-    expect(ineligibleCopy("wrong_venue")).toBe("Uploaded for a different venue.")
+  it("says a photo was added for another venue, not taken there", () => {
+    expect(ineligibleCopy("wrong_venue")).toBe("Added for a different venue.")
   })
 
   it("counts only processing photos as waiting", () => {

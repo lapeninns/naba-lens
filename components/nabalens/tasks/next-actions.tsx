@@ -3,7 +3,7 @@
 import * as React from "react"
 import { flushSync } from "react-dom"
 import Link from "next/link"
-import { CameraIcon } from "@phosphor-icons/react/dist/ssr"
+import { ArrowUUpLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { buttonVariants } from "@/components/ui/button"
 import { EVIDENCE_RULE_LABEL, staffCaptureHref } from "@/lib/amenities/contract"
@@ -106,8 +106,8 @@ function RetakeCard({
   }
   const content = (
     <>
-      <CameraIcon data-icon="inline-start" aria-hidden />
-      Take a new photo
+      <ArrowUUpLeftIcon data-icon="inline-start" aria-hidden />
+      Retake
     </>
   )
   return (
@@ -125,10 +125,11 @@ function RetakeCard({
       {openAdd ? (
         <button
           type="button"
-          aria-label={`Take a new photo of ${dish}`}
-          // openAdd clicks the camera input inside this click handler.
+          aria-label={`Retake ${dish}`}
+          // openAdd clicks the library input inside this click handler
+          // (gallery first, DESIGN.md §2).
           onClick={() =>
-            openAdd({ source: "camera", imagesOnly: true, preset })
+            openAdd({ source: "library", imagesOnly: true, preset })
           }
           className={action(primary)}
         >
@@ -137,7 +138,7 @@ function RetakeCard({
       ) : (
         <Link
           href={`${portfolioPath}#better-heading`}
-          aria-label={`Take a new photo of ${dish}`}
+          aria-label={`Retake ${dish}`}
           className={action(primary)}
         >
           {content}

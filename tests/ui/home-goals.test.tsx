@@ -228,24 +228,29 @@ describe("Goal-led Home: Our menu states", () => {
     ["no_menu", "Menu photos will appear once your venue’s menu is set up"],
     ["empty", "The active menu has no dishes or drinks yet."],
     ["unavailable", "Menu photos can't be shown right now. Try again later."],
-  ] as const)("%s says so, with no camera and no Complete", (state, words) => {
-    renderHome({ ourMenu: { state } })
-    expect(screen.getByText(words)).toBeTruthy()
-    expect(
-      screen.queryByRole("button", { name: /camera|Take a photo/ })
-    ).toBeNull()
-    expect(screen.queryByText(/accepted photo\.$/)).toBeNull()
-    expect(primaries()).toHaveLength(0)
-  })
+  ] as const)(
+    "%s says so, with no Add photos and no Complete",
+    (state, words) => {
+      renderHome({ ourMenu: { state } })
+      expect(screen.getByText(words)).toBeTruthy()
+      expect(
+        screen.queryByRole("button", { name: /camera|Take a photo|Add photos/ })
+      ).toBeNull()
+      expect(screen.queryByText(/accepted photo\.$/)).toBeNull()
+      expect(primaries()).toHaveLength(0)
+    }
+  )
 
-  it("needs_setup: no camera dead end and never complete", () => {
+  it("needs_setup: no Add photos dead end and never complete", () => {
     renderHome({ ourMenu: { state: "needs_setup" } })
     expect(
       screen.getByText(
         "Your venue's menu appears here once an admin assigns your venue."
       )
     ).toBeTruthy()
-    expect(screen.queryByRole("button", { name: "Open camera" })).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Add photos from your gallery" })
+    ).toBeNull()
     expect(screen.queryByText(/Every dish and drink/)).toBeNull()
     expect(primaries()).toHaveLength(0)
   })
@@ -296,11 +301,11 @@ describe("Goal-led Home: Our menu states", () => {
     expect(within(row).getByText("Waiting for review")).toBeTruthy()
     // A colleague can still add a photo of it.
     expect(
-      within(row).getByRole("button", { name: "Take a photo of this dish" })
+      within(row).getByRole("button", { name: "Add photos of this dish" })
     ).toBeTruthy()
   })
 
-  it("complete: Open camera is the one primary action", () => {
+  it("complete: Add photos from your gallery is the one primary action", () => {
     const openAdd = vi.fn()
     renderHome(
       {
@@ -313,13 +318,15 @@ describe("Goal-led Home: Our menu states", () => {
         "Every dish and drink on the menu has an accepted photo."
       )
     ).toBeTruthy()
-    const camera = screen.getByRole("button", { name: "Open camera" })
-    expect(primaries()).toEqual([camera])
-    fireEvent.click(camera)
-    expect(openAdd).toHaveBeenCalledWith({ source: "camera" })
+    const add = screen.getByRole("button", {
+      name: "Add photos from your gallery",
+    })
+    expect(primaries()).toEqual([add])
+    fireEvent.click(add)
+    expect(openAdd).toHaveBeenCalledWith({ source: "library" })
   })
 
-  it("leads with the first Still needed dish, which opens the camera with its label", () => {
+  it("leads with the first Still needed dish, which opens the phone's photos with its label", () => {
     const openAdd = vi.fn()
     const first = dish("Samosa")
     renderHome(
@@ -330,13 +337,13 @@ describe("Goal-led Home: Our menu states", () => {
       .getByRole("heading", { name: "Samosa" })
       .closest("article") as HTMLElement
     const take = within(row).getByRole("button", {
-      name: "Take a photo of this dish",
+      name: "Add photos of this dish",
     })
     expect(primaries()).toEqual([take])
     fireEvent.click(take)
     expect(openAdd).toHaveBeenCalledWith(
       expect.objectContaining({
-        source: "camera",
+        source: "library",
         preset: expect.objectContaining({ itemId: first.itemId }),
       })
     )
@@ -346,7 +353,7 @@ describe("Goal-led Home: Our menu states", () => {
     renderHome({ canAdd: false, blocked: "Your venue isn't taking photos." })
     expect(screen.getByRole("heading", { name: "Samosa" })).toBeTruthy()
     expect(
-      screen.queryByRole("button", { name: "Take a photo of this dish" })
+      screen.queryByRole("button", { name: "Add photos of this dish" })
     ).toBeNull()
     expect(primaries()).toHaveLength(0)
   })
@@ -361,30 +368,30 @@ describe("Goal-led Home: Our menu states", () => {
 })
 
 describe("Goal-led Home: the retake note and one main action", () => {
-  it("an open retake note makes Reshoot the one primary action", () => {
+  it("an open retake note makes Retake the one primary action", () => {
     const openAdd = vi.fn()
     renderHome({ notes: [menuNote()] }, openAdd)
-    const reshoot = screen.getByRole("button", { name: "Reshoot: Korma" })
+    const reshoot = screen.getByRole("button", { name: "Retake: Korma" })
     expect(primaries()).toEqual([reshoot])
     expect(
       screen.getByRole("region", { name: "Needs another photo" })
     ).toBeTruthy()
-    // Decision 14: Later sits beside Reshoot, grey.
+    // Decision 14: Later sits beside Retake, grey.
     expect(screen.getByRole("button", { name: "Later: Korma" })).toBeTruthy()
     expect(screen.getByText("Too dark")).toBeTruthy()
     fireEvent.click(reshoot)
     expect(openAdd).toHaveBeenCalledWith(
       expect.objectContaining({
-        source: "camera",
+        source: "library",
         preset: expect.objectContaining({ itemId: "i1" }),
       })
     )
   })
 
-  it("a coverage request on a month photo reshoots through its replacement link", () => {
+  it("a coverage request on a month photo retakes through its replacement link", () => {
     renderHome({ notes: [monthNote()] })
     const link = screen.getByRole("link", {
-      name: "Reshoot: Photo for your month",
+      name: "Retake: Photo for your month",
     })
     expect(link.getAttribute("href")).toBe("/staff/tasks/month?replaces=s1")
     expect(primaries()).toEqual([link])
@@ -418,7 +425,7 @@ describe("Goal-led Home: the retake note and one main action", () => {
 })
 
 describe("Goal-led Home: model", () => {
-  it("orders the primary action: Reshoot, then the first dish, then Open camera", () => {
+  it("orders the primary action: Retake, then the first dish, then Add photos", () => {
     const menu = ready()
     expect(goalsPrimary({ notes: [menuNote()], menu, canAdd: true })).toEqual({
       kind: "reshoot",
@@ -433,7 +440,7 @@ describe("Goal-led Home: model", () => {
         menu: ready({ covered: 40, gaps: 0, stillNeeded: [] }),
         canAdd: true,
       })
-    ).toEqual({ kind: "open_camera" })
+    ).toEqual({ kind: "add_photos" })
     expect(goalsPrimary({ notes: [], menu, canAdd: false })).toBeNull()
     expect(
       goalsPrimary({ notes: [], menu: { state: "needs_setup" }, canAdd: true })
@@ -491,7 +498,7 @@ describe("Goal-led Home: model", () => {
       screen.queryByRole("region", { name: "Needs another photo" })
     ).toBeNull()
     expect(primaries()).toHaveLength(1)
-    expect(screen.queryByRole("button", { name: /^Reshoot/ })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^Retake/ })).toBeNull()
   })
 
   it("shows the labels row under the retake note, never as the blue action (decision 19)", () => {
@@ -504,7 +511,7 @@ describe("Goal-led Home: model", () => {
     })
     expect(row.getAttribute("href")).toBe("/staff#needs-labels-heading")
     expect(primaries()).toEqual([
-      screen.getByRole("button", { name: "Reshoot: Korma" }),
+      screen.getByRole("button", { name: "Retake: Korma" }),
     ])
   })
 

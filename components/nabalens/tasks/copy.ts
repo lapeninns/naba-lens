@@ -42,13 +42,13 @@ const INELIGIBLE_COPY: Partial<Record<AssetIneligibleReason, string>> = {
   evidence_removed: "This photo was deleted or is no longer available.",
   not_image: "Videos don't count toward photo tasks.",
   // The venue it was uploaded for: where it was taken isn't known.
-  wrong_venue: "Uploaded for a different venue.",
-  uploader_inactive: "This photo's uploader is no longer active.",
+  wrong_venue: "Added for a different venue.",
+  uploader_inactive: "The person who added this photo is no longer active.",
   already_submitted: "Already sent for this task.",
   declined_here: "Needs another photo here. Send a different one.",
   counted_elsewhere: "Already counting toward another task.",
   outside_period:
-    "Uploaded before this month, so it can't count toward this month.",
+    "Added before this month, so it can't count toward this month.",
 }
 
 export function ineligibleCopy(reason: string | null | undefined): string {
@@ -78,7 +78,7 @@ const FAILURE_COPY: Record<CoverageErrorCode, FailureCopy> = {
   },
   wrong_venue: {
     message:
-      "These photos were uploaded for a different venue, so they can't count here.",
+      "These photos were added for a different venue, so they can't count here.",
     action: null,
   },
   not_found: {
@@ -293,10 +293,10 @@ export const OWN_WORK_COPY = {
 /** The retake note block (G-3; decisions 4, 12 and 14). */
 export const RETAKE_COPY = {
   heading: "Needs another photo",
-  reshoot: "Reshoot",
-  choose: "Choose from photos",
+  /** Opens the phone's photos for this slot (DESIGN.md §4, §7). */
+  retake: "Retake",
   later: "Later",
-  again: "Take another",
+  again: "Add another",
   sent: "New photo sent · waiting for review",
   setAside: "Set aside for later. It stays here until a new photo is accepted.",
   monthPhoto: "Photo for your month",
@@ -307,6 +307,6 @@ export const RETAKE_COPY = {
   laterFailed: "We couldn't set this aside. Try again.",
   laterDone: "Set aside for later. It stays on Me.",
   meIntro:
-    "A reviewer would like another photo. Take a new one and it goes to them for review.",
+    "A reviewer would like another photo. Add a new one from your gallery and it goes to them for review.",
   listLabel: "Photos that need another photo",
 } as const

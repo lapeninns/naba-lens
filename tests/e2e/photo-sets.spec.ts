@@ -102,7 +102,7 @@ test("tandoor set: one forced failure, replaced; one acknowledgement from the se
   const row = page.getByRole("article", { name: dish })
   await pick(
     page,
-    () => row.getByRole("button", { name: "Choose from photos" }).click(),
+    () => row.getByRole("button", { name: "Add photos of this dish" }).click(),
     [file("photo.jpg"), file("photo.png"), file("corrupt.jpg")]
   )
 

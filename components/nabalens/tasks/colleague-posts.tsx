@@ -61,7 +61,7 @@ export function ColleaguePosts({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={item.thumbnailUrl!}
-                  alt={`Photo by ${item.contributorName}, ${item.venueName}, uploaded ${formatDate(item.createdAt)}`}
+                  alt={`Photo by ${item.contributorName}, ${item.venueName}, added ${formatDate(item.createdAt)}`}
                   loading="lazy"
                   decoding="async"
                 />

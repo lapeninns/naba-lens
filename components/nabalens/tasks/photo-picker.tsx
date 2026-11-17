@@ -91,7 +91,7 @@ export function PhotoPicker({
                   type="button"
                   aria-pressed={isSelected}
                   aria-disabled={blocked || undefined}
-                  aria-label={`Photo uploaded ${formatDateTime(photo.uploadedAt)}`}
+                  aria-label={`Photo added ${formatDateTime(photo.uploadedAt)}`}
                   aria-describedby={note ? noteId : undefined}
                   onClick={() => {
                     if (!blocked) onToggle(photo.assetId)

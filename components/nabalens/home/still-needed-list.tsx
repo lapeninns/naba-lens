@@ -1,6 +1,6 @@
 "use client"
 
-import { CameraIcon } from "@phosphor-icons/react"
+import { ImagesIcon } from "@phosphor-icons/react"
 
 import {
   OUR_MENU_LIST_CLASS,
@@ -13,7 +13,7 @@ import type { OurMenuItem } from "@/lib/server/coverage/types"
 
 /**
  * Home's Still needed rows: the same dish row as Our menu (name, state word,
- * "Take a photo of this dish" with the dish as a label). Nobody owns a dish,
+ * "Add photos of this dish" with the dish as a label). Nobody owns a dish,
  * so the rows carry no person, date or due state. A person who may not add
  * photos sees the dishes with no actions.
  */
@@ -24,7 +24,7 @@ export function StillNeededList({
 }: {
   items: OurMenuItem[]
   canAdd: boolean
-  /** The dish whose camera is Home's one main action, if any. */
+  /** The dish whose Add photos is Home's one main action, if any. */
   primaryItemId?: string | null
 }) {
   return (
@@ -43,10 +43,11 @@ export function StillNeededList({
 }
 
 /**
- * The menu is complete: Home's one main action opens the camera for any
- * photo (goals decision 12). Hidden outside the staff layout.
+ * The menu is complete: Home's one main action opens the phone's photos for
+ * any photo (goals decision 12; gallery first, DESIGN.md §2). Hidden outside
+ * the staff layout.
  */
-export function OpenCameraButton() {
+export function AddPhotosButton() {
   const openAdd = useAdd()
   if (!openAdd) return null
   return (
@@ -54,11 +55,11 @@ export function OpenCameraButton() {
       variant="primary"
       size="lg"
       className="w-full sm:w-auto"
-      // openAdd clicks the camera input inside this click handler.
-      onClick={() => openAdd({ source: "camera" })}
+      // openAdd clicks the library input inside this click handler.
+      onClick={() => openAdd({ source: "library" })}
     >
-      <CameraIcon data-icon="inline-start" aria-hidden />
-      Open camera
+      <ImagesIcon data-icon="inline-start" aria-hidden />
+      Add photos from your gallery
     </Button>
   )
 }

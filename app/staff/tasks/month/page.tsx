@@ -52,7 +52,7 @@ export const maxDuration = 120
 const MONTH_PATH = `${TASKS_PATH}/month`
 const PAST_MONTHS = 3
 const PHOTO_SUMMARY =
-  "Accepted photos count toward your target. Each photo counts for the month its upload started."
+  "Accepted photos count toward your target. Each photo counts for the month it was added."
 const COMPLETION_SUMMARY =
   "Each menu item counts once after its photo is accepted. Each completed amenity check counts once. Any mix can meet your monthly target."
 

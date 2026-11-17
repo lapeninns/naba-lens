@@ -175,14 +175,14 @@ describe("global Add gallery refresh", () => {
         )
       )
       const selected = screen.getByRole("button", {
-        name: "Photo uploaded 2 Nov 2026, 10:00",
+        name: "Photo added 2 Nov 2026, 10:00",
       })
       await user.click(selected)
       await user.click(screen.getByRole("button", { name: "Add photos" }))
       await user.click(screen.getByRole("button", { name: "Complete upload" }))
       expect(
         await screen.findByRole("button", {
-          name: "Photo uploaded 2 Nov 2026, 15:00",
+          name: "Photo added 2 Nov 2026, 15:00",
         })
       ).toBeTruthy()
       expect(selected.getAttribute("aria-pressed")).toBe("true")

@@ -52,47 +52,33 @@ function renderRow(
   )
 }
 
-describe("Our menu dish row: Take a photo of this dish", () => {
-  it("offers the camera first, then the photo library, both naming the dish", () => {
+// Gallery first (DESIGN.md §2, §9; AL-6): the dish row's one way to add a
+// photo opens the phone's photos with the dish applied. It used to offer the
+// in-app camera ("Take a photo of this dish") first.
+describe("Our menu dish row: Add photos of this dish", () => {
+  it("offers the phone's photos only, naming the dish", () => {
     renderRow(vi.fn())
     const row = screen.getByRole("article", { name: "Momo" })
     const buttons = within(row).getAllByRole("button")
-    expect(buttons.map((b) => b.textContent)).toEqual([
-      OUR_MENU_COPY.takePhoto,
-      OUR_MENU_COPY.choosePhoto,
-    ])
-    expect(OUR_MENU_COPY.takePhoto).toBe("Take a photo of this dish")
-    expect(OUR_MENU_COPY.choosePhoto).toBe("Choose from photos")
-    for (const button of buttons) {
-      const describedBy = button.getAttribute("aria-describedby")
-      expect(document.getElementById(describedBy!)?.textContent).toBe("Momo")
-    }
-    // No old library-only wording is left.
-    expect(within(row).queryByText("Add a photo of this dish")).toBeNull()
+    expect(buttons.map((b) => b.textContent)).toEqual([OUR_MENU_COPY.addPhotos])
+    expect(OUR_MENU_COPY.addPhotos).toBe("Add photos of this dish")
+    const describedBy = buttons[0].getAttribute("aria-describedby")
+    expect(document.getElementById(describedBy!)?.textContent).toBe("Momo")
+    // No camera wording is left.
+    expect(within(row).queryByText(/Take a photo|camera/i)).toBeNull()
+    expect(within(row).queryByText("Choose from photos")).toBeNull()
   })
 
-  it("opens the camera for photos only, with the dish applied (no variant picked)", async () => {
+  it("opens the photo library for photos only, with the dish applied (no variant picked)", async () => {
     const user = userEvent.setup()
     const openAdd = vi.fn()
     renderRow(openAdd)
     await user.click(
-      screen.getByRole("button", { name: "Take a photo of this dish" })
+      screen.getByRole("button", { name: "Add photos of this dish" })
     )
-    // One app tap opens the camera with the dish as the label; Add applies it
-    // as a removable chip and starts the upload, so Done is the second tap.
+    // One app tap opens the phone's photos with the dish as the label; Add
+    // applies it as a removable chip and starts sending.
     expect(openAdd).toHaveBeenCalledTimes(1)
-    expect(openAdd).toHaveBeenCalledWith({
-      source: "camera",
-      imagesOnly: true,
-      preset: PRESET,
-    })
-  })
-
-  it("opens the photo library with the same dish", async () => {
-    const user = userEvent.setup()
-    const openAdd = vi.fn()
-    renderRow(openAdd)
-    await user.click(screen.getByRole("button", { name: "Choose from photos" }))
     expect(openAdd).toHaveBeenCalledWith({
       source: "library",
       imagesOnly: true,
@@ -113,13 +99,13 @@ describe("Our menu dish row: Take a photo of this dish", () => {
       within(row).getByRole("link", { name: "All photos of this dish" })
     ).toBeTruthy()
     // Every dish row offering a blue button would break one blue per screen.
-    const camera = within(row).getByRole("button", {
-      name: "Take a photo of this dish",
+    const add = within(row).getByRole("button", {
+      name: "Add photos of this dish",
     })
-    expect(camera.getAttribute("data-variant")).not.toBe("primary")
+    expect(add.getAttribute("data-variant")).not.toBe("primary")
   })
 
-  it("offers nothing to people who cannot upload", () => {
+  it("offers nothing to people who cannot add photos", () => {
     renderRow(vi.fn(), { canAdd: false })
     expect(screen.queryByRole("button")).toBeNull()
   })

@@ -16,7 +16,7 @@ import { homePrompt } from "@/lib/config/work-roles"
 afterEach(cleanup)
 
 describe("ContributeCard", () => {
-  it("asks the role's question and opens the library first, then the camera", () => {
+  it("asks the role's question and opens the phone's photos, never a camera (DESIGN.md §2, §9)", () => {
     const openAdd = vi.fn<(opts?: OpenAddOptions) => void>()
     render(
       <AddProvider value={{ openAdd }}>
@@ -31,12 +31,9 @@ describe("ContributeCard", () => {
     const buttons = screen.getAllByRole("button")
     expect(buttons.map((b) => b.textContent)).toEqual([
       "Choose from your photos",
-      "Take a photo",
     ])
     fireEvent.click(buttons[0])
     expect(openAdd).toHaveBeenLastCalledWith({ source: "library" })
-    fireEvent.click(buttons[1])
-    expect(openAdd).toHaveBeenLastCalledWith({ source: "camera" })
   })
 
   it("uses the general question without a role", () => {

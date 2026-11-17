@@ -11,7 +11,7 @@ import {
   type OurMenuGoal,
 } from "./goals-home-model"
 import { NO_MENU_COPY } from "./our-menu-card"
-import { OpenCameraButton, StillNeededList } from "./still-needed-list"
+import { AddPhotosButton, StillNeededList } from "./still-needed-list"
 
 /** Focusable: a notice above that goes away hands focus here. */
 export const OUR_MENU_HEADING_ID = "our-menu-heading"
@@ -91,8 +91,8 @@ export function OurMenuGoalCard({
             <div className="grid gap-3 border-t border-line pt-3">
               <p className="text-body text-ink">{COPY.complete}</p>
               <p className="text-meta text-ink-muted">{COPY.completeHint}</p>
-              {primary?.kind === "open_camera" && canAdd ? (
-                <OpenCameraButton />
+              {primary?.kind === "add_photos" && canAdd ? (
+                <AddPhotosButton />
               ) : null}
             </div>
           ) : menu.gaps > 0 ? (

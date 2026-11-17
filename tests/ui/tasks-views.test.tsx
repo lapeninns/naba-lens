@@ -920,9 +920,7 @@ describe("Home: From your colleagues", () => {
       screen.getByRole("link", { name: "Colleague 1's profile" })
     ).toBeTruthy()
     expect(
-      screen.getByAltText(
-        "Photo by Colleague 1, The Railway, uploaded 2 Nov 2026"
-      )
+      screen.getByAltText("Photo by Colleague 1, The Railway, added 2 Nov 2026")
     ).toBeTruthy()
     expect(screen.queryByAltText(/Colleague 4/)).toBeNull()
     expect(

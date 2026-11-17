@@ -386,11 +386,12 @@ for (const width of [360, 412]) {
 
     const input = await pickFiles(
       page,
-      dish.getByRole("button", { name: "Take a photo of this dish" }),
+      dish.getByRole("button", { name: "Add photos of this dish" }),
       [photo.path],
       taps
     )
-    expect(input.capture).toBe("environment")
+    // Gallery first (DESIGN.md §2, §9): the photo library, not the camera.
+    expect(input.capture).toBeNull()
     const sheet = savingSheet(page, "Saving 1 photo")
     await expect(sheet).toBeVisible()
     // The dish is already applied, as a chip staff could remove.
@@ -409,7 +410,7 @@ for (const width of [360, 412]) {
       .toBe("Onion Bhaji")
   })
 
-  test(`d2 @${width}: Choose from photos on a dish opens the photo library, photos only`, async ({
+  test(`d2 @${width}: Add photos of this dish opens the photo library, photos only`, async ({
     browser,
   }) => {
     test.setTimeout(180_000)
@@ -422,7 +423,7 @@ for (const width of [360, 412]) {
     // The OS picker is the only feedback the tap gives: it must open.
     const input = await pickFiles(
       page,
-      dish.getByRole("button", { name: "Choose from photos" }),
+      dish.getByRole("button", { name: "Add photos of this dish" }),
       [photo.path]
     )
     expect(input.capture).toBeNull()

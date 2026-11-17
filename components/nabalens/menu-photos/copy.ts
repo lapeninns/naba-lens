@@ -21,10 +21,11 @@ export const OUR_MENU_COPY = {
   needsVenue: "You need to be assigned to a venue first",
   needsVenueText:
     "An admin can add you to your venue. Then its menu appears here.",
-  /** Primary: opens the camera with the dish applied as a label. */
-  takePhoto: "Take a photo of this dish",
-  /** Secondary: the photo library, the dish applied the same way. */
-  choosePhoto: "Choose from photos",
+  /**
+   * Opens the phone's photos with the dish applied as a label (gallery
+   * first, DESIGN.md §2; there is no in-app camera, §9).
+   */
+  addPhotos: "Add photos of this dish",
   gaps: "Still needs a photo",
   allDishes: "All dishes",
   allSections: "All sections",
@@ -53,7 +54,7 @@ export const ITEM_REVIEW_COPY = {
   summary:
     "Labelled photos waiting for a decision, oldest first. Accepting a photo for a dish counts it for Our menu; it's already shared in Photos either way.",
   labellingNote:
-    "Only photos labelled with a dish appear here. Unlabelled photos need labelling by their uploader first; managers can't label a colleague's photo.",
+    "Only photos labelled with a dish appear here. Unlabelled photos need labelling by whoever added them first; managers can't label a colleague's photo.",
   toReview: "To review",
   allDishes: "All dishes",
   emptyQueue:

@@ -14,8 +14,9 @@ import { ENTRY_COPY } from "../shell/entry-copy"
 
 /**
  * Home's invitation to add photos: a question that follows the person's work
- * details ("What did you cook today?"), the photo library first and the
- * camera second. Both open the one Add queue's picker in the same click.
+ * details ("What did you cook today?") and the phone's photos (gallery first,
+ * DESIGN.md §2; no in-app camera, §9). It opens the one Add queue's picker in
+ * the same click.
  */
 export function ContributeCard({
   prompt,
@@ -63,7 +64,8 @@ export function ContributeCard({
             <PhotoSourceActions
               layout="row"
               libraryVariant="secondary"
-              onChoose={(source) => openAdd({ source })}
+              cameraHidden
+              onChoose={() => openAdd({ source: "library" })}
             />
             {canAnswer ? (
               <Button
