@@ -46,6 +46,7 @@ import {
   type MenuSubject,
   type ReviewContext,
 } from "@/components/nabalens/album/review/model"
+import { reviewHref } from "@/components/nabalens/manager/review/links"
 import type { AreaPhotoCard } from "@/lib/server/area-photos"
 import type { QueueCard } from "@/lib/server/menu-photos/types"
 
@@ -306,6 +307,30 @@ describe("which Review the page opens", () => {
     expect(reviewModeOf({ contributor: id(1) })).toBe("list")
     expect(reviewModeOf({ item: id(1) })).toBe("list")
     expect(REVIEW_LIST_HREF).toBe("/manager/review?view=list")
+  })
+
+  it("a list filter's link keeps the full list, even with every filter cleared", () => {
+    const cleared = {
+      status: "pending" as const,
+      sectionId: null,
+      contributorId: null,
+      itemId: null,
+    }
+    const modeOf = (href: string) =>
+      reviewModeOf(
+        Object.fromEntries(new URL(href, "http://x").searchParams) as never
+      )
+    expect(reviewHref({ kind: "manager" }, cleared)).toBe(
+      "/manager/review?view=list"
+    )
+    expect(modeOf(reviewHref({ kind: "manager" }, cleared))).toBe("list")
+    expect(
+      modeOf(reviewHref({ kind: "manager" }, { ...cleared, sectionId: id(1) }))
+    ).toBe("list")
+    // The admin page has no Review in a thumb; its links stay bare.
+    expect(reviewHref({ kind: "admin", venueId: id(2) }, cleared)).toBe(
+      `/admin/coverage/${id(2)}/menu-photos`
+    )
   })
 })
 
