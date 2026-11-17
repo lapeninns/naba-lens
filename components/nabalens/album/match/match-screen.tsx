@@ -29,8 +29,18 @@ export type MatchOutcome =
   | { kind: "later" }
   | { kind: "shared"; shared: SharedKind }
 
-/** How a decided photo is getting on in Add's queue. */
-export type SendState = "sending" | "waiting" | "failed" | "offline"
+/**
+ * How a decided photo is getting on in Add's queue. "refused": the queue
+ * would not take it (too large, say); it is still in the gallery.
+ */
+export type SendState = "sending" | "waiting" | "failed" | "offline" | "refused"
+
+/**
+ * After a choice, a finger's tap this soon on the next photo's picker is the
+ * same double tap (the list moves under it), not a choice (§6.1). Keyboard
+ * and single mouse clicks are never held back.
+ */
+export const MATCH_TAP_GUARD_MS = 400
 
 /** Where "See the album" goes: Album, the staff Home. */
 export const ALBUM_HREF = "/staff/tasks"
@@ -55,6 +65,7 @@ export function MatchScreen({
   current,
   last,
   notice = null,
+  busySlots,
   onDecide,
   onClose,
 }: {
@@ -69,6 +80,11 @@ export function MatchScreen({
   last: string | null
   /** A line about the pick itself (more photos than Match takes). */
   notice?: string | null
+  /**
+   * Slots this phone is already sending a photo to (an earlier Match): never
+   * suggested or found, so a slot is not sent twice.
+   */
+  busySlots?: ReadonlyMap<string, unknown>
   onDecide: (key: string, outcome: MatchOutcome) => void
   onClose: () => void
 }) {
@@ -98,19 +114,44 @@ export function MatchScreen({
   const done = firstOpen === null && (shown === null || !!decided)
   const taken = React.useMemo(
     () =>
-      new Set(
-        [...outcomes.values()].flatMap((o) =>
+      new Set([
+        ...[...outcomes.values()].flatMap((o) =>
           o.kind === "slot" ? [o.slot.id] : []
-        )
-      ),
-    [outcomes]
+        ),
+        ...(busySlots?.keys() ?? []),
+      ]),
+    [outcomes, busySlots]
   )
   const titleId = React.useId()
+  const titleRef = React.useRef<HTMLHeadingElement>(null)
+  const summaryRef = React.useRef<HTMLHeadingElement>(null)
+  const lastChoice = React.useRef(-Infinity)
+  const pointerType = React.useRef<string | null>(null)
+  /** A tap that is the tail of a double tap on the choice before it. */
+  const strayTap = (event: React.MouseEvent) => {
+    if (event.detail === 0) return false
+    if (performance.now() - lastChoice.current >= MATCH_TAP_GUARD_MS)
+      return false
+    return (
+      event.detail > 1 ||
+      pointerType.current === "touch" ||
+      pointerType.current === "pen"
+    )
+  }
+  // Each choice brings a new picker (or the end): focus goes to the title
+  // ("Photo 2 of 5"), or to the end's heading, never to the page (§8).
+  const [moved, setMoved] = React.useState(0)
+  React.useEffect(() => {
+    if (moved === 0) return
+    ;(summaryRef.current ?? titleRef.current)?.focus()
+  }, [moved])
 
   const decide = (outcome: MatchOutcome) => {
     if (!photo) return
+    lastChoice.current = performance.now()
     onDecide(photo.key, outcome)
     setShown(null)
+    setMoved((n) => n + 1)
   }
 
   return (
@@ -130,7 +171,9 @@ export function MatchScreen({
         <div className="flex items-center justify-between gap-3 border-b border-line px-3 py-2">
           <DialogTitle
             id={titleId}
-            className="type-section-title text-ink tabular-nums"
+            ref={titleRef}
+            tabIndex={-1}
+            className="type-section-title text-ink tabular-nums outline-none"
           >
             {done
               ? MATCH_COPY.title
@@ -168,6 +211,7 @@ export function MatchScreen({
 
           {done ? (
             <Summary
+              headingRef={summaryRef}
               photos={photos}
               outcomes={outcomes}
               sendStates={sendStates}
@@ -179,7 +223,17 @@ export function MatchScreen({
                 file={photo.file}
                 alt={MATCH_COPY.photoOf(index + 1, photos.length)}
               />
-              <div className="px-3">
+              <div
+                className="px-3"
+                onPointerDownCapture={(event) => {
+                  pointerType.current = event.pointerType
+                }}
+                onClickCapture={(event) => {
+                  if (!strayTap(event)) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+              >
                 {decided ? (
                   <Decided
                     outcome={decided}
@@ -296,6 +350,7 @@ function Stage({ file, alt }: { file: File; alt: string }) {
 function stateWord(state: SendState | null) {
   if (state === "waiting") return MATCH_COPY.waiting
   if (state === "failed") return MATCH_COPY.notSent
+  if (state === "refused") return MATCH_COPY.notAddedWord
   if (state === "offline") return MATCH_COPY.savedOnPhone
   return MATCH_COPY.sending
 }
@@ -304,7 +359,7 @@ function StateIcon({ state }: { state: SendState | null }) {
   const cls = "size-5 shrink-0"
   if (state === "waiting")
     return <ArrowUpIcon aria-hidden weight="bold" className={cls} />
-  if (state === "failed")
+  if (state === "failed" || state === "refused")
     return <WarningIcon aria-hidden weight="bold" className={cls} />
   if (state === "offline")
     return <CloudArrowUpIcon aria-hidden className={cls} />
@@ -322,13 +377,17 @@ function Decided({
 }) {
   return (
     <p className="flex items-center gap-2 text-body text-ink" role="status">
-      {outcome.kind === "slot" ? <StateIcon state={state} /> : null}
+      {outcome.kind === "slot" || state === "refused" ? (
+        <StateIcon state={state} />
+      ) : null}
       <span>
         {outcome.kind === "slot"
           ? `${outcome.slot.name}: ${stateWord(state)}`
-          : outcome.kind === "later"
-            ? MATCH_COPY.matchLater
-            : MATCH_COPY.sharedKind(outcome.shared)}
+          : state === "refused"
+            ? MATCH_COPY.notAddedWord
+            : outcome.kind === "later"
+              ? MATCH_COPY.matchLater
+              : MATCH_COPY.sharedKind(outcome.shared)}
       </span>
     </p>
   )
@@ -336,11 +395,13 @@ function Decided({
 
 /** The end of Match (§6.1 step 6). */
 function Summary({
+  headingRef,
   photos,
   outcomes,
   sendStates,
   onClose,
 }: {
+  headingRef: React.Ref<HTMLHeadingElement>
   photos: readonly MatchPhoto[]
   outcomes: ReadonlyMap<string, MatchOutcome>
   sendStates: ReadonlyMap<string, SendState>
@@ -350,22 +411,35 @@ function Summary({
     const outcome = outcomes.get(photo.key)
     return outcome?.kind === "slot" ? [{ photo, slot: outcome.slot }] : []
   })
+  // A photo the queue refused is under neither: it is still in the gallery.
   const count = (kind: MatchOutcome["kind"]) =>
-    photos.filter((p) => outcomes.get(p.key)?.kind === kind).length
+    photos.filter(
+      (p) =>
+        outcomes.get(p.key)?.kind === kind &&
+        sendStates.get(p.key) !== "refused"
+    ).length
   const later = count("later")
   const shared = count("shared")
   const failed = photos.filter((p) => sendStates.get(p.key) === "failed").length
+  const refused = photos.filter(
+    (p) => sendStates.get(p.key) === "refused"
+  ).length
+  const filled = matched.filter(
+    ({ photo }) => sendStates.get(photo.key) !== "refused"
+  ).length
   return (
     <section
       className="grid gap-4 px-3 pt-3"
       data-slot="match-summary"
       aria-live="polite"
     >
-      <p className="type-page-title text-ink tabular-nums">
-        {matched.length > 0
-          ? MATCH_COPY.filled(matched.length)
-          : MATCH_COPY.noneFilled}
-      </p>
+      <h3
+        ref={headingRef}
+        tabIndex={-1}
+        className="type-page-title text-ink tabular-nums outline-none"
+      >
+        {filled > 0 ? MATCH_COPY.filled(filled) : MATCH_COPY.noneFilled}
+      </h3>
       {matched.length > 0 ? (
         <>
           <p className="text-body text-ink">{MATCH_COPY.next}</p>
@@ -415,6 +489,11 @@ function Summary({
       {failed > 0 ? (
         <Notice tone="negative" role="alert">
           {MATCH_COPY.failedLine(failed)}
+        </Notice>
+      ) : null}
+      {refused > 0 ? (
+        <Notice tone="negative" role="alert">
+          {MATCH_COPY.refusedLine(refused)}
         </Notice>
       ) : null}
       <LinkButton

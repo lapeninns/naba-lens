@@ -43,6 +43,21 @@ export const MATCH_COPY = {
   waiting: "Waiting",
   notSent: "Not sent",
   savedOnPhone: "Saved on this phone",
+  notAddedWord: "Not added",
+  photosOnly: "Only photos can be matched.",
+  /** Photos Match left in the gallery, each group with the queue's reason. */
+  notAdded: (reasons: readonly string[]) => {
+    const groups = new Map<string, number>()
+    for (const reason of reasons)
+      groups.set(reason, (groups.get(reason) ?? 0) + 1)
+    return [...groups]
+      .map(([reason, n]) =>
+        n === 1
+          ? `1 photo was left in your gallery. ${reason}`
+          : `${n} photos were left in your gallery. ${reason}`
+      )
+      .join(" ")
+  },
   tooMany: (max: number, extra: number) =>
     extra === 1
       ? `You can match ${max} photos at a time. 1 photo was left in your gallery.`
@@ -63,6 +78,10 @@ export const MATCH_COPY = {
     n === 1
       ? "1 photo didn't send. Open Add photos to send it again."
       : `${n} photos didn't send. Open Add photos to send them again.`,
+  refusedLine: (n: number) =>
+    n === 1
+      ? "1 photo could not be added. It is still in your gallery."
+      : `${n} photos could not be added. They are still in your gallery.`,
   seeAlbum: "See the album",
 } as const
 

@@ -155,7 +155,21 @@ type AddContextValue = {
    * the entry off: a dish button needs "dish".
    */
   intents?: readonly EntryIntent[] | null
+  /**
+   * Slots whose photo this phone matched and is sending or has sent, by the
+   * album's slot id ("dish:<id>", "area:<id>"): Album's tiles show them so
+   * (DESIGN.md §4, §6.8) until the album itself reads them.
+   */
+  slots?: ReadonlyMap<string, SlotSend>
+  /** The album reads this slot itself now: its tile no longer needs `slots`. */
+  settleSlot?: (slotId: string) => void
 }
+
+/**
+ * A matched photo on its way to its slot: "sending" until the queue has it
+ * saved (the tile says Saved on this phone while offline), then "waiting".
+ */
+export type SlotSend = { state: "sending" | "waiting"; file: File }
 
 /**
  * The Add value behind a context that never changes: readers subscribe to

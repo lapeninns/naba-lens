@@ -111,7 +111,17 @@ export type Uploader = (
   context: UploadContext
 ) => Promise<void | { assetId: string; labels?: FinaliseLabels }>
 
-export type RejectedFile = { name: string; reason: string }
+export type RejectedFile = {
+  name: string
+  reason: string
+  /** The file itself, when the queue refused it (for the owner to keep). */
+  file?: File
+  /**
+   * Refused only because the queue was full (`maxBatchFiles` waiting or in
+   * flight): the same file is taken once there is room.
+   */
+  full?: boolean
+}
 
 export type AddResult = { added: number; rejected: RejectedFile[] }
 
@@ -196,6 +206,34 @@ export function guessMediaKind(file: File): MediaType | null {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
   if (IMAGE_EXTENSIONS.includes(ext)) return "image"
   if (VIDEO_EXTENSIONS.includes(ext)) return "video"
+  return null
+}
+
+/**
+ * Why the queue would refuse this file on its own (type, size, empty), or
+ * null when it can take it. The batch limit is the queue's, not the file's.
+ */
+export function checkFile(
+  file: File,
+  limits: Pick<UploadLimits, "maxPhotoBytes" | "maxVideoBytes">
+): RejectedFile | null {
+  const kind = guessMediaKind(file)
+  if (!kind)
+    return {
+      name: file.name,
+      reason:
+        "This file type is not supported. Use JPEG, PNG, WebP, HEIC, MP4, MOV or WebM.",
+      file,
+    }
+  const max = kind === "image" ? limits.maxPhotoBytes : limits.maxVideoBytes
+  if (file.size > max)
+    return {
+      name: file.name,
+      reason: `${kind === "image" ? "Photos" : "Videos"} can be up to ${mib(max)}.`,
+      file,
+    }
+  if (file.size === 0)
+    return { name: file.name, reason: "This file is empty.", file }
   return null
 }
 
@@ -294,45 +332,36 @@ export class UploadQueue {
     return Math.max(1, this.limits.maxParallelUploads)
   }
 
+  /** Files waiting or in flight: what the batch limit counts. */
+  pending() {
+    return this.items.filter(
+      (i) => i.status === "selected" || ACTIVE.includes(i.status)
+    ).length
+  }
+
   /** Add files to the selection, rejecting unsupported, oversized or excess files. */
   add(files: Iterable<File>): AddResult {
     const rejected: RejectedFile[] = []
     const added: QueueItem[] = []
     // The batch limit counts files that are waiting or in flight, not finished ones.
-    let pending = this.items.filter(
-      (i) => i.status === "selected" || ACTIVE.includes(i.status)
-    ).length
+    let pending = this.pending()
 
     for (const file of files) {
-      const kind = guessMediaKind(file)
-      if (!kind) {
-        rejected.push({
-          name: file.name,
-          reason:
-            "This file type is not supported. Use JPEG, PNG, WebP, HEIC, MP4, MOV or WebM.",
-        })
-        continue
-      }
-      const max =
-        kind === "image" ? this.limits.maxPhotoBytes : this.limits.maxVideoBytes
-      if (file.size > max) {
-        rejected.push({
-          name: file.name,
-          reason: `${kind === "image" ? "Photos" : "Videos"} can be up to ${mib(max)}.`,
-        })
-        continue
-      }
-      if (file.size === 0) {
-        rejected.push({ name: file.name, reason: "This file is empty." })
+      const refused = checkFile(file, this.limits)
+      if (refused) {
+        rejected.push(refused)
         continue
       }
       if (pending >= this.limits.maxBatchFiles) {
         rejected.push({
           name: file.name,
           reason: `You can upload up to ${this.limits.maxBatchFiles} files at a time.`,
+          file,
+          full: true,
         })
         continue
       }
+      const kind = guessMediaKind(file)!
       pending += 1
       added.push({
         id: nextId(),
