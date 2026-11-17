@@ -130,6 +130,7 @@ function renderReview(over: Partial<ThumbReviewProps> = {}) {
     total: 1,
     context: {
       sectionPlace: { [STARTERS]: "Kitchen pass" },
+      sectionBrief: {},
       itemBrief: { [SOUP]: "The bowl from above, steam showing" },
     },
     listHref: "/manager/review?view=list",

@@ -58,9 +58,10 @@ export type ThumbReviewProps = {
   areaCards: AreaPhotoCard[]
   /** Photos the caller can decide on across both queues (the title). */
   total: number
-  /** Menu section id to album place, item id to brief. */
+  /** Menu section id to album place and brief, item id to its own brief. */
   context: {
     sectionPlace: Record<string, string>
+    sectionBrief: Record<string, string>
     itemBrief: Record<string, string>
   }
   /** The full list (filters, recheck, matches, decided photos). */
@@ -89,6 +90,7 @@ const when = (iso: string, timeZone: string) => {
 function toContext(context: ThumbReviewProps["context"]): ReviewContext {
   return {
     sectionPlace: new Map(Object.entries(context.sectionPlace)),
+    sectionBrief: new Map(Object.entries(context.sectionBrief)),
     itemBrief: new Map(Object.entries(context.itemBrief)),
   }
 }

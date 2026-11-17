@@ -59,12 +59,18 @@ export type ReviewPhoto = {
 export type ReviewContext = {
   /** Menu section id to album place label. */
   sectionPlace: ReadonlyMap<string, string>
-  /** Menu item id to its brief (AlbumSlot.brief, else the item's description). */
+  /** Menu section id to the section's brief (AL-4). */
+  sectionBrief: ReadonlyMap<string, string>
+  /**
+   * Menu item id to the dish's own brief (AL-4). A dish without one takes its
+   * section's; never the guest-facing menu description (§2 principle 4).
+   */
   itemBrief: ReadonlyMap<string, string>
 }
 
 const EMPTY_CONTEXT: ReviewContext = {
   sectionPlace: new Map(),
+  sectionBrief: new Map(),
   itemBrief: new Map(),
 }
 
@@ -92,7 +98,9 @@ export function fromMenuCard(
   return {
     key: `dish:${card.key}`,
     name: dishName(item, label?.unspecified === true),
-    brief: clean(context.itemBrief.get(item.itemId)),
+    brief:
+      clean(context.itemBrief.get(item.itemId)) ??
+      clean(context.sectionBrief.get(item.sectionId)),
     author: card.contributor.name,
     addedAt: card.labelledAt ?? card.uploadedAt,
     place: context.sectionPlace.get(item.sectionId) ?? null,
