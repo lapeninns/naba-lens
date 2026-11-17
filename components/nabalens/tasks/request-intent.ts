@@ -1,5 +1,6 @@
 "use client"
 
+import { newIdempotencyKey } from "@/lib/browser/random-id"
 import * as React from "react"
 
 /**
@@ -53,7 +54,7 @@ export type RequestIntent = {
 }
 
 export function useRequestIntent(
-  newId: () => string = () => crypto.randomUUID()
+  newId: () => string = newIdempotencyKey
 ): RequestIntent {
   const memory = React.useRef<Store>({})
   const makeId = React.useRef(newId)

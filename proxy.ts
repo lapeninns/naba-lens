@@ -9,6 +9,7 @@ import {
   safeReturnPath,
 } from "@/lib/auth/routes"
 import { SESSION_ENDED_MESSAGE } from "@/lib/auth/session-ended"
+import { canUseFixtureSignIn } from "@/lib/dev/phone-origin.mjs"
 import { updateSession } from "@/lib/supabase/proxy"
 
 /**
@@ -18,8 +19,20 @@ import { updateSession } from "@/lib/supabase/proxy"
  * re-authorises against the database via lib/auth.
  */
 export async function proxy(request: NextRequest) {
-  const { response, userId } = await updateSession(request)
   const { pathname } = request.nextUrl
+  // Reject a misconfigured dev target before the session refresh tries to use
+  // its Supabase environment. The page and action enforce the same gate.
+  if (
+    process.env.NODE_ENV === "development" &&
+    pathname === "/dev/sign-in" &&
+    !canUseFixtureSignIn(
+      process.env.NODE_ENV,
+      process.env.NEXT_PUBLIC_SUPABASE_URL
+    )
+  ) {
+    return new NextResponse(null, { status: 404 })
+  }
+  const { response, userId } = await updateSession(request)
 
   if (userId) {
     // "/" applies the return path once signed in (app/page.tsx). Any other
