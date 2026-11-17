@@ -6,6 +6,7 @@ import {
   ImagesIcon,
   ImagesSquareIcon,
   SignOutIcon,
+  SquaresFourIcon,
   UserCircleIcon,
   UsersIcon,
 } from "@phosphor-icons/react/dist/ssr"
@@ -21,7 +22,7 @@ import { TabBadge } from "./shell/tab-badge"
 import { TAB_ITEM } from "./shell/tab-item"
 import { CountBadge } from "./status-chip"
 
-type AdminSection = "content" | "staff" | "menus" | "coverage"
+type AdminSection = "content" | "staff" | "menus" | "coverage" | "albums"
 type StaffSection =
   "tasks" | "menu" | "portfolio" | "community" | "people" | "manage"
 
@@ -59,7 +60,7 @@ type AppShellProps = {
   | {
       variant: "admin"
       active: AdminSection
-      /** Defaults: /admin, /admin/staff, /admin/menus and /admin/coverage. */
+      /** Defaults: /admin, /admin/staff, /admin/menus, /admin/coverage and /admin/albums. */
       hrefs?: Partial<Record<AdminSection, string>>
     }
 )
@@ -82,6 +83,13 @@ const ADMIN_NAV: NavItem<AdminSection>[] = [
     label: "Coverage",
     href: "/admin/coverage",
     icon: ClipboardTextIcon,
+  },
+  // Album A4 (DESIGN.md §6.6): every venue's album and its biggest gaps.
+  {
+    id: "albums",
+    label: "Albums",
+    href: "/admin/albums",
+    icon: SquaresFourIcon,
   },
 ]
 
