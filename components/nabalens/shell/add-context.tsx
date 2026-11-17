@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { EntryIntent } from "@/lib/work-client/entry"
 
+import type { MatchTarget } from "../album/match/model"
 import type { PhotoSource } from "../photo-source"
 import type { UploadPurpose } from "../upload-queue"
 import { TabBadge } from "./tab-badge"
@@ -25,14 +26,35 @@ export type AddLabelPreset = {
   variantName: string | null
 }
 
+/** An empty slot a photo goes straight to (DESIGN.md §6.1, D9). */
+export type AddSlot = MatchTarget
+
 export type OpenAddOptions = {
   /**
-   * Open this picker straight away (no sheet): "camera" captures with the
-   * back camera, "library" picks several. The host clicks its hidden input
-   * synchronously, so call openAdd inside the click handler. The picked files
-   * start uploading at once and the "Saving N photos" sheet opens.
+   * Open the phone's photo gallery straight away (no sheet). The host
+   * clicks its hidden input synchronously, so call openAdd inside the click
+   * handler. The picked files start uploading at once and the "Saving N
+   * photos" sheet opens.
+   *
+   * Add is gallery first (DESIGN.md §2, §9): there is no in-app camera, so
+   * "camera" opens the gallery too. It is kept only until the screens that
+   * still ask for it (AL-6) stop; do not pass it in new code.
    */
   source?: PhotoSource
+  /**
+   * Match on add (DESIGN.md §6.1, D9): open the gallery for up to 20 photos,
+   * then Match, where each photo is matched to an empty slot, kept for Match
+   * later, or shared with no slot. `place` is where the person is (Album's
+   * place key, "unplaced" for Not placed yet): its empty slots are suggested
+   * first. Staff accounts only; elsewhere it opens the gallery as `source`.
+   */
+  match?: { place?: string | null }
+  /**
+   * A Needed slot's tile (DESIGN.md §5 Slot tile): open the gallery for one
+   * photo that goes straight to this slot (a dish as its menu label, an area
+   * as its venue-area label), then Match's end for that one photo.
+   */
+  slot?: AddSlot
   /** Accept photos only for the files picked from this call (task screens). */
   imagesOnly?: boolean
   /**
@@ -274,9 +296,16 @@ export function useAddRefreshSignal(): number {
 /**
  * Opens Add: the raised tab on phones, "Add photos" in the AppBar from md.
  * Outside the staff layout (previews, tests) it links to Me, where the
- * profile's own upload lives.
+ * profile's own upload lives. With `match` (the Album tab bar, DESIGN.md §5
+ * Tab bar) it opens the gallery straight away and then Match (§6.1).
  */
-export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
+export function AddTrigger({
+  kind,
+  match = false,
+}: {
+  kind: "tab" | "bar"
+  match?: boolean
+}) {
   const add = useAddContext()
   const openAdd = add?.openAdd ?? null
   const busy = add?.busy
@@ -329,7 +358,7 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
       type="button"
       className={className}
       aria-label={busyName}
-      onClick={() => openAdd({ entry: "choose" })}
+      onClick={() => openAdd(match ? { match: {} } : { entry: "choose" })}
     >
       {content}
     </button>

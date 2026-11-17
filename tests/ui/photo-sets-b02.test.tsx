@@ -329,10 +329,11 @@ describe("Photo tips are optional (D8)", () => {
   it("opens the dish's picker straight away, with no step in between", () => {
     const menu = Promise.resolve(MENU)
     host(menu, { ...DISH, source: "camera" })
-    const camera = document.querySelector<HTMLInputElement>(
-      'input[data-photo-source="camera"]'
+    // Add is gallery first: an old "camera" source opens the gallery.
+    const gallery = document.querySelector<HTMLInputElement>(
+      'input[data-photo-source="library"]'
     )!
-    const click = vi.spyOn(camera, "click")
+    const click = vi.spyOn(gallery, "click")
     fireEvent.click(screen.getByRole("button", { name: "Soup photos" }))
     expect(click).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole("dialog")).toBeNull()
