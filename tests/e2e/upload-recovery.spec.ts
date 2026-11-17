@@ -1206,12 +1206,23 @@ test.describe("leaving while uploads run", () => {
     await expect(page).toHaveURL(/\/staff$/)
     expect(held).toHaveLength(2)
 
-    // Add shows the same queue, still running (its name carries the count).
+    // Album's Add photos carries the count, but photos only sending never
+    // hold back the next pick: it opens the gallery, not the queue (R-1 SF1;
+    // a failed file opens the queue, the phone test below). Me's own Add
+    // shows the same queue, still running.
     const addPhotos = page
       .getByRole("banner")
       .getByRole("button", { name: /^Add photos\b/ })
     await expect(addPhotos).toHaveAccessibleName("Add photos, 2 in progress")
+    const gallery = page.waitForEvent("filechooser")
     await addPhotos.click()
+    await gallery
+    await expect(queue).toBeHidden()
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: "Add photos or videos" })
+      .first()
+      .click()
     await expect(queue).toHaveAccessibleName("Saving 2 photos")
     await expect(intentDialog(page)).toBeHidden()
     await expect(queue.getByRole("status").last()).toHaveText(
