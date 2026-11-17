@@ -6,7 +6,13 @@ Status is one of: **open** (needs an answer), **decided**, **deferred** (with th
 
 ## Open decisions
 
-None.
+Raised by the Album release reviews, 17 Nov 2026. None blocks release; each has today's behaviour stated.
+
+| ID  | Question                                                                                                                                                                                                                                                                    | Today                                                                                              | Owner               | Raised      |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------- | ----------- |
+| D10 | Should an amenity slot's state be the same for everyone at the venue? Staff Album knows only the viewer's own finding (sent: Waiting; sent back: Retake; a colleague sees Needed), while dish slots show Waiting to everyone and admin Albums uses the latest open finding. | Per viewer on staff Album; latest open finding on admin Albums.                                    | Aman Kumar Shrestha | 17 Nov 2026 |
+| D11 | Should staff at an inactive venue still read its venue data (places, slot photos)? `active_staff_venue_id()` ignores `venues.active`, so they can while the venue's manager is refused.                                                                                     | Allowed, as for every older knowledge read. A change belongs to all venue reads, not one function. | Aman Kumar Shrestha | 17 Nov 2026 |
+| D12 | Should Match later include photos added before Album, which have no label either?                                                                                                                                                                                           | Yes: every unlabelled photo of the person's (the newest 96) is listed.                             | Aman Kumar Shrestha | 17 Nov 2026 |
 
 ## Decided
 

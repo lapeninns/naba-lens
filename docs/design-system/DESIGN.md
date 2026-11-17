@@ -1,6 +1,6 @@
 # Album: Naba-Lens design system
 
-Version 1.2 · 17 Nov 2026 · Status: adopted on 17 Nov 2026 (decisions D8 and D9 in [decisions.md](decisions.md)). Batch A1 is built: every screen draws in Album colours, type and shape. Screens keep their Common Room layout until batches A2 to A5 move them (§12).
+Version 1.3 · 17 Nov 2026 · Status: adopted on 17 Nov 2026 (decisions D8 and D9 in [decisions.md](decisions.md)). Batches A0 to A5 are built on `design/inn-identity` (§12): Album is the staff Home, adding is gallery first with Match, Review and admin Albums are Album screens. Other screens keep their layout in Album colours and type and stay cited to [common-room.md](common-room.md) until a later batch.
 
 Applies to every Naba-Lens surface: the staff app (phone first), the venue manager screens (phone, tablet, desktop) and the admin desktop app.
 
@@ -25,7 +25,7 @@ Code comments cite this file by section number ("DESIGN.md §4"). Section number
 1. **The gap is the screen.** Album (Home) opens on what is missing, drawn as empty slots and grouped by place. A count alone is never the first thing on a screen.
 2. **Gallery first.** The main action always opens the phone's photos. There is no in-app camera (§9).
 3. **Match on add.** Choose many photos at once, then tap the empty slot each one fills (D9). Nobody labels a photo after it has been sent.
-4. **Show what good looks like.** Every slot has a one-line brief. Staff read it before they take the photo; the reviewer judges against the same words.
+4. **Show what good looks like.** Every slot has a one-line brief. Staff read it before they add the photo; the reviewer judges against the same words.
 5. **Every photo moves the album.** A matched photo fills its slot at once as Waiting for review. Review confirms it or reopens it.
 6. **Finish lines you can reach.** A section (Desserts, Games, The garden) is a small finish line. Finishing one is marked on the page and the next nearest gap is offered.
 7. **Review in a thumb.** One photo beside its brief, Accept or Ask again with a reason, then the next.
@@ -38,32 +38,33 @@ Hex values, sRGB. Batch A1 writes them to `app/globals.css` in OKLCH and adds ea
 
 ### 3.1 Colour
 
-| Token          | Light            | Dark             | Use                                                                  |
-| -------------- | ---------------- | ---------------- | -------------------------------------------------------------------- |
-| `canvas`       | `#f6f1e7`        | `#151714`        | Paper behind everything                                              |
-| `surface`      | `#fffdf8`        | `#1f221e`        | Cards, bars, sheets, empty slot fill                                 |
-| `surface-2`    | `#ece5d6`        | `#2c302a`        | Secondary buttons, fields, empty part of a bar                       |
-| `raised`       | `#e0d7c4`        | `#393d36`        | Hover and press on `surface-2`                                       |
-| `ink`          | `#1f2a22`        | `#efeadf`        | Text and icons                                                       |
-| `ink-muted`    | `#575c52`        | `#b8b3a6`        | Secondary text, counts beside a heading                              |
-| `line`         | `#e3dccd`        | `#393d36`        | Hairline edges of cards and rows                                     |
-| `edge`         | `#7a7466`        | `#878274`        | Dashed edge of an empty slot, field edges, outline tags              |
-| `accent`       | `#1d4d36`        | `#2b6e4c`        | The one main button on a screen                                      |
-| `accent-hover` | `#153b29`        | `#235c3f`        | Main button hover and press                                          |
-| `accent-text`  | `#1d4d36`        | `#8fd1aa`        | Active tab, links, the plus in an empty slot                         |
-| `accent-soft`  | `#dcebe0`        | `#1d3a2b`        | A choice the person made (place chip, an amenity answer, nav item)   |
-| `focus`        | `#1d4d36`        | `#8fd1aa`        | Focus ring                                                           |
-| `ok-fg`        | `#1b5e3a`        | `#8fd1aa`        | Accepted tag fill (light) and text (dark), filled part of a bar      |
-| `ok-bg`        | `#d9eedd`        | `#173323`        | Tint behind ok text                                                  |
-| `ok-waiting`   | `#9fcfae`        | `#3f6b52`        | The waiting part of a bar                                            |
-| `warn-fg`      | `#9a3412`        | `#ffb49d`        | Retake word, errors                                                  |
-| `warn-bg`      | `#fbe3d6`        | `#4d231a`        | Retake row, retake tag, reason chips                                 |
-| `ring-retake`  | `#c2683f`        | `#b3654c`        | Ring round a photo that needs another                                |
-| `ring-waiting` | `#e0d7c4`        | `#8a8576`        | Ring round a photo waiting for review                                |
-| `hatch`        | `#ece5d6`        | `#2c302a`        | Hatching on a Not here slot                                          |
-| `stage`        | `#0e0f0d`        | `#0e0f0d`        | Surround of a photo shown large (Match, Review, viewer), both themes |
-| `on-stage`     | `#f2efe8`        | `#f2efe8`        | Text on the stage                                                    |
-| `scrim`        | `#0e0f0d` at 55% | `#000000` at 65% | Behind sheets and dialogs                                            |
+| Token          | Light                  | Dark                      | Use                                                                          |
+| -------------- | ---------------------- | ------------------------- | ---------------------------------------------------------------------------- |
+| `canvas`       | `#f6f1e7`              | `#151714`                 | Paper behind everything                                                      |
+| `surface`      | `#fffdf8`              | `#1f221e`                 | Cards, bars, sheets, empty slot fill                                         |
+| `surface-2`    | `#ece5d6`              | `#2c302a`                 | Secondary buttons, fields, empty part of a bar                               |
+| `raised`       | `#e0d7c4`              | `#393d36`                 | Hover and press on `surface-2`                                               |
+| `ink`          | `#1f2a22`              | `#efeadf`                 | Text and icons                                                               |
+| `ink-muted`    | `#575c52`              | `#b8b3a6`                 | Secondary text, counts beside a heading                                      |
+| `line`         | `#e3dccd`              | `#393d36`                 | Hairline edges of cards and rows                                             |
+| `edge`         | `#7a7466`              | `#878274`                 | Dashed edge of an empty slot, field edges, outline tags                      |
+| `accent`       | `#1d4d36`              | `#2b6e4c`                 | The one main button on a screen                                              |
+| `accent-hover` | `#153b29`              | `#235c3f`                 | Main button hover and press                                                  |
+| `accent-text`  | `#1d4d36`              | `#8fd1aa`                 | Active tab, links, the plus in an empty slot                                 |
+| `accent-soft`  | `#dcebe0`              | `#1d3a2b`                 | A choice the person made (place chip, an amenity answer, nav item)           |
+| `focus`        | `#1d4d36`              | `#8fd1aa`                 | Focus ring                                                                   |
+| `ok-fg`        | `#1b5e3a`              | `#8fd1aa`                 | Accepted tag fill (light) and text (dark), filled part of a bar              |
+| `ok-bg`        | `#d9eedd`              | `#173323`                 | Tint behind ok text                                                          |
+| `ok-waiting`   | `#9fcfae`              | `#3f6b52`                 | The waiting part of a bar                                                    |
+| `ok-half`      | `oklch(0.87 0.05 153)` | `oklch(0.39 0.055 157.5)` | Admin Albums: a cell half or more filled (§6.6), between `ok-bg` and `ok-fg` |
+| `warn-fg`      | `#9a3412`              | `#ffb49d`                 | Retake word, errors                                                          |
+| `warn-bg`      | `#fbe3d6`              | `#4d231a`                 | Retake row, retake tag, reason chips                                         |
+| `ring-retake`  | `#c2683f`              | `#b3654c`                 | Ring round a photo that needs another                                        |
+| `ring-waiting` | `#e0d7c4`              | `#8a8576`                 | Ring round a photo waiting for review                                        |
+| `hatch`        | `#ece5d6`              | `#2c302a`                 | Hatching on a Not here slot                                                  |
+| `stage`        | `#0e0f0d`              | `#0e0f0d`                 | Surround of a photo shown large (Match, Review, viewer), both themes         |
+| `on-stage`     | `#f2efe8`              | `#f2efe8`                 | Text on the stage                                                            |
+| `scrim`        | `#0e0f0d` at 55%       | `#000000` at 65%          | Behind sheets and dialogs                                                    |
 
 **Green is rationed.** Solid `accent` fills one control per screen: the main button. A choice the person made uses `accent-soft` with a 2px `accent` edge, never the solid fill. Accepted is a small filled `ok-fg` square tag on a photo, never a control. The main action and Accepted are both green; they are told apart by form and place, and Accepted always has its tick and its words.
 
@@ -162,10 +163,12 @@ Top to bottom, on a phone:
 3. "Where are you?" and the place chips. The current place is the one the person last opened, else the place with the most empty slots.
 4. "Empty at the bar" and up to six Needed slot tiles from that place, with "All 8" to open the place.
 5. A "Match later" row with the number of unmatched photos, when there are any.
-6. The main button: "Add photos from your gallery".
-7. The tab bar.
+6. An "Other jobs" row (assigned tasks, amenity checks and venue questions waiting on the person), when there are any or the count can't be read.
+7. A "Start here" row for new staff, until they dismiss the welcome or add a photo.
+8. The main button: "Add photos from your gallery".
+9. The tab bar: Album (its badge counts open retakes), Add photos, Me.
 
-The screen shows nothing else: no colleague feed, no personal month, no ranking.
+The screen shows nothing else: no colleague feed, no personal month (it is on Me), no ranking.
 
 ## 6. Patterns
 
@@ -254,7 +257,7 @@ Batch A1 (17 Nov 2026) wrote the Album values to `app/globals.css` under the pub
 | edge                      | `--edge-strong`                                                                                | `edge-strong` | Name kept: the `edge` utility is already the hairline recipe            |
 | accent …                  | `--accent`, `--accent-hover`, `--accent-text`, `--accent-soft`, `--on-accent`, `--accent-edge` | same          | `accent-edge` is the 1px dark-theme edge of the main button             |
 | focus                     | `--focus`                                                                                      | `focus`       | Drawn with the `focus-ring` recipes                                     |
-| ok                        | `--ok-fg`, `--ok-bg`, `--ok-waiting`, `--on-ok`                                                | same          | `on-ok` is text on the filled Accepted tag (white light, dark ink dark) |
+| ok                        | `--ok-fg`, `--ok-bg`, `--ok-waiting`, `--ok-half`, `--on-ok`                                   | same          | `on-ok` is text on the filled Accepted tag (white light, dark ink dark) |
 | warn                      | `--warn-fg`, `--warn-bg`                                                                       | same          |                                                                         |
 | ring-retake, ring-waiting | `--ring-retake`, `--ring-waiting`                                                              | same          | Drawn with the `slot-ring-retake` and `slot-ring-waiting` recipes       |
 | hatch                     | `--hatch`                                                                                      | `hatch`       | `bg-hatch` is the recipe that draws the hatching                        |
@@ -285,9 +288,9 @@ Still to remove in batch A5, once no screen uses them: `info-*`, `stamp-fg`, `se
 | A0    | This spec; Common Room frozen as `common-room.md`; citations repointed | 17 Nov 2026 |
 | A1    | Tokens, fonts, slot tile, token tests                                  | 17 Nov 2026 |
 | A2    | Album (Home) and place screens over a slot read model                  | 17 Nov 2026 |
-| A3    | Adding from the gallery, Match, Match later                            | To do       |
-| A4    | Review and admin albums                                                | To do       |
-| A5    | Retire Common Room components, tokens and `common-room.md` citations   | To do       |
+| A3    | Adding from the gallery, Match, Match later                            | 17 Nov 2026 |
+| A4    | Review and admin albums                                                | 17 Nov 2026 |
+| A5    | Album is Home; gallery only; old Home layouts retired                  | 17 Nov 2026 |
 
 ### Superseded
 
@@ -296,6 +299,10 @@ Still to remove in batch A5, once no screen uses them: `info-*`, `stamp-fg`, `se
 
 ### Changelog
 
+- **1.3** (17 Nov 2026): batches A3 to A5 built (docs/plans/album-a3-a5.md, tasks AL-1 to AL-8, release reviews and repair R-1 to R-4):
+  - A3: Match on add (§6.1) with an outbox that feeds the upload queue, Match later (`/staff/album/match-later`), the three-tab shell, Your month on Me, the remembered place.
+  - A4: one-line briefs per section and dish (`20261117130000_album_briefs.sql`), Review one photo at a time with reason chips (§6.5), admin Albums (`/admin/albums`, `20261117140000_album_admin.sql`, new `ok-half` token), slot photos staff can see (`20261117150000_album_slot_photos.sql`, `/api/album/[assetId]/thumb`).
+  - A5: Album is the only staff Home (the goals, B01 and B02 layouts and `NABALENS_HOME_LAYOUT` are gone), no in-app camera anywhere for staff, §7 words on staff screens. §5a gains the Other jobs and Start here rows. Remaining Common Room screens and tokens (`info-*`, `stamp-fg`, rails) stay until a later batch.
 - **1.0** (17 Nov 2026): Album adopted (D8, D9). Written from the prototype canvas and [proposals/album.md](proposals/album.md).
 - **1.2** (17 Nov 2026): batch A2 built: places for menu sections and amenity categories (`supabase/migrations/20261117120000_album_places.sql`, set at `/manager/album`), the slot read model (`lib/album/model.ts`, `lib/server/album.ts`), Album Home and `/staff/album/[placeId]`. Album Home is opt-in per venue with `NABALENS_HOME_LAYOUT=album` or `NABALENS_HOME_LAYOUT_ALBUM_VENUES` until A5. Amenity and area slots show no thumbnail yet: staff cannot open a colleague's amenity or area photo today.
 - **1.1** (17 Nov 2026): batch A1 built. §10 now maps every token to its name in code; `ink-subtle` darkened to #616559 to hold 4.5:1 on `surface-2`.

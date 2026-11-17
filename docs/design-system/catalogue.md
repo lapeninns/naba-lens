@@ -23,22 +23,26 @@ Update the row when you add, merge or retire a component. The roadmap in [strate
 
 Built to [DESIGN.md](DESIGN.md) §5. Each batch adds its rows.
 
-| Component                       | File                                                 | Layer   | Spec name                              | Files using it | Status  |
-| ------------------------------- | ---------------------------------------------------- | ------- | -------------------------------------- | -------------- | ------- |
-| SlotTile                        | `components/nabalens/album/slot-tile.tsx`            | Pattern | Slot tile (§4, §5)                     | 3 (A2)         | adopted |
-| AlbumHome, AlbumSlotTile        | `components/nabalens/album/album-home.tsx`           | Feature | Album (Home) (§5a)                     | 2 (A2)         | adopted |
-| AlbumPlaceScreen                | `components/nabalens/album/album-place.tsx`          | Feature | A place (§6.2)                         | 1 (A2)         | adopted |
-| AlbumPlacesForm                 | `components/nabalens/album/album-places-form.tsx`    | Feature | Album places, manager (§6.2)           | 1 (A2)         | adopted |
-| SlotBriefField                  | `components/nabalens/album/slot-brief-field.tsx`     | Pattern | Brief, the manager's field (§5 Brief)  | 2 (A4)         | adopted |
-| DishBrief                       | `components/nabalens/album/dish-brief.tsx`           | Feature | Brief for one dish, manager (§5 Brief) | 1 (A4)         | adopted |
-| MatchPicker                     | `components/nabalens/album/match/match-picker.tsx`   | Pattern | Match picker (§5, §6.1)                | 2 (A3)         | adopted |
-| MatchScreen                     | `components/nabalens/album/match/match-screen.tsx`   | Feature | Adding photos, Match (§6.1)            | 1 (A3)         | adopted |
-| MatchLaterRow, MatchLaterScreen | `components/nabalens/album/match/match-later.tsx`    | Feature | Match later (§2.8, §5a step 5)         | 1 (A3)         | adopted |
-| useGalleryPicker                | `components/nabalens/album/match/gallery-picker.tsx` | Pattern | Add's gallery picker (§2, §9)          | 2 (A3)         | adopted |
-| AlbumAddTrigger                 | `components/nabalens/album/album-add-trigger.tsx`    | Feature | Tab bar (Add photos) (§5)              | 1 (A3)         | adopted |
-| RememberPlace                   | `components/nabalens/album/remember-place.tsx`       | Feature | Album (Home) step 3 (§5a)              | 1 (A3)         | adopted |
+| Component                           | File                                                 | Layer   | Spec name                                       | Files using it | Status                                                                  |
+| ----------------------------------- | ---------------------------------------------------- | ------- | ----------------------------------------------- | -------------- | ----------------------------------------------------------------------- |
+| SlotTile                            | `components/nabalens/album/slot-tile.tsx`            | Pattern | Slot tile (§4, §5)                              | 3 (A2)         | adopted                                                                 |
+| AlbumHome, AlbumSlotTile            | `components/nabalens/album/album-home.tsx`           | Feature | Album (Home) (§5a)                              | 2 (A2)         | adopted                                                                 |
+| AlbumPlaceScreen                    | `components/nabalens/album/album-place.tsx`          | Feature | A place (§6.2)                                  | 1 (A2)         | adopted                                                                 |
+| AlbumPlacesForm                     | `components/nabalens/album/album-places-form.tsx`    | Feature | Album places, manager (§6.2)                    | 1 (A2)         | adopted                                                                 |
+| SlotBriefField                      | `components/nabalens/album/slot-brief-field.tsx`     | Pattern | Brief, the manager's field (§5 Brief)           | 2 (A4)         | adopted                                                                 |
+| DishBrief                           | `components/nabalens/album/dish-brief.tsx`           | Feature | Brief for one dish, manager (§5 Brief)          | 1 (A4)         | adopted                                                                 |
+| MatchPicker                         | `components/nabalens/album/match/match-picker.tsx`   | Pattern | Match picker (§5, §6.1)                         | 2 (A3)         | adopted                                                                 |
+| MatchScreen                         | `components/nabalens/album/match/match-screen.tsx`   | Feature | Adding photos, Match (§6.1)                     | 1 (A3)         | adopted                                                                 |
+| MatchLaterRow, MatchLaterScreen     | `components/nabalens/album/match/match-later.tsx`    | Feature | Match later (§2.8, §5a step 5)                  | 1 (A3)         | adopted                                                                 |
+| useGalleryPicker                    | `components/nabalens/album/match/gallery-picker.tsx` | Pattern | Add's gallery picker (§2, §9)                   | 2 (A3)         | adopted                                                                 |
+| AlbumAddTrigger                     | `components/nabalens/album/album-add-trigger.tsx`    | Feature | Tab bar (Add photos) (§5)                       | 1 (A3)         | adopted                                                                 |
+| RememberPlace                       | `components/nabalens/album/remember-place.tsx`       | Feature | Album (Home) step 3 (§5a)                       | 1 (A3)         | adopted                                                                 |
+| HomeRow, StartHereRow, OtherJobsRow | `components/nabalens/album/home-rows.tsx`            | Feature | Album Home rows (§5a steps 6, 7)                | 2              | adopted (same row shape as MatchLaterRow: merge them when next touched) |
+| YourMonthCard                       | `components/nabalens/album/your-month-card.tsx`      | Feature | Your month on Me (proposal §7.6)                | 1              | adopted                                                                 |
+| ThumbReview, ReasonPicker           | `components/nabalens/album/review/thumb-review.tsx`  | Feature | Review (§6.5), Review bar and Reason chips (§5) | 1              | adopted                                                                 |
+| AdminAlbumsView                     | `app/admin/albums/albums-view.tsx`                   | Feature | Admin albums (§6.6)                             | 1              | adopted                                                                 |
 
-AlbumAddTrigger is Add photos in the Album shell (tab and AppBar, through AppShell's `album` prop). It replaces AddTrigger once AL-8 removes the other Home layouts; until then AddTrigger serves them. `ALBUM_ADD_OPTIONS` in the same file is what every Album Add photos opens.
+AlbumAddTrigger is Add photos in the staff shell (tab and AppBar). Since A5 it is the only staff Add trigger; `ALBUM_ADD_OPTIONS` in the same file (the gallery for many photos, then Match) is what every Album Add photos opens.
 
 ## Primitives
 
