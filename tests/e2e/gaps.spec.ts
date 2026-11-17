@@ -294,7 +294,7 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
     await expect(staffPage).toHaveURL(STAFF_LANDING)
     await openPortfolio(staffPage)
     await expect(
-      staffPage.getByRole("status").filter({ hasText: /not taking uploads/ })
+      staffPage.getByRole("status").filter({ hasText: /isn't taking photos/ })
     ).toBeVisible()
     await expect(
       staffPage.getByRole("button", { name: /Add photos or videos/ })
