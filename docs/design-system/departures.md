@@ -1,11 +1,11 @@
 # Departures log
 
-A departure is a place where the product differs from [DESIGN.md](DESIGN.md). Each one is **open** (to fix, with an owner or a roadmap task), **decision** (waiting on an entry in [decisions.md](decisions.md)), **justified** (deliberate, with the reason written here) or **closed**.
+A departure is a place where the product differs from [common-room.md](common-room.md). Each one is **open** (to fix, with an owner or a roadmap task), **decision** (waiting on an entry in [decisions.md](decisions.md)), **justified** (deliberate, with the reason written here) or **closed**.
 
 Rules:
 
 - If you find a difference, add a row. If you make one on purpose, add a row with the reason before the change merges.
-- A justified departure that lasts becomes a change to `DESIGN.md`, and the row is closed.
+- A justified departure that lasts becomes a change to `common-room.md`, and the row is closed.
 - The log is reviewed at the start of each roadmap batch. It should get shorter.
 
 "Read from code" means nobody has looked at it in a browser yet. Task IDs (`DS-xxx`) are in [strategy.md](strategy.md) section 8. The per-property detail behind each row is in [components.md](components.md).

@@ -130,7 +130,7 @@ export function todoCount(items: TodoItem[]): number {
 export type Tone = "warn" | "info"
 
 /**
- * The first item is the lead card (DESIGN.md §4): a 4px bar along the top in
+ * The first item is the lead card (common-room.md §4): a 4px bar along the top in
  * its tone and the page's one blue action. The rest are plain cards with a
  * 4px bar on the left and a grey action.
  */

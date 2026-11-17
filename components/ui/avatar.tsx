@@ -7,7 +7,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 /*
- * Avatar (DESIGN.md §4): a photo in a circle, or up to two initials in white
+ * Avatar (common-room.md §4): a photo in a circle, or up to two initials in white
  * on a per-person tint. Set `--ah` (a hue) on the Avatar; ProfileAvatar
  * derives it from the name. The tint only tells faces apart: it never
  * carries a state. Not interactive, so it has no hover or focus of its own;

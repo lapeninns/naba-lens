@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 
 /*
- * The field family (DESIGN.md §4 Field, §7): a label, one control, its error
+ * The field family (common-room.md §4 Field, §7): a label, one control, its error
  * and its hint. FormField is the way to write a labelled control: it makes
  * the ids and links the parts. The loose parts stay for layouts it does not
  * cover (choice cards, fieldsets, a row of fields).
@@ -215,7 +215,7 @@ function FieldError({
     <div
       role={announce === "polite" ? "status" : "alert"}
       data-slot="field-error"
-      // Never colour alone: an icon and the words, in warn (DESIGN.md §4).
+      // Never colour alone: an icon and the words, in warn (common-room.md §4).
       className={cn(
         "flex items-start gap-1.5 text-body font-bold text-warn-fg",
         className
@@ -307,7 +307,7 @@ function words(...ids: Array<unknown>) {
 }
 
 /*
- * A labelled control with its hint and error (DESIGN.md §4 Field; strategy
+ * A labelled control with its hint and error (common-room.md §4 Field; strategy
  * 7.2). It makes the ids and links the label (`htmlFor`), the error and the
  * hint (`aria-describedby`), `aria-invalid` and `required`, so no screen
  * wires them by hand. Order on screen and in the DOM: label, control, error,

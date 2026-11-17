@@ -7,7 +7,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /*
- * A photo in a box of fixed shape (DESIGN.md §4). The box holds its ratio
+ * A photo in a box of fixed shape (common-room.md §4). The box holds its ratio
  * before the file arrives, so nothing below it moves, and shows the
  * media-placeholder fill until then. A photo that cannot be shown says so in
  * words with an icon; it is never a silent grey box.

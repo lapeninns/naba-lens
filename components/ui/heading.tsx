@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 /*
- * Headings (DESIGN.md §2 Type). Four sizes use the display face through the
+ * Headings (common-room.md §2 Type). Four sizes use the display face through the
  * type-* recipes; `item-title` is a row title and stays in the body face.
  * Ink only: a heading never carries a state. Long titles balance and wrap
  * rather than push a 320px page sideways.

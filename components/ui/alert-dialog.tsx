@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils"
 
 /*
- * AlertDialog (DESIGN.md §4 and §6, destructive actions): a question the
+ * AlertDialog (common-room.md §4 and §6, destructive actions): a question the
  * person must answer. It has no Close and the scrim does not dismiss it;
  * the safe choice is written first and Escape takes it. Same sheet recipe
  * as Dialog (sheet-recipe.ts): a bottom sheet on phones, centred from md.

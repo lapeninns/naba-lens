@@ -297,7 +297,7 @@ export function AppShell(props: AppShellProps) {
       </header>
       <main
         id="main"
-        // Feed gutter 12px on phones (DESIGN.md §2), on the grey canvas.
+        // Feed gutter 12px on phones (common-room.md §2), on the grey canvas.
         // overflow-x-clip (not hidden: sticky docks still stick) keeps an
         // older -mx-4 full-bleed bar from scrolling a 320px page sideways.
         className="mx-auto w-full max-w-page flex-1 overflow-x-clip px-page-gutter pt-4 pb-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6 md:py-8"

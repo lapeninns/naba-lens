@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import { GALLERY_SECTIONS } from "./fixtures"
 
 /*
- * The gallery's in-page nav (DESIGN.md §7): a list of anchors beside the
+ * The gallery's in-page nav (common-room.md §7): a list of anchors beside the
  * content from md, and one native select on a phone, where eleven links
  * would push the content off the first screen. Both stay in view while the
  * page scrolls. A native select is used on purpose: it needs no popup of our

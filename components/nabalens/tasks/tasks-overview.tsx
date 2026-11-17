@@ -44,7 +44,7 @@ export function sentNotice(justSent: JustSent) {
 }
 
 /**
- * Staff Home on the B01 layout (DESIGN.md §5a): one notice, the share box, To
+ * Staff Home on the B01 layout (common-room.md §5a): one notice, the share box, To
  * do with its lead card, the working list and the checks it doesn't hold, Your
  * month, Our menu, then colleagues' posts. Every task is in All tasks, linked
  * from To do. The B02 layout is HomeOverview.

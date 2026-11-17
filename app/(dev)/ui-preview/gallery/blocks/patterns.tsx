@@ -63,7 +63,7 @@ import {
 } from "../fixtures"
 
 /*
- * Gallery block for the shared patterns (DESIGN.md §3 and §4; strategy.md
+ * Gallery block for the shared patterns (common-room.md §3 and §4; strategy.md
  * 6.3): each one as it is built today, with fake data. Nothing is restyled
  * here, so what you see is what the product draws.
  */

@@ -33,7 +33,7 @@ const HEADER_HAIRLINE =
 const TAB_UNDERLINE =
   "The 3px tab underline is drawn on the shadow layer until the tab recipe lands in Batch 2."
 const WORDMARK =
-  "The wordmark is 24px Figtree and has no type role; the shells should share one wordmark recipe."
+  "The wordmark is 24px in the display face and has no type role; the shells should share one wordmark recipe."
 const SEGMENT_EDGE =
   "A raised segment's outer edge is 1.5px beside shadow-control, and edge-strong is 1px."
 const EDGE_1_5 =

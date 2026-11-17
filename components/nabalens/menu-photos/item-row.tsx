@@ -86,7 +86,7 @@ export function OurMenuItemRow({
         <p className="flex flex-wrap items-center gap-1.5">
           {item.covered ? (
             // An ok outline square with a photo icon: never the filled tick
-            // square, which is Accepted's alone (DESIGN.md §3).
+            // square, which is Accepted's alone (common-room.md §3).
             <StatusChip tone="positive">
               <ImageIcon aria-hidden className="size-4" />
               {OUR_MENU_COPY.hasPhoto}

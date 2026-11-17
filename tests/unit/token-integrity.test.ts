@@ -38,7 +38,7 @@ function sourceFiles(dir: string): string[] {
 /*
  * Values that are the same in both themes on purpose, so :root declares them
  * and .dark does not. The camera and the photo viewer are dark whatever the
- * theme (docs/design-system/DESIGN.md §2). Sizes, type, radius, layers and
+ * theme (docs/design-system/DESIGN.md §3.1). Sizes, type, radius, layers and
  * motion are not here: they sit in @theme, not on :root.
  */
 const THEME_INVARIANT = ["--stage", "--on-stage", "--on-stage-muted"]
@@ -53,7 +53,7 @@ const RUNTIME = [
   "--ah", // components/nabalens/profile-avatar.tsx: the avatar's hue
   "--gap", // components/ui/toggle-group.tsx: the gap between toggles
   // Set on <html> by next/font (app/layout.tsx).
-  "--font-figtree",
+  "--font-fraunces",
   "--font-atkinson-next",
   "--font-atkinson-mono",
   // Set by Base UI on a popup's positioner.
@@ -114,11 +114,14 @@ const PAIRS: Pair[] = [
   ...text("accent-text", "surface", "accent-soft"),
   ...text("on-select", "select"),
   ...text("ok-fg", "ok-bg", "surface"),
+  ...text("on-ok", "ok-fg"),
   ...text("warn-fg", "warn-bg", "surface"),
   ...text("info-fg", "info-bg", "surface"),
   ...text("on-stage", "stage"),
   ...text("on-stage-muted", "stage"),
   ...boundary("edge-strong", "surface", "surface-2"),
+  // The dashed edge of an empty slot sits on paper and on a card.
+  ...boundary("edge-strong", "canvas"),
   ...boundary("focus", "canvas", "surface", "surface-2"),
   ...boundary("select", "surface"),
 ]

@@ -1,4 +1,4 @@
-// Common Room building blocks (DESIGN.md v0.3 §4). Presentational only.
+// Common Room building blocks (common-room.md v0.3 §4). Presentational only.
 export { Card, CardFoot, CardHead, LeadCard, type CardTone } from "./card"
 export { Post } from "./post"
 export { Row, RowList, type RowTone } from "./row"

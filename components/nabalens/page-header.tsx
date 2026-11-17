@@ -30,7 +30,7 @@ type PageHeaderProps = {
  * The top of every page: scope line, the page's one <h1>, an optional summary
  * and the page's main action. Actions sit right from md, full width on phones.
  * Common Room: the scope names the venue (pin icon, muted, 17px); the title
- * is Figtree 26/750 on the grey canvas.
+ * is the display face (type-page-title) on the grey canvas.
  */
 export function PageHeader({
   scope,

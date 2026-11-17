@@ -523,7 +523,7 @@ const OFF_CONTRACT: Record<
         "item-title",
       ],
       reason:
-        "A heading's size is a type role from DESIGN.md §2, not a control height.",
+        "A heading's size is a type role from common-room.md §2, not a control height.",
     },
   },
   "field.tsx": {
@@ -566,7 +566,7 @@ const SIZE_IS_NOT_A_HEIGHT: Record<string, string> = {
   "spinner.tsx": "A glyph's size beside words: 18, 20 and 24px.",
   "progress.tsx": "The bar's thickness (8 and 12px); a bar is not a control.",
   "switch.tsx":
-    "One size, reported as md: a 32px track inside a 44px target (DESIGN.md §2).",
+    "One size, reported as md: a 32px track inside a 44px target (common-room.md §2).",
   "sheet-recipe.ts": "Sheet widths; a sheet is a layout, not a control.",
   "textarea.tsx":
     "One size: the md field recipe grown to several lines (120px at least).",

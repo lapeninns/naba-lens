@@ -8,6 +8,10 @@ import type { FindingSentCopy } from "@/components/nabalens/amenities/capture/fi
 import { sentNoticeFor } from "@/components/nabalens/knowledge/copy"
 import { FINDING_SENT_PARAM } from "@/components/nabalens/amenities/capture/finding-sent"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { AlbumHome } from "@/components/nabalens/album/album-home"
+import { Notice } from "@/components/nabalens/notice"
+import { currentPlace } from "@/lib/album/model"
+import { loadAlbum } from "@/lib/server/album"
 import { GoalsHome } from "@/components/nabalens/home/goals-home"
 import {
   otherJobsCount,
@@ -249,6 +253,8 @@ export default async function TasksPage({
   const layout = homeLayout(profile.venueId)
   if (layout === "goals")
     return goalsTasksPage({ profile, actor, searchParams })
+  if (layout === "album")
+    return albumTasksPage({ profile, actor, searchParams })
   // B02 streams these lines in their own boundary rather than waiting here.
   const streamedPending = layout === "b02" ? myPending(actor) : null
   const [
@@ -475,6 +481,73 @@ async function goalsTasksPage({
         portfolioPath={PORTFOLIO_PATH}
         otherJobsHref={OTHER_JOBS_PATH}
       />
+    </AppShell>
+  )
+}
+
+/**
+ * Album (DESIGN.md §5a, batch A2): the venue's empty slots by place, the
+ * retake row and one gallery-first main button. Opt-in per venue
+ * (lib/config/home-layout.ts) until batch A5. `?place=<id>` chooses the
+ * place; "unplaced" is the Not placed yet group.
+ */
+async function albumTasksPage({
+  profile,
+  actor,
+  searchParams,
+}: {
+  profile: Awaited<ReturnType<typeof requireActiveStaff>>
+  actor: MediaActor
+  searchParams: Promise<SearchParams>
+}) {
+  const [params, shell, album, notes] = await Promise.all([
+    searchParams,
+    staffShellStatus(actor, profile),
+    loadAlbum(actor),
+    myRetakeNotes(actor),
+  ])
+  const blockedReason = uploadBlockReason(profile)
+  const place = typeof params.place === "string" ? params.place : null
+  const retakes = (notes ?? []).flatMap((note) =>
+    note.kind === "menu" &&
+    note.dish &&
+    note.canRetake &&
+    note.status === "open"
+      ? [
+          {
+            itemId: note.dish.itemId,
+            itemName: note.dish.itemName,
+            reason: note.reason,
+          },
+        ]
+      : []
+  )
+  return (
+    <AppShell
+      variant="staff"
+      active="tasks"
+      {...shell}
+      userName={profile.displayName}
+    >
+      <OfflineNotice className="mb-3" />
+      {album.ok ? (
+        <AlbumHome
+          venueName={profile.venue?.name ?? ""}
+          album={album.album}
+          current={currentPlace(album.album, place)}
+          retakes={retakes}
+          canAdd={blockedReason === null}
+          blocked={
+            blockedReason && blockedReason !== "no_venue"
+              ? UPLOAD_BLOCKED[blockedReason]
+              : null
+          }
+        />
+      ) : (
+        <Notice tone="negative" role="alert">
+          {album.message}
+        </Notice>
+      )}
     </AppShell>
   )
 }

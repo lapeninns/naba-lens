@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils"
 
 /*
- * Dialog (DESIGN.md §4, Sheet and Dialog): a sheet from the bottom edge on
+ * Dialog (common-room.md §4, Sheet and Dialog): a sheet from the bottom edge on
  * phones, a centred dialog from md. It has a title, a visible Close, a scrim
  * that closes it, and Escape closes it. The look lives in sheet-recipe.ts,
  * shared with AlertDialog. Pick a `size`; do not set a width or a height.
@@ -83,7 +83,7 @@ function DialogContent({
               <Button
                 variant="quiet"
                 size="sm"
-                // A labelled Close (DESIGN.md §4) with a 48px target, clear
+                // A labelled Close (common-room.md §4) with a 48px target, clear
                 // of the title's first line at every width.
                 className="absolute top-2.5 right-2 min-h-12 min-w-12 gap-1 px-2.5 md:top-3.5 md:right-3.5"
               />

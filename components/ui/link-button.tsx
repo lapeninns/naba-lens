@@ -4,7 +4,7 @@ import { buttonVariants, type ButtonLook } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 /*
- * A link that looks like a button (DESIGN.md §4): same variants, sizes and
+ * A link that looks like a button (common-room.md §4): same variants, sizes and
  * data attributes as Button, but a real `<a>`, because it goes somewhere
  * rather than doing something. A link cannot be disabled: when the
  * destination is not available, show the reason in place of the link.

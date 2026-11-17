@@ -448,6 +448,18 @@ export async function PlacesScreen({ ctx }: { ctx: ManageContext }) {
           All amenities
         </Link>
       </div>
+      {ctx.mode === "workspace" ? (
+        <p className="text-body text-ink-muted">
+          Staff see these places in Album.{" "}
+          <Link
+            href="/manager/album"
+            className="font-bold text-accent-text underline underline-offset-4"
+          >
+            Choose where each menu section and amenity is photographed
+          </Link>
+          .
+        </p>
+      ) : null}
       {result.places ? (
         <PlacesControl
           venueId={ctx.venueId}

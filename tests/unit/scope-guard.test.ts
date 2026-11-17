@@ -58,6 +58,9 @@ const ALLOWED_PAGES = new Set([
   // Our menu (November 2026): the venue's active menu with how many items have
   // an accepted photo, search and "Still needs a photo"; no scoring.
   "/staff/menu",
+  // Album A2 (docs/design-system/DESIGN.md §6.2, decision D8): one place's
+  // slots by section. Photos only; no scoring or ranking.
+  "/staff/album/[placeId]",
   // Self-described work details (November 2026): main job and extra areas for
   // Home's prompt and the label picker's order; never access or team.
   "/staff/profile",
@@ -109,6 +112,8 @@ const ALLOWED_PAGES = new Set([
   // B03-b places: a venue's entrances, routes, rooms and areas, kept by its
   // manager or an admin for the capture form's choices.
   "/manager/amenities/places",
+  // Album A2: where staff photograph each menu section and amenity category.
+  "/manager/album",
   "/manager/amenities/[checkId]",
   "/manager/amenities/[checkId]/capture",
   // v0.4 admin coverage oversight: the same tools for any venue, plus grants.

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The field family (DESIGN.md §4 Field): Input, Textarea and the Select
+// The field family (common-room.md §4 Field): Input, Textarea and the Select
 // trigger share one recipe, FormField links label, hint and error, and
 // SearchField clears and announces its result count.
 import { cleanup, render, screen, within } from "@testing-library/react"

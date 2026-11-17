@@ -14,7 +14,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
 
 /*
- * Combobox (DESIGN.md §4, fields; §7, focus and names): a field you type in
+ * Combobox (common-room.md §4, fields; §7, focus and names): a field you type in
  * to narrow a long list, then pick one option. Built on Base UI's Combobox,
  * which owns the combobox and listbox roles, the arrow keys, Enter, Escape
  * and the hidden form input.

@@ -9,6 +9,100 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      album_place_events: {
+        Row: {
+          id: number
+          set_at: string
+          set_by: string
+          source: string
+          source_key: string
+          subject_id: string | null
+          venue_id: string
+        }
+        Insert: {
+          id?: never
+          set_at?: string
+          set_by: string
+          source: string
+          source_key: string
+          subject_id?: string | null
+          venue_id: string
+        }
+        Update: {
+          id?: never
+          set_at?: string
+          set_by?: string
+          source?: string
+          source_key?: string
+          subject_id?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "album_place_events_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "album_place_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      album_places: {
+        Row: {
+          set_at: string
+          set_by: string
+          source: string
+          source_key: string
+          subject_id: string
+          venue_id: string
+        }
+        Insert: {
+          set_at?: string
+          set_by: string
+          source: string
+          source_key: string
+          subject_id: string
+          venue_id: string
+        }
+        Update: {
+          set_at?: string
+          set_by?: string
+          source?: string
+          source_key?: string
+          subject_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "album_places_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "album_places_subject_fkey"
+            columns: ["subject_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_subjects"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "album_places_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       amenity_catalogue: {
         Row: {
           capture_brief: string
@@ -5082,6 +5176,17 @@ export type Database = {
         Args: { p_expected_revision: number; p_version_id: string }
         Returns: undefined
       }
+      album_area_states: { Args: { p_venue_id?: string }; Returns: Json }
+      album_place_set: {
+        Args: {
+          p_key: string
+          p_source: string
+          p_subject_id: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
+      album_places: { Args: { p_venue_id?: string }; Returns: Json }
       amenity_add_checks:
         | { Args: { p_keys: string[]; p_venue_id: string }; Returns: string[] }
         | {

@@ -6,7 +6,7 @@ import { cva } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 /*
- * Common Room select pill (DESIGN.md §4, filters): grey, and when it is on,
+ * Common Room select pill (common-room.md §4, filters): grey, and when it is on,
  * accent-soft with the selected edge and a tick, so the state is never told
  * by colour alone. Text stays ink. Pills are 44px (`sm`, the only size);
  * a long label wraps inside its pill and a row of pills wraps too, so
@@ -238,7 +238,7 @@ type PillGroupProps = Omit<
 }
 
 /*
- * A named row of pills (DESIGN.md §4): 8px apart, wrapping onto new lines,
+ * A named row of pills (common-room.md §4): 8px apart, wrapping onto new lines,
  * never a sideways scroller. Name it with `label`, or with `aria-labelledby`
  * when the name is on screen.
  */

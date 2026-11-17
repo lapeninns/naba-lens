@@ -12,7 +12,7 @@ import type { MediaItem } from "../types"
 export const COLLEAGUE_POST_LIMIT = 3
 
 /**
- * Newest photos from colleagues, below To do, as posts (DESIGN.md §4): the
+ * Newest photos from colleagues, below To do, as posts (common-room.md §4): the
  * person, the venue, the photo edge to edge. Read-only: each post links to
  * the Photos page, which owns the viewer. Renders nothing without posts.
  */

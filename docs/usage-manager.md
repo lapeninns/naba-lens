@@ -130,3 +130,21 @@ the screen is in the [admin guide](usage-admin.md#amenities-evidence-checks-per-
 A check from another venue, or a wrong link, shows **This check isn't here**
 with **See all amenities**. If your venue access ends, the page goes to
 Overview, which shows **Venue access unavailable**.
+
+## Album places
+
+`/manager/album` (linked from **Places**) says where staff photograph each
+menu section and each amenity category, so Album can show staff the empty
+slots wherever they are standing (docs/design-system/DESIGN.md §6.2).
+
+- Each menu section of the active menu and each amenity category has a list
+  of your venue's places. Choosing one saves it straight away and says so
+  under the list ("Saved: Desserts is photographed at Kitchen pass."). **Not
+  placed** clears it.
+- A section is kept by its name in the menu file, so the place carries over
+  when a new menu version keeps the section.
+- Places come from **Places** (`/manager/amenities/places`). With none listed,
+  the page asks you to add the bar, the kitchen pass and the other places
+  first. Each place is also a slot of its own in Album: its own photo, from
+  area photos.
+- Until a group is placed, staff see its slots under **Not placed yet**.

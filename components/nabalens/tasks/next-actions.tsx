@@ -419,7 +419,7 @@ export function NextActions({
               )
             return shown
           })}
-          {/* New starters' way in (DESIGN.md §5a "First photo"): after every
+          {/* New starters' way in (common-room.md §5a "First photo"): after every
               real job, so it leads only when nothing else has an action. */}
           {welcomeHref ? (
             <WelcomeCard href={welcomeHref} primary={welcomeLeads} />

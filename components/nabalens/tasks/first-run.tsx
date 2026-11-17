@@ -220,7 +220,7 @@ export function FirstRun({
         {monthly.completionProgress?.total ?? monthly.accepted} of{" "}
         {monthly.target} {monthly.completionProgress ? "completed" : "accepted"}
       </p>
-      {/* The frames are Progress segments (DESIGN.md §4; decision 6). */}
+      {/* The frames are Progress segments (common-room.md §4; decision 6). */}
       <Progress
         mode="segments"
         accepted={monthly.completionProgress?.total ?? monthly.accepted}

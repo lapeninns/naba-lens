@@ -198,7 +198,7 @@ function HomeNotes({
         titleId={leadId}
         media={<Thumb note={lead} />}
         actions={
-          // Grey left, blue right (DESIGN.md §5a); stacked, blue last.
+          // Grey left, blue right (common-room.md §5a); stacked, blue last.
           <div className="flex flex-wrap gap-2 *:flex-auto sm:justify-end sm:*:flex-none">
             <LaterButton note={lead} onLater={onLater} describedBy={leadId} />
             <ReshootAction

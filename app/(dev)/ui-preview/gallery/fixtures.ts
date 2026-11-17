@@ -10,6 +10,12 @@
 /** The sections of the gallery, in page order. The nav and the page share it. */
 export const GALLERY_SECTIONS = [
   {
+    id: "album",
+    title: "Album",
+    description:
+      "The Album components (docs/design-system/DESIGN.md §5), as each batch builds them. A1: the slot tile. A2: Album Home, a place and Album places.",
+  },
+  {
     id: "foundations",
     title: "Foundations",
     description:
@@ -85,7 +91,7 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
   {
     title: "Surfaces",
     swatches: [
-      { name: "canvas", fill: "bg-canvas", role: "The grey page" },
+      { name: "canvas", fill: "bg-canvas", role: "Paper behind everything" },
       { name: "surface", fill: "bg-surface", role: "Cards, bars, sheets" },
       { name: "surface-2", fill: "bg-surface-2", role: "Grey buttons, fields" },
       { name: "raised", fill: "bg-raised", role: "Hover on grey" },
@@ -150,6 +156,22 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
       { name: "ok-fg", fill: "bg-ok-fg", role: "Accepted, met: text and bar" },
       { name: "ok-bg", fill: "bg-ok-bg", role: "Its tint" },
       {
+        name: "ok-waiting",
+        fill: "bg-ok-waiting",
+        role: "Waiting part of the album bar",
+      },
+      { name: "on-ok", fill: "bg-on-ok", role: "Text on the Accepted mark" },
+      {
+        name: "ring-waiting",
+        fill: "bg-ring-waiting",
+        role: "Ring round a photo waiting for review",
+      },
+      {
+        name: "ring-retake",
+        fill: "bg-ring-retake",
+        role: "Ring round a photo that needs another",
+      },
+      {
         name: "warn-fg",
         fill: "bg-warn-fg",
         role: "Problems and warnings: text and bar",
@@ -169,7 +191,7 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
   {
     title: "Photo surfaces",
     swatches: [
-      { name: "stage", fill: "bg-stage", role: "Camera and viewer" },
+      { name: "stage", fill: "bg-stage", role: "Behind a photo shown large" },
       { name: "on-stage", fill: "bg-on-stage", role: "Text on the stage" },
       {
         name: "on-stage-muted",

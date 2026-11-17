@@ -181,7 +181,7 @@ export function UiPreview() {
 
       <Section
         title="Common Room"
-        note="DESIGN.md v0.3: tokens, primitives, state shapes and the feed building blocks."
+        note="common-room.md v0.3: tokens, primitives, state shapes and the feed building blocks."
       >
         <CommonRoomPreview />
       </Section>

@@ -3,7 +3,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /*
- * Table (DESIGN.md §4, Table; strategy 7.5: tables on admin from md, stacked
+ * Table (common-room.md §4, Table; strategy 7.5: tables on admin from md, stacked
  * below). Two modes:
  *
  *  - scroll (default): the table keeps its columns and its wrapper scrolls

@@ -63,7 +63,7 @@ function firstName(name: string) {
   return name.trim().split(/\s+/)[0] ?? name
 }
 
-/** A white card on the canvas (DESIGN.md §4). */
+/** A white card on the canvas (common-room.md §4). */
 const CARD = "grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
 /** A titled block of the feed: heading on the canvas, cards under it. */
 const SECTION =
