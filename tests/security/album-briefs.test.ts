@@ -300,9 +300,36 @@ describe("album briefs", () => {
       setBrief(w.mgr, "menu_section", "mains", "Two\nlines"),
       "invalid_brief"
     )
+    // Tabs and other control characters too, not only line breaks.
+    for (const brief of ["Tab\there", "Bell\u0007here", "Del\u007fhere"])
+      await fails(
+        setBrief(w.mgr, "menu_section", "mains", brief),
+        "invalid_brief"
+      )
+    // Characters, not UTF-16 units: 140 emoji is a full brief.
+    expect(
+      await ok(setBrief(w.mgr, "menu_section", "mains", "🍛".repeat(140)))
+    ).toMatchObject({ changed: true })
+    await fails(
+      setBrief(w.mgr, "menu_section", "mains", "🍛".repeat(141)),
+      "invalid_brief"
+    )
     expect(
       await ok(setBrief(w.mgr, "menu_section", "drinks", "y".repeat(140)))
     ).toMatchObject({ changed: true })
+  })
+
+  it("checks permission before the input", async () => {
+    // Staff, here and at another venue, learn nothing about the input.
+    for (const who of [w.staff1, other.staff1])
+      await fails(
+        setBrief(who, "menu_section", "mains", "y".repeat(141), w.venue),
+        "not_venue_manager"
+      )
+    await fails(
+      setBrief(other.mgr, "menu_section", "x".repeat(121), "x", w.venue),
+      "not_venue_manager"
+    )
   })
 
   it("keeps the history append-only", async () => {

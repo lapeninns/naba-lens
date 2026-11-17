@@ -15,7 +15,8 @@ set lock_timeout = '5s';
 --             use the catalogue's capture brief (public.amenity_catalogue),
 --             which this file only reads. Areas have none.
 --   Writes    public.album_brief_set: the venue's manager (account or grant)
---             or an admin. One line, 1 to 140 characters; null or blank
+--             or an admin. One line, 1 to 140 characters, no control
+--             characters (tabs and line breaks included); null or blank
 --             clears it. Every change is also written to
 --             public.album_brief_events (append-only).
 --   Reads     public.album_briefs: everyone at the venue (staff read it to
@@ -34,7 +35,7 @@ create table public.album_briefs (
   source text not null check (source in ('menu_section', 'menu_item')),
   source_key text not null check (length(source_key) between 1 and 120 and source_key = btrim(source_key)),
   brief text not null check (
-    length(brief) between 1 and 140 and brief = btrim(brief) and brief !~ '[\r\n]'
+    length(brief) between 1 and 140 and brief = btrim(brief) and brief !~ '[[:cntrl:]]'
   ),
   set_by uuid not null references public.profiles (id) on delete restrict,
   set_at timestamptz not null default now(),
@@ -129,8 +130,8 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_venue uuid := coalesce(p_venue_id, private.my_manager_venue_id());
-  v_key text := private.clean_text(p_key, 120, 'invalid_key');
-  v_brief text := private.clean_text(p_brief, 140, 'invalid_brief');
+  v_key text;
+  v_brief text;
   v_current text;
 begin
   perform private.amenity_assert_active_user();
@@ -143,13 +144,16 @@ begin
   end if;
   perform private.assert_can_manage_venue(v_venue);
   perform private.amenity_assert_venue_active(v_venue);
+  -- Input is checked only once the caller may write here.
+  v_key := private.clean_text(p_key, 120, 'invalid_key');
+  v_brief := private.clean_text(p_brief, 140, 'invalid_brief');
   if p_source is null or p_source not in ('menu_section', 'menu_item') then
     raise exception 'invalid_source' using errcode = '22023';
   end if;
   if v_key is null then
     raise exception 'invalid_key' using errcode = '22023';
   end if;
-  if v_brief is not null and v_brief ~ '[\r\n]' then
+  if v_brief is not null and v_brief ~ '[[:cntrl:]]' then
     raise exception 'invalid_brief' using errcode = '22023';
   end if;
 
