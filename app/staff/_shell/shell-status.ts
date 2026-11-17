@@ -267,6 +267,8 @@ export type StaffShellStatus = {
   /** Only for a venue manager; none when the read fails. */
   reviewCount: number | undefined
   avatarUrl: string | null
+  /** The Album shell's three tabs (DESIGN.md §5 Tab bar); set on album Home. */
+  album?: boolean
 }
 
 /**
@@ -281,6 +283,7 @@ export async function staffShellStatus(
 ): Promise<StaffShellStatus> {
   const layout = homeLayout(actor.profile?.venueId)
   if (layout === "goals") return goalsShellStatus(actor, profile)
+  if (layout === "album") return albumShellStatus(actor, profile)
   const b02 = layout === "b02"
   const [
     tasks,
@@ -346,6 +349,25 @@ export async function staffShellStatus(
             )
           )
         : undefined,
+    reviewCount,
+    avatarUrl: avatarUrl(profile.id, profile.avatarPath),
+  }
+}
+
+/**
+ * The Album shell (DESIGN.md §5, §5a): three tabs and no To do badge, since
+ * slots are never tasks (§7). Only Manage's count and the avatar are read.
+ */
+async function albumShellStatus(
+  actor: MediaActor,
+  profile: { id: string; avatarPath: string | null }
+): Promise<StaffShellStatus> {
+  const { canManage, reviewCount } = await managerStatus(actor)
+  return {
+    album: true,
+    canManage,
+    todoUnknown: false,
+    todoCount: undefined,
     reviewCount,
     avatarUrl: avatarUrl(profile.id, profile.avatarPath),
   }

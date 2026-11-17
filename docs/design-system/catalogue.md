@@ -35,6 +35,10 @@ Built to [DESIGN.md](DESIGN.md) §5. Each batch adds its rows.
 | MatchScreen                     | `components/nabalens/album/match/match-screen.tsx`   | Feature | Adding photos, Match (§6.1)            | 1 (A3)         | adopted |
 | MatchLaterRow, MatchLaterScreen | `components/nabalens/album/match/match-later.tsx`    | Feature | Match later (§2.8, §5a step 5)         | 1 (A3)         | adopted |
 | useGalleryPicker                | `components/nabalens/album/match/gallery-picker.tsx` | Pattern | Add's gallery picker (§2, §9)          | 2 (A3)         | adopted |
+| AlbumAddTrigger                 | `components/nabalens/album/album-add-trigger.tsx`    | Feature | Tab bar (Add photos) (§5)              | 1 (A3)         | adopted |
+| RememberPlace                   | `components/nabalens/album/remember-place.tsx`       | Feature | Album (Home) step 3 (§5a)              | 1 (A3)         | adopted |
+
+AlbumAddTrigger is Add photos in the Album shell (tab and AppBar, through AppShell's `album` prop). It replaces AddTrigger once AL-8 removes the other Home layouts; until then AddTrigger serves them. `ALBUM_ADD_OPTIONS` in the same file is what every Album Add photos opens.
 
 ## Primitives
 

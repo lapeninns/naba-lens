@@ -20,6 +20,7 @@ import type {
   AlbumSlot,
   AlbumView,
 } from "@/lib/album/model"
+import { rememberAlbumPlace } from "@/lib/album/remembered-place"
 import { cn } from "@/lib/utils"
 
 /*
@@ -27,6 +28,10 @@ import { cn } from "@/lib/utils"
  * count, the retake row, "Where are you?" with the places, the empty slots
  * where the person is, and one main button that opens the gallery. Nothing
  * else: no feed, no personal month, no ranking (§9).
+ *
+ * The current place is the one this phone last opened (a chip here, or a
+ * place's own screen), else the place with most empty slots (§5a step 3);
+ * the page reads it from `lib/server/album-place.ts`.
  *
  * Adding is gallery first (§2, D9). A Needed dish or area slot opens the
  * gallery for one photo that goes straight to it; an amenity slot opens its
@@ -180,6 +185,9 @@ export function AlbumHome({
                   <Link
                     href={`?place=${place.subjectId ?? "unplaced"}`}
                     scroll={false}
+                    onClick={() =>
+                      rememberAlbumPlace(place.subjectId ?? "unplaced")
+                    }
                     aria-current={here ? "true" : undefined}
                     className={cn(
                       "flex min-h-16 flex-col justify-center rounded-card px-3.5 py-1.5 focus-ring",
@@ -208,6 +216,9 @@ export function AlbumHome({
             </Section>
             <Link
               href={`/staff/album/${current.subjectId ?? "unplaced"}`}
+              onClick={() =>
+                rememberAlbumPlace(current.subjectId ?? "unplaced")
+              }
               className="inline-flex min-h-12 items-center font-bold text-accent-text underline underline-offset-4 focus-ring"
             >
               {ALBUM_COPY.allIn(current.total)}

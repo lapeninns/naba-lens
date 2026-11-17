@@ -4,9 +4,11 @@ import {
   loadMoreContributionsAction,
 } from "@/app/_knowledge/actions"
 import { AppShell } from "@/components/nabalens"
+import { YourMonthCard } from "@/components/nabalens/home/your-month-card"
 import { YourFindings } from "@/components/nabalens/knowledge/findings-history"
 import { MyContributions } from "@/components/nabalens/knowledge/my-contributions"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import { homeLayout } from "@/lib/config/home-layout"
 import {
   myContributionsSurface,
   type MyContributionsSurface,
@@ -17,7 +19,11 @@ import {
   listMyMenuPhotoDecisions,
   listMyRetakeNotes,
 } from "@/lib/server/coverage"
-import type { MyMenuPhotoState, RetakeNote } from "@/lib/server/coverage/types"
+import type {
+  MonthlyProgress,
+  MyMenuPhotoState,
+  RetakeNote,
+} from "@/lib/server/coverage/types"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listOwnMedia, listOwnMediaByIds } from "@/lib/server/media/library"
 import type { MediaActor, MediaItemView } from "@/lib/server/media/types"
@@ -28,7 +34,7 @@ import type {
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { workServices } from "@/lib/work-client/services"
 
-import { myWorkingList, staffShellStatus } from "./_shell/shell-status"
+import { myTasks, myWorkingList, staffShellStatus } from "./_shell/shell-status"
 import { getMyAreaLabels } from "@/lib/server/area-photos"
 
 import { StaffPortfolio } from "./staff-portfolio"
@@ -106,6 +112,24 @@ async function retakeNotes(actor: MediaActor): Promise<RetakeNote[]> {
 }
 
 /**
+ * The person's own month (Album shell, proposal §7.6: moved off Home to Me),
+ * or undefined when not on the album layout. Null when unread: the card says
+ * there is no target rather than leaving Me broken.
+ */
+async function ownMonth(
+  actor: MediaActor,
+  album: boolean
+): Promise<MonthlyProgress | null | undefined> {
+  if (!album) return undefined
+  try {
+    const result = await myTasks(actor)
+    return result.ok ? result.tasks.monthly : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * The first page of "Your findings", and whether to show the section: when
  * there is history, or my venue has questions to answer. A venue outside the
  * knowledge pilot with nothing sent shows nothing, and a failed read is only
@@ -176,14 +200,17 @@ export default async function StaffPage({
   const profile = await requireActiveStaff()
   const auth = await getMediaActor("staff")
   if (!auth.ok) throw new Error("Not authorised.")
-  const [page, shell, params, menuPhotos, findings, notes] = await Promise.all([
-    listOwnMedia(auth.actor),
-    staffShellStatus(auth.actor, profile),
-    searchParams ?? Promise.resolve({} as SearchParams),
-    menuPhotoDecisions(auth.actor),
-    history(auth.actor, myContributionsSurface()),
-    retakeNotes(auth.actor),
-  ])
+  const album = homeLayout(profile.venueId) === "album"
+  const [page, shell, params, menuPhotos, findings, notes, month] =
+    await Promise.all([
+      listOwnMedia(auth.actor),
+      staffShellStatus(auth.actor, profile),
+      searchParams ?? Promise.resolve({} as SearchParams),
+      menuPhotoDecisions(auth.actor),
+      history(auth.actor, myContributionsSurface()),
+      retakeNotes(auth.actor),
+      ownMonth(auth.actor, album),
+    ])
   if (!page.ok) throw new Error(page.message)
   const areaLabelled = await myAreaLabelled(
     auth.actor,
@@ -231,6 +258,8 @@ export default async function StaffPage({
         menuPhotoItems={menuPhotos.items}
         retakeNotes={notes}
         areaLabelled={areaLabelled}
+        albumShell={album}
+        month={month === undefined ? null : <YourMonthCard monthly={month} />}
         findings={
           !findings.show ? null : findings.kind === "b02" ? (
             <MyContributions

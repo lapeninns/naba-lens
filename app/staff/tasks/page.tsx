@@ -12,6 +12,7 @@ import { AlbumHome } from "@/components/nabalens/album/album-home"
 import { Notice } from "@/components/nabalens/notice"
 import { currentPlace } from "@/lib/album/model"
 import { loadAlbum } from "@/lib/server/album"
+import { rememberedAlbumPlace } from "@/lib/server/album-place"
 import { GoalsHome } from "@/components/nabalens/home/goals-home"
 import {
   otherJobsCount,
@@ -500,14 +501,16 @@ async function albumTasksPage({
   actor: MediaActor
   searchParams: Promise<SearchParams>
 }) {
-  const [params, shell, album, notes] = await Promise.all([
+  const [params, shell, album, notes, remembered] = await Promise.all([
     searchParams,
     staffShellStatus(actor, profile),
     loadAlbum(actor),
     myRetakeNotes(actor),
+    rememberedAlbumPlace(),
   ])
   const blockedReason = uploadBlockReason(profile)
-  const place = typeof params.place === "string" ? params.place : null
+  // ?place= from a chip, else the place this phone last opened (§5a step 3).
+  const place = typeof params.place === "string" ? params.place : remembered
   const retakes = (notes ?? []).flatMap((note) =>
     note.kind === "menu" &&
     note.dish &&
