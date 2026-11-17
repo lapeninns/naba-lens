@@ -104,12 +104,16 @@ export type AmenityInput = {
   answer: "yes" | "no" | "not_applicable" | null
   /** My latest finding's state, if I sent one. */
   myLatestState: string | null
+  /** The accepted slot's current photo (AL-7), when it has one. */
+  thumbnailUrl?: string | null
 }
 
 export type AreaInput = {
   subjectId: string
   label: string
   state: "needed" | "waiting" | "retake" | "accepted"
+  /** The accepted or waiting slot's current photo (AL-7), when it has one. */
+  thumbnailUrl?: string | null
 }
 
 export type PlacementInput = {
@@ -264,14 +268,17 @@ export function buildAlbum(input: AlbumInput): AlbumView {
   }
 
   for (const check of input.amenities) {
+    const state = amenityState(check)
     slots.push({
       place: placeOf.get(`amenity_category:${check.category}`) ?? null,
       slot: {
         id: `amenity:${check.checkId}`,
         name: check.question,
         group: check.category,
-        state: amenityState(check),
-        thumbnailUrl: null,
+        state,
+        // AL-7: an accepted slot shows its photo to everyone at the venue.
+        thumbnailUrl:
+          state === "accepted" ? (check.thumbnailUrl ?? null) : null,
         neededBy: null,
         brief: slotBrief({ kind: "amenity", key: check.key ?? null }, briefs),
         target: { kind: "amenity", checkId: check.checkId },
@@ -288,7 +295,11 @@ export function buildAlbum(input: AlbumInput): AlbumView {
         name: area.label,
         group: AREA_GROUP,
         state: area.state,
-        thumbnailUrl: null,
+        // AL-7: review never gates visibility; a retake shows no photo.
+        thumbnailUrl:
+          area.state === "accepted" || area.state === "waiting"
+            ? (area.thumbnailUrl ?? null)
+            : null,
         neededBy: null,
         brief: null,
         target: { kind: "area", subjectId: area.subjectId },

@@ -20,6 +20,8 @@ export type EvidenceCheck =
   | "menu_item_photo_asset"
   | "amenity_evidence_asset"
   | "area_photo_asset"
+  /** Album AL-7: a filled slot's current photo, for everyone at the venue. */
+  | "album_slot_asset"
 
 /**
  * Signed (at most 60 s) URL for a task-evidence derivative. The caller-scoped

@@ -211,6 +211,10 @@ const ALLOWED_HANDLERS = new Set([
   // derivatives for 60 s; no originals or downloads.
   "/api/area-photos/[assetId]/thumb",
   "/api/area-photos/[assetId]/preview",
+  // Album slot photos (AL-7), checked by album_slot_asset: the current photo
+  // of an accepted or waiting area slot or an accepted amenity slot, for
+  // everyone at the venue. A thumbnail signed for 60 s; nothing else.
+  "/api/album/[assetId]/thumb",
   // v0.4 §3 rule 9: hourly idempotent monthly preparation, cron-only bearer auth
   // like the other /api/internal routes; it sends nothing to staff.
   "/api/internal/coverage/monthly-preparation",
