@@ -3,7 +3,7 @@ set lock_timeout = '5s';
 
 -- Album A4, AL-4 (docs/design-system/DESIGN.md §2 principle 4, §5 Brief;
 -- docs/plans/album-a3-a5.md AL-4, 17 Nov 2026): every slot has a one-line
--- brief, what the photo must show. Staff read it before they take the photo;
+-- brief, what the photo must show. Staff read it before they add the photo;
 -- the reviewer judges against the same words.
 --
 --   Sources   a venue's manager writes a brief for

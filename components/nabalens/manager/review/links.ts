@@ -35,7 +35,9 @@ export function itemHref(scope: ReviewScope, itemId: string): string {
 
 /**
  * The URL of a filtered view. On the contributor page the contributor is in
- * the path, so only the other filters go in the query.
+ * the path, so only the other filters go in the query. The manager's bare
+ * Review page is Review in a thumb (DESIGN.md §6.5), so a list view always
+ * carries `view=list`: clearing the last filter keeps the full list.
  */
 export function reviewHref(
   scope: ReviewScope,
@@ -59,7 +61,8 @@ export function reviewHref(
     const search = params.toString()
     return search ? `${base}?${search}` : base
   }
-  return scope.kind === "admin"
-    ? managerHrefs.adminMenuPhotos(scope.venueId, query)
-    : managerHrefs.review(query)
+  if (scope.kind === "admin")
+    return managerHrefs.adminMenuPhotos(scope.venueId, query)
+  const href = managerHrefs.review(query)
+  return `${href}${href.includes("?") ? "&" : "?"}view=list`
 }

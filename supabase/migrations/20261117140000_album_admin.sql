@@ -18,9 +18,13 @@ set lock_timeout = '5s';
 --              with a labelled photo waiting for a decision)
 --   amenities  each in-scope active amenity question on the venue's list:
 --              its catalogue category, progress, the answer in use when
---              available, and whether any finding is still open. The slot
+--              available, and the state of its latest open finding (not
+--              yet finally decided), as private.knowledge_contribution_view
+--              words it: needs_attention when a manager asked for more
+--              detail, else submitted or awaiting_confirmation. The slot
 --              state is worked out in lib/album/model.ts amenityState, the
---              same rule staff Album uses.
+--              same rule staff Album uses for the sender's own finding, so
+--              a finding sent back counts as Retake, not Waiting.
 --
 -- Admins only. No table, no write; nothing here changes coverage, amenity,
 -- credit or review rules.
@@ -75,9 +79,12 @@ begin
           'progress', c.progress,
           'answer', case when s.slot ->> 'status' = 'available'
             then s.slot -> 'answerInUse' ->> 'value' end,
-          'open', exists (
-            select 1 from public.knowledge_contributions x
-            where x.check_id = c.id and not private.knowledge_is_terminal(x.id)))
+          'openState', (
+            select private.knowledge_contribution_view(x.id) ->> 'state'
+            from public.knowledge_contributions x
+            where x.check_id = c.id and not private.knowledge_is_terminal(x.id)
+            order by x.created_at desc, x.id desc
+            limit 1))
         order by t.position, c.template_key)
       from public.venue_amenity_checks c
       join public.amenity_catalogue t on t.key = c.template_key

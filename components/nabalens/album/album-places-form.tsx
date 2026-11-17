@@ -18,6 +18,8 @@ import { fieldControlVariants } from "@/components/ui/field-control"
  * native select works with every keyboard and screen reader and needs no
  * popup of our own. Album AL-4 (§5 Brief): each menu section also has its
  * one-line brief, which every dish in it uses unless the dish has its own.
+ * Briefs do not depend on places: with no places listed yet, each group says
+ * "Not placed" and the section briefs can still be written.
  */
 
 export type AlbumPlacesGroup = {
@@ -162,6 +164,36 @@ function GroupRow({
     }
   }
 
+  const brief =
+    onSetBrief && group.source === "menu_section" ? (
+      <div className="sm:col-span-2">
+        <SlotBriefField
+          name={group.name}
+          brief={group.brief ?? null}
+          label={SLOT_BRIEF_COPY.labelFor(group.name)}
+          hint={SECTION_BRIEF_HINT}
+          onSave={
+            ((brief) =>
+              onSetBrief({
+                source: "menu_section",
+                key: group.key,
+                brief,
+              })) satisfies SlotBriefSaver
+          }
+        />
+      </div>
+    ) : null
+
+  // No places to choose from yet: the group is not placed, nothing to pick.
+  if (places.length === 0)
+    return (
+      <li className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] sm:items-center">
+        <p className="text-label text-ink">{group.name}</p>
+        <p className="text-meta text-ink-muted">Not placed</p>
+        {brief}
+      </li>
+    )
+
   return (
     <li className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] sm:items-center">
       <label htmlFor={id} className="text-label text-ink">
@@ -199,24 +231,7 @@ function GroupRow({
           ) : null}
         </div>
       </div>
-      {onSetBrief && group.source === "menu_section" ? (
-        <div className="sm:col-span-2">
-          <SlotBriefField
-            name={group.name}
-            brief={group.brief ?? null}
-            label={SLOT_BRIEF_COPY.labelFor(group.name)}
-            hint={SECTION_BRIEF_HINT}
-            onSave={
-              ((brief) =>
-                onSetBrief({
-                  source: "menu_section",
-                  key: group.key,
-                  brief,
-                })) satisfies SlotBriefSaver
-            }
-          />
-        </div>
-      ) : null}
+      {brief}
     </li>
   )
 }

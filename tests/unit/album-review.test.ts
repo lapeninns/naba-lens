@@ -18,9 +18,15 @@ const photos = vi.hoisted(() => ({
   listReviewQueue: vi.fn(),
 }))
 vi.mock("@/lib/server/menu-photos", () => photos)
-const areas = vi.hoisted(() => ({ listAreaPhotoQueue: vi.fn() }))
+const areas = vi.hoisted(() => ({
+  listAreaPhotoQueue: vi.fn(),
+  AREA_QUEUE_LIMIT: 2,
+}))
 vi.mock("@/lib/server/area-photos", () => areas)
-const album = vi.hoisted(() => ({ getAlbumPlacements: vi.fn() }))
+const album = vi.hoisted(() => ({
+  getAlbumPlacements: vi.fn(),
+  getAlbumBriefs: vi.fn(),
+}))
 vi.mock("@/lib/server/album", () => album)
 vi.mock("@/app/manager/actions", () => ({}))
 vi.mock("@/app/manager/area-actions", () => ({}))
@@ -43,6 +49,7 @@ import {
   type MenuSubject,
   type ReviewContext,
 } from "@/components/nabalens/album/review/model"
+import { reviewHref } from "@/components/nabalens/manager/review/links"
 import type { AreaPhotoCard } from "@/lib/server/area-photos"
 import type { QueueCard } from "@/lib/server/menu-photos/types"
 
@@ -127,6 +134,7 @@ function area(over: Partial<AreaPhotoCard> = {}): AreaPhotoCard {
 
 const CONTEXT: ReviewContext = {
   sectionPlace: new Map([[STARTERS, "Kitchen pass"]]),
+  sectionBrief: new Map([[STARTERS, "Each starter on its own plate"]]),
   itemBrief: new Map([[SOUP, "  The bowl from above,\n steam showing "]]),
 }
 
@@ -144,6 +152,19 @@ describe("stage photos from the queues", () => {
       own: false,
       subject: { kind: "dish", accept: "accept", askAgain: true },
     })
+  })
+
+  it("a dish without its own brief takes its section's; with neither, none", () => {
+    const sectionOnly: ReviewContext = { ...CONTEXT, itemBrief: new Map() }
+    expect(fromMenuCard(card(), sectionOnly)!.brief).toBe(
+      "Each starter on its own plate"
+    )
+    const none: ReviewContext = {
+      ...CONTEXT,
+      itemBrief: new Map(),
+      sectionBrief: new Map(),
+    }
+    expect(fromMenuCard(card(), none)!.brief).toBeNull()
   })
 
   it("names a variant, and a dish with variants none was chosen for", () => {
@@ -290,6 +311,30 @@ describe("which Review the page opens", () => {
     expect(reviewModeOf({ item: id(1) })).toBe("list")
     expect(REVIEW_LIST_HREF).toBe("/manager/review?view=list")
   })
+
+  it("a list filter's link keeps the full list, even with every filter cleared", () => {
+    const cleared = {
+      status: "pending" as const,
+      sectionId: null,
+      contributorId: null,
+      itemId: null,
+    }
+    const modeOf = (href: string) =>
+      reviewModeOf(
+        Object.fromEntries(new URL(href, "http://x").searchParams) as never
+      )
+    expect(reviewHref({ kind: "manager" }, cleared)).toBe(
+      "/manager/review?view=list"
+    )
+    expect(modeOf(reviewHref({ kind: "manager" }, cleared))).toBe("list")
+    expect(
+      modeOf(reviewHref({ kind: "manager" }, { ...cleared, sectionId: id(1) }))
+    ).toBe("list")
+    // The admin page has no Review in a thumb; its links stay bare.
+    expect(reviewHref({ kind: "admin", venueId: id(2) }, cleared)).toBe(
+      `/admin/coverage/${id(2)}/menu-photos`
+    )
+  })
 })
 
 describe("AlbumReviewBody (server read)", () => {
@@ -316,13 +361,22 @@ describe("AlbumReviewBody (server read)", () => {
       items: [card(), card({ key: id(0x12), isSelf: true })],
       nextCursor: null,
     })
+    // The guest-facing menu description is never the brief (§2 principle 4).
     photos.listManagerMenuItems.mockResolvedValue({
       ok: true,
-      items: [
-        { itemId: SOUP, description: "Steam showing" },
-        { itemId: id(0xc7), description: "Not waiting" },
-      ],
+      items: [{ itemId: SOUP, description: "Menu description" }],
       nextCursor: null,
+    })
+    album.getAlbumBriefs.mockResolvedValue({
+      ok: true,
+      briefs: {
+        sections: new Map([
+          ["starters", "Each starter on its own plate"],
+          ["mains", "Not placed"],
+        ]),
+        items: new Map([[SOUP, "Steam showing"]]),
+        amenities: new Map(),
+      },
     })
     areas.listAreaPhotoQueue.mockResolvedValue({
       ok: true,
@@ -357,8 +411,11 @@ describe("AlbumReviewBody (server read)", () => {
       ctx.venueId
     )
     expect(p.venueName).toBe("The Railway")
+    expect(album.getAlbumBriefs).toHaveBeenCalledWith(ctx.actor, ctx.venueId)
+    expect(photos.listManagerMenuItems).not.toHaveBeenCalled()
     expect(p.context).toEqual({
       sectionPlace: { [STARTERS]: "Kitchen pass" },
+      sectionBrief: { [STARTERS]: "Each starter on its own plate" },
       itemBrief: { [SOUP]: "Steam showing" },
     })
     // One dish and one area photo; the two own photos are not counted.
@@ -379,12 +436,22 @@ describe("AlbumReviewBody (server read)", () => {
 
   it("places, briefs and area photos are extras: their failures leave the menu photos", async () => {
     album.getAlbumPlacements.mockRejectedValue(new Error("down"))
-    photos.listManagerMenuItems.mockResolvedValue({ ok: false, code: "x" })
+    album.getAlbumBriefs.mockResolvedValue({ ok: false, code: "x" })
     areas.listAreaPhotoQueue.mockResolvedValue({ ok: false, code: "x" })
     const p = await props()
-    expect(p.context).toEqual({ sectionPlace: {}, itemBrief: {} })
+    expect(p.context).toEqual({
+      sectionPlace: {},
+      sectionBrief: {},
+      itemBrief: {},
+    })
     expect(p.areaCards).toEqual([])
     expect(p.total).toBe(1)
+  })
+
+  it("says more area photos may wait when the area read was a full page", async () => {
+    expect((await props()).areaMore).toBe(true)
+    areas.listAreaPhotoQueue.mockResolvedValue({ ok: true, cards: [area()] })
+    expect((await props()).areaMore).toBe(false)
   })
 
   it("a menu that is not ready has no dish photos to decide", async () => {

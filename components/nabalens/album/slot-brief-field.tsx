@@ -21,7 +21,7 @@ import { BRIEF_MAX } from "@/lib/album/model"
 export const SLOT_BRIEF_COPY = {
   label: "Brief",
   labelFor: (name: string) => `Brief for ${name}`,
-  hint: `One line on what the photo must show, up to ${BRIEF_MAX} characters. Staff read it before they take the photo, and the reviewer checks against it.`,
+  hint: `One line on what the photo must show, up to ${BRIEF_MAX} characters. Staff read it before they add the photo, and the reviewer checks against it.`,
   save: "Save brief",
   saving: "Saving…",
   clear: "Clear brief",

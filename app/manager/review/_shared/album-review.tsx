@@ -9,11 +9,10 @@ import {
 } from "@/components/nabalens/album/review/model"
 import { ThumbReview } from "@/components/nabalens/album/review/thumb-review"
 import { ROUTES } from "@/lib/auth/routes"
-import { getAlbumPlacements } from "@/lib/server/album"
-import { listAreaPhotoQueue } from "@/lib/server/area-photos"
+import { getAlbumBriefs, getAlbumPlacements } from "@/lib/server/album"
+import { AREA_QUEUE_LIMIT, listAreaPhotoQueue } from "@/lib/server/area-photos"
 import {
   getManagerOverview,
-  listManagerMenuItems,
   listReviewQueue,
   type ManagerPhotoCtx,
 } from "@/lib/server/menu-photos"
@@ -27,56 +26,42 @@ import { REVIEW_LIST_HREF } from "./mode"
 // so the database checks the venue scope each time. The place and brief
 // reads are extras: when they fail the stage shows the photo without them.
 
-/** Pages of the menu read for briefs; a venue's menu fits well inside. */
-const BRIEF_PAGES = 10
-
-/** Menu section id to album place label, from the album placements. */
-async function sectionPlaces(
-  ctx: ManagerPhotoCtx
-): Promise<Record<string, string>> {
-  const read = await getAlbumPlacements(ctx.actor, ctx.venueId).catch(
-    () => null
-  )
-  if (!read?.ok) return {}
-  const label = new Map(read.places.map((p) => [p.subjectId, p.label]))
-  const bySlug = new Map(
-    read.placements
-      .filter((p) => p.source === "menu_section")
-      .map((p) => [p.key, label.get(p.subjectId)])
-  )
-  const out: Record<string, string> = {}
-  for (const section of read.sections) {
-    const place = bySlug.get(section.slug)
-    if (place) out[section.sectionId] = place
-  }
-  return out
+type ReviewContextRead = {
+  sectionPlace: Record<string, string>
+  sectionBrief: Record<string, string>
+  itemBrief: Record<string, string>
 }
 
 /**
- * Each waiting dish's brief. Until AL-4 gives slots a brief of their own
- * (`AlbumSlot.brief`), it is the dish's menu description; swap this read
- * for the slot brief when that lands.
+ * Where each menu section sits in the album, and the briefs the manager wrote
+ * (AL-4, DESIGN.md §2 principle 4): each dish's own, and each section's by
+ * section id. The stage resolves a dish to its own brief, else its section's,
+ * else none; it never falls back to the guest-facing menu description. Both
+ * reads are extras: a failure leaves that part empty.
  */
-async function itemBriefs(
-  ctx: ManagerPhotoCtx,
-  itemIds: ReadonlySet<string>
-): Promise<Record<string, string>> {
-  const out: Record<string, string> = {}
-  if (itemIds.size === 0) return out
-  let cursor: string | null = null
-  try {
-    for (let page = 0; page < BRIEF_PAGES; page += 1) {
-      const read = await listManagerMenuItems(ctx, { cursor })
-      if (!read.ok) break
-      for (const item of read.items) {
-        const brief = item.description?.trim()
-        if (brief && itemIds.has(item.itemId)) out[item.itemId] = brief
-      }
-      cursor = read.nextCursor
-      if (!cursor || Object.keys(out).length === itemIds.size) break
-    }
-  } catch {
-    // Briefs are an extra: the stage shows the photo without one.
+async function reviewContext(ctx: ManagerPhotoCtx): Promise<ReviewContextRead> {
+  const [placed, briefs] = await Promise.all([
+    getAlbumPlacements(ctx.actor, ctx.venueId).catch(() => null),
+    getAlbumBriefs(ctx.actor, ctx.venueId).catch(() => null),
+  ])
+  const out: ReviewContextRead = {
+    sectionPlace: {},
+    sectionBrief: {},
+    itemBrief: {},
+  }
+  if (briefs?.ok) out.itemBrief = Object.fromEntries(briefs.briefs.items)
+  if (!placed?.ok) return out
+  const label = new Map(placed.places.map((p) => [p.subjectId, p.label]))
+  const bySlug = new Map(
+    placed.placements
+      .filter((p) => p.source === "menu_section")
+      .map((p) => [p.key, label.get(p.subjectId)])
+  )
+  for (const section of placed.sections) {
+    const place = bySlug.get(section.slug)
+    if (place) out.sectionPlace[section.sectionId] = place
+    const brief = briefs?.ok ? briefs.briefs.sections.get(section.slug) : null
+    if (brief) out.sectionBrief[section.sectionId] = brief
   }
   return out
 }
@@ -91,11 +76,11 @@ export async function AlbumReviewBody({
   /** Shown under the title: the Findings / All switch when triage is on. */
   filter?: React.ReactNode
 }) {
-  const [overview, queue, areas, sectionPlace] = await Promise.all([
+  const [overview, queue, areas, context] = await Promise.all([
     getManagerOverview(ctx),
     listReviewQueue(ctx, { status: "pending" }),
     listAreaPhotoQueue(ctx, "pending"),
-    sectionPlaces(ctx),
+    reviewContext(ctx),
   ])
   if (!overview.ok) failedRead(overview.code, "Review", ROUTES.managerReview)
   // Without a ready menu there are no dish photos to decide (as on the list).
@@ -106,11 +91,6 @@ export async function AlbumReviewBody({
   const menuCursor = menuReady && queue.ok ? queue.nextCursor : null
   // A failed area read leaves the menu photos working (as on the list).
   const areaCards = areas.ok ? areas.cards : []
-
-  const itemIds = new Set(
-    menuCards.flatMap((c) => (c.item ? [c.item.itemId] : []))
-  )
-  const itemBrief = await itemBriefs(ctx, itemIds)
 
   // The title counts what the caller can decide on. With more menu pages
   // to come, the overview's count stands in for the unread ones.
@@ -130,8 +110,9 @@ export async function AlbumReviewBody({
       menuCursor={menuCursor}
       filter={filter}
       areaCards={areaCards}
+      areaMore={areaCards.length >= AREA_QUEUE_LIMIT}
       total={menuTotal + areaTotal}
-      context={{ sectionPlace, itemBrief }}
+      context={context}
       listHref={REVIEW_LIST_HREF}
     />
   )

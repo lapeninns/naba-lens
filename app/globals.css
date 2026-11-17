@@ -63,6 +63,9 @@
   --ok-fg: oklch(0.43 0.09 155.7); /* #1b5e3a Accepted, filled bar */
   --ok-bg: oklch(0.929 0.032 151.2); /* #d9eedd */
   --ok-waiting: oklch(0.812 0.068 154.6); /* #9fcfae waiting part of a bar */
+  /* Admin albums: a cell half or more filled (DESIGN.md §6.6). Between
+     ok-bg and ok-fg; never the waiting part of a bar. */
+  --ok-half: oklch(0.87 0.05 153);
   --on-ok: oklch(1 0 0); /* text on the filled Accepted tag */
   --warn-fg: oklch(0.47 0.143 37.3); /* #9a3412 retake, errors */
   --warn-bg: oklch(0.932 0.032 50.4); /* #fbe3d6 */
@@ -117,6 +120,7 @@
   --ok-fg: oklch(0.806 0.087 157.8);
   --ok-bg: oklch(0.294 0.045 157); /* #173323 */
   --ok-waiting: oklch(0.488 0.064 158); /* #3f6b52 */
+  --ok-half: oklch(0.39 0.055 157.5);
   --on-ok: oklch(0.247 0.009 137.8); /* dark ok-fg is light, so dark text */
   --warn-fg: oklch(0.835 0.094 37.8); /* #ffb49d */
   --warn-bg: oklch(0.313 0.066 33.4); /* #4d231a */
@@ -187,6 +191,7 @@
   --color-ok-fg: var(--ok-fg);
   --color-ok-bg: var(--ok-bg);
   --color-ok-waiting: var(--ok-waiting);
+  --color-ok-half: var(--ok-half);
   --color-on-ok: var(--on-ok);
   --color-warn-fg: var(--warn-fg);
   --color-warn-bg: var(--warn-bg);

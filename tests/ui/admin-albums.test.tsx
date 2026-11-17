@@ -93,7 +93,7 @@ function counts(venueId: string): Rpc {
           category: "Games",
           progress: "needs_capture",
           answer: null,
-          open: false,
+          openState: null,
         },
       ],
     },

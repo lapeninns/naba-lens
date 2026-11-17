@@ -209,6 +209,32 @@ describe("Album places: section briefs", () => {
   })
 })
 
+describe("Album places: no places listed yet", () => {
+  it("still gives each menu section its brief field, with no place to pick", () => {
+    render(
+      <AlbumPlacesForm
+        places={[]}
+        groups={groups.map((g) => ({ ...g, subjectId: null }))}
+        onSet={placeOk}
+        onSetBrief={vi.fn<AlbumBriefSetter>()}
+      />
+    )
+    expect(field("Brief for Desserts").value).toBe(
+      "The bowl from above, spoon at the side"
+    )
+    expect(field("Brief for Drinks")).toBeTruthy()
+    expect(screen.queryAllByRole("combobox")).toHaveLength(0)
+    expect(screen.getAllByText("Not placed")).toHaveLength(3)
+  })
+})
+
+describe("brief hint words (DESIGN.md §7)", () => {
+  it("says staff add the photo, never take it", () => {
+    expect(SLOT_BRIEF_COPY.hint).toContain("before they add the photo")
+    expect(SLOT_BRIEF_COPY.hint).not.toMatch(/\btake\b/i)
+  })
+})
+
 describe("DishBrief", () => {
   it("says which brief staff see without the dish's own", () => {
     const { rerender } = render(

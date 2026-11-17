@@ -18,7 +18,10 @@ const actions = vi.hoisted(() => ({
   loadItemEventsAction: vi.fn(),
 }))
 vi.mock("@/app/manager/actions", () => actions)
-const areaActions = vi.hoisted(() => ({ decideAreaPhotoAction: vi.fn() }))
+const areaActions = vi.hoisted(() => ({
+  decideAreaPhotoAction: vi.fn(),
+  loadAreaReviewAction: vi.fn(),
+}))
 vi.mock("@/app/manager/area-actions", () => areaActions)
 
 import { ALBUM_REVIEW_COPY as C } from "@/components/nabalens/album/review/copy"
@@ -130,6 +133,7 @@ function renderReview(over: Partial<ThumbReviewProps> = {}) {
     total: 1,
     context: {
       sectionPlace: { [STARTERS]: "Kitchen pass" },
+      sectionBrief: {},
       itemBrief: { [SOUP]: "The bowl from above, steam showing" },
     },
     listHref: "/manager/review?view=list",
@@ -362,6 +366,57 @@ describe("Review in a thumb", () => {
     expect(
       await screen.findByRole("heading", { level: 2, name: "Pie" })
     ).toBeTruthy()
+  })
+
+  it("with a full area page, re-reads the area queue as the stage runs low and brings only unseen photos", async () => {
+    const user = userEvent.setup()
+    areaActions.decideAreaPhotoAction.mockResolvedValue({
+      ok: true,
+      state: "accepted",
+    })
+    const bar = area({
+      labelId: id(0x72),
+      assetId: id(0xb2),
+      area: "Bar",
+      labelledAt: "2026-11-04T19:00:00.000Z",
+    })
+    // The re-read still holds the first photo (another tab, a slow write);
+    // it is not shown twice.
+    areaActions.loadAreaReviewAction.mockResolvedValue({
+      ok: true,
+      cards: [area(), bar],
+      more: false,
+    })
+    renderReview({
+      menuCards: [],
+      areaCards: [area()],
+      areaMore: true,
+      total: 1,
+    })
+    await user.click(screen.getByRole("button", { name: "Accept" }))
+    expect(areaActions.loadAreaReviewAction).toHaveBeenCalledTimes(1)
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "Bar" })
+    ).toBeTruthy()
+    // The title counts the photo the re-read brought.
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      C.title(1)
+    )
+    await user.click(screen.getByRole("button", { name: "Accept" }))
+    expect(await screen.findByText(C.emptyTitle)).toBeTruthy()
+    expect(areaActions.loadAreaReviewAction).toHaveBeenCalledTimes(1)
+  })
+
+  it("without a full area page, never re-reads the area queue", async () => {
+    const user = userEvent.setup()
+    areaActions.decideAreaPhotoAction.mockResolvedValue({
+      ok: true,
+      state: "accepted",
+    })
+    renderReview({ menuCards: [], areaCards: [area()], total: 1 })
+    await user.click(screen.getByRole("button", { name: "Accept" }))
+    expect(screen.getByText(C.emptyTitle)).toBeTruthy()
+    expect(areaActions.loadAreaReviewAction).not.toHaveBeenCalled()
   })
 
   it("a lost reply keeps the photo and its choice on the stage", async () => {
