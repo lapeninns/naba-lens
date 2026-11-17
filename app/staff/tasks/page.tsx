@@ -1,5 +1,11 @@
+import { cookies } from "next/headers"
+
 import { AppShell } from "@/components/nabalens/app-shell"
 import { AlbumHome } from "@/components/nabalens/album/album-home"
+import {
+  OtherJobsRow,
+  StartHereRow,
+} from "@/components/nabalens/album/home-rows"
 import { FINDING_SENT_PARAM } from "@/components/nabalens/amenities/capture/finding-sent"
 import {
   FindingSentNotice,
@@ -8,6 +14,10 @@ import {
 import { sentNoticeFor } from "@/components/nabalens/knowledge/copy"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import {
+  FIRST_RUN_COOKIE,
+  showWelcomeEntry,
+} from "@/components/nabalens/tasks/first-run-state"
 import { currentPlace } from "@/lib/album/model"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { loadAlbum } from "@/lib/server/album"
@@ -20,10 +30,12 @@ import type { MediaActor } from "@/lib/server/media/types"
 
 import {
   myAlbumRetakes,
+  myOtherJobsCount,
   myWorkingList,
   staffShellStatus,
 } from "../_shell/shell-status"
-import { unwrap } from "./result"
+import { ADD_BLOCKED } from "../add-blocked"
+import { OTHER_JOBS_PATH, WELCOME_PATH, unwrap } from "./result"
 import { withRecheckSent } from "./sent-recheck"
 
 export const metadata = { title: "Album" }
@@ -86,18 +98,30 @@ async function sentFinding(
   }
 }
 
-const UPLOAD_BLOCKED = {
-  not_staff: "Only staff accounts can add photos.",
-  no_venue: "You can't add photos until an admin assigns your venue.",
-  venue_inactive:
-    "Your venue isn't taking photos right now, so you can't add any. Ask an admin to check your venue.",
-} as const
+/**
+ * Whether the person has any photo or video of their own (one id, no URLs).
+ * A failed read counts as yes, so Start here stays away rather than nag.
+ */
+async function hasOwnMedia(actor: MediaActor): Promise<boolean> {
+  try {
+    const { data, error } = await actor.db
+      .from("media_assets")
+      .select("id")
+      .eq("uploader_id", actor.profile.id)
+      .limit(1)
+    return error ? true : (data?.length ?? 0) > 0
+  } catch {
+    return true
+  }
+}
 
 /**
  * Staff Home is Album (DESIGN.md §5a, batch A5): the venue's empty slots by
  * place, the retake row and one gallery-first main button. `?place=<id>`
- * chooses the place; "unplaced" is the Not placed yet group. After an
- * amenity answer (`?finding_sent=<id>`) the notice says what happened to it,
+ * chooses the place; "unplaced" is the Not placed yet group. A new starter
+ * gets Start here until they dismiss the welcome or add a photo; Other jobs
+ * (assigned tasks, amenity checks, venue questions) has a row when there are
+ * any, or when they couldn't be counted. After an amenity answer (`?finding_sent=<id>`) the notice says what happened to it,
  * written on the page (§6.7).
  */
 export default async function AlbumHomePage({
@@ -107,19 +131,41 @@ export default async function AlbumHomePage({
 }) {
   const profile = await requireActiveStaff()
   const { actor } = unwrap(await getCoverageActor())
-  const [params, shell, album, retakes, findingSent, remembered, later] =
-    await Promise.all([
-      searchParams,
-      staffShellStatus(actor, profile),
-      loadAlbum(actor),
-      myAlbumRetakes(actor),
-      searchParams.then((p) => sentFinding(actor, p)),
-      // AL-2: the place this phone last opened, when ?place= is not given.
-      rememberedAlbumPlace(),
-      // AL-1: photos added without a slot, for the Match later row (§5a).
-      listMatchLater(actor).catch(() => null),
-    ])
+  const dismissedAt = profile.work?.welcomeDismissedAt ?? null
+  const [
+    params,
+    shell,
+    album,
+    retakes,
+    findingSent,
+    remembered,
+    later,
+    otherJobs,
+    ownMedia,
+    jar,
+  ] = await Promise.all([
+    searchParams,
+    staffShellStatus(actor, profile),
+    loadAlbum(actor),
+    myAlbumRetakes(actor),
+    searchParams.then((p) => sentFinding(actor, p)),
+    // AL-2: the place this phone last opened, when ?place= is not given.
+    rememberedAlbumPlace(),
+    // AL-1: photos added without a slot, for the Match later row (§5a).
+    listMatchLater(actor).catch(() => null),
+    myOtherJobsCount(actor),
+    // Once dismissed, Start here never shows, so skip the read.
+    dismissedAt ? true : hasOwnMedia(actor),
+    cookies(),
+  ])
   const blockedReason = uploadBlockReason(profile)
+  // The legacy cookie still counts as dismissed; dismissal lives in the
+  // database (setWelcomeDismissedAction on the welcome).
+  const showWelcome = showWelcomeEntry({
+    dismissedAt,
+    legacyCookie: jar.has(FIRST_RUN_COOKIE),
+    hasOwnMedia: ownMedia,
+  })
   const place = first(params.place) ?? remembered ?? null
   const sent =
     typeof findingSent === "string"
@@ -148,12 +194,18 @@ export default async function AlbumHomePage({
             current={currentPlace(album.album, place)}
             retakes={retakes ?? []}
             canAdd={blockedReason === null}
-            blocked={blockedReason ? UPLOAD_BLOCKED[blockedReason] : null}
+            blocked={blockedReason ? ADD_BLOCKED[blockedReason] : null}
             matchLater={<MatchLaterRow count={later?.length ?? 0} />}
+            startHere={
+              <StartHereRow href={showWelcome ? WELCOME_PATH : null} />
+            }
+            otherJobs={
+              <OtherJobsRow count={otherJobs} href={OTHER_JOBS_PATH} />
+            }
           />
         ) : blockedReason === "no_venue" ? (
           // Without a venue there is no album to read: say why, not an error.
-          <Notice role="status">{UPLOAD_BLOCKED.no_venue}</Notice>
+          <Notice role="status">{ADD_BLOCKED.no_venue}</Notice>
         ) : (
           <Notice tone="negative" role="alert">
             {album.message}

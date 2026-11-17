@@ -80,6 +80,8 @@ export function AlbumHome({
   headingLevel = 1,
   blocked,
   matchLater = null,
+  startHere = null,
+  otherJobs = null,
 }: {
   venueName: string
   album: AlbumView
@@ -91,6 +93,10 @@ export function AlbumHome({
   blocked: string | null
   /** The Match later row (§5a step 5), between the empty slots and the main button. */
   matchLater?: React.ReactNode
+  /** Start here for a new starter (R-2), under the album count. */
+  startHere?: React.ReactNode
+  /** The Other jobs row (R-2), under the Match later row. */
+  otherJobs?: React.ReactNode
 }) {
   const openAdd = useAdd()
   const Title = `h${headingLevel}` as "h1"
@@ -152,6 +158,8 @@ export function AlbumHome({
           </>
         ) : null}
       </section>
+
+      {startHere}
 
       {retakes.length > 0 ? (
         <RetakeRow
@@ -245,6 +253,8 @@ export function AlbumHome({
       ) : null}
 
       {matchLater}
+
+      {otherJobs}
 
       <div className="sticky bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+0.5rem)] z-dock md:static">
         <Button

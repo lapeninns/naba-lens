@@ -47,7 +47,21 @@ vi.mock("@/lib/auth", () => ({
     venue: { id: "v1", name: "The Railway" },
     avatarPath: null,
   })),
-  uploadBlockReason: () => null,
+  uploadBlockReason: () => blocked.reason,
+}))
+const blocked = vi.hoisted(() => ({
+  reason: null as null | "not_staff" | "no_venue" | "venue_inactive",
+}))
+const amenities = vi.hoisted(() => ({
+  getMyAmenityTasks: vi.fn(async () => ({ ok: true, tasks: [] as unknown[] })),
+}))
+vi.mock("@/lib/server/amenities", () => amenities)
+vi.mock("@/lib/knowledge-client/services", () => ({
+  knowledgeServices: {
+    getWorkingList: async () => ({ ok: true, view: null }),
+    listMyRechecks: async () => ({ ok: true, tasks: [] }),
+    listMyFindings: async () => ({ ok: false }),
+  },
 }))
 vi.mock("@/lib/server/media/context", () => ({
   getMediaActor: vi.fn(async () => ({
@@ -71,9 +85,10 @@ vi.mock("@/lib/server/coverage", () => coverage)
 import StaffPage from "@/app/staff/page"
 
 beforeEach(() => {
+  blocked.reason = null
   coverage.getMyTasks.mockResolvedValue({
     ok: true,
-    tasks: { monthly: monthly() },
+    tasks: { monthly: monthly(), assignments: [] },
   })
 })
 
@@ -86,7 +101,6 @@ afterEach(() => {
 
 describe("Me on the Album layout (proposal §7.6)", () => {
   it("shows the person's own month, privately", async () => {
-    vi.stubEnv("NABALENS_HOME_LAYOUT", "album")
     render(await StaffPage())
     const month = screen
       .getByRole("heading", { name: "Your month" })
@@ -97,13 +111,13 @@ describe("Me on the Album layout (proposal §7.6)", () => {
     expect(
       within(month).getByRole("progressbar", { name: "3 of 5 photos accepted" })
     ).toBeTruthy()
+    // A 48px target (DESIGN.md §8, revb should-fix 8).
     expect(
-      within(month).getByRole("link", { name: "See your month" })
-    ).toBeTruthy()
+      within(month).getByRole("link", { name: "See your month" }).className
+    ).toContain("min-h-12")
   })
 
   it("keeps the month card when the month can't be read", async () => {
-    vi.stubEnv("NABALENS_HOME_LAYOUT", "album")
     coverage.getMyTasks.mockRejectedValueOnce(new Error("down"))
     render(await StaffPage())
     expect(screen.getByRole("heading", { name: "Your month" })).toBeTruthy()
@@ -113,7 +127,6 @@ describe("Me on the Album layout (proposal §7.6)", () => {
   })
 
   it("lists Photos and People, which left the tab bar", async () => {
-    vi.stubEnv("NABALENS_HOME_LAYOUT", "album")
     render(await StaffPage())
     const rows = within(screen.getByRole("navigation", { name: "Your work" }))
     expect(
@@ -122,11 +135,51 @@ describe("Me on the Album layout (proposal §7.6)", () => {
     expect(
       rows.getByRole("link", { name: /^People/ }).getAttribute("href")
     ).toBe("/staff/people")
-    expect(shell.props?.album).toBe(true)
+    // Album's three tabs are the only staff shell: no prop chooses them.
+    expect(shell.props).not.toHaveProperty("album")
+  })
+
+  it("lists Other jobs when jobs wait on the person (revb B2)", async () => {
+    amenities.getMyAmenityTasks.mockResolvedValueOnce({
+      ok: true,
+      tasks: [{ id: "c1" }, { id: "c2" }],
+    })
+    render(await StaffPage())
+    const rows = within(screen.getByRole("navigation", { name: "Your work" }))
+    const link = rows.getByRole("link", { name: /^Other jobs/ })
+    expect(link.getAttribute("href")).toBe("/staff/tasks/other")
+    expect(link.textContent).toContain("2 jobs")
+  })
+
+  it("leaves Other jobs out when there are none, and keeps it when unread", async () => {
+    render(await StaffPage())
+    expect(screen.queryByRole("link", { name: /^Other jobs/ })).toBeNull()
+    cleanup()
+    amenities.getMyAmenityTasks.mockResolvedValueOnce({ ok: false } as never)
+    render(await StaffPage())
+    expect(
+      screen.getByRole("link", { name: /^Other jobs/ }).textContent
+    ).toContain("We couldn't count them")
+  })
+
+  it.each(["not_staff", "no_venue", "venue_inactive"] as const)(
+    "says why adding is paused in Album's words, never upload (%s)",
+    async (reason) => {
+      blocked.reason = reason
+      render(await StaffPage())
+      const { ADD_BLOCKED } = await import("@/app/staff/add-blocked")
+      expect(screen.getAllByText(ADD_BLOCKED[reason]).length).toBeGreaterThan(0)
+      expect(ADD_BLOCKED[reason]).toMatch(/add (any|photos)/)
+      expect(document.body.textContent).not.toMatch(/upload/i)
+    }
+  )
+
+  it("is titled Me", async () => {
+    const { metadata } = await import("@/app/staff/page")
+    expect(metadata.title).toBe("Me")
   })
 
   it("ranks nobody on Me", async () => {
-    vi.stubEnv("NABALENS_HOME_LAYOUT", "album")
     render(await StaffPage())
     expect(document.body.textContent).not.toMatch(
       /rank|leaderboard|top contributor|than your colleagues/i

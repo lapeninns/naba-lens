@@ -3,6 +3,7 @@ import "server-only"
 import { cache } from "react"
 
 import type { AlbumRetake } from "@/components/nabalens/album/album-home"
+import { otherJobsCount } from "@/components/nabalens/tasks/other-jobs-count"
 import type { MyAmenityTask } from "@/lib/amenities/contract"
 import { contributionEntry } from "@/lib/config/contribution-entry"
 import type { WorkingList } from "@/lib/knowledge-client/contract"
@@ -190,9 +191,6 @@ export type StaffShellStatus = {
   /** Only for a venue manager; none when the read fails. */
   reviewCount: number | undefined
   avatarUrl: string | null
-  /** The Album shell's three tabs (DESIGN.md §5 Tab bar). Album is the only
-   *  staff Home since A5, so every staff frame sets it. */
-  album?: boolean
 }
 
 /**
@@ -235,7 +233,6 @@ export async function staffShellStatus(
     managerStatus(actor),
   ])
   return {
-    album: true,
     canManage,
     todoUnknown: retakes === null,
     todoCount: retakes?.length,
@@ -257,7 +254,6 @@ const rechecksOf = cache(async (actor: MediaActor) => {
 export const myRechecks = (actor: MediaActor) => rechecksOf(sharedActor(actor))
 
 const NO_STATUS: StaffShellStatus = {
-  album: true,
   canManage: false,
   todoCount: undefined,
   todoUnknown: false,
@@ -280,3 +276,28 @@ export const currentStaffShell = cache(async (): Promise<StaffShellStatus> => {
     return { ...NO_STATUS, todoUnknown: true }
   }
 })
+
+/**
+ * How many Other jobs wait on me (decision 10): the count behind the Other
+ * jobs rows on Album and Me (`/staff/tasks/other`). Null when any of its
+ * reads fails: unknown, never "none", so the row still shows and the jobs
+ * stay reachable.
+ */
+export async function myOtherJobsCount(
+  actor: MediaActor
+): Promise<number | null> {
+  const [tasks, amenityTasks, list, rechecks] = await Promise.all([
+    myTasks(actor).catch(() => null),
+    myAmenityTasks(actor),
+    myWorkingList(actor),
+    myRechecks(actor),
+  ])
+  if (!tasks?.ok || amenityTasks === null || list === undefined || !rechecks)
+    return null
+  return otherJobsCount({
+    tasks: tasks.tasks,
+    amenityTasks,
+    slots: list?.slots ?? null,
+    rechecks,
+  })
+}

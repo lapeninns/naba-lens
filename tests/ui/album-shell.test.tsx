@@ -108,7 +108,6 @@ function renderShell(
     <AddProvider value={{ openAdd }}>
       <AppShell
         variant="staff"
-        album
         active={props.active ?? "tasks"}
         canManage={props.canManage}
         reviewCount={props.canManage ? 2 : undefined}
@@ -139,14 +138,40 @@ describe("Album shell: the tab bar (DESIGN.md §5 Tab bar)", () => {
     expect(tabs.getByRole("link", { name: "Me" })).toBeTruthy()
   })
 
-  it("marks the open tab and shows no To do badge on Album", () => {
+  it("marks the open tab and counts Album's retakes on its tab elsewhere", () => {
     renderShell(vi.fn(), { active: "portfolio" })
     const tabs = within(staffNav("tabbar"))
     expect(
       tabs.getByRole("link", { name: "Me" }).getAttribute("aria-current")
     ).toBe("page")
-    // todoCount was passed, but slots are never tasks (§7): no badge.
-    expect(tabs.getByRole("link", { name: "Album" }).textContent).toBe("Album")
+    // The badge counts the retakes Album shows (§5a), never empty slots.
+    expect(
+      tabs.getByRole("link", { name: /^Album\W+4\s*retakes$/ })
+    ).toBeTruthy()
+    expect(
+      within(staffNav("app-nav")).getByRole("link", {
+        name: /^Album\W+4\s*retakes$/,
+      })
+    ).toBeTruthy()
+  })
+
+  it("shows no retake badge on Album itself, and ? when unread", () => {
+    renderShell()
+    expect(
+      within(staffNav("tabbar")).getByRole("link", { name: "Album" })
+        .textContent
+    ).toBe("Album")
+    cleanup()
+    render(
+      <AppShell variant="staff" active="portfolio" todoUnknown>
+        x
+      </AppShell>
+    )
+    expect(
+      within(staffNav("tabbar"))
+        .getByRole("link", { name: /^Album/ })
+        .textContent?.includes("?")
+    ).toBe(true)
   })
 
   it("leaves out Photos, People and Our menu, and the header's second Me", () => {
@@ -216,16 +241,18 @@ describe("Album shell: the tab bar (DESIGN.md §5 Tab bar)", () => {
     ).toBe("/staff")
   })
 
-  it("keeps today's five tabs on other layouts", () => {
+  it("shows the three Album tabs on every staff page, with no extra prop", () => {
+    // R-2 (revb should-fix 6): a page that renders AppShell itself, like the
+    // manager's amenity capture page, gets Album's tabs, never the old five.
     render(
-      <AppShell variant="staff" active="tasks">
+      <AppShell variant="staff" active="manage" canManage>
         x
       </AppShell>
     )
     const names = Array.from(
       staffNav("tabbar").querySelectorAll("a, button")
     ).map((el) => el.textContent)
-    expect(names).toEqual(["Home", "Photos", "Add", "People", "Me"])
+    expect(names).toEqual(["Album", "Add photos", "Me"])
   })
 
   it("ranks nobody: no leaderboard words anywhere in the shell", () => {

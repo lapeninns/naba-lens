@@ -25,6 +25,8 @@ export {
   retakeNoteTitle,
 } from "./retake-notes-model"
 export { FirstRun, setupGaps } from "./first-run"
+export { FIRST_RUN_COOKIE, showWelcomeEntry } from "./first-run-state"
+export { otherJobsCount } from "./other-jobs-count"
 export { intentKey, useRequestIntent } from "./request-intent"
 export {
   DueLine,

@@ -34,6 +34,7 @@ import {
 } from "@/components/nabalens"
 import type { MediaItem } from "@/components/nabalens/types"
 import { formatBytes } from "@/components/nabalens/format"
+import { HOME_ROWS_COPY } from "@/components/nabalens/album/home-rows"
 import { GUIDE_PATH } from "@/components/nabalens/guide"
 import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
 import { ThemeSetting } from "@/components/nabalens/theme-setting"
@@ -87,10 +88,11 @@ type StaffPortfolioProps = {
    */
   month?: React.ReactNode
   /**
-   * The Album shell's tab bar has only Album, Add photos and Me (DESIGN.md
-   * §5), so Me lists Photos and People among its own links.
+   * Other jobs waiting on the person (decision 10): Me lists the row when
+   * there are any, or when they couldn't be counted (null). Undefined leaves
+   * it out.
    */
-  albumShell?: boolean
+  otherJobs?: number | null
 }
 
 /** The three milestones of an own photo, in these exact words. */
@@ -363,7 +365,7 @@ export function StaffPortfolio({
   areaLabelled = [],
   findings = null,
   month = null,
-  albumShell = false,
+  otherJobs,
 }: StaffPortfolioProps) {
   const router = useRouter()
   const [editOpen, setEditOpen] = React.useState(initialEditOpen)
@@ -512,21 +514,27 @@ export function StaffPortfolio({
             title="Our menu"
             hint="See which dishes and drinks still need a photo"
           />
-          {albumShell ? (
-            <>
-              <MeRow
-                href="/staff/community"
-                icon={<ImagesIcon />}
-                title="Photos"
-                hint="Photos your colleagues have added, newest first"
-              />
-              <MeRow
-                href="/staff/people"
-                icon={<UsersIcon />}
-                title="People"
-                hint="Your colleagues and their photos"
-              />
-            </>
+          {/* The Album tab bar has only Album, Add photos and Me (DESIGN.md
+              §5), so Me lists Photos and People among its own links. */}
+          <MeRow
+            href="/staff/community"
+            icon={<ImagesIcon />}
+            title="Photos"
+            hint="Photos your colleagues have added, newest first"
+          />
+          <MeRow
+            href="/staff/people"
+            icon={<UsersIcon />}
+            title="People"
+            hint="Your colleagues and their photos"
+          />
+          {otherJobs === null || (otherJobs ?? 0) > 0 ? (
+            <MeRow
+              href="/staff/tasks/other"
+              icon={<ClipboardTextIcon />}
+              title={HOME_ROWS_COPY.otherJobs}
+              hint={HOME_ROWS_COPY.otherJobsLine(otherJobs ?? null)}
+            />
           ) : null}
         </ul>
       </nav>
