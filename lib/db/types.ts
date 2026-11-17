@@ -5176,6 +5176,7 @@ export type Database = {
         Args: { p_expected_revision: number; p_version_id: string }
         Returns: undefined
       }
+      album_admin_counts: { Args: { p_venue_id: string }; Returns: Json }
       album_area_states: { Args: { p_venue_id?: string }; Returns: Json }
       album_place_set: {
         Args: {

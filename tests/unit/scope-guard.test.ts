@@ -130,6 +130,8 @@ const ALLOWED_PAGES = new Set([
   "/admin/coverage/[venueId]/menu-photos/contributors/[staffId]",
   "/admin/coverage/[venueId]/team",
   "/admin/coverage/managers",
+  // Album A4 (DESIGN.md §6.6): every venue's album and its biggest gaps.
+  "/admin/albums",
   // Shared amenity catalogue (November 2026): per-venue checks with photo or
   // video evidence; a valid submission is the answer, managers can reopen it.
   // Never part of monthly targets (docs/plans/amenity-catalogue.md).

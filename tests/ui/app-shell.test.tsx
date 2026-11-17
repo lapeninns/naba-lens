@@ -165,6 +165,7 @@ describe("AppShell admin navigation", () => {
       ["Staff", "/admin/staff"],
       ["Menus", "/admin/menus"],
       ["Coverage", "/admin/coverage"],
+      ["Albums", "/admin/albums"],
     ])
     expect(links("Admin", "tabbar")).toEqual(links("Admin"))
     expect(current("Admin")).toEqual(["Coverage"])
