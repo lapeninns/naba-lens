@@ -5187,6 +5187,19 @@ export type Database = {
         Returns: Json
       }
       album_places: { Args: { p_venue_id?: string }; Returns: Json }
+      album_slot_asset: {
+        Args: { p_asset_id: string }
+        Returns: {
+          asset_id: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number
+          media_type: Database["public"]["Enums"]["media_type"]
+          venue_id: string
+          width: number
+        }[]
+      }
+      album_slot_photos: { Args: { p_venue_id?: string }; Returns: Json }
       amenity_add_checks:
         | { Args: { p_keys: string[]; p_venue_id: string }; Returns: string[] }
         | {

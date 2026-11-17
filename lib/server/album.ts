@@ -26,7 +26,9 @@ import type { MediaActor } from "@/lib/server/media/types"
 // caller's venue, grouped by place. The sources are the loaders the app
 // already has (Our menu, the amenity working list, G-9 area labels) plus the
 // placements in 20261117120000_album_places.sql; lib/album/model.ts groups
-// them. Each read is scoped again by the database.
+// them. Each read is scoped again by the database. AL-7 adds the current
+// photo of accepted or waiting area slots and accepted amenity slots
+// (20261117150000_album_slot_photos.sql), served by /api/album/[id]/thumb.
 
 type Result<T> = ({ ok: true } & T) | CoverageFailure
 
@@ -158,8 +160,48 @@ async function allDishes(actor: MediaActor): Promise<DishInput[] | null> {
   return dishes
 }
 
-async function allAmenities(actor: MediaActor): Promise<AmenityInput[]> {
-  const result = await knowledgeServices.getWorkingList(actor, {})
+/** The thumbnail route for a slot photo (AL-7): signed per request, 60 s. */
+export const albumThumbUrl = (assetId: string) =>
+  `/api/album/${encodeURIComponent(assetId)}/thumb`
+
+export type SlotPhotos = {
+  amenity: Map<string, string>
+  area: Map<string, string>
+}
+
+/**
+ * AL-7: the current photo of each accepted or waiting area slot and each
+ * accepted amenity slot at the caller's venue, as thumbnail URLs by slot id.
+ * The database picks the photo (album_slot_photos) and checks it again on
+ * every thumbnail (album_slot_asset). A failed read shows no photos.
+ */
+export async function slotPhotos(actor: MediaActor): Promise<SlotPhotos> {
+  const photos: SlotPhotos = { amenity: new Map(), area: new Map() }
+  const read = await Promise.resolve(
+    actor.db.rpc("album_slot_photos", {})
+  ).catch(() => null)
+  if (!read || read.error) return photos
+  const data = read.data
+  for (const row of rows(data, "items")) {
+    const kind = row.kind
+    if (
+      (kind === "amenity" || kind === "area") &&
+      isUuid(row.slotId) &&
+      isUuid(row.assetId)
+    )
+      photos[kind].set(row.slotId, albumThumbUrl(row.assetId))
+  }
+  return photos
+}
+
+async function allAmenities(
+  actor: MediaActor,
+  photos: Promise<SlotPhotos>
+): Promise<AmenityInput[]> {
+  const [result, thumbs] = await Promise.all([
+    knowledgeServices.getWorkingList(actor, {}),
+    photos,
+  ])
   if (!result.ok || !result.view) return []
   return result.view.slots.map((slot) => ({
     checkId: slot.checkId,
@@ -171,11 +213,18 @@ async function allAmenities(actor: MediaActor): Promise<AmenityInput[]> {
         ? (slot.answerInUse.value ?? null)
         : null,
     myLatestState: slot.myLatest?.state ?? null,
+    thumbnailUrl: thumbs.amenity.get(slot.checkId) ?? null,
   }))
 }
 
-async function allAreas(actor: MediaActor): Promise<AreaInput[]> {
-  const { data, error } = await actor.db.rpc("album_area_states", {})
+async function allAreas(
+  actor: MediaActor,
+  photos: Promise<SlotPhotos>
+): Promise<AreaInput[]> {
+  const [{ data, error }, thumbs] = await Promise.all([
+    actor.db.rpc("album_area_states", {}),
+    photos,
+  ])
   if (error) return []
   return rows(data, "items").flatMap((row): AreaInput[] => {
     const label = text(row.label)
@@ -186,7 +235,14 @@ async function allAreas(actor: MediaActor): Promise<AreaInput[]> {
         state === "waiting" ||
         state === "retake" ||
         state === "accepted")
-      ? [{ subjectId: row.subjectId, label, state }]
+      ? [
+          {
+            subjectId: row.subjectId,
+            label,
+            state,
+            thumbnailUrl: thumbs.area.get(row.subjectId) ?? null,
+          },
+        ]
       : []
   })
 }
@@ -213,11 +269,13 @@ async function myRetakeItems(actor: MediaActor): Promise<Set<string>> {
 export async function loadAlbum(
   actor: MediaActor
 ): Promise<Result<{ album: AlbumView; placements: AlbumPlacements }>> {
+  // One slot-photo read, shared by the amenity and area loaders.
+  const photos = slotPhotos(actor)
   const [placements, dishes, amenities, areas, retakes] = await Promise.all([
     getAlbumPlacements(actor),
     allDishes(actor),
-    allAmenities(actor),
-    allAreas(actor),
+    allAmenities(actor, photos),
+    allAreas(actor, photos),
     myRetakeItems(actor),
   ])
   if (!placements.ok) return placements
