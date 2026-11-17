@@ -278,11 +278,9 @@ describe("B02 To do", () => {
       })
     ).toBeTruthy()
     expect(screen.queryByText(/TEST Morgan/)).toBeNull()
-    fireEvent.click(
-      screen.getByRole("button", { name: "Take a new photo of Fish pie" })
-    )
+    fireEvent.click(screen.getByRole("button", { name: "Retake Fish pie" }))
     expect(openAdd).toHaveBeenCalledWith({
-      source: "camera",
+      source: "library",
       imagesOnly: true,
       preset: {
         itemId: "i1",

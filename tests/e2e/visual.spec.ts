@@ -1291,10 +1291,10 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
       .getByText("The photos you send now replace this one.", { exact: true })
   ).toBeVisible()
   await capture(page, testInfo, "coverage-staff-task-replacement")
-  // "Take a photo" opens the camera (a file input); the Add sheet opens once
-  // a photo is picked and saves it at once. Sending it to the task stays a
-  // separate step ("Send photos"), not taken here.
-  const send = page.getByRole("button", { name: "Take a photo" })
+  // "Choose from your photos" opens the photo library (a file input); the
+  // Add sheet opens once a photo is picked and saves it at once. Sending it to
+  // the task stays a separate step ("Send photos"), not taken here.
+  const send = page.getByRole("button", { name: "Choose from your photos" })
   const dialog = uploadSheet(page)
   const photo = {
     name: "task-photo.jpg",

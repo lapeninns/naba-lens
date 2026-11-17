@@ -101,7 +101,7 @@ describe("SubmitPhotosPanel: photos arrive one at a time", () => {
   const tile = (time: string, date = "2 Nov 2026") =>
     within(screen.getByRole("list", { name: "Your photos" })).getByRole(
       "button",
-      { name: `Photo uploaded ${date}, ${time}` }
+      { name: `Photo added ${date}, ${time}` }
     )
 
   it("adds each photo to the selection as it is ready, keeping earlier picks", async () => {
@@ -184,9 +184,13 @@ describe("SubmitPhotosPanel: photos arrive one at a time", () => {
     first.onReady!([P1.assetId])
     expect(await screen.findByText("1 new photo selected.")).toBeTruthy()
 
-    await user.click(screen.getByRole("button", { name: "Take a photo" }))
+    // Gallery first (DESIGN.md §2, §9): the second pick is the library too.
+    expect(screen.queryByRole("button", { name: "Take a photo" })).toBeNull()
+    await user.click(
+      screen.getByRole("button", { name: "Choose from your photos" })
+    )
     const second = openAdd.mock.lastCall![0]!
-    expect(second.source).toBe("camera")
+    expect(second.source).toBe("library")
     act(() => second.onPicked?.())
     listed = [P2, P1, OLD]
     second.onReady!([P2.assetId])

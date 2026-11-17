@@ -575,9 +575,9 @@ describe("ItemPhotoReview", () => {
     expect(screen.getByText(ITEM_REVIEW_COPY.emptyQueue)).toBeTruthy()
   })
 
-  it("says unlabelled photos need labelling by their uploader first", () => {
+  it("says unlabelled photos need labelling by whoever added them first", () => {
     expect(ITEM_REVIEW_COPY.labellingNote).toMatch(
-      /Unlabelled photos need labelling by their uploader first/
+      /Unlabelled photos need labelling by whoever added them first/
     )
   })
 })

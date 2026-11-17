@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CameraIcon } from "@phosphor-icons/react/dist/ssr"
+import { ArrowUUpLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { Notice } from "@/components/nabalens/notice"
 import { ProfileAvatar } from "@/components/nabalens/profile-avatar"
@@ -278,7 +278,7 @@ export function NeedsAnotherPhotoList({
                       className: "w-full sm:w-auto sm:justify-self-start",
                     })}
                   >
-                    <CameraIcon data-icon="inline-start" aria-hidden />
+                    <ArrowUUpLeftIcon data-icon="inline-start" aria-hidden />
                     Send another photo
                   </Link>
                 ) : null}

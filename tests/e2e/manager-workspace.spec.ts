@@ -260,9 +260,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
         main(mgr).getByRole("link", { name, exact: true })
       ).toBeVisible()
     await expect(
-      main(mgr)
-        .getByRole("button", { name: "Take a photo of this dish" })
-        .first()
+      main(mgr).getByRole("button", { name: "Add photos of this dish" }).first()
     ).toBeVisible()
 
     for (const path of [

@@ -459,7 +459,7 @@ describe("Me: Needs labels and milestones", () => {
     ).toBeNull()
   })
 
-  it("reshoots a menu note in one tap, labelled with that dish, or from photos", async () => {
+  it("retakes a menu note in one tap from the phone's photos, labelled with that dish", async () => {
     library.items = []
     coverage.listMyRetakeNotes.mockResolvedValueOnce({
       ok: true,
@@ -488,10 +488,10 @@ describe("Me: Needs labels and milestones", () => {
 
     const momo = screen.getByRole("article", { name: "Momo (Veg)" })
     fireEvent.click(
-      within(momo).getByRole("button", { name: "Reshoot: Momo (Veg)" })
+      within(momo).getByRole("button", { name: "Retake: Momo (Veg)" })
     )
     expect(openAdd).toHaveBeenLastCalledWith({
-      source: "camera",
+      source: "library",
       imagesOnly: true,
       preset: {
         itemId: "i3",
@@ -503,7 +503,7 @@ describe("Me: Needs labels and milestones", () => {
     const curry = screen.getByRole("article", { name: "Chicken curry" })
     fireEvent.click(
       within(curry).getByRole("button", {
-        name: "Choose from photos: Chicken curry",
+        name: "Retake: Chicken curry",
       })
     )
     expect(openAdd).toHaveBeenLastCalledWith({
@@ -542,13 +542,13 @@ describe("Me: Needs labels and milestones", () => {
     const month = screen.getByRole("article", { name: "Photo for your month" })
     expect(
       within(month)
-        .getByRole("link", { name: "Reshoot: Photo for your month" })
+        .getByRole("link", { name: "Retake: Photo for your month" })
         .getAttribute("href")
     ).toBe("/staff/tasks/month?replaces=c1")
     const bar = screen.getByRole("article", { name: "Bar set-up" })
     expect(
       within(bar)
-        .getByRole("link", { name: "Reshoot: Bar set-up" })
+        .getByRole("link", { name: "Retake: Bar set-up" })
         .getAttribute("href")
     ).toBe("/staff/tasks/r1?replaces=c2")
   })
@@ -591,19 +591,17 @@ describe("Me: Needs labels and milestones", () => {
     const aside = within(list).getByRole("article", { name: "Chicken curry" })
     expect(aside.textContent).toContain("Set aside for later")
     expect(
-      within(aside).getByRole("button", { name: "Reshoot: Chicken curry" })
+      within(aside).getByRole("button", { name: "Retake: Chicken curry" })
     ).toBeTruthy()
 
     const soup = within(list).getByRole("article", { name: "Soup" })
     expect(soup.textContent).toContain("New photo sent · waiting for review")
-    expect(
-      within(soup).queryByRole("button", { name: /^Choose from photos/ })
-    ).toBeNull()
+    expect(within(soup).queryByRole("button", { name: /^Retake/ })).toBeNull()
     fireEvent.click(
-      within(soup).getByRole("button", { name: "Take another: Soup" })
+      within(soup).getByRole("button", { name: "Add another: Soup" })
     )
     expect(openAdd).toHaveBeenLastCalledWith(
-      expect.objectContaining({ source: "camera" })
+      expect.objectContaining({ source: "library" })
     )
   })
 
@@ -646,7 +644,7 @@ describe("Me: Needs labels and milestones", () => {
     expect(within(closed).queryByRole("link")).toBeNull()
   })
 
-  it("offers no camera and no send link while uploads are paused", () => {
+  it("offers no Retake and no send link while uploads are paused", () => {
     const openAdd = vi.fn()
     render(
       <AddProvider value={{ openAdd }}>

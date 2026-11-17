@@ -4,9 +4,8 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
-  CameraPlusIcon,
+  ArrowUUpLeftIcon,
   CheckCircleIcon,
-  ImagesIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
 import { LeadCard } from "@/components/nabalens/common-room/card"
@@ -31,8 +30,9 @@ import {
 } from "./retake-notes-model"
 
 // One retake note block (G-3, docs/plans/goals-not-tasks.md, decisions 4, 12
-// and 14). Menu notes reshoot with the dish already labelled; coverage
-// requests reshoot through their send page. The database decides each note's
+// and 14). Menu notes retake from the phone's photos with the dish already
+// labelled (gallery first, DESIGN.md §2); coverage requests retake through
+// their send page. The database decides each note's
 // status (my_retake_notes); this only draws it.
 
 const refOf = (note: RetakeNote): RetakeNoteRef => ({
@@ -78,45 +78,35 @@ function Reason({ note }: { note: RetakeNote }) {
 }
 
 /**
- * Reshoot: the camera with the dish already labelled (menu), or the send
- * page for the request (coverage). Null when nothing can be sent now.
+ * Retake: the phone's photos with the dish already labelled (menu), or the
+ * send page for the request (coverage). Never an in-app camera (DESIGN.md
+ * §9). Null when nothing can be sent now.
  */
-function ReshootAction({
+function RetakeAction({
   note,
   variant,
   openAdd,
   tasksPath,
-  source = "camera",
   describedBy,
   blocked,
 }: {
   note: RetakeNote
   variant: "primary" | "secondary" | "quiet"
-  /** Uploads are paused for this account: no Reshoot of either kind. */
+  /** Uploads are paused for this account: no Retake of either kind. */
   blocked: boolean
   /** Null while uploads are paused or outside the staff layout. */
   openAdd: ((opts?: OpenAddOptions) => void) | null
   tasksPath: string
-  source?: "camera" | "library"
   describedBy?: string
 }) {
   const title = retakeNoteTitle(note)
   const label =
-    note.status === "retaken"
-      ? RETAKE_COPY.again
-      : source === "library"
-        ? RETAKE_COPY.choose
-        : RETAKE_COPY.reshoot
-  const icon =
-    source === "library" ? (
-      <ImagesIcon data-icon="inline-start" aria-hidden />
-    ) : (
-      <CameraPlusIcon data-icon="inline-start" aria-hidden />
-    )
+    note.status === "retaken" ? RETAKE_COPY.again : RETAKE_COPY.retake
+  const icon = <ArrowUUpLeftIcon data-icon="inline-start" aria-hidden />
   if (!note.canRetake) return null
   if (note.kind === "coverage") {
     // The send page answers the request; paused uploads offer nothing.
-    if (source === "library" || blocked) return null
+    if (blocked) return null
     return (
       <Link
         href={replacementPath(
@@ -140,8 +130,10 @@ function ReshootAction({
       variant={variant}
       aria-label={`${label}: ${title}`}
       aria-describedby={describedBy}
-      // openAdd clicks the camera input inside this click handler.
-      onClick={() => openAdd({ source, imagesOnly: true, preset: { ...dish } })}
+      // openAdd clicks the library input inside this click handler.
+      onClick={() =>
+        openAdd({ source: "library", imagesOnly: true, preset: { ...dish } })
+      }
     >
       {icon}
       {label}
@@ -170,7 +162,7 @@ function LaterButton({
   )
 }
 
-/** Home: the first note as the lead card (Reshoot is the one blue action). */
+/** Home: the first note as the lead card (Retake is the one blue action). */
 function HomeNotes({
   notes,
   openAdd,
@@ -201,7 +193,7 @@ function HomeNotes({
           // Grey left, blue right (common-room.md §5a); stacked, blue last.
           <div className="flex flex-wrap gap-2 *:flex-auto sm:justify-end sm:*:flex-none">
             <LaterButton note={lead} onLater={onLater} describedBy={leadId} />
-            <ReshootAction
+            <RetakeAction
               note={lead}
               variant="primary"
               openAdd={openAdd}
@@ -241,14 +233,12 @@ function NoteRow({
   openAdd,
   tasksPath,
   onLater,
-  library = false,
   blocked,
 }: {
   note: RetakeNote
   openAdd: ((opts?: OpenAddOptions) => void) | null
   tasksPath: string
   onLater?: (note: RetakeNote) => void
-  library?: boolean
   blocked: boolean
 }) {
   const nameId = React.useId()
@@ -258,8 +248,8 @@ function NoteRow({
         ? RETAKE_COPY.offMenu
         : RETAKE_COPY.closed
       : null
-  const reshoot = (
-    <ReshootAction
+  const retake = (
+    <RetakeAction
       note={note}
       variant={note.status === "retaken" ? "quiet" : "secondary"}
       openAdd={openAdd}
@@ -268,18 +258,6 @@ function NoteRow({
       describedBy={nameId}
     />
   )
-  const choose =
-    library && note.status !== "retaken" ? (
-      <ReshootAction
-        note={note}
-        variant="quiet"
-        openAdd={openAdd}
-        tasksPath={tasksPath}
-        blocked={blocked}
-        source="library"
-        describedBy={nameId}
-      />
-    ) : null
   const later =
     onLater && note.status === "open" ? (
       <LaterButton note={note} onLater={onLater} describedBy={nameId} />
@@ -316,11 +294,10 @@ function NoteRow({
             <p className="text-body text-ink-muted">{RETAKE_COPY.setAside}</p>
           ) : null}
         </div>
-        {note.canRetake && (later || reshoot) ? (
+        {note.canRetake && (later || retake) ? (
           <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
             {later}
-            {reshoot}
-            {choose}
+            {retake}
           </div>
         ) : null}
       </article>
@@ -330,9 +307,9 @@ function NoteRow({
 
 /**
  * The retake note block. `home`: open notes that can be retaken, the first as
- * the lead card with Reshoot as the one blue action, each with Later. `me`:
+ * the lead card with Retake as the one blue action, each with Later. `me`:
  * every note until it clears, set aside or not, with grey actions (Me's blue
- * is Upload). Renders nothing when there is nothing to show.
+ * is Add photos). Renders nothing when there is nothing to show.
  */
 export function RetakeNotes({
   notes,
@@ -350,7 +327,7 @@ export function RetakeNotes({
    */
   focusAfterLaterId?: string
   tasksPath?: string
-  /** Uploads are paused for this account: no camera (the reason shows elsewhere). */
+  /** Uploads are paused for this account: no Retake (the reason shows elsewhere). */
   uploadBlocked?: boolean
   /** Later (Home): the setRetakeNoteAsideAction server action. */
   onLater?: OnLater
@@ -468,7 +445,6 @@ export function RetakeNotes({
               tasksPath={tasksPath}
               blocked={uploadBlocked}
               onLater={later}
-              library
             />
           ))}
         </ul>

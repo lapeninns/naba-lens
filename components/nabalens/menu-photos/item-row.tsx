@@ -2,12 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import {
-  CameraIcon,
-  CameraPlusIcon,
-  ImageIcon,
-  ImagesIcon,
-} from "@phosphor-icons/react"
+import { ImageIcon, ImagesIcon, PlusIcon } from "@phosphor-icons/react"
 
 import { EvidenceThumb } from "@/components/nabalens/coverage/evidence-image"
 import { plural } from "@/components/nabalens/coverage/copy"
@@ -28,9 +23,9 @@ import { NeededByChip } from "./needed-by-chip"
 /**
  * One dish or drink on Our menu: its name and variants, whether it has an
  * accepted photo (with the main photo's thumbnail), and for staff who can
- * upload "Take a photo of this dish" (the camera, primary) and "Choose from
- * photos" (the library). Either way Add applies the dish as a label the
- * person can remove, and the upload starts at once: Take a photo, then Done.
+ * add photos "Add photos of this dish" (the phone's photos, DESIGN.md §2).
+ * Add applies the dish as a label the person can remove, and sending starts
+ * at once.
  */
 export function OurMenuItemRow({
   item,
@@ -39,11 +34,11 @@ export function OurMenuItemRow({
   primary = false,
 }: {
   item: OurMenuItem
-  /** The person can upload now (active staff at an active venue). */
+  /** The person can add photos now (active staff at an active venue). */
   canAdd: boolean
   /** Reviewers: this dish's photos to decide. */
   reviewHref?: string
-  /** Home's one main action is this dish's camera (goals decision 12). */
+  /** Home's one main action is this dish's Add photos (goals decision 12). */
   primary?: boolean
 }) {
   const openAdd = useAdd()
@@ -68,7 +63,7 @@ export function OurMenuItemRow({
           aria-hidden
           className="grid aspect-square w-14 place-items-center rounded-control border-2 border-dashed border-edge-strong text-ink-muted"
         >
-          <CameraIcon className="size-6" />
+          <PlusIcon className="size-6" />
         </span>
       )}
       <div className="grid min-w-0 content-start gap-1">
@@ -146,8 +141,9 @@ export function OurMenuItemRow({
 }
 
 /**
- * "Take a photo of this dish" (the camera) and "Choose from photos" (the
- * library): Add with the dish as a label preset, after the guidance step.
+ * "Add photos of this dish": the phone's photos (gallery first, DESIGN.md §2;
+ * no in-app camera, §9), with the dish as Add's label preset, after the
+ * guidance step.
  */
 export function DishAddButtons({
   openAdd,
@@ -170,22 +166,7 @@ export function DishAddButtons({
         variant={primary ? "primary" : "secondary"}
         size="sm"
         aria-describedby={describedBy}
-        // openAdd clicks the camera input inside this click handler.
-        onClick={() =>
-          openAdd({
-            source: "camera",
-            imagesOnly: true,
-            preset: dishPreset(item),
-          })
-        }
-      >
-        <CameraPlusIcon data-icon="inline-start" aria-hidden />
-        {OUR_MENU_COPY.takePhoto}
-      </Button>
-      <Button
-        variant="quiet"
-        size="sm"
-        aria-describedby={describedBy}
+        // openAdd clicks the library input inside this click handler.
         onClick={() =>
           openAdd({
             source: "library",
@@ -195,7 +176,7 @@ export function DishAddButtons({
         }
       >
         <ImagesIcon data-icon="inline-start" aria-hidden />
-        {OUR_MENU_COPY.choosePhoto}
+        {OUR_MENU_COPY.addPhotos}
       </Button>
     </>
   )

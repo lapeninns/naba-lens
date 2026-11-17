@@ -75,13 +75,13 @@ export function otherJobsCount({
 export type GoalsPrimary =
   | { kind: "reshoot"; noteKey: string }
   | { kind: "dish"; itemId: string }
-  | { kind: "open_camera" }
+  | { kind: "add_photos" }
   | null
 
 /**
- * Reshoot when a retake note is open, else the first Still needed dish, else
- * Open camera when the menu is complete. A person who may not add photos
- * gets no dish or camera action; a note still leads (it explains itself).
+ * Retake when a retake note is open, else the first Still needed dish, else
+ * Add photos when the menu is complete. A person who may not add photos
+ * gets no dish or Add photos action; a note still leads (it explains itself).
  * `notes` are the notes Home shows (`homeRetakeNotes`): open and retakeable.
  */
 export function goalsPrimary({
@@ -98,7 +98,7 @@ export function goalsPrimary({
   if (!canAdd) return null
   const first = menu?.state === "ready" ? menu.stillNeeded?.[0] : undefined
   if (first) return { kind: "dish", itemId: first.itemId }
-  return menuComplete(menu) ? { kind: "open_camera" } : null
+  return menuComplete(menu) ? { kind: "add_photos" } : null
 }
 
 /** A card on Home that asks this person to act (the badge counts these). */

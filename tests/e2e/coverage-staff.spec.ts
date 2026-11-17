@@ -398,13 +398,13 @@ async function staffJourney(
 
   await page.goto("/staff/tasks")
   await expect(monthProgress(1)).toBeVisible()
-  // The retake note on Home, with Reshoot as the one main action.
+  // The retake note on Home, with Retake as the one main action.
   const replacements = page.getByRole("region", {
     name: "Needs another photo",
   })
   await expect(replacements.getByText(reason)).toBeVisible()
   await replacements
-    .getByRole("link", { name: `Reshoot: ${setup.title}` })
+    .getByRole("link", { name: `Retake: ${setup.title}` })
     .click()
   await expect(page).toHaveURL(
     new RegExp(`/staff/tasks/${setup.requirementId}\\?replaces=${sent[1]!.id}$`)
@@ -428,7 +428,7 @@ async function staffJourney(
   await page.goto("/staff/tasks")
   await expect(monthProgress(2)).toBeVisible()
   await expect(monthly.getByText("Target met")).toBeVisible()
-  await expect(page.getByRole("link", { name: /^Reshoot / })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: /^Retake/ })).toHaveCount(0)
   await page.goto("/staff/tasks/other")
   await expect(taskCard).toContainText("Complete")
 }

@@ -75,13 +75,14 @@ describe("FirstRun", () => {
       screen.getByRole("heading", { name: "What do you do at The Railway?" })
     ).toBeTruthy()
 
-    // Document order: work details, library (primary), camera, Skip.
+    // Document order: work details, library (primary), Skip. Gallery first:
+    // no in-app camera (DESIGN.md §2, §9; AL-6).
     const library = screen.getByRole("button", {
       name: "Choose from your photos",
     })
-    const camera = screen.getByRole("button", { name: "Take a photo" })
+    expect(screen.queryByRole("button", { name: "Take a photo" })).toBeNull()
     const skip = screen.getByRole("button", { name: "Skip for now" })
-    const order = [work, library, camera, skip]
+    const order = [work, library, skip]
     for (let i = 1; i < order.length; i++) {
       expect(
         order[i - 1].compareDocumentPosition(order[i]) &
@@ -152,7 +153,7 @@ describe("FirstRun", () => {
     expect(document.cookie).not.toContain(FIRST_RUN_COOKIE)
   })
 
-  it("does not dismiss when the camera picker is cancelled", () => {
+  it("does not dismiss when the picker is cancelled", () => {
     const calls: OpenAddOptions[] = []
     const dismiss = vi.fn(async () => ({ ok: true }))
     render(
@@ -160,8 +161,10 @@ describe("FirstRun", () => {
         <FirstRun {...props({ dismiss })} />
       </AddProvider>
     )
-    fireEvent.click(screen.getByRole("button", { name: "Take a photo" }))
-    expect(calls[0]?.source).toBe("camera")
+    fireEvent.click(
+      screen.getByRole("button", { name: "Choose from your photos" })
+    )
+    expect(calls[0]?.source).toBe("library")
     // A cancelled picker never calls onPicked.
     expect(dismiss).not.toHaveBeenCalled()
     expect(router.push).not.toHaveBeenCalled()
@@ -257,7 +260,7 @@ describe("FirstRun", () => {
     ).toBeTruthy()
   })
 
-  it("disables both pickers when uploads are blocked, but keeps Skip", () => {
+  it("disables the picker when uploads are blocked, but keeps Skip", () => {
     render(
       <AddProvider value={{ openAdd: vi.fn() }}>
         <FirstRun
@@ -271,11 +274,14 @@ describe("FirstRun", () => {
     expect(
       screen.getByRole("heading", { name: "Photos can't be added yet" })
     ).toBeTruthy()
-    for (const name of ["Choose from your photos", "Take a photo"]) {
-      expect(
-        (screen.getByRole("button", { name }) as HTMLButtonElement).disabled
-      ).toBe(true)
-    }
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Choose from your photos",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true)
+    expect(screen.queryByRole("button", { name: "Take a photo" })).toBeNull()
     expect(
       (
         screen.getByRole("button", {

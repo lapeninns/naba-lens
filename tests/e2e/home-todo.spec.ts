@@ -184,7 +184,7 @@ test.describe("Home: goals, not tasks", () => {
     const soup = dishRow(stillNeeded(page), "Soup")
     await expect(soup.getByText("Waiting for review")).toBeVisible()
     await expect(
-      soup.getByRole("button", { name: "Take a photo of this dish" })
+      soup.getByRole("button", { name: "Add photos of this dish" })
     ).toBeVisible()
     await expect(
       ourMenu(page).getByRole("link", { name: "See all 3" })
@@ -202,11 +202,12 @@ test.describe("Home: goals, not tasks", () => {
     const input = await pickFiles(
       page,
       dishRow(stillNeeded(page), "Pie").getByRole("button", {
-        name: "Take a photo of this dish",
+        name: "Add photos of this dish",
       }),
       [photo.path]
     )
-    expect(input.capture).toBe("environment")
+    // Gallery first (DESIGN.md §2, §9): the photo library, not the camera.
+    expect(input.capture).toBeNull()
     const sheet = savingSheet(page, "Saving 1 photo")
     await expect(sheet).toBeVisible()
     await expect(
@@ -243,9 +244,9 @@ test.describe("Home: goals, not tasks", () => {
       "Pie",
     ])
     await expect(stillNeeded(page).getByRole("button")).toHaveCount(0)
-    await expect(page.getByRole("button", { name: "Open camera" })).toHaveCount(
-      0
-    )
+    await expect(
+      page.getByRole("button", { name: "Add photos from your gallery" })
+    ).toHaveCount(0)
   })
 
   test("390: other jobs are two taps away, a sent finding is confirmed, and the badge counts the one card", async ({
@@ -366,7 +367,7 @@ test.describe("Home: goals, not tasks", () => {
     const notes = page.getByRole("region", { name: "Needs another photo" })
     await expect(notes.getByText(reason)).toBeVisible()
     await expect(
-      notes.getByRole("link", { name: `Reshoot: ${title}` })
+      notes.getByRole("link", { name: `Retake: ${title}` })
     ).toHaveAttribute(
       "href",
       `/staff/tasks/${task!.requirement_id}?replaces=${first!.item_id}`

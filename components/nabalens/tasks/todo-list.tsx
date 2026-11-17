@@ -1,5 +1,9 @@
 import Link from "next/link"
-import { CameraIcon, ClipboardTextIcon } from "@phosphor-icons/react/dist/ssr"
+import {
+  ArrowUUpLeftIcon,
+  ClipboardTextIcon,
+  ImagesIcon,
+} from "@phosphor-icons/react/dist/ssr"
 
 import { buttonVariants } from "@/components/ui/button"
 import {
@@ -230,7 +234,7 @@ export function ReplaceCard({
           aria-label={`Send another photo for ${title}`}
           className={action(primary)}
         >
-          <CameraIcon data-icon="inline-start" aria-hidden />
+          <ArrowUUpLeftIcon data-icon="inline-start" aria-hidden />
           Send another photo
         </Link>
       ) : null}
@@ -315,7 +319,7 @@ export function TaskCard({
         aria-label={`Send photos for ${requirement.title}`}
         className={action(primary)}
       >
-        <CameraIcon data-icon="inline-start" aria-hidden />
+        <ImagesIcon data-icon="inline-start" aria-hidden />
         Send photos
       </Link>
     </li>

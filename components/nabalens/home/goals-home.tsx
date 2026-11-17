@@ -154,7 +154,7 @@ export function GoalsHome({
         </ul>
       ) : null}
 
-      {/* The retake note (G-3): the first open note leads, Reshoot is blue. */}
+      {/* The retake note (G-3): the first open note leads, Retake is blue. */}
       {notesError ? (
         <ReadFailed retryHref={tasksPath}>{READ_FAILED.notes}</ReadFailed>
       ) : null}
