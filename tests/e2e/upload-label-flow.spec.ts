@@ -35,6 +35,7 @@ import {
   keptLabels,
   labelItems,
   labelsOn,
+  meAddButton,
   modalsOpened,
   phone,
   pickFiles,
@@ -215,7 +216,7 @@ test("a2 leaving or logging out warns while labels are not on the server yet; th
   await expect.poll(() => labelsOn(id), { timeout: 30_000 }).toBe("Onion Bhaji")
 
   // Nothing is left unsaved, so log out goes straight through.
-  await expect(addTab(page)).toHaveAccessibleName("Add")
+  await expect(addTab(page)).toHaveAccessibleName("Add photos")
   await page.getByRole("button", { name: "Log out", exact: true }).click()
   await page.waitForURL(/\/login/)
   await expect(page.getByRole("alertdialog")).toHaveCount(0)
@@ -449,8 +450,9 @@ for (const width of [360, 412]) {
     test.setTimeout(180_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
-    await page.goto("/staff/tasks")
-    await expect(addTab(page)).toBeVisible()
+    // The label journeys start from Me's Add (the Album tab opens Match).
+    await page.goto("/staff")
+    await expect(meAddButton(page)).toBeVisible()
     await resetModals(page)
     const taps = new TapCounter()
     const photo = await syntheticJpeg(`${unique(`e1-${width}`)}.jpg`)
@@ -480,8 +482,9 @@ for (const width of [360, 412]) {
     test.setTimeout(240_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
-    await page.goto("/staff/tasks")
-    await expect(addTab(page)).toBeVisible()
+    // The label journeys start from Me's Add (the Album tab opens Match).
+    await page.goto("/staff")
+    await expect(meAddButton(page)).toBeVisible()
     await resetModals(page)
     const taps = new TapCounter()
     const photos = await Promise.all(

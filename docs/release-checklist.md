@@ -270,7 +270,8 @@ never make them.
    (Gates 2 to 4, v0.4 §5 release and rollback rules). Nothing here applies
    them.
 5. On a phone at one venue, check Your month on **Me** with no due date, no
-   Overdue on any dish, and an amenity check reachable from **Other jobs**.
+   Overdue on any dish, and an amenity check reachable from the **Other
+   jobs** row on **Album** or **Me**.
 
 ## Release: Album is Home (A5)
 
@@ -318,8 +319,10 @@ never make them.
 4. On a phone at one venue (Safari on iPhone and Chromium), check Album: the
    venue's name and empty count first, the places, the empty slots of the
    current place, a retake when one is open, and **Add photos from your
-   gallery** opening the phone's photos. Check there is no in-app camera, no
-   due date, no Overdue and no ranking anywhere on it.
+   gallery** opening the phone's photos. With an amenity check assigned,
+   check the **Other jobs** row on Album and on **Me** opens it. Check there
+   is no in-app camera, no due date, no Overdue and no ranking anywhere on
+   it.
 5. Rollback, if needed: redeploy the previous release. There is no layout
    switch to flip; no data changes. Tell the venues if you do.
 

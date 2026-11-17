@@ -15,7 +15,6 @@ import {
 } from "@playwright/test"
 
 import { signIn, type Db } from "../../support/identities"
-import { addJustPhotos } from "./add-entry"
 import { legacyStaffGrant, type CoverageWorld } from "./coverage-world"
 import { syntheticJpeg, type SourceFile } from "./media"
 import { activateMenu, ok } from "./menus"
@@ -165,9 +164,23 @@ export async function recordBudget(
 // Staff UI
 // ---------------------------------------------------------------------------
 
-/** Phone tab bar Add (its name gains ", 1 in progress" while busy). */
+/**
+ * Phone tab bar Add photos (DESIGN.md §5 Tab bar): it opens the phone's
+ * photos straight away, then Match. Its name gains ", 1 in progress" while
+ * busy.
+ */
 export const addTab = (page: Page) =>
-  page.locator('[data-slot="tabbar"]').getByRole("button", { name: /^Add/ })
+  page
+    .locator('[data-slot="tabbar"]')
+    .getByRole("button", { name: /^Add photos/ })
+
+/**
+ * Me's own Add (its profile card's button): the Add sheet with labels, for
+ * photos and videos that aren't matched to a slot. The Album tab goes to
+ * Match instead (AL-1), so the label journeys start here.
+ */
+export const meAddButton = (page: Page) =>
+  page.getByRole("button", { name: "Upload photos or videos" }).first()
 
 export const addSheet = (page: Page) =>
   page.getByRole("dialog", { name: "Add photos" })
@@ -212,27 +225,35 @@ export async function pickFiles(
 }
 
 /**
- * Phone Add while idle: tab, "Just photos" in the intent dialog, then
- * "Choose from your photos" in the Add sheet.
+ * Add with labels while idle: Me's Add (opening Me first when elsewhere),
+ * then "Choose from your photos" in the Add sheet. The Album tab's Add
+ * photos opens Match instead (DESIGN.md §6.1), so it is not this path.
  */
 export async function addFromLibrary(
   page: Page,
   paths: string[],
   taps?: TapCounter
 ) {
-  await addJustPhotos(page, addTab(page), taps)
-  await expect(addSheet(page)).toBeVisible()
-  taps?.dialog("Add photos")
+  if (new URL(page.url()).pathname !== "/staff") {
+    await page.goto("/staff")
+    await expect(page).toHaveURL(/\/staff$/)
+  }
+  const trigger = meAddButton(page)
+  if (taps) await taps.tap(trigger, "Add")
+  else await trigger.click()
+  const sheet = page.getByRole("dialog", { name: "Upload photos or videos" })
+  await expect(sheet).toBeVisible()
+  taps?.dialog("Upload photos or videos")
   await pickFiles(
     page,
-    addSheet(page).getByRole("button", { name: /^Choose from your photos/ }),
+    sheet.getByRole("button", { name: /^Choose from your photos/ }),
     paths,
     taps
   )
-  const sheet = savingSheet(page)
-  await expect(sheet).toBeVisible()
+  const saving = savingSheet(page)
+  await expect(saving).toBeVisible()
   taps?.dialog("Saving sheet")
-  return sheet
+  return saving
 }
 
 /** Types into a menu item search and chooses the first matching option. */

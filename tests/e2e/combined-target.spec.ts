@@ -14,7 +14,12 @@ import {
 import { activeItemId, labelledPhoto } from "./helpers/manager-world"
 import { activateMenu, createMenuDraft, ok } from "./helpers/menus"
 import { psql } from "./helpers/stack"
-import { OTHER_JOBS, startOtherJobsCheck } from "./helpers/ui"
+import {
+  OTHER_JOBS,
+  openPortfolio,
+  STAFF_LANDING,
+  startOtherJobsCheck,
+} from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 test("a staff target combines distinct menu items and completed amenity checks", async ({
@@ -103,6 +108,9 @@ test("a staff target combines distinct menu items and completed amenity checks",
     ).toHaveCount(met ? 1 : 0)
   }
   try {
+    // Album is Home (§5a); Your month is on Me.
+    await expect(staff).toHaveURL(STAFF_LANDING)
+    await openPortfolio(staff)
     await expect(
       staff.getByRole("progressbar", { name: "4 of 5 items completed" })
     ).toBeVisible()
