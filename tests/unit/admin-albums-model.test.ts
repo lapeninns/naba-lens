@@ -7,6 +7,7 @@ import {
   tintLevel,
   type AdminVenueInput,
 } from "@/app/admin/albums/albums-model"
+import { parseAdminCounts } from "@/lib/server/album-admin"
 
 // Admin albums (DESIGN.md §6.6): the matrix, its tints and the gaps.
 
@@ -31,25 +32,35 @@ const bell = venue("01", "The Bell", {
       { name: "Spirits", kind: "drinks", total: 8, accepted: 0, waiting: 0 },
     ],
     amenities: [
-      { category: "Games", progress: "complete", answer: "yes", open: false },
-      { category: "Games", progress: "complete", answer: "no", open: false },
       {
         category: "Games",
-        progress: "needs_capture",
-        answer: null,
-        open: true,
+        progress: "complete",
+        answer: "yes",
+        openState: null,
+      },
+      {
+        category: "Games",
+        progress: "complete",
+        answer: "no",
+        openState: null,
       },
       {
         category: "Games",
         progress: "needs_capture",
         answer: null,
-        open: false,
+        openState: "submitted",
+      },
+      {
+        category: "Games",
+        progress: "needs_capture",
+        answer: null,
+        openState: null,
       },
       {
         category: "Outside",
         progress: "needs_recheck",
         answer: null,
-        open: false,
+        openState: null,
       },
     ],
   },
@@ -180,14 +191,34 @@ describe("tintLevel", () => {
 })
 
 describe("adminAmenityState", () => {
-  it("uses the album's amenity rule, with any open finding as Waiting", () => {
-    const base = { category: "Games", answer: null, open: false } as const
+  it("uses the album's amenity rule, with the latest open finding's state", () => {
+    const base = { category: "Games", answer: null, openState: null } as const
     expect(adminAmenityState({ ...base, progress: "needs_capture" })).toBe(
       "needed"
     )
     expect(
-      adminAmenityState({ ...base, progress: "needs_capture", open: true })
+      adminAmenityState({
+        ...base,
+        progress: "needs_capture",
+        openState: "submitted",
+      })
     ).toBe("waiting")
+    expect(
+      adminAmenityState({
+        ...base,
+        progress: "needs_capture",
+        openState: "awaiting_confirmation",
+      })
+    ).toBe("waiting")
+    // A finding a manager sent back for more detail is Retake, as the sender
+    // sees it on staff Album: an empty slot, not Waiting (revc should-fix 3).
+    expect(
+      adminAmenityState({
+        ...base,
+        progress: "needs_capture",
+        openState: "needs_attention",
+      })
+    ).toBe("retake")
     expect(adminAmenityState({ ...base, progress: "needs_recheck" })).toBe(
       "retake"
     )
@@ -205,5 +236,40 @@ describe("adminAmenityState", () => {
     expect(
       adminAmenityState({ ...base, progress: "complete", answer: "seasonal" })
     ).toBe("accepted")
+  })
+})
+
+describe("parseAdminCounts (album_admin_counts)", () => {
+  it("passes the latest open finding's state through; anything else is none", () => {
+    const parsed = parseAdminCounts({
+      menuState: "ready",
+      sections: [],
+      amenities: [
+        {
+          category: "Games",
+          progress: "needs_capture",
+          openState: "needs_attention",
+        },
+        {
+          category: "Games",
+          progress: "needs_capture",
+          openState: "submitted",
+        },
+        { category: "Games", progress: "needs_capture", openState: null },
+        { category: "Games", progress: "needs_capture", openState: "current" },
+      ],
+    })
+    expect(parsed?.amenities.map((a) => a.openState)).toEqual([
+      "needs_attention",
+      "submitted",
+      null,
+      null,
+    ])
+    expect(parsed?.amenities.map(adminAmenityState)).toEqual([
+      "retake",
+      "waiting",
+      "needed",
+      "needed",
+    ])
   })
 })

@@ -32,6 +32,13 @@ const rows = (data: unknown, key: string): Record<string, unknown>[] => {
 const count = (value: unknown) =>
   typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : 0
 
+/** A finding not yet finally decided, as knowledge_contribution_view words it. */
+const OPEN_STATES = new Set([
+  "needs_attention",
+  "submitted",
+  "awaiting_confirmation",
+])
+
 export function parseAdminCounts(data: unknown): AdminVenueInput["counts"] {
   const state = (data as Record<string, unknown> | null)?.menuState
   if (state !== "ready" && state !== "no_menu") return null
@@ -67,7 +74,9 @@ export function parseAdminCounts(data: unknown): AdminVenueInput["counts"] {
           category,
           progress,
           answer: typeof row.answer === "string" ? row.answer : null,
-          open: row.open === true,
+          openState: OPEN_STATES.has(row.openState as string)
+            ? (row.openState as AdminAmenityInput["openState"])
+            : null,
         },
       ]
     }

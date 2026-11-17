@@ -82,8 +82,11 @@ export type AdminAmenityInput = {
   category: string
   progress: "needs_capture" | "complete" | "needs_recheck"
   answer: string | null
-  /** A finding on it is still open (sent, not yet decided). */
-  open: boolean
+  /**
+   * The state of its latest open finding (sent, not yet finally decided);
+   * null with none. `needs_attention`: a manager asked for more detail.
+   */
+  openState: "needs_attention" | "submitted" | "awaiting_confirmation" | null
 }
 
 export type AdminAreaInput = {
@@ -110,7 +113,11 @@ export const GAP_LIMIT = 8
 
 // ---- rules ---------------------------------------------------------------------
 
-/** An amenity slot's state as an admin sees it: any open finding is Waiting. */
+/**
+ * An amenity slot's state as an admin sees it: the latest open finding's state
+ * stands in for the sender's own (staff Album), so a finding a manager sent
+ * back for more detail is Retake, and one still to be decided is Waiting.
+ */
 export function adminAmenityState(input: AdminAmenityInput): SlotState {
   return amenityState({
     checkId: "",
@@ -123,7 +130,7 @@ export function adminAmenityState(input: AdminAmenityInput): SlotState {
       input.answer === "not_applicable"
         ? input.answer
         : null,
-    myLatestState: input.open ? "submitted" : null,
+    myLatestState: input.openState,
   })
 }
 
