@@ -119,7 +119,10 @@ function SlotTile({
   onSelect,
   className,
 }: SlotTileProps) {
-  const label = `${name}: ${STATE_WORDS[state]}`
+  // An offline sending tile shows "Saved on this phone", so its name says so too.
+  const label = `${name}: ${
+    state === "sending" && offline ? "saved on this phone" : STATE_WORDS[state]
+  }`
   const hasPhoto = state !== "needed" && state !== "not-here"
 
   const frame = cn(

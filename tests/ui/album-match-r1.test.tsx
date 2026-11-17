@@ -512,7 +512,9 @@ describe("should-fix 5: Album's tiles show a slot this phone is sending", () => 
     )
     await user.upload(gallery(), [jpeg("one.jpg")])
     await user.click(await screen.findByRole("button", { name: "Close" }))
-    const tile = await screen.findByRole("group", { name: /Onion Bhaji/ })
+    const tile = await screen.findByRole("group", {
+      name: "Onion Bhaji: saved on this phone",
+    })
     expect(within(tile).getByText("Saved on this phone")).toBeTruthy()
     onLine.mockRestore()
   })
