@@ -745,9 +745,11 @@ export function chipState(key: string): ChipState {
 // v2 chip (`nl-chip`): a 28px pill, caption type at 600, a 16px icon and the
 // word. A long word ("Ended: moved to another venue") wraps inside the chip
 // rather than pushing a 320px or zoomed page sideways. The shape class
-// (CHIP_SHAPES) sets the tone's fill and colour.
+// (CHIP_SHAPES) sets the tone's fill and colour. The transparent border
+// draws nothing until forced colours drop the fill, when it is the chip's
+// edge.
 export const chipClassName =
-  "inline-flex max-w-full min-h-7 items-center gap-1 rounded-round py-0.5 pr-2.5 pl-2 text-left text-chip align-middle whitespace-normal [overflow-wrap:anywhere] [&_svg]:size-4 [&_svg]:shrink-0"
+  "inline-flex max-w-full min-h-7 items-center gap-1 rounded-round border border-transparent py-0.5 pr-2.5 pl-2 text-left text-chip align-middle whitespace-normal [overflow-wrap:anywhere] [&_svg]:size-4 [&_svg]:shrink-0"
 
 /**
  * v2: every chip has an icon. A state without its own icon, or a chip

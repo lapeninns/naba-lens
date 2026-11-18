@@ -86,7 +86,7 @@ export function sendingWord(progress: number | undefined, offline = false) {
 // v2 StatusChip look for the mark under the name (`nl-chip`): a 28px pill,
 // caption at 600 with a 16px icon. Album's words (SLOT_MARK_WORDS) stay.
 const MARK =
-  "inline-flex max-w-full min-h-7 items-center gap-1 rounded-round py-0.5 pr-2.5 pl-2 text-chip [&_svg]:size-4 [&_svg]:shrink-0"
+  "inline-flex max-w-full min-h-7 items-center gap-1 rounded-round border border-transparent py-0.5 pr-2.5 pl-2 text-chip [&_svg]:size-4 [&_svg]:shrink-0"
 
 function StateMark({
   state,
