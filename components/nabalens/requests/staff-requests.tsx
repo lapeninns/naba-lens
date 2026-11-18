@@ -71,6 +71,10 @@ export function AskedFor({
         {shown.map(({ request, slot }) => {
           const when = staffDateWords(request.neededBy, today)
           const extras = staffRequestExtras(request)
+          // The manager's reference photo, else the slot's approved example
+          // (its category's shot template; FA-52).
+          const example =
+            request.referenceAssetId ?? slot?.exampleAssetId ?? null
           return (
             <li
               key={request.id}
@@ -99,10 +103,10 @@ export function AskedFor({
               <p className="text-body [overflow-wrap:anywhere] text-ink">
                 {request.brief}
               </p>
-              {request.referenceAssetId ? (
+              {example ? (
                 <figure className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-2">
                   <Photo
-                    src={`/api/media/${encodeURIComponent(request.referenceAssetId)}/thumb`}
+                    src={`/api/media/${encodeURIComponent(example)}/thumb`}
                     alt=""
                     ratio="1/1"
                     radius="square"

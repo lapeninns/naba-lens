@@ -16,6 +16,7 @@ import {
   type DishInput,
   type PlacementInput,
 } from "@/lib/album/model"
+import type { SlotBriefs } from "@/lib/album/brief"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { factVerificationState } from "@/lib/knowledge/facts"
 import {
@@ -26,6 +27,7 @@ import {
 } from "@/lib/server/coverage/errors"
 import { listOurMenuItems } from "@/lib/server/coverage/menu-items"
 import { listMyRetakeNotes } from "@/lib/server/coverage/retake-notes"
+import { loadSlotBriefs } from "@/lib/server/shot-templates"
 import type { CoverageFailure } from "@/lib/server/coverage/types"
 import { isUuid } from "@/lib/server/coverage/validate"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -495,11 +497,12 @@ async function myRetakeItems(actor: MediaActor): Promise<Set<string>> {
   )
 }
 
-async function briefsOrNone(
+/** FA-52: every slot's brief, resolved once (public.slot_briefs). */
+async function slotBriefsOrNone(
   actor: MediaActor
-): Promise<AlbumBriefs | undefined> {
-  const result = await getAlbumBriefs(actor)
-  return result.ok ? result.briefs : undefined
+): Promise<SlotBriefs | undefined> {
+  const result = await loadSlotBriefs(actor).catch(() => null)
+  return result?.ok ? result.briefs : undefined
 }
 
 /**
@@ -519,7 +522,7 @@ export async function loadAlbum(
       allAmenities(actor, photos),
       allAreas(actor, photos),
       myRetakeItems(actor),
-      briefsOrNone(actor),
+      slotBriefsOrNone(actor),
       coverageOrNone(actor),
     ])
   if (!dishes) return unavailableFailure("album dishes", null)
@@ -550,7 +553,8 @@ export async function loadAlbum(
     // adds its category, waiting count and whether it needs updating.
     areas: areas.map((a) => ({ ...a, ...extras(`area:${a.subjectId}`) })),
     myRetakeItemIds: retakes,
-    briefs,
+    // FA-52: request, manager, catalogue, then the category's shot template.
+    slotBriefs: briefs,
   }
   return { ok: true, album: buildAlbum(input), placements }
 }

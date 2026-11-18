@@ -18,6 +18,7 @@ import { Notice } from "@/components/nabalens/notice"
 import { useAdd } from "@/components/nabalens/shell/add-context"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
+import { Photo } from "@/components/ui/photo"
 import type { AlbumSlot } from "@/lib/album/model"
 import {
   OUTCOME_CHIP,
@@ -39,6 +40,7 @@ export const SLOT_COPY = {
   back: (place: string) => place,
   briefTitle: "What the photo must show",
   noBrief: "No brief yet. Show it clearly, as a guest would see it.",
+  example: "Example of a good photo",
   inAlbum: "The photo in the album",
   noPhoto: "No photo in the album yet.",
   waiting: (n: number) =>
@@ -172,6 +174,23 @@ export function AlbumSlotScreen({
             </p>
             {slot.neededBy ? (
               <p className="text-meta text-ink-muted">{slot.neededBy}</p>
+            ) : null}
+            {slot.exampleAssetId ? (
+              // FA-52 (spec §5.2 step 2): an approved example beside the brief.
+              <figure
+                className="mt-1 grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-3"
+                data-slot="slot-example"
+              >
+                <Photo
+                  src={`/api/media/${encodeURIComponent(slot.exampleAssetId)}/thumb`}
+                  alt=""
+                  ratio="1/1"
+                  radius="square"
+                />
+                <figcaption className="text-meta text-ink-muted">
+                  {SLOT_COPY.example}
+                </figcaption>
+              </figure>
             ) : null}
           </section>
 

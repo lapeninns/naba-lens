@@ -57,6 +57,12 @@ export type SlotOption = {
   state: string
   /** The slot's current album photo, offered as the example (M4 reference image). */
   primaryAssetId?: string | null
+  /**
+   * The slot's standing brief (FA-52, public.slot_briefs without requests):
+   * the manager's, the catalogue's or the category's shot template. It
+   * prefills Brief; the manager may change it.
+   */
+  brief?: string | null
 }
 
 export type FactOption = {
@@ -133,7 +139,10 @@ export function RequestForm({
       : null
   )
   const [subject, setSubject] = React.useState("")
-  const [brief, setBrief] = React.useState("")
+  const [brief, setBrief] = React.useState(firstSlot?.brief ?? "")
+  // The last prefilled brief: choosing another slot replaces it only while
+  // the manager has not written their own.
+  const prefilled = React.useRef(firstSlot?.brief ?? "")
   const [intendedUse, setUse] = React.useState<IntendedUse | "">(
     mode === "fact" ? "internal" : "public"
   )
@@ -159,6 +168,11 @@ export function RequestForm({
     const s = slots.find((x) => slotKey(x.kind, x.slotId) === next)
     if (s && (type === "missing_photo" || type === "replacement"))
       setType(defaultTypeForSlot(s.state))
+    if (brief.trim() === "" || brief === prefilled.current) {
+      const standing = s?.brief ?? ""
+      prefilled.current = standing
+      setBrief(standing)
+    }
   }
 
   const submit = async () => {
