@@ -51,7 +51,8 @@ jobs:
     name: Fixtures (${{ matrix.lane }})
     needs: common
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # This budget includes runner setup, database suites and browser tests.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
