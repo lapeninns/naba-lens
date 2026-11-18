@@ -44,10 +44,14 @@ const ROW_LINK = `h-auto min-h-11 border-0 bg-transparent px-0 font-semibold tex
 
 /*
  * Sizes (v2 "target-staff" 48px, "target-compact" 40px). md is v2's staff
- * button: 48px, 24px sides. sm is the action inside a notice, row or table:
- * 44px on touch widths, and v2's 40px compact from bp-desktop, where
- * managers and admins use a pointer. lg is the block action at the foot of
- * a phone screen, the same 48px. `icon` is a 44px square and `icon-lg` a
+ * button: 48px, 24px sides. sm is the action inside a notice, row or table,
+ * with 16px sides: 48px wherever staff work, at every width. Only inside a
+ * manager or admin shell (`data-density="compact"`, set by ManagerShell and
+ * the admin AppShell) does it take v2's compact size: 44px on touch widths
+ * and 40px from bp-desktop, where managers and admins use a pointer
+ * (departure V2-4). A dialog is portalled out of the shell, so its buttons
+ * keep 48px. lg is the block action at the foot of a phone screen, the same
+ * 48px. `icon` is a 44px square and `icon-lg` a
  * 48px one; both need an aria-label. Labels wrap rather than push a 320px
  * page sideways: `max-w-full` caps a long label at its container, since
  * `shrink-0` alone let a chip in a wrapping row grow past a 320px dialog
@@ -56,6 +60,10 @@ const ROW_LINK = `h-auto min-h-11 border-0 bg-transparent px-0 font-semibold tex
  * A busy button (`loading`) hides its own icon, so the spinner stands in its
  * place and the label does not shift twice.
  */
+// v2 target-compact, only inside a manager or admin shell (see Sizes).
+const COMPACT =
+  "in-data-[density=compact]:min-h-11 desktop:in-data-[density=compact]:min-h-10"
+
 const buttonVariants = cva(
   "group/button inline-flex max-w-full shrink-0 items-center justify-center gap-2 rounded-control border border-transparent bg-clip-padding text-center font-sans text-button text-balance focus-ring transition-[background-color,box-shadow,color] duration-quick ease-out outline-none select-none disabled:cursor-not-allowed aria-disabled:cursor-not-allowed aria-busy:aria-disabled:cursor-progress aria-invalid:edge-invalid [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5 data-loading:[&_svg:not([data-slot=spinner])]:hidden",
   {
@@ -70,7 +78,7 @@ const buttonVariants = cva(
         "row-link": ROW_LINK,
       },
       size: {
-        sm: "min-h-11 px-4 py-1.5 desktop:min-h-10",
+        sm: `min-h-12 px-4 py-1.5 ${COMPACT}`,
         md: "min-h-12 px-6 py-2",
         lg: "min-h-12 px-6 py-2",
         icon: "size-11",
@@ -91,11 +99,12 @@ const buttonVariants = cva(
       {
         variant: "link",
         className:
-          "h-auto min-h-0 px-0 py-0 md:h-auto md:min-h-0 desktop:min-h-0",
+          "h-auto min-h-0 px-0 py-0 in-data-[density=compact]:min-h-0 md:h-auto md:min-h-0 desktop:in-data-[density=compact]:min-h-0",
       },
       {
         variant: "row-link",
-        className: "h-auto min-h-11 px-0 py-0 desktop:min-h-11",
+        className:
+          "h-auto min-h-11 px-0 py-0 in-data-[density=compact]:min-h-11 desktop:in-data-[density=compact]:min-h-11",
       },
     ],
     defaultVariants: {

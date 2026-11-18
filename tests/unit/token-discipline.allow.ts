@@ -25,7 +25,7 @@ export type AllowEntry = {
  * no token or recipe fits, and expect to be asked. Do not raise it to get a
  * red test to pass.
  */
-export const MAX_ALLOWED = 30
+export const MAX_ALLOWED = 29
 export const MAX_ALLOWED_DEV = 9
 
 const HEADER_HAIRLINE =
@@ -123,13 +123,6 @@ export const ALLOW: AllowEntry[] = [
     match: "shadow-[inset_0_0_0_2px_var(--accent-text)]",
     reason:
       "A changed number field is marked with a 2px accent edge, and edge-selected is 1.5px.",
-  },
-  {
-    file: "components/nabalens/guide/dish-guide.tsx",
-    rule: "arbitrary-value",
-    match: "shadow-[inset_0_0_0_2px_var(--accent-text)]",
-    reason:
-      "The selected pill's edge is 2px here, and edge-selected is 1.5px; one of the two should give way.",
   },
   {
     file: "components/ui/field.tsx",

@@ -377,7 +377,10 @@ export function ThumbReview({
           // the decision stays in view beside the SideNav.
           className="grid w-full max-w-dialog-wide gap-4"
         >
-          <div className="grid gap-3 rounded-card bg-stage p-3 text-on-stage">
+          {/* `dark`: what sits on the stage reads the dark tokens, so the
+              heading's focus ring (focus moves here after each decision) is
+              the light ink on near-black, as media-viewer does (review Z5). */}
+          <div className="dark grid gap-3 rounded-card bg-stage p-3 text-on-stage">
             {current.imageUrl ? (
               <Photo
                 key={current.key}

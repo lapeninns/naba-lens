@@ -269,6 +269,8 @@ export function AppShell(props: AppShellProps) {
 
   return (
     <div
+      // Admin controls take v2's compact size (V2-4); staff keep 48px.
+      data-density={admin ? "compact" : undefined}
       className={cn(
         "flex min-h-svh flex-col bg-canvas text-ink",
         admin && "desktop:pl-rail",
@@ -300,7 +302,7 @@ export function AppShell(props: AppShellProps) {
           <Link
             href={admin ? "/admin/overview" : "/staff/tasks"}
             className={cn(
-              "inline-flex flex-none items-baseline gap-2 rounded-control type-title whitespace-nowrap text-ink focus-ring outline-none max-md:py-2.5",
+              "inline-flex flex-none items-baseline gap-2 rounded-control py-2.5 type-title whitespace-nowrap text-ink focus-ring outline-none",
               // From bp-desktop the admin's name is in the SideNav.
               admin && "desktop:hidden"
             )}

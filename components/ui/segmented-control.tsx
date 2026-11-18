@@ -13,8 +13,9 @@ import { cn } from "@/lib/utils"
  * Common Room segmented control (common-room.md §4): one choice of a few, drawn
  * as a grey track with the chosen segment raised. It is a radio group (Base
  * UI RadioGroup): one tab stop, arrow keys move and choose, and with `name`
- * the value is sent with a native form. Segments are 44px (`sm`, the only
- * size) and their labels wrap rather than push the page sideways.
+ * the value is sent with a native form. Segments are 48px wherever staff
+ * work, 44px only inside a manager or admin shell (`data-density="compact"`,
+ * V2-4), and their labels wrap rather than push the page sideways.
  */
 const trackVariants = cva(
   "group/segmented min-w-0 gap-1 bg-surface-2 p-1 aria-invalid:edge-invalid",

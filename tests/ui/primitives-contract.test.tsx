@@ -70,8 +70,9 @@ const VARIANTS = [
 
 /** The min-height utility each size word stands for. */
 const HEIGHT = {
-  /** Buttons and rows of buttons: 44 / 48 / 48px (v2 target-staff). */
-  control: { sm: "min-h-11", md: "min-h-12", lg: "min-h-12" },
+  /** Buttons and rows of buttons: 48px (v2 target-staff); sm is v2's
+   *  compact 44/40px only inside a manager or admin shell (V2-4). */
+  control: { sm: "min-h-12", md: "min-h-12", lg: "min-h-12" },
   /** Fields and option rows: 44 / 48 / 48px (v2 Field). */
   field: { sm: "min-h-11", md: "min-h-12", lg: "min-h-12" },
 } as const

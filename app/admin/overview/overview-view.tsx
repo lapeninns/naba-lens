@@ -102,8 +102,10 @@ function NumberLink({
 function tint(c: { covered: number; total: number }) {
   // From md only: a stacked phone block keeps its labels readable on surface.
   if (c.total === 0 || c.covered === 0) return ""
+  // A full cell is bottle: the link's words and its focus ring take on-ok,
+  // since the ink ring is under 3:1 on bottle (review Z4).
   if (c.covered >= c.total)
-    return "md:bg-ok-fg md:text-on-ok md:[&_a]:text-on-ok"
+    return "md:bg-ok-fg md:text-on-ok md:[&_a]:text-on-ok md:[--focus:var(--on-ok)]"
   return c.covered * 2 < c.total ? "md:bg-ok-bg" : "md:bg-ok-half"
 }
 

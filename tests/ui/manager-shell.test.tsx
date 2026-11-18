@@ -52,7 +52,12 @@ describe("ManagerShell", () => {
       "tabbar",
     ])
     for (const el of found) {
-      expect(links(el)).toEqual([
+      // The SideNav's landmark also holds the wordmark, first (review Z7).
+      const items =
+        el.dataset.slot === "side-nav" ? links(el).slice(1) : links(el)
+      if (el.dataset.slot === "side-nav")
+        expect(links(el)[0]).toEqual(["Naba-Lens", "/manager"])
+      expect(items).toEqual([
         ["Overview", "/manager"],
         ["Review", "/manager/review"],
         ["Album", "/manager/menu"],

@@ -169,8 +169,8 @@ export function ManagerNav({
 
 /**
  * "Add photos" in the header while the workspace's Add is on: a button from
- * md, the Add tab item (icon over its label) on phones, where the bottom bar
- * holds the five tabs.
+ * md, and a compact v2 Button "Add" on phones, where the bottom bar holds the
+ * five tabs (review Z10).
  */
 export function ManagerAddButton() {
   return useAddContext() ? (
@@ -178,8 +178,8 @@ export function ManagerAddButton() {
       <div className="hidden md:block">
         <AddTrigger kind="bar" />
       </div>
-      <div data-slot="manager-add-compact" className="-my-2 md:hidden">
-        <AddTrigger kind="tab" />
+      <div data-slot="manager-add-compact" className="md:hidden">
+        <AddTrigger kind="compact" />
       </div>
     </>
   ) : null
