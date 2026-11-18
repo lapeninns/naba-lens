@@ -2435,7 +2435,7 @@ ${fn.slice(at + CHUNK_MARK.length)};`
       "public.task_evidence_asset(uuid)": "7f8c6a96ff4c0a9a899168f481ab42b2",
       "public.amenity_evidence_asset(uuid)": "4f82066506491c9b9b77b1dacca0a6e5",
       "private.menu_photo_unlabelled_eligible(uuid,uuid)":
-        "62ac6f1a91dbf515f5a77565d3504913",
+        "e68bd36a75a5d69b0ef313f53829f995",
       "private.menu_photo_can_review_unlabelled()":
         "3357d2ad4db64b0b8bd1b4f124e7bdfd",
       "private.amenity_is_legacy_media(public.venue_amenity_checks,uuid)":

@@ -140,12 +140,17 @@ as $$
     left join public.media_labels ml on ml.asset_id = a.id
     where a.id = p_asset and a.venue_id = p_venue
       and a.media_type = 'image' and a.upload_state = 'ready' and a.deleted_at is null
-      -- Cheap first: one of the rule's three reasons can hold at all.
-      and (ml.content_types && array['dish', 'preparation', 'plating', 'drinks']::text[]
-        or exists (select 1 from public.media_label_help_requests r where r.asset_id = a.id)
-        or (not coalesce(ml.has_labels, false)
-          and a.created_at <= now() - make_interval(days => private.label_help_unmatched_days())))
-      and private.asset_unlabelled_reason(a.id) is not null);
+      -- Cheap first (case keeps the order): one of the rule's three reasons
+      -- can hold at all; only then the full rule. The gate runs per row in
+      -- asset search, so the common case must stay one join.
+      and case
+        when ml.content_types && array['dish', 'preparation', 'plating', 'drinks']::text[]
+          or exists (select 1 from public.media_label_help_requests r where r.asset_id = a.id)
+          or (not coalesce(ml.has_labels, false)
+            and a.created_at <= now() - make_interval(days => private.label_help_unmatched_days()))
+        then private.asset_unlabelled_reason(a.id) is not null
+        else false
+      end);
 $$;
 
 -- ---------------------------------------------------------------------------
