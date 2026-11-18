@@ -11,6 +11,7 @@ import { ComboboxBlock } from "./blocks/combobox"
 import { DisplayBlock } from "./blocks/display"
 import { FieldsBlock } from "./blocks/fields"
 import { FoundationsBlock } from "./blocks/foundations"
+import { MetricsBlock } from "./blocks/metrics"
 import { OtherBlock } from "./blocks/other"
 import { OverlaysBlock } from "./blocks/overlays"
 import { PatternsBlock } from "./blocks/patterns"
@@ -37,6 +38,7 @@ const BLOCKS: Record<GallerySectionId, React.ComponentType> = {
   other: OtherBlock,
   patterns: PatternsBlock,
   states: StatesBlock,
+  metrics: MetricsBlock,
 }
 
 /**
