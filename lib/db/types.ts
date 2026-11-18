@@ -9,6 +9,69 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      activity_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_role: string
+          after: Json | null
+          before: Json | null
+          created_at: string
+          id: number
+          new_revision: number | null
+          object_id: string | null
+          object_type: string
+          old_revision: number | null
+          reason: string | null
+          venue_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_role: string
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          id?: never
+          new_revision?: number | null
+          object_id?: string | null
+          object_type: string
+          old_revision?: number | null
+          reason?: string | null
+          venue_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_role?: string
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          id?: never
+          new_revision?: number | null
+          object_id?: string | null
+          object_type?: string
+          old_revision?: number | null
+          reason?: string | null
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       album_brief_events: {
         Row: {
           brief: string | null
@@ -4752,6 +4815,229 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          assignments: boolean
+          digests: boolean
+          profile_id: string
+          quiet_end: string | null
+          quiet_start: string | null
+          retakes: boolean
+          updated_at: string
+          upload_problems: boolean
+        }
+        Insert: {
+          assignments?: boolean
+          digests?: boolean
+          profile_id: string
+          quiet_end?: string | null
+          quiet_start?: string | null
+          retakes?: boolean
+          updated_at?: string
+          upload_problems?: boolean
+        }
+        Update: {
+          assignments?: boolean
+          digests?: boolean
+          profile_id?: string
+          quiet_end?: string | null
+          quiet_start?: string | null
+          retakes?: boolean
+          updated_at?: string
+          upload_problems?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          attempts: number
+          created_at: string
+          dedupe_key: string
+          deliver_after: string
+          id: number
+          kind: string
+          last_attempt_at: string | null
+          payload: Json
+          read_at: string | null
+          recipient_id: string
+          resolved_at: string | null
+          subject_id: string | null
+          subject_type: string
+          venue_id: string | null
+          version: number
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dedupe_key: string
+          deliver_after?: string
+          id?: never
+          kind: string
+          last_attempt_at?: string | null
+          payload?: Json
+          read_at?: string | null
+          recipient_id: string
+          resolved_at?: string | null
+          subject_id?: string | null
+          subject_type: string
+          venue_id?: string | null
+          version?: number
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string
+          deliver_after?: string
+          id?: never
+          kind?: string
+          last_attempt_at?: string | null
+          payload?: Json
+          read_at?: string | null
+          recipient_id?: string
+          resolved_at?: string | null
+          subject_id?: string | null
+          subject_type?: string
+          venue_id?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ops_job_runs: {
+        Row: {
+          actor_id: string | null
+          attempts: number
+          detail: Json
+          error_code: string | null
+          finished_at: string | null
+          id: string
+          job: string
+          started_at: string
+          state: string
+          subject_id: string | null
+          venue_id: string | null
+          version: number
+        }
+        Insert: {
+          actor_id?: string | null
+          attempts?: number
+          detail?: Json
+          error_code?: string | null
+          finished_at?: string | null
+          id?: string
+          job: string
+          started_at?: string
+          state: string
+          subject_id?: string | null
+          venue_id?: string | null
+          version?: number
+        }
+        Update: {
+          actor_id?: string | null
+          attempts?: number
+          detail?: Json
+          error_code?: string | null
+          finished_at?: string | null
+          id?: string
+          job?: string
+          started_at?: string
+          state?: string
+          subject_id?: string | null
+          venue_id?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_job_runs_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ops_job_runs_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ops_settings: {
+        Row: {
+          backlog_alert_days: number
+          export_profiles: string[]
+          id: boolean
+          orphan_cleanup_days: number
+          quiet_end: string
+          quiet_start: string
+          review_reminder_days: number
+          revision: number
+          storage_alert_percent: number
+          storage_quota_bytes: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          backlog_alert_days?: number
+          export_profiles?: string[]
+          id?: boolean
+          orphan_cleanup_days?: number
+          quiet_end?: string
+          quiet_start?: string
+          review_reminder_days?: number
+          revision?: number
+          storage_alert_percent?: number
+          storage_quota_bytes?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          backlog_alert_days?: number
+          export_profiles?: string[]
+          id?: boolean
+          orphan_cleanup_days?: number
+          quiet_end?: string
+          quiet_start?: string
+          review_reminder_days?: number
+          revision?: number
+          storage_alert_percent?: number
+          storage_quota_bytes?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           active: boolean
@@ -5262,6 +5548,17 @@ export type Database = {
       activate_menu_version: {
         Args: { p_expected_revision: number; p_version_id: string }
         Returns: undefined
+      }
+      admin_activity: {
+        Args: {
+          p_action?: string
+          p_actor_id?: string
+          p_before?: Json
+          p_limit?: number
+          p_source?: string
+          p_venue_id?: string
+        }
+        Returns: Json
       }
       album_admin_counts: { Args: { p_venue_id: string }; Returns: Json }
       album_area_states: { Args: { p_venue_id?: string }; Returns: Json }
@@ -6730,6 +7027,7 @@ export type Database = {
           venue_name: string
         }[]
       }
+      mark_notifications_read: { Args: { p_ids?: number[] }; Returns: number }
       media_archive_backfill_candidates: {
         Args: { p_limit?: number }
         Returns: {
@@ -6966,6 +7264,12 @@ export type Database = {
           width: number
         }[]
       }
+      my_notification_count: { Args: never; Returns: number }
+      my_notification_preferences: { Args: never; Returns: Json }
+      my_notifications: {
+        Args: { p_before?: number; p_limit?: number }
+        Returns: Json
+      }
       my_rechecks: { Args: never; Returns: Json }
       my_retake_notes: {
         Args: never
@@ -6990,6 +7294,27 @@ export type Database = {
         }[]
       }
       my_venue_capabilities: { Args: { p_venue_id?: string }; Returns: Json }
+      ops_record_job_run: {
+        Args: {
+          p_attempts?: number
+          p_detail?: Json
+          p_error_code?: string
+          p_job: string
+          p_run_id?: string
+          p_started_at?: string
+          p_state: string
+          p_subject_id?: string
+          p_venue_id?: string
+        }
+        Returns: string
+      }
+      ops_run_notification_jobs: { Args: { p_now?: string }; Returns: Json }
+      ops_settings: { Args: { p_venue_id?: string }; Returns: Json }
+      ops_settings_set: {
+        Args: { p_expected_revision: number; p_patch: Json; p_reason: string }
+        Returns: Json
+      }
+      ops_status: { Args: never; Returns: Json }
       prepare_coverage_month: {
         Args: { p_venue_id?: string }
         Returns: {
@@ -7305,6 +7630,10 @@ export type Database = {
           revision: number
           target_id: string
         }[]
+      }
+      set_my_notification_preferences: {
+        Args: { p_patch: Json }
+        Returns: Json
       }
       set_retake_note_aside: {
         Args: { p_photo_id?: string; p_submission_item_id?: string }
