@@ -1,323 +1,257 @@
 # Admin guide
 
-## Sign in and find media
+Admins set up and run Naba-Lens across every venue: venues, menus, people,
+the photo library, exports and publishing, and the rules every venue follows.
+The words in **bold** are the words on your screen. Managers' and staff's
+sides are in the [manager guide](usage-manager.md) and the
+[staff guide](usage-staff.md).
 
-At `/login`, enter your admin **Email**, choose **Send sign-in link**, then
-open the single-use email link or enter its 6-digit code in **Sign-in code**
-and choose **Sign in with code** (see the
-[staff guide](usage-staff.md#sign-in-and-leave-safely)). **Check your email**
-does not confirm delivery or access. For **That sign-in link has expired**, request another.
-For **Account unavailable**, contact the system owner; that screen offers
-**Sign out**. Inside the app, use **Log out**.
+## Four different things
 
-1. Open **Content** (`/admin`): every ready photo and video across Lapen Inns,
-   newest first, without approval. On a phone, admin navigation is the TabBar
-   at the bottom.
-   The visible library refreshes about every 15 seconds and on tab focus.
-2. Combine **Venue** (initially **All venues**), **Staff member** (**All staff**),
-   and **Photos**, **Videos** or **Photos and videos**; all filters apply
-   together.
-   **Clear filters** resets them. Venue means upload-time venue; inactive
-   staff/venues remain selectable for retained media.
-3. **Load more** fetches up to 24 older assets with the same filters.
-   For **Nothing matches these filters.**, broaden or clear filters.
-4. Open a tile. The viewer shows who uploaded it, **Venue at upload** and
-   **Uploaded**. Choose **Download original** for one unchanged uploaded file,
-   not its preview. For **Preview unavailable in this browser**, download the
-   ready original instead; video playback depends on browser/codec support.
+| Stage     | Where you see it                        | What it means                                                                                                        |
+| --------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Uploaded  | Library, Overview's **Oldest waiting**  | A photo is stored and waiting for its venue's reviewer.                                                              |
+| Approved  | The photo's **Review history**          | Approved for public use, kept as reference, another photo asked for, or not used. Only a reviewer decides this.      |
+| Covered   | Overview, Metrics: "_n_ of _N_"         | A slot is covered only by a current photo approved for public use. Reference photos and duplicates never count.      |
+| Published | Publishing: **Exported**, **Published** | Exported means a package was downloaded. Published means you recorded where it went up, the date and who checked it. |
 
-**Open profile** leads to `/admin/staff/[id]`. You can also open **Staff**
-(`/admin/staff`) and choose **Open profile** in a person's three-dot menu, or
-the person's row on phones. A person's admin profile has previews, **Load
-more**, **Download original** and **Delete**, using the same gallery behavior
-as Content. The gallery
-refreshes about every 15 seconds and on tab focus.
+## Sign in
 
-## Staff community and team assignments
+Sign in at `/login` with the emailed link or the 6-digit code (see the
+[staff guide](usage-staff.md#sign-in-and-leave-safely)). Admin accounts also
+need **Two-step sign-in**. The first time, choose **Set up with an
+authenticator app**, scan the code and **Confirm code**. Each sign-in after
+that asks you to **Enter your sign-in code** from the app. You then land on
+**Overview** (`/admin/overview`). If you lose your phone, another admin can
+**Reset authenticator** on your page under People. For **Account
+unavailable**, contact the system owner; that screen offers **Sign out**.
+Inside the app, use **Log out**.
 
-On a phone, staff have a TabBar with **Home**, **Photos**, **Add**, **People**
-and **Me**; from a tablet or computer the same sections sit in the top bar,
-and venue managers also have **Manage** there. On a phone, **Manage** is the
-first row on **Me**. Staff land on **Home**.
-Photos shows ready photos and videos across the organisation with venue,
-FOH/BOH team and media filters. People lets staff search colleagues by name,
-current venue and team, then open a colleague's profile. See the
-[staff guide](usage-staff.md#photos-and-people) for the viewing flow.
-Admin navigation is **Content**, **Staff**, **Menus** and **Coverage**.
+## Where things are
 
-Community profiles show name, photo, job title, department, current venue and
-ready-upload count. Account email and access-management fields stay in admin
-tools. Staff viewing a colleague cannot edit the account or labels, delete
-the colleague's uploads, or use the admin **Download original** route, and
-never see original filenames. Colleague video playback does deliver the
-original file, including embedded metadata such as location.
-Only ready, non-deleted uploads from active staff are shared with colleagues.
-Deactivating an account removes it from People and stops peers reading its
-media on subsequent protected requests; admins retain ready media in Content.
-Previously issued short-lived media links may work until expiry.
+On a computer the top bar shows **Overview**, **Venues**, **Menus**,
+**Library**, **Publishing**, **People** and **Settings**. On a phone or
+tablet the tab bar shows **Overview**, **Venues**, **Library** and **More**.
+**More** (`/admin/more`, headed **All sections**) lists all seven by their
+full names, **Menus & catalog** and **Settings & activity** among them, each
+with a line on what it holds.
 
-Assign **Department** when inviting staff or in **Edit details**. The choices
-are **Front of house (FOH)**, **Back of house (BOH)** or **Unassigned**. Existing
-accounts remain unassigned until an admin chooses a department; the app does
-not infer it from a job title. Unassigned staff remain visible under **All
-teams**. Department is a team label, separate from the `staff` / `admin`
-access role, and staff cannot change their own assignment. Coverage needs it:
-staff without a department show **Needs setup** for their monthly target, and
-it suggests who a manager assigns to a task without granting any access.
+Two section pages carry older headings: **Library** opens the page headed
+**Content** (`/admin`), and **People** opens the page headed **Staff**
+(`/admin/staff`).
 
-The app represents one parent organisation with venues as its units. It uses
-the configured venue records and does not create or assume a list of ten
-sister companies. The [community deployment notes](community.md) describe the
-required database migrations; these guides do not establish production status.
+## Overview
 
-## Filter by labels and correct them
+**Overview** shows every venue's coverage and backlog. **Venues needing
+attention** comes first: venues with blocked setup, errors, checks due or a
+long wait. **By venue** then gives, for each venue, coverage by category
+("_n_ of _N_" approved for public use), **Facts confirmed**, **Unlabelled**,
+**Oldest waiting**, **Checks due**, **Publication errors** and what was added
+in the period. Each number opens the records behind it. Filter by **Venue**,
+**Menu**, **Reporting period** and **Categories** (Food, Drinks, Spaces,
+Facilities, Other).
 
-The Content filters also include **More filters**: menu item (and variant) and
-menu category (choose a venue first), content type, **Labelled / Needs
-labels**, a date range, and a search box over item names, aliases, notes and
-missing-item suggestions. Filters combine; each file appears once. Open a file
-and choose **Edit labels** to correct its labels (ready files only). Labels are
-optional, so unlabelled uploads still appear immediately.
+## Venues
 
-## Menus (catalogue for labelling)
+**Venues** lists every venue; those with setup still to do come first.
 
-**Menus** holds each venue's menu, used only for labelling. It is not a public
-menu, does not change any venue website, and an active menu does not mean the
-venue is serving a dish today.
+1. **Add a venue**: **Name**, **Town or village**, **Timezone** (every Lapen
+   Inns pub today uses Europe/London) and **Address**, then **Add the venue**.
+2. The venue page opens with its **Setup checklist**: **Current menu
+   confirmed**, **Main and backup reviewer**, **Staff invited**, **Spaces and
+   facilities checked** and **First accepted photo**.
 
-1. Open **Menus → venue**. Start an empty draft, a draft from the active menu,
-   or import a file. Only structured **JSON** (`nabalens-menu@1`) and **CSV**
-   files are supported (see `docs/menus-import.md`); PDF, image, Word and
-   JavaScript menus are not read.
-2. The preview lists added, changed, removed and **uncertain** items. Items are
-   matched only by their source key; a same-name match is uncertain until you
-   choose **Same item as …** or **Treat as new item**. Create the draft.
-3. Edit sections, items, variants and aliases, then **Save**. If another admin
-   saved first, you get a conflict and can reload the latest copy.
-4. **Activate** when there are no unresolved items or errors. The previous
-   active version is retired; existing labels are kept. **Retire** removes a
-   venue's active menu; **Archive** stops one item being used for new labels.
-   Nothing that has labels is ever deleted.
-5. Review **missing-item suggestions** on the venue page: link them to an item
-   or dismiss them.
+The venue page's sections:
 
-Prices, dietary and spice values from an import are stored only as source
-details for reference.
+- **Reviewers**: a **Main reviewer** (reviews this venue's photos first) and
+  a **Backup reviewer** (reviews when the main reviewer is away), two
+  different people. Only the venue's managers and the group admins can be
+  chosen; to add someone, make them the venue's manager under People first.
+- **One reviewer is enough here** (single-reviewer venue): tick it, with
+  **Why is this changing?**, for a small venue where the manager may decide
+  on their own photos. **Decisions on their own photos** lists each one for
+  your spot check.
+- **Name and location**: changes ask **Why are you changing this?**, and the
+  old and new values are kept in Activity.
+- **Menus**: opens the venue's menus.
+- **What this venue collects** (the venue's scope):
+  - **Accommodation**: **Preview turning it on** (or off) shows **What
+    changes** (bedroom requirements start or stop applying); then **Turn
+    accommodation on** or **Turn accommodation off**, with a reason.
+  - **Copy from** **The group catalogue (core questions)**, or another venue:
+    **Preview what would be added**, then **Add as requirements to check**.
+    These arrive as new, unanswered requirements.
+- **Status**: **Operating status** is **Open**, **Temporarily closed** or
+  **Closed for good**, with **Why is the status changing?**. Closed for good
+  shows **Archiving this venue** (what archiving does) first, then **Archive
+  the venue**. An archived venue reads **Archived**: its photos, decisions and
+  history are kept, only admins can open it, and you can reopen it under
+  Status.
 
-Activating a new version for a venue with menu coverage shows **Menu changed —
-review coverage** in that venue's coverage screens. Its manager, or an admin,
-then decides which accepted photos carry over to which new section. Nothing is
-matched by section name, so the venue's menu coverage is not current until
-that is done.
+## Menus
 
-## Coverage: venue managers, targets and oversight
+**Menus** (`/admin/menus`) holds each venue's menu, used only for labelling.
+**Active · for labelling only** means just that: it isn't a public menu, it
+doesn't change any website, and it doesn't mean a dish is served today.
 
-**Coverage** (`/admin/coverage`) shows, for one month at a time, every venue's
-photo coverage and its staff's monthly participation, counted separately.
-Dates are UK time.
+1. Open **Menus**, then the venue. **Import a menu** from a CSV or structured
+   JSON file (use **Download the CSV template** for the columns; see
+   [menus-import.md](menus-import.md)), or **Start a draft from the active
+   menu**. PDF, image and Word menus are not read.
+2. The preview lists added, changed and removed items, and separates
+   **Changed presentation** (those dishes' accepted photos go back for a
+   recheck) and **Proposed retirements**. Items are matched by their source
+   key; a same-name match is uncertain until you choose **Same item as** (an item) or
+   **Treat as new item**. Importing the same file again opens the existing
+   draft.
+3. Edit sections, items, variants and aliases, then **Save**. If another
+   admin saved first, the page says **Someone else saved first** and offers
+   **Reload**.
+4. **Activate for labelling** now, or **Schedule activation** for a date.
+   Activation stays blocked until you tick each proposed retirement. The
+   previous active version is retired, and existing labels are kept.
+5. **Retire** removes a venue's active menu; **Archive** stops one item being
+   used for new labels. **Nothing with labels is ever deleted**.
+6. **Change requests** from managers: **Accept**, **Ask for clarification** or
+   **Decline** (the last two need a reason the manager sees). Accepting
+   records your decision; make the change in a draft.
+7. **Missing-item suggestions** from staff (**Item not on the menu?**): link
+   each to an item or dismiss it.
 
-- **Venue coverage** lists each venue's checklist progress, items needing setup
-  or reassignment, photos waiting for review, overdue items and menu coverage.
-  A venue is complete only when every applicable checklist item has enough
-  accepted photos and its menu coverage is current. Items marked not
-  applicable stay visible with their reason and are not counted.
-- **Staff participation** shows targets set, people who need setup and
-  accepted photos. A person is complete only with a venue, a team, a target
-  and enough of their own photos accepted for that month. Missing setup never
-  counts as complete.
-- **Monthly preparation** copies last month's targets and checklist items
-  into the new month for every venue. It shows how many venues are prepared
-  and when it last ran, **Preparation by venue** (targets copied and people who
-  need setup), and **Recent runs** from the last 7 days with each result and
-  error code. **See all runs** lists every run, any month. **Prepare this
-  month** (or **Prepare again**) runs it now; it runs every hour anyway and is
-  safe to repeat. Venues not prepared yet are named at the top of Coverage.
-  See [operations](operations.md#monthly-coverage-preparation).
-- **Self-reviews** lists each decision a manager made on their own photo.
-  **Our menu self-reviews** lists, separately, each manager decision on their
-  own photo for a dish.
-- Open a venue for the same **Overview**, **Review**, **Checklist**, **Menu**,
-  **Our menu** and **Team** screens a manager has (see the
-  [staff guide](usage-staff.md#manage-venue-managers-only)), for any venue.
-  Food menu sections show staff the dish
-  [photo guide](usage-staff.md#photo-guide); its examples are fixed app
-  images, not venue media, and cannot be changed from the admin screens.
-  Admins can also attach retained photos from people who have left, and
-  correct a past month's target with a reason; the correction is recorded.
+Prices, dietary and spice values in a file are kept as source details only.
+Staff never see them. After a new menu is activated, the venue's manager sees
+which items kept their photo and which need a new decision.
 
-**Our menu** counts menu items with an accepted photo: one photo accepted for
-a dish covers that dish (one main photo per dish; variants are recorded as
-context). It is separate from section coverage and monthly targets, and
-accepting for a dish never changes those totals. An upload or a label alone
-never counts. Staff see their own work details, set at `/staff/profile`; only
-they and admins see them, and they never change job title, department, team,
-venue or access.
+## Library
 
-Accepting a photo records task completion only. It is not publishing
-clearance, and coverage does not gate what staff see: ready photos are in
-Photos and on profiles before review.
+The Library (`/admin`, headed **Content**) holds every ready photo and video
+across the group, newest first. Filter by **Venue**, **Staff member** and
+**Media**, or open **More filters** for menu item and **Category** (choose a
+venue first), **Content type**, **Labelled** or **Needs labels**, dates, and
+search over labels and notes, plus **In use**, **Review**, **Orientation**,
+**Tag**, **Collection**, **Request**, **Published to**, **Taken from** and
+**Taken to**. Then **Apply filters**. Filters combine; each file appears once.
 
-### Venue managers
+Open a photo and choose **Edit labels** (or **Add labels**) to correct its
+labels. Labels are optional, so unlabelled photos appear at once.
 
-A venue manager is a separate account type with its own workspace
-(`/manager`; see the [manager guide](usage-manager.md)). To make one, open the
-person in **Staff** and, under **Account type**, choose **Make venue manager**
-(also in their three-dot menu in the directory). Choose the venue, give a
-**Reason** and confirm: the account becomes a venue manager at that venue with
-venue access there, in one audited change. Their photos, credit and review
-history stay with them; they can no longer add or label photos, or use staff
-Photos and People, and their open photo tasks end. **Return to staff account**
-reverses it and ends their venue access. Both changes take effect on the
-person's next page load and are listed under **History**.
+A photo's page shows **Where it's used**, **Original and provenance**,
+**Labels**, **Review history**, **Exports and publication**, **Possible
+duplicates** and **History**. From there you can:
 
-**Venue managers** in Coverage (`/admin/coverage/managers`) lists every grant,
-A to Z by surname. **Give a venue manager access** gives access to a manager
-account at its own venue that has none (for example after a revoke). A grant
-works only while the manager is active at that venue and the venue is active.
-Moving them, deactivating them or changing their account type ends it, and it
-never moves with them. **Revoke grant**, in the grant's **More actions for**
-menu, needs a **Reason**; the manager then sees **Venue access unavailable**
-on their next page load. **Show ended grants** lists how each one ended.
+- **Download original**: the unchanged file.
+- **Export this photo**, when it is approved for public use.
+- **Withdraw from use**: it stays in the Library with its history but can't
+  be exported or made a main photo, and packages holding it must be rebuilt.
+  Review decisions are not changed. **Restore** undoes it.
+- **Suspend from use**: for a photo that no longer shows the venue as it is.
+  Every approval it holds is withdrawn, so each dish, place or facility it
+  filled needs another photo. Using it again needs a new review.
+- **Correct venue**: records the right venue; the photo stays withdrawn.
+- **Manage tags**, and **Collections** (top of the Library).
+- **Permanently remove…** (see below).
 
-Grants made before manager accounts existed are held by staff accounts and
-show **Legacy staff grant**. They stay in effect, with the older **Manage**
-tools in the staff area (see the
-[staff guide](usage-staff.md#manage-venue-managers-only)), until you convert
-the person to a venue manager account.
+### Reference photos
 
-Managers never decide on their own photos or on photos by people who have
-left. Review those, and any venue's menu photos, on the admin Review page at
-`/admin/coverage/{venue}/menu-photos`: the same lists and decisions as the
-manager's **Review**. Being a manager does not let anyone invite or deactivate
-people, change roles, venues or teams, publish menus, download originals or
-delete colleagues' photos. Manager screens show names, photos and progress,
-never email or account details.
+Reference is a review decision made by the venue's reviewer (**Keep as
+reference**; see the [manager guide](usage-manager.md#review)). A reference
+photo stays stored and visible to the team, never closes a public-photo slot
+and never goes in a public export.
 
-## Albums: every venue's album
+### Remove a photo for good
 
-**Albums** (`/admin/albums`, in the admin nav) shows every active venue's
-album at once (docs/design-system/DESIGN.md §6.6). Only admins can open it.
+Staff can't delete a photo once it has been accepted; they ask, and their
+requests appear under **Removal requests** (a button at the top of the
+Library). Choose **Keep the photo** (with **Why it stays**, which the person
+sees) or **Review removal**. **Permanently remove…** shows **What this
+removes** and asks **Why it must be removed**. The stored files are deleted,
+but the record, who took it, the reason and its history are kept. Removal
+can't be undone. A published photo must be withdrawn from its public uses
+first. Downloaded copies cannot be recalled.
 
-- At the top, how many slots are still empty across every venue (Needed or
-  Retake). Photos waiting for review are not empty.
-- **By venue** is a table: venues down; **Food**, **Drinks**, **Amenities** and
-  **Areas** across. Each cell says "{filled} of {total}", where filled means an
-  accepted photo, and a word: **None yet**, **{n} waiting** or **Full**. The
-  cell's green tint darkens as it fills (none yet, under half, half or more,
-  full), but the words always say it. Amenities answered **No** or **Not
-  applicable** are not counted. The last row adds up every venue. On a phone
-  the table scrolls inside its box.
-- A venue without an active menu shows **No menu** for Food and Drinks. A cell
-  whose read failed shows **Couldn't load**; the rest of the page is current.
-- An amenity question whose latest finding a manager sent back for more
-  detail counts as empty (Retake), as staff see it; one still to be decided
-  counts as waiting.
-- **Biggest gaps** lists the sections, amenity categories and venues' places
-  with the most empty slots, each linking to that venue's Review, Amenities or
-  Places.
+## Publishing
 
-## Amenities: evidence checks per venue
+**Publishing** (`/admin/publishing`) shows **Needs following up**, **Export
+packages**, **Destinations**, **Published** and **Output sizes**.
 
-**Amenities** is a tab in each venue's tools (`/admin/coverage/[venueId]/amenities`;
-managers have the same screen at `/staff/manage/amenities`). Each check is one
-question from the shared catalogue ("Is there a step-free entrance?"),
-answered by staff with photo or video evidence. Amenities are separate from
-the checklist, monthly targets and Our menu, and never change those counts.
+1. **Make an export package**. Choose the **Venue** and the **Kind of
+   export**:
+   - **Approved for public use**: only photos approved for public use now can
+     be chosen.
+   - **Internal**: every photo at the venue, including reference and
+     not-yet-reviewed ones. Each file is marked **Internal only**. Never
+     publish an internal package.
+2. Choose photos, check **Alt text**, pick an **Output size**, say **What it's
+   for**, then **Make package · _n_ photos** and **Download ZIP**. The package
+   reads **Exported**.
+3. When a photo goes on a website or listing, open the package and choose
+   **Record where it's published**: **Where** (a destination), **Page
+   address** (or a **Reference**), **Date it went up**, then **Record as
+   Published**. Add destinations with **Add destination**.
+4. When a published photo is withdrawn from use, its record reads
+   **Withdrawal pending** and it shows under **Needs following up**. After it
+   is taken down, use **Confirm it's taken down**.
 
-1. **Enable Amenities** (admins only) turns them on for the venue and adds the
-   four core checks, unassigned: step-free entrance, on-site parking, guest
-   toilets and guest Wi-Fi. Enabling again is safe. Until then a manager sees
-   that an admin must enable Amenities.
-2. The tab counts **Needs capture**, **Needs recheck** and **Complete**, then
-   lists the active checks under those headings with the question, category,
-   evidence needed (**Photo**, **Video**, **Photo or video** or **Photo and
-   video**), the assignee and the current answer. **Recently completed** shows
-   the latest answers with who answered and when.
-3. **Add from catalogue** opens the catalogue. Search by question, category
-   or key, tick any number of questions and choose **Add selected**. Questions
-   the venue already has are marked **Already added**; an archived one can be
-   ticked again, which restores the same check and its history.
-4. Open a check to see its capture brief, progress and answer. Under **Who
-   captures it**, choose an **Assignee** (active staff at that venue) and
-   **Assign**, or **Unassign**. **Notes** are kept with the check. **Capture
-   myself** opens the capture screen for you.
-5. There is no review step: a finding that meets the evidence rule becomes the
-   venue's answer at once and the check is **Complete**. If it looks wrong or
-   things change, choose **Reopen**, pick a reason (**Password or QR visible**,
-   **Wrong area**, **Conditions changed**, **Evidence unclear** or **Other**,
-   which needs details) and confirm. The check shows **Needs recheck** with
-   that reason until someone captures it again; the old answer stays visible
-   meanwhile.
-6. **Archive** hides a check from staff and the counts; it keeps every
-   submission. **Archived** on the tab lists them, each with **Restore**.
+If a photo in a package is withdrawn, the package reads **Needs rebuilding**;
+use **Rebuild without withdrawn photos**. Exported is not Published, and only
+an admin records Published. Managers can make public packages for their own
+venue under Exports, but can't record Published.
 
-**Submissions** on a check lists every finding, newest first, with the answer,
-finding, limitations or reason, who sent it and when, the photos and videos
-(deleted media shows as no longer available) and **Current answer** on the one
-in use. Wi-Fi findings also show the test spot, date and speeds, marked
-internal; guests never see them. **History** lists each change: added,
-assigned, reopened, archived and so on. If evidence behind a Yes is deleted,
-the check goes back to **Needs recheck** on its own.
+## People
 
-If someone else changed a check while you had it open, the page says so and
-reloads; check the latest version and try again.
+**People** (`/admin/staff`, headed **Staff**) lists everyone.
 
-## Invite staff and recover email failures
+- **Invite staff**: **Name**, **Email**, **Venue** and team (**Front of
+  house**, **Back of house** or **Unassigned**), then **Send invitation**.
+  They get a single-use sign-in link. If you see **Account created, email not
+  sent**, use **Resend invitation** rather than inviting again.
+- A person's page shows **Venues and what they can do**. Roles are per
+  venue: use **Add a venue or change the role**, choose **Staff** or
+  **Manager** under **Role at this venue**, then **Save venue role**. Someone
+  can be staff at one venue and a manager at another.
+- **Account type**: **Make venue manager** or **Return to staff account**,
+  with a reason.
+- **Edit details**: **Display name**, **Profile photo**, job title, team,
+  **Venue** or **Account active**, then **Save changes**.
+- **Deactivate** removes access straight away. Their photos stay in the
+  Library, and **Reactivate** restores the account.
+- **Make admin** and **Remove admin role**: there is always at least one
+  active admin.
+- **Reset authenticator** (with **Why are you resetting it?**) clears a
+  person's two-step sign-in, so they set it up again next time.
 
-In **Staff**, choose **Invite staff**. Fill **Name**, **Email**,
-**Job title (optional)**, **Department** (or leave **Unassigned**) and **Venue**
-(an active venue), then **Send invitation**.
-Invitations create staff only; additional admins use [setup](setup.md).
+## Settings and activity
 
-- **Invitation sent**: **Close**. Status stays **Invited** until first sign-in.
-- **Account created, email not sent**: **Close**, then **Resend invitation** in
-  the person's three-dot menu (“More actions for” their name) or profile
-  header. Do not create a duplicate.
-- Follow existing-email errors. Resend is available only while **Invited**;
-  existing users request links at `/login`. Reactivate inactive accounts first.
+**Settings** (`/admin/settings`) shows what needs attention, **Operations**
+(storage, stuck processing, failed uploads) and the **Rules for every
+venue**:
 
-## Edit details, move venues or stop access
+- **Quiet hours**: no notices between **Quiet from** and **Quiet until**
+  (21:00 to 08:00 by default).
+- **Reminders and alerts**: how often managers are reminded about waiting
+  photos, and when admins are told a photo has waited too long.
+- **Retention**: when unfinished uploads are removed.
+- **Allowed export profiles**: Original, Website, Social, Custom.
+- **Storage**: the quota and the warning level.
 
-Choose **Edit details** in the menu or profile header. **Edit staff account**
-allows **Display name**, **Profile photo** (up to
-4 MiB, shown as **4.0 MB**), **Job title**, **Department**, **Venue** or
-**Account active**, then **Save changes**. Email and role are not editable here.
-Venue changes affect new uploads only; old media keeps its original venue.
-A photo may save before a later field fails; recheck errors.
+Every change asks **Why are you changing this?**. **Activity**
+(`/admin/activity`, the button at the top of Settings) shows who changed
+what, where and why, filtered by **Venue** and **Kind of change**.
 
-For a confirmed access change, choose **Deactivate**. The
-“Deactivate [name]?” dialog says:
+## Pages without a menu entry
 
-> They lose access straight away. On a phone that's still signed in, the next thing they do shows Account unavailable.
->
-> Their uploads stay in the library, and you can reactivate the account later.
+These work by address only; nothing in the navigation links them yet:
 
-Choose **Cancel** or **Deactivate**. Existing sessions lose access on their next
-protected request; admins retain the person's ready media. **Reactivate**
-restores access without confirmation. The **Account active** switch also changes
-access on **Save changes**, without the deactivation dialog.
+- **Albums** (`/admin/albums`): every venue's album at once, as a table of
+  venues by category with "filled of total" in each cell, and **Biggest
+  gaps**.
+- **Coverage** (`/admin/coverage`): every venue's checklist, menu coverage
+  and monthly targets, with **Venue managers** (`/admin/coverage/managers`)
+  and each venue's older manager screens. It links to **Metrics**.
+- **Metrics** (`/admin/metrics`): each venue's coverage, facts, review and
+  reliability; choose a venue to see how each number is counted.
+- The knowledge pages under `/admin/knowledge` (check dates, sources, runs,
+  upgrades).
 
-Both changes affect coverage. A venue move ends any manager grant, and the
-person can no longer send photos to the old venue's tasks; their past months
-and accepted photos stay with the old venue. Deactivation also ends the grant
-and closes the person's open task assignments with a reason, so the checklist
-shows **Needs reassignment**. Their accepted photos remain visible to that
-venue's manager and admins in coverage screens, while Photos and People stop
-showing them as before.
-
-## Delete media and use it responsibly
-
-In **Content**, open the item and choose **Delete**. The confirmation reads:
-
-> Remove this file from Priya's profile, Photos and the library? When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled.
-
-(with the owner's first name; when the photo counts toward a task or a target,
-it also says what stops counting).
-
-Choose **Keep file** or confirm with **Delete**. Deletion hides the same asset
-from the library, the owner's profile and Photos; there is no trash/recovery
-screen. Reload Photos or a profile to update its gallery. Existing signed links
-may work until expiry, and downloaded copies cannot be recalled.
-
-Check privacy and permissions before external use: ready media is not
-publishing clearance.
+Check privacy and permissions before external use: a stored photo is not
+publishing clearance. See [operations](operations.md).
