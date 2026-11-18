@@ -122,6 +122,7 @@ const { supabase, uploads, actions, match, area, quality } = vi.hoisted(() => ({
   match: {
     loadMatchBoardAction: vi.fn(),
     requestLabelHelpAction: vi.fn(),
+    suggestSpecialAction: vi.fn(),
   },
   area: {
     setAreaLabelAction: vi.fn(),
@@ -176,6 +177,7 @@ beforeEach(() => {
   }
   match.loadMatchBoardAction.mockResolvedValue({ ok: true, board: BOARD })
   match.requestLabelHelpAction.mockResolvedValue({ ok: true })
+  match.suggestSpecialAction.mockResolvedValue({ ok: true })
   quality.hints = null
   area.setAreaLabelAction.mockImplementation(
     async (_asset: string, subjectId: string) => ({ ok: true, subjectId })
@@ -495,6 +497,59 @@ describe("choosing the slot (spec §5.3)", () => {
     expect(sentFor("asset-a.jpg")[0].input).toMatchObject({
       items: [{ itemId: "item-korma-chicken", variantId: null }],
     })
+  })
+})
+
+describe("a dish not on the menu (S1-MENUS)", () => {
+  it("suggests the searched name as a special, then the photo goes to the manager", async () => {
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.type(
+      await within(dialog).findByRole("searchbox", {
+        name: "Search all empty slots",
+      }),
+      "Pumpkin soup"
+    )
+    await user.click(within(dialog).getByRole("button", { name: "It's food" }))
+    expect(match.suggestSpecialAction).toHaveBeenCalledWith(
+      "Pumpkin soup",
+      "food"
+    )
+    expect(
+      await within(dialog).findByText(
+        '"Pumpkin soup" is suggested to your manager. For this photo, choose I\'m not sure.'
+      )
+    ).toBeTruthy()
+    await user.click(
+      within(dialog).getByRole("button", { name: /I'm not sure/ })
+    )
+    await waitFor(() =>
+      expect(match.requestLabelHelpAction).toHaveBeenCalledWith("asset-a.jpg")
+    )
+  })
+
+  it("says when the suggestion could not be made, and keeps the choice", async () => {
+    match.suggestSpecialAction.mockResolvedValue({
+      ok: false,
+      message: "Try again in a moment.",
+    })
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.type(
+      await within(dialog).findByRole("searchbox", {
+        name: "Search all empty slots",
+      }),
+      "Pumpkin soup"
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "It's a drink" })
+    )
+    expect(
+      await within(dialog).findByText(/It could not be suggested/)
+    ).toBeTruthy()
+    expect(
+      within(dialog).getByRole("button", { name: "It's food" })
+    ).toBeTruthy()
   })
 })
 

@@ -61,6 +61,14 @@ export const MATCH_COPY = {
   qualitySmall:
     "This photo is small (under 1600 pixels). Fine to send; it may be kept for reference.",
   duplicateWord: "Sent before: it won't count twice",
+  // A dish not on the menu (S1-MENUS): suggest it as a local special.
+  specialQuestion: (name: string) =>
+    `Not on the menu? Suggest "${name}" to your manager as a special:`,
+  specialKind: (kind: "food" | "drinks") =>
+    kind === "food" ? "It's food" : "It's a drink",
+  specialDone: (name: string) =>
+    `"${name}" is suggested to your manager. For this photo, choose I'm not sure.`,
+  specialFailed: "It could not be suggested.",
   sharedQuestion: "What does it show?",
   sharedHint: "It is shared with the team with no slot.",
   sharedKind: (kind: SharedKind) => CONTENT_TYPE_LABELS[kind],

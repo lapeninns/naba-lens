@@ -128,7 +128,11 @@ import {
   saveUploadLabels,
   type UploadLabelContext,
 } from "./upload-label-api"
-import { loadMatchBoardAction, requestLabelHelpAction } from "./match-actions"
+import {
+  loadMatchBoardAction,
+  requestLabelHelpAction,
+  suggestSpecialAction,
+} from "./match-actions"
 
 /** What one Add call brings for the files it picks. */
 type PickOwner = {
@@ -1714,6 +1718,9 @@ export function AddHost({
                 }
                 recent={recent}
                 duplicates={duplicates}
+                onSuggestSpecial={(name, kind) =>
+                  suggestSpecialAction(name, kind)
+                }
                 onDecide={decideMatch}
                 onClose={closeMatch}
               />

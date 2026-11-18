@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 
 import { MATCH_COPY } from "./copy"
 import { MatchPicker, type BoardState } from "./match-picker"
+import type { SuggestSpecial } from "./suggest-special"
 import { groupKeys, openAfter, type MatchSlot, type SharedKind } from "./model"
 
 /** One photo chosen from the gallery, waiting to be matched. */
@@ -105,6 +106,7 @@ export function MatchScreen({
   venueName = null,
   recent,
   duplicates,
+  onSuggestSpecial,
   onDecide,
   onClose,
 }: {
@@ -130,6 +132,8 @@ export function MatchScreen({
   recent?: readonly string[]
   /** Photo keys the server found were sent before (same bytes, same venue). */
   duplicates?: ReadonlySet<string>
+  /** A dish not on the menu: suggest it as a local special. */
+  onSuggestSpecial?: SuggestSpecial
   /**
    * One call per photo the choice applies to; `note` is the optional note
    * (trimmed, null when none), the same for every photo of the choice.
@@ -355,6 +359,7 @@ export function MatchScreen({
                       onLater={() => decide({ kind: "later" })}
                       onShared={(shared) => decide({ kind: "shared", shared })}
                       onUnsure={() => decide({ kind: "unsure" })}
+                      onSuggestSpecial={onSuggestSpecial}
                     />
                     <NoteField
                       open={noteOpen}

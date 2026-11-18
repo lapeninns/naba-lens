@@ -14,6 +14,7 @@ import { SearchField } from "@/components/ui/search-field"
 import { cn } from "@/lib/utils"
 
 import { MATCH_COPY } from "./copy"
+import { SuggestSpecialRow, type SuggestSpecial } from "./suggest-special"
 import {
   SHARED_KINDS,
   recentSlots,
@@ -57,6 +58,7 @@ export function MatchPicker({
   onLater,
   onShared,
   onUnsure,
+  onSuggestSpecial,
 }: {
   board: BoardState
   onRetryBoard: () => void
@@ -77,6 +79,8 @@ export function MatchPicker({
   onShared: (kind: SharedKind) => void
   /** Leave out to hide I'm not sure. */
   onUnsure?: () => void
+  /** A search that found nothing offers to suggest a special (staff). */
+  onSuggestSpecial?: SuggestSpecial
 }) {
   const [query, setQuery] = React.useState("")
   const [asking, setAsking] = React.useState(false)
@@ -224,6 +228,13 @@ export function MatchPicker({
               <p className="text-body text-ink-muted">
                 {MATCH_COPY.amenityNote}
               </p>
+            ) : null}
+            {onSuggestSpecial && !amenity && query.trim().length >= 3 ? (
+              <SuggestSpecialRow
+                key={query.trim()}
+                name={query.trim().slice(0, 120)}
+                onSuggest={onSuggestSpecial}
+              />
             ) : null}
           </div>
         )

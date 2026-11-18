@@ -5,9 +5,11 @@ import {
   type MatchBoard,
 } from "@/components/nabalens/album/match/model"
 import { loadAlbum } from "@/lib/server/album"
+import { localDateOf } from "@/lib/server/coverage/time"
 import { requestLabelHelp } from "@/lib/server/label-help"
 import { getLabellingCatalogue } from "@/lib/server/labels"
 import { getMediaActor } from "@/lib/server/media/context"
+import { createSpecial } from "@/lib/server/menus/local"
 
 /**
  * Match's board (DESIGN.md §6.1): the caller's empty dish and area slots,
@@ -56,5 +58,36 @@ export async function requestLabelHelpAction(
   const auth = await getMediaActor(["staff"])
   if (!auth.ok) return { ok: false, message: auth.message }
   const result = await requestLabelHelp(auth.actor, assetId)
+  return result.ok ? { ok: true } : { ok: false, message: result.message }
+}
+
+/** Days a special suggested from Add photos runs, its first day included. */
+const SPECIAL_DAYS = 7
+
+/**
+ * A dish that is not on the menu (S1-MENUS hand-off): from Add photos, the
+ * person suggests it as a local special at their venue, from today for a
+ * week. The manager decides (menu_special_create keeps a staff suggestion as
+ * "suggested"); nothing is added to the menu until then.
+ */
+export async function suggestSpecialAction(
+  name: unknown,
+  kind: unknown
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const auth = await getMediaActor(["staff"])
+  if (!auth.ok) return { ok: false, message: auth.message }
+  const venueId = auth.actor.profile.venueId
+  if (!venueId)
+    return { ok: false, message: "You are not at a venue right now." }
+  const now = new Date()
+  const result = await createSpecial(auth.actor, {
+    venueId,
+    name,
+    kind,
+    startsOn: localDateOf(now),
+    endsOn: localDateOf(
+      new Date(now.getTime() + (SPECIAL_DAYS - 1) * 24 * 3600 * 1000)
+    ),
+  })
   return result.ok ? { ok: true } : { ok: false, message: result.message }
 }
