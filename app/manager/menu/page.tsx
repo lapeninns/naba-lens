@@ -1,3 +1,5 @@
+import Link from "next/link"
+
 import { MenuScreen } from "@/components/nabalens/manager/menu/menu-screen"
 import {
   menuHref,
@@ -8,12 +10,19 @@ import {
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
 import { requireManagerVenue } from "@/lib/auth/manager"
-import { listManagerMenuItems } from "@/lib/server/menu-photos"
+import {
+  getManagerPhotoCtx,
+  listManagerMenuItems,
+} from "@/lib/server/menu-photos"
+import { activateDueMenus } from "@/lib/server/menus"
 
 import { loadMenuItemsPageAction } from "../actions"
 import { failedRead, loadManagerOverview } from "../load-overview"
 
 export const metadata = { title: "Menu" }
+
+const MORE_LINK =
+  "rounded-square font-bold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
 
 type MenuSearch = Record<string, string | string[] | undefined>
 
@@ -31,6 +40,10 @@ export default async function ManagerMenuPage({
   const parsed = parseMenuFilter(await searchParams)
   // Signing in again returns to this list, filters included.
   const here = menuHref(parsed)
+  // A menu scheduled for now becomes current before the list is read
+  // (spec §4.3); the cron route does the same every 15 minutes.
+  const scope = await getManagerPhotoCtx()
+  if (scope.ok) await activateDueMenus(scope.ctx.actor, scope.ctx.venueId)
   const read = await loadManagerOverview()
   if (!read.ok) failedRead(read.code, undefined, here)
   const { ctx, overview } = read
@@ -54,6 +67,17 @@ export default async function ManagerMenuPage({
   return (
     <>
       <OfflineNotice className={OFFLINE_BANNER_CLASS} loadedAt={now} />
+      <nav
+        aria-label="More about the menu"
+        className="flex flex-wrap gap-x-4 gap-y-1 px-1 pb-3 text-body"
+      >
+        <Link href="/manager/menu/specials" className={MORE_LINK}>
+          Specials
+        </Link>
+        <Link href="/manager/menu/versions" className={MORE_LINK}>
+          Current and future menus
+        </Link>
+      </nav>
       <MenuScreen
         overview={overview}
         filter={filter}

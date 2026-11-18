@@ -14,6 +14,7 @@ import {
 } from "@/components/nabalens/offline-notice"
 import { requireManagerVenue } from "@/lib/auth/manager"
 import { getDishBriefs } from "@/lib/server/album"
+import { getOfferingStates } from "@/lib/server/menus/local"
 import { isUuid } from "@/lib/server/coverage/validate"
 import {
   getManagerItem,
@@ -29,6 +30,13 @@ import {
   setMenuItemNeededByAction,
 } from "../../actions"
 import { failedRead } from "../../load-overview"
+import { OfferingControls } from "../_components/offering-controls"
+import {
+  presentationChangedAction,
+  requestChangeAction,
+  setAvailabilityAction,
+  setDisplayNameAction,
+} from "../local-actions"
 
 export const metadata = { title: "Menu item" }
 
@@ -57,9 +65,10 @@ export default async function ManagerMenuItemPage({
       : `${managerHrefs.item(itemId)}?${new URLSearchParams({ from: back.slice(query + 1) })}`
   const scope = await getManagerPhotoCtx()
   if (!scope.ok) failedRead(scope.code, undefined, here)
-  const [read, history] = await Promise.all([
+  const [read, history, offering] = await Promise.all([
     getManagerItem(scope.ctx, itemId),
     listItemEvents(scope.ctx, { itemId }),
+    getOfferingStates(scope.ctx.actor, scope.ctx.venueId),
   ])
   if (!read.ok) failedRead(read.code, undefined, here)
   const { detail } = read
@@ -97,6 +106,27 @@ export default async function ManagerMenuItemPage({
               setAction={setMenuItemNeededByAction}
               clearAction={clearMenuItemNeededByAction}
             />
+            {offering.ok ? (
+              <OfferingControls
+                itemId={detail.item.itemId}
+                menuName={detail.item.name}
+                state={
+                  offering.states[detail.item.itemId] ?? {
+                    available: true,
+                    unavailableUntil: null,
+                    unavailableReason: null,
+                    displayName: null,
+                  }
+                }
+                today={neededByBounds().today}
+                actions={{
+                  setAvailability: setAvailabilityAction,
+                  setDisplayName: setDisplayNameAction,
+                  presentationChanged: presentationChangedAction,
+                  requestChange: requestChangeAction,
+                }}
+              />
+            ) : null}
             {briefs ? (
               <DishBrief
                 itemId={detail.item.itemId}
