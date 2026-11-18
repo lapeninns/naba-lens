@@ -16,7 +16,13 @@
  * policy question whose confirmed answer is enough (Wi-Fi, dogs, live music,
  * quiz, kerbside collection).
  */
-export const EVIDENCE_RULES = ["photo", "video", "either", "both", "none"] as const
+export const EVIDENCE_RULES = [
+  "photo",
+  "video",
+  "either",
+  "both",
+  "none",
+] as const
 export type EvidenceRule = (typeof EVIDENCE_RULES)[number]
 
 export const CHECK_STATUSES = ["active", "archived"] as const
