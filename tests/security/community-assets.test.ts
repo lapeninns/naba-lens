@@ -1,8 +1,10 @@
 // Community read access to colleagues' media (20261102160000): raw media rows
 // stay own/admin only, and colleagues read a narrow projection through
 // community_readable_assets (no storage paths, filename or upload key). Hidden
-// (departed uploader), deleted and unfinished assets give nothing. Real
-// identities; the service role only builds fixtures.
+// (departed uploader), deleted and unfinished assets give nothing. Since
+// S1-PRIVACY (FA-20) a colleague reads only accepted media at a venue whose
+// album they see; unreviewed media stays with its uploader, the venue's
+// manager and admins. Real identities; the service role only builds fixtures.
 import { beforeAll, describe, expect, it } from "vitest"
 
 import {
@@ -13,6 +15,7 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import { reserve, reserveReady } from "./menus-fixtures"
+import { acceptAsset } from "./privacy-fixtures"
 
 const service = serviceClient()
 let admin: TestIdentity
@@ -24,6 +27,8 @@ let ownerUnfinished: string
 let ownerDeleted: string
 let departedReady: string
 let colleagueReady: string
+let ownerWaiting: string
+let elsewhere: TestIdentity
 
 const COLUMNS = [
   "created_at",
@@ -53,7 +58,8 @@ beforeAll(async () => {
   const staff = (label: string, venueId: string) =>
     createIdentity(service, { label, role: "staff", venueId })
   owner = await staff("community-assets-owner", venue)
-  colleague = await staff("community-assets-colleague", otherVenue)
+  colleague = await staff("community-assets-colleague", venue)
+  elsewhere = await staff("community-assets-elsewhere", otherVenue)
   departed = await staff("community-assets-departed", venue)
 
   ownerReady = (await reserveReady(service, owner)).id
@@ -65,6 +71,10 @@ beforeAll(async () => {
   if (deleted.error) throw deleted.error
   colleagueReady = (await reserveReady(service, colleague)).id
   departedReady = (await reserveReady(service, departed)).id
+  ownerWaiting = (await reserveReady(service, owner)).id
+  // Accepted by an admin: colleagues at the venue may now read it (FA-20).
+  acceptAsset(ownerReady, admin.id)
+  acceptAsset(departedReady, admin.id)
   const left = await service
     .from("profiles")
     .update({ active: false })
@@ -140,6 +150,46 @@ describe("colleague media rows", () => {
         .sort()
     ).toEqual([departedReady, ownerReady].sort())
     expect((await readable(departed, [departedReady])).data).toEqual([])
+  })
+
+  it("hides a colleague's unreviewed media from staff, not from its uploader or an admin (FA-20)", async () => {
+    expect((await readable(colleague, [ownerWaiting])).data).toEqual([])
+    expect((await readable(owner, [ownerWaiting])).data).toHaveLength(1)
+    expect((await readable(admin, [ownerWaiting])).data).toHaveLength(1)
+    const feed = await colleague.client.rpc("community_media_page", {
+      p_uploader: owner.id,
+    })
+    expect(feed.error).toBeNull()
+    const ids = feed.data!.map((r) => r.id)
+    expect(ids).toContain(ownerReady)
+    expect(ids).not.toContain(ownerWaiting)
+    const own = await owner.client.rpc("community_media_page", {
+      p_uploader: owner.id,
+    })
+    expect(own.data!.map((r) => r.id)).toContain(ownerWaiting)
+  })
+
+  it("hides even accepted media from staff at another venue (spec §3.3)", async () => {
+    expect((await readable(elsewhere, [ownerReady])).data).toEqual([])
+    const feed = await elsewhere.client.rpc("community_media_page", {
+      p_uploader: owner.id,
+    })
+    expect(feed.error).toBeNull()
+    expect(feed.data).toEqual([])
+  })
+
+  it("counts only the media the caller may see on a person's card", async () => {
+    const count = async (who: TestIdentity) => {
+      const { data, error } = await who.client.rpc("community_members", {
+        p_member: owner.id,
+      })
+      expect(error).toBeNull()
+      return Number(data![0]!.media_count)
+    }
+    expect(await count(colleague)).toBe(1)
+    expect(await count(elsewhere)).toBe(0)
+    expect(await count(owner)).toBe(2)
+    expect(await count(admin)).toBe(2)
   })
 
   it("refuses anonymous callers and more than 100 ids", async () => {
