@@ -3,12 +3,16 @@ import "server-only"
 import {
   BRIEF_MAX,
   buildAlbum,
+  coverageByAlbumId,
   isBriefText,
+  parseCoverage,
   type AlbumBriefs,
   type AlbumInput,
   type AlbumView,
   type AmenityInput,
   type AreaInput,
+  type CoverageState,
+  type CoverageView,
   type DishInput,
   type PlacementInput,
 } from "@/lib/album/model"
@@ -32,6 +36,9 @@ import type { MediaActor } from "@/lib/server/media/types"
 // them. Each read is scoped again by the database. AL-7 adds the current
 // photo of accepted or waiting area slots and accepted amenity slots
 // (20261117150000_album_slot_photos.sql), served by /api/album/[id]/thumb.
+// Full App v1 (S1-COV): every slot's state comes from one coverage rule,
+// public.coverage_slots (20261118100200_coverage_slots.sql), the same rule
+// admin albums and Our menu's summary read.
 
 type Result<T> = ({ ok: true } & T) | CoverageFailure
 
@@ -58,6 +65,55 @@ const MESSAGES: Record<string, CoverageFailure> = {
   unknown_slot: failure(
     "state_conflict",
     "That section, dish or category is no longer listed. Reload the page."
+  ),
+  // Coverage decisions (20261118100100_coverage_decisions.sql).
+  invalid_level: failure("invalid_input", "Reload the page."),
+  invalid_decision: failure("invalid_input", "Reload the page."),
+  invalid_slot_kind: failure("invalid_input", "Reload the page."),
+  reason_required: failure("invalid_input", "Add a short reason."),
+  invalid_reason: failure(
+    "invalid_input",
+    "Write the reason in 500 characters or fewer."
+  ),
+  self_review_not_allowed: failure(
+    "not_permitted",
+    "Someone else at the venue decides on your own photo."
+  ),
+  media_asset_not_found: failure(
+    "not_found",
+    "That photo is no longer available. Reload the page."
+  ),
+  area_photo_not_found: failure(
+    "not_found",
+    "That photo is no longer available. Reload the page."
+  ),
+  amenity_photo_not_found: failure(
+    "not_found",
+    "That photo is no longer available. Reload the page."
+  ),
+  slot_not_found: failure(
+    "not_found",
+    "That slot is no longer listed. Reload the page."
+  ),
+  photo_not_eligible: failure(
+    "asset_ineligible",
+    "Only a photo accepted for public use can be the main photo."
+  ),
+  photo_reference_only: failure(
+    "state_conflict",
+    "Only a photo accepted for public use can be the main photo."
+  ),
+  coverage_conflict: failure(
+    "revision_conflict",
+    "Someone else changed this item just now. Reload the page."
+  ),
+  area_photo_conflict: failure(
+    "revision_conflict",
+    "This photo was decided just now. Reload the page."
+  ),
+  amenity_photo_conflict: failure(
+    "revision_conflict",
+    "This photo was decided just now. Reload the page."
   ),
 }
 
@@ -398,12 +454,13 @@ async function allAreas(
       (state === "needed" ||
         state === "waiting" ||
         state === "retake" ||
-        state === "accepted")
+        state === "accepted" ||
+        state === "check_due")
       ? [
           {
             subjectId: row.subjectId,
             label,
-            state,
+            state: state === "check_due" ? "check-due" : state,
             thumbnailUrl: thumbs.area.get(row.subjectId) ?? null,
           },
         ]
@@ -443,7 +500,7 @@ export async function loadAlbum(
 ): Promise<Result<{ album: AlbumView; placements: AlbumPlacements }>> {
   // One slot-photo read, shared by the amenity and area loaders.
   const photos = slotPhotos(actor)
-  const [placements, dishes, amenities, areas, retakes, briefs] =
+  const [placements, dishes, amenities, areas, retakes, briefs, coverage] =
     await Promise.all([
       placementsOrNone(actor),
       allDishes(actor),
@@ -451,17 +508,232 @@ export async function loadAlbum(
       allAreas(actor, photos),
       myRetakeItems(actor),
       briefsOrNone(actor),
+      coverageOrNone(actor),
     ])
   if (!dishes) return unavailableFailure("album dishes", null)
+  // The coverage rule's state on each slot; a failed read leaves the older
+  // per-source rules in lib/album/model.ts to decide.
+  const states = coverageByAlbumId(coverage)
+  const stateOf = (id: string): CoverageState | undefined => states.get(id)
   const input: AlbumInput = {
     places: placements.places,
     placements: placements.placements,
     sections: placements.sections,
-    dishes,
-    amenities,
+    dishes: dishes.map((d) => ({
+      ...d,
+      coverage: stateOf(`dish:${d.itemId}`),
+    })),
+    amenities: amenities.map((a) => ({
+      ...a,
+      coverage: stateOf(`amenity:${a.checkId}`),
+    })),
     areas,
     myRetakeItemIds: retakes,
     briefs,
   }
   return { ok: true, album: buildAlbum(input), placements }
+}
+
+// ---- coverage (Full App v1, S1-COV) ------------------------------------------
+
+/**
+ * Every slot's coverage at the caller's venue (public.coverage_slots): its
+ * state, category (Food, Drinks, Spaces, Facilities, Other), effective
+ * primary and waiting count, with n of N per category. Staff and managers at
+ * their venue; an admin names one.
+ */
+export async function getCoverageSlots(
+  actor: MediaActor,
+  venueId?: string
+): Promise<Result<{ coverage: CoverageView }>> {
+  const { data, error } = await actor.db.rpc(
+    "coverage_slots",
+    venueId ? { p_venue_id: venueId } : {}
+  )
+  if (error) return albumFailure(error, "coverage slots")
+  const coverage = parseCoverage(data)
+  if (!coverage) return unavailableFailure("coverage slots shape", null)
+  return { ok: true, coverage }
+}
+
+async function coverageOrNone(actor: MediaActor): Promise<CoverageView | null> {
+  const result = await Promise.resolve(getCoverageSlots(actor)).catch(
+    () => null
+  )
+  return result?.ok ? result.coverage : null
+}
+
+export type ReviewLevel = "public" | "reference"
+const isLevel = (v: unknown): v is ReviewLevel =>
+  v === "public" || v === "reference"
+
+/**
+ * Keep as reference, or Approve for public use, on a dish photo (a label
+ * tuple). A waiting or rechecking tuple is accepted at that level; an
+ * accepted one changes level. `expectedRevision` is the item's revision.
+ */
+export async function setMenuItemPhotoLevel(
+  actor: MediaActor,
+  input: {
+    assetId: unknown
+    itemId: unknown
+    variantId?: unknown
+    level: unknown
+    expectedRevision: unknown
+    reason?: string | null
+    requestKey?: string | null
+  }
+): Promise<
+  Result<{
+    photoId: string
+    level: ReviewLevel
+    isPrimary: boolean
+    itemRevision: number
+  }>
+> {
+  if (!isUuid(input.assetId) || !isUuid(input.itemId))
+    return MESSAGES.unknown_slot
+  if (input.variantId != null && !isUuid(input.variantId))
+    return MESSAGES.unknown_slot
+  if (!isLevel(input.level)) return MESSAGES.invalid_level
+  if (
+    typeof input.expectedRevision !== "number" ||
+    !Number.isInteger(input.expectedRevision)
+  )
+    return MESSAGES.coverage_conflict
+  const { data, error } = await actor.db.rpc("set_menu_item_photo_level", {
+    p_asset_id: input.assetId,
+    p_item_id: input.itemId,
+    p_variant_id: (input.variantId ?? null) as string,
+    p_level: input.level,
+    p_expected_revision: input.expectedRevision,
+    p_reason: (input.reason?.trim() || null) as string,
+    p_client_request_key: (input.requestKey ?? null) as string,
+  })
+  if (error) return albumFailure(error, "menu item photo level")
+  const row = (Array.isArray(data) ? data[0] : data) as Record<
+    string,
+    unknown
+  > | null
+  if (!row || !isUuid(row.photo_id) || !isLevel(row.review_level))
+    return unavailableFailure("menu item photo level shape", null)
+  return {
+    ok: true,
+    photoId: row.photo_id,
+    level: row.review_level,
+    isPrimary: row.is_primary === true,
+    itemRevision: typeof row.item_revision === "number" ? row.item_revision : 1,
+  }
+}
+
+export type PhotoDecision =
+  "accepted" | "needs_another_photo" | "not_used" | "withdrawn"
+const isDecision = (v: unknown): v is PhotoDecision =>
+  v === "accepted" ||
+  v === "needs_another_photo" ||
+  v === "not_used" ||
+  v === "withdrawn"
+
+/** One decision on a place's photo, with a level on an acceptance. */
+export async function decideAreaPhoto(
+  actor: MediaActor,
+  input: {
+    labelId: unknown
+    action: unknown
+    level?: unknown
+    reason?: string | null
+  }
+): Promise<Result<{ state: string; level: ReviewLevel; changed: boolean }>> {
+  if (!isUuid(input.labelId)) return MESSAGES.area_photo_not_found
+  if (!isDecision(input.action)) return MESSAGES.invalid_decision
+  const level = input.level ?? "public"
+  if (!isLevel(level)) return MESSAGES.invalid_level
+  const { data, error } = await actor.db.rpc("decide_area_photo_level", {
+    p_label_id: input.labelId,
+    p_action: input.action,
+    p_level: level,
+    p_reason: (input.reason?.trim() || null) as string,
+  })
+  if (error) return albumFailure(error, "area photo decision")
+  const row = (Array.isArray(data) ? data[0] : data) as Record<
+    string,
+    unknown
+  > | null
+  return {
+    ok: true,
+    state: text(row?.state) ?? input.action,
+    level: isLevel(row?.review_level) ? row.review_level : level,
+    changed: row?.changed === true,
+  }
+}
+
+/** One photo decision for an amenity check (FA-32); the fact is untouched. */
+export async function decideAmenityPhoto(
+  actor: MediaActor,
+  input: {
+    checkId: unknown
+    assetId: unknown
+    action: unknown
+    level?: unknown
+    reason?: string | null
+  }
+): Promise<Result<{ state: string; level: ReviewLevel; changed: boolean }>> {
+  if (!isUuid(input.checkId) || !isUuid(input.assetId))
+    return MESSAGES.amenity_photo_not_found
+  if (!isDecision(input.action)) return MESSAGES.invalid_decision
+  const level = input.level ?? "public"
+  if (!isLevel(level)) return MESSAGES.invalid_level
+  const { data, error } = await actor.db.rpc("decide_amenity_photo", {
+    p_check_id: input.checkId,
+    p_asset_id: input.assetId,
+    p_action: input.action,
+    p_level: level,
+    p_reason: (input.reason?.trim() || null) as string,
+  })
+  if (error) return albumFailure(error, "amenity photo decision")
+  const row = (Array.isArray(data) ? data[0] : data) as Record<
+    string,
+    unknown
+  > | null
+  return {
+    ok: true,
+    state: text(row?.state) ?? input.action,
+    level: isLevel(row?.review_level) ? row.review_level : level,
+    changed: row?.changed === true,
+  }
+}
+
+/**
+ * Select primary for a place or amenity slot (dishes keep
+ * set_menu_item_primary_photo). The photo must be accepted for public use.
+ */
+export async function setSlotPrimaryPhoto(
+  actor: MediaActor,
+  input: {
+    slotKind: unknown
+    slotId: unknown
+    assetId: unknown
+    reason?: string | null
+  }
+): Promise<
+  Result<{ assetId: string; previousAssetId: string | null; changed: boolean }>
+> {
+  if (input.slotKind !== "area" && input.slotKind !== "amenity")
+    return MESSAGES.invalid_slot_kind
+  if (!isUuid(input.slotId)) return MESSAGES.slot_not_found
+  if (!isUuid(input.assetId)) return MESSAGES.photo_not_eligible
+  const { data, error } = await actor.db.rpc("set_slot_primary_photo", {
+    p_slot_kind: input.slotKind,
+    p_slot_id: input.slotId,
+    p_asset_id: input.assetId,
+    p_reason: (input.reason?.trim() || null) as string,
+  })
+  if (error) return albumFailure(error, "slot primary photo")
+  const row = data as Record<string, unknown> | null
+  return {
+    ok: true,
+    assetId: input.assetId,
+    previousAssetId: isUuid(row?.previousAssetId) ? row.previousAssetId : null,
+    changed: row?.changed === true,
+  }
 }

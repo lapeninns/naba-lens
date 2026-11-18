@@ -11,7 +11,12 @@
  * amenityState, the rule staff Album uses.
  */
 
-import { amenityState, type SlotState } from "@/lib/album/model"
+import {
+  amenityState,
+  coverageSlotState,
+  type CoverageState,
+  type SlotState,
+} from "@/lib/album/model"
 
 export type AlbumColumn = "food" | "drinks" | "amenities" | "areas"
 
@@ -87,10 +92,16 @@ export type AdminAmenityInput = {
    * null with none. `needs_attention`: a manager asked for more detail.
    */
   openState: "needs_attention" | "submitted" | "awaiting_confirmation" | null
+  /**
+   * The coverage rule's state (album_admin_counts since S1-COV,
+   * 20261118100200). When present it decides the slot (FA-32: the photo has
+   * its own review); the fields above are kept for older reads.
+   */
+  state?: CoverageState
 }
 
 export type AdminAreaInput = {
-  state: "needed" | "waiting" | "retake" | "accepted"
+  state: "needed" | "waiting" | "retake" | "accepted" | "check-due"
 }
 
 export type AdminVenueInput = {
@@ -119,19 +130,28 @@ export const GAP_LIMIT = 8
  * back for more detail is Retake, and one still to be decided is Waiting.
  */
 export function adminAmenityState(input: AdminAmenityInput): SlotState {
-  return amenityState({
-    checkId: "",
-    question: "",
-    category: input.category,
-    progress: input.progress,
-    answer:
-      input.answer === "yes" ||
-      input.answer === "no" ||
-      input.answer === "not_applicable"
-        ? input.answer
-        : null,
-    myLatestState: input.openState,
-  })
+  if (input.state) {
+    const state = coverageSlotState(input.state)
+    if (state === "needed" && input.openState === "needs_attention")
+      return "retake"
+    // Inactive amenities are not sent; treat a stray one as Not here.
+    return state ?? "not-here"
+  }
+  return (
+    amenityState({
+      checkId: "",
+      question: "",
+      category: input.category,
+      progress: input.progress,
+      answer:
+        input.answer === "yes" ||
+        input.answer === "no" ||
+        input.answer === "not_applicable"
+          ? input.answer
+          : null,
+      myLatestState: input.openState,
+    }) ?? "not-here"
+  )
 }
 
 const ZERO: SlotCounts = { filled: 0, waiting: 0, total: 0 }
@@ -148,7 +168,10 @@ function countStates(states: SlotState[]): SlotCounts {
   const counted = states.filter((s) => s !== "not-here")
   return {
     filled: counted.filter((s) => s === "accepted").length,
-    waiting: counted.filter((s) => s === "waiting" || s === "sending").length,
+    // Check due waits on a manager's check (FA-11), as on staff Album.
+    waiting: counted.filter(
+      (s) => s === "waiting" || s === "sending" || s === "check-due"
+    ).length,
     total: counted.length,
   }
 }

@@ -1,6 +1,7 @@
 // Album AL-7 (docs/plans/album-a3-a5.md, A5): staff at a venue see the
 // current photo of its accepted or waiting area slots and its accepted
-// amenity slots (review never gates visibility). public.album_slot_photos
+// amenity slots (review never gates visibility). Since S1-COV an amenity slot
+// is accepted when a reviewer accepts its photo (FA-32). public.album_slot_photos
 // lists them; public.album_slot_asset is the gate before a thumbnail is
 // signed. Real signed-in identities through PostgREST; the service role and
 // psql only build fixtures.
@@ -47,6 +48,17 @@ const setArea = (who: TestIdentity, asset: string, subject: string) =>
     who.client.rpc("set_media_area_label", {
       p_asset_id: asset,
       p_subject_id: subject,
+    })
+  )
+
+// FA-32 (20261118100100): an amenity photo fills its slot once a reviewer
+// accepts it for public use, separately from the answer.
+const acceptAmenityPhoto = (who: TestIdentity, check: string, asset: string) =>
+  ok(
+    who.client.rpc("decide_amenity_photo", {
+      p_check_id: check,
+      p_asset_id: asset,
+      p_action: "accepted",
     })
   )
 
@@ -137,6 +149,7 @@ beforeAll(async () => {
     `select sa.asset_id from public.amenity_submission_assets sa
      where sa.submission_id = '${parking.submissionId}' limit 1`
   )
+  await acceptAmenityPhoto(w.manager, w.checks.onsite_parking, shown.amenity)
 
   // The other venue: one accepted area photo.
   const theirs = await areaPhoto(other.w.staffA, other.places.bar)
@@ -282,6 +295,7 @@ describe("an amenity whose service has ended", () => {
        join public.venue_amenity_checks c on c.current_submission_id = sa.submission_id
        where c.id = '${w.checks.guest_toilets}' limit 1`
     )
+    await acceptAmenityPhoto(w.manager, w.checks.guest_toilets, asset)
     const listed = async () =>
       (await photos(w.staffB)).items.some((i) => i.assetId === asset)
     expect(await listed()).toBe(true)
