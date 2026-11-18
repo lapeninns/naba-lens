@@ -3418,6 +3418,264 @@ export type Database = {
           },
         ]
       }
+      library_asset_tags: {
+        Row: {
+          added_at: string
+          added_by: string
+          asset_id: string
+          tag_id: string
+          venue_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by: string
+          asset_id: string
+          tag_id: string
+          venue_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string
+          asset_id?: string
+          tag_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_asset_tags_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_asset_tags_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "library_asset_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "library_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_collection_events: {
+        Row: {
+          action: string
+          actor_id: string
+          asset_id: string | null
+          collection_id: string
+          created_at: string
+          id: number
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          asset_id?: string | null
+          collection_id: string
+          created_at?: string
+          id?: never
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          asset_id?: string | null
+          collection_id?: string
+          created_at?: string
+          id?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_collection_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_collection_events_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "library_collections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_collection_items: {
+        Row: {
+          added_at: string
+          added_by: string
+          asset_id: string
+          collection_id: string
+          venue_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by: string
+          asset_id: string
+          collection_id: string
+          venue_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string
+          asset_id?: string
+          collection_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_collection_items_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_collection_items_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "library_collection_items_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "library_collections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_collections: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          purpose: string | null
+          revision: number
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          purpose?: string | null
+          revision?: number
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          purpose?: string | null
+          revision?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_collections_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_tag_events: {
+        Row: {
+          action: string
+          actor_id: string
+          asset_id: string | null
+          created_at: string
+          id: number
+          name: string
+          tag_id: string
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          asset_id?: string | null
+          created_at?: string
+          id?: never
+          name: string
+          tag_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          asset_id?: string | null
+          created_at?: string
+          id?: never
+          name?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_tag_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_tag_events_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "library_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_tags: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          revision: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          revision?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          revision?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_tags_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_archive_audit_runs: {
         Row: {
           bytes_verified: number
@@ -3694,6 +3952,90 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "media_assets"
             referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
+      media_asset_withdrawal_events: {
+        Row: {
+          action: string
+          actor_id: string
+          asset_id: string
+          created_at: string
+          id: number
+          reason: string
+          venue_id: string
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          asset_id: string
+          created_at?: string
+          id?: never
+          reason: string
+          venue_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          asset_id?: string
+          created_at?: string
+          id?: never
+          reason?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_asset_withdrawal_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_asset_withdrawal_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_asset_withdrawals: {
+        Row: {
+          asset_id: string
+          reason: string
+          venue_id: string
+          withdrawn_at: string
+          withdrawn_by: string
+        }
+        Insert: {
+          asset_id: string
+          reason: string
+          venue_id: string
+          withdrawn_at?: string
+          withdrawn_by: string
+        }
+        Update: {
+          asset_id?: string
+          reason?: string
+          venue_id?: string
+          withdrawn_at?: string
+          withdrawn_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_asset_withdrawals_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "media_asset_withdrawals_withdrawn_by_fkey"
+            columns: ["withdrawn_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4543,6 +4885,58 @@ export type Database = {
             columns: ["requested_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_venue_corrections: {
+        Row: {
+          asset_id: string
+          corrected_at: string
+          corrected_by: string
+          corrected_venue_id: string
+          declared_venue_id: string
+          id: number
+          reason: string
+        }
+        Insert: {
+          asset_id: string
+          corrected_at?: string
+          corrected_by: string
+          corrected_venue_id: string
+          declared_venue_id: string
+          id?: never
+          reason: string
+        }
+        Update: {
+          asset_id?: string
+          corrected_at?: string
+          corrected_by?: string
+          corrected_venue_id?: string
+          declared_venue_id?: string
+          id?: never
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_venue_corrections_asset_fkey"
+            columns: ["asset_id", "declared_venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "media_venue_corrections_corrected_by_fkey"
+            columns: ["corrected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_venue_corrections_corrected_venue_id_fkey"
+            columns: ["corrected_venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
             referencedColumns: ["id"]
           },
         ]
@@ -7129,6 +7523,10 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_correct_asset_venue: {
+        Args: { p_asset_id: string; p_reason: string; p_venue_id: string }
+        Returns: Json
+      }
       admin_delete_media_asset: {
         Args: { p_asset_id: string; p_impact_token: string; p_reason: string }
         Returns: Json
@@ -8500,6 +8898,11 @@ export type Database = {
         Returns: Json
       }
       knowledge_working_list: { Args: never; Returns: Json }
+      library_asset_detail: { Args: { p_asset_id: string }; Returns: Json }
+      library_asset_tag: {
+        Args: { p_add: boolean; p_asset_ids: string[]; p_tag_id: string }
+        Returns: Json
+      }
       library_assets: {
         Args: {
           p_category?: string
@@ -8545,6 +8948,25 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      library_collection_save: {
+        Args: {
+          p_archived?: boolean
+          p_collection_id: string
+          p_expected_revision?: number
+          p_name: string
+          p_purpose?: string
+        }
+        Returns: Json
+      }
+      library_collection_set_items: {
+        Args: { p_add: boolean; p_asset_ids: string[]; p_collection_id: string }
+        Returns: Json
+      }
+      library_collections: {
+        Args: { p_include_archived?: boolean }
+        Returns: Json
+      }
+      library_filter_lists: { Args: { p_venue_id?: string }; Returns: Json }
       library_labelled_items: { Args: { p_venue_id: string }; Returns: Json }
       library_labelled_variants: { Args: { p_venue_id: string }; Returns: Json }
       library_page: {
@@ -8552,18 +8974,27 @@ export type Database = {
           p_after_created_at?: string
           p_after_id?: string
           p_candidate_cap?: number
+          p_captured_from?: string
+          p_captured_to?: string
           p_category?: string
+          p_collection?: string
           p_content_type?: string
+          p_destination?: string
           p_from?: string
           p_item?: string
           p_label_state?: string
           p_limit?: number
+          p_orientation?: string
           p_query?: string
+          p_request?: string
+          p_review?: string
           p_staff?: string
+          p_tag?: string
           p_to?: string
           p_type?: Database["public"]["Enums"]["media_type"]
           p_variant?: string
           p_venue?: string
+          p_withdrawn?: string
         }
         Returns: {
           captured_at: string | null
@@ -8600,6 +9031,24 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      library_restore_asset: {
+        Args: { p_asset_id: string; p_reason: string }
+        Returns: Json
+      }
+      library_tag_save: {
+        Args: {
+          p_active?: boolean
+          p_expected_revision?: number
+          p_name: string
+          p_tag_id: string
+        }
+        Returns: Json
+      }
+      library_tags: { Args: never; Returns: Json }
+      library_withdraw_asset: {
+        Args: { p_asset_id: string; p_reason: string }
+        Returns: Json
       }
       manager_grant_candidates: {
         Args: { p_venue_id: string }
