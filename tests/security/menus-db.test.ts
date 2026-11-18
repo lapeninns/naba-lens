@@ -426,12 +426,18 @@ describe("activation lifecycle and revisions", () => {
         })
       )
     )
-    expect(results.every((r) => r.error === null)).toBe(true)
+    // The first wins. The second either replaces it or, since replacing it
+    // would retire the first draft's dish unconfirmed, is refused (AC28,
+    // S2-FIX R15). Never two active versions.
+    expect(results.some((r) => r.error === null)).toBe(true)
+    for (const r of results.filter((r) => r.error !== null)) {
+      expect(r.error!.message).toBe("menu_retirements_unconfirmed")
+    }
     const { data } = await service
       .from("menu_versions")
       .select("status")
       .eq("venue_id", v)
-    expect(data!.map((r) => r.status).sort()).toEqual(["active", "retired"])
+    expect(data!.filter((r) => r.status === "active")).toHaveLength(1)
   })
 })
 

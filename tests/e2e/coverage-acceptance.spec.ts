@@ -197,12 +197,16 @@ async function publishMenu(admin: Db, venueId: string, title: string) {
     })
   )) as string
   await ok(
-    admin.rpc("activate_menu_version", {
+    admin.rpc("activate_menu_version_confirmed", {
       p_version_id: id,
       p_expected_revision: Number(
         psql(
           `select revision from public.menu_versions where id = '${id}'::uuid`
         )
+      ),
+      // AC28: confirm exactly the items this activation retires.
+      p_retirements: Number(
+        psql(`select private.menu_retired_count('${id}'::uuid)`)
       ),
     })
   )
