@@ -313,9 +313,12 @@ async function originalSha256(
   return hash.digest("hex")
 }
 
-/** One media_renditions row per derivative written (spec §12.3). */
-async function recordRenditions(
-  actor: MediaActor,
+/**
+ * One media_renditions row per derivative written (spec §12.3). Also used by
+ * the legacy import (scripts/import), which has only the service role.
+ */
+export async function recordRenditions(
+  actor: Pick<MediaActor, "service">,
   assetId: string,
   keys: ReturnType<typeof mediaObjectKeys>,
   preview: Uint8Array,
