@@ -395,6 +395,9 @@ test.describe("signed previews", () => {
       route.fulfill({ status: 503, body: "" })
     )
     await staffPage.reload()
+    // Me lists Your photos first (S2-STAFF), so the portfolio's lazy tiles
+    // load only once scrolled to.
+    await portfolio.getByRole("button").nth(2).scrollIntoViewIfNeeded()
     const alert = previewAlert(staffPage)
     await expect(alert).toHaveText(/1 preview could not load\./)
     await expect(

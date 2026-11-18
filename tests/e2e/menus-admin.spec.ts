@@ -428,11 +428,15 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
     await expect(
       preview.getByRole("region", { name: "Needs a decision" })
     ).toContainText("1 item · decide before activating")
-    // "Changed presentation" is its own group now (S2-INT); retirements are
-    // proposed, confirmed at activation (R15).
+    // A rename is a presentation change, its own group now (S2-INT); a
+    // category move stays under Changed. Retirements are proposed and
+    // confirmed at activation (R15).
     await expect(
       preview.getByRole("region", { name: "Changed", exact: true })
-    ).toContainText("2 items")
+    ).toContainText("1 item")
+    await expect(
+      preview.getByRole("region", { name: "Changed presentation" })
+    ).toContainText("Onion Bhaji Tower")
     await expect(
       preview.getByRole("region", { name: "Proposed retirements" })
     ).toBeVisible()
