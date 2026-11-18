@@ -94,7 +94,7 @@ export function DishGuide({
             <span
               aria-hidden
               className={cn(
-                "grid shrink-0 place-items-center rounded-round font-display font-extrabold tabular-nums",
+                "grid shrink-0 place-items-center rounded-round font-display font-semibold tabular-nums",
                 posts
                   ? "size-9 bg-ink text-heading-sm text-surface"
                   : "absolute top-2 left-2 size-8 bg-plate text-label text-on-stage"

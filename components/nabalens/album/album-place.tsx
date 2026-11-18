@@ -14,6 +14,7 @@ import {
   type ReportSender,
 } from "@/components/nabalens/album/report-change-dialog"
 import { Notice } from "@/components/nabalens/notice"
+import { VenueBar } from "@/components/nabalens/venue-bar"
 import {
   useAdd,
   type OpenAddOptions,
@@ -115,23 +116,22 @@ export function AlbumPlaceScreen({
   )
   return (
     <div className="grid gap-5 pb-4" data-slot="album-place">
-      <div>
+      <VenueBar
+        name={venueName}
+        className="-mx-page-gutter md:mx-0 md:rounded-card md:border md:border-line"
+      />
+      <div className="-mt-3">
         <Link
           href={`/staff/tasks?place=${placeKey}`}
-          className="inline-flex min-h-12 items-center gap-1 font-bold text-ink focus-ring"
+          className="inline-flex min-h-12 items-center gap-1 text-label text-ink focus-ring"
         >
           <ArrowLeftIcon aria-hidden className="size-5" />
           Album
         </Link>
       </div>
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-        <div className="grid gap-0.5">
-          <p className="font-mono text-mono font-semibold text-ink-muted">
-            {venueName}
-          </p>
-          <Title className="type-page-title text-ink">{place.label}</Title>
-        </div>
-        <p className="font-mono text-mono font-semibold text-ink-muted tabular-nums">
+        <Title className="type-display text-ink">{place.label}</Title>
+        <p className="text-caption text-ink-muted tabular-nums">
           {place.empty} empty of {place.total}
         </p>
       </header>
@@ -202,11 +202,12 @@ export function AlbumPlaceScreen({
               >
                 {group.name}
               </Section>
-              <span className="font-mono text-mono font-semibold text-ink-muted tabular-nums">
+              <span className="text-caption text-ink-muted tabular-nums">
                 {whole.filled} of {whole.total}
               </span>
             </div>
-            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+            {/* v2 SubjectCard grid: space-2 across, space-4 down. */}
+            <ul className="grid grid-cols-2 gap-x-2 gap-y-4 min-[400px]:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {group.slots.map((slot) => (
                 <li key={slot.id} className="grid content-start gap-1">
                   <AlbumSlotTile slot={slot} add={add} />
@@ -217,7 +218,7 @@ export function AlbumPlaceScreen({
                   ) : null}
                   {slot.pendingCount > 0 ? (
                     <span
-                      className="font-mono text-meta font-semibold text-ink-muted tabular-nums"
+                      className="text-caption text-ink-muted tabular-nums"
                       data-slot="slot-pending-count"
                     >
                       {PLACE_COPY.waiting(slot.pendingCount)}
@@ -237,11 +238,7 @@ export function AlbumPlaceScreen({
       ) : null}
       {sendReport && choices.length > 0 ? (
         <div>
-          <Button
-            variant="secondary"
-            className="min-h-13"
-            onClick={() => setReporting(true)}
-          >
+          <Button variant="secondary" onClick={() => setReporting(true)}>
             <MegaphoneSimpleIcon data-icon="inline-start" aria-hidden />
             {REPORT_COPY.slotTitle}
           </Button>
@@ -264,7 +261,7 @@ export function AlbumPlaceScreen({
           <Button
             variant="primary"
             size="lg"
-            className="min-h-16 w-full"
+            className="min-h-14 w-full"
             disabled={!canAdd}
             onClick={() => add({ match: { place: placeKey } })}
           >

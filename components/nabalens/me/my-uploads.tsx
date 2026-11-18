@@ -619,7 +619,7 @@ function UploadRow({
               key={`reason:${s.slotId}`}
               className="text-body [overflow-wrap:anywhere] text-ink"
             >
-              <span className="font-bold text-warn-fg">
+              <span className="font-semibold text-warn-fg">
                 {MY_UPLOADS_COPY.retake}:
               </span>{" "}
               {s.reason}

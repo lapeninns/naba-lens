@@ -273,7 +273,7 @@ export function MatchPicker({
           <Button
             type="button"
             variant="secondary"
-            className="min-h-13"
+            className="min-h-12"
             disabled={busy}
             onClick={() => {
               setQuery("")
@@ -286,7 +286,7 @@ export function MatchPicker({
         <Button
           type="button"
           variant="secondary"
-          className={cn("min-h-13", !onLater && "col-span-2")}
+          className={cn("min-h-12", !onLater && "col-span-2")}
           disabled={busy}
           onClick={() => setAsking(true)}
         >
@@ -296,7 +296,7 @@ export function MatchPicker({
           <Button
             type="button"
             variant="secondary"
-            className="col-span-2 min-h-13 flex-col gap-0 py-1.5"
+            className="col-span-2 min-h-12 flex-col gap-0 py-1.5"
             disabled={busy}
             data-slot="match-unsure"
             onClick={() => {

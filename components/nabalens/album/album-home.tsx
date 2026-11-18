@@ -17,6 +17,7 @@ import {
   type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
+import { VenueBar } from "@/components/nabalens/venue-bar"
 import { Button } from "@/components/ui/button"
 import {
   slotHref,
@@ -131,10 +132,13 @@ export function AlbumHome({
 
   return (
     <div className="grid gap-5 pb-4" data-slot="album-home">
+      {/* v2 S1 Home: VenueBar on top, full bleed on a phone, a card beside
+          the wider column (D10). */}
+      <VenueBar
+        name={ALBUM_COPY.albumOf(venueName)}
+        className="-mx-page-gutter md:mx-0 md:rounded-card md:border md:border-line"
+      />
       <section aria-labelledby="album-count" className="grid gap-2.5">
-        <p className="font-mono text-mono font-semibold text-ink-muted">
-          {ALBUM_COPY.albumOf(venueName)}
-        </p>
         <Title
           id="album-count"
           className="flex flex-wrap items-baseline gap-x-2"
@@ -144,12 +148,12 @@ export function AlbumHome({
               <span className="type-count text-ink tabular-nums">
                 {album.counts.empty}
               </span>
-              <span className="type-section-title text-ink">
+              <span className="text-heading text-ink">
                 {ALBUM_COPY.stillEmpty(album.counts.empty)}
               </span>
             </>
           ) : (
-            <span className="type-page-title text-ink">
+            <span className="type-display text-ink">
               {album.counts.total ? ALBUM_COPY.allFull : ALBUM_COPY.empty}
             </span>
           )}
@@ -158,7 +162,9 @@ export function AlbumHome({
           <>
             <div
               aria-hidden
-              className="flex h-3 overflow-hidden rounded-round bg-surface-2"
+              // v2 CoverageMeter bar: covered bottle, awaiting review sky,
+              // on the sunken track; the line under it gives the counts.
+              className="flex h-2 overflow-hidden rounded-round bg-surface-2 forced-colors:border"
             >
               <span className="bg-ok-fg" style={{ width: `${bar.filled}%` }} />
               <span
@@ -166,7 +172,7 @@ export function AlbumHome({
                 style={{ width: `${bar.waiting}%` }}
               />
             </div>
-            <p className="font-mono text-mono font-semibold text-ink-muted tabular-nums">
+            <p className="text-caption text-ink-muted tabular-nums">
               {ALBUM_COPY.line(album.counts)}
             </p>
           </>
@@ -208,6 +214,9 @@ export function AlbumHome({
           {album.places.length === 0 ? (
             <p className="text-body text-ink-muted">{ALBUM_COPY.noPlaces}</p>
           ) : null}
+          {/* v2 PickChip look for each place: outlined on surface; the one
+              you are at is ink fill with paper text, so it reads without
+              colour. Two lines (place, empty count), so a card, not a pill. */}
           <ul className="-mx-page-gutter flex gap-2 overflow-x-auto px-page-gutter pb-1">
             {allPlaces.map((place) => {
               const here = place.subjectId === current?.subjectId
@@ -221,14 +230,14 @@ export function AlbumHome({
                     }
                     aria-current={here ? "true" : undefined}
                     className={cn(
-                      "flex min-h-16 flex-col justify-center rounded-card px-3.5 py-1.5 focus-ring",
+                      "flex min-h-14 flex-col justify-center rounded-card px-4 py-1.5 focus-ring transition-colors duration-quick",
                       here
-                        ? "bg-accent-soft text-accent-text inset-ring-2 inset-ring-accent"
-                        : "bg-surface text-ink shadow-card"
+                        ? "bg-ink text-canvas"
+                        : "bg-surface text-ink edge-strong hover:bg-raised"
                     )}
                   >
                     <span className="text-label">{place.label}</span>
-                    <span className="font-mono text-mono font-semibold">
+                    <span className="text-caption tabular-nums">
                       {ALBUM_COPY.emptyCount(place.empty)}
                     </span>
                   </Link>
@@ -250,13 +259,13 @@ export function AlbumHome({
               onClick={() =>
                 rememberAlbumPlace(current.subjectId ?? "unplaced")
               }
-              className="inline-flex min-h-12 items-center font-bold text-accent-text underline underline-offset-4 focus-ring"
+              className="inline-flex min-h-12 items-center text-label text-accent-text underline underline-offset-4 focus-ring"
             >
               {ALBUM_COPY.allIn(current.total)}
             </Link>
           </div>
           {emptyHere.length > 0 ? (
-            <ul className="grid grid-cols-3 gap-2">
+            <ul className="grid grid-cols-2 gap-x-2 gap-y-4 min-[400px]:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {emptyHere.slice(0, 6).map((slot) => (
                 <li key={slot.id}>
                   <AlbumSlotTile slot={slot} add={add} />
@@ -279,7 +288,7 @@ export function AlbumHome({
         <Button
           variant="primary"
           size="lg"
-          className="min-h-16 w-full"
+          className="min-h-14 w-full"
           disabled={!canAdd}
           onClick={() =>
             add({
@@ -309,9 +318,12 @@ function RetakeRow({
     <button
       type="button"
       onClick={() => onRetake(first)}
-      className="flex min-h-16 w-full items-center gap-3 rounded-card bg-warn-bg px-3 py-2 text-start text-ink focus-ring"
+      // v2 JobCard (D10): flat surface card with a line outline, a 56px
+      // thumb square, heading title, one muted line; attention is the brass
+      // mark beside the words, not the card's ground.
+      className="flex min-h-16 w-full items-center gap-3 rounded-card bg-surface p-4 text-start text-ink edge focus-ring transition-colors duration-quick hover:bg-raised"
     >
-      <span className="flex size-12 shrink-0 items-center justify-center rounded-control bg-surface slot-ring-retake">
+      <span className="flex size-14 shrink-0 items-center justify-center rounded-square bg-warn-bg slot-ring-retake">
         <ArrowUUpLeftIcon
           aria-hidden
           weight="bold"
@@ -319,10 +331,10 @@ function RetakeRow({
         />
       </span>
       <span className="grid min-w-0 flex-1">
-        <span className="text-label text-warn-fg">
+        <span className="text-heading text-warn-fg">
           {ALBUM_COPY.retake(retakes.length)}
         </span>
-        <span className="truncate text-body">
+        <span className="truncate text-body text-ink-muted">
           {first.itemName}
           {first.reason ? `: ${first.reason}` : ""}
         </span>

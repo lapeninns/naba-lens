@@ -55,8 +55,8 @@ export function TargetProgress({ monthly }: { monthly: MonthlyProgress }) {
   return (
     <div className="grid gap-3">
       <p className="flex flex-wrap items-baseline gap-x-2">
-        <span className="type-count text-ink tabular-nums">{count}</span>
-        <span className="type-section-title text-ink-muted">
+        <span className="type-figure text-ink">{count}</span>
+        <span className="text-heading text-ink-muted">
           {" "}
           {hasTarget ? `of ${target} ${unit}` : unit}
         </span>
@@ -101,7 +101,7 @@ export function TargetProgress({ monthly }: { monthly: MonthlyProgress }) {
  */
 
 const LINK =
-  "inline-flex min-h-12 w-fit items-center gap-1 rounded-control text-body font-bold text-ink underline underline-offset-3 focus-ring outline-none"
+  "inline-flex min-h-12 w-fit items-center gap-1 rounded-control text-label text-ink underline underline-offset-3 focus-ring outline-none"
 
 /**
  * Your month, one person's goal (v0.5 §1): the monthly target and how far

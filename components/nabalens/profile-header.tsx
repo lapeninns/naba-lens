@@ -70,7 +70,7 @@ export function ProfileHeader({
           <p className="flex flex-wrap items-center gap-1.5 text-body text-ink-muted">
             <MapPinIcon aria-hidden className="size-[18px] shrink-0" />
             {venueName ? (
-              <b className="font-bold [overflow-wrap:anywhere] text-ink">
+              <b className="font-semibold [overflow-wrap:anywhere] text-ink">
                 {venueName}
               </b>
             ) : (

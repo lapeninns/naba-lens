@@ -219,7 +219,7 @@ export function FirstRun({
       </h2>
       <p
         id="month-count"
-        className="font-mono text-body font-bold text-ink tabular-nums"
+        className="text-body font-semibold text-ink tabular-nums"
       >
         {monthly.completionProgress?.total ?? monthly.accepted} of{" "}
         {monthly.target} {monthly.completionProgress ? "completed" : "accepted"}
@@ -249,20 +249,20 @@ export function FirstRun({
           {back ? (
             <Link
               href={back.href}
-              className="-ml-1 inline-flex min-h-11 w-fit items-center gap-1 rounded-control px-1 text-meta font-bold text-ink focus-ring outline-none hover:underline"
+              className="-ml-1 inline-flex min-h-11 w-fit items-center gap-1 rounded-control px-1 text-label text-ink focus-ring outline-none hover:underline"
             >
               <CaretLeftIcon aria-hidden weight="bold" className="size-5" />
               {back.label}
             </Link>
           ) : null}
-          <p className="type-page-title text-ink">Naba-Lens</p>
+          <p className="type-title text-ink">Naba-Lens</p>
           <p className="flex flex-wrap items-center gap-x-1.5 text-meta text-ink-muted">
             {venueName ? (
               <MapPinIcon aria-hidden className="size-[18px] shrink-0" />
             ) : null}
             <span>
               {venueName ? (
-                <b className="font-bold text-ink">{venueName}</b>
+                <b className="font-semibold text-ink">{venueName}</b>
               ) : null}
               {venueName ? " · " : null}
               {periodLabel}
@@ -299,7 +299,7 @@ export function FirstRun({
             What do you do at {venue}?
           </h2>
           {workRole ? (
-            <p className="flex items-center gap-2 text-body font-bold text-ink">
+            <p className="flex items-center gap-2 text-body font-semibold text-ink">
               <span
                 aria-hidden
                 className="grid size-8 place-items-center rounded-round bg-ok-bg text-ok-fg [&_svg]:size-5"
@@ -324,7 +324,7 @@ export function FirstRun({
             </Link>
             <Link
               href={profileHref}
-              className="inline-flex min-h-11 items-center rounded-control text-body font-bold text-ink underline underline-offset-3 focus-ring outline-none"
+              className="inline-flex min-h-11 items-center rounded-control text-body font-semibold text-ink underline underline-offset-3 focus-ring outline-none"
             >
               {hasAvatar ? "Change profile photo" : "Add a profile photo"}{" "}
               (optional)

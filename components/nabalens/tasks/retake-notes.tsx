@@ -65,7 +65,7 @@ function Thumb({ note }: { note: RetakeNote }) {
 function Reason({ note }: { note: RetakeNote }) {
   return (
     <>
-      <p className="text-body font-bold break-words whitespace-pre-line text-ink">
+      <p className="text-body font-semibold break-words whitespace-pre-line text-ink">
         <span className="sr-only">Reason: </span>
         {note.reason?.trim() || RETAKE_COPY.noReason}
       </p>

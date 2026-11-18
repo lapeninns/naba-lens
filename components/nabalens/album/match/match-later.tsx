@@ -63,18 +63,19 @@ export function MatchLaterRow({
     <Link
       href={href}
       data-slot="match-later-row"
-      className="flex min-h-16 w-full items-center gap-3 rounded-card bg-surface px-3 py-2 text-start text-ink edge focus-ring"
+      // The same v2 JobCard shape as Home's other rows (home-rows.tsx).
+      className="flex min-h-16 w-full items-center gap-3 rounded-card bg-surface p-4 text-start text-ink edge focus-ring transition-colors duration-quick hover:bg-raised"
     >
-      <span className="flex size-12 shrink-0 items-center justify-center rounded-control bg-surface-2">
+      <span className="flex size-14 shrink-0 items-center justify-center rounded-square bg-surface-2 text-ink-muted">
         <ImagesIcon aria-hidden className="size-6" />
       </span>
       <span className="grid min-w-0 flex-1">
-        <span className="text-label">{MATCH_LATER_COPY.title}</span>
-        <span className="font-mono text-mono font-semibold text-ink-muted tabular-nums">
+        <span className="text-heading">{MATCH_LATER_COPY.title}</span>
+        <span className="text-body text-ink-muted tabular-nums">
           {MATCH_LATER_COPY.row(count)}
         </span>
       </span>
-      <span className="font-bold text-accent-text">
+      <span className="text-label text-accent-text">
         {MATCH_LATER_COPY.rowAction}
       </span>
       <CaretRightIcon aria-hidden className="size-5 shrink-0" />
@@ -270,17 +271,17 @@ export function MatchLaterScreen({
       <div>
         <Link
           href={ALBUM_HREF}
-          className="inline-flex min-h-12 items-center gap-1 font-bold text-ink focus-ring"
+          className="inline-flex min-h-12 items-center gap-1 text-label text-ink focus-ring"
         >
           <ArrowLeftIcon aria-hidden className="size-5" />
           {MATCH_LATER_COPY.back}
         </Link>
       </div>
       <header className="grid gap-1">
-        <Title className="type-page-title text-ink">
+        <Title className="type-display text-ink">
           {MATCH_LATER_COPY.title}
         </Title>
-        <p className="font-mono text-mono font-semibold text-ink-muted tabular-nums">
+        <p className="text-caption text-ink-muted tabular-nums">
           {photos.length > 0 ? MATCH_LATER_COPY.row(photos.length) : null}
         </p>
       </header>
