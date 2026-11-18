@@ -68,9 +68,13 @@ export type ThumbReviewProps = {
   areaMore?: boolean
   /** Photos the caller can decide on across both queues (the title). */
   total: number
-  /** Menu section id to album place and brief, item id to its own brief. */
+  /**
+   * Menu section id to album place; slot id to its FA-52 brief; and, only
+   * when that read failed, the album briefs by section and item id.
+   */
   context: {
     sectionPlace: Record<string, string>
+    slotBrief?: Record<string, string>
     sectionBrief: Record<string, string>
     itemBrief: Record<string, string>
   }
@@ -106,6 +110,7 @@ const when = (iso: string, timeZone: string) => {
 function toContext(context: ThumbReviewProps["context"]): ReviewContext {
   return {
     sectionPlace: new Map(Object.entries(context.sectionPlace)),
+    slotBrief: new Map(Object.entries(context.slotBrief ?? {})),
     sectionBrief: new Map(Object.entries(context.sectionBrief)),
     itemBrief: new Map(Object.entries(context.itemBrief)),
   }
@@ -128,7 +133,7 @@ export function ThumbReview({
   const [start] = React.useState(() => {
     const all = [
       ...menuCards.flatMap((c) => fromMenuCard(c, ctx) ?? []),
-      ...areaCards.map(fromAreaCard),
+      ...areaCards.map((c) => fromAreaCard(c, ctx)),
     ]
     return {
       line: reviewLine(all),
@@ -220,7 +225,9 @@ export function ThumbReview({
         return
       }
       const seen = seenAreas.current!
-      const fresh = page.cards.map(fromAreaCard).filter((p) => !seen.has(p.key))
+      const fresh = page.cards
+        .map((c) => fromAreaCard(c, ctx))
+        .filter((p) => !seen.has(p.key))
       for (const p of fresh) seen.add(p.key)
       const decidableFresh = reviewLine(fresh)
       setOwn((n) => n + fresh.filter((p) => p.own).length)

@@ -61,23 +61,37 @@ export type ReviewPhoto = {
 }
 
 /**
- * Where each menu section sits in the album, and each item's brief. Built by
- * the server from the album placements and the menu; both maps may be empty.
+ * Where each menu section sits in the album, and each slot's brief. Built by
+ * the server from the album placements and public.slot_briefs; every map may
+ * be empty.
  */
 export type ReviewContext = {
   /** Menu section id to album place label. */
   sectionPlace: ReadonlyMap<string, string>
-  /** Menu section id to the section's brief (AL-4). */
+  /**
+   * S5-R2 (Y4, FA-52): the brief staff were given, keyed as Album's slot ids
+   * ("dish:<item id>", "area:<subject id>"), resolved once by
+   * public.slot_briefs: an open request's brief, the manager's, the
+   * catalogue's, then the category's shot template. The reviewer judges
+   * against the same words (DESIGN.md §2 principle 4).
+   */
+  slotBrief?: ReadonlyMap<string, string>
+  /**
+   * Fallback only, when the slot_briefs read failed: menu section id to the
+   * section's brief (AL-4).
+   */
   sectionBrief: ReadonlyMap<string, string>
   /**
-   * Menu item id to the dish's own brief (AL-4). A dish without one takes its
-   * section's; never the guest-facing menu description (§2 principle 4).
+   * Fallback only, when the slot_briefs read failed: menu item id to the
+   * dish's own brief (AL-4). A dish without one takes its section's; never
+   * the guest-facing menu description (§2 principle 4).
    */
   itemBrief: ReadonlyMap<string, string>
 }
 
 const EMPTY_CONTEXT: ReviewContext = {
   sectionPlace: new Map(),
+  slotBrief: new Map(),
   sectionBrief: new Map(),
   itemBrief: new Map(),
 }
@@ -106,7 +120,10 @@ export function fromMenuCard(
   return {
     key: `dish:${card.key}`,
     name: dishName(item, label?.unspecified === true),
+    // FA-52's resolved brief first; the album briefs only stand in when
+    // that read failed (the loader then leaves slotBrief empty).
     brief:
+      clean(context.slotBrief?.get(`dish:${item.itemId}`)) ??
       clean(context.itemBrief.get(item.itemId)) ??
       clean(context.sectionBrief.get(item.sectionId)),
     author: card.contributor.name,
@@ -132,15 +149,22 @@ export function fromMenuCard(
 }
 
 /**
- * A waiting area photo as a stage photo. The area is its own place, and
- * areas have no brief (AL-4). A photo the caller may not decide on while it
- * waits is their own: the queue says so with `canDecide`.
+ * A waiting area photo as a stage photo. The area is its own place. Its
+ * brief is the one staff were given for the area's slot (FA-52: an open
+ * request's, else the Spaces template); none when that read failed. A photo
+ * the caller may not decide on while it waits is their own: the queue says
+ * so with `canDecide`.
  */
-export function fromAreaCard(card: AreaPhotoCard): ReviewPhoto {
+export function fromAreaCard(
+  card: AreaPhotoCard,
+  context: ReviewContext = EMPTY_CONTEXT
+): ReviewPhoto {
   return {
     key: `area:${card.labelId}`,
     name: card.area,
-    brief: null,
+    brief: card.subjectId
+      ? clean(context.slotBrief?.get(`area:${card.subjectId}`))
+      : null,
     author: card.authorName,
     addedAt: card.labelledAt || card.uploadedAt,
     place: card.area,

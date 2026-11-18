@@ -37,6 +37,8 @@ export type AreaPhotoCard = {
   assetId: string
   authorName: string
   area: string
+  /** The area's knowledge subject: its slot ("area:<id>") for the brief. */
+  subjectId: string | null
   uploadedAt: string
   labelledAt: string
   creditMonth: string
@@ -228,6 +230,7 @@ export async function listAreaPhotoQueue(
           assetId: r.asset_id,
           authorName: text(r.author_name) ?? "",
           area: text(r.subject_label) ?? "",
+          subjectId: isUuid(r.subject_id) ? r.subject_id : null,
           uploadedAt: text(r.uploaded_at) ?? "",
           labelledAt: text(r.labelled_at) ?? "",
           creditMonth: text(r.credit_month) ?? "",

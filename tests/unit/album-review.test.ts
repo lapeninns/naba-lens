@@ -28,6 +28,8 @@ const album = vi.hoisted(() => ({
   getAlbumBriefs: vi.fn(),
 }))
 vi.mock("@/lib/server/album", () => album)
+const templates = vi.hoisted(() => ({ loadSlotBriefs: vi.fn() }))
+vi.mock("@/lib/server/shot-templates", () => templates)
 vi.mock("@/app/manager/actions", () => ({}))
 vi.mock("@/app/manager/area-actions", () => ({}))
 
@@ -121,6 +123,7 @@ function area(over: Partial<AreaPhotoCard> = {}): AreaPhotoCard {
     assetId: id(0xb1),
     authorName: "TEST Ana Park",
     area: "Beer garden",
+    subjectId: id(0xd7),
     uploadedAt: "2026-11-04T09:00:00.000Z",
     labelledAt: "2026-11-04T09:01:00.000Z",
     creditMonth: "2026-11-01",
@@ -212,6 +215,31 @@ describe("stage photos from the queues", () => {
       own: false,
     })
     expect(fromAreaCard(area({ canDecide: false })).own).toBe(true)
+  })
+
+  // S5-R2 (Y4, FA-52): the reviewer judges against the words staff were
+  // given, resolved once by public.slot_briefs.
+  it("a dish takes its resolved slot brief (a request's) over the album briefs", () => {
+    const withSlot: ReviewContext = {
+      ...CONTEXT,
+      slotBrief: new Map([[`dish:${SOUP}`, " Side view showing\n the mash "]]),
+    }
+    expect(fromMenuCard(card(), withSlot)!.brief).toBe(
+      "Side view showing the mash"
+    )
+  })
+
+  it("an area photo takes its area slot's resolved brief (a template's)", () => {
+    const withSlot: ReviewContext = {
+      ...CONTEXT,
+      slotBrief: new Map([[`area:${id(0xd7)}`, "Wide, from the door"]]),
+    }
+    expect(fromAreaCard(area(), withSlot).brief).toBe("Wide, from the door")
+    // Another area's brief, or no subject, is never borrowed.
+    expect(fromAreaCard(area({ subjectId: id(0xd8) }), withSlot).brief).toBe(
+      null
+    )
+    expect(fromAreaCard(area({ subjectId: null }), withSlot).brief).toBe(null)
   })
 
   it("own photos and cards only the list can decide never reach the stage", () => {
@@ -385,6 +413,8 @@ describe("AlbumReviewBody (server read)", () => {
       items: [{ itemId: SOUP, description: "Menu description" }],
       nextCursor: null,
     })
+    // By default the resolver's read fails, so the album briefs stand in.
+    templates.loadSlotBriefs.mockResolvedValue({ ok: false, code: "x" })
     album.getAlbumBriefs.mockResolvedValue({
       ok: true,
       briefs: {
@@ -431,14 +461,64 @@ describe("AlbumReviewBody (server read)", () => {
     expect(p.venueName).toBe("The Railway")
     expect(album.getAlbumBriefs).toHaveBeenCalledWith(ctx.actor, ctx.venueId)
     expect(photos.listManagerMenuItems).not.toHaveBeenCalled()
+    expect(templates.loadSlotBriefs).toHaveBeenCalledWith(ctx.actor, {
+      venueId: ctx.venueId,
+      includeRequests: true,
+    })
     expect(p.context).toEqual({
       sectionPlace: { [STARTERS]: "Kitchen pass" },
+      slotBrief: {},
       sectionBrief: { [STARTERS]: "Each starter on its own plate" },
       itemBrief: { [SOUP]: "Steam showing" },
     })
     // One dish and one area photo; the two own photos are not counted.
     expect(p.total).toBe(2)
     expect(p.listHref).toBe(REVIEW_LIST_HREF)
+  })
+
+  it("S5-R2 (Y4): briefs come from the one resolver; the album briefs are not read when it answers", async () => {
+    templates.loadSlotBriefs.mockResolvedValue({
+      ok: true,
+      briefs: new Map([
+        [
+          `dish:${SOUP}`,
+          {
+            text: "Side view showing the mash",
+            source: "request",
+            exampleAssetId: null,
+          },
+        ],
+        [
+          `area:${id(0xd7)}`,
+          {
+            text: "Wide, from the door",
+            source: "template",
+            exampleAssetId: null,
+          },
+        ],
+      ]),
+    })
+    const p = await props()
+    expect(album.getAlbumBriefs).not.toHaveBeenCalled()
+    expect(p.context).toEqual({
+      sectionPlace: { [STARTERS]: "Kitchen pass" },
+      slotBrief: {
+        [`dish:${SOUP}`]: "Side view showing the mash",
+        [`area:${id(0xd7)}`]: "Wide, from the door",
+      },
+      sectionBrief: {},
+      itemBrief: {},
+    })
+  })
+
+  it("a resolver read that throws falls back to the album briefs", async () => {
+    templates.loadSlotBriefs.mockRejectedValue(new Error("down"))
+    const p = await props()
+    expect(album.getAlbumBriefs).toHaveBeenCalledWith(ctx.actor, ctx.venueId)
+    expect(p.context).toMatchObject({
+      slotBrief: {},
+      itemBrief: { [SOUP]: "Steam showing" },
+    })
   })
 
   it("with more menu pages, the overview's count stands in for the unread ones", async () => {
@@ -459,6 +539,7 @@ describe("AlbumReviewBody (server read)", () => {
     const p = await props()
     expect(p.context).toEqual({
       sectionPlace: {},
+      slotBrief: {},
       sectionBrief: {},
       itemBrief: {},
     })

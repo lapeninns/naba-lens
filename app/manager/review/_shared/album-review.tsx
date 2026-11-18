@@ -18,6 +18,7 @@ import {
   listReviewQueue,
   type ManagerPhotoCtx,
 } from "@/lib/server/menu-photos"
+import { loadSlotBriefs } from "@/lib/server/shot-templates"
 
 import { failedRead } from "../../load-overview"
 import { REVIEW_LIST_HREF } from "./mode"
@@ -31,27 +32,40 @@ import { listAllNeedsLabel } from "./needs-label"
 
 type ReviewContextRead = {
   sectionPlace: Record<string, string>
+  slotBrief: Record<string, string>
   sectionBrief: Record<string, string>
   itemBrief: Record<string, string>
 }
 
 /**
- * Where each menu section sits in the album, and the briefs the manager wrote
- * (AL-4, DESIGN.md §2 principle 4): each dish's own, and each section's by
- * section id. The stage resolves a dish to its own brief, else its section's,
- * else none; it never falls back to the guest-facing menu description. Both
- * reads are extras: a failure leaves that part empty.
+ * Where each menu section sits in the album, and each slot's brief. The
+ * brief is the one brief resolver's (FA-52, public.slot_briefs with open
+ * requests): the words staff were given on Asked for, the tile and the slot
+ * page, so the reviewer judges against the same words (DESIGN.md §2
+ * principle 4; S5-R2, Y4). Only when that read fails does the stage fall
+ * back to the manager's album briefs (AL-4): each dish's own, else its
+ * section's. Never the guest-facing menu description. Every read is an
+ * extra: a failure leaves that part empty.
  */
 async function reviewContext(ctx: ManagerPhotoCtx): Promise<ReviewContextRead> {
-  const [placed, briefs] = await Promise.all([
+  const [placed, resolved] = await Promise.all([
     getAlbumPlacements(ctx.actor, ctx.venueId).catch(() => null),
-    getAlbumBriefs(ctx.actor, ctx.venueId).catch(() => null),
+    loadSlotBriefs(ctx.actor, {
+      venueId: ctx.venueId,
+      includeRequests: true,
+    }).catch(() => null),
   ])
+  const briefs = resolved?.ok
+    ? null
+    : await getAlbumBriefs(ctx.actor, ctx.venueId).catch(() => null)
   const out: ReviewContextRead = {
     sectionPlace: {},
+    slotBrief: {},
     sectionBrief: {},
     itemBrief: {},
   }
+  if (resolved?.ok)
+    for (const [key, brief] of resolved.briefs) out.slotBrief[key] = brief.text
   if (briefs?.ok) out.itemBrief = Object.fromEntries(briefs.briefs.items)
   if (!placed?.ok) return out
   const label = new Map(placed.places.map((p) => [p.subjectId, p.label]))
