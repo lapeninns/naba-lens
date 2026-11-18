@@ -531,3 +531,23 @@ export async function recordPublication(
     generation: typeof row?.generation === "number" ? row.generation : 0,
   }
 }
+
+/** Venues by name, for the admin's venue choice (RLS: admins read every venue). */
+export async function listVenues(
+  actor: MediaActor
+): Promise<Result<{ venues: { id: string; name: string }[] }>> {
+  const { data, error } = await actor.db
+    .from("venues")
+    .select("id, name")
+    .order("name")
+  if (error) return exportFailure(error, "venues")
+  return {
+    ok: true,
+    venues: ((data ?? []) as Array<{ id: unknown; name: unknown }>)
+      .filter(
+        (v): v is { id: string; name: string } =>
+          isUuid(v.id) && typeof v.name === "string"
+      )
+      .map((v) => ({ id: v.id, name: v.name })),
+  }
+}

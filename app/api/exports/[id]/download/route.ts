@@ -45,7 +45,6 @@ export async function GET(
   if (outcome.ok) return outcome.response
   if (outcome.code === "export_package_invalidated") return back("invalidated")
   if (outcome.code === "export_too_large") return back("too_large")
-  if (outcome.status === 404 || outcome.status === 403)
-    return back("not_found")
+  if (outcome.status === 404 || outcome.status === 403) return back("not_found")
   return back("unavailable")
 }
