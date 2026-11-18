@@ -631,6 +631,8 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
       ],
       reason:
         "S2-REVIEW: managers see the spec's action names, Approve for public use and Keep as reference (spec §7 M2, decision FA-7)",
+    },
+    {
       feature: "tagging workflow",
       prefixes: [
         "app/admin/library/",

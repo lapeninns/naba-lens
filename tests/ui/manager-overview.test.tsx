@@ -69,15 +69,16 @@ const hrefOf = (name: string | RegExp) =>
   screen.getByRole("link", { name }).getAttribute("href")
 
 describe("Overview", () => {
-  it("no_menu: the setup-pending note; only Requests and Team targets are offered", () => {
+  it("no_menu: the setup-pending note; only Requests, Team and Metrics targets are offered", () => {
     show(overview({ menuState: "no_menu", menu: null, eligible: 0 }))
     expect(screen.getByText(MANAGER_COPY.overview.noMenuTitle)).toBeTruthy()
     expect(screen.getByText(MANAGER_COPY.overview.noMenuBody)).toBeTruthy()
     // Photo targets and requests (a New brief, a fact check) don't need a
-    // menu, so a new venue can still use them.
+    // menu, so a new venue can still use them; Metrics also counts spaces and
+    // facilities (S2-METRICS).
     expect(
       screen.getAllByRole("link").map((l) => l.getAttribute("href"))
-    ).toEqual(["/manager/requests", "/manager/team"])
+    ).toEqual(["/manager/requests", "/manager/team", "/manager/metrics"])
     expect(screen.queryByRole("progressbar")).toBeNull()
   })
 

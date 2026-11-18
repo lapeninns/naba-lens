@@ -423,6 +423,9 @@ describe("Asked for on Album Home (AC01, FA-5)", () => {
     thumbnailUrl: null,
     neededBy: null,
     brief: "Plated",
+    category: "food",
+    pendingCount: 0,
+    needsUpdate: false,
     target: { kind: "dish", itemId: PIE, itemName: "Pie" },
   }
   const staffRequest = (over: Partial<StaffRequest> = {}): StaffRequest => ({

@@ -234,6 +234,8 @@ grant select on table
 -- S2-INT also redefines this function (review levels): the coordinator keeps
 -- both changes. private.media_asset_use_state is deliberately NOT changed:
 -- asset search pins and mirrors its body.
+-- Coordinator merge: S2-INT's rule (20261118109100: review level, place
+-- freshness, amenity photo acceptance) plus S2-LIBRARY's withdrawal rule.
 create or replace function private.export_candidate_rows(p_venue_id uuid, p_mode text)
 returns table (
   asset_id uuid,
@@ -259,7 +261,13 @@ set search_path = ''
 as $$
   with assets as (
     select a.id, a.venue_id, a.created_at, a.width, a.height, a.use_baseline,
-      private.media_asset_use_state(a.id, now()) as use_state
+      private.media_asset_use_state(a.id, now()) as use_state,
+      -- The public audience alone (review R21): in_force, withdrawn or null.
+      (select case
+          when bool_or(private.media_use_grant_state(g, now()) = 'in_force') then 'in_force'
+          when bool_or(private.media_use_grant_state(g, now()) = 'withdrawn') then 'withdrawn'
+        end
+        from public.media_use_grants g where g.asset_id = a.id and g.audience = 'public') as public_use
     from public.media_assets a
     where a.venue_id = p_venue_id
       and a.upload_state = 'ready'
@@ -274,7 +282,7 @@ as $$
   ),
   menu as (
     select distinct on (p.asset_id, p.item_id)
-      p.asset_id, p.item_id, e.name, s.kind, p.id as photo_id, p.revision, p.state
+      p.asset_id, p.item_id, e.name, s.kind, p.id as photo_id, p.revision, p.state, p.review_level
     from public.menu_item_photos p
     join usable u on u.id = p.asset_id
     join public.menu_items i on i.id = p.item_id and i.archived_at is null
@@ -282,17 +290,20 @@ as $$
     join public.menu_entries e on e.version_id = v.id and e.item_id = p.item_id
     join public.menu_sections s on s.id = e.section_id and s.version_id = v.id
     where p.venue_id = p_venue_id
-      and (p.state = 'accepted'
-        or (p_mode = 'internal' and p.state in ('better_photo_requested', 'needs_recheck')))
-    order by p.asset_id, p.item_id, (p.state = 'accepted') desc, p.decided_at desc, p.id
+      and ((p.state = 'accepted' and p.review_level = 'public')
+        or (p_mode = 'internal' and p.state in ('accepted', 'better_photo_requested', 'needs_recheck')))
+    order by p.asset_id, p.item_id, (p.state = 'accepted' and p.review_level = 'public') desc,
+      (p.state = 'accepted') desc, p.decided_at desc, p.id
   ),
   area as (
-    select l.asset_id, l.subject_id, s.label, l.id as label_id, d.id as decision_id, d.action
+    select l.asset_id, l.subject_id, s.label, l.id as label_id, d.id as decision_id, d.action,
+      (d.action = 'accepted' and d.review_level = 'public'
+        and private.area_photo_freshness(l.id) ->> 'state' = 'current') as public_ok
     from public.media_area_labels l
     join usable u on u.id = l.asset_id
     join public.knowledge_subjects s on s.id = l.subject_id and s.venue_id = l.venue_id and s.retired_at is null
     left join lateral (
-      select d.id, d.action from public.area_photo_decisions d
+      select d.id, d.action, d.review_level from public.area_photo_decisions d
       where d.label_id = l.id order by d.id desc limit 1
     ) d on true
     where l.venue_id = p_venue_id
@@ -300,57 +311,65 @@ as $$
       and (d.action = 'accepted'
         or (p_mode = 'internal' and (d.action is null or d.action = 'needs_another_photo')))
   ),
-  amenity as (
-    select distinct on (c.id, sa.asset_id)
-      sa.asset_id, c.id as check_id, c.template_key, cat.question, sub.id as submission_id,
-      c.revision, u.use_state
-    from public.venue_amenity_checks c
-    join public.amenity_catalogue cat on cat.key = c.template_key
-    join public.amenity_submissions sub on sub.id = c.current_submission_id
-    join public.amenity_submission_assets sa on sa.submission_id = sub.id and sa.evidence_kind = 'photo'
-    join usable u on u.id = sa.asset_id
-    where c.venue_id = p_venue_id
-      and c.status = 'active'
-      and c.progress = 'complete'
-      and sub.answer = 'yes'
-      and private.knowledge_in_scope(c.venue_id, c.template_key)
-      and coalesce((private.knowledge_check_service_end(c.id, now()) ->> 'inEffect')::boolean, false) = false
-    order by c.id, sa.asset_id
+  -- Amenity photos from their own review (FA-32, review R1/R21): the
+  -- latest amenity_photo_decisions row per (check, photo). Public needs an
+  -- acceptance at the public level, a public-audience grant in force (an
+  -- internal grant is not enough), the question's public media rule and a
+  -- current confirmed Yes.
+  amenity_photo as (
+    select r.check_id, r.asset_id, r.state, r.review_level,
+      (select max(d.id) from public.amenity_photo_decisions d
+        where d.check_id = r.check_id and d.asset_id = r.asset_id) as decision_id
+    from private.amenity_photo_rows(p_venue_id) r
+    join usable u on u.id = r.asset_id
+    where r.state in ('accepted', 'pending', 'needs_another_photo')
   ),
   amenity_rated as (
-    select am.*,
-      (am.use_state = 'granted'
-        and coalesce((private.knowledge_public_media_eligible(p_venue_id, am.template_key) ->> 'eligible')::boolean, false)
+    select ap.asset_id, c.id as check_id, c.template_key, cat.question, ap.decision_id,
+      (ap.state = 'accepted' and ap.review_level = 'public'
+        and u.public_use = 'in_force'
+        and c.progress = 'complete' and c.answer = 'yes'
+        and coalesce((private.knowledge_check_service_end(c.id, now()) ->> 'inEffect')::boolean, false) = false
+        and coalesce((private.knowledge_public_media_eligible(p_venue_id, c.template_key) ->> 'eligible')::boolean, false)
       ) as public_ok
-    from amenity am
+    from amenity_photo ap
+    join usable u on u.id = ap.asset_id
+    join public.venue_amenity_checks c on c.id = ap.check_id
+    join public.amenity_catalogue cat on cat.key = c.template_key
   ),
   rows as (
     select m.asset_id, 'menu_item'::text as subject_kind, m.item_id as subject_id, m.name as subject_label,
       m.name as slug_source,
       case m.kind when 'food' then 'food' when 'drinks' then 'drinks' else 'other' end as category,
       'menu_item_photo'::text as approval_kind, m.photo_id::text as approval_id, m.revision::text as approval_version,
-      case when m.state = 'accepted' then 'public' else 'internal' end as approval_level
+      case when m.state = 'accepted' and m.review_level = 'public' then 'public' else 'internal' end as approval_level
     from menu m
     union all
     select ar.asset_id, 'place', ar.subject_id, ar.label, ar.label, 'spaces',
       case when ar.decision_id is null then 'area_label' else 'area_photo_decision' end,
       coalesce(ar.decision_id::text, ar.label_id::text),
       coalesce(ar.decision_id::text, ar.label_id::text),
-      case when ar.action = 'accepted' then 'public' else 'internal' end
+      case when ar.public_ok then 'public' else 'internal' end
     from area ar
     union all
     select r.asset_id, 'amenity', r.check_id, r.question, replace(r.template_key, '_', ' '), 'facilities',
-      'amenity_submission', r.submission_id::text, r.revision::text,
+      'amenity_photo_decision', coalesce(r.decision_id::text, 'pending'), coalesce(r.decision_id::text, 'pending'),
       case when r.public_ok then 'public' else 'internal' end
     from amenity_rated r
   )
   select r.asset_id, p_venue_id, r.subject_kind, r.subject_id, r.subject_label,
     coalesce(nullif(private.export_slug(r.slug_source, 60), ''), 'photo'),
-    r.category, r.approval_kind, r.approval_id, r.approval_version, r.approval_level,
+    r.category, r.approval_kind, r.approval_id, r.approval_version, x.level,
     u.created_at, u.width, u.height, u.use_baseline
   from rows r
   join usable u on u.id = r.asset_id
-  where p_mode = 'internal' or r.approval_level = 'public';
+  -- A withdrawn public use keeps any photo out of public packages, whatever
+  -- internal grant remains (review R21).
+  cross join lateral (
+    select case when r.approval_level = 'public' and u.public_use is distinct from 'withdrawn'
+      then 'public' else 'internal' end as level
+  ) x
+  where p_mode = 'internal' or x.level = 'public';
 $$;
 
 -- A withdrawn asset cannot become a primary photo.

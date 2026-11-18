@@ -13,8 +13,9 @@ set lock_timeout = '5s';
 --                so nobody but an admin reaches it. Reopening restores it.
 --                Every change is a row in public.activity_events (S1-OPS),
 --                which is append-only, with the before and after values.
---   Reviewers    public.venue_reviewers names the main and the backup
---                reviewer of a venue. Only a person who reviews there today
+--   Reviewers    The main and backup reviewer of a venue live in S2-MGR's
+--                public.venue_reviewer_assignments (20261118113000, with
+--                history and automatic handover); admins name them here. Only a person who reviews there today
 --                (private.venue_role_of is manager or admin) can be named; a
 --                named person who later loses that role still shows, marked
 --                not eligible, and the setup checklist reopens.
@@ -32,8 +33,8 @@ set lock_timeout = '5s';
 --                admin's reset of another person's lost authenticator; the
 --                server then removes the factors with the Auth admin API.
 --
--- Rollback: revoke execute on the public functions below; drop
--- public.venue_reviewers. The venue columns are additive and may stay.
+-- Rollback: revoke execute on the public functions below. The venue columns
+-- are additive and may stay.
 
 -- ---------------------------------------------------------------------------
 -- Venue columns
@@ -57,22 +58,9 @@ comment on column public.venues.revision is
 -- Reviewers
 -- ---------------------------------------------------------------------------
 
-create table public.venue_reviewers (
-  venue_id uuid not null references public.venues (id) on delete restrict,
-  responsibility text not null check (responsibility in ('main', 'backup')),
-  profile_id uuid not null references public.profiles (id) on delete restrict,
-  set_by uuid not null references public.profiles (id) on delete restrict,
-  set_at timestamptz not null default now(),
-  revision integer not null default 1 check (revision >= 1),
-  constraint venue_reviewers_pkey primary key (venue_id, responsibility)
-);
-
-comment on table public.venue_reviewers is
-  'S2-ADMIN: main and backup reviewer of each venue (spec §8 A2). History is in public.activity_events.';
-
-alter table public.venue_reviewers enable row level security;
-revoke all on table public.venue_reviewers from public, anon, authenticated, service_role;
-grant select on table public.venue_reviewers to service_role;
+-- Coordinator merge (Sprint 2): S2-ADMIN and S2-MGR each built a reviewer
+-- model. One store is kept, S2-MGR's public.venue_reviewer_assignments; this
+-- migration reads and writes it.
 
 -- ---------------------------------------------------------------------------
 -- Helpers
@@ -129,7 +117,24 @@ as $$
 $$;
 
 -- The named reviewers, each with whether they still review at the venue.
-create function private.venue_reviewers_json(p_venue_id uuid)
+-- revision counts the role's assignment events (each nomination and each end),
+-- 0 when nobody holds the role, so a stale admin form is refused.
+create function private.admin_venue_reviewer_revision(p_venue_id uuid, p_role text)
+returns integer
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when exists (select 1 from public.venue_reviewer_assignments a
+                 where a.venue_id = p_venue_id and a.role = p_role and a.ended_at is null)
+    then (select (count(*) + count(a.ended_at))::integer from public.venue_reviewer_assignments a
+          where a.venue_id = p_venue_id and a.role = p_role)
+    else 0 end;
+$$;
+
+create function private.admin_venue_reviewers_json(p_venue_id uuid)
 returns jsonb
 language sql
 stable
@@ -138,17 +143,17 @@ set search_path = ''
 as $$
   select jsonb_build_object(
     'main', (
-      select jsonb_build_object('profileId', r.profile_id, 'name', p.display_name,
-        'eligible', coalesce(private.venue_role_of(r.profile_id, p_venue_id) in ('manager', 'admin'), false),
-        'revision', r.revision, 'setAt', r.set_at)
-      from public.venue_reviewers r join public.profiles p on p.id = r.profile_id
-      where r.venue_id = p_venue_id and r.responsibility = 'main'),
+      select jsonb_build_object('profileId', a.profile_id, 'name', p.display_name,
+        'eligible', coalesce(private.venue_role_of(a.profile_id, p_venue_id) in ('manager', 'admin'), false),
+        'revision', private.admin_venue_reviewer_revision(p_venue_id, 'main'), 'setAt', a.assigned_at)
+      from public.venue_reviewer_assignments a join public.profiles p on p.id = a.profile_id
+      where a.venue_id = p_venue_id and a.role = 'main' and a.ended_at is null),
     'backup', (
-      select jsonb_build_object('profileId', r.profile_id, 'name', p.display_name,
-        'eligible', coalesce(private.venue_role_of(r.profile_id, p_venue_id) in ('manager', 'admin'), false),
-        'revision', r.revision, 'setAt', r.set_at)
-      from public.venue_reviewers r join public.profiles p on p.id = r.profile_id
-      where r.venue_id = p_venue_id and r.responsibility = 'backup'));
+      select jsonb_build_object('profileId', a.profile_id, 'name', p.display_name,
+        'eligible', coalesce(private.venue_role_of(a.profile_id, p_venue_id) in ('manager', 'admin'), false),
+        'revision', private.admin_venue_reviewer_revision(p_venue_id, 'backup'), 'setAt', a.assigned_at)
+      from public.venue_reviewer_assignments a join public.profiles p on p.id = a.profile_id
+      where a.venue_id = p_venue_id and a.role = 'backup' and a.ended_at is null));
 $$;
 
 -- Spec §8 A2 setup checklist, derived. Each item: key, done and the numbers
@@ -162,7 +167,7 @@ set search_path = ''
 as $$
 declare
   v_menu record;
-  v_reviewers jsonb := private.venue_reviewers_json(p_venue_id);
+  v_reviewers jsonb := private.admin_venue_reviewers_json(p_venue_id);
   v_staff integer;
   v_checks integer;
   v_unanswered integer;
@@ -224,7 +229,7 @@ begin
   perform private.assert_active_admin();
   return jsonb_build_object('items', coalesce((
     select jsonb_agg(private.venue_json(v) || jsonb_build_object(
-        'reviewers', private.venue_reviewers_json(v.id),
+        'reviewers', private.admin_venue_reviewers_json(v.id),
         'setup', private.venue_setup_checklist(v.id))
       order by v.active desc, lower(v.name), v.id)
     from public.venues v
@@ -251,7 +256,7 @@ begin
     raise exception 'venue_not_found' using errcode = 'P0002';
   end if;
   return private.venue_json(v_venue) || jsonb_build_object(
-    'reviewers', private.venue_reviewers_json(v_venue.id),
+    'reviewers', private.admin_venue_reviewers_json(v_venue.id),
     'setup', private.venue_setup_checklist(v_venue.id),
     'candidates', coalesce((
       select jsonb_agg(jsonb_build_object('profileId', p.id, 'name', p.display_name,
@@ -448,8 +453,9 @@ as $$
 declare
   v_uid uuid := private.assert_active_admin();
   v_reason text := private.clean_text(p_reason, 500, 'reason_too_long');
-  v_old public.venue_reviewers;
+  v_old uuid;
   v_other uuid;
+  v_revision integer;
 begin
   if p_responsibility is null or p_responsibility not in ('main', 'backup') then
     raise exception 'invalid_responsibility' using errcode = '22023';
@@ -457,41 +463,33 @@ begin
   if not exists (select 1 from public.venues v where v.id = p_venue_id and v.active) then
     raise exception 'venue_not_found' using errcode = 'P0002';
   end if;
-  perform pg_advisory_xact_lock(hashtextextended('nabalens_venue_reviewers:' || p_venue_id::text, 0));
-  select r.* into v_old from public.venue_reviewers r
-  where r.venue_id = p_venue_id and r.responsibility = p_responsibility;
-  if coalesce(v_old.revision, 0) is distinct from p_revision then
+  -- The same lock S2-MGR's set_venue_reviewer takes.
+  perform 1 from public.venues v where v.id = p_venue_id for update;
+  v_revision := private.admin_venue_reviewer_revision(p_venue_id, p_responsibility);
+  if v_revision is distinct from p_revision then
     raise exception 'reviewer_conflict' using errcode = '40001',
-      detail = jsonb_build_object('revision', coalesce(v_old.revision, 0))::text;
+      detail = jsonb_build_object('revision', v_revision)::text;
   end if;
-  if v_old.profile_id is not distinct from p_profile_id then
-    return jsonb_build_object('changed', false, 'reviewers', private.venue_reviewers_json(p_venue_id));
+  select a.profile_id into v_old from public.venue_reviewer_assignments a
+  where a.venue_id = p_venue_id and a.role = p_responsibility and a.ended_at is null;
+  if v_old is not distinct from p_profile_id then
+    return jsonb_build_object('changed', false, 'reviewers', private.admin_venue_reviewers_json(p_venue_id));
   end if;
-
-  if p_profile_id is null then
-    delete from public.venue_reviewers r
-    where r.venue_id = p_venue_id and r.responsibility = p_responsibility;
-  else
-    if coalesce(private.venue_role_of(p_profile_id, p_venue_id), '') not in ('manager', 'admin') then
-      raise exception 'reviewer_not_eligible' using errcode = '22023';
-    end if;
-    select r.profile_id into v_other from public.venue_reviewers r
-    where r.venue_id = p_venue_id and r.responsibility <> p_responsibility;
+  if p_profile_id is not null then
+    select a.profile_id into v_other from public.venue_reviewer_assignments a
+    where a.venue_id = p_venue_id and a.role <> p_responsibility and a.ended_at is null;
     if v_other = p_profile_id then
       raise exception 'reviewer_same_person' using errcode = '22023';
     end if;
-    insert into public.venue_reviewers as r (venue_id, responsibility, profile_id, set_by)
-    values (p_venue_id, p_responsibility, p_profile_id, v_uid)
-    on conflict (venue_id, responsibility) do update
-      set profile_id = excluded.profile_id, set_by = excluded.set_by, set_at = now(),
-          revision = r.revision + 1;
   end if;
+  -- Eligibility, history and handover are S2-MGR's (reviewer_not_eligible).
+  perform public.set_venue_reviewer(p_venue_id, p_responsibility, p_profile_id, v_reason);
   perform private.record_activity(p_venue_id, 'venue_reviewer_set', 'venue_reviewer',
-    p_venue_id::text || ':' || p_responsibility, coalesce(v_old.revision, 0),
-    case when p_profile_id is null then null else coalesce(v_old.revision, 0) + 1 end, v_reason,
-    jsonb_build_object('responsibility', p_responsibility, 'profileId', v_old.profile_id),
+    p_venue_id::text || ':' || p_responsibility, v_revision,
+    private.admin_venue_reviewer_revision(p_venue_id, p_responsibility), v_reason,
+    jsonb_build_object('responsibility', p_responsibility, 'profileId', v_old),
     jsonb_build_object('responsibility', p_responsibility, 'profileId', p_profile_id));
-  return jsonb_build_object('changed', true, 'reviewers', private.venue_reviewers_json(p_venue_id));
+  return jsonb_build_object('changed', true, 'reviewers', private.admin_venue_reviewers_json(p_venue_id));
 end;
 $$;
 
@@ -728,7 +726,8 @@ revoke all on function
   private.is_iana_timezone(text),
   private.venue_slug_for(text),
   private.venue_json(public.venues),
-  private.venue_reviewers_json(uuid),
+  private.admin_venue_reviewer_revision(uuid, text),
+  private.admin_venue_reviewers_json(uuid),
   private.venue_setup_checklist(uuid),
   private.venue_template_rows(uuid, uuid),
   private.venue_template_assert(uuid, uuid)
