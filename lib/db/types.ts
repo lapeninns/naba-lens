@@ -391,6 +391,7 @@ export type Database = {
           decided_by: string
           id: number
           origin: string
+          previous_decision_id: number | null
           reason: string | null
           review_level: string
           venue_id: string
@@ -403,6 +404,7 @@ export type Database = {
           decided_by: string
           id?: never
           origin?: string
+          previous_decision_id?: number | null
           reason?: string | null
           review_level?: string
           venue_id: string
@@ -415,6 +417,7 @@ export type Database = {
           decided_by?: string
           id?: never
           origin?: string
+          previous_decision_id?: number | null
           reason?: string | null
           review_level?: string
           venue_id?: string
@@ -439,6 +442,13 @@ export type Database = {
             columns: ["decided_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "amenity_photo_decisions_previous_decision_id_fkey"
+            columns: ["previous_decision_id"]
+            isOneToOne: false
+            referencedRelation: "amenity_photo_decisions"
             referencedColumns: ["id"]
           },
         ]
@@ -706,6 +716,7 @@ export type Database = {
           decided_by: string
           id: number
           label_id: string
+          previous_decision_id: number | null
           reason: string | null
           review_level: string
           venue_id: string
@@ -717,6 +728,7 @@ export type Database = {
           decided_by: string
           id?: never
           label_id: string
+          previous_decision_id?: number | null
           reason?: string | null
           review_level?: string
           venue_id: string
@@ -728,6 +740,7 @@ export type Database = {
           decided_by?: string
           id?: never
           label_id?: string
+          previous_decision_id?: number | null
           reason?: string | null
           review_level?: string
           venue_id?: string
@@ -746,6 +759,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "media_area_labels"
             referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "area_photo_decisions_previous_decision_id_fkey"
+            columns: ["previous_decision_id"]
+            isOneToOne: false
+            referencedRelation: "area_photo_decisions"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -6457,6 +6477,84 @@ export type Database = {
           },
         ]
       }
+      review_dispositions: {
+        Row: {
+          action: string
+          asset_id: string
+          decided_at: string
+          decided_by: string
+          decided_role: string
+          duplicate_of_asset_id: string | null
+          id: number
+          previous_id: number | null
+          reason: string | null
+          reason_code: string | null
+          venue_id: string
+        }
+        Insert: {
+          action: string
+          asset_id: string
+          decided_at?: string
+          decided_by: string
+          decided_role: string
+          duplicate_of_asset_id?: string | null
+          id?: never
+          previous_id?: number | null
+          reason?: string | null
+          reason_code?: string | null
+          venue_id: string
+        }
+        Update: {
+          action?: string
+          asset_id?: string
+          decided_at?: string
+          decided_by?: string
+          decided_role?: string
+          duplicate_of_asset_id?: string | null
+          id?: never
+          previous_id?: number | null
+          reason?: string | null
+          reason_code?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_dispositions_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_dispositions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_dispositions_duplicate_of_asset_id_fkey"
+            columns: ["duplicate_of_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_dispositions_previous_id_fkey"
+            columns: ["previous_id"]
+            isOneToOne: false
+            referencedRelation: "review_dispositions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_dispositions_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slot_primary_choices: {
         Row: {
           asset_id: string
@@ -8764,7 +8862,11 @@ export type Database = {
           p_contributor_id?: string
           p_item_id?: string
           p_limit?: number
+          p_min_age_days?: number
+          p_needed_by?: boolean
+          p_possible_duplicate?: boolean
           p_section_id?: string
+          p_section_kind?: string
           p_status?: string
           p_venue_id?: string
         }
@@ -8772,11 +8874,14 @@ export type Database = {
           asset_id: string
           basis: string
           can_follow_up: boolean
+          captured_at: string
+          captured_at_source: string
           contributor_status: string
           corrects_item_id: string
           corrects_item_name: string
           corrects_variant_id: string
           created_at: string
+          duplicate_of_asset_id: string
           group_count: number
           has_preview: boolean
           has_thumbnail: boolean
@@ -8793,12 +8898,15 @@ export type Database = {
           labelled_at: string
           photo_id: string
           photo_state: string
+          possible_duplicate: boolean
           reason: string
           recheck_kind: string
           section_id: string
+          section_kind: string
           section_name: string
           sort_key: string
           staff_label: Json
+          staff_note: string
           uploader_id: string
           uploader_name: string
           variant_id: string
@@ -9451,6 +9559,40 @@ export type Database = {
           state: string
         }[]
       }
+      review_decide_amenity_photo: {
+        Args: {
+          p_action: string
+          p_asset_id: string
+          p_check_id: string
+          p_expected_decision_id?: number
+          p_level?: string
+          p_reason?: string
+        }
+        Returns: {
+          asset_id: string
+          changed: boolean
+          check_id: string
+          decision_id: number
+          review_level: string
+          state: string
+        }[]
+      }
+      review_decide_area_photo: {
+        Args: {
+          p_action: string
+          p_expected_decision_id?: number
+          p_label_id: string
+          p_level?: string
+          p_reason?: string
+        }
+        Returns: {
+          changed: boolean
+          decision_id: number
+          label_id: string
+          review_level: string
+          state: string
+        }[]
+      }
       review_menu_item_photo: {
         Args: {
           p_asset_id: string
@@ -9471,6 +9613,18 @@ export type Database = {
           self_review: boolean
           state: string
         }[]
+      }
+      review_photo_detail: { Args: { p_asset_id: string }; Returns: Json }
+      review_set_aside: {
+        Args: {
+          p_action: string
+          p_asset_id: string
+          p_duplicate_of?: string
+          p_expected_disposition_id?: number
+          p_reason?: string
+          p_reason_code?: string
+        }
+        Returns: Json
       }
       revoke_venue_manager: {
         Args: { p_grant_id: string; p_reason: string }

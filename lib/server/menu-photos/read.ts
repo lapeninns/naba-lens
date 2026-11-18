@@ -34,6 +34,7 @@ import type {
   QueueCardKind,
   QueueStatus,
   RecheckKind,
+  CardProvenance,
   SectionKind,
   StaffLabel,
 } from "./types"
@@ -81,6 +82,7 @@ const RECHECK_KINDS: readonly string[] = [
   "name_changed",
   "section_changed",
   "variant_removed",
+  "presentation_changed",
 ]
 const recheckKind = (v: unknown): RecheckKind | null =>
   typeof v === "string" && RECHECK_KINDS.includes(v) ? (v as RecheckKind) : null
@@ -338,8 +340,21 @@ export function queueCardView(r: QueueRow): QueueCard {
     correctsItemName: r.corrects_item_name ?? null,
     itemRevision: r.item_revision ?? 0,
     groupCount: r.group_count,
+    provenance: {
+      capturedAt: r.captured_at ?? null,
+      capturedAtSource: capturedSource(r.captured_at_source),
+      possibleDuplicate: r.possible_duplicate === true,
+      note: r.staff_note?.trim() ? r.staff_note : null,
+      sectionKind:
+        r.section_kind === "food" || r.section_kind === "drinks"
+          ? r.section_kind
+          : null,
+    },
   }
 }
+
+const capturedSource = (v: unknown): CardProvenance["capturedAtSource"] =>
+  v === "metadata" || v === "supplied" || v === "estimated" ? v : "unknown"
 
 const VARIANT_SCAN_PAGES = 5
 
@@ -440,6 +455,9 @@ async function withUnspecified(
  * Photos to review, oldest upload first, 24 a page. `status` picks the set
  * (default `pending`); `sectionId`, `contributorId` and `itemId` narrow it
  * (section and item do not apply to `stale_label` and `unlabelled`).
+ * `sectionKind` (food or drinks), `minAgeDays`, `possibleDuplicate` and
+ * `neededBy` narrow it further (S2-REVIEW). `pending` holds Needs label
+ * photos too (FA-4).
  */
 export async function listReviewQueue(
   ctx: ManagerPhotoCtx,
@@ -459,6 +477,24 @@ export async function listReviewQueue(
     itemId === undefined
   )
     return BAD_REQUEST
+  // S2-REVIEW filters (spec §7 M2): category, age, possible duplicate and
+  // dishes with a needed-by date.
+  const sectionKind = args.sectionKind ?? null
+  if (
+    sectionKind !== null &&
+    sectionKind !== "food" &&
+    sectionKind !== "drinks"
+  )
+    return BAD_REQUEST
+  const minAgeDays = args.minAgeDays ?? null
+  if (
+    minAgeDays !== null &&
+    (typeof minAgeDays !== "number" ||
+      !Number.isInteger(minAgeDays) ||
+      minAgeDays < 0 ||
+      minAgeDays > 3650)
+  )
+    return BAD_REQUEST
   if (args.cursor != null && typeof args.cursor !== "string") return BAD_CURSOR
   const after = args.cursor ? queueCursor.decode(args.cursor as string) : null
   if (args.cursor && !after) return BAD_CURSOR
@@ -469,6 +505,10 @@ export async function listReviewQueue(
     ...(sectionId ? { p_section_id: sectionId } : {}),
     ...(contributorId ? { p_contributor_id: contributorId } : {}),
     ...(itemId ? { p_item_id: itemId } : {}),
+    ...(sectionKind ? { p_section_kind: sectionKind } : {}),
+    ...(minAgeDays !== null ? { p_min_age_days: minAgeDays } : {}),
+    ...(args.possibleDuplicate === true ? { p_possible_duplicate: true } : {}),
+    ...(args.neededBy === true ? { p_needed_by: true } : {}),
     ...(after
       ? { p_after_created_at: after.createdAt, p_after_key: after.key }
       : {}),

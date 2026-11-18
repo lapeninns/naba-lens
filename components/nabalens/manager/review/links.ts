@@ -2,7 +2,12 @@
 // workspace and on the admin Review page, so every URL comes from its scope
 // (serialisable, passed from the server page).
 
-import { managerHrefs, type ReviewQuery } from "../hrefs"
+import {
+  managerHrefs,
+  type ReviewAge,
+  type ReviewCategory,
+  type ReviewQuery,
+} from "../hrefs"
 
 export type ReviewScope =
   { kind: "manager" } | { kind: "admin"; venueId: string }
@@ -13,6 +18,33 @@ export type ReviewView = {
   sectionId: string | null
   contributorId: string | null
   itemId: string | null
+  /** S2-REVIEW narrowing (spec §7 M2); absent or null means off. */
+  category?: ReviewCategory | null
+  minAgeDays?: ReviewAge | null
+  possibleDuplicate?: boolean
+  neededBy?: boolean
+}
+
+/** The S2-REVIEW filters a view narrows by, as server read arguments. */
+export function narrowingOf(view: ReviewView) {
+  return {
+    ...(view.category ? { sectionKind: view.category } : {}),
+    ...(view.minAgeDays ? { minAgeDays: view.minAgeDays } : {}),
+    ...(view.possibleDuplicate ? { possibleDuplicate: true } : {}),
+    ...(view.neededBy ? { neededBy: true } : {}),
+  }
+}
+
+/** True when any S2-REVIEW filter is on. */
+export function isNarrowed(view: ReviewView): boolean {
+  return Boolean(
+    view.category || view.minAgeDays || view.possibleDuplicate || view.neededBy
+  )
+}
+
+/** The photo's review detail (managers only); null for an admin scope. */
+export function photoHref(scope: ReviewScope, assetId: string): string | null {
+  return scope.kind === "manager" ? managerHrefs.photo(assetId) : null
 }
 
 /** The admin venue for every server action; undefined for a manager. */
@@ -52,6 +84,10 @@ export function reviewHref(
     contributor: fixedContributorId
       ? undefined
       : (view.contributorId ?? undefined),
+    category: view.category ?? undefined,
+    age: view.minAgeDays ? `${view.minAgeDays}` : undefined,
+    dupes: view.possibleDuplicate ? "1" : undefined,
+    needed: view.neededBy ? "1" : undefined,
   }
   if (fixedContributorId) {
     const base = contributorHref(scope, fixedContributorId)

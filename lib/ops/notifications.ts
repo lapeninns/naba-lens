@@ -9,6 +9,8 @@ export type NotificationKind =
   | "upload_problem"
   | "review_digest"
   | "exception"
+  /** S2-REVIEW: a reviewer matched the person's photo to another dish (FA-7). */
+  | "label_corrected"
 
 export type NotificationState = "unread" | "read" | "resolved"
 
@@ -36,6 +38,7 @@ const KINDS = new Set<string>([
   "upload_problem",
   "review_digest",
   "exception",
+  "label_corrected",
 ])
 const STATES = new Set<string>(["unread", "read", "resolved"])
 
@@ -106,6 +109,13 @@ export function notificationWords(n: AppNotification): {
         (p.source === "checklist" ? "a checklist photo" : "a photo")
       return { title: `Retake: ${what}`, detail: text(p.reason) }
     }
+    case "label_corrected":
+      return {
+        title: `Label corrected: ${text(p.itemName) ?? "a photo"}`,
+        detail: text(p.fromItemName)
+          ? `You labelled it ${text(p.fromItemName)}. Nothing to do.`
+          : "Nothing to do.",
+      }
     case "assigned":
       return {
         title: "A check was given to you",

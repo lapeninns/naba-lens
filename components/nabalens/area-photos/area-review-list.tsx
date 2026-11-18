@@ -1,5 +1,7 @@
 "use client"
 
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
+import { DetailsLink } from "@/components/nabalens/manager/review/inbox-flags"
 import * as React from "react"
 
 import { decideAreaPhotoAction } from "@/app/manager/area-actions"
@@ -214,6 +216,14 @@ function AreaReviewCard({
       {card.reason && card.state !== "accepted" ? (
         <p className="text-body text-ink">{card.reason}</p>
       ) : null}
+      {/* S2-REVIEW: the photo's review (levels, Not used, history); the
+          manager workspace only. */}
+      {venueId ? null : (
+        <DetailsLink
+          href={managerHrefs.photo(card.assetId)}
+          who={card.authorName}
+        />
+      )}
       {error ? (
         <Notice tone="negative" role="alert">
           {error}

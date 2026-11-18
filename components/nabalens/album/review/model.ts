@@ -30,7 +30,12 @@ export type MenuSubject = {
   correctsVariantId: string | null
 }
 
-export type AreaSubject = { kind: "area"; labelId: string }
+export type AreaSubject = {
+  kind: "area"
+  labelId: string
+  /** S2-REVIEW: the photo, for its review detail. */
+  assetId?: string
+}
 
 /** One photo on the stage. */
 export type ReviewPhoto = {
@@ -136,7 +141,7 @@ export function fromAreaCard(card: AreaPhotoCard): ReviewPhoto {
     place: card.area,
     imageUrl: card.previewUrl ?? card.thumbnailUrl,
     own: !card.canDecide,
-    subject: { kind: "area", labelId: card.labelId },
+    subject: { kind: "area", labelId: card.labelId, assetId: card.assetId },
   }
 }
 
@@ -170,16 +175,32 @@ export function reviewLine(photos: readonly ReviewPhoto[]): ReviewPhoto[] {
 
 // ---- Ask again ---------------------------------------------------------------
 
-/** The reason chips, in order (DESIGN.md §5 Reason chips). */
-export const REASONS = [
-  "Too dark",
-  "Out of focus",
-  "Wrong item",
-  "Show more of it",
-  "Messy background",
+/**
+ * The reusable retake reasons (spec §7 M2, §9.1), in Album's plain words
+ * (DESIGN.md §5 Reason chips), each with the spec's code. A wrong label is
+ * not a photo-quality reason: it is fixed with Fix label, never a retake.
+ */
+export const RETAKE_REASONS = [
+  { code: "whole_item_not_visible", words: "Show all of it" },
+  { code: "insufficient_light", words: "Too dark" },
+  { code: "out_of_focus", words: "Out of focus" },
+  { code: "wrong_presentation", words: "Not how it's served now" },
+  { code: "route_not_shown", words: "Show the way in" },
+  { code: "background_issue", words: "Messy background" },
+  { code: "people_visible", words: "People or personal details in shot" },
 ] as const
 
-export type Reason = (typeof REASONS)[number]
+export type RetakeReasonCode = (typeof RETAKE_REASONS)[number]["code"]
+
+/** The reason chips, in order (DESIGN.md §5 Reason chips). */
+export const REASONS = RETAKE_REASONS.map((r) => r.words)
+
+export type Reason = (typeof RETAKE_REASONS)[number]["words"]
+
+/** The spec code of a chip's words; null for a written reason. */
+export function retakeReasonCode(words: string): RetakeReasonCode | null {
+  return RETAKE_REASONS.find((r) => r.words === words)?.code ?? null
+}
 
 /** The most a written reason may hold (the decision actions' limit). */
 export const REASON_MAX = 500

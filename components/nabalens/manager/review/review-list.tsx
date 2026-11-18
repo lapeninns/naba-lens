@@ -48,6 +48,8 @@ import {
 } from "./card-model"
 import { ItemPickerDialog, type PickedItem } from "./item-picker-dialog"
 import {
+  isNarrowed,
+  narrowingOf,
   reviewHref,
   venueIdOf,
   type ReviewScope,
@@ -88,7 +90,8 @@ function EmptyFor({
   scope: ReviewScope
 }) {
   const e = REVIEW_COPY.empty
-  const narrowed = view.itemId || view.contributorId || view.sectionId
+  const narrowed =
+    view.itemId || view.contributorId || view.sectionId || isNarrowed(view)
   if (view.status === "pending" && !narrowed) {
     return (
       <EmptyState
@@ -239,8 +242,20 @@ export function ReviewList({
         !card.item ||
         card.item.sectionId === view.sectionId) &&
       // An item view shows that item only: a relink's target stays out.
-      (!view.itemId || card.item?.itemId === view.itemId),
-    [view.contributorId, view.sectionId, view.itemId]
+      (!view.itemId || card.item?.itemId === view.itemId) &&
+      (!view.category ||
+        !card.provenance ||
+        card.provenance.sectionKind === view.category) &&
+      (!view.possibleDuplicate ||
+        !card.provenance ||
+        card.provenance.possibleDuplicate),
+    [
+      view.contributorId,
+      view.sectionId,
+      view.itemId,
+      view.category,
+      view.possibleDuplicate,
+    ]
   )
 
   const focusTarget = React.useCallback((): HTMLElement | null => {
@@ -471,6 +486,7 @@ export function ReviewList({
         sectionId: view.sectionId ?? undefined,
         contributorId: view.contributorId ?? undefined,
         itemId: view.itemId ?? undefined,
+        ...narrowingOf(view),
         cursor,
         ...(venueId ? { venueId } : {}),
       })

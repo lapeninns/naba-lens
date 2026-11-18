@@ -8,6 +8,7 @@ import type { Option } from "@/components/nabalens/types"
 import type { QueueStatus } from "@/lib/server/menu-photos/types"
 import { FilterPill } from "@/components/ui/filter-pill"
 
+import { INBOX_COPY } from "./inbox-copy"
 import { reviewHref, type ReviewScope, type ReviewView } from "./links"
 import {
   REVIEW_COPY,
@@ -85,6 +86,52 @@ export function ReviewFilters({
               {REVIEW_STATUS_LABEL[status]}
             </FilterPill>
           ))}
+        </div>
+      </div>
+      {/* S2-REVIEW (spec §7 M2): category, age, possible duplicates and
+          needed-by dishes. Each pill turns its filter on or off. */}
+      <div role="group" aria-label={INBOX_COPY.narrowLabel} className="py-1">
+        <div className="flex flex-wrap gap-2">
+          {(["food", "drinks"] as const).map((category) => (
+            <FilterPill
+              key={category}
+              selected={shown.category === category}
+              data-review-filter={`category-${category}`}
+              onClick={() =>
+                go({
+                  category: shown.category === category ? null : category,
+                })
+              }
+            >
+              {INBOX_COPY.category[category]}
+            </FilterPill>
+          ))}
+          {([2, 7] as const).map((age) => (
+            <FilterPill
+              key={age}
+              selected={shown.minAgeDays === age}
+              data-review-filter={`age-${age}`}
+              onClick={() =>
+                go({ minAgeDays: shown.minAgeDays === age ? null : age })
+              }
+            >
+              {INBOX_COPY.age[age]}
+            </FilterPill>
+          ))}
+          <FilterPill
+            selected={Boolean(shown.possibleDuplicate)}
+            data-review-filter="duplicates"
+            onClick={() => go({ possibleDuplicate: !shown.possibleDuplicate })}
+          >
+            {INBOX_COPY.duplicates}
+          </FilterPill>
+          <FilterPill
+            selected={Boolean(shown.neededBy)}
+            data-review-filter="needed-by"
+            onClick={() => go({ neededBy: !shown.neededBy })}
+          >
+            {INBOX_COPY.neededBy}
+          </FilterPill>
         </div>
       </div>
       <div className="grid gap-3 md:grid-cols-2 md:items-end">

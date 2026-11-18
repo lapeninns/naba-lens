@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 
 import { ContributorHeader } from "@/components/nabalens/manager/review/contributor-header"
 import {
+  narrowingOf,
   reviewHref,
   type ReviewScope,
   type ReviewView,
@@ -51,7 +52,20 @@ export function reviewViewOf(
     sectionId: uuidOr(one(search, "section")),
     contributorId: fixedContributorId ?? uuidOr(one(search, "contributor")),
     itemId: uuidOr(one(search, "item")),
+    ...narrowingFromSearch(search),
   }
+}
+
+/** S2-REVIEW filters from the URL; unknown values are ignored. */
+function narrowingFromSearch(search: ReviewSearch) {
+  const category = one(search, "category")
+  const age = one(search, "age")
+  return {
+    category: category === "food" || category === "drinks" ? category : null,
+    minAgeDays: age === "2" ? 2 : age === "7" ? 7 : null,
+    possibleDuplicate: one(search, "dupes") === "1",
+    neededBy: one(search, "needed") === "1",
+  } as const
 }
 
 /**
@@ -103,6 +117,7 @@ export async function ReviewBody({
       sectionId: view.sectionId ?? undefined,
       contributorId: view.contributorId ?? undefined,
       itemId: view.itemId ?? undefined,
+      ...narrowingOf(view),
     }),
   ])
   if (!overview.ok) failed(overview, scope, path)
@@ -169,6 +184,7 @@ export async function ContributorBody({
       sectionId: view.sectionId ?? undefined,
       contributorId: staffId,
       itemId: view.itemId ?? undefined,
+      ...narrowingOf(view),
     }),
   ])
   if (!contributor.ok) failed(contributor, scope, path)

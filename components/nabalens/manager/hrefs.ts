@@ -24,7 +24,20 @@ export type ReviewQuery = {
   contributor?: string
   /** Menu item id. */
   item?: string
+  /** S2-REVIEW: category (food or drinks dishes). */
+  category?: ReviewCategory
+  /** S2-REVIEW: waiting at least this many days ("2" or "7"). */
+  age?: `${ReviewAge}`
+  /** S2-REVIEW: possible duplicates only ("1"). */
+  dupes?: "1"
+  /** S2-REVIEW: dishes with a needed-by date only ("1"). */
+  needed?: "1"
 }
+
+/** The dish categories a Review list can narrow to (FA-6). */
+export type ReviewCategory = "food" | "drinks"
+/** Age filters, in days (spec §7 M2). */
+export type ReviewAge = 2 | 7
 
 export type MenuQuery = {
   status?: MenuStatusFilter
@@ -70,6 +83,9 @@ export const managerHrefs = {
   /** The admin Review page for a venue (same Review screen, admin layout). */
   adminMenuPhotos: (venueId: string, q?: ReviewQuery) =>
     withQuery(`/admin/coverage/${encodeURIComponent(venueId)}/menu-photos`, q),
+  /** S2-REVIEW: one photo's review detail. */
+  photo: (assetId: string) =>
+    `/manager/review/photo/${encodeURIComponent(assetId)}`,
   adminContributor: (venueId: string, id: string) =>
     `/admin/coverage/${encodeURIComponent(venueId)}/menu-photos/contributors/${encodeURIComponent(id)}`,
 } as const
