@@ -454,9 +454,30 @@ describe("library_candidate_ids against what admin RLS lets through", () => {
       if (error) throw error
       expect(visible.map((r) => r.id)).not.toContain(asset.deleted)
       expect(visible.map((r) => r.id)).not.toContain(asset.notReady)
+      // Unlabelled for an admin is the one rule (S3-R1 K1,
+      // private.asset_unlabelled), read here as the reference.
+      // One fixture asked as I'm not sure, so the rule has a member here.
+      psql(
+        `insert into public.media_label_help_requests (asset_id, venue_id, requested_by)
+         select a.id, a.venue_id, a.uploader_id from public.media_assets a
+         where a.venue_id = '${venue}' and a.deleted_at is null and a.upload_state = 'ready'
+           and a.purpose = 'general'
+           and not exists (select 1 from public.media_labels l where l.asset_id = a.id and l.has_labels)
+         order by a.created_at, a.id limit 1
+         on conflict (asset_id) do nothing`
+      )
+      const unlabelled = new Set(
+        psql(
+          `select coalesce(string_agg(id::text, ','), '') from public.media_assets
+           where venue_id = '${venue}' and private.asset_unlabelled(id)`
+        )
+          .trim()
+          .split(",")
+          .filter(Boolean)
+      )
       for (const state of ["labelled", "unlabelled"] as const) {
-        const want = visible.filter(
-          (r) => labelled.has(r.id) === (state === "labelled")
+        const want = visible.filter((r) =>
+          state === "labelled" ? labelled.has(r.id) : unlabelled.has(r.id)
         )
         expect(want.length, `${state} fixtures in ${venue}`).toBeGreaterThan(0)
         expect(statePage(admin.id, state, { venue, limit: 100 })).toEqual(

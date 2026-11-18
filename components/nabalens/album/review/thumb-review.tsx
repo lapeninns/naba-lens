@@ -78,6 +78,12 @@ export type ThumbReviewProps = {
   listHref: string
   /** Under the title: the Findings / All switch when triage is on. */
   filter?: React.ReactNode
+  /**
+   * Photos that wait off the stage (Needs label, FA-4): counted in the title
+   * and listed under it, so the empty notice does not say every photo is
+   * reviewed while they wait (S3-R1 E4).
+   */
+  waitingElsewhere?: number
   /** The zone times are written in. */
   timeZone?: string
 }
@@ -115,6 +121,7 @@ export function ThumbReview({
   context,
   listHref,
   filter,
+  waitingElsewhere = 0,
   timeZone = "Europe/London",
 }: ThumbReviewProps) {
   const ctx = React.useMemo(() => toContext(context), [context])
@@ -493,7 +500,7 @@ export function ThumbReview({
             {C.moreRetry}
           </Button>
         </div>
-      ) : (
+      ) : waitingElsewhere > 0 ? null : (
         <Notice tone="plain" title={C.emptyTitle} className="max-w-reading">
           <p>{C.emptyBody}</p>
         </Notice>

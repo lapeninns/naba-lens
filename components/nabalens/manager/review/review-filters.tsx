@@ -106,6 +106,18 @@ export function ReviewFilters({
               {INBOX_COPY.category[category]}
             </FilterPill>
           ))}
+          {(["photo", "video"] as const).map((media) => (
+            <FilterPill
+              key={media}
+              selected={shown.media === media}
+              data-review-filter={`media-${media}`}
+              onClick={() =>
+                go({ media: shown.media === media ? null : media })
+              }
+            >
+              {INBOX_COPY.media[media]}
+            </FilterPill>
+          ))}
           {([2, 7] as const).map((age) => (
             <FilterPill
               key={age}

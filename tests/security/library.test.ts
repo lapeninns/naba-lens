@@ -466,6 +466,10 @@ describe("withdraw and restore", () => {
 describe("library_page fast paths", () => {
   it("keeps a withdrawn photo out of the labelled/unlabelled set page", async () => {
     const asset = await ready(staff)
+    // Unlabelled for the admin library: no label for 7 days (S3-R1 K1).
+    psql(
+      `set session_replication_role = replica; update public.media_assets set created_at = now() - interval '8 days' where id = '${asset}'`
+    )
     await ok(
       rpc(admin, "library_withdraw_asset", {
         p_asset_id: asset,

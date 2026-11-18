@@ -108,6 +108,12 @@ const MESSAGES: Record<string, CoverageFailure> = {
     "revision_conflict",
     "Someone else changed this item just now. Reload the page."
   ),
+  // S3-R1 V15: the photo was set aside (Not used or Mark duplicate) since
+  // the screen was read; it is not accepted.
+  review_conflict: failure(
+    "revision_conflict",
+    "Someone else decided this photo just now. Reload the page."
+  ),
   area_photo_conflict: failure(
     "revision_conflict",
     "This photo was decided just now. Reload the page."

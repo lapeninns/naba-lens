@@ -119,6 +119,13 @@ export type StaffLabel = {
 
 export type QueueCardKind = "labelled" | "unlabelled" | "stale" | "decided"
 
+/**
+ * Why a photo needs a label (FA-4, the one unlabelled rule): its person chose
+ * I'm not sure, tagged it food or drink without a dish, or left it with no
+ * label for 7 days.
+ */
+export type UnlabelledReason = "not_sure" | "no_dish" | "unmatched"
+
 export type QueueCard = {
   /** Stable card key (label, photo or asset id); also the paging key. */
   key: string
@@ -162,6 +169,20 @@ export type QueueCard = {
   itemRevision: number
   /** Other cards of the same item in this status set. */
   groupCount: number
+  /**
+   * The photo's latest Not used / Mark duplicate / Restore id, or null: a
+   * batch Not used is made against it (S3-R1 V16). Absent on fixtures.
+   */
+  dispositionId?: number | null
+  /**
+   * The caller's own photo at their single-reviewer venue (FA-9, S3-R1 K6):
+   * they may decide on it. Absent on fixtures (false).
+   */
+  selfReviewAllowed?: boolean
+  /** Why a Needs label card waits (S3-R1 K1); null on other cards. */
+  unlabelledReason?: UnlabelledReason | null
+  /** Photo or video (K11). Absent on fixtures (image). */
+  mediaType?: "image" | "video"
   /**
    * S2-REVIEW provenance and flags (spec §7 M2, §12.1, FA-35). Absent on
    * cards built before the review inbox read them (fixtures).

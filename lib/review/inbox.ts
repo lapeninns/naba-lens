@@ -348,15 +348,22 @@ export type BatchItem = {
   itemId: string | null
   variantId: string | null
   itemRevision: number
+  /**
+   * The photo's latest disposition the screen saw (null before any): a batch
+   * Not used is made against it (S3-R1 V16), so a restored photo can be set
+   * aside again and a newer decision still conflicts.
+   */
+  dispositionId?: number | null
 }
 
 /**
  * Whether a list card can join a batch for `action`: a waiting staff label
  * for its dish (Approve for public use, Keep as reference) or any waiting
- * photo, including Needs label (Not used). Never the caller's own photo.
+ * photo, including Needs label (Not used). Never the caller's own photo,
+ * except at their single-reviewer venue (FA-9, S3-R1 K6).
  */
 export function batchable(card: QueueCard, action: BatchAction): boolean {
-  if (card.isSelf) return false
+  if (card.isSelf && !card.selfReviewAllowed) return false
   if (action === "not_used")
     return (
       (card.kind === "labelled" && card.state === null) ||
@@ -374,6 +381,7 @@ export function batchItemOf(card: QueueCard): BatchItem {
     itemId: card.item?.itemId ?? null,
     variantId: card.item?.variantId ?? null,
     itemRevision: card.itemRevision,
+    dispositionId: card.dispositionId ?? null,
   }
 }
 

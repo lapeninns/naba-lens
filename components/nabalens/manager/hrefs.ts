@@ -32,7 +32,12 @@ export type ReviewQuery = {
   dupes?: "1"
   /** S2-REVIEW: dishes with a needed-by date only ("1"). */
   needed?: "1"
+  /** K11: photos or videos only. */
+  media?: ReviewMedia
 }
+
+/** Media type filters (spec §7 M2 video/photo). */
+export type ReviewMedia = "photo" | "video"
 
 /** The dish categories a Review list can narrow to (FA-6). */
 export type ReviewCategory = "food" | "drinks"

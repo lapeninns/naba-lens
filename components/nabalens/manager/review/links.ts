@@ -6,6 +6,7 @@ import {
   managerHrefs,
   type ReviewAge,
   type ReviewCategory,
+  type ReviewMedia,
   type ReviewQuery,
 } from "../hrefs"
 
@@ -23,6 +24,8 @@ export type ReviewView = {
   minAgeDays?: ReviewAge | null
   possibleDuplicate?: boolean
   neededBy?: boolean
+  /** K11: photos or videos only. */
+  media?: ReviewMedia | null
 }
 
 /** The S2-REVIEW filters a view narrows by, as server read arguments. */
@@ -32,13 +35,20 @@ export function narrowingOf(view: ReviewView) {
     ...(view.minAgeDays ? { minAgeDays: view.minAgeDays } : {}),
     ...(view.possibleDuplicate ? { possibleDuplicate: true } : {}),
     ...(view.neededBy ? { neededBy: true } : {}),
+    ...(view.media
+      ? { mediaType: view.media === "video" ? "video" : "image" }
+      : {}),
   }
 }
 
 /** True when any S2-REVIEW filter is on. */
 export function isNarrowed(view: ReviewView): boolean {
   return Boolean(
-    view.category || view.minAgeDays || view.possibleDuplicate || view.neededBy
+    view.category ||
+    view.minAgeDays ||
+    view.possibleDuplicate ||
+    view.neededBy ||
+    view.media
   )
 }
 
@@ -88,6 +98,7 @@ export function reviewHref(
     age: view.minAgeDays ? `${view.minAgeDays}` : undefined,
     dupes: view.possibleDuplicate ? "1" : undefined,
     needed: view.neededBy ? "1" : undefined,
+    media: view.media ?? undefined,
   }
   if (fixedContributorId) {
     const base = contributorHref(scope, fixedContributorId)

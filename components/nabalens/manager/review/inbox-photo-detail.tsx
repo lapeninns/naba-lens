@@ -119,6 +119,7 @@ function pickerCard(detail: PhotoDetail, thumb: string | null): QueueCard {
       canFollowUp: true,
     },
     isSelf: detail.isSelf,
+    selfReviewAllowed: !detail.selfBlocked,
     item: null,
     staffLabels: [],
     state: null,
@@ -1104,6 +1105,9 @@ function AskDialog({
               variant={chosen === r.words ? "primary" : "secondary"}
               aria-pressed={chosen === r.words}
               data-reason-code={r.code}
+              // D2 (S3-E2E-2): a long reason wraps inside the dialog at 320px
+              // instead of pushing it wider than the screen.
+              className="max-w-full"
               onClick={() => setChosen(chosen === r.words ? null : r.words)}
             >
               {r.words}
@@ -1118,7 +1122,7 @@ function AskDialog({
           value={note}
           maxLength={300}
           onChange={(e) => setNote(e.target.value)}
-          className="min-h-20 rounded-control border border-line bg-surface p-3 text-body text-ink focus-ring outline-none"
+          className="min-h-20 w-full min-w-0 rounded-control border border-line bg-surface p-3 text-body text-ink focus-ring outline-none"
         />
         {error ? (
           <p role="alert" className="text-body font-semibold text-warn-fg">

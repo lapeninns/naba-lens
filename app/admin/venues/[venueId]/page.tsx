@@ -22,6 +22,7 @@ import {
 import { getAdminVenue, listAdminVenues } from "@/lib/server/admin/venues"
 import { getCoverageActor } from "@/lib/server/coverage"
 import { getVenueScope } from "@/lib/server/menus/local"
+import { getReviewSettings } from "@/lib/server/review/single-reviewer"
 
 import {
   ReviewerForm,
@@ -30,6 +31,7 @@ import {
   TemplateForm,
   VenueDetailsForm,
 } from "../venue-forms"
+import { SingleReviewerSetting } from "./single-reviewer"
 
 export const metadata: Metadata = { title: "Venue" }
 
@@ -97,9 +99,10 @@ export default async function AdminVenuePage({
     throw new Error(read.message)
   }
   const venue = read.venue
-  const [scope, venues] = await Promise.all([
+  const [scope, venues, review] = await Promise.all([
     getVenueScope(auth.actor, venue.id),
     listAdminVenues(auth.actor, true),
+    getReviewSettings(auth.actor, venue.id),
   ])
   const accommodation = scope.ok
     ? scope.scope.find((s) => s.key === "accommodation")
@@ -184,6 +187,17 @@ export default async function AdminVenuePage({
                 candidates={venue.candidates}
               />
             </div>
+            {/* FA-9 single-reviewer venue (S3-R1 K6). */}
+            {review.ok ? (
+              <SingleReviewerSetting
+                venueId={venue.id}
+                settings={review.settings}
+              />
+            ) : (
+              <Notice tone="negative" role="alert">
+                The review setting couldn&apos;t be loaded. Reload the page.
+              </Notice>
+            )}
           </CoverageSection>
         ) : null}
 

@@ -68,13 +68,14 @@ export type ReviewScopeKind = ReviewScope["kind"]
 
 /**
  * The caller's own photo, which a manager may not review. Admins may review
- * their own photos (the card still says "You").
+ * their own photos (the card still says "You"), and so may the manager of a
+ * single-reviewer venue (FA-9, S3-R1 K6).
  */
 export function ownPhotoBlocked(
   card: QueueCard,
   scopeKind: ReviewScopeKind = "manager"
 ): boolean {
-  return card.isSelf && scopeKind !== "admin"
+  return card.isSelf && scopeKind !== "admin" && !card.selfReviewAllowed
 }
 
 /**
