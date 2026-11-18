@@ -23,7 +23,11 @@ test("AppBar sections fit beside Add and Log out", async ({ browser }) => {
   ] as const
   for (const [role, person, path] of people) {
     const page = await signedInPage(browser, person)
-    for (const width of [768, 900, 1024, 1180, 1280]) {
+    // An admin's seven sections (spec §8) are in the AppBar from lg; below
+    // it the tab bar shows three and More (S2-ADMIN).
+    const widths =
+      role === "admin" ? [1024, 1180, 1280] : [768, 900, 1024, 1180, 1280]
+    for (const width of widths) {
       await page.setViewportSize({ width, height: 900 })
       await page.goto(path)
       await page.evaluate(() => document.fonts.ready)

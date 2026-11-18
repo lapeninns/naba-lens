@@ -65,7 +65,7 @@ const ITEMS: {
  * bottom. Both name the same nav, and CSS shows one. Five tabs fill the phone
  * bar at 320px, so Add is in the header at every width while the workspace's
  * Add is on (R8 says this account can upload): ManagerAddButton (departure
- * A-3 in docs/design-system/departures.md). Album's badge counts the amenity
+ * A-M1 in docs/design-system/departures.md). Album's badge counts the amenity
  * findings waiting for a decision (they live under Album).
  */
 export function ManagerNav({

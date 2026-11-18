@@ -1,13 +1,15 @@
 import Link from "next/link"
 import {
+  ChartBarIcon,
   ClipboardTextIcon,
+  DotsThreeOutlineIcon,
   ExportIcon,
   ForkKnifeIcon,
   GearSixIcon,
   ImagesIcon,
   ImagesSquareIcon,
   SignOutIcon,
-  SquaresFourIcon,
+  StorefrontIcon,
   UserCircleIcon,
   UsersIcon,
 } from "@phosphor-icons/react/dist/ssr"
@@ -22,6 +24,8 @@ import { TAB_ITEM } from "./shell/tab-item"
 import { CountBadge } from "./status-chip"
 
 type AdminSection =
+  | "overview"
+  | "venues"
   | "content"
   | "staff"
   | "menus"
@@ -29,6 +33,7 @@ type AdminSection =
   | "albums"
   | "publishing"
   | "settings"
+  | "more"
 type StaffSection =
   "tasks" | "menu" | "portfolio" | "community" | "people" | "manage"
 
@@ -68,7 +73,7 @@ type AppShellProps = {
   | {
       variant: "admin"
       active: AdminSection
-      /** Defaults: /admin, /admin/staff, /admin/menus, /admin/coverage, /admin/albums and /admin/settings. */
+      /** Defaults: ADMIN_NAV's hrefs. */
       hrefs?: Partial<Record<AdminSection, string>>
     }
 )
@@ -82,38 +87,94 @@ type NavItem<Id extends string> = {
   icon: Icon
 }
 
-const ADMIN_NAV: NavItem<AdminSection>[] = [
-  { id: "content", label: "Content", href: "/admin", icon: ImagesIcon },
-  { id: "staff", label: "Staff", href: "/admin/staff", icon: UsersIcon },
-  { id: "menus", label: "Menus", href: "/admin/menus", icon: ForkKnifeIcon },
+export type AdminNavItem = NavItem<AdminSection> & {
+  /** The spec's name for the section (§8), on the More page and headings. */
+  fullLabel: string
+  /** What the section is for, on the More page. */
+  description: string
+}
+
+/**
+ * Spec §8: Overview / Venues / Menus & catalog / Library / Publishing /
+ * People / Settings & activity. The bar shows the short label (the spec's
+ * names don't fit beside Log out within max-w-page; departures.md A-ADMIN-1).
+ * Coverage and Albums are reached from Overview, which they light up.
+ */
+export const ADMIN_NAV: AdminNavItem[] = [
   {
-    id: "coverage",
-    label: "Coverage",
-    href: "/admin/coverage",
-    icon: ClipboardTextIcon,
+    id: "overview",
+    label: "Overview",
+    fullLabel: "Overview",
+    description: "Every venue's coverage, facts, backlog and exceptions.",
+    href: "/admin/overview",
+    icon: ChartBarIcon,
   },
-  // Album A4 (DESIGN.md §6.6): every venue's album and its biggest gaps.
   {
-    id: "albums",
-    label: "Albums",
-    href: "/admin/albums",
-    icon: SquaresFourIcon,
+    id: "venues",
+    label: "Venues",
+    fullLabel: "Venues",
+    description: "Names, locations, status, reviewers and setup.",
+    href: "/admin/venues",
+    icon: StorefrontIcon,
+  },
+  {
+    id: "menus",
+    label: "Menus",
+    fullLabel: "Menus & catalog",
+    description: "Menu versions, imports, schedules and change requests.",
+    href: "/admin/menus",
+    icon: ForkKnifeIcon,
+  },
+  {
+    id: "content",
+    label: "Library",
+    fullLabel: "Library",
+    description: "Every photo and video across the group.",
+    href: "/admin",
+    icon: ImagesIcon,
   },
   // S1-EXPORT (spec §8 A5): export packages and where photos are published.
   {
     id: "publishing",
     label: "Publishing",
+    fullLabel: "Publishing",
+    description: "Export packages and where photos are published.",
     href: "/admin/publishing",
     icon: ExportIcon,
+  },
+  {
+    id: "staff",
+    label: "People",
+    fullLabel: "People",
+    description: "Invite people, venue roles, admins and access.",
+    href: "/admin/staff",
+    icon: UsersIcon,
   },
   // Spec §8 A7, Settings and activity: one section, two pages.
   {
     id: "settings",
     label: "Settings",
+    fullLabel: "Settings & activity",
+    description: "Rules for every venue, monitoring and the activity log.",
     href: "/admin/settings",
     icon: GearSixIcon,
   },
 ]
+
+/** Sections without their own nav item light up the one they belong to. */
+const ADMIN_ACTIVE_ALIAS: Partial<Record<AdminSection, AdminSection>> = {
+  coverage: "overview",
+  albums: "overview",
+}
+
+/** The phone and tablet tab bar: three sections and More (all of them). */
+const ADMIN_TABS: AdminSection[] = ["overview", "venues", "content"]
+const ADMIN_MORE: NavItem<AdminSection> = {
+  id: "more",
+  label: "More",
+  href: "/admin/more",
+  icon: DotsThreeOutlineIcon,
+}
 
 const ME: NavItem<StaffSection> = {
   id: "portfolio",
@@ -175,7 +236,9 @@ export function AppShell(props: AppShellProps) {
           href: item.href,
           count: item.id === "manage" ? staff?.reviewCount : undefined,
         }))
-  const active = admin ? admin.active : (staff?.active ?? "portfolio")
+  const active = admin
+    ? (ADMIN_ACTIVE_ALIAS[admin.active] ?? admin.active)
+    : (staff?.active ?? "portfolio")
   const navLabel = admin ? "Admin" : "Staff"
   // Pages render this shell themselves, so each navigation and refresh
   // renders it again: the server's time now is when this content was read.
@@ -191,8 +254,13 @@ export function AppShell(props: AppShellProps) {
       onClick={onLogout}
     >
       <SignOutIcon data-icon="inline-start" aria-hidden />
-      {/* Icon only from md to lg, so a manager's five sections still fit at 768px. */}
-      <span className={cn(staff && "md:max-lg:sr-only")}>Log out</span>
+      {/* Icon only from md to lg, so a manager's five sections still fit at
+          768px; an admin's seven fit from lg with it icon only below xl. */}
+      <span
+        className={cn(staff && "md:max-lg:sr-only", admin && "max-xl:sr-only")}
+      >
+        Log out
+      </span>
     </Button>
   )
 
@@ -210,7 +278,7 @@ export function AppShell(props: AppShellProps) {
       <header className="relative z-local bg-surface shadow-[0_1px_0_var(--line)]">
         <div className="mx-auto flex min-h-15 w-full max-w-page items-center gap-3 px-3 md:px-6 lg:gap-6">
           <Link
-            href={admin ? "/admin" : "/staff/tasks"}
+            href={admin ? "/admin/overview" : "/staff/tasks"}
             className="inline-flex flex-none items-baseline gap-2 rounded-control font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap text-ink focus-ring outline-none max-md:py-2.5"
           >
             Naba-Lens
@@ -224,7 +292,11 @@ export function AppShell(props: AppShellProps) {
           <nav
             aria-label={navLabel}
             data-slot="app-nav"
-            className="hidden min-w-0 gap-1 self-stretch md:flex md:max-lg:gap-0"
+            className={cn(
+              "hidden min-w-0 gap-1 self-stretch md:max-lg:gap-0",
+              // Seven admin sections need lg; below it the tab bar has them.
+              admin ? "lg:flex" : "md:flex"
+            )}
           >
             {barItems.map(({ item, href, count }) => {
               const current = active === item.id
@@ -293,22 +365,38 @@ export function AppShell(props: AppShellProps) {
         // Feed gutter 12px on phones (common-room.md §2), on the grey canvas.
         // overflow-x-clip (not hidden: sticky docks still stick) keeps an
         // older -mx-4 full-bleed bar from scrolling a 320px page sideways.
-        className="mx-auto w-full max-w-page flex-1 overflow-x-clip px-page-gutter pt-4 pb-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6 md:py-8"
+        className={cn(
+          "mx-auto w-full max-w-page flex-1 overflow-x-clip px-page-gutter pt-4 pb-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6",
+          // An admin's tab bar stays up to lg.
+          admin ? "md:pt-8 lg:pb-8" : "md:py-8"
+        )}
       >
         <OfflineShell loadedAt={loadedAt}>{children}</OfflineShell>
       </main>
       <nav
         aria-label={navLabel}
         data-slot="tabbar"
-        className="fixed inset-x-0 bottom-0 z-nav grid auto-cols-fr grid-flow-col bg-surface pr-[max(0.25rem,env(safe-area-inset-right,0px))] pb-[env(safe-area-inset-bottom,0px)] pl-[max(0.25rem,env(safe-area-inset-left,0px))] shadow-bar md:hidden"
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-nav grid auto-cols-fr grid-flow-col bg-surface pr-[max(0.25rem,env(safe-area-inset-right,0px))] pb-[env(safe-area-inset-bottom,0px)] pl-[max(0.25rem,env(safe-area-inset-left,0px))] shadow-bar",
+          admin ? "lg:hidden" : "md:hidden"
+        )}
       >
         {admin
-          ? barItems.map(({ item, href }) => (
+          ? [
+              ...barItems.filter(({ item }) =>
+                ADMIN_TABS.includes(item.id as AdminSection)
+              ),
+              { item: ADMIN_MORE, href: ADMIN_MORE.href },
+            ].map(({ item, href }) => (
               <TabLink
                 key={item.id}
                 item={item}
                 href={href}
-                current={active === item.id}
+                current={
+                  item.id === "more"
+                    ? !ADMIN_TABS.includes(active as AdminSection)
+                    : active === item.id
+                }
               />
             ))
           : [ALBUM, null, ME].map((item) =>
