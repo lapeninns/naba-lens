@@ -146,7 +146,7 @@ Each component is built once (catalogue: [catalogue.md](catalogue.md)) and named
 - **Main button.** Full width, 64px, `accent`, white text, a leading icon. Always a verb plus its object or count: "Add photos from your gallery", "Add garden photos · 6 to go".
 - **Secondary button.** `surface-2`, ink text, 52 to 56px.
 - **Brief.** One line under a slot's name: what the photo must show. Shown on the slot, in Match and in Review.
-- **Match picker.** The chosen photos as a strip (current one ringed in `accent`), the current photo on the stage, "Which empty slot is this?", suggested empty slots as dashed buttons, a search over all empty slots, and two secondary buttons: Match later, Not for a slot.
+- **Match picker.** The chosen photos as a strip (current one ringed in `accent`), the venue under the title ("For The Bell"), the current photo on the stage, "Which empty slot is this?", the person's recent slots, suggested empty slots as dashed buttons, a search over all empty slots (other names and small spelling slips forgiven; a slot with a photo already waiting shows ↑ and "another photo is welcome" in a plain edge, never the dashed frame), and three secondary buttons: Match later, Not for a slot, I'm not sure. Under the photo, "Same slot for the next photos too?" lists the next photos; under the picker, Add a note (collapsed).
 - **Answer pair.** For amenity slots: the guest question as the title, Yes and No as two 60px buttons. The chosen one uses `accent-soft` with a 2px `accent` edge.
 - **Section stamp.** "SECTION FULL", Fraunces caps, 4px double border, 2px radius.
 - **Reason chips.** For Ask again: 48px `warn-bg` pills with a `ring-retake` edge. Choosing one sends the decision.
@@ -179,8 +179,8 @@ The screen shows nothing else: no colleague feed, no personal month (it is on Me
 2. The phone's photo picker opens. From the tab they may choose up to 20; from a slot, one.
 3. From a slot, the photo goes straight to that slot. From the tab, Match opens.
 4. Match shows one photo at a time. Suggestions are the empty slots of the current place, then of the place where the person last matched. Capture time orders the photos; location in the photo is never read.
-5. Each tap fills a slot (Sending, then Waiting) and moves to the next photo. Match later keeps the photo unmatched on the phone and on Home. Not for a slot sends it as a shared photo with no slot.
-6. At the end: "5 slots filled", what happens next, and See the album.
+5. Each tap fills a slot (Sending, then Waiting) and moves to the next photo. Match later keeps the photo unmatched on the phone and on Home. Not for a slot sends it as a shared photo with no slot. I'm not sure sends it to the manager, who chooses the slot (FA-4). A run of one subject takes one answer: tap the last photo of the run under "Same slot for the next photos too?" (or All N left), then the slot; nothing is grouped until the person says so. A dark, blurred or small photo gets a one-line hint under the stage that never stops the send.
+6. At the end: "5 slots filled", the venue and photo count, what happens next, and See the album.
 
 ### 6.2 A place
 
@@ -300,6 +300,7 @@ Still to remove in batch A5, once no screen uses them: `info-*`, `stamp-fg`, `se
 
 ### Changelog
 
+- **1.4** (18 Nov 2026): Full App v1 S2-ADD: Match gains I'm not sure, "Same slot for the next photos too?", recent and waiting slots, a collapsed note, the venue under the title, advisory quality hints and a fuller end (§5 Match picker, §6.1). Album Home shows unfinished photos under the retake row. Departures A-3 to A-7.
 - **1.3** (17 Nov 2026): batches A3 to A5 built (docs/plans/album-a3-a5.md, tasks AL-1 to AL-8, release reviews and repair R-1 to R-4):
   - A3: Match on add (§6.1) with an outbox that feeds the upload queue, Match later (`/staff/album/match-later`), the three-tab shell, Your month on Me, the remembered place.
   - A4: one-line briefs per section and dish (`20261117130000_album_briefs.sql`), Review one photo at a time with reason chips (§6.5), admin Albums (`/admin/albums`, `20261117140000_album_admin.sql`, new `ok-half` token), slot photos staff can see (`20261117150000_album_slot_photos.sql`, `/api/album/[assetId]/thumb`).

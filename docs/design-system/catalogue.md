@@ -35,6 +35,7 @@ Built to [DESIGN.md](DESIGN.md) §5. Each batch adds its rows.
 | MatchScreen                         | `components/nabalens/album/match/match-screen.tsx`   | Feature | Adding photos, Match (§6.1)                     | 1 (A3)         | adopted                                                                 |
 | MatchLaterRow, MatchLaterScreen     | `components/nabalens/album/match/match-later.tsx`    | Feature | Match later (§2.8, §5a step 5)                  | 1 (A3)         | adopted                                                                 |
 | useGalleryPicker                    | `components/nabalens/album/match/gallery-picker.tsx` | Pattern | Add's gallery picker (§2, §9)                   | 2 (A3)         | adopted                                                                 |
+| UnfinishedRow                       | `components/nabalens/album/unfinished-row.tsx`       | Feature | Album Home: unfinished photos (spec §6 S1)      | 1              | adopted (same row shape as HomeRow; a button, since it opens Add)       |
 | AlbumAddTrigger                     | `components/nabalens/album/album-add-trigger.tsx`    | Feature | Tab bar (Add photos) (§5)                       | 1 (A3)         | adopted                                                                 |
 | RememberPlace                       | `components/nabalens/album/remember-place.tsx`       | Feature | Album (Home) step 3 (§5a)                       | 1 (A3)         | adopted                                                                 |
 | HomeRow, StartHereRow, OtherJobsRow | `components/nabalens/album/home-rows.tsx`            | Feature | Album Home rows (§5a steps 6, 7)                | 2              | adopted (same row shape as MatchLaterRow: merge them when next touched) |
@@ -44,6 +45,8 @@ Built to [DESIGN.md](DESIGN.md) §5. Each batch adds its rows.
 | SettingsFormView                    | `app/admin/settings/settings-form.tsx`               | Feature | Settings (spec §8 A7), Field and Notice (§5)    | 1              | adopted (S1-OPS)                                                        |
 | ExceptionsPanel, OperationsPanel    | `app/admin/settings/ops-panel.tsx`                   | Feature | Settings: exceptions and monitoring (spec §16)  | 1              | adopted (S1-OPS; uses CoverageSection, Tally, Table)                    |
 | ActivityList                        | `app/admin/activity/activity-list.tsx`               | Feature | Activity (spec §8 A7)                           | 1              | adopted (S1-OPS)                                                        |
+
+SuggestSpecialRow (`components/nabalens/album/match/suggest-special.tsx`, S2-ADD) is part of the Match picker: under a search that found nothing, it suggests the searched name to the manager as a local special.
 
 AlbumAddTrigger is Add photos in the staff shell (tab and AppBar). Since A5 it is the only staff Add trigger; `ALBUM_ADD_OPTIONS` in the same file (the gallery for many photos, then Match) is what every Album Add photos opens.
 
