@@ -377,19 +377,19 @@ test.describe("venue manager workspace (Phase 2)", () => {
     await mgr.keyboard.press("Escape")
     await expect(dialog).toBeHidden()
 
-    await one.getByRole("button", { name: "Accept for this item" }).click()
+    await one.getByRole("button", { name: "Approve for public use" }).click()
     await expect(
-      mgr.getByText("Accepted for Soup. Soup now has a photo.")
+      mgr.getByText("Approved for Soup. Soup now has a photo.")
     ).toBeVisible()
     expect(photoRow(first)).toBe(`${w.itemsA.soup}:accepted:staff_label`)
 
     // The second photo: accept it and make it the menu photo.
     const two = card(mgr, "Labelled: Soup", w.staffA2)
     await two
-      .getByRole("button", { name: "Accept and set as menu photo" })
+      .getByRole("button", { name: "Approve and set as menu photo" })
       .click()
     await expect(
-      mgr.getByText("Accepted for Soup. Set as the menu photo for Soup.")
+      mgr.getByText("Approved for Soup. Set as the menu photo for Soup.")
     ).toBeVisible()
     expect(preferredAsset(w.itemsA.soup)).toBe(second)
 
@@ -472,7 +472,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     })
     await picker.getByRole("searchbox", { name: "Search the menu" }).fill("lag")
     await picker.getByRole("radio", { name: /^Lager/ }).check()
-    await picker.getByRole("button", { name: "Accept for Lager" }).click()
+    await picker.getByRole("button", { name: "Approve for Lager" }).click()
     await expect(picker).toBeVisible()
     await expect(
       picker.getByText("Say why the staff label is wrong.")
@@ -481,7 +481,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     await picker
       .getByRole("textbox", { name: /Why is the staff label wrong\?/ })
       .fill(`It's a pint of lager, not a salad (${w.tag})`)
-    await picker.getByRole("button", { name: "Accept for Lager" }).click()
+    await picker.getByRole("button", { name: "Approve for Lager" }).click()
     await expect(picker).toBeHidden()
     await expect(mgr.getByText("Moved to Lager and accepted.")).toBeVisible()
     expect(photoRow(wrong)).toBe(
@@ -494,7 +494,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     await expect(moved).toContainText("Matched by a reviewer")
 
     // Ask for another photo: a reason is required, then staff see it.
-    await statusFilter(mgr, "Waiting")
+    await statusFilter(mgr, "Awaiting review")
     await card(mgr, "Labelled: Pie", w.staffA2)
       .getByRole("button", { name: "Ask for another photo" })
       .click()
@@ -578,7 +578,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     const picker = mgr.getByRole("dialog", { name: "Choose a menu item" })
     await picker.getByRole("searchbox", { name: "Search the menu" }).fill("pie")
     await picker.getByRole("radio", { name: /^Pie/ }).check()
-    await picker.getByRole("button", { name: "Accept for Pie" }).click()
+    await picker.getByRole("button", { name: "Approve for Pie" }).click()
     await expect(picker).toBeHidden()
     await expect(mgr.getByText("Moved to Pie and accepted.")).toBeVisible()
     expect(photoRow(dish)).toBe(`${w.itemsA.pie}:accepted:reviewer`)

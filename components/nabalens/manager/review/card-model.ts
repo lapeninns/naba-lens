@@ -111,7 +111,9 @@ export function availableActions(
   )
     out.push("set_preferred")
   if (card.state === "needs_recheck" && !variantGone) out.push("reaccept")
-  if (labelled && card.state === null) out.push("relink")
+  // S3-R13 X7: a staff label is fixed whatever was decided on it; the
+  // database withdraws that decision in the same step.
+  if (labelled) out.push("relink")
   if (
     labelled &&
     card.basis !== "reviewer" &&

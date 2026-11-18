@@ -843,7 +843,7 @@ describe("choosing a different menu item", () => {
     expect(again.state).toBe("accepted")
   })
 
-  it("relink requires label and reason; refused when X tuple accepted, better_photo_requested or needs_recheck", async () => {
+  it("relink requires label and reason; one step when X tuple accepted, better_photo_requested or needs_recheck", async () => {
     const lassi = t(w.items["drinks--lassi"]!)
     const p = await labelled(w.staff1, w.version, [tikka])
     await fails(
@@ -864,13 +864,17 @@ describe("choosing a different menu item", () => {
       "menu_item_labelled",
       "P0001"
     )
+    // S3-R13 X7: a decision on the staff label (accepted, asked again,
+    // needs a recheck) no longer blocks the correction: the label's row is
+    // withdrawn in the same step, with the reason.
     const accepted = await accept(w.mgr, p.id, tikka)
-    const refused = await fails(
-      assign(w.mgr, p.id, dal, tikka, await head(dal.itemId), { reason: "x" }),
-      "invalid_transition",
-      "P0001"
+    await fails(
+      assign(w.mgr, p.id, dal, tikka, await head(dal.itemId)),
+      "reason_required",
+      "22023"
     )
-    expect(refused.details).toBe("withdraw first")
+    await assignOk(w.mgr, p.id, dal, tikka, "It is dal")
+    expect((await photo(accepted.photo_id)).state).toBe("withdrawn")
     const better = await labelled(w.staff2, w.version, [tikka])
     await ok(
       review(
@@ -884,15 +888,11 @@ describe("choosing a different menu item", () => {
         }
       )
     )
-    await fails(
-      assign(w.mgr, better.id, dal, tikka, await head(dal.itemId), {
-        reason: "x",
-      }),
-      "invalid_transition",
-      "P0001"
-    )
-    // A staff-label row sent for a recheck (as activation does) also stands.
-    const row = await photo(accepted.photo_id)
+    await assignOk(w.mgr, better.id, dal, tikka, "It is dal")
+    // A staff-label row sent for a recheck (as activation does) is withdrawn too.
+    const rechecked = await labelled(w.staff1, w.version, [tikka])
+    const live = await accept(w.mgr, rechecked.id, tikka)
+    const row = await photo(live.photo_id)
     const { error } = await service
       .from("menu_item_photos")
       .update({
@@ -903,11 +903,8 @@ describe("choosing a different menu item", () => {
       })
       .eq("id", row.id)
     if (error) throw error
-    await fails(
-      assign(w.mgr, p.id, dal, tikka, await head(dal.itemId), { reason: "x" }),
-      "invalid_transition",
-      "P0001"
-    )
+    await assignOk(w.mgr, rechecked.id, dal, tikka, "It is dal")
+    expect((await photo(live.photo_id)).state).toBe("withdrawn")
   })
 
   it("option-only relink X/small -> X/large succeeds; corrects_variant FK rejects a variant of another item", async () => {

@@ -251,7 +251,7 @@ describe("Review Show more across a filter change", () => {
     expect(cardEl(pie.key)).toBeTruthy()
     // The saved decision is still announced and the new view reloads.
     expect(
-      await screen.findByText("Accepted for Soup. Soup now has a photo.")
+      await screen.findByText("Approved for Soup. Soup now has a photo.")
     ).toBeTruthy()
     expect(nav.refresh).toHaveBeenCalledTimes(1)
   })

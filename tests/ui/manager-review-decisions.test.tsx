@@ -1094,7 +1094,7 @@ describe("set as menu photo on a card beyond the fresh page (Codex P2)", () => {
       outcome({ cards: [...page, row], decidedKnown: true })
     )
     expect(next[26]).toBe(row)
-    expect(availableActions(next[26])).toEqual(["withdraw"])
+    expect(availableActions(next[26])).toEqual(["relink", "withdraw"])
     expect(next.filter((c) => c.isEffectivePrimary)).toEqual([row])
   })
 
@@ -1109,7 +1109,7 @@ describe("set as menu photo on a card beyond the fresh page (Codex P2)", () => {
     expect(next[26].isEffectivePrimary).toBe(true)
     expect(next[26].isPrimary).toBe(true)
     expect(next[26].itemRevision).toBe(8)
-    expect(availableActions(next[26])).toEqual(["withdraw"])
+    expect(availableActions(next[26])).toEqual(["relink", "withdraw"])
     expect(next.filter((c) => c.isEffectivePrimary)).toHaveLength(1)
   })
 

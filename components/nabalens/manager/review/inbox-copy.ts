@@ -4,6 +4,7 @@
 // in Server and Client Components.
 
 import { plural } from "@/components/nabalens/coverage/copy"
+import { CHIP_STATES } from "@/components/nabalens/status-chip"
 
 import type { CapturedSource } from "@/lib/review/inbox"
 
@@ -44,6 +45,9 @@ export const INBOX_COPY = {
   video: "Video",
   needsLabelTitle: (n: number) =>
     n === 1 ? "1 photo needs a label" : `${n} photos need a label`,
+  needsLabelTitleMore: (n: number) => `More than ${n} photos need a label`,
+  needsLabelMore:
+    "Only the oldest are listed. Label or set some aside to see the rest.",
   you: "You",
   possibleDuplicate: "Possible duplicate",
   belowPublic: "Small: reference use only",
@@ -96,11 +100,11 @@ export const INBOX_COPY = {
 
   // Slot states
   state: {
-    pending: "Waiting",
+    pending: CHIP_STATES.coverage_pending.word,
     accepted: "In the album",
     reference: "Kept as reference",
-    needs_another_photo: "Another photo asked for",
-    better_photo_requested: "Another photo asked for",
+    needs_another_photo: CHIP_STATES.coverage_replacement_needed.word,
+    better_photo_requested: CHIP_STATES.coverage_replacement_needed.word,
     needs_recheck: "Needs a recheck",
     not_used: "Not used",
     withdrawn: "Withdrawn",
@@ -108,11 +112,29 @@ export const INBOX_COPY = {
 
   // Actions
   approve: "Approve for public use",
+  // S3-R13: the one set of manager decision words (FA-7, DESIGN.md §7,
+  // departure A-REV-1), used by every manager review screen but Review in a
+  // thumb, which keeps Accept and Ask again. Defined here only.
+  publicUse: {
+    action: "Approve for public use",
+    withMenuPhoto: "Approve and set as menu photo",
+    again: "Approve again for this menu",
+    forItem: (item: string) => `Approve for ${item}`,
+    forChosenItem: "Approve for the chosen item",
+    forChosenOne: "Approve for the chosen one",
+    done: (item: string) => `Approved for ${item}. ${item} now has a photo.`,
+    doneWithMenuPhoto: (item: string) =>
+      `Approved for ${item}. Set as the menu photo for ${item}.`,
+    doneAgain: (item: string) => `Approved again for ${item}.`,
+    doneShort: (item: string) => `Approved for ${item}.`,
+  },
   keepReference: "Keep as reference",
   askAnother: "Ask for another photo",
   fixLabel: "Fix label",
   fixLabelHelp:
-    "Choose the right menu item. The photo is accepted for it in the same step, the staff label is kept in the history, and the contributor is told.",
+    "Choose the right menu item, place or amenity. The photo is accepted for it in the same step and the old label stays in the history. For a menu item, the contributor is told.",
+  fixLabelReason: "Why is the label wrong?",
+  fixLabelReasonEmpty: "Say why the label is wrong.",
   markDuplicate: "Mark duplicate",
   notUsed: "Not used",
   restore: "Use again",
@@ -194,8 +216,8 @@ export const INBOX_COPY = {
   history_action: {
     accepted: "Accepted",
     level_set: "Level changed",
-    better_photo_requested: "Another photo asked for",
-    needs_another_photo: "Another photo asked for",
+    better_photo_requested: CHIP_STATES.coverage_replacement_needed.word,
+    needs_another_photo: CHIP_STATES.coverage_replacement_needed.word,
     withdrawn: "Withdrawn",
     primary_set: "Made the main photo",
     primary_cleared: "No longer the main photo",

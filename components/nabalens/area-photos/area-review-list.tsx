@@ -210,7 +210,7 @@ function AreaReviewCard({
           </div>
         </div>
         <StatusChip state={chipOf(card.state)}>
-          {AREA_COPY.state[card.state]}
+          {AREA_COPY.review.state[card.state]}
         </StatusChip>
       </CardHead>
       {card.reason && card.state !== "accepted" ? (

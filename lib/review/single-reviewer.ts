@@ -2,6 +2,8 @@
 // the decisions people made on their own photos, read defensively. Pure, so
 // tests/unit/single-reviewer.test.ts runs it without a database.
 
+import { CHIP_STATES } from "@/components/nabalens/status-chip"
+
 export type SelfDecisionSource = "dish" | "place" | "amenity" | "photo"
 
 /** One decision someone made on their own photo at the venue. */
@@ -84,8 +86,9 @@ const ACTION_WORDS: Record<string, string> = {
   accepted: "Public use",
   level_set: "Level changed",
   primary_set: "Made main photo",
-  better_photo_requested: "Asked for another photo",
-  needs_another_photo: "Asked for another photo",
+  // S3-R13: the manager review word for a retake (status-chip.tsx).
+  better_photo_requested: CHIP_STATES.coverage_replacement_needed.word,
+  needs_another_photo: CHIP_STATES.coverage_replacement_needed.word,
   withdrawn: "Withdrawn",
   not_used: "Not used",
   duplicate: "Marked duplicate",

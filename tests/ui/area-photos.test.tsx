@@ -48,7 +48,7 @@ describe("AreaReviewList", () => {
     expect(within(item).getByRole("heading", { name: "Garden" })).toBeTruthy()
     expect(within(item).getByText(/By Priya/)).toBeTruthy()
     expect(within(item).getByText("Counts for November 2026")).toBeTruthy()
-    expect(within(item).getByText("Waiting for review")).toBeTruthy()
+    expect(within(item).getByText("Awaiting review")).toBeTruthy()
   })
 
   it("accepts and shows the new state", async () => {
@@ -57,7 +57,9 @@ describe("AreaReviewList", () => {
       state: "accepted",
     })
     render(<AreaReviewList venueId="v" initial={[card()]} />)
-    await userEvent.click(screen.getByRole("button", { name: "Accept" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve for public use" })
+    )
     expect(actions.decideAreaPhotoAction).toHaveBeenCalledWith({
       venueId: "v",
       labelId: card().labelId,
@@ -90,13 +92,15 @@ describe("AreaReviewList", () => {
         reason: "The whole bar, in daylight",
       })
     )
-    expect(await screen.findByText("Needs another photo")).toBeTruthy()
+    expect(await screen.findByText("Another photo requested")).toBeTruthy()
     expect(screen.getByText("The whole bar, in daylight")).toBeTruthy()
   })
 
   it("has no actions on the reviewer's own photo", () => {
     render(<AreaReviewList initial={[card({ canDecide: false })]} />)
-    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Approve for public use" })
+    ).toBeNull()
     expect(screen.getByText(AREA_COPY.review.own)).toBeTruthy()
   })
 
@@ -124,7 +128,9 @@ describe("AreaReviewList", () => {
       name: AREA_COPY.review.decidedHeading,
     })
     const [garden, bar] = within(decided).getAllByRole("listitem")
-    expect(within(bar!).getByRole("button", { name: "Accept" })).toBeTruthy()
+    expect(
+      within(bar!).getByRole("button", { name: "Approve for public use" })
+    ).toBeTruthy()
     await userEvent.click(
       within(garden!).getByRole("button", { name: "Withdraw" })
     )

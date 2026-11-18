@@ -52,9 +52,14 @@ export function isNarrowed(view: ReviewView): boolean {
   )
 }
 
-/** The photo's review detail (managers only); null for an admin scope. */
-export function photoHref(scope: ReviewScope, assetId: string): string | null {
-  return scope.kind === "manager" ? managerHrefs.photo(assetId) : null
+/**
+ * The photo's review detail: the manager's, or the admin photo route
+ * (S3-R11) for an admin scope (S3-R13 X1).
+ */
+export function photoHref(scope: ReviewScope, assetId: string): string {
+  return scope.kind === "admin"
+    ? managerHrefs.adminPhoto(scope.venueId, assetId)
+    : managerHrefs.photo(assetId)
 }
 
 /** The admin venue for every server action; undefined for a manager. */

@@ -170,8 +170,8 @@ test.describe("Our menu: menu items with an accepted photo", () => {
       "src",
       new RegExp(`/api/menu-photos/${escape(asset)}/thumb`)
     )
-    await card.getByRole("button", { name: "Accept for this dish" }).click()
-    await expect(manager.getByText(/^Accepted for Soup\./)).toBeVisible()
+    await card.getByRole("button", { name: "Approve for public use" }).click()
+    await expect(manager.getByText(/^Approved for Soup\./)).toBeVisible()
     // Once accepted, the photo leaves the "To review" queue (the refresh may
     // land before or after this line), so assert the settled queue instead.
     await expect(card).toHaveCount(0)

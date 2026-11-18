@@ -17,7 +17,7 @@ import { AdminLibrary } from "../admin-library"
 import type { LibraryPageResult } from "../library-actions"
 import { toFilterValue } from "../library-search"
 
-export const metadata = { title: "Content" }
+export const metadata = { title: "Library" }
 
 /**
  * Admin library: every ready upload across venues, newest first, filtered

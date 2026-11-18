@@ -338,7 +338,7 @@ test.describe("unknown URLs inside an app area", () => {
       who: "admin",
       path: "/admin/this-page-does-not-exist",
       heading: "We can't find that page",
-      back: "Go to Content",
+      back: "Go to Library",
       href: "/admin",
     },
     {

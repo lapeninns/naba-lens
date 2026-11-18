@@ -200,7 +200,7 @@ describe("contributor list", () => {
     expect(
       screen.getByRole("button", { name: "All", pressed: true })
     ).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: "Waiting" }))
+    await user.click(screen.getByRole("button", { name: "Awaiting review" }))
     expect(nav.replace).toHaveBeenCalledWith(
       `/manager/review/contributors/${STAFF}?status=pending`,
       { scroll: false }
@@ -238,7 +238,7 @@ describe("contributor list", () => {
       },
     })
     await user.click(screen.getByRole("button", { name: REVIEW_COPY.accept }))
-    await screen.findByText("Accepted for Soup. Soup now has a photo.")
+    await screen.findByText("Approved for Soup. Soup now has a photo.")
     const list = screen.getByRole("list", { name: REVIEW_COPY.listLabel })
     expect(within(list).queryByText("TEST Ana")).toBeNull()
   })

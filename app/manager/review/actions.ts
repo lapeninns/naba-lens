@@ -7,9 +7,12 @@ import {
   decideAmenityPhotoChecked,
   decideBatch,
   decidePlacePhoto,
+  fixSlotLabel,
   fromCoverageFailure,
+  listFixLabelSlots,
   setAsidePhoto,
   setDishLevel,
+  type FixLabelSlot,
   type ReviewFailure,
   type ReviewResult,
 } from "@/lib/server/review/inbox"
@@ -137,4 +140,35 @@ export async function setSlotPrimaryAction(
   })
   if (result.ok) return { ok: true, changed: result.changed }
   return fromCoverageFailure(result)
+}
+
+/** The venue's places and amenity checks, for the Fix label picker (S3-R13). */
+export async function loadFixLabelSlotsAction(
+  input: unknown
+): Promise<ReviewResult<{ slots: FixLabelSlot[] }>> {
+  const i = obj(input)
+  const scope = await scoped(i)
+  if (!scope.ok) return scope.failure
+  return listFixLabelSlots(scope.ctx)
+}
+
+/** Fix label to a place or an amenity, or off one onto a dish (S3-R13 X8). */
+export async function fixSlotLabelAction(
+  input: unknown
+): Promise<ReviewResult<{ toKind: string }>> {
+  const i = obj(input)
+  const scope = await scoped(i)
+  if (!scope.ok) return scope.failure
+  return fixSlotLabel(scope.ctx, {
+    assetId: i.assetId,
+    fromKind: i.fromKind,
+    fromId: i.fromId,
+    fromVariantId: i.fromVariantId,
+    toKind: i.toKind,
+    toId: i.toId,
+    toVariantId: i.toVariantId,
+    level: i.level,
+    reason: i.reason,
+    expectedRevision: i.expectedRevision,
+  })
 }

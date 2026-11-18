@@ -3,6 +3,8 @@
 // Manager copy says "item", never "dish".
 
 import { plural } from "@/components/nabalens/coverage/copy"
+import { CHIP_STATES } from "@/components/nabalens/status-chip"
+import { INBOX_COPY } from "./inbox-copy"
 import { dishName } from "@/lib/menus/dish-name"
 
 import type {
@@ -42,10 +44,15 @@ export function alsoCountsText(
   return parts.length > 0 ? parts.join(" · ") : null
 }
 
+// Manager review words (S3-R13, DESIGN.md §7 manager and admin words,
+// departure A-REV-1): outside Review in a thumb, a waiting photo is
+// "Awaiting review" and a retake "Another photo requested", the report words
+// of status-chip.tsx; the decision words are INBOX_COPY.publicUse and "Ask
+// for another photo". Review in a thumb keeps Accept and Ask again.
 export const REVIEW_STATUS_LABEL: Record<QueueStatus, string> = {
-  pending: "Waiting",
+  pending: CHIP_STATES.coverage_pending.word,
   recheck: "Needs a recheck",
-  needs_another_photo: "Asked for another",
+  needs_another_photo: CHIP_STATES.coverage_replacement_needed.word,
   accepted: "Accepted",
   stale_label: "Labelled for an old menu",
   unlabelled: "Unlabelled photos",
@@ -136,19 +143,19 @@ export const REVIEW_COPY = {
 
   // State chips
   state: {
-    waiting: "Waiting",
+    waiting: CHIP_STATES.coverage_pending.word,
     accepted: "Accepted",
     menuPhoto: "Menu photo",
-    askedAnother: "Asked for another photo",
+    askedAnother: CHIP_STATES.coverage_replacement_needed.word,
     recheck: "Needs a recheck",
     withdrawn: "Withdrawn",
   },
 
   // Actions
-  accept: "Accept for this item",
-  acceptPreferred: "Accept and set as menu photo",
+  accept: INBOX_COPY.publicUse.action,
+  acceptPreferred: INBOX_COPY.publicUse.withMenuPhoto,
   setPreferred: "Set as menu photo",
-  reaccept: "Accept again for this menu",
+  reaccept: INBOX_COPY.publicUse.again,
   relink: "Choose a different menu item",
   chooseItem: "Choose a menu item",
   alsoUse: "Also use for another item",
@@ -192,18 +199,28 @@ export const REVIEW_COPY = {
   pickerVariant: "Option",
   pickerNoVariant: "Any option",
   pickerSameItem: "Choose a different item or option.",
+  // Fix label's one picker (S3-R13 X8): menu items, places and amenities.
+  pickerKind: "What the photo shows",
+  pickerKindDish: "Menu item",
+  pickerKindPlace: "Place",
+  pickerKindAmenity: "Amenity",
+  pickerSearchSlots: "Search by name",
+  pickerSlotPlaceholder: "Place or amenity",
+  pickerSlotsEmpty: "Nothing matches. Try another word.",
+  pickerSlotsFailed: "The places and amenities could not load. Try again.",
+  pickerChooseSlot: "Choose a place or amenity.",
+  pickerSameSlot: "The photo is already matched to that. Choose another.",
+  confirmPickSlot: INBOX_COPY.publicUse.forChosenOne,
   relinkLabel: "Why is the staff label wrong?",
   relinkEmpty: "Say why the staff label is wrong.",
   noteLabel: "Note",
-  confirmFor: (item: string) => `Accept for ${item}`,
-  confirmPick: "Accept for the chosen item",
+  confirmFor: INBOX_COPY.publicUse.forItem,
+  confirmPick: INBOX_COPY.publicUse.forChosenItem,
 
   // Announcements
   announce: {
-    accepted: (item: string) =>
-      `Accepted for ${item}. ${item} now has a photo.`,
-    acceptedPreferred: (item: string) =>
-      `Accepted for ${item}. Set as the menu photo for ${item}.`,
+    accepted: INBOX_COPY.publicUse.done,
+    acceptedPreferred: INBOX_COPY.publicUse.doneWithMenuPhoto,
     preferred: (item: string) => `Set as the menu photo for ${item}.`,
     asked: (name: string, item: string) =>
       `Asked ${firstName(name)} for another photo of ${item}.`,

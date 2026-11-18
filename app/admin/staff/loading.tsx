@@ -19,7 +19,7 @@ export default function StaffLoading() {
       <PageHeader
         venueScope
         scope="All venues"
-        title="Staff"
+        title="People"
         summary={STAFF_SUMMARY}
         className="pb-0 md:pb-0"
       />

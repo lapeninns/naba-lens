@@ -26,6 +26,7 @@ import {
 import { isUuid } from "@/lib/server/coverage/validate"
 
 import { failedRead } from "../../load-overview"
+import { listAllNeedsLabel } from "./needs-label"
 
 // The server half of the Review screen, shared by the manager workspace
 // (/manager/review, the contributor view) and the admin Review pages
@@ -103,10 +104,10 @@ function MenuNotReady({ empty }: { empty: boolean }) {
 /**
  * The menu-pending state, with the photos that still need a label under it
  * (S3-R8 W2, K1, E4): Overview counts them whatever the menu state, so the
- * list it links to shows them too. Each opens its detail, where Not used and
- * the place and facility routes need no menu; choosing a dish waits for the
- * menu. The manager's detail page only: an admin has none, so an admin sees
- * the menu-pending state alone.
+ * list it links to shows them too, all of them (S3-R13 X2). Each opens its
+ * detail, where Not used and Fix label to a place or amenity need no menu;
+ * choosing a dish waits for the menu. Admins get the list too, linking to
+ * the admin photo route (S3-R13 X1).
  */
 async function MenuNotReadyBody({
   ctx,
@@ -121,9 +122,7 @@ async function MenuNotReadyBody({
   empty: boolean
   path: string
 }) {
-  if (scope.kind !== "manager") return <MenuNotReady empty={empty} />
-  const waiting = await listReviewQueue(ctx, {
-    status: "unlabelled",
+  const waiting = await listAllNeedsLabel(ctx, {
     contributorId: view.contributorId ?? undefined,
     ...narrowingOf(view),
   })
@@ -133,6 +132,8 @@ async function MenuNotReadyBody({
       <MenuNotReady empty={empty} />
       <NeedsLabelList
         cards={waiting.items}
+        more={waiting.more}
+        scope={scope}
         note={REVIEW_COPY.needsLabelMenuNotReady}
       />
     </div>

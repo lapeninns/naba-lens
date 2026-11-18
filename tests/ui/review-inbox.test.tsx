@@ -84,6 +84,7 @@ function detail(over: Partial<PhotoDetail> = {}): PhotoDetail {
         sectionKind: "food",
         onMenu: true,
         staffLabel: true,
+        relinked: false,
         waiting: true,
         photoId: null,
         state: null,

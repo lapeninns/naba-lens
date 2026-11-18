@@ -1069,7 +1069,7 @@ test("admin: staff directory and invite", async ({
 }, testInfo) => {
   const page = await signIn(browser, fx.admin.email, baseURL!)
   await page.goto("/admin/staff")
-  await expect(page.getByRole("heading", { name: "Staff" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "People" })).toBeVisible()
   await capture(page, testInfo, "admin-staff")
   await expectFocusVisibleEverywhere(page, "admin-staff")
 

@@ -20,7 +20,7 @@ import { RetryButton } from "./retry-button"
 import { STAFF_SUMMARY } from "./copy"
 import { StaffDirectory } from "./staff-directory"
 
-export const metadata: Metadata = { title: "Staff" }
+export const metadata: Metadata = { title: "People" }
 
 export default async function StaffDirectoryPage() {
   const admin = await requireActiveAdmin()
@@ -62,7 +62,7 @@ export default async function StaffDirectoryPage() {
           <PageHeader
             venueScope
             scope="All venues"
-            title="Staff"
+            title="People"
             summary={STAFF_SUMMARY}
             className="pb-0 md:pb-0"
           />
