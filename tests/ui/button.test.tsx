@@ -19,10 +19,10 @@ const VARIANTS = [
   "link",
 ] as const
 
-const HEIGHTS = { sm: "min-h-11", md: "min-h-13", lg: "min-h-15" } as const
+const HEIGHTS = { sm: "min-h-11", md: "min-h-12", lg: "min-h-12" } as const
 
 describe("Button", () => {
-  it("is a grey secondary at md unless told otherwise", () => {
+  it("is the outlined default at md unless told otherwise", () => {
     render(<Button>Edit profile</Button>)
     const button = screen.getByRole("button", { name: "Edit profile" })
     expect(button.tagName).toBe("BUTTON")
@@ -30,9 +30,10 @@ describe("Button", () => {
     expect(button.getAttribute("data-slot")).toBe("button")
     expect(button.getAttribute("data-variant")).toBe("secondary")
     expect(button.getAttribute("data-size")).toBe("md")
-    expect(button.className).toContain("bg-surface-2")
+    expect(button.className.split(" ")).toContain("bg-surface")
+    expect(button.className.split(" ")).toContain("edge-strong")
     expect(button.className).not.toContain("bg-accent")
-    expect(button.className).toContain("min-h-13")
+    expect(button.className).toContain("min-h-12")
     expect(button.className).toContain("focus-ring")
   })
 
@@ -65,17 +66,16 @@ describe("Button", () => {
     expect(edit.getAttribute("data-size")).toBe("icon-lg")
   })
 
-  it("danger is the spec's outline: no fill, a 1.5px warn edge, the tint on hover", () => {
+  it("danger is v2's outline: signal words and a 1px signal edge", () => {
     const danger = cn(buttonVariants({ variant: "danger" })).split(" ")
-    expect(danger).toContain("bg-transparent")
-    expect(danger).not.toContain("bg-warn-bg")
-    expect(danger).toContain("text-warn-fg")
-    expect(danger).toContain("shadow-[inset_0_0_0_1.5px_var(--warn-fg)]")
-    expect(danger).toContain("hover:bg-warn-bg")
-    // danger-quiet is the same without the edge.
+    expect(danger).toContain("bg-surface")
+    expect(danger).toContain("text-signal")
+    expect(danger).toContain("inset-ring-signal")
+    expect(danger).toContain("hover:bg-raised")
+    // danger-quiet is the same without the edge or the fill.
     const quiet = cn(buttonVariants({ variant: "danger-quiet" })).split(" ")
     expect(quiet).toContain("bg-transparent")
-    expect(quiet.some((name) => name.startsWith("shadow-["))).toBe(false)
+    expect(quiet).not.toContain("inset-ring-signal")
   })
 
   it("an icon size never replaces the variant's colour", () => {
@@ -88,14 +88,14 @@ describe("Button", () => {
     for (const size of ["icon", "icon-lg"] as const) {
       expect(classes("primary", size)).toContain("text-on-accent")
       expect(classes("primary", size)).not.toContain("text-ink-muted")
-      expect(classes("danger", size)).toContain("text-warn-fg")
-      expect(classes("danger-quiet", size)).toContain("text-warn-fg")
+      expect(classes("danger", size)).toContain("text-signal")
+      expect(classes("danger-quiet", size)).toContain("text-signal")
     }
-    // The muted glyph belongs to the small grey and quiet icon buttons only.
+    // The muted glyph belongs to the small outlined and quiet icon buttons.
     expect(classes("quiet", "icon")).toContain("text-ink-muted")
     expect(classes("secondary", "icon")).toContain("text-ink-muted")
     expect(classes("quiet", "icon")).not.toContain("text-ink")
-    expect(classes("quiet", "icon-lg")).toContain("text-ink")
+    expect(classes("quiet", "icon-lg")).toContain("text-accent-text")
   })
 
   it("a link button has no icon square (the type refuses the pair)", () => {
@@ -172,13 +172,14 @@ describe("Button", () => {
     expect(button.querySelector('[data-slot="button-pressed-mark"]')).toBeNull()
   })
 
-  it("the lg label uses the heading-sm role, not the button role", () => {
-    const classes = buttonVariants({ size: "lg" }).split(" ")
-    expect(classes).toContain("text-heading-sm")
-    render(<Button size="lg">Go</Button>)
-    const merged = screen.getByRole("button").className.split(" ")
-    expect(merged).toContain("text-heading-sm")
-    expect(merged).not.toContain("text-button")
+  it("every size uses v2's label type (the button role)", () => {
+    for (const size of ["sm", "md", "lg"] as const) {
+      render(<Button size={size}>Go {size}</Button>)
+      const merged = screen
+        .getByRole("button", { name: `Go ${size}` })
+        .className.split(" ")
+      expect(merged).toContain("text-button")
+    }
   })
 
   it("has no alias variants or sizes left", () => {
@@ -193,7 +194,7 @@ describe("Button", () => {
       "destructive",
       "touch",
     ]) {
-      expect(bare(name)).not.toMatch(/bg-accent|bg-surface-2|min-h-13/)
+      expect(bare(name)).not.toMatch(/bg-accent|edge-strong|min-h-12/)
     }
   })
 
@@ -202,7 +203,7 @@ describe("Button", () => {
     const classes = screen.getByRole("button").className.split(" ")
     expect(classes).toContain("w-full")
     expect(classes).toContain("min-h-11")
-    expect(classes).not.toContain("min-h-13")
+    expect(classes).not.toContain("min-h-12")
   })
 
   it("fires onClick when enabled", async () => {

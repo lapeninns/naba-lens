@@ -5,146 +5,161 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Naba-Lens "Album" tokens. docs/design-system/DESIGN.md §3 says what each
- * token is for and §10 lists the names; this file holds the values. Screens
- * not yet moved to Album keep their Common Room structure but read these
- * values (docs/design-system/common-room.md, frozen).
+ * Naba-Lens design system v2 tokens (decision D10, 18 Nov 2026). The source
+ * package is docs/design-system/v2/ (tokens.css, GUIDELINES.md); this file
+ * holds its values, converted to OKLCH, and is the one source. Album's rules
+ * (docs/design-system/DESIGN.md) still say what each role is for; v2 gives
+ * them their look.
  *
- * Three tiers, top to bottom:
- *  1. Values. Raw colours and shadows per theme, on :root and .dark. Only
- *     tier 2 reads them.
- *  2. Tokens. @theme binds one role name to one value and Tailwind turns it
- *     into utilities: bg-surface, text-ink, gap-gutter, max-w-feed, z-nav.
- *     Sizes, type, radius, layers and motion are the same in both themes, so
- *     their values sit in @theme directly.
- *  3. Recipes. @utility rules for anything that needs more than one
- *     property: edges, rails, slot rings, the focus ring, heading type.
+ * Four tiers, top to bottom:
+ *  1. v2 values. The package's colours and shadows per theme, under the v2
+ *     names (--paper, --bottle, --brass, --sky, --signal ...), on :root and
+ *     .dark. The app keeps its `.dark` class (next-themes) as the switch;
+ *     v2's `data-theme="dark"` is the same thing under another name.
+ *  2. Roles. The names the code already uses (DESIGN.md §10: canvas,
+ *     surface-2, accent, ok-fg, warn-fg ...) point at a v2 value, so every
+ *     screen takes v2's colours with no edit of its own. The mapping table
+ *     is in docs/plans/design-v2/reports/V2-A.md.
+ *  3. Tokens. @theme turns each role into utilities (bg-surface, text-ink,
+ *     bg-signal, gap-gutter, max-w-feed, z-nav). Sizes, type, radius, layers
+ *     and motion are the same in both themes and sit in @theme directly.
+ *  4. Recipes. @utility rules for anything that needs more than one
+ *     property: edges, rails, slot rings, the focus ring, the type scale.
  *
- * One public vocabulary. Application code uses the tier 2 and tier 3 names
- * and nothing else. One block exists for another reason and is not part of
- * it: the shadcn slot names (private, so `shadcn add` output resolves).
+ * One public vocabulary: the tier 3 and tier 4 names. The v2 value names of
+ * tier 1 have utilities only where no role covers them (brass, signal,
+ * on-signal, signal-soft); application code does not read the others.
+ * The shadcn slot names are private, so `shadcn add` output resolves.
  *
- * Green is rationed (DESIGN.md §3): solid accent fills the one main button;
- * accent-soft with an accent edge marks a choice the person made. Accepted
- * is a small filled ok-fg tag on a photo, never a control. State is a frame,
- * an icon and a word, never colour alone (DESIGN.md §4).
+ * Status (v2 GUIDELINES "Status language") has five tones: neutral (ink on
+ * surface-2), progress (info-fg on info-bg = sky), positive (ok-fg on ok-bg
+ * = bottle), attention (warn-fg on warn-bg = brass-ink on brass-soft) and
+ * problem (on-signal on solid signal). The words stay in
+ * components/nabalens/status-chip.tsx (FA-7, D10).
  */
 
 /* ------------------------------------------------------------------------
- * Tier 1: values
+ * Tier 1: v2 values (docs/design-system/v2/tokens.css)
  * --------------------------------------------------------------------- */
 :root {
-  /* Surfaces: warm paper */
-  --canvas: oklch(0.959 0.014 84.6); /* #f6f1e7 paper */
-  --surface: oklch(0.994 0.007 88.6); /* #fffdf8 cards, bars, empty slots */
-  --surface-2: oklch(0.923 0.021 85.9); /* #ece5d6 secondary buttons, fields */
-  --raised: oklch(0.881 0.027 85.7); /* #e0d7c4 hover on surface-2 */
-  /* Text: ink with a green cast */
-  --ink: oklch(0.272 0.021 153.3); /* #1f2a22 */
-  --ink-muted: oklch(0.467 0.017 128.9); /* #575c52 secondary text */
-  --ink-subtle: oklch(0.499 0.019 122.1); /* #616559, 4.5:1 on surface-2 */
-  /* Boundaries. --line is decoration; a live control's only boundary is
-     --edge-strong (DESIGN.md "edge"), which holds 3:1 against its
-     neighbours and draws the dashed edge of an empty slot. */
-  --line: oklch(0.896 0.022 85.9); /* #e3dccd hairlines */
-  --edge-strong: oklch(0.56 0.022 87.6); /* #7a7466 */
-  /* Accent: bottle green */
-  --accent: oklch(0.38 0.066 159.9); /* #1d4d36 the main button */
-  --accent-hover: oklch(0.319 0.054 160.3); /* #153b29 */
-  --on-accent: oklch(1 0 0);
-  /* The main button's edge. Light draws none: the fill is the boundary. */
-  --accent-edge: oklch(0.38 0.066 159.9 / 0);
-  --accent-text: oklch(0.38 0.066 159.9); /* active tab, links, the + */
-  --accent-soft: oklch(0.926 0.022 154.1); /* #dcebe0 a choice made */
-  --focus: oklch(0.38 0.066 159.9);
-  --select: var(--accent); /* ticked box, chosen radio, picked tile ring */
-  --on-select: var(--on-accent);
-  /* State tones: text on tint */
-  --ok-fg: oklch(0.43 0.09 155.7); /* #1b5e3a Accepted, filled bar */
-  --ok-bg: oklch(0.929 0.032 151.2); /* #d9eedd */
-  --ok-waiting: oklch(0.812 0.068 154.6); /* #9fcfae waiting part of a bar */
-  /* Admin albums: a cell half or more filled (DESIGN.md §6.6). Between
-     ok-bg and ok-fg; never the waiting part of a bar. */
-  --ok-half: oklch(0.87 0.05 153);
-  --on-ok: oklch(1 0 0); /* text on the filled Accepted tag */
-  --warn-fg: oklch(0.47 0.143 37.3); /* #9a3412 retake, errors */
-  --warn-bg: oklch(0.932 0.032 50.4); /* #fbe3d6 */
-  --info-fg: oklch(0.41 0.073 240.3); /* #1f4f6e slate */
-  --info-bg: oklch(0.931 0.019 230.7); /* #dcebf3 */
-  --stamp-fg: oklch(0.272 0.021 153.3);
-  --hatch: oklch(0.85 0.029 86.7); /* #d6cdb9 Not here hatching */
-  /* Slot rings, inset round a photo (DESIGN.md §4) */
-  --ring-retake: oklch(0.613 0.128 44.2); /* #c2683f */
-  --ring-waiting: oklch(0.881 0.027 85.7); /* #e0d7c4 */
-  /* Photo surfaces. The stage and what sits on it are dark in both themes. */
-  --stage: oklch(0.166 0.004 128.8); /* #0e0f0d Match, Review, viewer */
-  --on-stage: oklch(0.953 0.01 87.5); /* #f2efe8 */
-  --on-stage-muted: oklch(0.821 0.017 88); /* #c9c4b8 */
-  --plate: oklch(
-    0.166 0.004 128.8 / 0.86
-  ); /* solid plate under text on photos */
-  --scrim: oklch(0.166 0.004 128.8 / 0.55);
-  /* Elevation. Album draws cards with an edge, not a shadow (DESIGN.md §3);
-     only things that float (sheets, dialogs, menus) cast one. */
-  --elevation-card: 0 0 0 1px var(--line);
-  --elevation-float:
-    0 12px 28px oklch(0.272 0.021 153.3 / 0.18),
-    0 2px 4px oklch(0.272 0.021 153.3 / 0.1);
-  --elevation-control: 0 1px 2px oklch(0.272 0.021 153.3 / 0.16);
-  --elevation-bar: 0 -1px 0 var(--line);
+  --paper: oklch(0.965 0.01 87.5); /* #f6f3ec paper */
+  --surface: oklch(1 0 0); /* #ffffff */
+  --surface-sunken: oklch(0.926 0.017 88); /* #ebe6da */
+  --surface-hover: oklch(0.946 0.014 88.7); /* #f1ede3 */
+  --line: oklch(0.865 0.022 85.9); /* #d9d2c3 */
+  --line-strong: oklch(0.592 0.026 84.6); /* #857d6d */
+  --ink: oklch(0.241 0.011 151.3); /* #1c211d */
+  --ink-muted: oklch(0.467 0.015 137.8); /* #565c54 */
+  --bottle: oklch(0.382 0.061 163.9); /* #1f4d3a */
+  --bottle-strong: oklch(0.317 0.05 163.7); /* #163a2b */
+  --bottle-soft: oklch(0.926 0.02 159.7); /* #dcebe2 */
+  --on-bottle: oklch(1 0 0); /* #ffffff */
+  --brass: oklch(0.633 0.13 73.9); /* #b87c12 */
+  --brass-ink: oklch(0.43 0.09 71.3); /* #6e4605 */
+  --brass-soft: oklch(0.934 0.047 87); /* #f7e8c6 */
+  --sky: oklch(0.437 0.097 247.2); /* #1b5584 */
+  --sky-soft: oklch(0.93 0.021 241.4); /* #dceaf5 */
+  --signal: oklch(0.508 0.166 33.1); /* #b0331a */
+  --on-signal: oklch(1 0 0); /* #ffffff */
+  --signal-soft: oklch(0.935 0.029 45); /* #fbe4da */
+  --focus: oklch(0.241 0.011 151.3); /* #1c211d, ink */
+  --scrim: oklch(0.195 0.009 153.1 / 0.64); /* rgba(18,22,19,0.64) */
+  --on-photo: oklch(1 0 0); /* #ffffff */
+  --shadow-raised:
+    0 1px 2px oklch(0.195 0.009 153.1 / 0.08),
+    0 8px 24px oklch(0.195 0.009 153.1 / 0.12);
+  /* Photo surfaces: the viewer, Match and Review stage are dark in both
+     themes (DESIGN.md §3.1). v2's dark paper and ink. */
+  --stage: oklch(0.195 0.009 153.1); /* #121613 */
+  --on-stage: oklch(0.952 0.008 121.6); /* #eef0ea */
+  --on-stage-muted: oklch(0.749 0.016 136.1); /* #a9b0a6 */
   color-scheme: light;
 }
 
 .dark {
-  --canvas: oklch(0.201 0.007 135); /* #151714 */
-  --surface: oklch(0.247 0.009 137.8); /* #1f221e */
-  --surface-2: oklch(0.303 0.012 135); /* #2c302a */
-  --raised: oklch(0.354 0.013 131.6); /* #393d36 */
-  --ink: oklch(0.938 0.016 86.4); /* #efeadf */
-  --ink-muted: oklch(0.767 0.019 89.4); /* #b8b3a6 */
-  --ink-subtle: oklch(0.709 0.019 89.4); /* #a6a194 */
-  --line: oklch(0.354 0.013 131.6);
-  --edge-strong: oklch(0.607 0.021 90.6); /* #878274, 3:1 on surface-2 */
-  --accent: oklch(0.485 0.088 158.4); /* #2b6e4c */
-  --accent-hover: oklch(0.428 0.077 158.3); /* #235c3f */
-  --on-accent: oklch(1 0 0);
-  /* solid accent is 2.6:1 on a dark card, so the main button gets a
-     lighter 1px edge to hold 3:1 */
-  --accent-edge: var(--accent-text);
-  --accent-text: oklch(0.806 0.087 157.8); /* #8fd1aa */
-  --accent-soft: oklch(0.321 0.045 159.9); /* #1d3a2b */
-  --focus: oklch(0.806 0.087 157.8);
-  /* solid accent is faint on a dark card; selection marks use accent-text */
-  --select: var(--accent-text);
-  --on-select: var(--surface);
-  --ok-fg: oklch(0.806 0.087 157.8);
-  --ok-bg: oklch(0.294 0.045 157); /* #173323 */
-  --ok-waiting: oklch(0.488 0.064 158); /* #3f6b52 */
-  --ok-half: oklch(0.39 0.055 157.5);
-  --on-ok: oklch(0.247 0.009 137.8); /* dark ok-fg is light, so dark text */
-  --warn-fg: oklch(0.835 0.094 37.8); /* #ffb49d */
-  --warn-bg: oklch(0.313 0.066 33.4); /* #4d231a */
-  --info-fg: oklch(0.819 0.064 235.7); /* #9ccbe8 */
-  --info-bg: oklch(0.295 0.043 234.3); /* #14303f */
-  --stamp-fg: oklch(0.938 0.016 86.4);
-  --hatch: oklch(0.354 0.013 131.6);
-  --ring-retake: oklch(0.59 0.108 38.5); /* #b3654c */
-  --ring-waiting: oklch(0.617 0.023 91.7); /* #8a8576 */
-  --plate: oklch(0.166 0.004 128.8 / 0.9);
-  --scrim: oklch(0 0 0 / 0.65);
-  /* Repeated because a var() in a custom property is resolved on the element
-     that declares it: a dark subtree has to read its own --line. */
-  --elevation-card: 0 0 0 1px var(--line);
-  --elevation-float:
-    0 12px 28px oklch(0 0 0 / 0.5), 0 0 0 1px oklch(1 0 0 / 0.08);
-  /* a 16% shadow does not show on a dark fill */
-  --elevation-control: 0 1px 2px oklch(0 0 0 / 0.5);
-  --elevation-bar: 0 -1px 0 var(--line);
+  --paper: oklch(0.195 0.009 153.1); /* #121613 */
+  --surface: oklch(0.237 0.011 151.3); /* #1b201c */
+  --surface-sunken: oklch(0.285 0.012 150.2); /* #262c27 */
+  --surface-hover: oklch(0.273 0.012 150.2); /* #232924 */
+  --line: oklch(0.34 0.014 149.5); /* #333a34 */
+  --line-strong: oklch(0.613 0.02 135); /* #7f877b */
+  --ink: oklch(0.952 0.008 121.6); /* #eef0ea */
+  --ink-muted: oklch(0.749 0.016 136.1); /* #a9b0a6 */
+  --bottle: oklch(0.782 0.095 160.8); /* #7fcba4 */
+  --bottle-strong: oklch(0.833 0.08 160.4); /* #9ad9b7 */
+  --bottle-soft: oklch(0.32 0.044 162.2); /* #1c3a2c */
+  --on-bottle: oklch(0.221 0.028 162.6); /* #0e1f17 */
+  --brass: oklch(0.762 0.134 78.1); /* #e0a640 */
+  --brass-ink: oklch(0.847 0.106 81.4); /* #f0c67a */
+  --brass-soft: oklch(0.306 0.052 80.1); /* #3d2c0c */
+  --sky: oklch(0.792 0.082 242.4); /* #8cc2ec */
+  --sky-soft: oklch(0.308 0.055 246.7); /* #16324a */
+  --signal: oklch(0.736 0.132 37.7); /* #f08a6b */
+  --on-signal: oklch(0.205 0.051 37.7); /* #2a0d05 */
+  --signal-soft: oklch(0.282 0.074 35.6); /* #47190d */
+  --focus: oklch(0.952 0.008 121.6); /* #eef0ea, ink */
+  --scrim: oklch(0.142 0.004 165.2 / 0.72); /* rgba(8,10,9,0.72) */
+  --on-photo: oklch(1 0 0);
+  --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.5), 0 8px 24px oklch(0 0 0 / 0.5);
   color-scheme: dark;
 }
 
 /* ------------------------------------------------------------------------
- * Tier 2: tokens (DESIGN.md §10)
+ * Tier 2: roles. Declared on .dark as well, because a var() in a custom
+ * property is resolved on the element that declares it: a dark subtree
+ * (the photo viewer) has to read its own values.
+ * --------------------------------------------------------------------- */
+:root,
+.dark {
+  /* Surfaces: v2 paper, surface, surface-sunken, surface-hover */
+  --canvas: var(--paper);
+  --surface-2: var(--surface-sunken); /* empty slots, tracks, placeholders */
+  --raised: var(--surface-hover); /* hover on outlined controls and rows */
+  /* Boundaries. --line is decoration; a live control's boundary is
+     --edge-strong (v2 line-strong), 3:1 against its neighbours. */
+  --edge-strong: var(--line-strong);
+  /* Accent: bottle. Once per view, on the action the screen is for. */
+  --accent: var(--bottle);
+  --accent-hover: var(--bottle-strong);
+  --on-accent: var(--on-bottle);
+  --accent-text: var(--bottle); /* active tab, links, the + */
+  --accent-soft: var(--bottle-soft); /* a choice made, current nav item */
+  --select: var(--bottle); /* ticked box, chosen radio, picked tile ring */
+  --on-select: var(--on-bottle);
+  /* Tones (v2 status language) */
+  --ok-fg: var(--bottle); /* positive */
+  --ok-bg: var(--bottle-soft);
+  --on-ok: var(--on-bottle);
+  --ok-waiting: var(--sky); /* awaiting review: the pending bar segment */
+  --warn-fg: var(--brass-ink); /* attention: retake, needs label */
+  --warn-bg: var(--brass-soft);
+  --info-fg: var(--sky); /* progress */
+  --info-bg: var(--sky-soft);
+  --stamp-fg: var(--ink);
+  --hatch: var(--line); /* Not here hatching */
+  /* Slot rings, inset round a photo (DESIGN.md §4) */
+  --ring-retake: var(--brass);
+  --ring-waiting: var(--sky);
+  --plate: var(--scrim); /* solid plate under text on photos */
+  /* Elevation. Cards are flat with a line outline; only what floats
+     (sheets, menus, the tab bar) casts v2's shadow-raised. */
+  --elevation-card: 0 0 0 1px var(--line);
+  --elevation-float: var(--shadow-raised);
+  --elevation-control: 0 0 0 0 oklch(0 0 0 / 0);
+  --elevation-bar: 0 -1px 0 var(--line), var(--shadow-raised);
+}
+
+/* Admin albums: a cell half or more filled (DESIGN.md §6.6), between ok-bg
+   and ok-fg. Not a v2 value: v2 has no heat scale. */
+:root {
+  --ok-half: oklch(0.82 0.06 161);
+}
+.dark {
+  --ok-half: oklch(0.42 0.06 161);
+}
+
+/* ------------------------------------------------------------------------
+ * Tier 3: tokens (DESIGN.md §10)
  * --------------------------------------------------------------------- */
 
 /*
@@ -153,18 +168,20 @@
  * value. One utility name per role.
  */
 @theme inline {
-  /* next/font sets --font-fraunces, --font-atkinson-next and
-     --font-atkinson-mono on <html> (app/layout.tsx).
-     sans = body, labels, buttons, tab labels (Atkinson Hyperlegible Next);
-     display = Fraunces, only at 21px and up or 17px caps (titles, counts,
-     the section stamp; DESIGN.md §3); mono = meta, times and counts in a
-     line (Atkinson Hyperlegible Mono, tabular). */
+  /* next/font sets --font-figtree and --font-fraunces on <html>
+     (app/layout.tsx). sans = Figtree, everything people read and tap;
+     display = Fraunces 600, names of things and big numbers (v2 "Type").
+     mono is not a third face: it is Figtree with tabular lining numerals,
+     for times, counts and percentages in a line. */
   --font-sans:
-    var(--font-atkinson-next), "Atkinson Hyperlegible", system-ui,
-    -apple-system, "Segoe UI", sans-serif;
-  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+    var(--font-figtree), Figtree, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-display:
+    var(--font-fraunces), Fraunces, Georgia, "Times New Roman", serif;
   --font-mono:
-    var(--font-atkinson-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+    var(--font-figtree), Figtree, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-mono--font-feature-settings: "tnum", "lnum";
 
   /* Surfaces and text */
   --color-canvas: var(--canvas);
@@ -173,7 +190,6 @@
   --color-raised: var(--raised);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
-  --color-ink-subtle: var(--ink-subtle);
   /* Boundaries */
   --color-line: var(--line);
   --color-edge-strong: var(--edge-strong);
@@ -181,13 +197,13 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-on-accent: var(--on-accent);
-  --color-accent-edge: var(--accent-edge);
   --color-accent-text: var(--accent-text);
   --color-accent-soft: var(--accent-soft);
   --color-select: var(--select);
   --color-on-select: var(--on-select);
   --color-focus: var(--focus);
-  /* Tones. Errors and retakes share warn (DESIGN.md §3). */
+  /* Tones. Positive ok-*, attention warn-*, progress info-*, problem
+     signal (v2 "Status language"). */
   --color-ok-fg: var(--ok-fg);
   --color-ok-bg: var(--ok-bg);
   --color-ok-waiting: var(--ok-waiting);
@@ -199,6 +215,12 @@
   --color-info-bg: var(--info-bg);
   --color-stamp-fg: var(--stamp-fg);
   --color-hatch: var(--hatch);
+  /* v2 values with no older role: brass marks beside a word; signal is the
+     problem tone and the danger button. */
+  --color-brass: var(--brass);
+  --color-signal: var(--signal);
+  --color-on-signal: var(--on-signal);
+  --color-signal-soft: var(--signal-soft);
   /* Slot rings (DESIGN.md §4); drawn with the slot-ring-* recipes */
   --color-ring-retake: var(--ring-retake);
   --color-ring-waiting: var(--ring-waiting);
@@ -208,7 +230,8 @@
   --color-on-stage-muted: var(--on-stage-muted);
   --color-plate: var(--plate);
   --color-scrim: var(--scrim);
-  /* The fill behind a photo before it loads. Its own role, so the 14 places
+  --color-on-photo: var(--on-photo);
+  /* The fill behind a photo before it loads. Its own role, so the places
      that use it can change together; today it is surface-2. */
   --color-media-placeholder: var(--surface-2);
   /* Avatar: initials on a per-person tint. --ah (the hue) is set on the
@@ -227,114 +250,137 @@
 /* Type, space, size, radius, layers and motion: the same in both themes. */
 @theme {
   /*
-   * Type roles (DESIGN.md §3.3). The floor is 17px for product text at
-   * every width; the only exception is text-caption (15px), for a slot name
-   * or caption laid over a photo. Tailwind's text-xs/sm/base are lifted to the floor as
-   * a guard; do not use them in source.
+   * Type (v2 "Type"; tokens.css .display ... .caption). Nothing is smaller
+   * than caption (13px); staff body text is never below 16px. Tailwind's
+   * text-xs/sm/base are pinned to caption, label and body as a guard; do
+   * not use them in source.
    */
-  --text-xs: 1.0625rem;
-  --text-xs--line-height: 1.4;
-  --text-sm: 1.0625rem;
-  --text-sm--line-height: 1.45;
-  --text-base: 1.0625rem;
-  --text-base--line-height: 1.5;
-  /* Count 46/1/700 Fraunces: the one big number on a screen (type-count) */
-  --text-count: 2.875rem;
-  --text-count--line-height: 1;
-  --text-count--font-weight: 700;
-  --text-count--letter-spacing: -0.01em;
-  /* Display 34/1.05/700 Fraunces: first-run and sign-in headings */
-  --text-display: 2.125rem;
-  --text-display--line-height: 1.05;
-  --text-display--font-weight: 700;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  /* v2 display 32/36/600 Fraunces: what the screen is about, once */
+  --text-display: 2rem;
+  --text-display--line-height: 2.25rem;
+  --text-display--font-weight: 600;
   --text-display--letter-spacing: -0.01em;
-  /* Page title 30/1.1/700 Fraunces: a page's <h1> (type-page-title) */
-  --text-page-title: 1.875rem;
-  --text-page-title--line-height: 1.1;
-  --text-page-title--font-weight: 700;
-  /* Section heading 21/1.2/600 Fraunces: section <h2>, card title */
-  --text-section-title: 1.3125rem;
-  --text-section-title--line-height: 1.2;
+  /* v2 title 22/28/600 Fraunces: section and sheet titles */
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--font-weight: 600;
+  /* v2 figure 28/32/600 Fraunces, tabular: coverage counts */
+  --text-figure: 1.75rem;
+  --text-figure--line-height: 2rem;
+  --text-figure--font-weight: 600;
+  /* v2 heading 17/24/600 Figtree: card and row titles */
+  --text-heading: 1.0625rem;
+  --text-heading--line-height: 1.5rem;
+  --text-heading--font-weight: 600;
+  /* v2 body 16/24/400: running text, the default */
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  /* v2 label 15/20/600: buttons, tabs, pick chips, field labels */
+  --text-label: 0.9375rem;
+  --text-label--line-height: 1.25rem;
+  --text-label--font-weight: 600;
+  /* v2 caption 13/18/500: metadata and chips */
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.125rem;
+  --text-caption--font-weight: 500;
+  /*
+   * Album role names, kept so screens change without edits; each is one of
+   * the v2 styles above.
+   */
+  /* count = display: the one big number on a screen (type-count) */
+  --text-count: 2rem;
+  --text-count--line-height: 2.25rem;
+  --text-count--font-weight: 600;
+  --text-count--letter-spacing: -0.01em;
+  /* page-title = display: a page's <h1> (type-page-title) */
+  --text-page-title: 2rem;
+  --text-page-title--line-height: 2.25rem;
+  --text-page-title--font-weight: 600;
+  --text-page-title--letter-spacing: -0.01em;
+  /* section-title = title: section <h2>, sheet title (type-section-title) */
+  --text-section-title: 1.375rem;
+  --text-section-title--line-height: 1.75rem;
   --text-section-title--font-weight: 600;
-  /* Small heading 19/1.3/700 Atkinson: a sub-heading inside a card. Below
-     21px a heading is not set in Fraunces (DESIGN.md §3.3). */
-  --text-heading-sm: 1.1875rem;
-  --text-heading-sm--line-height: 1.3;
-  --text-heading-sm--font-weight: 700;
-  /* Row title 18/1.3/700 */
-  --text-item-title: 1.125rem;
-  --text-item-title--line-height: 1.3;
-  --text-item-title--font-weight: 700;
-  /* Lead 18/1.5: an intro paragraph */
-  --text-lead: 1.125rem;
-  --text-lead--line-height: 1.5;
-  /* Field 18/1.3/400: text inside an input */
-  --text-field: 1.125rem;
-  --text-field--line-height: 1.3;
+  /* heading-sm and item-title = heading: a card or row title */
+  --text-heading-sm: 1.0625rem;
+  --text-heading-sm--line-height: 1.5rem;
+  --text-heading-sm--font-weight: 600;
+  --text-item-title: 1.0625rem;
+  --text-item-title--line-height: 1.5rem;
+  --text-item-title--font-weight: 600;
+  /* lead and field = body: an intro paragraph, text inside an input */
+  --text-lead: 1rem;
+  --text-lead--line-height: 1.5rem;
+  --text-field: 1rem;
+  --text-field--line-height: 1.5rem;
   --text-field--font-weight: 400;
-  /* Button 18/1.2/700 */
-  --text-button: 1.125rem;
-  --text-button--line-height: 1.2;
-  --text-button--font-weight: 700;
-  /* Body 17/1.5: the default */
-  --text-body: 1.0625rem;
-  --text-body--line-height: 1.5;
-  /* Label 17/1.3/700: field label, strong inline text */
-  --text-label: 1.0625rem;
-  --text-label--line-height: 1.3;
-  --text-label--font-weight: 700;
-  /* Meta 17/1.35: a secondary line (with text-ink-muted) */
-  --text-meta: 1.0625rem;
-  --text-meta--line-height: 1.35;
-  /* Mono 17/1.3: times, counts, percentages (with font-mono) */
-  --text-mono: 1.0625rem;
-  --text-mono--line-height: 1.3;
-  /* Tab label 17/1.1/400 Atkinson (type-tab-label; active 700) */
-  --text-tab-label: 1.0625rem;
-  --text-tab-label--line-height: 1.1;
-  --text-tab-label--font-weight: 400;
-  /* State chip 17/1.2/700 */
-  --text-chip: 1.0625rem;
-  --text-chip--line-height: 1.2;
-  --text-chip--font-weight: 700;
-  /* Caption 15/1.25: only over a photo, on a plate */
-  --text-caption: 0.9375rem;
-  --text-caption--line-height: 1.25;
+  /* button = label */
+  --text-button: 0.9375rem;
+  --text-button--line-height: 1.25rem;
+  --text-button--font-weight: 600;
+  /* meta and mono = caption: a secondary line (with text-ink-muted), and
+     times and counts in a line (with font-mono) */
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.125rem;
+  --text-meta--font-weight: 500;
+  --text-mono: 0.8125rem;
+  --text-mono--line-height: 1.125rem;
+  --text-mono--font-weight: 500;
+  /* tab-label and chip = caption at 600: TabBar labels, StatusChip words */
+  --text-tab-label: 0.8125rem;
+  --text-tab-label--line-height: 1.125rem;
+  --text-tab-label--font-weight: 600;
+  --text-chip: 0.8125rem;
+  --text-chip--line-height: 1.125rem;
+  --text-chip--font-weight: 600;
 
-  /* Space: gap-gutter (card gap in a feed) and px-page-gutter (phone page
-     gutter; full-bleed is -mx-page-gutter). Both 12px. The page gutter is
-     not "page": Tailwind reads --spacing before --container, so max-w-page
-     would become 12px. */
-  --spacing-gutter: 0.75rem;
-  --spacing-page-gutter: 0.75rem;
-  /* Sizes off the 4px scale. tabbar: tab 60px + 4px; the bar adds the safe
-     area. tile-min: the narrowest photo tile; grid-cols-tiles fills a row
-     with tiles at least that wide. */
+  /* Space (v2 space-1 to space-7 are Tailwind's 1, 2, 3, 4, 6, 8, 12).
+     gap-gutter (card gap in a feed) and px-page-gutter (phone page gutter;
+     full-bleed is -mx-page-gutter) are v2 space-4. The page gutter is not
+     "page": Tailwind reads --spacing before --container, so max-w-page
+     would become 16px. */
+  --spacing-gutter: 1rem;
+  --spacing-page-gutter: 1rem;
+  /* Sizes off the 4px scale. tabbar: v2 tab 64px; the bar adds the safe
+     area. tile-min: v2 tile-min, the narrowest album tile; grid-cols-tiles
+     fills a row with tiles at least that wide. rail: v2 rail-width, the
+     SideNav. */
   --spacing-tabbar: 4rem;
-  --spacing-tile-min: 10rem;
+  --spacing-tile-min: 9.5rem;
+  --spacing-rail: 15rem;
   --grid-template-columns-tiles: repeat(
     auto-fill,
     minmax(var(--spacing-tile-min), 1fr)
   );
-  /* Page widths: max-w-feed, max-w-reading, max-w-page, max-w-dialog … */
+  /* Page widths: max-w-feed, max-w-reading, max-w-page (v2 content-max),
+     max-w-dialog (v2 sheet-max) ... */
   --container-feed: 37.5rem;
   --container-reading: 40rem;
   --container-page: 75rem;
-  --container-dialog: 35rem;
+  --container-dialog: 30rem;
   --container-dialog-wide: 47.5rem;
   /* Container-query sizes for reusable components: @compact:, @max-compact:,
      @regular:, @wide: and so on. */
   --container-compact: 32.5rem;
   --container-regular: 36rem;
   --container-wide: 40rem;
+  /* v2 bp-tablet is Tailwind's md (768px); bp-desktop is `desktop:`, where
+     managers and admins get the SideNav. */
+  --breakpoint-desktop: 68.75rem;
 
-  /* Radius (DESIGN.md §3.4): one name per value. Buttons and fields 12,
-     cards, rows and slot tiles 14, sheet top 20, Accepted tag 4, stamp 2,
-     chips and pills full. */
+  /* Radius (v2 radius-sm/md/lg/full). Buttons, fields, cards, tiles and
+     rows 12 (md); row thumbnails 6 (sm); sheets 20 (lg); chips and the
+     round Add photos button full. The stamp keeps its 2px. */
   --radius-stamp: 2px;
-  --radius-square: 0.25rem;
+  --radius-square: 0.375rem;
   --radius-control: 0.75rem;
-  --radius-card: 0.875rem;
+  --radius-card: 0.75rem;
   --radius-sheet: 1.25rem;
   --radius-round: 9999px;
 
@@ -347,12 +393,12 @@
   --z-index-nav: 40;
   --z-index-overlay: 50;
 
-  /* Motion: duration-quick (hover, press), duration-move (disclosure,
-     reorder), duration-sheet (sheets rise), and one easing, ease-out. A bare
-     transition-* utility gets quick and ease-out. */
+  /* Motion (v2 "Motion"): duration-quick (presses, chip changes),
+     duration-move (disclosure, reorder), duration-sheet (sheets), and one
+     easing, ease-out. A bare transition-* utility gets quick and ease-out. */
   --transition-duration-quick: 150ms;
   --transition-duration-move: 180ms;
-  --transition-duration-sheet: 240ms;
+  --transition-duration-sheet: 250ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --default-transition-duration: var(--transition-duration-quick);
   --default-transition-timing-function: var(--ease-out);
@@ -381,7 +427,7 @@
   --secondary-foreground: var(--ink);
   --muted: var(--surface-2);
   --muted-foreground: var(--ink-muted);
-  --destructive: var(--warn-fg);
+  --destructive: var(--signal);
   --border: var(--line);
   --input: var(--edge-strong);
   --ring: var(--focus);
@@ -426,16 +472,24 @@
  * --------------------------------------------------------------------- */
 
 /*
- * Heading type. A text token cannot set a family, so each role has a recipe
- * that sets the family with the size, line height, weight and tracking.
- * Fraunces for 21px and up; Atkinson below (DESIGN.md §3.3). Use these for
- * headings, counts and tab labels; no separate font-display class is needed.
+ * Type (v2 "Type"). A text token cannot set a family, so each style has a
+ * recipe that sets the family with the size, line height, weight and
+ * tracking: type-display, type-title and type-figure are Fraunces;
+ * text-heading, text-body, text-label and text-caption are Figtree (the
+ * default family) and need no recipe. The Album names below them are kept
+ * so screens change without edits. Figures use tabular lining numerals.
  */
-@utility type-count {
-  @apply font-display text-count;
-}
 @utility type-display {
   @apply font-display text-display;
+}
+@utility type-title {
+  @apply font-display text-title;
+}
+@utility type-figure {
+  @apply font-display text-figure lining-nums tabular-nums;
+}
+@utility type-count {
+  @apply font-display text-count lining-nums tabular-nums;
 }
 @utility type-page-title {
   @apply font-display text-page-title;
@@ -467,19 +521,16 @@
 @utility edge-strong {
   @apply inset-ring inset-ring-edge-strong;
 }
-/* The primary button. It shows in dark only, where the fill is faint. */
-@utility edge-accent {
-  @apply inset-ring inset-ring-accent-edge;
-}
 /* A selected pill or row. */
 @utility edge-selected {
   @apply inset-ring-[1.5px] inset-ring-accent-text;
 }
-/* An invalid field. The message beside it says what is wrong. */
+/* An invalid field (v2 Field): the border thickens to 2px signal, so the
+   error is not colour alone. The message beside it says what to do. */
 @utility edge-invalid {
-  @apply inset-ring-2 inset-ring-warn-fg;
+  @apply inset-ring-2 inset-ring-signal;
 }
-/* A picked photo tile. */
+/* A picked photo tile (v2 ThumbPick: a 3px bottle inset ring). */
 @utility ring-selected {
   @apply inset-ring-3 inset-ring-select;
 }
@@ -513,7 +564,8 @@
  * Slot frames (DESIGN.md §4). Each state has its own frame, and the frame
  * never carries the meaning alone: the tile also shows an icon and a word.
  * Needed: a 2px dashed edge. Waiting and Retake: a 4px ring inside the
- * photo. Check due: a 4px ok-waiting ring. Not here:
+ * photo (v2 sky for waiting, brass for retake). Check due: a 4px ok-half
+ * ring. Not here:
  * a dotted edge over hatching (with bg-hatch).
  */
 @utility slot-needed {
@@ -528,10 +580,10 @@
 @utility slot-ring-retake {
   @apply inset-ring-4 inset-ring-ring-retake;
 }
-/* Check due (FA-11): a 4px ring in the accepted family (ok-waiting), so it
+/* Check due (FA-11): a 4px ring in the accepted family (ok-half), so it
    reads as "was in, needs checking" and matches no other frame. */
 @utility slot-ring-check {
-  @apply inset-ring-4 inset-ring-ok-waiting;
+  @apply inset-ring-4 inset-ring-ok-half;
 }
 
 /* Needs setup / Not here: the hatched fill. */
@@ -563,34 +615,34 @@
 }
 
 /*
- * Focus (DESIGN.md §8): a 3px --focus outline, 2px clear of the control, in
- * both themes. focus-ring-inset draws it inside the box, for rows and tiles
+ * Focus (DESIGN.md §8, v2 "Colour"): a 2px solid --focus outline (ink),
+ * 2px clear of the control, in both themes. focus-ring-inset draws it inside the box, for rows and tiles
  * whose parent clips. focus-ring-within marks a wrapper whose child holds
  * focus. Each rule sets the style itself, so it draws even beside
  * outline-none.
  */
 @utility focus-ring {
   &:focus-visible {
-    outline: 3px solid var(--focus);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
 }
 @utility focus-ring-inset {
   &:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: -3px;
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
   }
 }
 @utility focus-ring-within {
   &:has(:focus-visible) {
-    outline: 3px solid var(--focus);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
 }
 /* Unlayered, so it wins over the `outline-2` utilities that components set;
    their colour and offset still apply. */
 :focus-visible {
-  outline-width: 3px;
+  outline-width: 2px;
 }
 
 /* Reduced motion removes every animation; states are always written in words. */

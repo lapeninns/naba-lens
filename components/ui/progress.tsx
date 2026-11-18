@@ -3,7 +3,9 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /*
- * Progress (common-room.md §4). One component, two modes.
+ * Progress, drawn as v2 CoverageMeter's bar and UploadRow's bar (D10).
+ * One component, two modes. v2 colours: covered bottle, awaiting review
+ * sky, needs replacing signal, the rest the surface-sunken track.
  *
  * `segments`: one rounded segment per unit, green when accepted, striped
  * while submitted and waiting, warn with a heavy edge when a reviewer asked
@@ -108,10 +110,9 @@ type ProgressProps = ProgressBarProps | ProgressSegmentsProps
  */
 const FILL = {
   accepted: "bg-ok-fg forced-colors:border-6",
-  submitted: "bg-stripe forced-colors:border",
-  needsAnother:
-    "bg-warn-bg edge-invalid forced-colors:border-2 forced-colors:border-dashed",
-  needed: "bg-surface-2 edge-strong forced-colors:border",
+  submitted: "bg-info-fg forced-colors:border",
+  needsAnother: "bg-signal forced-colors:border-2 forced-colors:border-dashed",
+  needed: "bg-surface-2 forced-colors:border",
 } as const
 
 const SEGMENT_HEIGHT = { md: "h-3", sm: "h-2" } as const
@@ -183,9 +184,9 @@ function Progress(props: ProgressProps) {
           className={cn(
             merged
               ? cn(
-                  "flex overflow-hidden rounded-round forced-colors:border",
+                  "flex gap-0.5 overflow-hidden rounded-round forced-colors:border",
                   height,
-                  "bg-surface-2 edge-strong"
+                  "bg-surface-2"
                 )
               : "grid gap-1"
           )}
@@ -210,7 +211,7 @@ function Progress(props: ProgressProps) {
                 <i
                   data-slot="progress-segment"
                   data-state="submitted"
-                  className="block h-full bg-stripe"
+                  className={cn("block h-full", FILL.submitted)}
                   style={{ width: `${(sent / total) * 100}%` }}
                 />
               ) : null}
@@ -308,13 +309,13 @@ function Progress(props: ProgressProps) {
   )
 }
 
-/** The 8px track of a plain bar: grey, with a hairline edge. */
+/** The 6px track of a plain bar (v2 `nl-file__bar`): surface-sunken, round. */
 function ProgressTrack({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="progress-track"
       className={cn(
-        "relative flex h-2 w-full items-center overflow-hidden rounded-square bg-surface-2 edge forced-colors:border",
+        "relative flex h-1.5 w-full items-center overflow-hidden rounded-round bg-surface-2 forced-colors:border",
         className
       )}
       {...props}
@@ -338,9 +339,9 @@ function ProgressIndicator({
     <div
       data-slot="progress-indicator"
       className={cn(
-        "h-full rounded-square transition-[width] duration-move",
+        "h-full rounded-round transition-[width] duration-move",
         known
-          ? "bg-ink group-data-[tone=ok]/progress:bg-ok-fg forced-colors:border-4"
+          ? "bg-info-fg group-data-[tone=ok]/progress:bg-ok-fg forced-colors:border-4"
           : "w-full bg-stripe",
         known && percent === 0 && "forced-colors:border-0",
         className

@@ -1,9 +1,5 @@
 import type { Metadata, Viewport } from "next"
-import {
-  Atkinson_Hyperlegible_Mono,
-  Atkinson_Hyperlegible_Next,
-  Fraunces,
-} from "next/font/google"
+import { Figtree, Fraunces } from "next/font/google"
 
 import "./globals.css"
 import { CANVAS_SRGB } from "@/lib/pwa/canvas-colours"
@@ -11,26 +7,22 @@ import { InstallPromptCapture } from "@/components/nabalens/me/install-app"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 
-// Body face (Album, DESIGN.md §3.3): body text, buttons, fields, chips,
-// tab labels.
-const fontSans = Atkinson_Hyperlegible_Next({
+// Body face (design system v2, D10): everything people read and tap, at
+// 400, 500, 600 and 700. Variable, so one file covers the four weights.
+// Tabular figures for times and counts come from the same face
+// (font-mono in app/globals.css).
+const fontSans = Figtree({
   subsets: ["latin"],
-  variable: "--font-atkinson-next",
+  variable: "--font-figtree",
 })
 
-// Display face: the wordmark, titles, counts and the section stamp, at 21px
-// and up or 17px caps. Variable, with the optical-size axis so large counts
-// and small headings each get their own cut.
+// Display face (v2): names of things and big numbers, at 600. Variable,
+// with the optical-size axis v2 loads (opsz 9..144) so large counts and
+// small titles each get their own cut.
 const fontDisplay = Fraunces({
   subsets: ["latin"],
   axes: ["opsz"],
   variable: "--font-fraunces",
-})
-
-// Meta, times and percentages (tabular), file names, request IDs.
-const fontMono = Atkinson_Hyperlegible_Mono({
-  subsets: ["latin"],
-  variable: "--font-atkinson-mono",
 })
 
 // Pages give their own short title ("Account"); the template adds the app
@@ -49,8 +41,8 @@ export const metadata: Metadata = {
   },
 }
 
-// Browser chrome matches the paper canvas in each theme (Album's `canvas`
-// token in sRGB, DESIGN.md §3.1; app/manifest.ts uses the light one). `cover` hands the notch and home indicator areas to the page:
+// Browser chrome matches the paper canvas in each theme (v2 `paper`, the
+// `canvas` role, in sRGB, DESIGN.md §3.1; app/manifest.ts uses the light one). `cover` hands the notch and home indicator areas to the page:
 // app/globals.css pads the body at the sides, and bottom bars and sheets add
 // the bottom inset themselves.
 export const viewport: Viewport = {
@@ -75,7 +67,6 @@ export default function RootLayout({
         "antialiased",
         fontSans.variable,
         fontDisplay.variable,
-        fontMono.variable,
         "font-sans"
       )}
     >

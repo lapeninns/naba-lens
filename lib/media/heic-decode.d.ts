@@ -1,8 +1,6 @@
 declare module "heic-decode" {
   const decode: {
-    all(options: {
-      buffer: Uint8Array
-    }): Promise<
+    all(options: { buffer: Uint8Array }): Promise<
       Array<{
         width: number
         height: number

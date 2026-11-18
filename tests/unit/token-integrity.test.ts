@@ -53,9 +53,8 @@ const RUNTIME = [
   "--ah", // components/nabalens/profile-avatar.tsx: the avatar's hue
   "--gap", // components/ui/toggle-group.tsx: the gap between toggles
   // Set on <html> by next/font (app/layout.tsx).
+  "--font-figtree",
   "--font-fraunces",
-  "--font-atkinson-next",
-  "--font-atkinson-mono",
   // Set by Base UI on a popup's positioner.
   "--anchor-width",
   "--available-width",
@@ -67,7 +66,7 @@ const RUNTIME_PREFIXES = ["--tw-"]
 
 /*
  * Tailwind's text-xs, text-sm and text-base are redefined in @theme only to
- * lift them to the 17px floor. They are a guard, not roles, so the class
+ * pin them to v2's caption, label and body. They are a guard, not roles, so the class
  * merger already knows them and lib/utils.ts does not list them.
  */
 const STOCK_TEXT_GUARDS = ["xs", "sm", "base"]
@@ -109,7 +108,9 @@ const boundary = (fg: string, ...on: string[]): Pair[] =>
 const PAIRS: Pair[] = [
   ...text("ink", "canvas", "surface", "surface-2"),
   ...text("ink-muted", "canvas", "surface", "surface-2"),
-  ...text("ink-subtle", "canvas", "surface", "surface-2"),
+  // v2 adds surface-hover under hover rows and buttons.
+  ...text("ink", "raised"),
+  ...text("ink-muted", "raised"),
   ...text("on-accent", "accent", "accent-hover"),
   ...text("accent-text", "surface", "accent-soft"),
   ...text("on-select", "select"),
@@ -119,6 +120,14 @@ const PAIRS: Pair[] = [
   ...text("ink", "ok-bg", "ok-half"),
   ...text("warn-fg", "warn-bg", "surface"),
   ...text("info-fg", "info-bg", "surface"),
+  // v2 problem tone: the solid chip, the danger button and field errors,
+  // and the problem notice's title on its tint.
+  ...text("on-signal", "signal"),
+  ...text("signal", "surface", "canvas", "signal-soft"),
+  // Notice text is ink on each tone's tint.
+  ...text("ink", "ok-bg", "warn-bg", "info-bg", "signal-soft"),
+  // PickChip selected: paper text on an ink fill.
+  ...text("canvas", "ink"),
   ...text("on-stage", "stage"),
   ...text("on-stage-muted", "stage"),
   ...boundary("edge-strong", "surface", "surface-2"),
@@ -126,17 +135,17 @@ const PAIRS: Pair[] = [
   ...boundary("edge-strong", "canvas"),
   ...boundary("focus", "canvas", "surface", "surface-2"),
   ...boundary("select", "surface"),
+  // v2 brass marks a thing beside its word.
+  ...boundary("brass", "surface"),
 ]
 
 /*
  * Controls marked by a fill and an edge together: the boundary is whichever
  * of the two stands out more from what is behind. A see-through edge draws
- * nothing and does not count. The primary button's fill carries it in
- * light; in dark the fill is 2.7:1 on a card and the edge takes over.
+ * nothing and does not count. v2's primary button is bottle in both themes
+ * (dark bottle is a light green), so its fill carries it and it has no edge.
  */
-const EDGED = [
-  { fill: "accent", edge: "accent-edge", on: ["canvas", "surface"] },
-]
+const EDGED = [{ fill: "accent", edge: "accent", on: ["canvas", "surface"] }]
 
 /*
  * Pairs that miss their minimum today. This is a record, not a lower bar:

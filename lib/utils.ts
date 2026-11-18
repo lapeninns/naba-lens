@@ -10,8 +10,11 @@ import { createCn } from "cn/config"
 
 // Type roles: text-*
 const TYPE_ROLES = [
-  "count",
   "display",
+  "title",
+  "figure",
+  "heading",
+  "count",
   "page-title",
   "section-title",
   "heading-sm",
@@ -32,8 +35,10 @@ const TYPE_ROLES = [
 // and a text-* role replaces them. `type-stamp` is not here: it sets the
 // lettering only, and the chip's `text-chip` beside it gives the size.
 const TYPE_RECIPES = [
-  "count",
   "display",
+  "title",
+  "figure",
+  "count",
   "page-title",
   "section-title",
   "heading-sm",
@@ -42,8 +47,8 @@ const TYPE_RECIPES = [
 
 const RADII = ["control", "card", "sheet", "round", "square", "stamp"]
 
-// gap-gutter, px-page-gutter, min-h-tabbar, min-w-tile-min
-const SPACING = ["gutter", "page-gutter", "tabbar", "tile-min"]
+// gap-gutter, px-page-gutter, min-h-tabbar, min-w-tile-min, w-rail
+const SPACING = ["gutter", "page-gutter", "tabbar", "tile-min", "rail"]
 
 // max-w-feed and the rest; the last three are container-query sizes
 const CONTAINERS = [
@@ -86,7 +91,6 @@ export const cn = createCn({
       edge: [
         "edge",
         "edge-strong",
-        "edge-accent",
         "edge-selected",
         "edge-invalid",
         "ring-selected",

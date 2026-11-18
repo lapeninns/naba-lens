@@ -70,10 +70,10 @@ const VARIANTS = [
 
 /** The min-height utility each size word stands for. */
 const HEIGHT = {
-  /** Buttons and rows of buttons: 44 / 52 / 60px. */
-  control: { sm: "min-h-11", md: "min-h-13", lg: "min-h-15" },
-  /** Fields and option rows: 44 / 56 / 60px. */
-  field: { sm: "min-h-11", md: "min-h-14", lg: "min-h-15" },
+  /** Buttons and rows of buttons: 44 / 48 / 48px (v2 target-staff). */
+  control: { sm: "min-h-11", md: "min-h-12", lg: "min-h-12" },
+  /** Fields and option rows: 44 / 48 / 48px (v2 Field). */
+  field: { sm: "min-h-11", md: "min-h-12", lg: "min-h-12" },
 } as const
 
 type Row = {

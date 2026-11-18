@@ -25,15 +25,13 @@ export type AllowEntry = {
  * no token or recipe fits, and expect to be asked. Do not raise it to get a
  * red test to pass.
  */
-export const MAX_ALLOWED = 35
+export const MAX_ALLOWED = 30
 export const MAX_ALLOWED_DEV = 9
 
 const HEADER_HAIRLINE =
   "The hairline under a header has no utility: shadow-bar is the line above a bottom bar."
 const TAB_UNDERLINE =
   "The 3px tab underline is drawn on the shadow layer until the tab recipe lands in Batch 2."
-const WORDMARK =
-  "The wordmark is 24px in the display face and has no type role; the shells should share one wordmark recipe."
 const SEGMENT_EDGE =
   "A raised segment's outer edge is 1.5px beside shadow-control, and edge-strong is 1px."
 const EDGE_1_5 =
@@ -50,14 +48,14 @@ export const ALLOW: AllowEntry[] = [
   {
     file: "lib/pwa/canvas-colours.ts",
     rule: "raw-colour",
-    match: "#f6f1e7",
+    match: "#f6f3ec",
     reason:
       "The theme-color meta tag and the web app manifest cannot read a CSS variable, so the light canvas is repeated in sRGB.",
   },
   {
     file: "lib/pwa/canvas-colours.ts",
     rule: "raw-colour",
-    match: "#151714",
+    match: "#121613",
     reason:
       "The theme-color meta tag cannot read a CSS variable, so the dark canvas is repeated in sRGB.",
   },
@@ -112,20 +110,7 @@ export const ALLOW: AllowEntry[] = [
     match: "shadow-[inset_0_-3px_0_var(--accent-text)]",
     reason: TAB_UNDERLINE,
   },
-  {
-    file: "components/ui/button.tsx",
-    rule: "arbitrary-value",
-    match: "shadow-[inset_0_0_0_1.5px_var(--line)]",
-    reason:
-      "The disabled button's hairline is 1.5px in the spec, and the edge recipe is 1px; it waits for a 1.5px edge recipe in app/globals.css.",
-  },
-  {
-    file: "components/ui/button.tsx",
-    rule: "arbitrary-value",
-    match: "shadow-[inset_0_0_0_1.5px_var(--warn-fg)]",
-    reason:
-      "The danger button's warn edge is 1.5px in the spec, and edge-invalid is 2px; it waits for a 1.5px edge recipe in app/globals.css.",
-  },
+
   {
     file: "components/nabalens/coverage/team-roster.tsx",
     rule: "arbitrary-value",
@@ -177,24 +162,6 @@ export const ALLOW: AllowEntry[] = [
   },
 
   /* ----------------------------------------- arbitrary-value: type size */
-  {
-    file: "components/nabalens/app-shell.tsx",
-    rule: "arbitrary-value",
-    match: "text-[1.5rem]",
-    reason: WORDMARK,
-  },
-  {
-    file: "components/nabalens/manager/manager-shell.tsx",
-    rule: "arbitrary-value",
-    match: "text-[1.5rem]",
-    reason: WORDMARK,
-  },
-  {
-    file: "components/nabalens/manager/venue-access-unavailable.tsx",
-    rule: "arbitrary-value",
-    match: "text-[1.5rem]",
-    reason: WORDMARK,
-  },
   {
     file: "components/nabalens/common-room/stamp.tsx",
     rule: "arbitrary-value",

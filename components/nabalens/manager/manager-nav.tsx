@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import { SectionTabs } from "../section-tabs"
+import { SideNav } from "../side-nav"
 import { AddTrigger, useAddContext } from "../shell/add-context"
 import { TabBadge } from "../shell/tab-badge"
 import { TAB_ITEM } from "../shell/tab-item"
@@ -60,9 +61,10 @@ const ITEMS: {
 ]
 
 /**
- * Overview · Review · Album · Requests · Venue (spec §7, S2-MGR). `tabs` is
- * the row under the header from md; `bar` is the phone tab bar pinned to the
- * bottom. Both name the same nav, and CSS shows one. Five tabs fill the phone
+ * Overview · Review · Album · Requests · Venue (spec §7, S2-MGR). `rail` is
+ * v2's SideNav from bp-desktop (1100px); `tabs` is the row under the header
+ * from md to desktop; `bar` is the phone tab bar pinned to the bottom. All
+ * name the same nav, and CSS shows one. Five tabs fill the phone
  * bar at 320px, so Add is in the header at every width while the workspace's
  * Add is on (R8 says this account can upload): ManagerAddButton (departure
  * A-M1 in docs/design-system/departures.md). Album's badge counts the amenity
@@ -73,7 +75,7 @@ export function ManagerNav({
   reviewCount,
   confirmCount,
 }: {
-  kind: "tabs" | "bar"
+  kind: "rail" | "tabs" | "bar"
   /** Photos waiting for this manager's decision, shown on Review (the provider's count wins). */
   reviewCount?: number
   /** Amenity findings and answers waiting for a decision, shown on Amenities. */
@@ -89,6 +91,25 @@ export function ManagerNav({
       : id === "album" && confirm
         ? { value: confirm, label: TO_CONFIRM_COPY.badge(confirm) }
         : undefined
+
+  if (kind === "rail") {
+    return (
+      <SideNav
+        label={MANAGER_COPY.navLabel}
+        active={active}
+        homeHref={managerHrefs.overview}
+        items={ITEMS.map((item) => {
+          const badge = badgeFor(item.id)
+          return {
+            ...item,
+            count: badge
+              ? { value: badge.value, label: badge.label }
+              : undefined,
+          }
+        })}
+      />
+    )
+  }
 
   if (kind === "tabs") {
     return (
@@ -124,18 +145,16 @@ export function ManagerNav({
             aria-current={current ? "page" : undefined}
             className={cn(
               TAB_ITEM,
-              // Five tabs share the phone bar: the label scales with the
-              // viewport (13px at 320, the full 17px from about 416px) so a
-              // whole word, bold when active, fits its fifth of the bar and
-              // never breaks mid-word (S3-R5, D3; departure A-R5-1).
-              "px-0 [font-size:min(1.0625rem,calc((100vw_-_0.5rem)/24))]!",
-              "text-ink-muted hover:bg-surface-2 hover:text-ink",
-              // Active tab: accent-text, 800, a 3px bar along the top.
+              // Five tabs share the phone bar (v2 TabBar for managers): the
+              // v2 caption label fits a fifth of the bar at 320px.
+              "px-0",
+              "text-ink-muted hover:bg-raised hover:text-ink",
+              // Active tab (v2): bottle, a 3px bar along the top edge.
               current &&
-                "font-extrabold text-accent-text before:absolute before:inset-x-[18%] before:top-0 before:h-[3px] before:rounded-b-[3px] before:bg-accent-text hover:text-accent-text"
+                "text-accent-text before:absolute before:inset-x-1/4 before:top-0 before:h-[3px] before:rounded-b-[3px] before:bg-accent-text hover:text-accent-text"
             )}
           >
-            <Icon aria-hidden className="size-[26px]" />
+            <Icon aria-hidden className="size-6" />
             {item.label}
             {badge ? (
               <TabBadge count={badge.value} label={badge.label} />

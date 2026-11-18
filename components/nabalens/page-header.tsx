@@ -59,7 +59,7 @@ export function PageHeader({
           {parts.map((part, index) => (
             <span key={index} className="contents">
               {index > 0 ? (
-                <span aria-hidden className="text-ink-subtle">
+                <span aria-hidden className="text-ink-muted">
                   ·
                 </span>
               ) : null}

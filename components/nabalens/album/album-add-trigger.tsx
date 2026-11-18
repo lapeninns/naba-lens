@@ -45,10 +45,18 @@ export function AlbumAddTrigger({ kind }: { kind: "tab" | "bar" }) {
       />
     </span>
   ) : null
+  // The tab is v2's round bottle button (`nl-tab--upload`): a 40px bottle
+  // disc holding the gallery icon, the label under it in ink. Gallery only,
+  // never a camera (D9, D10).
   const content =
     kind === "tab" ? (
       <>
-        <ImagesIcon aria-hidden className="size-[26px]" />
+        <span
+          data-slot="tabbar-disc"
+          className="-mt-0.5 grid size-10 place-items-center rounded-round bg-accent text-on-accent"
+        >
+          <ImagesIcon aria-hidden className="size-5.5" />
+        </span>
         {ALBUM_ADD_LABEL}
         {badge}
       </>
@@ -61,7 +69,7 @@ export function AlbumAddTrigger({ kind }: { kind: "tab" | "bar" }) {
     )
   const className =
     kind === "tab"
-      ? cn(TAB_ITEM, "text-ink-muted hover:bg-surface-2 hover:text-ink")
+      ? cn(TAB_ITEM, "text-ink hover:bg-raised")
       : cn(buttonVariants({ variant: "secondary" }), "lg:whitespace-nowrap")
   return openAdd ? (
     <button

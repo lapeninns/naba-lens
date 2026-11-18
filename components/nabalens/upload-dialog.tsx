@@ -437,9 +437,11 @@ export type UploadBusy = {
 /** The row's one state word (C5). */
 type RowWord = "Saved" | "Saving…" | "Needs attention"
 
+// v2 UploadRow (`nl-file--*`): the state word takes its tone's colour:
+// positive bottle, progress sky, attention brass-ink.
 const WORD_LOOK: Record<RowWord, { icon: Icon; tone: string }> = {
   Saved: { icon: CheckIcon, tone: "text-ok-fg" },
-  "Saving…": { icon: HourglassIcon, tone: "text-ink" },
+  "Saving…": { icon: HourglassIcon, tone: "text-info-fg" },
   "Needs attention": { icon: WarningCircleIcon, tone: "text-warn-fg" },
 }
 
@@ -614,7 +616,7 @@ function FileThumb({ item }: { item: QueueItem }) {
   const [failed, setFailed] = React.useState(false)
   const Icon = item.kind === "video" ? FilmStripIcon : ImageIcon
   return (
-    <span className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-control bg-media-placeholder text-ink-muted">
+    <span className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-square bg-media-placeholder text-ink-muted">
       {url && !failed ? (
         // Local object URL preview; HEIC and similar fall back to the icon.
         // eslint-disable-next-line @next/next/no-img-element
@@ -714,7 +716,7 @@ function QueueRow({
           // Takes focus when the action pressed in this row goes away.
           tabIndex={-1}
           className={cn(
-            "font-mono text-meta font-semibold [overflow-wrap:anywhere] tabular-nums outline-none",
+            "font-mono text-label [overflow-wrap:anywhere] tabular-nums outline-none",
             look?.tone ?? "text-ink-muted"
           )}
         >

@@ -29,7 +29,8 @@ function shell(props: { reviewCount?: number } = {}) {
   )
 }
 
-// The tabs row (md up) and the tab bar (phones) share a name; CSS shows one.
+// The SideNav (from 1100px), the tabs row (md up) and the tab bar (phones)
+// share a name; CSS shows one.
 function navs() {
   return screen.getAllByRole("navigation", { name: "Venue workspace" })
 }
@@ -47,6 +48,7 @@ describe("ManagerShell", () => {
     const found = navs()
     expect(found.map((n) => n.dataset.slot).sort()).toEqual([
       "section-tabs",
+      "side-nav",
       "tabbar",
     ])
     for (const el of found) {
@@ -63,9 +65,11 @@ describe("ManagerShell", () => {
   it("names the venue and links the wordmark to /manager and Account", () => {
     shell()
     expect(screen.getByText("The Railway")).toBeTruthy()
-    expect(
-      screen.getByRole("link", { name: "Naba-Lens" }).getAttribute("href")
-    ).toBe("/manager")
+    // In the header below 1100px and at the top of the SideNav above it.
+    const wordmarks = screen.getAllByRole("link", { name: "Naba-Lens" })
+    expect(wordmarks).toHaveLength(2)
+    for (const mark of wordmarks)
+      expect(mark.getAttribute("href")).toBe("/manager")
     expect(
       screen
         .getByRole("link", { name: "Account: Mina Patel" })
@@ -145,7 +149,7 @@ describe("ManagerShell", () => {
   it("says one photo waiting in the singular, and nothing for zero", () => {
     shell({ reviewCount: 1 })
     expect(screen.getAllByText("photo waiting", { exact: false })).toHaveLength(
-      2
+      3
     )
     cleanup()
     shell({ reviewCount: 0 })
@@ -198,7 +202,7 @@ describe("Review badge", () => {
       </ManagerShell>
     )
     await user.click(screen.getByRole("button", { name: "decide" }))
-    expect(badges()).toEqual(["Review", "Review"])
+    expect(badges()).toEqual(["Review", "Review", "Review"])
   })
 
   it("settle is a no-op without a provider (the admin page)", async () => {

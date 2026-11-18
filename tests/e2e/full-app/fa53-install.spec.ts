@@ -72,8 +72,8 @@ test("FA-53: the manifest and icons are served signed out, with the security hea
     name: "Naba-Lens",
     start_url: "/",
     display: "standalone",
-    background_color: "#f6f1e7",
-    theme_color: "#f6f1e7",
+    background_color: "#f6f3ec",
+    theme_color: "#f6f3ec",
   })
   // The same static fields for everyone: no origin, key, address or account.
   expect(Object.keys(body).sort()).toEqual(
@@ -114,10 +114,10 @@ test("FA-53: the manifest and icons are served signed out, with the security hea
   expect(touch.status()).toBe(200)
   expect(touch.headers()["content-type"]).toBe("image/png")
   await expect(
-    page.locator('meta[name="theme-color"][content="#f6f1e7"]')
+    page.locator('meta[name="theme-color"][content="#f6f3ec"]')
   ).toHaveCount(1)
   await expect(
-    page.locator('meta[name="theme-color"][content="#151714"]')
+    page.locator('meta[name="theme-color"][content="#121613"]')
   ).toHaveCount(1)
   await expect(
     page.locator('meta[name="apple-mobile-web-app-title"]')

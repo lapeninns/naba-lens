@@ -6,12 +6,12 @@ import { Radio, type RadioProps } from "@/components/ui/radio-group"
 import { cn } from "@/lib/utils"
 
 /*
- * Option row (common-room.md §4 "Radio row" and "checkbox"): one choice as a full
+ * Option row (v2 Field `nl-check`, on a surface card): one choice as a full
  * row. The whole row is the label and the target; the mark sits at the
  * leading side, then the label and its hint, then an optional end slot.
  *
- * A chosen row turns accent-soft with a selected edge (common-room.md §2, §9: a
- * selected row uses accent-soft, not a card shadow). The mark still shows the
+ * A chosen row turns accent-soft (bottle-soft) with a selected edge, not a
+ * card shadow. The mark still shows the
  * tick or the dot, so the state never rests on the fill. Focus is drawn on
  * the row, not on the mark inside it.
  *
@@ -20,14 +20,15 @@ import { cn } from "@/lib/utils"
 const optionRowVariants = cva(
   // Stacked variants (selected and invalid, disabled and hover) win over the
   // single-state rules whatever order the stylesheet puts them in.
-  "group/option-row grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-card bg-surface-2 text-start edge-strong focus-ring-within transition-[background-color,box-shadow] duration-quick ease-out hover:bg-raised has-aria-disabled:cursor-not-allowed has-aria-disabled:bg-surface-2 has-aria-disabled:edge has-aria-disabled:hover:bg-surface-2 has-aria-invalid:edge-invalid has-data-indeterminate:bg-accent-soft has-data-indeterminate:edge-selected has-data-checked:bg-accent-soft has-data-checked:edge-selected has-data-checked:hover:bg-accent-soft has-aria-disabled:has-data-checked:bg-surface-2 has-aria-disabled:has-data-checked:edge has-aria-invalid:has-data-checked:edge-invalid",
+  "group/option-row grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-card bg-surface text-start edge-strong focus-ring-within transition-[background-color,box-shadow] duration-quick ease-out hover:bg-raised has-aria-disabled:cursor-not-allowed has-aria-disabled:bg-surface-2 has-aria-disabled:edge has-aria-disabled:hover:bg-surface-2 has-aria-invalid:edge-invalid has-data-indeterminate:bg-accent-soft has-data-indeterminate:edge-selected has-data-checked:bg-accent-soft has-data-checked:edge-selected has-data-checked:hover:bg-accent-soft has-aria-disabled:has-data-checked:bg-surface-2 has-aria-disabled:has-data-checked:edge has-aria-invalid:has-data-checked:edge-invalid",
   {
     variants: {
-      // The same words and heights as every other control: 44, 56, 60px.
+      // The same words and heights as every other control: 44, 48, 48px
+      // (v2 `nl-check`: the whole 48px row is the target).
       size: {
         sm: "min-h-11 px-3 py-2",
-        md: "min-h-14 p-3",
-        lg: "min-h-15 px-4 py-3",
+        md: "min-h-12 p-3",
+        lg: "min-h-12 px-4 py-3",
       },
     },
     defaultVariants: { size: "md" },
