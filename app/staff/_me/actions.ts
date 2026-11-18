@@ -10,8 +10,7 @@ import {
   type SharedKind,
 } from "@/components/nabalens/album/match/model"
 import type { NotificationPreferences } from "@/lib/ops/notifications"
-import { setAreaLabel } from "@/lib/server/area-photos"
-import { getLabellingCatalogue, saveAssetLabels } from "@/lib/server/labels"
+import { getLabellingCatalogue } from "@/lib/server/labels"
 import { getMediaActor } from "@/lib/server/media/context"
 import { OWN_MEDIA_ROLES, UPLOADER_ROLES } from "@/lib/server/media/roles"
 import {
@@ -23,6 +22,8 @@ import {
 import {
   getMyUpload,
   getMyUploads,
+  moveMyUploadSlot,
+  MOVE_SLOT_WORDS,
   reportSlotChange,
   setMyCapturedAt,
   withdrawSlotReport,
@@ -108,8 +109,7 @@ export async function loadMyUploadsAction(
   return result.ok ? result : refused(result.message)
 }
 
-const STILL_WAITING =
-  "A manager has just checked this photo, so it can't be changed now. Reload the page."
+const STILL_WAITING = MOVE_SLOT_WORDS.decided
 
 /** Re-reads one own upload: only a photo nobody has decided on yet. */
 async function stillWaiting(
@@ -144,9 +144,10 @@ export async function withdrawUploadAction(assetId: unknown): Promise<MeReply> {
 
 /**
  * Change the slot of one's own waiting photo (spec §6 S4, §23.6): re-match it
- * to another empty dish or place slot. Refused once a manager has decided on
- * it; the label save carries the photo's label revision, so a change made
- * elsewhere meanwhile is refused too (stale version).
+ * to another empty dish or place slot, or make it a shared photo. One
+ * database transaction (move_my_upload_slot; V5): it is refused once a
+ * manager has decided on the photo or its labels changed elsewhere (the
+ * label revision), and any refusal leaves the photo in its old slot.
  */
 export async function changeUploadSlotAction(input: {
   assetId: unknown
@@ -173,60 +174,41 @@ export async function changeUploadSlotAction(input: {
   const assetId = input.assetId
   const auth = await getMediaActor(UPLOADER_ROLES)
   if (!auth.ok) return refused(auth.message)
-  const check = await stillWaiting(auth.actor, assetId)
-  if (!check.ok) return check
-  const from = check.upload.slots[0]
-  if (!from || check.upload.slots.length !== 1 || from.kind === "amenity")
-    return refused(STILL_WAITING)
+  const check = await getMyUpload(auth.actor, assetId)
+  if (!check.ok) return refused(check.message)
+  // V13: the slots offered are the current venue's; a photo sent to another
+  // venue is moved from there.
+  if (
+    auth.actor.profile.venueId &&
+    check.upload.venueId !== auth.actor.profile.venueId
+  )
+    return refused(MOVE_SLOT_WORDS.wrongVenue)
 
-  const saveLabels = async (
-    items: { itemId: string; variantId: null }[],
-    contentTypes: SharedKind[] = []
-  ) => {
+  // The dish must be on the photo's venue's active menu (the database checks
+  // the version again).
+  let catalogueVersionId: string | null = null
+  if (target.kind === "dish") {
     const catalogue = await getLabellingCatalogue(
       auth.actor,
       check.upload.venueId
     )
-    const versionId =
+    catalogueVersionId =
       catalogue.ok && catalogue.catalogue.status === "active"
         ? catalogue.catalogue.versionId
         : null
-    const saved = await saveAssetLabels(auth.actor, {
-      assetId,
-      expectedRevision: input.expectedRevision as number,
-      catalogueVersionId: versionId,
-      contentTypes,
-      note: null,
-      items,
-      missingItem: null,
-    })
-    return saved.ok
-      ? null
-      : saved.code === "conflict"
-        ? "This photo was changed just now. Reload the page."
-        : saved.message || "The slot couldn't be changed. Try again."
   }
-  const clearArea = async () => {
-    if (from.kind !== "area") return null
-    const cleared = await setAreaLabel(auth.actor, assetId, null)
-    return cleared.ok ? null : cleared.message
-  }
-
-  let problem: string | null = null
-  if (target.kind === "dish") {
-    problem =
-      (await clearArea()) ??
-      (await saveLabels([{ itemId: target.itemId, variantId: null }]))
-  } else if (target.kind === "shared") {
-    problem = (await clearArea()) ?? (await saveLabels([], [target.sharedKind]))
-  } else {
-    if (from.kind === "dish") problem = await saveLabels([])
-    if (!problem) {
-      const set = await setAreaLabel(auth.actor, assetId, target.subjectId)
-      if (!set.ok) problem = set.message
-    }
-  }
-  if (problem) return refused(problem)
+  const moved = await moveMyUploadSlot(auth.actor, {
+    assetId,
+    expectedRevision: input.expectedRevision,
+    catalogueVersionId,
+    target:
+      target.kind === "dish"
+        ? { kind: "dish", itemId: target.itemId }
+        : target.kind === "area"
+          ? { kind: "area", subjectId: target.subjectId }
+          : { kind: "shared", sharedKind: target.sharedKind },
+  })
+  if (!moved.ok) return refused(moved.message)
   revalidatePath("/staff")
   return { ok: true }
 }

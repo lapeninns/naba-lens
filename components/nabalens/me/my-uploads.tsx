@@ -25,6 +25,7 @@ import {
   ReportChangeDialog,
   type ReportSender,
 } from "@/components/nabalens/album/report-change-dialog"
+import { parseMediaRoute, versioned } from "@/app/_media/preview-recovery"
 import { Notice } from "@/components/nabalens/notice"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { StatusChip } from "@/components/nabalens/status-chip"
@@ -58,9 +59,9 @@ import {
   isoToLondonLocal,
   londonLocalToIso,
   OUTCOME_CHIP,
-  OUTCOME_WORDS,
   receiptWord,
   slotPageHref,
+  unmatched,
   UPLOAD_SECTIONS,
   uploadActions,
   type MyUpload,
@@ -121,6 +122,15 @@ export const MY_UPLOADS_COPY = {
   loadMore: "Show older photos",
   noSlot: "No slot yet",
   noSlotHint: "Match it to a slot from Album, under Match later.",
+  // E4: "I'm not sure" sends it to the manager, never to Match later.
+  labelHelpHint: "With your manager, who will choose its slot.",
+  // V13: Change slot offers the current venue's slots only.
+  otherVenueHint: (venue: string) =>
+    `To change its slot, switch to ${venue} first.`,
+  // F7: the portfolio's words for a preview that failed twice.
+  brokenThumbs: (n: number) =>
+    n === 1 ? "1 preview could not load." : `${n} previews could not load.`,
+  retryThumbs: "Try again",
   shared: (kinds: string[]) =>
     `Shared photo${kinds.length ? ` · ${kinds.map((k) => k[0]!.toUpperCase() + k.slice(1)).join(", ")}` : ""}`,
   sentTo: (venue: string) => `Sent to ${venue}`,
@@ -154,15 +164,77 @@ export const MY_UPLOADS_COPY = {
   correctionSent: REPORT_COPY.sent,
 } as const
 
-function Thumb({ item }: { item: MyUpload }) {
+/**
+ * Thumbnail recovery (F7), the gallery's rule (app/_media/preview-recovery.ts):
+ * the thumb route re-signs on every load, so a first error re-requests it
+ * once with a new `?r=`; a second marks it broken, shows the plain icon, and
+ * the list says how many could not load with Try again.
+ */
+type ThumbState = { version: number; broken: boolean }
+
+function useThumbRecovery() {
+  const [thumbs, setThumbs] = React.useState<Record<string, ThumbState>>({})
+  const failed = React.useCallback((src: string | null) => {
+    const route = parseMediaRoute(src)
+    if (!route || route.slot !== "thumb") return
+    setThumbs((current) => {
+      const t = current[route.id] ?? { version: 0, broken: false }
+      // A stale or repeated report of the same URL counts once.
+      if (t.broken || route.version !== t.version) return current
+      const next =
+        t.version === 0
+          ? { version: 1, broken: false }
+          : { version: t.version, broken: true }
+      return { ...current, [route.id]: next }
+    })
+  }, [])
+  const onError = React.useCallback<React.ReactEventHandler<HTMLElement>>(
+    (event) =>
+      failed(
+        event.target instanceof Element
+          ? event.target.getAttribute("src")
+          : null
+      ),
+    [failed]
+  )
+  // Images that failed before hydration never reach React's onError.
+  const attach = React.useCallback<React.RefCallback<HTMLElement>>(
+    (node) => {
+      if (!node) return
+      for (const img of node.querySelectorAll("img"))
+        if (img.complete && img.naturalWidth === 0)
+          failed(img.getAttribute("src"))
+    },
+    [failed]
+  )
+  const retry = React.useCallback(
+    () =>
+      setThumbs((current) =>
+        Object.fromEntries(
+          Object.entries(current).map(([id, t]) => [
+            id,
+            t.broken ? { version: t.version + 1, broken: false } : t,
+          ])
+        )
+      ),
+    []
+  )
+  const brokenCount = Object.values(thumbs).filter((t) => t.broken).length
+  return { thumbs, onError, attach, retry, brokenCount }
+}
+
+function Thumb({ item, state }: { item: MyUpload; state?: ThumbState }) {
   const ready = item.uploadState === "ready"
   return (
     <span className="relative grid size-16 shrink-0 place-items-center overflow-hidden rounded-control bg-plate text-on-stage">
-      {ready && item.mediaType === "image" ? (
+      {ready && item.mediaType === "image" && !state?.broken ? (
         // Signed private URLs never go through next/image (see MediaTile).
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={`/api/media/${item.assetId}/thumb`}
+          src={versioned(
+            `/api/media/${item.assetId}/thumb`,
+            state?.version ?? 0
+          )}
           alt=""
           loading="lazy"
           decoding="async"
@@ -221,7 +293,14 @@ export function MyUploads({
     setNext(initial?.next ?? null)
   }
 
-  const { groups, replaced } = groupUploads(items)
+  const { groups } = groupUploads(items)
+  const {
+    thumbs,
+    onError: onThumbError,
+    attach: attachThumbs,
+    retry: retryThumbs,
+    brokenCount,
+  } = useThumbRecovery()
   const firstNonEmpty =
     UPLOAD_SECTIONS.find((s) => groups[s.key].length > 0)?.key ?? "attention"
   const [section, setSection] = React.useState<UploadSection | null>(null)
@@ -309,12 +388,32 @@ export function MyUploads({
               </FilterPill>
             ))}
           </PillGroup>
+          {brokenCount > 0 ? (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-warn-bg p-3 ps-4 text-body text-ink rail-start-warn"
+              data-slot="my-uploads-broken"
+            >
+              <span className="flex min-w-0 items-start gap-2">
+                <WarningCircleIcon
+                  aria-hidden
+                  className="mt-0.5 size-5 shrink-0 text-warn-fg"
+                />
+                {MY_UPLOADS_COPY.brokenThumbs(brokenCount)}
+              </span>
+              <Button variant="secondary" size="sm" onClick={retryThumbs}>
+                {MY_UPLOADS_COPY.retryThumbs}
+              </Button>
+            </div>
+          ) : null}
           {groups[shown].length === 0 ? (
             <p className="px-1 text-body text-ink-muted" role="status">
               {UPLOAD_SECTIONS.find((s) => s.key === shown)!.empty}
             </p>
           ) : (
             <ul
+              ref={attachThumbs}
+              onError={onThumbError}
               className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
               data-section={shown}
             >
@@ -322,7 +421,7 @@ export function MyUploads({
                 <UploadRow
                   key={item.assetId}
                   item={item}
-                  replaced={replaced}
+                  thumb={thumbs[item.assetId]}
                   currentVenueId={currentVenueId}
                   correctionAsked={asked.has(item.assetId)}
                   note={notes[item.assetId] ?? null}
@@ -458,7 +557,7 @@ export function MyUploads({
 
 function UploadRow({
   item,
-  replaced,
+  thumb,
   currentVenueId,
   correctionAsked,
   note,
@@ -466,14 +565,19 @@ function UploadRow({
   onOpen,
 }: {
   item: MyUpload
-  replaced: ReadonlySet<string>
+  thumb: ThumbState | undefined
   currentVenueId: string | null
   correctionAsked: boolean
   note: string | null
   error: string | null
   onOpen: (open: Open) => void
 }) {
-  const can = uploadActions(item, replaced)
+  const can = uploadActions(item, currentVenueId)
+  // V13: it could change slot, but only from the venue it was sent to.
+  const otherVenue =
+    !can.changeSlot && uploadActions(item).changeSlot && item.venueName
+      ? item.venueName
+      : null
   const title =
     item.slots.length > 0
       ? item.slots.map((s) => s.name).join(", ")
@@ -486,7 +590,7 @@ function UploadRow({
       data-slot="my-upload-row"
       data-asset={item.assetId}
     >
-      <Thumb item={item} />
+      <Thumb item={item} state={thumb} />
       <div className="grid min-w-0 gap-1.5">
         <p className="text-item-title [overflow-wrap:anywhere] text-ink">
           {title}
@@ -503,9 +607,7 @@ function UploadRow({
           <ul className="flex flex-wrap gap-1.5">
             {item.slots.map((s) => (
               <li key={`${s.kind}:${s.slotId}`}>
-                <StatusChip state={OUTCOME_CHIP[s.outcome]}>
-                  {OUTCOME_WORDS[s.outcome]}
-                </StatusChip>
+                <StatusChip state={OUTCOME_CHIP[s.outcome]} />
               </li>
             ))}
           </ul>
@@ -523,11 +625,16 @@ function UploadRow({
               {s.reason}
             </p>
           ))}
-        {item.slots.length === 0 &&
-        item.sharedKinds.length === 0 &&
-        item.uploadState === "ready" ? (
+        {unmatched(item) ? (
+          <p className="text-meta text-ink-muted" data-slot="my-upload-no-slot">
+            {item.labelHelp
+              ? MY_UPLOADS_COPY.labelHelpHint
+              : MY_UPLOADS_COPY.noSlotHint}
+          </p>
+        ) : null}
+        {otherVenue ? (
           <p className="text-meta text-ink-muted">
-            {MY_UPLOADS_COPY.noSlotHint}
+            {MY_UPLOADS_COPY.otherVenueHint(otherVenue)}
           </p>
         ) : null}
         {item.uploadState === "failed" ? (

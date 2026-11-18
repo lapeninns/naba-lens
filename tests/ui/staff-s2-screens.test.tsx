@@ -2,7 +2,13 @@
 // S2-STAFF screens: the place filters, the slot page with Report a change,
 // My uploads, Help and account, the notices inbox and the first sign-in
 // notice (spec §3.2, §6 S3, S4, S5, §17).
-import { cleanup, render, screen, within } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -20,6 +26,7 @@ import {
   type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { buildAlbum, findSlot, type AlbumInput } from "@/lib/album/model"
+import { CHIP_STATES } from "@/components/nabalens/status-chip"
 import type { MyUpload } from "@/lib/staff/my-uploads"
 
 const refresh = vi.fn()
@@ -301,8 +308,10 @@ function upload(over: Partial<MyUpload> = {}): MyUpload {
         reason: null,
         decidedAt: null,
         replacesAssetId: null,
+        retakeAnswered: false,
       },
     ],
+    labelHelp: false,
     removalRequested: false,
     removalRequestId: null,
     ...over,
@@ -345,6 +354,7 @@ describe("My uploads (spec §6 S4)", () => {
           reason: "Too dark",
           decidedAt: null,
           replacesAssetId: null,
+          retakeAnswered: false,
         },
       ],
     }),
@@ -359,6 +369,7 @@ describe("My uploads (spec §6 S4)", () => {
           reason: null,
           decidedAt: "2026-11-13T10:00:00Z",
           replacesAssetId: null,
+          retakeAnswered: false,
         },
       ],
     }),
@@ -465,6 +476,120 @@ describe("My uploads (spec §6 S4)", () => {
     unmount()
     render(<MyUploads initial={null} currentVenueId={V} actions={actions()} />)
     expect(screen.getByRole("alert").textContent).toMatch(/couldn't be loaded/)
+  })
+})
+
+describe("My uploads repairs (S3-R4)", () => {
+  it("re-signs a broken thumbnail once, then says it could not load (F7)", async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <MyUploads
+        initial={{ items: [upload({ assetId: A })], next: null }}
+        currentVenueId={V}
+        actions={actions()}
+      />
+    )
+    const img = () => container.querySelector("img")
+    expect(img()?.getAttribute("src")).toBe(`/api/media/${A}/thumb`)
+    fireEvent.error(img()!)
+    // One fresh, re-signed attempt.
+    expect(img()?.getAttribute("src")).toBe(`/api/media/${A}/thumb?r=1`)
+    expect(screen.queryByText("1 preview could not load.")).toBeNull()
+    fireEvent.error(img()!)
+    // Broken: the plain icon and the gallery's words, with Try again.
+    expect(img()).toBeNull()
+    expect(screen.getByText("1 preview could not load.")).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Try again" }))
+    expect(img()?.getAttribute("src")).toBe(`/api/media/${A}/thumb?r=2`)
+    expect(screen.queryByText("1 preview could not load.")).toBeNull()
+  })
+
+  it("says an I'm not sure photo is with the manager, not under Match later (E4)", () => {
+    render(
+      <MyUploads
+        initial={{
+          items: [
+            upload({ assetId: A, slots: [], labelHelp: true }),
+            upload({ assetId: B, slots: [] }),
+          ],
+          next: null,
+        }}
+        currentVenueId={V}
+        actions={actions()}
+      />
+    )
+    expect(
+      screen
+        .getByRole("button", { name: /Needs attention/ })
+        .getAttribute("aria-pressed")
+    ).toBe("true")
+    const [unsure, later] = rows() as [HTMLElement, HTMLElement]
+    expect(unsure.textContent).toContain(
+      "With your manager, who will choose its slot."
+    )
+    expect(unsure.textContent).not.toContain("Match later")
+    expect(later.textContent).toContain("under Match later")
+  })
+
+  it("offers Change slot only at the photo's venue, with a hint elsewhere (V13)", () => {
+    render(
+      <MyUploads
+        initial={{
+          items: [
+            upload({
+              assetId: A,
+              venueId: "00000000-0000-4000-8000-0000000000f2",
+              venueName: "The Crown",
+            }),
+          ],
+          next: null,
+        }}
+        currentVenueId={V}
+        actions={actions()}
+      />
+    )
+    const [row] = rows() as [HTMLElement]
+    expect(
+      within(row).queryByRole("button", { name: "Change slot" })
+    ).toBeNull()
+    expect(row.textContent).toContain(
+      "To change its slot, switch to The Crown first."
+    )
+    expect(within(row).getByRole("button", { name: "Withdraw" })).toBeTruthy()
+  })
+
+  it("draws outcome words from the chip, not a copy (V25)", () => {
+    render(
+      <MyUploads
+        initial={{
+          items: [
+            upload({
+              assetId: A,
+              slots: [
+                {
+                  kind: "dish",
+                  slotId: D1,
+                  name: "Guinness",
+                  outcome: "label_corrected",
+                  reason: null,
+                  decidedAt: "2026-11-13T10:00:00Z",
+                  replacesAssetId: null,
+                  retakeAnswered: false,
+                },
+              ],
+            }),
+          ],
+          next: null,
+        }}
+        currentVenueId={V}
+        actions={actions()}
+      />
+    )
+    const [row] = rows() as [HTMLElement]
+    expect(row.textContent).toContain(CHIP_STATES.outcome_label_corrected.word)
+    expect(
+      within(row).getByRole("button", { name: "Ask to remove" })
+    ).toBeTruthy()
   })
 })
 

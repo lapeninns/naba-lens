@@ -21,11 +21,9 @@ import {
   isoToLondonLocal,
   londonLocalToIso,
   OUTCOME_CHIP,
-  OUTCOME_WORDS,
   parseMyUploads,
   parseVenueManagers,
   receiptWord,
-  replacedIds,
   slotPageHref,
   uploadActions,
   uploadSection,
@@ -72,8 +70,10 @@ function upload(over: Partial<MyUpload> = {}): MyUpload {
         reason: null,
         decidedAt: null,
         replacesAssetId: null,
+        retakeAnswered: false,
       },
     ],
+    labelHelp: false,
     removalRequested: false,
     removalRequestId: null,
     ...over,
@@ -175,17 +175,61 @@ describe("My uploads sections (spec §6 S4)", () => {
   it("moves an answered retake out of Needs attention (AC17)", () => {
     const old = upload({
       assetId: A,
-      slots: [slot({ outcome: "retake_requested", reason: "Too dark" })],
+      slots: [
+        slot({
+          outcome: "retake_requested",
+          reason: "Too dark",
+          retakeAnswered: true,
+        }),
+      ],
     })
     const next = upload({
       assetId: B,
       slots: [slot({ replacesAssetId: A })],
     })
-    expect(replacedIds([old, next])).toEqual(new Set([A]))
     const { groups } = groupUploads([next, old])
     expect(groups.attention).toEqual([])
     expect(groups.waiting.map((u) => u.assetId)).toEqual([B])
     expect(groups.reviewed.map((u) => u.assetId)).toEqual([A])
+  })
+
+  it("keeps a retake open when the newer photo was sent before it was asked (E8)", () => {
+    // Two photos of Soup from one batch; the retake is asked on the older.
+    // The newer one does not answer it: my_uploads says so per slot.
+    const old = upload({
+      assetId: A,
+      slots: [
+        slot({
+          outcome: "retake_requested",
+          reason: "Too dark",
+          retakeAnswered: false,
+        }),
+      ],
+    })
+    const sibling = upload({ assetId: B, slots: [slot({})] })
+    const { groups } = groupUploads([sibling, old])
+    expect(groups.attention.map((u) => u.assetId)).toEqual([A])
+    expect(uploadActions(old).retake?.reason).toBe("Too dark")
+  })
+
+  it("puts an I'm not sure photo under Needs attention, with the manager (E4)", () => {
+    const unsure = upload({ slots: [], labelHelp: true })
+    expect(uploadSection(unsure)).toBe("attention")
+    const page = parseMyUploads({
+      items: [
+        {
+          assetId: A,
+          venueId: V,
+          mediaType: "image",
+          uploadState: "ready",
+          uploadedAt: "2026-11-12T10:00:00Z",
+          slots: [],
+          labelHelp: true,
+        },
+      ],
+      next: null,
+    })!
+    expect(page.items[0]!.labelHelp).toBe(true)
   })
 })
 
@@ -217,6 +261,25 @@ describe("My uploads actions by state", () => {
     })
   })
 
+  it("treats Label corrected as accepted: Ask to remove, never Withdraw (K4)", () => {
+    const fixed = upload({ slots: [slot({ outcome: "label_corrected" })] })
+    expect(uploadActions(fixed)).toMatchObject({
+      withdraw: false,
+      changeSlot: false,
+      correction: true,
+      removal: true,
+    })
+    expect(uploadSection(fixed)).toBe("reviewed")
+  })
+
+  it("offers Change slot only for a photo sent to the current venue (V13)", () => {
+    const other = "00000000-0000-4000-8000-0000000000f2"
+    expect(uploadActions(upload(), V).changeSlot).toBe(true)
+    expect(uploadActions(upload(), other).changeSlot).toBe(false)
+    // Withdraw still works from any venue.
+    expect(uploadActions(upload(), other).withdraw).toBe(true)
+  })
+
   it("leaves Change slot out for videos, amenities and two slots", () => {
     expect(uploadActions(upload({ mediaType: "video" })).changeSlot).toBe(false)
     expect(
@@ -236,7 +299,16 @@ describe("My uploads actions by state", () => {
       slots: [slot({ outcome: "retake_requested", reason: "Too dark" })],
     })
     expect(uploadActions(old).retake?.slotId).toBe(ITEM)
-    expect(uploadActions(old, new Set([A])).retake).toBeNull()
+    const answered = upload({
+      slots: [
+        slot({
+          outcome: "retake_requested",
+          reason: "Too dark",
+          retakeAnswered: true,
+        }),
+      ],
+    })
+    expect(uploadActions(answered).retake).toBeNull()
     expect(slotPageHref({ kind: "dish", slotId: ITEM })).toBe(
       `/staff/album/slot/dish/${ITEM}`
     )
@@ -247,18 +319,18 @@ describe("My uploads actions by state", () => {
 })
 
 describe("My uploads words", () => {
-  it("uses Album's outcome words with a chip for each (FA-7)", () => {
-    expect(OUTCOME_WORDS).toMatchObject({
-      public: "In the album",
-      reference: "Kept for reference",
-      retake_requested: "Retake",
-      label_corrected: "Label corrected",
-      not_used: "Not used",
-    })
-    for (const key of Object.values(OUTCOME_CHIP))
+  it("reads Album's outcome words from status-chip.tsx only (FA-7, V25)", () => {
+    const word = (k: keyof typeof OUTCOME_CHIP) =>
+      CHIP_STATES[OUTCOME_CHIP[k]].word
+    expect(word("public")).toBe("In the album")
+    expect(word("reference")).toBe("Kept for reference")
+    expect(word("retake_requested")).toBe("Retake")
+    expect(word("label_corrected")).toBe("Label corrected")
+    expect(word("not_used")).toBe("Not used")
+    for (const key of Object.values(OUTCOME_CHIP)) {
       expect(Object.hasOwn(CHIP_STATES, key), key).toBe(true)
-    for (const word of Object.values(OUTCOME_WORDS))
-      expect(word).not.toMatch(/approv|due|task/i)
+      expect(CHIP_STATES[key].word).not.toMatch(/approv|due|task/i)
+    }
   })
 
   it("says the receipt words for an unfinished upload", () => {
@@ -525,7 +597,43 @@ describe("notice links and Your month", () => {
     expect(
       noticeHref(n({ kind: "assigned", payload: { checkId: CHECK } }))
     ).toBe(`/staff/tasks/amenities/${CHECK}`)
+    expect(
+      noticeHref(
+        n({ kind: "assigned", subjectType: "amenity_check", subjectId: CHECK })
+      )
+    ).toBe(`/staff/tasks/amenities/${CHECK}`)
+    expect(
+      noticeHref(
+        n({
+          kind: "label_corrected",
+          payload: { source: "menu_photo", itemId: ITEM },
+        })
+      )
+    ).toBe(`/staff/album/slot/dish/${ITEM}`)
     expect(noticeHref(n({ kind: "upload_problem" }))).toBe("/staff")
+  })
+
+  it("opens the slot an Asked for request names, never a check page (V10)", () => {
+    const REQUEST = "00000000-0000-4000-8000-0000000000e9"
+    const asked = (payload: Record<string, unknown>) =>
+      n({
+        kind: "assigned",
+        subjectType: "media_request",
+        subjectId: REQUEST,
+        payload: { source: "media_request", requestId: REQUEST, ...payload },
+      })
+    expect(noticeHref(asked({ slotKind: "dish", slotId: ITEM }))).toBe(
+      `/staff/album/slot/dish/${ITEM}`
+    )
+    expect(noticeHref(asked({ slotKind: "area", slotId: BAR }))).toBe(
+      `/staff/album/slot/area/${BAR}`
+    )
+    expect(noticeHref(asked({ slotKind: "amenity", slotId: CHECK }))).toBe(
+      `/staff/tasks/amenities/${CHECK}`
+    )
+    // A brief with no slot (a campaign, a fact): the Asked for list.
+    expect(noticeHref(asked({}))).toBe("/staff/tasks")
+    expect(noticeHref(asked({})).includes(REQUEST)).toBe(false)
   })
 
   it("says the month's two figures without ranking", () => {
