@@ -135,7 +135,7 @@ empty of 40").
 ### A slot's page
 
 A filled slot opens its own page with **What the photo must show** (the
-brief), **The photo in the album**, how many photos wait for a manager, and
+brief, sometimes with an **Example of a good photo**), **The photo in the album**, how many photos wait for a manager, and
 **Your photos here** with what happened to each. If you were asked for
 another photo, it says **You were asked to retake this** and the reason. Use
 **Add a photo for this slot** (or **Add another photo**) to send one from your

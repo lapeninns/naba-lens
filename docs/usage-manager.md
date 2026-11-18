@@ -190,7 +190,8 @@ with **Restore**).
 1. Choose **New request**, then **From a slot**, **New brief** or **Fact
    check**.
 2. Pick the **Slot** (or the **Subject**, or the **Fact**) and write the
-   **Brief**: one line on what the photo must show.
+   **Brief**: one line on what the photo must show. A slot fills it in with
+   its own brief (yours, or the admin's shot template); change it as needed.
 3. Optionally set **Needed by**. It orders the slot for staff and never turns
    overdue. **More detail** holds **Priority**, **Team**, **Person**,
    **Orientation**, **When to shoot** and **Shot list**.
