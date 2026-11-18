@@ -426,6 +426,10 @@ describe("venues model", () => {
       locality: "At most 120 characters.",
       timezone: "Choose a timezone from the list.",
     })
+    for (const timezone of ["posix/Europe/London", "right/UTC"])
+      expect(
+        validateVenueForm({ ...form, name: "The Bell", locality: "", timezone })
+      ).toEqual({ timezone: "Choose a timezone from the list." })
     expect(
       validateVenueForm({
         ...form,

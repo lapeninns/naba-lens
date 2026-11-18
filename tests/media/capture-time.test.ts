@@ -6,6 +6,8 @@ import sharp from "sharp"
 import { describe, expect, it } from "vitest"
 
 import {
+  captureTimeZone,
+  DEFAULT_CAPTURE_TIME_ZONE,
   exifToDate,
   findTiff,
   imageCaptureTime,
@@ -210,6 +212,32 @@ describe("imageCaptureTime", () => {
     expect(imageCaptureTime(jpeg(winter), { now: NOW })?.toISOString()).toBe(
       "2026-01-14T19:30:05.000Z"
     )
+  })
+
+  it("reads an offsetless time in another venue zone, and falls back when the zone is unusable", () => {
+    const t = tiff([{ tag: ORIGINAL, value: "2026:07:10 12:00:00" }])
+    expect(
+      imageCaptureTime(jpeg(t), {
+        now: NOW,
+        timeZone: "America/New_York",
+      })?.toISOString()
+    ).toBe("2026-07-10T16:00:00.000Z")
+    // A name Postgres lists but Intl rejects must not fail the upload: it is
+    // read in the default zone (London, BST in July).
+    for (const timeZone of ["posix/Europe/London", "Mars/Olympus", ""]) {
+      expect(
+        imageCaptureTime(jpeg(t), { now: NOW, timeZone })?.toISOString()
+      ).toBe("2026-07-10T11:00:00.000Z")
+    }
+  })
+
+  it("keeps a usable zone and defaults anything else", () => {
+    expect(captureTimeZone("Europe/Dublin")).toBe("Europe/Dublin")
+    expect(captureTimeZone("posix/Europe/London")).toBe(
+      DEFAULT_CAPTURE_TIME_ZONE
+    )
+    expect(captureTimeZone(undefined)).toBe(DEFAULT_CAPTURE_TIME_ZONE)
+    expect(captureTimeZone(null)).toBe(DEFAULT_CAPTURE_TIME_ZONE)
   })
 
   it("falls back to DateTimeDigitized, never IFD0 DateTime", () => {

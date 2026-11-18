@@ -219,6 +219,19 @@ describe("venues", () => {
       "invalid_timezone",
       "22023"
     )
+    // Listed in pg_timezone_names, but not a zone the app's dates can use.
+    await fails(
+      admin.client.rpc("admin_venue_save", {
+        p_venue_id: venueA,
+        p_name: before.name,
+        p_locality: "",
+        p_address: "",
+        p_timezone: "posix/Europe/London",
+        p_revision: before.revision,
+      }),
+      "invalid_timezone",
+      "22023"
+    )
     const other = await venue(venueB)
     await fails(
       admin.client.rpc("admin_venue_save", {

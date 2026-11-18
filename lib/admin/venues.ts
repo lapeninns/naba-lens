@@ -330,6 +330,8 @@ export const TIMEZONES: ReadonlyArray<string> = [
 ]
 
 const IANA = /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){1,2}$/
+/** tz database variants the database lists but Intl rejects. */
+const TZ_VARIANT = /^(posix|right)\//i
 
 /** Field errors, or null when the form can be sent. */
 export function validateVenueForm(
@@ -343,7 +345,10 @@ export function validateVenueForm(
     errors.locality = "At most 120 characters."
   if ([...form.address.trim()].length > 300)
     errors.address = "At most 300 characters."
-  if (form.timezone.trim() && !IANA.test(form.timezone.trim()))
+  if (
+    form.timezone.trim() &&
+    (!IANA.test(form.timezone.trim()) || TZ_VARIANT.test(form.timezone.trim()))
+  )
     errors.timezone = "Choose a timezone from the list."
   if ([...form.reason.trim()].length > 500)
     errors.reason = "At most 500 characters."

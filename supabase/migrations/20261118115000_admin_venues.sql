@@ -72,7 +72,10 @@ language sql
 stable
 set search_path = ''
 as $$
+  -- posix/ and right/ are tz database variants, not IANA zone names; the
+  -- app's date code (Intl) rejects them, so a venue may not store one.
   select p_name is not null and p_name ~ '^[A-Za-z_]+(/[A-Za-z0-9_+-]+){1,2}$'
+    and p_name !~* '^(posix|right)/'
     and exists (select 1 from pg_catalog.pg_timezone_names t where t.name = p_name);
 $$;
 

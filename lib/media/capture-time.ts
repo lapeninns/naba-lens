@@ -67,12 +67,24 @@ export function imageCaptureTime(
   const wall = dates.original ?? dates.digitized
   const offset = dates.original ? dates.originalOffset : dates.digitizedOffset
   if (!wall) return null
-  const date = exifToDate(
-    wall,
-    offset,
-    options.timeZone ?? DEFAULT_CAPTURE_TIME_ZONE
-  )
+  const date = exifToDate(wall, offset, captureTimeZone(options.timeZone))
   return credibleCaptureTime(date, options.now)
+}
+
+/**
+ * The time zone to read offsetless EXIF times in: the venue's, when this
+ * runtime can use it, else the default. The database accepts any name in
+ * pg_timezone_names, and a few of those (e.g. "posix/...") are not valid for
+ * Intl; an upload must not fail because of the venue's stored zone.
+ */
+export function captureTimeZone(timeZone: string | null | undefined): string {
+  if (!timeZone) return DEFAULT_CAPTURE_TIME_ZONE
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone })
+    return timeZone
+  } catch {
+    return DEFAULT_CAPTURE_TIME_ZONE
+  }
 }
 
 // ---------------------------------------------------------------------------
