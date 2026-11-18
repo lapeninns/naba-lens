@@ -11,6 +11,7 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 // Privacy audit R3: a signed-in account that may not see a page must get a
 // server redirect (307) before anything renders, not 200 plus a client-side
@@ -31,6 +32,8 @@ async function signedIn(browser: Browser, identity: TestIdentity) {
   )
   await page.getByRole("button", { name: "Continue" }).click()
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/confirm"))
+  // FA-23: an admin's session counts only after the second step.
+  await passMfaIfAsked(page, identity.email)
   return context
 }
 

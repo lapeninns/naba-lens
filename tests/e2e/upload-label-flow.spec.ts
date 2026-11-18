@@ -585,7 +585,8 @@ test("f photo batched with a slow video is labelled and selectable on the task s
   await expect(tile).not.toHaveAttribute("aria-disabled", "true")
   await tile.click()
   await expect(tile).toHaveAttribute("aria-pressed", "true")
-  await expect(page.getByText("1 selected · up to 10")).toBeVisible()
+  // Spec §5.4: up to 20 files per selection.
+  await expect(page.getByText("1 selected · up to 20")).toBeVisible()
   expect(uploadState(videoId)).toBe("uploading")
 
   transfer.forward()
