@@ -58,8 +58,10 @@ begin
                 select distinct e.item_id,
                   exists (
                     select 1 from public.menu_item_photos p
+                    join public.media_assets a on a.id = p.asset_id and a.venue_id = p.venue_id
                     where p.item_id = e.item_id and p.venue_id = p_venue.id
                       and p.state = 'accepted' and p.review_level = 'public'
+                      and a.upload_state = 'ready' and a.deleted_at is null and a.media_type = 'image'
                       and not exists (
                         select 1 from public.menu_item_photos l
                         where l.asset_id = p.asset_id and l.item_id = p.item_id

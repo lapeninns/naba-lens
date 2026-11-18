@@ -101,7 +101,6 @@ declare
   v_venue uuid := coalesce(p_venue_id, private.my_manager_venue_id());
   v_status text := coalesce(p_status, 'pending');
   v_admin boolean;
-  v_active uuid;
   v_limit integer := least(greatest(coalesce(p_limit, 25), 1), 101);
   v_itemless boolean;
   v_before timestamptz;
@@ -124,17 +123,13 @@ begin
   end if;
   v_before := case when p_min_age_days is not null then now() - make_interval(days => p_min_age_days) end;
   v_admin := private.is_active_admin();
-  v_active := private.active_menu_version_id(v_venue);
   v_itemless := v_status in ('stale_label', 'unlabelled');
   v_self_allowed := private.review_self_allowed(v_venue);
   return query
   with m as (
-    -- Items of the active countable menu.
-    select e.item_id, e.id as entry_id, e.name, s.id as section_id, s.name as section_name, s.kind as section_kind
-    from public.menu_entries e
-    join public.menu_sections s on s.id = e.section_id and s.kind in ('food', 'drinks')
-    join public.menu_items i on i.id = e.item_id and i.archived_at is null
-    where e.version_id = v_active
+    select e.item_id, e.entry_id, e.name, e.section_id, e.section_name, e.section_kind
+    from private.current_photo_menu_items(v_venue) e
+    where e.section_kind in ('food', 'drinks')
   ),
   pt as (
     select t.* from private.menu_photo_pending_tuples(v_venue, v_admin, v_status = 'mine') t
@@ -273,7 +268,6 @@ declare
   v_uid uuid := auth.uid();
   v_asset public.media_assets;
   v_admin boolean;
-  v_active uuid;
   v_out jsonb;
 begin
   if v_uid is null or not private.is_active_user() then
@@ -285,7 +279,6 @@ begin
     raise exception 'media_asset_not_found' using errcode = 'P0002';
   end if;
   v_admin := private.is_active_admin();
-  v_active := private.active_menu_version_id(v_asset.venue_id);
 
   select jsonb_build_object(
     'assetId', v_asset.id,
@@ -354,8 +347,8 @@ begin
             'variantId', t.variant_id,
             'itemName', coalesce(max(e.name), max(t.name)),
             'variantName', max(t.variant_name),
-            'sectionName', max(s.name),
-            'sectionKind', max(s.kind),
+            'sectionName', max(e.section_name),
+            'sectionKind', max(e.section_kind),
             'onMenu', bool_or(e.item_id is not null),
             'staffLabel', bool_or(t.staff),
             'waiting', exists (
@@ -396,8 +389,7 @@ begin
           from public.menu_item_photos p
           where p.asset_id = v_asset.id and p.state in ('accepted', 'better_photo_requested', 'needs_recheck')
         ) t
-        left join public.menu_entries e on e.item_id = t.item_id and e.version_id = v_active
-        left join public.menu_sections s on s.id = e.section_id
+        left join private.current_photo_menu_items(v_asset.venue_id) e on e.item_id = t.item_id
         left join public.menu_item_photos lp
           on lp.asset_id = v_asset.id and lp.item_id = t.item_id
           and lp.variant_id is not distinct from t.variant_id

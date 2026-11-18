@@ -6114,7 +6114,7 @@ export type Database = {
           is_primary: boolean
           item_id: string
           item_name: string
-          menu_version_id: string
+          menu_version_id: string | null
           reason: string | null
           recheck_kind: string | null
           review_level: string
@@ -6144,7 +6144,7 @@ export type Database = {
           is_primary?: boolean
           item_id: string
           item_name: string
-          menu_version_id: string
+          menu_version_id?: string | null
           reason?: string | null
           recheck_kind?: string | null
           review_level?: string
@@ -6174,7 +6174,7 @@ export type Database = {
           is_primary?: boolean
           item_id?: string
           item_name?: string
-          menu_version_id?: string
+          menu_version_id?: string | null
           reason?: string | null
           recheck_kind?: string | null
           review_level?: string
@@ -10781,6 +10781,7 @@ export type Database = {
           waiting: boolean
         }[]
       }
+      menu_label_catalogue: { Args: { p_venue_id: string }; Returns: Json }
       menu_label_counts: { Args: { p_venue_id: string }; Returns: Json }
       menu_offering_states: { Args: { p_venue_id?: string }; Returns: Json }
       menu_photo_also_counts: {

@@ -208,6 +208,111 @@ as $$
   end;
 $$;
 
+-- Current targets for matching and dish coverage. The stable item id is the
+-- photo identity. A special has no menu entry or variant of its own.
+create function private.current_photo_menu_items(p_venue_id uuid)
+returns table (
+  item_id uuid, entry_id uuid, menu_version_id uuid,
+  section_id uuid, section_name text, section_slug text, section_kind text,
+  section_position integer, entry_position integer,
+  canonical_name text, name text, description text, aliases text[]
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with active as (
+    select private.active_menu_version_id(p_venue_id) as id
+  ), offerings as (
+    select e.item_id, e.id as entry_id, a.id as menu_version_id,
+      s.id as section_id, s.name as section_name, s.slug as section_slug,
+      s.kind as section_kind, s.position as section_position,
+      e.position as entry_position, e.name as canonical_name, e.description, e.aliases
+    from active a
+    join public.menu_entries e on e.version_id = a.id
+    join public.menu_sections s on s.id = e.section_id
+    union all
+    select sp.item_id, null, a.id, md5(p_venue_id::text || grp.slug)::uuid,
+      grp.name, grp.slug, grp.kind, grp.position,
+      (row_number() over (partition by sp.kind order by sp.name, sp.item_id))::integer,
+      sp.name, sp.description, '{}'::text[]
+    from active a
+    join public.menu_specials sp on sp.venue_id = p_venue_id
+    join (values ('food', 'Food specials', 'food-specials', 2147483646),
+                 ('drinks', 'Drinks specials', 'drinks-specials', 2147483647))
+      as grp(kind, name, slug, position) on grp.kind = sp.kind
+    where sp.status = 'running'
+      and private.london_today() between sp.starts_on and sp.ends_on
+      and not exists (
+        select 1 from public.menu_entries e where e.version_id = a.id and e.item_id = sp.item_id)
+  )
+  select o.item_id, o.entry_id, o.menu_version_id, o.section_id, o.section_name,
+    o.section_slug, o.section_kind, o.section_position, o.entry_position,
+    o.canonical_name, coalesce(d.display_name, o.canonical_name), o.description,
+    case when d.display_name is not null
+      and lower(d.display_name) <> lower(o.canonical_name)
+      and not exists (select 1 from unnest(o.aliases) al where lower(al) = lower(o.canonical_name))
+      then array_append(o.aliases, o.canonical_name) else o.aliases end
+  from offerings o
+  join public.menu_items i on i.id = o.item_id and i.venue_id = p_venue_id and i.archived_at is null
+  left join public.menu_item_display_names d on d.item_id = o.item_id and d.venue_id = p_venue_id;
+$$;
+
+-- One statement keeps the version, sections, and their items on the same
+-- snapshot. A JSON result also fits menus larger than PostgREST's row cap.
+create function public.menu_label_catalogue(p_venue_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with venue as (
+    select v.id, v.name, private.active_menu_version_id(v.id) as version_id
+    from public.venues v
+    where v.id = p_venue_id
+      and (private.is_active_admin() or private.staff_can_label_venue(v.id))
+  ), items as (
+    select m.* from venue v cross join lateral private.current_photo_menu_items(v.id) m
+  ), sections as (
+    select s.id, s.slug, s.name, s.kind, s.position
+    from venue v join public.menu_sections s on s.version_id = v.version_id
+    union all
+    select distinct i.section_id, i.section_slug, i.section_name, i.section_kind, i.section_position
+    from items i where i.entry_id is null
+  ), section_items as (
+    select i.section_id, jsonb_agg(jsonb_build_object(
+      'itemId', i.item_id, 'name', i.name, 'description', i.description, 'aliases', i.aliases,
+      'variants', coalesce((
+        select jsonb_agg(jsonb_build_object('variantId', ev.variant_id, 'name', ev.name)
+          order by ev.position, ev.variant_id)
+        from public.menu_entry_variants ev where ev.entry_id = i.entry_id
+      ), '[]'::jsonb)
+    ) order by i.entry_position, i.item_id) as items
+    from items i group by i.section_id
+  )
+  select jsonb_build_object('venueId', v.id, 'venueName', v.name) ||
+    case when v.version_id is null and not exists (select 1 from items)
+      then jsonb_build_object('status', 'none')
+      else jsonb_build_object(
+        'status', 'active', 'versionId', v.version_id,
+        'versionTitle', coalesce(m.title, 'Specials'), 'activatedAt', m.activated_at,
+        'sections', coalesce((
+          select jsonb_agg(jsonb_build_object(
+            'id', s.id, 'slug', s.slug, 'name', s.name, 'kind', s.kind,
+            'items', coalesce(si.items, '[]'::jsonb)
+          ) order by s.position, s.id)
+          from sections s left join section_items si on si.section_id = s.id
+        ), '[]'::jsonb))
+    end
+  from venue v left join public.menu_versions m on m.id = v.version_id;
+$$;
+
+revoke all on function private.current_photo_menu_items(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.menu_label_catalogue(uuid) from public, anon, service_role;
+grant execute on function public.menu_label_catalogue(uuid) to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Writes: availability, display name, presentation
 -- ---------------------------------------------------------------------------

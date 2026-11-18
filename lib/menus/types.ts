@@ -286,7 +286,8 @@ export type LabelCatalogue =
       status: "active"
       venueId: string
       venueName: string
-      versionId: string
+      /** Null when the venue has running specials and no published menu. */
+      versionId: string | null
       versionTitle: string
       activatedAt: string | null
       /** Archived items are omitted. */

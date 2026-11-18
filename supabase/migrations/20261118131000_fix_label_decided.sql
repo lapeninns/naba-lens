@@ -191,18 +191,14 @@ begin
   end if;
   perform private.lock_venue_menu(v_asset.venue_id, true);
 
-  -- The target item is on the active version in a food or drinks section, not
-  -- archived, and offers the variant (a variant_removed recheck can only be
-  -- withdrawn).
+  -- The current food or drinks offering must include the requested variant.
+  -- A variant_removed recheck can only be withdrawn.
   v_active := private.active_menu_version_id(v_asset.venue_id);
-  select e.name, s.name, s.kind, ev.name
+  select e.canonical_name, e.section_name, e.section_kind, ev.name
   into v_entry_name, v_section_name, v_section_kind, v_variant_name
-  from public.menu_items i
-  join public.menu_entries e on e.item_id = i.id and e.version_id = v_active
-  join public.menu_sections s on s.id = e.section_id
-  left join public.menu_entry_variants ev on ev.entry_id = e.id and ev.variant_id = p_variant_id
-  where i.id = p_item_id and i.venue_id = v_asset.venue_id and i.archived_at is null
-    and s.kind in ('food', 'drinks')
+  from private.current_photo_menu_items(v_asset.venue_id) e
+  left join public.menu_entry_variants ev on ev.entry_id = e.entry_id and ev.variant_id = p_variant_id
+  where e.item_id = p_item_id and e.section_kind in ('food', 'drinks')
     and (p_variant_id is null or ev.variant_id is not null);
   if not found then
     raise exception 'menu_item_unavailable' using errcode = 'P0001';
@@ -249,10 +245,8 @@ begin
       -- A corrected label (item on the menu) or a label for an earlier menu.
       if exists (
         select 1
-        from public.menu_entries e
-        join public.menu_sections s on s.id = e.section_id and s.kind in ('food', 'drinks')
-        join public.menu_items i on i.id = e.item_id and i.archived_at is null
-        where e.version_id = v_active and e.item_id = p_corrects_item_id
+        from private.current_photo_menu_items(v_asset.venue_id) e
+        where e.item_id = p_corrects_item_id and e.section_kind in ('food', 'drinks')
       ) then
         v_reason := private.require_reason(p_reason);
         v_kind := 'correction';
@@ -564,12 +558,11 @@ begin
       -- and is withdrawn at once, so the label leaves the queue with the
       -- reason, as a decided one does.
       v_active := private.active_menu_version_id(v_asset.venue_id);
-      select e.name, s.name, s.kind, ev.name
+      select e.canonical_name, e.section_name, e.section_kind, ev.name
       into v_entry_name, v_section_name, v_section_kind, v_variant_name
-      from public.menu_entries e
-      join public.menu_sections s on s.id = e.section_id
-      left join public.menu_entry_variants ev on ev.entry_id = e.id and ev.variant_id = p_from_variant_id
-      where e.item_id = p_from_id and e.version_id = v_active;
+      from private.current_photo_menu_items(v_asset.venue_id) e
+      left join public.menu_entry_variants ev on ev.entry_id = e.entry_id and ev.variant_id = p_from_variant_id
+      where e.item_id = p_from_id;
       insert into public.menu_item_photos as p (
         venue_id, item_id, variant_id, asset_id, author_id, state, is_primary, reason,
         item_name, variant_name, section_name, section_kind, menu_version_id,
@@ -705,7 +698,6 @@ declare
   v_uid uuid := auth.uid();
   v_asset public.media_assets;
   v_admin boolean;
-  v_active uuid;
   v_out jsonb;
 begin
   if v_uid is null or not private.is_active_user() then
@@ -717,7 +709,6 @@ begin
     raise exception 'media_asset_not_found' using errcode = 'P0002';
   end if;
   v_admin := private.is_active_admin();
-  v_active := private.active_menu_version_id(v_asset.venue_id);
 
   select jsonb_build_object(
     'assetId', v_asset.id,
@@ -786,8 +777,8 @@ begin
             'variantId', t.variant_id,
             'itemName', coalesce(max(e.name), max(t.name)),
             'variantName', max(t.variant_name),
-            'sectionName', max(s.name),
-            'sectionKind', max(s.kind),
+            'sectionName', max(e.section_name),
+            'sectionKind', max(e.section_kind),
             'onMenu', bool_or(e.item_id is not null),
             'staffLabel', bool_or(t.staff),
             -- S3-R13: a live reviewer row already corrects this staff label.
@@ -834,8 +825,7 @@ begin
           from public.menu_item_photos p
           where p.asset_id = v_asset.id and p.state in ('accepted', 'better_photo_requested', 'needs_recheck')
         ) t
-        left join public.menu_entries e on e.item_id = t.item_id and e.version_id = v_active
-        left join public.menu_sections s on s.id = e.section_id
+        left join private.current_photo_menu_items(v_asset.venue_id) e on e.item_id = t.item_id
         left join public.menu_item_photos lp
           on lp.asset_id = v_asset.id and lp.item_id = t.item_id
           and lp.variant_id is not distinct from t.variant_id

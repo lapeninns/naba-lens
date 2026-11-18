@@ -146,10 +146,8 @@ as $$
     and not exists (
       select 1
       from public.media_label_items li
-      join public.menu_entries e
-        on e.item_id = li.item_id and e.version_id = private.active_menu_version_id(p_venue)
-      join public.menu_sections s on s.id = e.section_id and s.kind in ('food', 'drinks')
-      join public.menu_items i on i.id = li.item_id and i.archived_at is null
+      join private.current_photo_menu_items(p_venue) e
+        on e.item_id = li.item_id and e.section_kind in ('food', 'drinks')
       where li.asset_id = p_asset)
     and not exists (
       select 1 from public.menu_item_photos p
@@ -182,15 +180,12 @@ stable
 security definer
 set search_path = ''
 as $$
-  select li.id, a.id, li.item_id, li.variant_id, e.id, a.uploader_id, a.created_at, li.added_at,
+  select li.id, a.id, li.item_id, li.variant_id, e.entry_id, a.uploader_id, a.created_at, li.added_at,
     lp.id, coalesce(lp.state = 'needs_recheck', false)
-  from public.menu_versions v
-  join public.menu_entries e on e.version_id = v.id
-  join public.menu_sections s on s.id = e.section_id and s.kind in ('food', 'drinks')
-  join public.menu_items i on i.id = e.item_id and i.archived_at is null
+  from private.current_photo_menu_items(p_venue_id) e
   join public.media_label_items li on li.item_id = e.item_id and li.venue_id = p_venue_id
   join public.media_assets a on a.id = li.asset_id
-  left join public.menu_entry_variants ev on ev.entry_id = e.id and ev.variant_id = li.variant_id
+  left join public.menu_entry_variants ev on ev.entry_id = e.entry_id and ev.variant_id = li.variant_id
   left join lateral (
     select p.id, p.state from public.menu_item_photos p
     where p.asset_id = li.asset_id and p.item_id = li.item_id
@@ -204,7 +199,7 @@ as $$
       and p.state = 'withdrawn' and p.withdrawn_at >= li.added_at
     limit 1
   ) wd on true
-  where v.venue_id = p_venue_id and v.status = 'active'
+  where e.section_kind in ('food', 'drinks')
     and a.media_type = 'image' and a.upload_state = 'ready' and a.deleted_at is null
     -- A variant no longer offered still waits while its row needs a recheck.
     and (li.variant_id is null or ev.variant_id is not null or lp.state = 'needs_recheck')

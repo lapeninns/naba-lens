@@ -16,26 +16,8 @@ const VENUE = "0a6f3c2e-6a51-4f43-9a6a-2f1f8d1c0a02"
 
 type Result = { data: unknown; error: unknown }
 
-/** A query builder: every call chains, and awaiting it gives `result`. */
-function query(result: Result): unknown {
-  const builder: unknown = new Proxy(() => builder, {
-    get: (_target, prop) =>
-      prop === "then"
-        ? (resolve: (r: Result) => void) => resolve(result)
-        : () => builder,
-  })
-  return builder
-}
-
 function managerActor(rpcResult: Result) {
   const db = {
-    from: vi.fn((table: string) =>
-      query(
-        table === "venues"
-          ? { data: { id: VENUE, name: "TEST Venue" }, error: null }
-          : { data: null, error: null }
-      )
-    ),
     rpc: vi.fn(async () => rpcResult),
   }
   const actor = {
@@ -49,12 +31,19 @@ function managerActor(rpcResult: Result) {
 
 describe("label services with a manager account", () => {
   it("read its managed venue's catalogue through the database", async () => {
-    const { actor, db } = managerActor({ data: null, error: null })
+    const catalogue = {
+      status: "none",
+      venueId: VENUE,
+      venueName: "TEST Venue",
+    }
+    const { actor, db } = managerActor({ data: catalogue, error: null })
     expect(await getLabellingCatalogue(actor, VENUE)).toEqual({
       ok: true,
-      catalogue: { status: "none", venueId: VENUE, venueName: "TEST Venue" },
+      catalogue,
     })
-    expect(db.from).toHaveBeenCalledWith("menu_versions")
+    expect(db.rpc).toHaveBeenCalledWith("menu_label_catalogue", {
+      p_venue_id: VENUE,
+    })
   })
 
   it("save through the database and report its refusal", async () => {

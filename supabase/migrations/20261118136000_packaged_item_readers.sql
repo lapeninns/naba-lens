@@ -111,7 +111,9 @@ begin
   v_admin := private.is_active_admin();
   v_name := (select v.name from public.venues v where v.id = v_venue);
   v_active := private.active_menu_version_id(v_venue);
-  if v_active is null then
+  if v_active is null and not exists (
+    select 1 from private.current_photo_menu_items(v_venue)
+  ) then
     return query select v_venue, v_name, 'no_menu'::text, null::uuid, null::text, null::timestamptz,
       0, 0, 0, 0, 0, 0, 0, 0, null::timestamptz, 0, 0, '[]'::jsonb;
     return;
@@ -161,7 +163,7 @@ begin
   select v_venue, v_name,
     -- Empty only when the active version lists no item at all (Y3).
     case when count(x.item_id) = 0 then 'empty' else 'ready' end,
-    v_active, v_title, v_activated,
+    v_active, coalesce(v_title, 'Specials'), v_activated,
     (count(*) filter (where not x.optional))::integer,
     (count(*) filter (where not x.optional and x.covered))::integer,
     (count(*) filter (where not x.optional and not x.covered and x.any_waiting > 0))::integer,
@@ -541,7 +543,9 @@ declare
   v_active uuid := private.active_menu_version_id(v_venue);
   v_reviewer boolean := private.can_manage_venue(v_venue);
 begin
-  if v_active is null then
+  if v_active is null and not exists (
+    select 1 from private.current_photo_menu_items(v_venue)
+  ) then
     return query select v_venue, v_name, 'no_menu'::text, null::uuid, null::uuid, null::text, null::text,
       null::integer, 0, 0, 0, null::integer, null::timestamptz;
     return;

@@ -7,8 +7,10 @@
 // without accommodation has it recorded as out of scope (AC29). Real
 // signed-in identities through PostgREST; the service role and psql only
 // build fixtures and read back.
+import { randomUUID } from "node:crypto"
 import { beforeAll, describe, expect, it } from "vitest"
 
+import type { LabelCatalogue } from "../../lib/menus/types"
 import {
   anonClient,
   createIdentity,
@@ -19,14 +21,17 @@ import {
 import { fails, makeManager, ok, psql } from "./coverage-fixtures"
 import { call, world as knowledgeWorld } from "./knowledge-fixtures"
 import {
+  createDraft,
   item,
   menu,
   publishMenu,
   readDocument,
   reserveReady,
+  saveLabels,
   saveOk,
   section,
 } from "./menus-fixtures"
+import { removeAsAdmin } from "./privacy-fixtures"
 
 const service = serviceClient()
 
@@ -98,6 +103,19 @@ async function head(itemId: string) {
     .eq("item_id", itemId)
     .maybeSingle()
   return data?.revision ?? 1
+}
+
+async function photoCatalogue(who: TestIdentity, venue: string) {
+  return (await ok(
+    who.client.rpc("menu_label_catalogue", { p_venue_id: venue })
+  )) as LabelCatalogue
+}
+
+async function catalogueItems(who: TestIdentity, venue: string) {
+  const catalogue = await photoCatalogue(who, venue)
+  return catalogue.status === "active"
+    ? catalogue.sections.flatMap((section) => section.items)
+    : []
 }
 
 async function acceptedPhoto(w: World, itemId: string) {
@@ -285,6 +303,23 @@ describe("local display names", () => {
     expect(
       (await states(w.staff)).find((s) => s.itemId === lassi)
     ).toMatchObject({ displayName: "Mango lassi" })
+    expect(await catalogueItems(w.staff, w.venue)).toContainEqual(
+      expect.objectContaining({
+        itemId: lassi,
+        name: "Mango lassi",
+        aliases: ["Lassi"],
+      })
+    )
+    for (const query of ["Mango", "Lassi"]) {
+      const dishes = await ok(
+        w.staff.client.rpc("menu_item_photo_items", { p_query: query })
+      )
+      expect(dishes).toContainEqual(
+        expect.objectContaining({ item_id: lassi, name: "Mango lassi" })
+      )
+    }
+    const { byKey } = await readDocument(service, w.version)
+    expect(byKey["drinks--lassi"]).toMatchObject({ name: "Lassi" })
     await fails(set(w.staff, "x", "TEST"), "not_venue_manager")
     await fails(set(other.mgr, "x", "TEST"), "not_venue_manager")
     await fails(set(leaver, "x", "TEST"), "not_active_user")
@@ -294,6 +329,9 @@ describe("local display names", () => {
       p_reason: "x",
     })
     await ok(set(admin, null, null))
+    expect(await catalogueItems(w.staff, w.venue)).toContainEqual(
+      expect.objectContaining({ itemId: lassi, name: "Lassi", aliases: [] })
+    )
     const { data: events } = await service
       .from("menu_events")
       .select("action, detail")
@@ -304,6 +342,60 @@ describe("local display names", () => {
       "display_name_cleared",
     ])
   })
+})
+
+it("counts an accepted photo on the next menu only while its asset is live", async () => {
+  const v = await world("next-menu-photo-removal")
+  const { sections } = await readDocument(service, v.version)
+  const version = await createDraft(
+    admin,
+    v.venue,
+    menu("TEST next menu", sections),
+    v.version
+  )
+  const draft = await ok<{ revision: number }>(
+    service.from("menu_versions").select("revision").eq("id", version).single()
+  )
+  await ok(
+    admin.client.rpc("schedule_menu_version", {
+      p_version_id: version,
+      p_expected_revision: draft.revision,
+      p_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+      p_retirements: 0,
+    })
+  )
+  const approved = await acceptedPhoto(v, v.id("mains--korma"))
+  const photo = await ok<{ asset_id: string }>(
+    service
+      .from("menu_item_photos")
+      .select("asset_id")
+      .eq("id", approved)
+      .single()
+  )
+  const next = () =>
+    ok(
+      admin.client.rpc("admin_group_overview", {
+        p_venue_ids: [v.venue],
+        p_menu: "next",
+      })
+    )
+  const food = (covered: number, missing: number) => ({
+    rows: [
+      {
+        categories: expect.arrayContaining([
+          expect.objectContaining({
+            category: "food",
+            total: 2,
+            covered,
+            missing,
+          }),
+        ]),
+      },
+    ],
+  })
+  expect(await next()).toMatchObject(food(1, 1))
+  await removeAsAdmin(photo.asset_id)
+  expect(await next()).toMatchObject(food(0, 2))
 })
 
 describe("presentation changed", () => {
@@ -444,6 +536,211 @@ describe("local specials", () => {
     expect(
       (await list(w.mgr, true)).find((s) => s.specialId === suggested.specialId)
     ).toMatchObject({ state: "ended" })
+  })
+
+  it("lets the manager place a staff photo on an accepted suggestion, while expired and future specials are excluded", async () => {
+    const { venue, version, staff, mgr } = await world("menus-special-photo")
+    const suggested = (await ok(create(staff, venue)))!
+    const future = (await ok(create(mgr, venue, londonDay(2), londonDay(7))))!
+    const asset = await reserveReady(service, staff)
+    await ok(staff.client.rpc("request_label_help", { p_asset_id: asset.id }))
+    const assign = (itemId: string) =>
+      call(mgr, "assign_menu_item_photo", {
+        p_asset_id: asset.id,
+        p_item_id: itemId,
+        p_variant_id: null,
+        p_corrects_item_id: null,
+        p_corrects_variant_id: null,
+        p_reason: null,
+        p_expected_revision: 1,
+      }) as Rpc<{ state: string }[]>
+
+    const before = (await catalogueItems(staff, venue)).map((i) => i.itemId)
+    expect(before).not.toContain(suggested.itemId)
+    expect(before).not.toContain(future.itemId)
+    await fails(assign(suggested.itemId), "menu_item_unavailable")
+    await fails(assign(future.itemId), "menu_item_unavailable")
+    const needsLabel = await ok(
+      mgr.client.rpc("manager_menu_photo_queue", { p_status: "unlabelled" })
+    )
+    expect(needsLabel).toContainEqual(
+      expect.objectContaining({ asset_id: asset.id })
+    )
+
+    await ok(
+      call(mgr, "menu_special_decide", {
+        p_special_id: suggested.specialId,
+        p_accept: true,
+        p_reason: null,
+        p_revision: 1,
+      }) as Rpc
+    )
+    expect(await catalogueItems(staff, venue)).toContainEqual(
+      expect.objectContaining({
+        itemId: suggested.itemId,
+        name: "TEST Game pie",
+        variants: [],
+      })
+    )
+    expect((await ok(assign(suggested.itemId)))![0]).toMatchObject({
+      state: "accepted",
+    })
+    const detail = await ok(
+      mgr.client.rpc("review_photo_detail", { p_asset_id: asset.id })
+    )
+    expect(detail).toMatchObject({
+      dishes: [
+        {
+          itemId: suggested.itemId,
+          itemName: "TEST Game pie",
+          sectionName: "Food specials",
+          onMenu: true,
+          state: "accepted",
+        },
+      ],
+    })
+    const coverage = () => ok(staff.client.rpc("coverage_slots"))
+    expect(await coverage()).toMatchObject({
+      slots: expect.arrayContaining([
+        expect.objectContaining({ slotId: suggested.itemId, state: "covered" }),
+      ]),
+    })
+    const { byKey } = await readDocument(service, version)
+    expect(
+      Object.values(byKey)
+        .map((i) => i.itemId)
+        .sort()
+    ).toEqual(before.sort())
+    expect(
+      await ok(
+        other.staff.client.rpc("menu_label_catalogue", { p_venue_id: venue })
+      )
+    ).toBeNull()
+
+    psql(
+      `update public.menu_specials set starts_on = current_date - 10, ends_on = current_date - 2 where id = '${suggested.specialId}'`
+    )
+    expect(
+      (await catalogueItems(staff, venue)).map((i) => i.itemId)
+    ).not.toContain(suggested.itemId)
+    expect(await coverage()).not.toMatchObject({
+      slots: expect.arrayContaining([
+        expect.objectContaining({ slotId: suggested.itemId }),
+      ]),
+    })
+  })
+
+  it("accepts and covers a staff-matched special before the venue publishes its first menu", async () => {
+    const venue = (await createVenue(service, "menus-special-only")).id
+    const [mgr, staff] = await Promise.all(
+      ["mgr", "staff"].map((role) =>
+        createIdentity(service, {
+          label: `special-only-${role}`,
+          role: "staff",
+          venueId: venue,
+        })
+      )
+    )
+    await makeManager(admin, mgr!, venue)
+    const running = (await ok(create(mgr!, venue)))!
+    expect(await photoCatalogue(staff!, venue)).toMatchObject({
+      status: "active",
+      versionId: null,
+      sections: [{ name: "Food specials", kind: "food" }],
+    })
+    const asset = await reserveReady(service, staff!)
+    const labels = {
+      asset: asset.id,
+      revision: 0,
+      types: ["dish"],
+      items: [{ itemId: running.itemId, variantId: null }],
+    }
+    await fails(
+      saveLabels(staff!, {
+        ...labels,
+        items: [{ itemId: running.itemId, variantId: randomUUID() }],
+      }),
+      "menu_item_unavailable"
+    )
+    await saveOk(staff!, labels)
+    expect(
+      await ok(
+        staff!.client.rpc("media_label_details", { p_asset_ids: [asset.id] })
+      )
+    ).toContainEqual(
+      expect.objectContaining({
+        item_id: running.itemId,
+        name: "TEST Game pie",
+        state: "current",
+      })
+    )
+    const queue = () =>
+      ok(
+        mgr!.client.rpc("manager_menu_photo_queue", {
+          p_status: "pending",
+          p_item_id: running.itemId,
+        })
+      )
+    expect(await queue()).toContainEqual(
+      expect.objectContaining({
+        asset_id: asset.id,
+        item_name: "TEST Game pie",
+      })
+    )
+    expect(
+      await ok(
+        call(staff!, "my_contributions_feed", {
+          p_cursor: null,
+          p_limit: 20,
+        }) as Rpc
+      )
+    ).toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          assetId: asset.id,
+          menuDecisions: [
+            expect.objectContaining({
+              itemId: running.itemId,
+              itemName: "TEST Game pie",
+              state: "waiting",
+            }),
+          ],
+        }),
+      ]),
+    })
+    const [accepted] = await ok(
+      mgr!.client.rpc("review_menu_item_photo", {
+        p_asset_id: asset.id,
+        p_item_id: running.itemId,
+        p_variant_id: null as unknown as string,
+        p_decision: "accepted",
+        p_expected_revision: await head(running.itemId),
+        p_make_primary: true,
+      })
+    )
+    expect(accepted).toMatchObject({
+      item_id: running.itemId,
+      state: "accepted",
+    })
+    expect(await queue()).toEqual([])
+    expect(
+      await ok(staff!.client.rpc("menu_item_photo_summary"))
+    ).toContainEqual(
+      expect.objectContaining({
+        menu_state: "ready",
+        section_name: "Food specials",
+        covered_items: 1,
+      })
+    )
+    expect(
+      await ok(
+        service
+          .from("menu_item_photos")
+          .select("menu_version_id")
+          .eq("id", accepted!.photo_id)
+          .single()
+      )
+    ).toEqual({ menu_version_id: null })
   })
 
   it("lets the manager create a running special, extend it, and decline a suggestion with a reason", async () => {

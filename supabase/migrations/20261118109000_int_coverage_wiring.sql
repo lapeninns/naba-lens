@@ -223,20 +223,18 @@ stable
 security definer
 set search_path = ''
 as $$
-  select v.id, s.id, s.name, s.kind, s.position, e.item_id, e.position, e.name, e.description, e.aliases,
+  select e.menu_version_id, e.section_id, e.section_name, e.section_kind, e.section_position,
+    e.item_id, e.entry_position, e.name, e.description, e.aliases,
     coalesce((
       select jsonb_agg(jsonb_build_object('variantId', ev.variant_id, 'name', ev.name) order by ev.position)
-      from public.menu_entry_variants ev where ev.entry_id = e.id), '[]'::jsonb),
+      from public.menu_entry_variants ev where ev.entry_id = e.entry_id), '[]'::jsonb),
     pr.photo_id is not null,
     coalesce(ac.accepted, 0), coalesce(ac.recheck, 0),
     pr.photo_id, pr.asset_id,
     coalesce(h.revision, 1),
     case when p_reviewer then coalesce(c.n, 0) end,
     case when p_reviewer then c.oldest end
-  from public.menu_versions v
-  join public.menu_sections s on s.version_id = v.id and s.kind in ('food', 'drinks')
-  join public.menu_entries e on e.version_id = v.id and e.section_id = s.id
-  join public.menu_items i on i.id = e.item_id and i.archived_at is null
+  from private.current_photo_menu_items(p_venue_id) e
   left join public.menu_item_photo_heads h on h.item_id = e.item_id
   left join lateral (
     select p.id as photo_id, p.asset_id
@@ -266,7 +264,7 @@ as $$
     where p_reviewer
     group by t.item_id
   ) c on c.item_id = e.item_id
-  where v.venue_id = p_venue_id and v.status = 'active';
+  where e.section_kind in ('food', 'drinks');
 $$;
 
 -- ---------------------------------------------------------------------------
