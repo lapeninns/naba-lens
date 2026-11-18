@@ -1214,6 +1214,310 @@ export type Database = {
           },
         ]
       }
+      export_package_downloads: {
+        Row: {
+          completed_at: string | null
+          downloaded_by: string
+          failed_at: string | null
+          files: Json | null
+          id: string
+          package_id: string
+          started_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          downloaded_by: string
+          failed_at?: string | null
+          files?: Json | null
+          id?: string
+          package_id: string
+          started_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          downloaded_by?: string
+          failed_at?: string | null
+          files?: Json | null
+          id?: string
+          package_id?: string
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_package_downloads_downloaded_by_fkey"
+            columns: ["downloaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "export_package_downloads_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "export_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      export_package_items: {
+        Row: {
+          alt_text: string | null
+          approval_id: string
+          approval_kind: string
+          approval_level: string
+          approval_version: string
+          asset_id: string
+          caption: string | null
+          category: string
+          filename_stem: string
+          package_id: string
+          position: number
+          subject_id: string
+          subject_kind: string
+          subject_label: string
+          uploaded_at: string
+          use_restrictions: string[]
+          venue_id: string
+        }
+        Insert: {
+          alt_text?: string | null
+          approval_id: string
+          approval_kind: string
+          approval_level: string
+          approval_version: string
+          asset_id: string
+          caption?: string | null
+          category: string
+          filename_stem: string
+          package_id: string
+          position: number
+          subject_id: string
+          subject_kind: string
+          subject_label: string
+          uploaded_at: string
+          use_restrictions?: string[]
+          venue_id: string
+        }
+        Update: {
+          alt_text?: string | null
+          approval_id?: string
+          approval_kind?: string
+          approval_level?: string
+          approval_version?: string
+          asset_id?: string
+          caption?: string | null
+          category?: string
+          filename_stem?: string
+          package_id?: string
+          position?: number
+          subject_id?: string
+          subject_kind?: string
+          subject_label?: string
+          uploaded_at?: string
+          use_restrictions?: string[]
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_package_items_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "export_package_items_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "export_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      export_packages: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          invalidated_assets: string[] | null
+          invalidated_at: string | null
+          invalidated_reason: string | null
+          item_count: number
+          mode: string
+          note: string | null
+          profile: Json
+          profile_key: string
+          rebuilt_from: string | null
+          request_hash: string
+          request_key: string
+          venue_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          invalidated_assets?: string[] | null
+          invalidated_at?: string | null
+          invalidated_reason?: string | null
+          item_count: number
+          mode: string
+          note?: string | null
+          profile: Json
+          profile_key: string
+          rebuilt_from?: string | null
+          request_hash: string
+          request_key: string
+          venue_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          invalidated_assets?: string[] | null
+          invalidated_at?: string | null
+          invalidated_reason?: string | null
+          item_count?: number
+          mode?: string
+          note?: string | null
+          profile?: Json
+          profile_key?: string
+          rebuilt_from?: string | null
+          request_hash?: string
+          request_key?: string
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_packages_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "export_packages_profile_key_fkey"
+            columns: ["profile_key"]
+            isOneToOne: false
+            referencedRelation: "export_profiles"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "export_packages_rebuilt_from_fkey"
+            columns: ["rebuilt_from"]
+            isOneToOne: false
+            referencedRelation: "export_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "export_packages_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      export_profile_events: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          format: string
+          id: number
+          key: string
+          label: string
+          max_height: number | null
+          max_width: number | null
+          quality: number | null
+          revision: number
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          format: string
+          id?: never
+          key: string
+          label: string
+          max_height?: number | null
+          max_width?: number | null
+          quality?: number | null
+          revision: number
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          format?: string
+          id?: never
+          key?: string
+          label?: string
+          max_height?: number | null
+          max_width?: number | null
+          quality?: number | null
+          revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_profile_events_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "export_profile_events_key_fkey"
+            columns: ["key"]
+            isOneToOne: false
+            referencedRelation: "export_profiles"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      export_profiles: {
+        Row: {
+          format: string
+          key: string
+          label: string
+          max_height: number | null
+          max_width: number | null
+          position: number
+          quality: number | null
+          revision: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          format: string
+          key: string
+          label: string
+          max_height?: number | null
+          max_width?: number | null
+          position: number
+          quality?: number | null
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          format?: string
+          key?: string
+          label?: string
+          max_height?: number | null
+          max_width?: number | null
+          position?: number
+          quality?: number | null
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_profiles_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       knowledge_commands: {
         Row: {
           actor_id: string
@@ -4799,6 +5103,216 @@ export type Database = {
           },
         ]
       }
+      publication_destination_events: {
+        Row: {
+          active: boolean
+          changed_at: string
+          changed_by: string
+          destination_id: string
+          id: number
+          label: string
+          revision: number
+          url: string | null
+          venue_id: string | null
+        }
+        Insert: {
+          active: boolean
+          changed_at?: string
+          changed_by: string
+          destination_id: string
+          id?: never
+          label: string
+          revision: number
+          url?: string | null
+          venue_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          changed_at?: string
+          changed_by?: string
+          destination_id?: string
+          id?: never
+          label?: string
+          revision?: number
+          url?: string | null
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publication_destination_events_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_destination_events_destination_id_fkey"
+            columns: ["destination_id"]
+            isOneToOne: false
+            referencedRelation: "publication_destinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publication_destinations: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string
+          id: string
+          kind: string
+          label: string
+          revision: number
+          updated_at: string
+          updated_by: string
+          url: string | null
+          venue_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by: string
+          id?: string
+          kind?: string
+          label: string
+          revision?: number
+          updated_at?: string
+          updated_by: string
+          url?: string | null
+          venue_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string
+          id?: string
+          kind?: string
+          label?: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string
+          url?: string | null
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publication_destinations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_destinations_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_destinations_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publication_events: {
+        Row: {
+          action: string
+          approval_id: string | null
+          asset_id: string
+          destination_id: string
+          external_ref: string | null
+          external_url: string | null
+          generation: number
+          id: number
+          note: string | null
+          occurred_on: string
+          package_id: string | null
+          recorded_at: string
+          recorded_by: string
+          request_hash: string
+          request_key: string
+          subject_id: string
+          subject_kind: string
+          subject_label: string
+          venue_id: string
+        }
+        Insert: {
+          action: string
+          approval_id?: string | null
+          asset_id: string
+          destination_id: string
+          external_ref?: string | null
+          external_url?: string | null
+          generation: number
+          id?: never
+          note?: string | null
+          occurred_on: string
+          package_id?: string | null
+          recorded_at?: string
+          recorded_by: string
+          request_hash: string
+          request_key: string
+          subject_id: string
+          subject_kind: string
+          subject_label: string
+          venue_id: string
+        }
+        Update: {
+          action?: string
+          approval_id?: string | null
+          asset_id?: string
+          destination_id?: string
+          external_ref?: string | null
+          external_url?: string | null
+          generation?: number
+          id?: never
+          note?: string | null
+          occurred_on?: string
+          package_id?: string | null
+          recorded_at?: string
+          recorded_by?: string
+          request_hash?: string
+          request_key?: string
+          subject_id?: string
+          subject_kind?: string
+          subject_label?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publication_events_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "publication_events_destination_id_fkey"
+            columns: ["destination_id"]
+            isOneToOne: false
+            referencedRelation: "publication_destinations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_events_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "export_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_events_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       retake_note_set_asides: {
         Row: {
           id: string
@@ -6103,6 +6617,53 @@ export type Database = {
         }
         Returns: Json
       }
+      export_asset_status: { Args: { p_asset_id: string }; Returns: Json }
+      export_candidates: {
+        Args: { p_mode?: string; p_venue_id: string }
+        Returns: Json
+      }
+      export_package_create: {
+        Args: {
+          p_custom_height?: number
+          p_custom_width?: number
+          p_items: Json
+          p_mode: string
+          p_note?: string
+          p_profile_key: string
+          p_request_key: string
+        }
+        Returns: Json
+      }
+      export_package_detail: { Args: { p_package_id: string }; Returns: Json }
+      export_package_download_finish: {
+        Args: { p_completed: boolean; p_download_id: string; p_files?: Json }
+        Returns: Json
+      }
+      export_package_download_start: {
+        Args: { p_package_id: string }
+        Returns: Json
+      }
+      export_package_rebuild: {
+        Args: { p_package_id: string; p_request_key: string }
+        Returns: Json
+      }
+      export_packages_list: {
+        Args: { p_limit?: number; p_venue_id?: string }
+        Returns: Json
+      }
+      export_profile_set: {
+        Args: {
+          p_expected_revision: number
+          p_format: string
+          p_key: string
+          p_label: string
+          p_max_height: number
+          p_max_width: number
+          p_quality: number
+        }
+        Returns: Json
+      }
+      export_profiles: { Args: never; Returns: Json }
       fail_stale_media_processing: {
         Args: { p_limit?: number; p_stale_after: string }
         Returns: {
@@ -7068,6 +7629,32 @@ export type Database = {
           object_names: string[]
           upload_state: Database["public"]["Enums"]["upload_state"]
         }[]
+      }
+      publication_destination_save: {
+        Args: {
+          p_active: boolean
+          p_destination_id: string
+          p_expected_revision?: number
+          p_label: string
+          p_url: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
+      publication_overview: { Args: { p_venue_id?: string }; Returns: Json }
+      publication_record: {
+        Args: {
+          p_action: string
+          p_asset_id: string
+          p_destination_id: string
+          p_external_ref?: string
+          p_external_url?: string
+          p_note?: string
+          p_occurred_on: string
+          p_package_id?: string
+          p_request_key: string
+        }
+        Returns: Json
       }
       reconcile_menu_requirement: {
         Args: {
