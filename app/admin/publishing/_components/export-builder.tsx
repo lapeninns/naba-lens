@@ -337,7 +337,7 @@ export function ExportBuilder({
             ? "Choose photos to make a package"
             : `Make package · ${EXPORTS_COPY.items(chosen.size)}`}
         </Button>
-        <p className="text-meta text-ink-muted">{EXPORTS_COPY.readMe}</p>
+        <p className="text-meta text-ink-muted">{EXPORTS_COPY.readMe(area)}</p>
       </div>
     </form>
   )

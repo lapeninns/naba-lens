@@ -38,7 +38,8 @@ import { REPORT_COPY } from "@/lib/staff/slot-reports"
  *
  * Filters (spec §6 S3, FA-6, FA-7; S2-STAFF): the spec's categories (Food,
  * Drinks, Spaces, Facilities, Other) present in the place, and the states in
- * Album's words: Needed, Waiting, In the album, Needs updating, All. Both
+ * Album's words: Needed, Waiting, In the album, Retake or needs checking,
+ * All (the tiles' own words, SLOT_MARK_WORDS). Both
  * live in the URL (`?show=`, `?cat=`). A state the person chooses here is
  * remembered on the phone; a prompt opens the place with `?show=needed`.
  * Counts never change with a filter. A tile shows how many photos wait for

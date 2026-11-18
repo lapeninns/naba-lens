@@ -34,6 +34,18 @@ export type SlotState =
   | "not-here"
 
 /**
+ * The word each slot tile shows (DESIGN.md §4): SlotTile draws these, and
+ * the place filters reuse them, so a filter never names a state differently
+ * from its tiles (S4-DOCS). Sending shows its progress instead.
+ */
+export const SLOT_MARK_WORDS = {
+  waiting: "Waiting",
+  retake: "Retake",
+  accepted: "In the album",
+  "check-due": "Needs checking",
+} as const satisfies Partial<Record<SlotState, string>>
+
+/**
  * A slot's requirement coverage state (spec §10), as
  * private.coverage_slot_rows gives it (20261118100200_coverage_slots.sql):
  *   covered             a current public-level photo
@@ -428,15 +440,20 @@ export function needsUpdate(
 
 /**
  * Album's state filters in Album's words (DESIGN.md §7; FA-7): the spec's
- * Needed / Awaiting review / Approved / Needs updating / All.
+ * Needed / Awaiting review / Approved / Needs updating / All. The spec's
+ * Needs updating holds Retake and Needs checking tiles, so it says both of
+ * the tiles' words (S4-DOCS); its key stays `updating`.
  */
 export type AlbumShow = "needed" | "waiting" | "in-album" | "updating" | "all"
 
 export const ALBUM_SHOWS: ReadonlyArray<{ key: AlbumShow; label: string }> = [
   { key: "needed", label: "Needed" },
-  { key: "waiting", label: "Waiting" },
-  { key: "in-album", label: "In the album" },
-  { key: "updating", label: "Needs updating" },
+  { key: "waiting", label: SLOT_MARK_WORDS.waiting },
+  { key: "in-album", label: SLOT_MARK_WORDS.accepted },
+  {
+    key: "updating",
+    label: `${SLOT_MARK_WORDS.retake} or ${SLOT_MARK_WORDS["check-due"].toLowerCase()}`,
+  },
   { key: "all", label: "All" },
 ]
 

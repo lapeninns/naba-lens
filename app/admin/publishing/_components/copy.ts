@@ -5,12 +5,14 @@
 // on a website (§10 inv. 9); nothing here claims a downloaded copy can be
 // recalled (§14.2).
 
+import type { ExportArea } from "@/lib/server/exports/hrefs"
 import type {
   ExportCategory,
   ExportPackageSummary,
   PackageState,
   PublicationAction,
   PublicationState,
+  StaleReason,
 } from "@/lib/server/exports/model"
 
 export const CATEGORY_WORDS: Record<ExportCategory, string> = {
@@ -30,6 +32,13 @@ export const PACKAGE_CHIP: Record<PackageState, string> = {
 
 export const publicationChip = (state: PublicationState) =>
   `publication_${state}`
+
+/**
+ * Why a package photo can't be downloaded any more (X10): its own chip, so a
+ * review or coverage change never reads as Withdrawn.
+ */
+export const staleChip = (reason: StaleReason | null) =>
+  `package_item_${reason ?? "changed"}`
 
 export const ACTION_WORDS: Record<PublicationAction, string> = {
   published: "Published",
@@ -81,11 +90,14 @@ export const EXPORTS_COPY = {
     who ? `Made by ${who}, ${when}` : `Made ${when}`,
   exportedOn: (when: string) => `Last downloaded ${when}`,
   internal: "Internal",
-  rebuild: "Rebuild without withdrawn photos",
+  rebuild: "Rebuild without those photos",
   rebuilt: "Rebuilt from an earlier package",
   download: "Download ZIP",
-  readMe:
-    "Exported is not Published. After you put a photo somewhere, record it on the Publishing page.",
+  // Only admins record publication (§3.3), so each screen says who does it.
+  readMe: (area: ExportArea) =>
+    area === "admin"
+      ? "Exported is not Published. After you put a photo somewhere, record where under that photo on its package page."
+      : "Exported is not Published. After you put a photo somewhere, tell an admin where: only admins record where a photo is published.",
   unavailable: "Couldn't load. Reload the page to try again.",
   allVenues: "All venues",
   confirmRemoved: "Confirm it's taken down",

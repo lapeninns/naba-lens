@@ -139,6 +139,13 @@ describe("asset detail", () => {
     render(<AssetDetailView detail={detail()} options={options} />)
     const state = screen.getByTestId("asset-state")
     expect(within(state).getByText("Approved for public use")).toBeTruthy()
+    // Drawn by the review_public chip itself, not a restated word (S3-R14).
+    expect(
+      within(state)
+        .getByText("Approved for public use")
+        .closest("[data-slot=status-chip]")
+        ?.getAttribute("data-state")
+    ).toBe("review_public")
     expect(within(state).getByText("Can be exported")).toBeTruthy()
     const slots = screen.getByTestId("asset-slots")
     expect(within(slots).getByText("Dish: Chicken momo")).toBeTruthy()

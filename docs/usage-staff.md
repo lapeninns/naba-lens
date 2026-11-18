@@ -123,7 +123,7 @@ each section with its "filled of total" count, and the place's count ("12
 empty of 40").
 
 - **Show** filters by state: **Needed**, **Waiting**, **In the album**,
-  **Needs updating** and **All**. Your choice is remembered on this phone.
+  **Retake or needs checking** and **All**. Your choice is remembered on this phone.
 - **Category** filters by **Food**, **Drinks**, **Spaces**, **Facilities** and
   **Other** (only those found in the place), or **Everything**.
 - Filters never change the counts. With nothing to show, the page says **No

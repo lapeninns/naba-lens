@@ -1,5 +1,9 @@
 // S2-STAFF pure rules: My uploads (spec §6 S4), Report a change (§6 S3),
 // Album filters (§6 S3, FA-6), notice links (§17) and Your month (§6 S4).
+import {
+  ALBUM_SHOWS as ALBUM_SHOWS_FOR_WORDS,
+  SLOT_MARK_WORDS as SLOT_MARK_WORDS_FOR_WORDS,
+} from "@/lib/album/model"
 import { describe, expect, it } from "vitest"
 
 import { replacementsLine } from "@/components/nabalens/album/your-month-card"
@@ -642,6 +646,17 @@ describe("notice links and Your month", () => {
     )
     expect(replacementsLine({ covered: 3, replaced: 1 })).toBe(
       "3 slots in the album from your photos · 1 outdated photo replaced"
+    )
+  })
+})
+
+describe("Album place filters use the tiles' words (S4-DOCS)", () => {
+  it("names the updating filter with the Retake and Needs checking tile words", () => {
+    const updating = ALBUM_SHOWS_FOR_WORDS.find((s) => s.key === "updating")!
+    expect(updating.label).toBe("Retake or needs checking")
+    expect(updating.label).not.toMatch(/updating/i)
+    expect(ALBUM_SHOWS_FOR_WORDS.find((s) => s.key === "in-album")!.label).toBe(
+      SLOT_MARK_WORDS_FOR_WORDS.accepted
     )
   })
 })

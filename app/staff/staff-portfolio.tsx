@@ -39,7 +39,12 @@ import {
 } from "@/components/nabalens/album/album-add-trigger"
 import { HOME_ROWS_COPY } from "@/components/nabalens/album/home-rows"
 import { GUIDE_PATH } from "@/components/nabalens/guide"
-import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
+import {
+  CountBadge,
+  StatusChip,
+  type ChipStateKey,
+} from "@/components/nabalens/status-chip"
+import { isMenuUse } from "@/lib/staff/my-uploads"
 import { ThemeSetting } from "@/components/nabalens/theme-setting"
 import {
   useAdd,
@@ -102,19 +107,19 @@ type StaffPortfolioProps = {
   account?: React.ReactNode
 }
 
-/** The three milestones of an own photo, in these exact words. */
-export const MILESTONES = {
-  saved: "Saved to your portfolio",
-  label: "Ready to label",
-  accepted: "Accepted for menu use",
-  better: "Needs another photo",
-} as const
+/**
+ * The milestones of an own photo (docs/usage-staff.md). A tile's state word
+ * is its chip's (MILESTONE_STATE): status words live only in status-chip.tsx.
+ */
+export type Milestone = "saved" | "label" | "accepted" | "better"
 
-export type Milestone = keyof typeof MILESTONES
+/** The heading of Me's section of photos accepted for menu use. */
+const ACCEPTED_HEADING = "Accepted for menu use"
 
 /**
- * Where one own photo stands: accepted for menu use (any live accepted
- * decision), ready to label (ready, labels loaded and none yet), or saved.
+ * Where one own photo stands: accepted for menu use (a live decision
+ * accepted for public use; X9: never one kept as reference), ready to label
+ * (ready, labels loaded and none yet), or saved.
  * Files still uploading, processing or failed have no milestone.
  */
 export function photoMilestone(
@@ -332,11 +337,10 @@ function MilestoneTile({
         ) : null}
       </span>
       <span className="sr-only">{kind}: </span>
-      {/* Common Room §3 shapes: Accepted is the filled ok square, a better
-          photo request the warn pill, the rest a plain grey pill. */}
-      <StatusChip state={MILESTONE_STATE[milestone]} className="w-fit">
-        {MILESTONES[milestone]}
-      </StatusChip>
+      {/* The chip's own word and shape (status-chip.tsx): In the album is
+          the filled ok square, a better photo request the warn pill, the
+          rest a plain grey pill. */}
+      <StatusChip state={MILESTONE_STATE[milestone]} className="w-fit" />
       {detail ? (
         <span
           title={detail}
@@ -349,11 +353,14 @@ function MilestoneTile({
   )
 }
 
-/** Which §3 state shape draws each milestone (the word stays MILESTONES'). */
-const MILESTONE_STATE: Record<Milestone, string> = {
+/**
+ * The chip that draws each milestone on a tile, word and shape. Accepted for
+ * menu use is the staff outcome In the album (FA-7), as My uploads says.
+ */
+const MILESTONE_STATE: Record<Milestone, ChipStateKey> = {
   saved: "portfolio_saved",
   label: "needs_labels",
-  accepted: "accepted",
+  accepted: "outcome_public",
   better: "needs_another_photo",
 }
 
@@ -420,7 +427,8 @@ export function StaffPortfolio({
   const accepted = React.useMemo(() => {
     const accepted = new Map<string, string[]>()
     for (const state of menuPhotos) {
-      if (state.state !== "accepted") continue
+      // X9: a photo kept as reference is not accepted for menu use.
+      if (!isMenuUse(state)) continue
       const name = state.variantName
         ? `${state.itemName} (${state.variantName})`
         : state.itemName
@@ -608,7 +616,7 @@ export function StaffPortfolio({
             id="accepted-heading"
             className="px-1 type-section-title text-ink"
           >
-            {MILESTONES.accepted}
+            {ACCEPTED_HEADING}
           </h2>
           <ul aria-label="Photos accepted for menu use" className={TILE_GRID}>
             {acceptedItems.map((item) => (

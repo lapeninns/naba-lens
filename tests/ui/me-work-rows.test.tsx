@@ -416,6 +416,7 @@ describe("Me: Needs labels and milestones", () => {
           variantId: null,
           variantName: null,
           state: "accepted",
+          reviewLevel: "public",
           isPrimary: true,
           reason: null,
         },
@@ -427,7 +428,8 @@ describe("Me: Needs labels and milestones", () => {
       screen.getByRole("list", { name: "Photos accepted for menu use" })
     ).getAllByRole("listitem")
     expect(accepted).toHaveLength(1)
-    expect(accepted[0].textContent).toContain("Accepted for menu use")
+    // The tile's word is the staff outcome chip's (status-chip.tsx).
+    expect(accepted[0].textContent).toContain("In the album")
     expect(accepted[0].textContent).toContain("Lamb rogan josh")
     // Deleting it from the portfolio says the dish may need a new photo.
     expect(gallery.impact?.(item("a1"))).toEqual({
@@ -437,6 +439,36 @@ describe("Me: Needs labels and milestones", () => {
     expect(gallery.impact?.(item("a2"))).toBeUndefined()
     // It also reads what deleting does to venue answers (HM-04).
     expect(gallery.readEvidence).toBeTypeOf("function")
+  })
+
+  it("leaves a photo kept as reference out of Accepted for menu use (X9)", async () => {
+    library.items = [item("a2")]
+    library.byId = [item("a1", { labels: LABELLED })]
+    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+      ok: true,
+      states: [
+        {
+          photoId: "p1",
+          assetId: "a1",
+          itemId: "i1",
+          itemName: "Lamb rogan josh",
+          variantId: null,
+          variantName: null,
+          state: "accepted",
+          reviewLevel: "reference",
+          isPrimary: false,
+          reason: null,
+        },
+      ],
+    })
+    render(await StaffPage())
+    expect(library.listOwnMediaByIds).toHaveBeenCalledWith({}, [])
+    expect(
+      screen.queryByRole("list", { name: "Photos accepted for menu use" })
+    ).toBeNull()
+    expect(screen.queryByText("Accepted for menu use")).toBeNull()
+    // Deleting it is not a menu photo's delete.
+    expect(gallery.impact?.(item("a1"))).toBeUndefined()
   })
 
   it("shows a retake note with the reviewer's reason, read on the server", async () => {

@@ -624,6 +624,9 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
         "supabase/migrations/20261118108500_publication_states_once.sql",
         // S2-INT re-creates export_candidate_rows and the download start.
         "supabase/migrations/20261118109100_int_export_wiring.sql",
+        // S3-R14 X10: export_package_detail rebodied with each item's
+        // stale reason, read against the item's approval id.
+        "supabase/migrations/20261118132100_export_item_stale_reason.sql",
         "lib/db/types.ts",
       ],
       reason:
@@ -675,6 +678,12 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
   ]
 
 const ALLOWED_HITS: { file: string; text: string; reason: string }[] = [
+  {
+    file: "components/nabalens/status-chip.tsx",
+    text: 'word: "Approved for public use"',
+    reason:
+      "S3-R14: the review_public chip, FA-7's manager and admin word, moved from lib/library so status words have one source (admin and manager screens only)",
+  },
   {
     file: "supabase/migrations/20261107120000_amenity_catalogue.sql",
     text: "approved performance clip",

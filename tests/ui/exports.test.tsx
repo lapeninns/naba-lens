@@ -18,6 +18,8 @@ import type {
   ExportProfile,
   PublicationOverview,
 } from "@/lib/server/exports/model"
+import { STALE_REASONS } from "@/lib/server/exports/model"
+import { CHIP_STATES } from "@/components/nabalens/status-chip"
 
 const push = vi.fn()
 const refresh = vi.fn()
@@ -41,6 +43,7 @@ vi.mock("@/app/admin/publishing/actions", () => ({
 
 import { ExportBuilder } from "@/app/admin/publishing/_components/export-builder"
 import { PackageDetail } from "@/app/admin/publishing/_components/package-detail"
+import { staleChip } from "@/app/admin/publishing/_components/copy"
 import { PublicationPanels } from "@/app/admin/publishing/_components/panels"
 
 const A1 = "00000000-0000-4000-8000-0000000000a1"
@@ -251,6 +254,7 @@ const pkg = (over: Partial<ExportPackageDetail>): ExportPackageDetail => ({
       caption: null,
       useRestrictions: [],
       eligible: true,
+      staleReason: null,
     },
     {
       ...candidate({ assetId: A2, subjectId: S2, subjectLabel: "Dal" }),
@@ -261,6 +265,7 @@ const pkg = (over: Partial<ExportPackageDetail>): ExportPackageDetail => ({
       caption: null,
       useRestrictions: [],
       eligible: true,
+      staleReason: null,
     },
   ],
   downloads: [],
@@ -283,6 +288,23 @@ describe("PackageDetail", () => {
       `/api/exports/${PKG}/download?from=manager`
     )
     expect(screen.queryByText(/Record where it/)).toBeNull()
+    // A manager can't open Publishing: the note says an admin records it.
+    expect(screen.getByText(/tell an admin where/)).toBeTruthy()
+    expect(screen.queryByText(/Publishing page/)).toBeNull()
+  })
+
+  it("tells an admin to record publication on the package page", () => {
+    render(
+      <PackageDetail
+        area="admin"
+        pkg={pkg({})}
+        notice={null}
+        destinations={[]}
+        today="2026-11-18"
+      />
+    )
+    expect(screen.getByText(/record where under that photo/)).toBeTruthy()
+    expect(screen.queryByText(/tell an admin/)).toBeNull()
   })
 
   it("explains an invalidated package and offers Rebuild, not Download (AC32)", () => {
@@ -295,6 +317,7 @@ describe("PackageDetail", () => {
           items: pkg({}).items.map((i) => ({
             ...i,
             eligible: i.assetId !== A2,
+            staleReason: i.assetId === A2 ? "withdrawn" : null,
           })),
         })}
         notice="invalidated"
@@ -305,9 +328,35 @@ describe("PackageDetail", () => {
     expect(screen.getByRole("alert").textContent).toMatch(/can't be downloaded/)
     expect(screen.queryByRole("link", { name: "Download ZIP" })).toBeNull()
     expect(
-      screen.getByRole("button", { name: "Rebuild without withdrawn photos" })
+      screen.getByRole("button", { name: "Rebuild without those photos" })
     ).toBeTruthy()
     expect(screen.getByText("Withdrawn since")).toBeTruthy()
+  })
+
+  it("says why a photo is stale, never Withdrawn for a review change (X10)", () => {
+    render(
+      <PackageDetail
+        area="admin"
+        pkg={pkg({
+          state: "needs_rebuild",
+          staleAssets: [A2],
+          items: pkg({}).items.map((i) => ({
+            ...i,
+            eligible: i.assetId !== A2,
+            staleReason: i.assetId === A2 ? "review_changed" : null,
+          })),
+        })}
+        notice={null}
+        destinations={[]}
+        today="2026-11-18"
+      />
+    )
+    expect(screen.getByText("Review changed since")).toBeTruthy()
+    expect(screen.queryByText(/Withdrawn since/)).toBeNull()
+    for (const reason of STALE_REASONS)
+      expect(Object.hasOwn(CHIP_STATES, staleChip(reason))).toBe(true)
+    // An unknown reason still draws a chip that is not a withdrawal.
+    expect(staleChip(null)).toBe("package_item_changed")
   })
 })
 

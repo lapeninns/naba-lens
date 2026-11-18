@@ -1,6 +1,6 @@
 # Album: Naba-Lens design system
 
-Version 1.5 · 18 Nov 2026 · Status: adopted on 17 Nov 2026 (decisions D8 and D9 in [decisions.md](decisions.md)). Batches A0 to A5 are built on `design/inn-identity` (§12): Album is the staff Home, adding is gallery first with Match, Review and admin Albums are Album screens. Full App v1 (decisions FA-1 to FA-50 in [the Full App decisions](../plans/full-app-v1/decisions.md)) adds Me's Your photos (§5b), the manager screens (§6a) and the admin screens (§6b). Other screens keep their layout in Album colours and type and stay cited to [common-room.md](common-room.md) until a later batch.
+Version 1.6 · 18 Nov 2026 · Status: adopted on 17 Nov 2026 (decisions D8 and D9 in [decisions.md](decisions.md)). Batches A0 to A5 are built on `design/inn-identity` (§12): Album is the staff Home, adding is gallery first with Match, Review and admin Albums are Album screens. Full App v1 (decisions FA-1 to FA-50 in [the Full App decisions](../plans/full-app-v1/decisions.md)) adds Me's Your photos (§5b), the manager screens (§6a) and the admin screens (§6b). Other screens keep their layout in Album colours and type and stay cited to [common-room.md](common-room.md) until a later batch.
 
 Applies to every Naba-Lens surface: the staff app (phone first), the venue manager screens (phone, tablet, desktop) and the admin desktop app.
 
@@ -368,6 +368,7 @@ Still to remove in batch A5, once no screen uses them: `info-*`, `stamp-fg`, `se
 
 ### Changelog
 
+- **1.6** (18 Nov 2026, Full App v1 S3-R14): a place's Needs updating filter (spec §6 S3) reads **Retake or needs checking**, the words of the tiles it shows (`SLOT_MARK_WORDS` in `lib/album/model.ts`, drawn by the slot tile). Withdrawn is one chip look everywhere (X icon).
 - **1.5** (18 Nov 2026, Full App v1 S4-DOCS): §4 gains the report words (`coverage_*`) and Withdrawn; §5a lists the Full App rows (Unfinished photos, the blocked notice, Asked for) and where Start here sits; new §5b (Me: Your photos, Your month, Help and account, Notices, the slot page), §6a (manager screens: navigation, Overview, Review, Requests, Metrics, Venue and Reported changes) and §6b (admin screens: `ADMIN_NAV` and More, Overview, Venues, Library and Suspend from use, Publishing, People, Settings & activity); §7 gains the manager and admin words; §10 gains `slot-ring-check`. No section was renumbered.
 
 - **1.4** (18 Nov 2026, Full App v1 S2-STAFF): §4 gains the receipt words (Checking, Sent, Couldn't finish) and the staff outcome words. A place screen filters by category and by Needed, Waiting, In the album, Needs updating and All (`?show=`, `?cat=`); filled dish and place tiles open a slot page (`/staff/album/slot/[kind]/[slotId]`) with Report a change. Me opens with My uploads and adds Help and account.

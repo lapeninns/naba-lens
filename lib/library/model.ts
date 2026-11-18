@@ -4,6 +4,8 @@
  * and the words screens show. No server code, so client screens import it.
  */
 
+import { chipState, type ChipStateKey } from "@/components/nabalens/status-chip"
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const isUuid = (v: unknown): v is string =>
@@ -136,13 +138,20 @@ export const hasExtraFilters = (f: LibraryExtraFilters) =>
 // Words
 // ---------------------------------------------------------------------------
 
-/** Admin words for an asset's review state (manager/admin wording, FA-7). */
-export const REVIEW_WORDS: Record<ReviewState, string> = {
-  public: "Approved for public use",
-  reference: "Kept as reference",
-  unreviewed: "Not reviewed yet",
-  not_used: "Not used",
+/**
+ * The chip for an asset's review state (manager/admin wording, FA-7). Its
+ * word lives in status-chip.tsx; REVIEW_WORDS reads it for filter options.
+ */
+export const REVIEW_CHIP: Record<ReviewState, ChipStateKey> = {
+  public: "review_public",
+  reference: "review_reference",
+  unreviewed: "review_unreviewed",
+  not_used: "review_not_used",
 }
+
+export const REVIEW_WORDS = Object.fromEntries(
+  REVIEW_STATES.map((s) => [s, chipState(REVIEW_CHIP[s]).word])
+) as Record<ReviewState, string>
 
 export const WITHDRAWN_WORDS: Record<WithdrawnFilter, string> = {
   active: "In use",
@@ -156,15 +165,22 @@ export const ORIENTATION_WORDS: Record<Orientation, string> = {
   square: "Square",
 }
 
-/** asset_usages states (S1-COV) in admin words. */
-export const USAGE_WORDS: Record<string, string> = {
-  public: "Approved for public use",
-  reference: "Kept as reference",
-  awaiting_review: "Waiting for review",
-  retake_requested: "Another photo requested",
-  not_used: "Not used",
-  withdrawn: "Withdrawn",
+/**
+ * The chip for an asset_usages state (S1-COV) in admin words; the words live
+ * in status-chip.tsx (one source, S3-R14).
+ */
+export const USAGE_CHIP: Record<string, ChipStateKey> = {
+  public: "review_public",
+  reference: "review_reference",
+  awaiting_review: "waiting_for_review",
+  retake_requested: "coverage_replacement_needed",
+  not_used: "review_not_used",
+  withdrawn: "outcome_withdrawn",
 }
+
+/** The word for a usage state (an unknown state is humanised, never blank). */
+export const usageWord = (state: string) =>
+  chipState(USAGE_CHIP[state] ?? state).word
 
 export const SLOT_KIND_WORDS: Record<string, string> = {
   dish: "Dish",

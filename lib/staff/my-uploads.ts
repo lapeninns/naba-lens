@@ -122,6 +122,18 @@ export const OUTCOME_CHIP: Record<UploadOutcome, ChipStateKey> = {
   label_corrected: "outcome_label_corrected",
 }
 
+/**
+ * A dish decision Me shows as "Accepted for menu use" (X9): accepted for
+ * public use only. A photo kept as reference is the outcome Kept for
+ * reference, and coverage never counts it.
+ */
+export function isMenuUse(decision: {
+  state: string
+  reviewLevel: "public" | "reference"
+}): boolean {
+  return decision.state === "accepted" && decision.reviewLevel === "public"
+}
+
 const OUTCOMES = new Set<string>(Object.keys(OUTCOME_CHIP))
 const STATES = new Set(["uploading", "processing", "ready", "failed"])
 const SOURCES = new Set(["metadata", "supplied", "estimated", "unknown"])

@@ -101,7 +101,7 @@ for (const [size, options] of SIZES) {
     await expect(chip(mgr, "package_ready")).toHaveText("Ready to download")
     await expect(
       mgr.getByText(
-        "Exported is not Published. After you put a photo somewhere, record it on the Publishing page."
+        "Exported is not Published. After you put a photo somewhere, tell an admin where: only admins record where a photo is published."
       )
     ).toBeVisible()
 
@@ -180,7 +180,7 @@ test("AC32: a photo withdrawn after packaging blocks the download until the pack
 
   // Rebuild: a new package without the withdrawn photo downloads.
   await mgr
-    .getByRole("button", { name: "Rebuild without withdrawn photos" })
+    .getByRole("button", { name: "Rebuild without those photos" })
     .click()
   await expect(mgr).not.toHaveURL(new RegExp(pkg))
   await expect(mgr.getByText("Rebuilt from an earlier package")).toBeVisible()
