@@ -99,7 +99,7 @@ function Row({ report, onDecide }: { report: SlotReport; onDecide: Decide }) {
         <Link
           href={reportSubjectHref(report)}
           aria-label={`${SLOT_REPORTS_COPY.open(kind)}: ${report.subjectName}`}
-          className="inline-flex min-h-12 items-center justify-self-start rounded-control text-body font-bold text-accent-text underline underline-offset-4 focus-ring"
+          className="inline-flex min-h-12 items-center justify-self-start rounded-control text-body font-semibold text-accent-text underline underline-offset-4 focus-ring"
         >
           {SLOT_REPORTS_COPY.open(kind)}
         </Link>

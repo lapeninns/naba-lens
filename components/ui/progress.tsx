@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils"
 /** Above this many units the segments merge into one bar. */
 const MAX_SEGMENTS = 12
 
-type ProgressSize = "md" | "sm"
+type ProgressSize = "lg" | "md" | "sm"
 type ProgressTone = "ok" | "neutral"
 
 /*
@@ -53,7 +53,10 @@ type ProgressLabelling =
     }
 
 type ProgressCommon = {
-  /** md is the default; sm is the compact form for table cells and rows. */
+  /**
+   * md is the default; sm is the compact form for table cells and rows; lg
+   * is v2 CoverageMeter's 12px bar (`nl-cover__bar`).
+   */
   size?: ProgressSize
   /** What a screen reader says for the value, when the default will not do. */
   valueText?: string
@@ -115,7 +118,7 @@ const FILL = {
   needed: "bg-surface-2 forced-colors:border",
 } as const
 
-const SEGMENT_HEIGHT = { md: "h-3", sm: "h-2" } as const
+const SEGMENT_HEIGHT = { lg: "h-3", md: "h-3", sm: "h-2" } as const
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
@@ -301,6 +304,7 @@ function Progress(props: ProgressProps) {
           spoken ?? (known ? `${Math.round(percent)}%` : undefined)
         }
         data-indeterminate={known ? undefined : ""}
+        className={size === "lg" ? "h-3" : undefined}
         {...naming}
       >
         <ProgressIndicator percent={known ? percent : null} />

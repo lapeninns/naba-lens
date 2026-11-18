@@ -5,6 +5,11 @@ export type MetaItem = {
   label: string
   /** The value. Leave the row out when it does not apply; never "N/A". */
   value: React.ReactNode
+  /**
+   * Keep the label for screen readers only, for a value that names itself
+   * ("Taken 12 Nov 2026"); the value then spans both columns.
+   */
+  labelHidden?: boolean
 }
 
 /**
@@ -31,8 +36,20 @@ export function MetaList({
     >
       {items.map((item) => (
         <div key={item.label} className="contents">
-          <dt className="text-meta text-ink-muted">{item.label}</dt>
-          <dd className="text-label font-normal [overflow-wrap:anywhere] text-ink">
+          <dt
+            className={cn(
+              "text-meta text-ink-muted",
+              item.labelHidden && "sr-only"
+            )}
+          >
+            {item.label}
+          </dt>
+          <dd
+            className={cn(
+              "text-label font-normal [overflow-wrap:anywhere] text-ink",
+              item.labelHidden && "col-span-2"
+            )}
+          >
             {item.value}
           </dd>
         </div>

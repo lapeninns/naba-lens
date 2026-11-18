@@ -403,7 +403,7 @@ const ROWS: Row[] = [
     render: (p) => (
       <Progress value={40} aria-label="Uploading" {...(p as object)} />
     ),
-    sizes: ["sm", "md"],
+    sizes: ["sm", "md", "lg"],
     tone: "neutral",
   },
   {
@@ -564,7 +564,8 @@ const OFF_CONTRACT: Record<
 const SIZE_IS_NOT_A_HEIGHT: Record<string, string> = {
   "avatar.tsx": "A picture's diameter: 36, 44 and 84px.",
   "spinner.tsx": "A glyph's size beside words: 18, 20 and 24px.",
-  "progress.tsx": "The bar's thickness (8 and 12px); a bar is not a control.",
+  "progress.tsx":
+    "A bar's thickness: segments 8 and 12px, the plain bar 6px, lg 12px (v2 CoverageMeter); a bar is not a control.",
   "switch.tsx":
     "One size, reported as md: a 32px track inside a 44px target (common-room.md §2).",
   "sheet-recipe.ts": "Sheet widths; a sheet is a layout, not a control.",
@@ -779,7 +780,7 @@ describe("primitive contract", () => {
         ["icon", "icon-lg", "lg", "md", "sm"].sort()
       )
       expect([...found["spinner.tsx"].size].sort()).toEqual(["lg", "md", "sm"])
-      expect([...found["progress.tsx"].size].sort()).toEqual(["md", "sm"])
+      expect([...found["progress.tsx"].size].sort()).toEqual(["lg", "md", "sm"])
       expect([...found["switch.tsx"].size]).toEqual(["md"])
       expect([...found["dropdown-menu.tsx"].variant]).toEqual(["danger"])
       expect(found["progress.tsx"].tone.has("ok")).toBe(true)

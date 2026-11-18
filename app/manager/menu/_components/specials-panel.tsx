@@ -160,7 +160,7 @@ function SpecialRow({
   return (
     <li className="grid gap-2 py-3">
       <p className="text-body text-ink">
-        <span className="font-bold">{special.name}</span> ·{" "}
+        <span className="font-semibold">{special.name}</span> ·{" "}
         {SPECIAL_STATE_WORD[special.state]} · {special.startsOn} to{" "}
         {special.endsOn}
       </p>

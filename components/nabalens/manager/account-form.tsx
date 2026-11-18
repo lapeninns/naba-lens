@@ -1,5 +1,6 @@
 "use client"
 
+import { MetaList } from "@/components/nabalens/meta-list"
 import * as React from "react"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
@@ -103,23 +104,22 @@ export function ManagerAccountForm({
       </form>
 
       <Card>
-        <dl className="grid gap-3 text-body">
-          <div className="grid gap-0.5">
-            <dt className="text-meta font-semibold text-ink-muted">
-              {COPY.email}
-            </dt>
-            <dd className="font-mono [overflow-wrap:anywhere] text-ink">
-              {email ?? COPY.noEmail}
-            </dd>
-          </div>
-          <div className="grid gap-0.5 border-t border-line pt-3">
-            <dt className="text-meta font-semibold text-ink-muted">
-              {COPY.venue}
-            </dt>
-            <dd className="font-bold text-ink">{venueName}</dd>
-            <dd className="text-meta text-ink-muted">{COPY.venueNote}</dd>
-          </div>
-        </dl>
+        <MetaList
+          items={[
+            { label: COPY.email, value: email ?? COPY.noEmail },
+            {
+              label: COPY.venue,
+              value: (
+                <span className="grid gap-0.5">
+                  <span>{venueName}</span>
+                  <span className="text-meta text-ink-muted">
+                    {COPY.venueNote}
+                  </span>
+                </span>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <ThemeSetting layout="card" />
