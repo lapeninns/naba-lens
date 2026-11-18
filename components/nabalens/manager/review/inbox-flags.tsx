@@ -9,20 +9,25 @@ import { INBOX_COPY, takenWords } from "./inbox-copy"
 
 /**
  * What a reviewer checks first on a Review card (spec §7 M2, §12.1, FA-4,
- * FA-35): Needs label, Possible duplicate and Small (below the public-quality
- * target, reference use only) as chips; the capture date or "unknown" and the
- * staff note as lines. Nothing when the card carries no provenance.
+ * FA-35): Needs label, Video (K11), Possible duplicate and Small (below the
+ * public-quality target, reference use only) as chips; why it needs a label
+ * (K1), the capture date or "unknown" and the staff note as lines. Nothing when the card carries no provenance.
  */
 export function CardFlags({ card }: { card: QueueCard }) {
   const p = card.provenance
   const small = belowPublicQuality(card.asset.width, card.asset.height)
   const needsLabel = card.kind === "unlabelled"
+  const video = card.mediaType === "video"
+  const why = needsLabel && card.unlabelledReason
   return (
     <>
-      {needsLabel || p?.possibleDuplicate || small ? (
+      {needsLabel || video || p?.possibleDuplicate || small ? (
         <div className="flex flex-wrap items-center gap-1.5">
           {needsLabel ? (
             <StatusChip tone="attention">{INBOX_COPY.needsLabel}</StatusChip>
+          ) : null}
+          {video ? (
+            <StatusChip tone="neutral">{INBOX_COPY.video}</StatusChip>
           ) : null}
           {p?.possibleDuplicate ? (
             <StatusChip tone="attention">
@@ -37,6 +42,11 @@ export function CardFlags({ card }: { card: QueueCard }) {
             </StatusChip>
           ) : null}
         </div>
+      ) : null}
+      {why ? (
+        <p className="text-meta break-words text-ink-muted">
+          {INBOX_COPY.unlabelledWhy[why]}
+        </p>
       ) : null}
       {p ? (
         <p className="text-meta break-words text-ink-muted">

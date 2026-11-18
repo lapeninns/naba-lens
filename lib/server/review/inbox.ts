@@ -88,6 +88,7 @@ const WORDS: Record<
   },
   invalid_decision: { code: "invalid_input", message: "Choose a decision." },
   invalid_level: { code: "invalid_input", message: "Choose a level." },
+  invalid_media_type: { code: "invalid_input", message: "Reload the page." },
 }
 
 function latestOf(details: string | undefined): LatestDecision | undefined {
@@ -406,7 +407,10 @@ export async function decideBatch(
       !isUuid(i.assetId) ||
       (i.itemId != null && !isUuid(i.itemId)) ||
       (i.variantId != null && !isUuid(i.variantId)) ||
-      typeof i.itemRevision !== "number"
+      typeof i.itemRevision !== "number" ||
+      (i.dispositionId != null &&
+        (typeof i.dispositionId !== "number" ||
+          !Number.isInteger(i.dispositionId)))
     )
       return BAD("items", "Reload the page and choose the photos again.")
     if (action !== "not_used" && !i.itemId)
@@ -420,6 +424,7 @@ export async function decideBatch(
       itemId: i.itemId ?? null,
       variantId: i.variantId ?? null,
       itemRevision: i.itemRevision,
+      dispositionId: i.dispositionId ?? null,
     })
   }
   const reason =
@@ -442,6 +447,9 @@ export async function decideBatch(
         action: "not_used",
         reason,
         reasonCode: "not_used_batch",
+        // V16: against the disposition the screen saw, so a restored photo
+        // is set aside again and a newer decision still conflicts.
+        expectedDispositionId: item.dispositionId ?? null,
       })
       if (r.ok) setAsideDone.add(item.assetId)
       outcomes.push(outcomeOf(item, r))

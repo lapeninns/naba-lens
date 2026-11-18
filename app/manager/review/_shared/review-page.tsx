@@ -60,11 +60,13 @@ export function reviewViewOf(
 function narrowingFromSearch(search: ReviewSearch) {
   const category = one(search, "category")
   const age = one(search, "age")
+  const media = one(search, "media")
   return {
     category: category === "food" || category === "drinks" ? category : null,
     minAgeDays: age === "2" ? 2 : age === "7" ? 7 : null,
     possibleDuplicate: one(search, "dupes") === "1",
     neededBy: one(search, "needed") === "1",
+    media: media === "photo" || media === "video" ? media : null,
   } as const
 }
 

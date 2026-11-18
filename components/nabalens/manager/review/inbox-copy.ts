@@ -35,6 +35,13 @@ export function takenWords(
 export const INBOX_COPY = {
   // Card flags
   needsLabel: "Needs label",
+  /** Why a Needs label card waits (FA-4, the one unlabelled rule). */
+  unlabelledWhy: {
+    not_sure: "Sent as I'm not sure",
+    no_dish: "Marked food or drink, no dish chosen",
+    unmatched: "No slot chosen for 7 days",
+  },
+  video: "Video",
   possibleDuplicate: "Possible duplicate",
   belowPublic: "Small: reference use only",
   belowPublicHelp:
@@ -47,6 +54,7 @@ export const INBOX_COPY = {
   // Filters
   narrowLabel: "Narrow",
   category: { food: "Food", drinks: "Drinks" },
+  media: { photo: "Photos", video: "Videos" },
   age: { 2: "Waiting 2+ days", 7: "Waiting 7+ days" },
   duplicates: "Possible duplicates",
   neededBy: "Has a needed-by date",
