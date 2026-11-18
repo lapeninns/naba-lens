@@ -165,10 +165,10 @@ test.describe("deep links survive sign-in (AUTH-1)", () => {
     await page.goto(deepLink)
     await expect(page).toHaveURL(loginFor(deepLink))
     const { link } = await requestSignIn(page, admin.email)
-    await openEmailLink(page, link)
     // FA-23: the second step comes first, and the deep link survives it (E2).
-    await passMfaIfAsked(page, admin.email)
+    await openEmailLink(page, link, admin.email)
     await expect(page).toHaveURL(new RegExp(`${escapeRegExp(deepLink)}$`))
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
     await context.close()
   })
 
