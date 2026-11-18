@@ -75,6 +75,8 @@ import {
   type Uploader,
   type UploadPurpose,
 } from "./upload-queue"
+import { trackFlow } from "@/lib/metrics/track"
+
 import { useStillWaiting } from "./use-still-waiting"
 import { useObjectUrl, useUploadQueue } from "./use-upload-queue"
 
@@ -1694,6 +1696,7 @@ export function UploadDialog({
                   }}
                   onRetry={() => {
                     focusStatus(item.id)
+                    trackFlow({ name: "transfer_retried", count: 1 })
                     queue.retry(item.id)
                   }}
                   onRetryLabels={() => {
@@ -1840,7 +1843,16 @@ export function UploadDialog({
                 </Button>
               ) : null}
               {!startOnPick && settled && retryableFailed > 0 ? (
-                <Button variant="secondary" onClick={queue.retryFailed}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    trackFlow({
+                      name: "transfer_retried",
+                      count: retryableFailed,
+                    })
+                    queue.retryFailed()
+                  }}
+                >
                   <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
                   Retry {retryableFailed} failed
                 </Button>

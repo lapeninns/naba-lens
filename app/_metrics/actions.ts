@@ -14,7 +14,11 @@ export async function recordFlowEventsAction(
   try {
     const auth = await getMediaActor(["staff", "manager", "admin"])
     if (!auth.ok) return { ok: false, stored: 0 }
-    const result = await recordFlowEvents(auth.actor, events)
+    const result = await recordFlowEvents(
+      auth.actor,
+      events,
+      auth.actor.profile.venueId
+    )
     return result.ok
       ? { ok: true, stored: result.stored }
       : { ok: false, stored: 0 }

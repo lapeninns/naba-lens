@@ -35,7 +35,8 @@ export type SubjectKind = "dish" | "area" | "amenity"
 /** What a caller may say about an event. */
 export type FlowEventInput = {
   name: FlowEventName
-  venueId: string
+  /** Defaults, on the server, to the person's active venue. */
+  venueId?: string | null
   route?: CaptureRoute | null
   batchId?: string | null
   assetId?: string | null
@@ -49,6 +50,7 @@ export type FlowEventInput = {
 
 /** The wire shape public.record_product_events takes. */
 export type FlowEvent = FlowEventInput & {
+  venueId: string
   clientEventId: string
   occurredAt: string
 }
@@ -83,22 +85,26 @@ const oneOf = <T extends string>(list: readonly T[], v: unknown): v is T =>
 
 /**
  * The event with only allowed, well-formed fields, or null when it can't be
- * sent at all (unknown name, no venue, no client id). An optional field that
- * is malformed is dropped, never sent; a subject is kept only with both its
- * kind and id.
+ * sent at all (unknown name, no venue, no client id). An event without a
+ * venue takes `fallbackVenue`. An optional field that is malformed is
+ * dropped, never sent; a subject is kept only with both its kind and id.
  */
-export function cleanEvent(raw: unknown): FlowEvent | null {
+export function cleanEvent(
+  raw: unknown,
+  fallbackVenue: string | null = null
+): FlowEvent | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
   const e = raw as Record<string, unknown>
   if (!oneOf(FLOW_EVENT_NAMES, e.name)) return null
-  if (!isUuid(e.venueId) || !isUuid(e.clientEventId)) return null
+  const venueId = isUuid(e.venueId) ? e.venueId : fallbackVenue
+  if (!isUuid(venueId) || !isUuid(e.clientEventId)) return null
   const at =
     typeof e.occurredAt === "string" && !Number.isNaN(Date.parse(e.occurredAt))
       ? new Date(e.occurredAt).toISOString()
       : new Date().toISOString()
   const event: FlowEvent = {
     name: e.name,
-    venueId: e.venueId,
+    venueId,
     clientEventId: e.clientEventId,
     occurredAt: at,
   }
@@ -123,10 +129,13 @@ export function cleanEvent(raw: unknown): FlowEvent | null {
 }
 
 /** Cleans a list, keeping at most EVENT_BATCH_MAX sendable events. */
-export function cleanEvents(raw: unknown): FlowEvent[] {
+export function cleanEvents(
+  raw: unknown,
+  fallbackVenue: string | null = null
+): FlowEvent[] {
   if (!Array.isArray(raw)) return []
   return raw
-    .map(cleanEvent)
+    .map((e) => cleanEvent(e, fallbackVenue))
     .filter((e): e is FlowEvent => e !== null)
     .slice(0, EVENT_BATCH_MAX)
 }

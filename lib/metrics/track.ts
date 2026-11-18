@@ -2,22 +2,29 @@
 // event and returns at once; events go to the server in small batches a few
 // seconds later, or when the page is hidden. Recording never blocks, never
 // throws and never retries: a lost event must not get in the way of someone
-// adding photos. Only allowlisted fields are kept (lib/metrics/events.ts).
+// adding photos. The server keeps only allowlisted fields
+// (lib/metrics/events.ts).
 
 import { recordFlowEventsAction } from "@/app/_metrics/actions"
 
 import {
-  cleanEvent,
+  CAPTURE_ROUTES,
   EVENT_BATCH_MAX,
-  type FlowEvent,
+  FLOW_EVENT_NAMES,
   type FlowEventInput,
 } from "./events"
 
+/** A queued event: the input plus its client id and time (cleaned on the server). */
+export type QueuedFlowEvent = FlowEventInput & {
+  clientEventId: string
+  occurredAt: string
+}
+
 export const FLUSH_DELAY_MS = 3000
 
-type Sender = (events: FlowEvent[]) => Promise<unknown>
+type Sender = (events: QueuedFlowEvent[]) => Promise<unknown>
 
-let queue: FlowEvent[] = []
+let queue: QueuedFlowEvent[] = []
 let timer: ReturnType<typeof setTimeout> | null = null
 let send: Sender = recordFlowEventsAction
 let listening = false
@@ -52,16 +59,23 @@ function listen() {
   window.addEventListener("pagehide", flushFlowEvents)
 }
 
-/** Queues one event; a malformed event is dropped silently. */
+/**
+ * Queues one event; one with an unknown name or route is dropped silently.
+ * The server keeps only allowlisted fields (lib/metrics/events.ts).
+ */
 export function trackFlow(input: FlowEventInput): void {
   try {
-    const event = cleanEvent({
+    if (!(FLOW_EVENT_NAMES as readonly string[]).includes(input.name)) return
+    if (
+      input.route != null &&
+      !(CAPTURE_ROUTES as readonly string[]).includes(input.route)
+    )
+      return
+    queue.push({
       ...input,
       clientEventId: newId(),
       occurredAt: new Date().toISOString(),
     })
-    if (!event) return
-    queue.push(event)
     listen()
     if (queue.length >= EVENT_BATCH_MAX) flushFlowEvents()
     else timer ??= setTimeout(flushFlowEvents, FLUSH_DELAY_MS)

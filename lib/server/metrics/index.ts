@@ -82,13 +82,15 @@ export async function loadMyContributions(
 /**
  * Records workflow events (§18.3). Input is untrusted: only allowlisted,
  * well-formed fields are sent (lib/metrics/events.ts), and the database
- * checks them again with the caller's venue and photos.
+ * checks them again with the caller's venue and photos. An event without a
+ * venue is recorded at `activeVenueId` (the person's active venue).
  */
 export async function recordFlowEvents(
   caller: MetricsCaller,
-  input: unknown
+  input: unknown,
+  activeVenueId: string | null = null
 ): Promise<MetricsResult<{ stored: number }>> {
-  const events = cleanEvents(input)
+  const events = cleanEvents(input, activeVenueId)
   if (events.length === 0) return { ok: true, stored: 0 }
   const { data, error } = await caller.db.rpc("record_product_events", {
     p_events: events as unknown as Json,
