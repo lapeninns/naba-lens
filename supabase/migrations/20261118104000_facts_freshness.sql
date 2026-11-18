@@ -336,7 +336,7 @@ values
   ('fact_public', 1, 'offering', 'public', interval '90 days', interval '14 days', 'verified_on',
    'Spec §9.3: facts are checked 90 days after they were last verified, for guests.'),
   ('space_photo', 1, 'fixture', 'public', interval '90 days', interval '14 days', 'verified_on',
-   'Spec §9.3: an approved photo of a venue space is checked 90 days after acceptance or its last reconfirmation.');
+   'Spec §9.3: an accepted photo of a venue space is checked 90 days after acceptance or its last reconfirmation.');
 
 insert into public.knowledge_question_rules
   (question_key, rule_version, confirmation, self_confirmation_allowed, unassigned_auto_complete,

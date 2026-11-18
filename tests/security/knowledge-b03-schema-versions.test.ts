@@ -27,15 +27,16 @@ from public.knowledge_question_versions v where v.key = '${key}' and v.version =
 from private.knowledge_slot_state_b03('${w.venue}', array['${key}'], ${at}) s
 join private.knowledge_upgrade_candidates('${key}') c on c.check_id = s.check_id;`
 
+  // Version 2 is S1-FACTS's check-date version; these start at 3.
   // The registry is append-only. Roll back the simulated form versions so
   // that later tests still see the version shipped by the migration.
   const output = psql(`begin;
-${addVersion(2, 1, "wording", "now()")}
+${addVersion(3, 1, "wording", "now()")}
 ${read("now()")}
-${addVersion(3, 2, "schema", "now() + interval '1 day'")}
+${addVersion(4, 2, "schema", "now() + interval '1 day'")}
 ${read("now()")}
 ${read("now() + interval '2 days'")}
-${addVersion(4, 2, "schema", "now() + interval '1 day'", '{"presence@1":"lossless"}')}
+${addVersion(5, 2, "schema", "now() + interval '1 day'", '{"presence@1":"lossless"}')}
 ${read("now() + interval '2 days'")}
 rollback;`)
 

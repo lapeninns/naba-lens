@@ -1273,6 +1273,9 @@ export function checkDateBasis(entry: FreshnessEntry): string | null {
   switch (entry.basis) {
     case "observed_on":
       return `Counted from the day it was checked${on}`
+    // S1-FACTS: the last check, confirmation or "Still right" (spec §9.3).
+    case "verified_on":
+      return `Counted from the day it was last confirmed${on}`
     case "stated_on":
       return `Counted from the day the policy was stated${on}`
     case "event_end":

@@ -152,7 +152,7 @@ const KNOWLEDGE: Record<string, Mapping> = {
   ],
   area_photo_not_found: [
     "not_found",
-    "This place has no approved photo to check. Reload the page.",
+    "This place has no accepted photo to check. Reload the page.",
   ],
   knowledge_source_not_found: ["not_found", "This source could not be found."],
   legacy_fact_not_found: [

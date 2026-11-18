@@ -208,7 +208,7 @@ export async function spacePhotoFreshnessAction(input: unknown) {
   return read(facts.listSpacePhotoFreshness, input)
 }
 
-/** "Still right" for a place: its approved photos stay current. */
+/** "Still right" for a place: its accepted photos stay current. */
 export async function reconfirmSpaceAction(input: unknown) {
   return write(facts.reconfirmSpace, input)
 }
@@ -218,7 +218,7 @@ export async function reportSpaceChangeAction(input: unknown) {
   return write(facts.reportSpaceChange, input)
 }
 
-/** An end date for one approved space photo; a venue manager or an admin. */
+/** An end date for one accepted space photo; a venue manager or an admin. */
 export async function setSpacePhotoEndDateAction(input: unknown) {
   return write(facts.setSpacePhotoEndDate, input)
 }

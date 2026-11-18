@@ -33,7 +33,7 @@ const SCHEDULE = {
 function attach(contributionId: string, detail: object) {
   psql(`insert into public.knowledge_contribution_details
       (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
-    select x.id, x.venue_id, 1, 'service', 1, '${JSON.stringify(detail)}'::jsonb,
+    select x.id, x.venue_id, (select max(v.version) from public.knowledge_question_versions v where v.key = x.question_key), 'service', 1, '${JSON.stringify(detail)}'::jsonb,
       encode(sha256(x.id::text::bytea), 'hex')
     from public.knowledge_contributions x where x.id = '${contributionId}'`)
 }

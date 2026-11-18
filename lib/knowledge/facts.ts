@@ -76,7 +76,7 @@ export const FACT_SOURCE_TYPES = [
 export type FactSourceType = (typeof FACT_SOURCE_TYPES)[number]
 
 export const FACT_SOURCE_LABEL: Record<FactSourceType, string> = {
-  operating_policy: "Approved operating policy",
+  operating_policy: "Operating policy",
   business_record: "Business record",
   manager_inspection: "Manager inspection",
   staff_observation_confirmed: "Staff check, confirmed by a manager",

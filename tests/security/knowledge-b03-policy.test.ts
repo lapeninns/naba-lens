@@ -53,7 +53,7 @@ beforeAll(async () => {
 function attach(contributionId: string, schema: string, detail: object) {
   psql(`insert into public.knowledge_contribution_details
       (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
-    select x.id, x.venue_id, 1, '${schema}', 1, '${JSON.stringify(detail).replace(/'/g, "''")}'::jsonb,
+    select x.id, x.venue_id, (select max(v.version) from public.knowledge_question_versions v where v.key = x.question_key), '${schema}', 1, '${JSON.stringify(detail).replace(/'/g, "''")}'::jsonb,
       encode(sha256('TEST'::bytea), 'hex')
     from public.knowledge_contributions x where x.id = '${contributionId}'`)
 }
@@ -312,7 +312,7 @@ describe("registry and lists (A4, A30, A33)", () => {
 })
 
 describe("evidence for assets (A28, shape only)", () => {
-  it("names each asset's role with the slot state and unrated freshness", async () => {
+  it("names each asset's role with the slot state and its freshness", async () => {
     const v = await world("kn-b03-evidence")
     const sent = await yes(v.staffA, v, "onsite_parking")
     const asset =
@@ -332,12 +332,15 @@ describe("evidence for assets (A28, shape only)", () => {
         role: "current_answer",
         slot_status: "available",
         slot_reason: null,
+        // S1-FACTS: the 90-day rules, counted from verification (spec §9.3).
         freshness: ["internal", "public"].map((use) => ({
           use,
-          state: "unrated",
-          nextCheckDue: null,
-          basis: null,
-          basisDate: null,
+          state: "current",
+          nextCheckDue: expect.any(String),
+          basis: "verified_on",
+          basisDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          policyId: `fact_${use}`,
+          policyVersion: 1,
         })),
       },
     ])
