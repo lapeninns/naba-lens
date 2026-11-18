@@ -218,6 +218,8 @@ export type MenuVersionSummary = {
   activatedAt: string | null
   activatedByName: string | null
   retiredAt: string | null
+  /** A draft approved to become active at this instant (S1-MENUS). */
+  scheduledFor?: string | null
 }
 
 export type MenuVersionDetail = MenuVersionSummary & {

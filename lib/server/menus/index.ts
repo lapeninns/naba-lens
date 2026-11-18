@@ -10,6 +10,8 @@ import {
   matchImportToBase,
   parseMenuFile,
   sha256Hex,
+  validateMenuDocument,
+  type CsvContext,
 } from "@/lib/menus/import"
 import {
   MENU_IMPORT_LIMITS,
@@ -70,6 +72,13 @@ export type ImportPreview = {
    * ids), for `applyReviewDecision(doc, key, decision, reviewBase)`.
    */
   reviewBase: MenuDocument | null
+  /**
+   * The same file (by SHA-256) is already this venue's open draft or active
+   * menu: re-importing creates nothing new (AC28).
+   */
+  duplicate: { versionId: string; status: "draft" | "active" } | null
+  /** `active_from`/`active_to` of a CSV, to prefill the activation time. */
+  activeDates: { activeFrom: string | null; activeTo: string | null } | null
 }
 
 /** A rejected file: 400 with the parser's issues. */
@@ -152,7 +161,7 @@ async function selectAllConcurrent<T>(
 // ---------------------------------------------------------------------------
 
 const VERSION_COLUMNS =
-  "id, venue_id, status, title, revision, source_kind, source_label, source_sha256, source_revision, source_captured_at, source_notes, based_on_version_id, created_at, updated_at, reviewed_at, activated_at, retired_at, creator:profiles!menu_versions_created_by_fkey(display_name), activator:profiles!menu_versions_activated_by_fkey(display_name), sections:menu_sections(count), entries:menu_entries(count), reviews:menu_entries(count)"
+  "id, venue_id, status, title, revision, source_kind, source_label, source_sha256, source_revision, source_captured_at, source_notes, based_on_version_id, created_at, updated_at, reviewed_at, activated_at, retired_at, scheduled_for, creator:profiles!menu_versions_created_by_fkey(display_name), activator:profiles!menu_versions_activated_by_fkey(display_name), sections:menu_sections(count), entries:menu_entries(count), reviews:menu_entries(count)"
 
 type VersionRow = {
   id: string
@@ -172,6 +181,7 @@ type VersionRow = {
   reviewed_at: string | null
   activated_at: string | null
   retired_at: string | null
+  scheduled_for: string | null
   creator: { display_name: string } | null
   activator: { display_name: string } | null
   sections: { count: number }[] | null
@@ -224,6 +234,7 @@ function toSummary(row: VersionRow): MenuVersionSummary {
     activatedAt: row.activated_at,
     activatedByName: row.activator?.display_name ?? null,
     retiredAt: row.retired_at,
+    scheduledFor: row.scheduled_for,
   }
 }
 
@@ -482,6 +493,7 @@ export async function getVenueMenuOverview(
   if (!isAdmin(actor)) return FORBIDDEN
   if (!isUuid(venueId)) return notFound("This venue could not be found.")
   const db = actor.db
+  await activateDueMenus(actor, venueId)
   const [venue, versions, open, closed] = await Promise.all([
     db
       .from("venues")
@@ -666,7 +678,7 @@ export async function previewMenuImport(
 
   const venue = await actor.db
     .from("venues")
-    .select("id")
+    .select("id, name")
     .eq("id", input.venueId)
     .maybeSingle()
   if (venue.error) return menuReadFailure(venue.error, "venue")
@@ -700,9 +712,36 @@ export async function previewMenuImport(
     issues
   )
 
+  const csv = parsed.csv ?? null
+  const venueIssues = csv ? csvVenueIssues(csv.venues, venue.data) : []
+  if (venueIssues.length)
+    return {
+      ok: false,
+      status: 400,
+      message:
+        "The file names a different venue. Import it into that venue, or correct the venue column.",
+      issues: venueIssues,
+    }
+
   const base = await activeDocument(actor.db, input.venueId)
   if (!base.ok) return base
-  const document = matchImportToBase(base.document, parsed.document)
+  const matched = matchImportToBase(base.document, parsed.document)
+  const pinned = csv ? pinItemIds(matched, base.document, csv) : null
+  if (pinned && pinned.issues.length)
+    return {
+      ok: false,
+      status: 400,
+      message:
+        "The file could not be imported. Fix the errors listed and try again.",
+      issues: pinned.issues,
+    }
+  const document = pinned?.document ?? matched
+  const duplicate = await duplicateVersion(
+    actor.db,
+    input.venueId,
+    source.sha256
+  )
+  if (!duplicate.ok) return duplicate
   return {
     ok: true,
     document,
@@ -711,6 +750,105 @@ export async function previewMenuImport(
     source,
     baseVersionId: base.id,
     reviewBase: reviewBaseFor(base.document, document),
+    duplicate: duplicate.version,
+    activeDates:
+      csv && (csv.activeFrom || csv.activeTo)
+        ? { activeFrom: csv.activeFrom, activeTo: csv.activeTo }
+        : null,
+  }
+}
+
+const sameText = (a: string, b: string) =>
+  a.normalize("NFC").trim().toLowerCase() ===
+  b.normalize("NFC").trim().toLowerCase()
+
+/** Every `venue` value must be the chosen venue's id or name. */
+export function csvVenueIssues(
+  values: string[],
+  venue: { id: string; name: string }
+): ImportIssue[] {
+  return values
+    .filter((v) => !sameText(v, venue.id) && !sameText(v, venue.name))
+    .map((v) => ({
+      severity: "error" as const,
+      path: "venue",
+      message: `“${v}” is not ${venue.name}`,
+    }))
+}
+
+/**
+ * Applies the CSV's `item_id` column: each id must be an item of the venue's
+ * current menu (a stable id, never another venue's), and then wins over any
+ * match by key or name.
+ */
+export function pinItemIds(
+  document: MenuDocument,
+  base: MenuDocument | null,
+  csv: CsvContext
+): { document: MenuDocument; issues: ImportIssue[] } {
+  const known = new Set(
+    (base?.sections ?? []).flatMap((s) =>
+      s.items.flatMap((i) => (i.itemId ? [i.itemId] : []))
+    )
+  )
+  const issues: ImportIssue[] = []
+  const next: MenuDocument = {
+    ...document,
+    sections: document.sections.map((section) => ({
+      ...section,
+      items: section.items.map((item) => {
+        const pin = csv.itemIds[item.sourceKey]
+        if (!pin) return item
+        if (!known.has(pin.itemId)) {
+          issues.push({
+            severity: "error",
+            path: `row ${pin.row}`,
+            message: "item_id is not an item on this venue's current menu",
+          })
+          return item
+        }
+        return { ...item, itemId: pin.itemId, review: null }
+      }),
+    })),
+  }
+  if (!issues.length)
+    for (const i of validateMenuDocument(next))
+      if (i.path.includes("itemId")) issues.push(i)
+  return { document: next, issues }
+}
+
+/** An open draft or the active version made from the same file. */
+async function duplicateVersion(
+  db: Db,
+  venueId: string,
+  sha256: string | null
+): Promise<
+  | {
+      ok: true
+      version: { versionId: string; status: "draft" | "active" } | null
+    }
+  | MenuFailure
+> {
+  if (!sha256) return { ok: true, version: null }
+  const { data, error } = await db
+    .from("menu_versions")
+    .select("id, status")
+    .eq("venue_id", venueId)
+    .eq("source_sha256", sha256)
+    .in("status", ["draft", "active"])
+    .order("status")
+    .order("created_at", { ascending: false })
+    .limit(1)
+  if (error) return menuReadFailure(error, "duplicate import")
+  const row = data?.[0]
+  return {
+    ok: true,
+    version: row
+      ? {
+          versionId: row.id,
+          status: row.status === "active" ? "active" : "draft",
+        }
+      : null,
   }
 }
 
@@ -793,7 +931,7 @@ export async function createMenuDraft(
     document: MenuDocument
     basedOnVersionId: string | null
   }
-): Promise<Outcome<{ versionId: string }>> {
+): Promise<Outcome<{ versionId: string; existing?: boolean }>> {
   if (!isAdmin(actor)) return FORBIDDEN
   if (!isUuid(input?.venueId)) return notFound("This venue could not be found.")
   if (input.basedOnVersionId !== null && !isUuid(input.basedOnVersionId))
@@ -802,6 +940,22 @@ export async function createMenuDraft(
   if (!source) return invalid("The menu's source details are invalid.")
   const checked = checkDocument(input.document, input.title)
   if (!checked.ok) return checked
+
+  // Re-importing the same file returns its open draft instead of a copy
+  // (AC28). The active version is no reason to refuse: an admin may start
+  // a draft from the same source on purpose.
+  if (source.sha256) {
+    const { data: open, error: openError } = await actor.db
+      .from("menu_versions")
+      .select("id")
+      .eq("venue_id", input.venueId)
+      .eq("source_sha256", source.sha256)
+      .eq("status", "draft")
+      .order("created_at", { ascending: false })
+      .limit(1)
+    if (openError) return menuReadFailure(openError, "duplicate draft")
+    if (open?.[0]) return { ok: true, versionId: open[0].id, existing: true }
+  }
 
   const { data, error } = await actor.db.rpc("create_menu_draft", {
     p_venue_id: input.venueId,
@@ -812,7 +966,7 @@ export async function createMenuDraft(
   })
   if (error) return menuRpcFailure(error, "create draft")
   if (!isUuid(data)) return menuRpcFailure(null, "create draft (no id)")
-  return { ok: true, versionId: data }
+  return { ok: true, versionId: data, existing: false }
 }
 
 /** A new draft copied from the venue's active version (ids carried forward). */
@@ -873,21 +1027,112 @@ export async function saveMenuDraft(
   return { ok: true, revision: data }
 }
 
+const isCount = (v: unknown): v is number =>
+  typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 100_000
+
+/**
+ * Activate now. `retirements` is how many current items the admin confirmed
+ * this retires (AC28); the database refuses a wrong or missing count when
+ * there are any (menu_retirements_unconfirmed).
+ */
 export async function activateMenuVersion(
   actor: MediaActor,
-  input: { versionId: string; expectedRevision: number }
+  input: {
+    versionId: string
+    expectedRevision: number
+    retirements?: number | null
+  }
 ): Promise<Outcome<Empty>> {
   if (!isAdmin(actor)) return FORBIDDEN
   if (!isUuid(input?.versionId))
     return notFound("This menu version could not be found.")
   if (!isRevision(input.expectedRevision))
     return invalid("Reload the page and try again.")
-  const { error } = await actor.db.rpc("activate_menu_version", {
+  const retirements = input.retirements ?? null
+  if (retirements !== null && !isCount(retirements))
+    return invalid("This request is invalid.")
+  const { error } = await actor.db.rpc("activate_menu_version_confirmed", {
     p_version_id: input.versionId,
     p_expected_revision: input.expectedRevision,
+    p_retirements: retirements as number,
   })
   if (error) return menuRpcFailure(error, "activate")
   return { ok: true }
+}
+
+/** Latest instant a schedule may name: a year ahead (as the database). */
+const SCHEDULE_MAX_MS = 366 * 86_400_000
+
+/**
+ * Approve a draft to become active at `at` (an ISO instant at least a few
+ * minutes ahead). Saving the draft afterwards cancels the schedule.
+ */
+export async function scheduleMenuVersion(
+  actor: MediaActor,
+  input: {
+    versionId: string
+    expectedRevision: number
+    at: string
+    retirements?: number | null
+  },
+  now: Date = new Date()
+): Promise<Outcome<{ scheduledFor: string }>> {
+  if (!isAdmin(actor)) return FORBIDDEN
+  if (!isUuid(input?.versionId))
+    return notFound("This menu version could not be found.")
+  if (!isRevision(input.expectedRevision))
+    return invalid("Reload the page and try again.")
+  const at = typeof input.at === "string" ? Date.parse(input.at) : NaN
+  if (!Number.isFinite(at) || at <= now.getTime() + 2 * 60_000)
+    return invalid("Choose a time at least a few minutes from now.")
+  if (at > now.getTime() + SCHEDULE_MAX_MS)
+    return invalid("Choose a time within the next year.")
+  const retirements = input.retirements ?? null
+  if (retirements !== null && !isCount(retirements))
+    return invalid("This request is invalid.")
+  const scheduledFor = new Date(at).toISOString()
+  const { error } = await actor.db.rpc("schedule_menu_version", {
+    p_version_id: input.versionId,
+    p_expected_revision: input.expectedRevision,
+    p_at: scheduledFor,
+    p_retirements: retirements as number,
+  })
+  if (error) return menuRpcFailure(error, "schedule")
+  return { ok: true, scheduledFor }
+}
+
+export async function unscheduleMenuVersion(
+  actor: MediaActor,
+  versionId: string
+): Promise<Outcome<Empty>> {
+  if (!isAdmin(actor)) return FORBIDDEN
+  if (!isUuid(versionId))
+    return notFound("This menu version could not be found.")
+  const { error } = await actor.db.rpc("unschedule_menu_version", {
+    p_version_id: versionId,
+  })
+  if (error) return menuRpcFailure(error, "unschedule")
+  return { ok: true }
+}
+
+/**
+ * Activates due schedules of one venue before a menu read, so a schedule
+ * lands on the first page load after its time even between cron runs. A
+ * failure is logged and the read continues with what is stored.
+ */
+export async function activateDueMenus(
+  actor: MediaActor,
+  venueId: string
+): Promise<number> {
+  if (!isUuid(venueId)) return 0
+  const { data, error } = await actor.db.rpc("menu_activate_due", {
+    p_venue_id: venueId,
+  })
+  if (error) {
+    menuRpcFailure(error, "activate due")
+    return 0
+  }
+  return typeof data === "number" ? data : 0
 }
 
 export async function retireMenuVersion(

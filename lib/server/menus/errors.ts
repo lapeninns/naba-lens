@@ -38,6 +38,9 @@ const NOT_FOUND: Record<string, string> = {
   menu_version_not_found: "This menu version could not be found.",
   menu_item_not_found: "This menu item could not be found.",
   menu_item_suggestion_not_found: "This suggestion could not be found.",
+  menu_special_not_found: "This special could not be found.",
+  menu_change_request_not_found: "This request could not be found.",
+  check_not_found: "This check could not be found.",
 }
 
 const STATE_CONFLICT: Record<string, string> = {
@@ -49,6 +52,16 @@ const STATE_CONFLICT: Record<string, string> = {
     "This suggestion was already handled. Reload the page to see it.",
   menu_review_pending:
     "Resolve every uncertain match and save the draft before activating it.",
+  menu_schedule_exists:
+    "Another draft is already scheduled for this venue. Unschedule it first.",
+  menu_item_unavailable:
+    "This dish is not on the current menu. Reload the page to see it.",
+  menu_special_not_suggested:
+    "This suggestion was already decided. Reload the page to see it.",
+  menu_special_not_running:
+    "This special has already ended. Reload the page to see it.",
+  menu_change_request_not_open:
+    "This request was already decided. Reload the page to see it.",
 }
 
 const INVALID: Record<string, string> = {
@@ -59,6 +72,19 @@ const INVALID: Record<string, string> = {
     "Choose whether to link or dismiss the suggestion.",
   invalid_suggestion_item: "Choose a menu item to link the suggestion to.",
   note_too_long: "The note is too long.",
+  menu_schedule_in_past: "Choose a time at least a few minutes from now.",
+  menu_schedule_too_far: "Choose a time within the next year.",
+  reason_required: "Give a reason.",
+  reason_too_long: "The reason is too long.",
+  invalid_until: "Choose a date from today, within the next year.",
+  invalid_dates: "Choose an end date from today, on or after the start date.",
+  invalid_display_name: "Give a name of up to 120 characters.",
+  invalid_name: "Give a name of up to 120 characters.",
+  invalid_description: "The description is too long.",
+  invalid_detail: "Describe the change in up to 1000 characters.",
+  item_required: "Choose the dish this change is about.",
+  core_check_admin_only:
+    "Only an admin can change whether a core check applies.",
 }
 
 /**
@@ -78,6 +104,21 @@ export function menuRpcFailure(error: DbError, context: string): MenuFailure {
         : "This draft was saved elsewhere. Your changes have not been saved."
     )
   }
+  if (message === "menu_retirements_unconfirmed") {
+    const count = detailJson(error)?.retirements
+    return fail(
+      409,
+      typeof count === "number"
+        ? `This draft retires ${count === 1 ? "1 item" : `${count} items`} from the current menu. Confirm the retirements and try again.`
+        : "Confirm the items this draft retires and try again."
+    )
+  }
+  if (
+    message === "menu_special_conflict" ||
+    message === "menu_change_request_conflict" ||
+    message === "venue_scope_conflict"
+  )
+    return fail(409, "This changed elsewhere. Reload the page and try again.")
   if (message in STATE_CONFLICT) return fail(409, STATE_CONFLICT[message])
   if (message in NOT_FOUND) return fail(404, NOT_FOUND[message])
   if (message === "invalid_menu_document") {
@@ -88,11 +129,16 @@ export function menuRpcFailure(error: DbError, context: string): MenuFailure {
     return fail(400, `The menu is invalid. ${path ? `${path}: ` : ""}${reason}`)
   }
   if (message in INVALID) return fail(400, INVALID[message])
+  if (message === "core_check_admin_only") return fail(403, INVALID[message])
   if (
-    message === "not_active_admin" ||
-    message === "not_active_user" ||
-    code === "42501"
+    message === "not_venue_manager" ||
+    message === "wrong_venue" ||
+    message === "not_venue_member"
   )
+    return fail(403, "You can only change menus at your own venue.")
+  if (message === "not_active_user")
+    return fail(403, "Your account is not active.")
+  if (message === "not_active_admin" || code === "42501")
     return fail(403, "Only an active admin can change menus.")
   if (code === "P0002") return fail(404, "This could not be found.")
   if (code === "22023") return fail(400, "This request is invalid.")
