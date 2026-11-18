@@ -1,8 +1,8 @@
 # Naba-Lens — Full App Specification
 
-**Staff, manager and admin experiences**  
-**Version:** 1.0 — 17 November 2026  
-**Status:** Proposed product and implementation specification  
+**Staff, manager and admin experiences**\
+**Version:** 1.0 — 17 November 2026\
+**Status:** Proposed product and implementation specification\
 **Initial operator:** Lapen Inns
 
 This document specifies the intended application. It does not claim that any feature has already been implemented or tested. Existing repository, integrations and production data must be inspected before implementation; retain working components that meet these requirements. Numeric limits and timing targets below are proposed starting defaults, not measured results.
@@ -904,6 +904,3 @@ The product design, role choices, defaults and acceptance targets above are reco
 - **S7 — [VisitEngland, Providing accessibility information](https://www.visitbritain.org/business-advice/make-your-business-accessible-and-inclusive/providing-accessibility-information):** factual descriptions, measurements and photographs for venue access information.
 
 Sources checked during this conversation. Provider-specific limits and integration behaviour must be rechecked when implementing against the chosen versions and destination APIs.
-
-
-
