@@ -319,6 +319,57 @@ export type Database = {
           },
         ]
       }
+      amenity_scope_events: {
+        Row: {
+          actor_id: string
+          applicable: boolean
+          check_id: string
+          created_at: string
+          id: number
+          reason: string
+          result_revision: number
+          template_key: string
+          venue_id: string
+        }
+        Insert: {
+          actor_id: string
+          applicable: boolean
+          check_id: string
+          created_at?: string
+          id?: never
+          reason: string
+          result_revision: number
+          template_key: string
+          venue_id: string
+        }
+        Update: {
+          actor_id?: string
+          applicable?: boolean
+          check_id?: string
+          created_at?: string
+          id?: never
+          reason?: string
+          result_revision?: number
+          template_key?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amenity_scope_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "amenity_scope_events_check_fkey"
+            columns: ["check_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "venue_amenity_checks"
+            referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
       amenity_submission_assets: {
         Row: {
           asset_id: string
@@ -3692,6 +3743,80 @@ export type Database = {
           },
         ]
       }
+      menu_change_requests: {
+        Row: {
+          decided_at: string | null
+          decided_by: string | null
+          decision_reason: string | null
+          detail: string
+          id: string
+          item_id: string | null
+          kind: string
+          requested_at: string
+          requested_by: string
+          revision: number
+          status: string
+          venue_id: string
+        }
+        Insert: {
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          detail: string
+          id?: string
+          item_id?: string | null
+          kind: string
+          requested_at?: string
+          requested_by: string
+          revision?: number
+          status?: string
+          venue_id: string
+        }
+        Update: {
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          detail?: string
+          id?: string
+          item_id?: string | null
+          kind?: string
+          requested_at?: string
+          requested_by?: string
+          revision?: number
+          status?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_change_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_change_requests_item_fkey"
+            columns: ["item_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "menu_change_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_change_requests_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_coverage_plans: {
         Row: {
           confirmed_at: string | null
@@ -3961,6 +4086,90 @@ export type Database = {
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_item_availability: {
+        Row: {
+          item_id: string
+          reason: string
+          set_at: string
+          set_by: string
+          until_on: string | null
+          venue_id: string
+        }
+        Insert: {
+          item_id: string
+          reason: string
+          set_at?: string
+          set_by: string
+          until_on?: string | null
+          venue_id: string
+        }
+        Update: {
+          item_id?: string
+          reason?: string
+          set_at?: string
+          set_by?: string
+          until_on?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_availability_item_fkey"
+            columns: ["item_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "menu_item_availability_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_item_display_names: {
+        Row: {
+          display_name: string
+          item_id: string
+          reason: string
+          set_at: string
+          set_by: string
+          venue_id: string
+        }
+        Insert: {
+          display_name: string
+          item_id: string
+          reason: string
+          set_at?: string
+          set_by: string
+          venue_id: string
+        }
+        Update: {
+          display_name?: string
+          item_id?: string
+          reason?: string
+          set_at?: string
+          set_by?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_display_names_item_fkey"
+            columns: ["item_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "menu_item_display_names_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -4356,6 +4565,48 @@ export type Database = {
           },
         ]
       }
+      menu_item_presentations: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          item_id: string
+          note: string
+          revision: number
+          venue_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          item_id: string
+          note: string
+          revision: number
+          venue_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          item_id?: string
+          note?: string
+          revision?: number
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_presentations_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_presentations_item_fkey"
+            columns: ["item_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
       menu_item_suggestions: {
         Row: {
           asset_id: string | null
@@ -4524,6 +4775,102 @@ export type Database = {
           },
         ]
       }
+      menu_specials: {
+        Row: {
+          created_at: string
+          created_by: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_reason: string | null
+          description: string | null
+          ended_at: string | null
+          ended_by: string | null
+          ends_on: string
+          id: string
+          item_id: string
+          kind: string
+          name: string
+          revision: number
+          starts_on: string
+          status: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          description?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          ends_on: string
+          id?: string
+          item_id: string
+          kind: string
+          name: string
+          revision?: number
+          starts_on: string
+          status: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          description?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          ends_on?: string
+          id?: string
+          item_id?: string
+          kind?: string
+          name?: string
+          revision?: number
+          starts_on?: string
+          status?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_specials_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_specials_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_specials_ended_by_fkey"
+            columns: ["ended_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_specials_item_fkey"
+            columns: ["item_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "menu_specials_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_variants: {
         Row: {
           created_at: string
@@ -4566,6 +4913,10 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           revision: number
+          scheduled_by: string | null
+          scheduled_for: string | null
+          scheduled_retirements: number | null
+          scheduled_revision: number | null
           source_captured_at: string | null
           source_kind: string
           source_label: string | null
@@ -4589,6 +4940,10 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           revision?: number
+          scheduled_by?: string | null
+          scheduled_for?: string | null
+          scheduled_retirements?: number | null
+          scheduled_revision?: number | null
           source_captured_at?: string | null
           source_kind?: string
           source_label?: string | null
@@ -4612,6 +4967,10 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           revision?: number
+          scheduled_by?: string | null
+          scheduled_for?: string | null
+          scheduled_retirements?: number | null
+          scheduled_revision?: number | null
           source_captured_at?: string | null
           source_kind?: string
           source_label?: string | null
@@ -4655,6 +5014,13 @@ export type Database = {
           {
             foreignKeyName: "menu_versions_reviewed_by_fkey"
             columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_versions_scheduled_by_fkey"
+            columns: ["scheduled_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -5213,6 +5579,99 @@ export type Database = {
           },
         ]
       }
+      venue_scope: {
+        Row: {
+          applicable: boolean
+          reason: string
+          revision: number
+          scope_key: string
+          set_at: string
+          set_by: string
+          venue_id: string
+        }
+        Insert: {
+          applicable: boolean
+          reason: string
+          revision?: number
+          scope_key: string
+          set_at?: string
+          set_by: string
+          venue_id: string
+        }
+        Update: {
+          applicable?: boolean
+          reason?: string
+          revision?: number
+          scope_key?: string
+          set_at?: string
+          set_by?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_scope_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_scope_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_scope_events: {
+        Row: {
+          actor_id: string
+          applicable_after: boolean
+          applicable_before: boolean | null
+          created_at: string
+          id: number
+          reason: string
+          scope_key: string
+          venue_id: string
+        }
+        Insert: {
+          actor_id: string
+          applicable_after: boolean
+          applicable_before?: boolean | null
+          created_at?: string
+          id?: never
+          reason: string
+          scope_key: string
+          venue_id: string
+        }
+        Update: {
+          actor_id?: string
+          applicable_after?: boolean
+          applicable_before?: boolean | null
+          created_at?: string
+          id?: never
+          reason?: string
+          scope_key?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_scope_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_scope_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venues: {
         Row: {
           active: boolean
@@ -5261,6 +5720,14 @@ export type Database = {
       }
       activate_menu_version: {
         Args: { p_expected_revision: number; p_version_id: string }
+        Returns: undefined
+      }
+      activate_menu_version_confirmed: {
+        Args: {
+          p_expected_revision: number
+          p_retirements: number
+          p_version_id: string
+        }
         Returns: undefined
       }
       album_admin_counts: { Args: { p_venue_id: string }; Returns: Json }
@@ -5400,6 +5867,16 @@ export type Database = {
           kind: string
           reason: string
         }[]
+      }
+      amenity_check_set_applicability: {
+        Args: {
+          p_applicable: boolean
+          p_check_id: string
+          p_idempotency_key: string
+          p_reason: string
+          p_revision: number
+        }
+        Returns: Json
       }
       amenity_check_submission_assets: {
         Args: { p_check_id: string }
@@ -6789,6 +7266,47 @@ export type Database = {
         }
         Returns: Json
       }
+      menu_activate_due: { Args: { p_venue_id: string }; Returns: number }
+      menu_activate_due_all: { Args: never; Returns: number }
+      menu_change_request_create: {
+        Args: {
+          p_detail: string
+          p_item_id: string
+          p_kind: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
+      menu_change_request_decide: {
+        Args: {
+          p_decision: string
+          p_reason: string
+          p_request_id: string
+          p_revision: number
+        }
+        Returns: Json
+      }
+      menu_change_request_withdraw: {
+        Args: { p_request_id: string; p_revision: number }
+        Returns: Json
+      }
+      menu_change_requests_list: {
+        Args: { p_status?: string; p_venue_id?: string }
+        Returns: Json
+      }
+      menu_item_availability_set: {
+        Args: {
+          p_available: boolean
+          p_item_id: string
+          p_reason?: string
+          p_until?: string
+        }
+        Returns: Json
+      }
+      menu_item_display_name_set: {
+        Args: { p_item_id: string; p_name: string; p_reason?: string }
+        Returns: Json
+      }
       menu_item_photo_asset: {
         Args: { p_asset_id: string }
         Returns: {
@@ -6895,6 +7413,14 @@ export type Database = {
           venue_name: string
         }[]
       }
+      menu_item_presentation_changed: {
+        Args: { p_item_id: string; p_note: string }
+        Returns: Json
+      }
+      menu_item_retirement_impact: {
+        Args: { p_item_id: string }
+        Returns: Json
+      }
       menu_item_review_states: {
         Args: { p_item_ids: string[]; p_venue_id: string }
         Returns: {
@@ -6904,6 +7430,7 @@ export type Database = {
         }[]
       }
       menu_label_counts: { Args: { p_venue_id: string }; Returns: Json }
+      menu_offering_states: { Args: { p_venue_id?: string }; Returns: Json }
       menu_photo_also_counts: {
         Args: { p_asset_ids: string[]; p_venue_id: string }
         Returns: {
@@ -6913,6 +7440,48 @@ export type Database = {
           task_titles: string[]
           variant_id: string
         }[]
+      }
+      menu_special_create: {
+        Args: {
+          p_description: string
+          p_ends_on: string
+          p_kind: string
+          p_name: string
+          p_starts_on: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
+      menu_special_decide: {
+        Args: {
+          p_approve: boolean
+          p_reason: string
+          p_revision: number
+          p_special_id: string
+        }
+        Returns: Json
+      }
+      menu_special_review: {
+        Args: {
+          p_action: string
+          p_ends_on: string
+          p_reason: string
+          p_revision: number
+          p_special_id: string
+        }
+        Returns: Json
+      }
+      menu_specials_list: {
+        Args: { p_include_archived?: boolean; p_venue_id?: string }
+        Returns: Json
+      }
+      menu_version_activation_impact: {
+        Args: { p_version_id: string }
+        Returns: Json
+      }
+      menu_versions_for_venue: {
+        Args: { p_include_archived?: boolean; p_venue_id: string }
+        Returns: Json
       }
       my_area_labels: {
         Args: { p_asset_ids: string[] }
@@ -7222,6 +7791,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      schedule_menu_version: {
+        Args: {
+          p_at: string
+          p_expected_revision: number
+          p_retirements: number
+          p_version_id: string
+        }
+        Returns: Json
+      }
       set_amenity_fact: {
         Args: {
           p_amenity_key: string
@@ -7413,6 +7991,10 @@ export type Database = {
           width: number
         }[]
       }
+      unschedule_menu_version: {
+        Args: { p_version_id: string }
+        Returns: undefined
+      }
       use_venue_default_target: {
         Args: {
           p_expected_revision: number
@@ -7479,6 +8061,17 @@ export type Database = {
           venue_id: string
           venue_name: string
         }[]
+      }
+      venue_scope_read: { Args: { p_venue_id?: string }; Returns: Json }
+      venue_scope_set: {
+        Args: {
+          p_applicable: boolean
+          p_key: string
+          p_reason: string
+          p_revision: number
+          p_venue_id: string
+        }
+        Returns: Json
       }
       withdraw_menu_item_photo: {
         Args: {
