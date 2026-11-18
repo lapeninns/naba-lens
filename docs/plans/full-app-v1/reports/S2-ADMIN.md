@@ -129,7 +129,7 @@ Hand-off items:
   - `app-shell` 12/12.
   - `scope-guard` 15/15.
   - `design-citations` passes.
-- **`pnpm test`:** see the final summary.
+- **`pnpm test`:** run alone, 4796 passed and 9 failed in 7 files (385 files in all). All 9 failures are 5-second test timeouts in files this task does not touch: media pipeline and review, knowledge step-free answer, people, the auth harness, menu matching and capture wiring. Rerun alone, those 7 files pass 181/181.
 - **Layout:** Playwright against `/ui-preview` (dev server on my stack):
   - At 320 px the overview stacks with no sideways scroll. The page's existing "Open the design system gallery" link overflows by 7 px, which is not from this task.
   - At 768 the admin tab bar shows.
