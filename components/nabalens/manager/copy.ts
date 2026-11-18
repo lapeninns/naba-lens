@@ -66,6 +66,11 @@ export const MANAGER_COPY = {
     quietBody: (n: number) =>
       `${plural(n, "item")} still ${n === 1 ? "needs" : "need"} a photo. Staff see these gaps in Our menu.`,
     quietLink: "See items without a photo",
+    // S3-R5: with the actions panel, Review next already says "Nothing
+    // waiting for review", so the quiet card leads with the gap instead.
+    gapsTitle: (n: number) =>
+      `${plural(n, "item")} still ${n === 1 ? "needs" : "need"} a photo`,
+    gapsBody: "Staff see these gaps in Our menu.",
     doneTitle: "Every menu item has a photo",
     doneLink: "Review newer photos",
     sectionsTitle: "By section",

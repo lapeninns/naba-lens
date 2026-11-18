@@ -171,6 +171,24 @@ describe("Overview", () => {
     )
   })
 
+  // S3-R5 (S3-E2E-2, manager-workspace): with the actions panel, Review next
+  // already says "Nothing waiting for review"; the quiet card does not repeat it.
+  it("quiet queue with the actions panel: says it once and leads with the gap", () => {
+    render(
+      <OverviewBody
+        overview={overview({ pendingPhotos: 0, oldestPendingAt: null })}
+        now={NOW}
+        actions={<p>Nothing waiting for review</p>}
+      />
+    )
+    expect(screen.getAllByText("Nothing waiting for review")).toHaveLength(1)
+    expect(screen.getByText("6 items still need a photo")).toBeTruthy()
+    expect(screen.getByText("Staff see these gaps in Our menu.")).toBeTruthy()
+    expect(hrefOf("See items without a photo")).toBe(
+      "/manager/menu?status=needs_photo"
+    )
+  })
+
   it("all covered: the done line and Review newer photos", () => {
     show(
       overview({
