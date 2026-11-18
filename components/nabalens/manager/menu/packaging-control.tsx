@@ -116,8 +116,6 @@ export function PackagingControl({
     text: string
   } | null>(null)
 
-  React.useEffect(() => setCurrent(value), [value])
-
   const ask = (next: PackagingValue) => {
     const c = copy.confirm
     const text =
