@@ -720,9 +720,11 @@ function OutcomeMessage({
               </p>
             ) : null}
             {!outcome.alreadySent ? (
+              // FA-20 (S3-E2E-1 E9): colleagues see a photo only once it is
+              // accepted, so nothing here says the team can see it yet.
               <p className="text-ink-muted">
-                They&apos;re already in your portfolio and Explore. Review only
-                decides whether they count.
+                They&apos;re in Your photos now. The team sees each one once
+                your manager accepts it.
               </p>
             ) : null}
           </div>
