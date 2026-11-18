@@ -138,9 +138,7 @@ export function parseShotTemplates(data: unknown): ShotTemplate[] | null {
 }
 
 /** public.shot_template_example_choices; null when it is not one. */
-export function parseExampleChoices(
-  data: unknown
-): {
+export function parseExampleChoices(data: unknown): {
   items: ExampleChoice[]
   nextCursor: { at: string; id: string } | null
 } | null {

@@ -14,10 +14,7 @@ import {
 } from "@/components/nabalens/requests/request-form"
 import { COVERAGE_CATEGORIES } from "@/lib/album/model"
 import { FACT_VERIFICATION_LABEL } from "@/lib/knowledge/facts"
-import {
-  REQUEST_BRIEF_MAX,
-  type RequestSlotKind,
-} from "@/lib/requests/model"
+import { REQUEST_BRIEF_MAX, type RequestSlotKind } from "@/lib/requests/model"
 import { getCoverageSlots } from "@/lib/server/album"
 import { getFactStates } from "@/lib/server/knowledge"
 import { listRequests } from "@/lib/server/requests"
