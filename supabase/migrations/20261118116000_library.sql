@@ -8,11 +8,11 @@ set lock_timeout = '5s';
 --              of use and keeps the record: one row in media_asset_withdrawals
 --              while withdrawn, and the append-only media_asset_withdrawal_events.
 --              public.library_restore_asset(asset, reason) brings it back.
---              Withdrawn means, everywhere at once, private.media_asset_use_state
---              = 'withdrawn' (redefined here with that one extra rule), so
---              private.export_candidate_rows (S1-EXPORT) no longer offers it
---              and a package holding it is invalidated at download (AC32), and
---              it cannot be made a primary photo (two triggers below). Review
+--              Withdrawn means private.export_candidate_rows (S1-EXPORT's one
+--              eligibility rule, redefined here with one extra condition) no
+--              longer offers it, so a package holding it is invalidated at
+--              download (AC32), and it cannot be made a primary photo (two
+--              triggers below). Review
 --              decisions and coverage are not changed: a manager suspends or
 --              re-reviews through Review (M3-suspend, S2-REVIEW).
 --   Correct    public.admin_correct_asset_venue(asset, venue, reason): the
@@ -47,7 +47,7 @@ set lock_timeout = '5s';
 -- also written to the activity log (private.record_activity, S1-OPS).
 --
 -- Rollback: a forward migration restoring library_page (20261101100000) and
--- media_asset_use_state (20261113140000), dropping the two primary triggers
+-- export_candidate_rows (20261118105000), dropping the two primary triggers
 -- and revoking execute on the new public functions. Tables stay.
 
 -- ---------------------------------------------------------------------------
@@ -228,30 +228,129 @@ grant select on table
 -- Withdrawn means withdrawn from use everywhere
 -- ---------------------------------------------------------------------------
 
--- As 20261113140000, with one rule first: a withdrawn asset is 'withdrawn'
--- whatever its grants say. Same signature, so every caller (export
--- eligibility, use status, publication) follows.
-create or replace function private.media_asset_use_state(p_asset_id uuid, p_now timestamptz)
-returns text
+-- S1-EXPORT's one eligibility rule (20261118105000), unchanged but for one
+-- condition in `usable`: a photo withdrawn in the Library is left out, so it
+-- is not offered and a package holding it is invalidated at download (AC32).
+-- S2-INT also redefines this function (review levels): the coordinator keeps
+-- both changes. private.media_asset_use_state is deliberately NOT changed:
+-- asset search pins and mirrors its body.
+create or replace function private.export_candidate_rows(p_venue_id uuid, p_mode text)
+returns table (
+  asset_id uuid,
+  venue_id uuid,
+  subject_kind text,
+  subject_id uuid,
+  subject_label text,
+  subject_slug text,
+  category text,
+  approval_kind text,
+  approval_id text,
+  approval_version text,
+  approval_level text,
+  uploaded_at timestamptz,
+  width integer,
+  height integer,
+  use_baseline text
+)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select case
-    when exists (select 1 from public.media_asset_withdrawals w where w.asset_id = a.id) then 'withdrawn'
-    when bool_or(st.state = 'in_force') then 'granted'
-    when bool_or(st.state = 'withdrawn') then 'withdrawn'
-    when a.use_baseline = 'legacy_unknown' then 'legacy_unknown'
-    else 'not_granted'
-  end
-  from public.media_assets a
-  left join lateral (
-    select private.media_use_grant_state(g, p_now) as state
-    from public.media_use_grants g where g.asset_id = a.id
-  ) st on true
-  where a.id = p_asset_id
-  group by a.id, a.use_baseline;
+  with assets as (
+    select a.id, a.venue_id, a.created_at, a.width, a.height, a.use_baseline,
+      private.media_asset_use_state(a.id, now()) as use_state
+    from public.media_assets a
+    where a.venue_id = p_venue_id
+      and a.upload_state = 'ready'
+      and a.deleted_at is null
+      and a.media_type = 'image'
+  ),
+  usable as (
+    select * from assets
+    where use_state is distinct from 'withdrawn'
+      -- S2-LIBRARY: a photo withdrawn in the Library is not exportable.
+      and not exists (select 1 from public.media_asset_withdrawals w where w.asset_id = assets.id)
+  ),
+  menu as (
+    select distinct on (p.asset_id, p.item_id)
+      p.asset_id, p.item_id, e.name, s.kind, p.id as photo_id, p.revision, p.state
+    from public.menu_item_photos p
+    join usable u on u.id = p.asset_id
+    join public.menu_items i on i.id = p.item_id and i.archived_at is null
+    join public.menu_versions v on v.venue_id = p.venue_id and v.status = 'active'
+    join public.menu_entries e on e.version_id = v.id and e.item_id = p.item_id
+    join public.menu_sections s on s.id = e.section_id and s.version_id = v.id
+    where p.venue_id = p_venue_id
+      and (p.state = 'accepted'
+        or (p_mode = 'internal' and p.state in ('better_photo_requested', 'needs_recheck')))
+    order by p.asset_id, p.item_id, (p.state = 'accepted') desc, p.decided_at desc, p.id
+  ),
+  area as (
+    select l.asset_id, l.subject_id, s.label, l.id as label_id, d.id as decision_id, d.action
+    from public.media_area_labels l
+    join usable u on u.id = l.asset_id
+    join public.knowledge_subjects s on s.id = l.subject_id and s.venue_id = l.venue_id and s.retired_at is null
+    left join lateral (
+      select d.id, d.action from public.area_photo_decisions d
+      where d.label_id = l.id order by d.id desc limit 1
+    ) d on true
+    where l.venue_id = p_venue_id
+      and l.removed_at is null
+      and (d.action = 'accepted'
+        or (p_mode = 'internal' and (d.action is null or d.action = 'needs_another_photo')))
+  ),
+  amenity as (
+    select distinct on (c.id, sa.asset_id)
+      sa.asset_id, c.id as check_id, c.template_key, cat.question, sub.id as submission_id,
+      c.revision, u.use_state
+    from public.venue_amenity_checks c
+    join public.amenity_catalogue cat on cat.key = c.template_key
+    join public.amenity_submissions sub on sub.id = c.current_submission_id
+    join public.amenity_submission_assets sa on sa.submission_id = sub.id and sa.evidence_kind = 'photo'
+    join usable u on u.id = sa.asset_id
+    where c.venue_id = p_venue_id
+      and c.status = 'active'
+      and c.progress = 'complete'
+      and sub.answer = 'yes'
+      and private.knowledge_in_scope(c.venue_id, c.template_key)
+      and coalesce((private.knowledge_check_service_end(c.id, now()) ->> 'inEffect')::boolean, false) = false
+    order by c.id, sa.asset_id
+  ),
+  amenity_rated as (
+    select am.*,
+      (am.use_state = 'granted'
+        and coalesce((private.knowledge_public_media_eligible(p_venue_id, am.template_key) ->> 'eligible')::boolean, false)
+      ) as public_ok
+    from amenity am
+  ),
+  rows as (
+    select m.asset_id, 'menu_item'::text as subject_kind, m.item_id as subject_id, m.name as subject_label,
+      m.name as slug_source,
+      case m.kind when 'food' then 'food' when 'drinks' then 'drinks' else 'other' end as category,
+      'menu_item_photo'::text as approval_kind, m.photo_id::text as approval_id, m.revision::text as approval_version,
+      case when m.state = 'accepted' then 'public' else 'internal' end as approval_level
+    from menu m
+    union all
+    select ar.asset_id, 'place', ar.subject_id, ar.label, ar.label, 'spaces',
+      case when ar.decision_id is null then 'area_label' else 'area_photo_decision' end,
+      coalesce(ar.decision_id::text, ar.label_id::text),
+      coalesce(ar.decision_id::text, ar.label_id::text),
+      case when ar.action = 'accepted' then 'public' else 'internal' end
+    from area ar
+    union all
+    select r.asset_id, 'amenity', r.check_id, r.question, replace(r.template_key, '_', ' '), 'facilities',
+      'amenity_submission', r.submission_id::text, r.revision::text,
+      case when r.public_ok then 'public' else 'internal' end
+    from amenity_rated r
+  )
+  select r.asset_id, p_venue_id, r.subject_kind, r.subject_id, r.subject_label,
+    coalesce(nullif(private.export_slug(r.slug_source, 60), ''), 'photo'),
+    r.category, r.approval_kind, r.approval_id, r.approval_version, r.approval_level,
+    u.created_at, u.width, u.height, u.use_baseline
+  from rows r
+  join usable u on u.id = r.asset_id
+  where p_mode = 'internal' or r.approval_level = 'public';
 $$;
 
 -- A withdrawn asset cannot become a primary photo.

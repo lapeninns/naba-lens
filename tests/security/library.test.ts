@@ -415,8 +415,8 @@ describe("withdraw and restore", () => {
     expect(w.changed).toBe(true)
     expect(await inExport()).toBe(false)
     expect(
-      psql(`select private.media_asset_use_state('${asset}', now())`)
-    ).toBe("withdrawn")
+      psql(`select private.library_is_withdrawn('${asset}')::text`)
+    ).toBe("true")
     // Not in the default (active) library; in the withdrawn filter.
     expect(await page(admin, { p_venue: venueA })).not.toContain(asset)
     expect(
@@ -520,8 +520,8 @@ describe("venue correction (spec §11)", () => {
       psql(`select venue_id from public.media_assets where id = '${asset}'`)
     ).toBe(venueA)
     expect(
-      psql(`select private.media_asset_use_state('${asset}', now())`)
-    ).toBe("withdrawn")
+      psql(`select private.library_is_withdrawn('${asset}')::text`)
+    ).toBe("true")
     // The same correction again is refused.
     await refused(
       rpc(admin, "admin_correct_asset_venue", {
