@@ -509,7 +509,10 @@ export function SubmitPhotosPanel({
           {addQueue ? null : ownPicker.inputs}
         </div>
 
-        <div aria-live="polite" className="text-body font-bold empty:hidden">
+        <div
+          aria-live="polite"
+          className="text-body font-semibold empty:hidden"
+        >
           {uploadNote ? <p>{uploadNote}</p> : null}
         </div>
 

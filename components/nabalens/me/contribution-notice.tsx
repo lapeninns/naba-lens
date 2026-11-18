@@ -44,7 +44,7 @@ export function ContributionNoticeCard({
       className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
       data-slot="contribution-notice"
     >
-      <p className="text-body font-bold [overflow-wrap:anywhere] text-ink">
+      <p className="text-heading [overflow-wrap:anywhere] text-ink">
         {venueName
           ? NOTICE_COPY.workingAt(venueName, roleLabel)
           : NOTICE_COPY.noVenue}

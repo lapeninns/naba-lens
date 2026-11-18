@@ -283,7 +283,8 @@ test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () =
     await expect(sending).toBeDisabled()
     await expect(page.getByText(/^Sending the invitation to /)).toBeVisible()
     const box = await sending.boundingBox()
-    expect(box!.height).toBeGreaterThanOrEqual(44)
+    // v2 compact control on an admin's desktop (D10): 40px.
+    expect(box!.height).toBeGreaterThanOrEqual(40)
     await page
       .getByRole("button", { name: `More actions for ${person.name}` })
       .click()

@@ -1262,7 +1262,8 @@ test.describe("leaving while uploads run", () => {
       .toBe(844)
     for (const name of ["Log out anyway", "Keep uploading"]) {
       const b = (await confirm.getByRole("button", { name }).boundingBox())!
-      expect(b.height).toBeGreaterThanOrEqual(52)
+      // v2 staff target (D10): 48px.
+      expect(b.height).toBeGreaterThanOrEqual(48)
     }
     await confirm.getByRole("button", { name: "Log out anyway" }).click()
     await expect(page).toHaveURL(/\/login\?signed_out=1$/)
