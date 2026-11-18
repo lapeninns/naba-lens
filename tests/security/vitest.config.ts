@@ -23,6 +23,8 @@ export default defineConfig({
   },
   test: {
     include: ["tests/security/**/*.test.ts"],
+    // Each file starts without earlier files' fixture venues (S6-CI).
+    setupFiles: ["tests/security/retire-earlier-fixtures.ts"],
     environment: "node",
     testTimeout: 30_000,
     hookTimeout: 120_000,

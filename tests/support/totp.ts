@@ -64,9 +64,26 @@ export async function elevateToAal2(client: SupabaseClient): Promise<void> {
     factor = { factorId: data.id, secret: data.totp.secret }
     factors.set(who.user.id, factor)
   }
-  const { error } = await client.auth.mfa.challengeAndVerify({
-    factorId: factor.factorId,
-    code: totpCode(factor.secret),
-  })
+  const verify = () =>
+    client.auth.mfa.challengeAndVerify({
+      factorId: factor.factorId,
+      code: totpCode(factor.secret),
+    })
+  let { error } = await verify()
+  // A loaded local stack can answer one verify with a 5xx
+  // (AuthRetryableFetchError); S6-CI saw it fail a whole file's setup. Retry
+  // that once, with a new challenge. A wrong code (4xx) is never retried.
+  if (error && isRetryable(error)) {
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+    ;({ error } = await verify())
+  }
   if (error) throw error
+}
+
+function isRetryable(error: { name?: string; status?: number }): boolean {
+  return (
+    error.name === "AuthRetryableFetchError" ||
+    (typeof error.status === "number" &&
+      (error.status === 0 || error.status >= 500))
+  )
 }

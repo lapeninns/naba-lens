@@ -112,7 +112,9 @@ describe("storage limits and TUS on the local stack", () => {
     { timeout: 300_000 },
     async () => {
       const bytes = await readFile(fixtures.files.big_200mib_mp4)
-      expect(bytes.byteLength).toBe(MEDIA_LIMITS.maxVideoBytes)
+      // The fixture is 200 MiB, within the 250 MiB video limit (spec §12.1).
+      expect(bytes.byteLength).toBe(200 * MiB)
+      expect(bytes.byteLength).toBeLessThanOrEqual(MEDIA_LIMITS.maxVideoBytes)
       const key = newKey()
       const reserved = await reserveAsset(actor, {
         idempotencyKey: key,
@@ -161,7 +163,7 @@ describe("storage limits and TUS on the local stack", () => {
         .eq("id", reserved.assetId)
         .single()
       expect(row).toEqual({
-        size_bytes: MEDIA_LIMITS.maxVideoBytes,
+        size_bytes: bytes.byteLength,
         validated_mime_type: "video/mp4",
         upload_state: "ready",
       })

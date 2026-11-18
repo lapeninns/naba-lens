@@ -11,6 +11,7 @@ import {
 import { getReadableAsset, streamOriginal } from "@/lib/server/media/access"
 import { signAvatar } from "@/lib/server/media/profile"
 import { actorFor } from "../slice/media-actor"
+import { acceptForColleagues } from "./accepted"
 
 /**
  * Wave 3 finding 1: end users have no storage read policy. Authorised reads go
@@ -99,7 +100,18 @@ describe("community read access and write isolation (RLS + storage)", () => {
     expect(data!.map((p) => p.id)).toEqual([staffB.id])
   })
 
-  it("staff B can view staff A's ready portfolio media without reading raw media or profile rows", async () => {
+  it("staff B can view staff A's accepted portfolio media without reading raw media or profile rows", async () => {
+    // FA-20 (spec §3.3): until it is accepted, a colleague gets nothing.
+    const unreviewed = await staffB.client.rpc("community_readable_assets", {
+      p_asset_ids: [assetA.id],
+    })
+    expect(unreviewed.error).toBeNull()
+    expect(unreviewed.data).toEqual([])
+    expect(
+      await getReadableAsset(await actorFor(staffB), assetA.id)
+    ).toMatchObject({ ok: false, status: 404 })
+    await acceptForColleagues(assetA.id)
+
     // No direct row access: paths, filename and upload key stay hidden.
     const byId = await staffB.client
       .from("media_assets")

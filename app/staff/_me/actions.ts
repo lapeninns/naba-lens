@@ -16,7 +16,7 @@ import { OWN_MEDIA_ROLES, UPLOADER_ROLES } from "@/lib/server/media/roles"
 import {
   loadInbox,
   markRead,
-  savePreferences,
+  saveNotificationPreferences,
   type PreferencesPatch,
 } from "@/lib/server/notifications"
 import {
@@ -287,6 +287,6 @@ export async function saveNotificationPreferencesAction(
       clean[key] = p[key] as string | null
   const auth = await getMediaActor(OWN_MEDIA_ROLES)
   if (!auth.ok) return refused(auth.message)
-  const result = await savePreferences(auth.actor, clean)
+  const result = await saveNotificationPreferences(auth.actor, clean)
   return result.ok ? result : refused(result.message)
 }

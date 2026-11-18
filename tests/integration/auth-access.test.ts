@@ -69,7 +69,7 @@ import {
   readSessionCookie,
   redirectOf,
 } from "./auth-support"
-import { followEmailLink } from "./auth-confirm"
+import { followEmailLink, passMfa } from "./auth-confirm"
 
 const service = serviceClient()
 const sha256 = (bytes: Uint8Array) =>
@@ -97,6 +97,8 @@ async function person(
   const link = await issueSignInLink(service, identity.email)
   const res = await followEmailLink(browser, link)
   expect(res.location).toBe("/")
+  // FA-23: an admin acts as one only after the second step (aal2).
+  if (opts.role === "admin") await passMfa(browser, identity.id)
   return { ...identity, browser, rest: await restClientFor(browser) }
 }
 
@@ -405,14 +407,15 @@ describe("segment layouts reject before anything renders (privacy R3)", () => {
     ).toMatchObject({ type: SessionGuardHost, props: { children } })
   })
 
-  it("staff layout sends admins to /admin and lets staff through", async () => {
+  // K7: an admin's home is the group Overview.
+  it("staff layout sends admins to /admin/overview and lets staff through", async () => {
     expect(
       (
         await admin.browser.run(() =>
           redirectOf(() => StaffLayout({ children }))
         )
       ).location
-    ).toBe("/admin")
+    ).toBe("/admin/overview")
     expect(
       (
         await staff.browser.run(() =>
@@ -555,7 +558,8 @@ describe("staff venue states", () => {
       const page = await worker.browser.run(() => redirectOf(StaffPage))
       expect(page.location).toBeNull()
       const portfolio = findProps(page.value, "uploadBlocked")
-      expect(portfolio?.uploadBlocked).toMatch(/uploads are paused/)
+      // R-2 words (app/staff/add-blocked.ts).
+      expect(portfolio?.uploadBlocked).toMatch(/isn't taking photos right now/)
       // Their own retained media is still listed for them.
       const items = (portfolio?.initialPage as { items: { id: string }[] })
         .items
@@ -899,7 +903,7 @@ describe("venue manager accounts", () => {
   it("sends staff and admins away from the manager workspace", async () => {
     for (const [p, home] of [
       [staff, "/staff/tasks"],
-      [admin, "/admin"],
+      [admin, "/admin/overview"],
     ] as const) {
       const run = <T>(fn: () => Promise<T>) => p.browser.run(fn)
       expect((await run(() => redirectOf(getManagerWorkspace))).location).toBe(
