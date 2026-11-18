@@ -24,6 +24,21 @@ export const OPERATING_STATUSES: ReadonlyArray<{
   },
 ]
 
+/**
+ * The operating status a venue really has. A venue switched off
+ * (`venues.active` false) is archived whatever its stored trading state: one
+ * switched off before operating statuses existed kept the column's 'open'
+ * default (S3-R6, V22; 20261118125000 backfills it). Showing it as Open made
+ * Open impossible to choose and Temporarily closed turn the venue back on.
+ */
+export function effectiveOperatingStatus(
+  status: string,
+  active: boolean
+): OperatingStatus {
+  if (!active) return "permanently_closed"
+  return STATUSES.has(status) ? (status as OperatingStatus) : "open"
+}
+
 /** The status chip key for a venue's operating status (status-chip.tsx). */
 export function operatingStatusChip(
   status: OperatingStatus
@@ -204,7 +219,7 @@ export function parseAdminVenue(v: unknown): AdminVenue | null {
     locality: str(v.locality),
     address: str(v.address),
     timezone: str(v.timezone) ?? "Europe/London",
-    operatingStatus: status as OperatingStatus,
+    operatingStatus: effectiveOperatingStatus(status, bool(v.active)),
     active: bool(v.active),
     archivedAt: str(v.archivedAt),
     revision: num(v.revision) || 1,

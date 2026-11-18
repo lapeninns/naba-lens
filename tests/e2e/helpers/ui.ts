@@ -60,6 +60,9 @@ export async function staffTile(
 /** Where staff land after sign-in or a wrong-role redirect: Album (Home). */
 export const STAFF_LANDING = /\/staff\/tasks$/
 
+/** Where admins land after sign-in or a wrong-role redirect: Overview (K7). */
+export const ADMIN_LANDING = /\/admin\/overview$/
+
 /** Other jobs (G-4, decision 23): non-menu jobs, amenity checks and questions. */
 export const OTHER_JOBS_PATH = "/staff/tasks/other"
 export const OTHER_JOBS = /\/staff\/tasks\/other$/

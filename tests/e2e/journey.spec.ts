@@ -13,16 +13,17 @@ import {
 } from "./helpers/media"
 import { provisioner, storedObjects } from "./helpers/stack"
 import {
+  ADMIN_LANDING,
   chooseOption,
   documentUnchanged,
   libraryList,
   markDocument,
+  openPortfolio,
   portfolioList,
+  STAFF_LANDING,
   staffTile,
   tile,
   uploadThroughDialog,
-  openPortfolio,
-  STAFF_LANDING,
 } from "./helpers/ui"
 import {
   fixtureEmail,
@@ -75,7 +76,7 @@ test.describe("release journey @core", () => {
 
     // --- Admin A invites a new staff member through the UI.
     const adminA = await signedInPage(browser, world.adminA)
-    await expect(adminA).toHaveURL(/\/admin$/)
+    await expect(adminA).toHaveURL(ADMIN_LANDING)
     await adminA.goto("/admin/staff")
     const inviteeEmail = fixtureEmail("invitee", tag)
     const inviteeName = `DEV FIXTURE Invitee ${tag}`
@@ -118,7 +119,8 @@ test.describe("release journey @core", () => {
 
     // --- Admin B opens the library BEFORE the upload and keeps it open.
     const adminB = await signedInPage(browser, world.adminB)
-    await expect(adminB).toHaveURL(/\/admin$/)
+    await expect(adminB).toHaveURL(ADMIN_LANDING)
+    await adminB.goto("/admin")
     await expect(
       libraryList(adminB).or(adminB.getByText("No uploads yet"))
     ).toBeVisible()

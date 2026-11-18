@@ -7,7 +7,7 @@ import {
   testEmail,
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { ADMIN_LANDING, openPortfolio, STAFF_LANDING } from "./helpers/ui"
 import { passMfaIfAsked } from "./helpers/mfa"
 
 /** Polls the local Mailpit inbox for the newest sign-in link sent to `email`. */
@@ -108,7 +108,7 @@ test.describe("authentication and role routing", () => {
     await expect(page).toHaveURL(/\/login\?next=%2Fstaff$/)
   })
 
-  test("an admin lands on /admin", async ({ page, baseURL }) => {
+  test("an admin lands on Overview", async ({ page, baseURL }) => {
     const adminUser = await createIdentity(admin, {
       label: "e2e-admin",
       role: "admin",
@@ -121,7 +121,7 @@ test.describe("authentication and role routing", () => {
     await page.goto("/admin")
     await expect(page).toHaveURL(/\/auth\/mfa$/)
     await passMfaIfAsked(page, adminUser.email)
-    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page).toHaveURL(ADMIN_LANDING)
   })
 
   test("a reused or invalid link offers recovery", async ({

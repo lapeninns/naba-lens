@@ -21,11 +21,13 @@ vi.mock("next/navigation", () => ({
 const selectPrimaryAction = vi.fn()
 const withdrawAssetAction = vi.fn()
 const restoreAssetAction = vi.fn()
+const suspendAssetAction = vi.fn()
 const setCollectionItemsAction = vi.fn()
 vi.mock("@/app/admin/library/actions", () => ({
   selectPrimaryAction: (...a: unknown[]) => selectPrimaryAction(...a),
   withdrawAssetAction: (...a: unknown[]) => withdrawAssetAction(...a),
   restoreAssetAction: (...a: unknown[]) => restoreAssetAction(...a),
+  suspendAssetAction: (...a: unknown[]) => suspendAssetAction(...a),
   correctVenueAction: vi.fn(async () => ({ ok: true, changed: true })),
   tagAssetsAction: vi.fn(async () => ({ ok: true, changed: true })),
   setCollectionItemsAction: (...a: unknown[]) => setCollectionItemsAction(...a),
@@ -126,6 +128,7 @@ beforeEach(() => {
   selectPrimaryAction.mockReset()
   withdrawAssetAction.mockReset()
   restoreAssetAction.mockReset()
+  suspendAssetAction.mockReset()
   removeAcceptedMedia.mockReset()
   setCollectionItemsAction.mockReset()
 })
@@ -220,6 +223,55 @@ describe("asset detail", () => {
     expect(screen.queryByRole("button", { name: /main photo for/ })).toBeNull()
     expect(screen.queryByRole("link", { name: /Export this photo/ })).toBeNull()
     expect(screen.getByText(/Shows a guest/)).toBeTruthy()
+  })
+
+  it("suspends with a reason, saying the slots need another photo (K11)", async () => {
+    suspendAssetAction.mockResolvedValue({ ok: true, changed: true })
+    render(<AssetDetailView detail={detail()} options={options} />)
+    fireEvent.click(screen.getByTestId("asset-suspend"))
+    const dialog = await screen.findByRole("dialog")
+    expect(dialog.textContent).toMatch(/needs another photo/)
+    fireEvent.change(within(dialog).getByRole("textbox"), {
+      target: { value: "The bar was rebuilt" },
+    })
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Suspend from use" })
+    )
+    await waitFor(() =>
+      expect(suspendAssetAction).toHaveBeenCalledWith({
+        assetId: A,
+        reason: "The bar was rebuilt",
+      })
+    )
+  })
+
+  it("never offers Restore for a photo recorded at the wrong venue (V19)", () => {
+    render(
+      <AssetDetailView
+        detail={detail({
+          exportEligible: false,
+          withdrawal: {
+            withdrawnAt: "2026-11-03T10:00:00+00:00",
+            reason: "Venue corrected: taken at The Bell",
+            byName: "Admin",
+          },
+          corrections: [
+            {
+              id: 1,
+              declaredVenueName: "Barley Mow",
+              correctedVenueId: V,
+              correctedVenueName: "The Bell",
+              reason: "Taken at The Bell",
+              at: "2026-11-03T10:00:00+00:00",
+              byName: "Admin",
+            },
+          ],
+        })}
+        options={options}
+      />
+    )
+    expect(screen.queryByRole("button", { name: /Restore/ })).toBeNull()
+    expect(screen.getByText(/recorded at the wrong venue/)).toBeTruthy()
   })
 
   it("links duplicates to the compare page", () => {

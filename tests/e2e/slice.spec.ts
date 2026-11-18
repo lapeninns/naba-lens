@@ -14,6 +14,7 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import {
+  ADMIN_LANDING,
   openPortfolio,
   STAFF_LANDING,
   staffTile,
@@ -180,7 +181,8 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
 
     // --- A different admin sees it in the library and downloads the original.
     const adminPage = await signIn(browser, adminUser, baseURL!)
-    await expect(adminPage).toHaveURL(/\/admin$/)
+    await expect(adminPage).toHaveURL(ADMIN_LANDING)
+    await adminPage.goto("/admin")
     const library = adminPage.getByRole("list", { name: "Library" })
     const libraryTile = library.getByRole("button", {
       name: new RegExp(

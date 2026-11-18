@@ -77,7 +77,14 @@ function rows(): OverviewRow[] {
         facts: { confirmed: 6, total: 8 },
         unlabelled: 7,
         review: { waiting: 2, oldestAt: "2026-11-08T12:00:00Z" },
-        checksDue: { slots: 1, facts: 0, total: 1 },
+        checksDue: {
+          dishes: 1,
+          places: 0,
+          facilities: 0,
+          slots: 1,
+          facts: 0,
+          total: 1,
+        },
         publication: { failed: 1, withdrawalPending: 0, total: 1 },
         added: 3,
         setup: {
@@ -93,7 +100,14 @@ function rows(): OverviewRow[] {
         facts: { confirmed: 0, total: 0 },
         unlabelled: 0,
         review: { waiting: 0, oldestAt: null },
-        checksDue: { slots: 0, facts: 0, total: 0 },
+        checksDue: {
+          dishes: 0,
+          places: 0,
+          facilities: 0,
+          slots: 0,
+          facts: 0,
+          total: 0,
+        },
         publication: { failed: 0, withdrawalPending: 0, total: 0 },
         added: 0,
         setup: ALL_SET,
@@ -141,7 +155,15 @@ describe("Overview (A1)", () => {
     ).toBe(`/admin?venue=${V1}&labels=unlabelled`)
     expect(
       within(bell).getByTestId("overview-review").getAttribute("href")
-    ).toBe(`/admin/coverage/${V1}/review`)
+    ).toBe(`/admin/coverage/${V1}/menu-photos`)
+    // V20: each part of Checks due links to the page that lists it.
+    expect(
+      within(bell).getByTestId("overview-checks").getAttribute("href")
+    ).toBe(`/admin/coverage/${V1}/menu-photos?status=recheck`)
+    const parts = within(bell).getByTestId("overview-check-parts")
+    expect(
+      within(parts).getByText("1 dish").closest("a")?.getAttribute("href")
+    ).toBe(`/admin/coverage/${V1}/menu-photos?status=recheck`)
     expect(within(bell).getByTestId("overview-facts").textContent).toContain(
       "6 of 8"
     )
@@ -153,6 +175,29 @@ describe("Overview (A1)", () => {
     // Totals line adds the rows (AC39).
     const table = screen.getByTestId("overview-table")
     expect(table.textContent).toContain("6 of 12 · 50%")
+  })
+
+  it("flags a long wait from the admin's backlog alert setting (V21)", () => {
+    // The Bell's oldest photo has waited 10 days.
+    const { unmount } = render(
+      <OverviewView
+        rows={rows()}
+        filters={filters}
+        now={NOW}
+        reviewAlertDays={14}
+      />
+    )
+    expect(screen.queryByText("Oldest photo waiting 10 days")).toBeNull()
+    unmount()
+    render(
+      <OverviewView
+        rows={rows()}
+        filters={filters}
+        now={NOW}
+        reviewAlertDays={3}
+      />
+    )
+    expect(screen.getByText("Oldest photo waiting 10 days")).toBeTruthy()
   })
 
   it("shows only the chosen categories and says when no menu is scheduled", () => {

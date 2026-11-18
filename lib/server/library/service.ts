@@ -87,6 +87,28 @@ const MESSAGES: Record<string, { status: Status; message: string }> = {
     status: 409,
     message: "The photo is already recorded at this venue.",
   },
+  self_review_not_allowed: {
+    status: 403,
+    message:
+      "You added this photo, so another admin or the venue's reviewer must decide it.",
+  },
+  coverage_conflict: {
+    status: 409,
+    message: "Someone else changed this photo's review. Reload and try again.",
+  },
+  area_photo_conflict: {
+    status: 409,
+    message: "Someone else changed this photo's review. Reload and try again.",
+  },
+  amenity_photo_conflict: {
+    status: 409,
+    message: "Someone else changed this photo's review. Reload and try again.",
+  },
+  venue_correction_pending: {
+    status: 409,
+    message:
+      "This photo was recorded at the wrong venue, so it stays withdrawn. Add it again at the right venue.",
+  },
   asset_withdrawn: {
     status: 409,
     message: "Restore this photo before making it the main photo.",
@@ -192,6 +214,21 @@ export function restoreAsset(
 ) {
   if (!isUuid(input.assetId)) return Promise.resolve(NOT_FOUND)
   return write(actor, "library_restore_asset", {
+    p_asset_id: input.assetId,
+    p_reason: text(input.reason),
+  })
+}
+
+/**
+ * K11 (M3-suspend): withdraws the photo and every approval it holds, so each
+ * slot it filled counts its other photos only (library_suspend_asset).
+ */
+export function suspendAsset(
+  actor: MediaActor,
+  input: { assetId: unknown; reason: unknown }
+) {
+  if (!isUuid(input.assetId)) return Promise.resolve(NOT_FOUND)
+  return write(actor, "library_suspend_asset", {
     p_asset_id: input.assetId,
     p_reason: text(input.reason),
   })

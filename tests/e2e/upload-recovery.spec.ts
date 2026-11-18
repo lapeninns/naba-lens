@@ -32,6 +32,7 @@ import { firefoxLaunchOptions } from "./helpers/firefox"
 import { syntheticJpeg } from "./helpers/media"
 import { mailboxIds, SUBJECTS, waitForLink } from "./helpers/mailpit"
 import {
+  ADMIN_LANDING,
   openPortfolio,
   STAFF_LANDING,
   staffTile,
@@ -729,7 +730,7 @@ test.describe("upload recovery in the real UI", () => {
 
     // Admin downloads the HEVC original: identical bytes.
     const hevc = rows.find((r) => r.original_filename === "clip-hevc.mp4")!
-    const adminPage = await signIn(browser, adminUser, baseURL!, /\/admin$/)
+    const adminPage = await signIn(browser, adminUser, baseURL!, ADMIN_LANDING)
     const response = await adminPage.request.get(
       `/api/media/${hevc.id}/download`
     )

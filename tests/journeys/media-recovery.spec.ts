@@ -5,9 +5,10 @@ import { expect, test, type Locator, type Route } from "@playwright/test"
 
 import { provisioner, psql } from "../e2e/helpers/stack"
 import {
-  STAFF_LANDING,
+  ADMIN_LANDING,
   libraryList,
   openPortfolio,
+  STAFF_LANDING,
   staffTile,
 } from "../e2e/helpers/ui"
 import {
@@ -737,7 +738,7 @@ test.describe("media.reload-metadata", () => {
       browser,
       world.adminA,
       baseURL!,
-      /\/admin$/
+      ADMIN_LANDING
     )
     await adminPage.goto(`/admin?staff=${staff.id}`)
     const library = libraryList(adminPage)

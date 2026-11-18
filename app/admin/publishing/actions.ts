@@ -10,7 +10,7 @@ import {
   setExportProfile,
 } from "@/lib/server/exports/service"
 import { exportHrefs } from "@/lib/server/exports/hrefs"
-import { getMediaActor } from "@/lib/server/media/context"
+import { actorFailureMessage, getMediaActor } from "@/lib/server/media/context"
 
 /**
  * S1-EXPORT Server Functions, shared by the admin Publishing screen and the
@@ -21,11 +21,16 @@ import { getMediaActor } from "@/lib/server/media/context"
  */
 
 type Failure = { ok: false; message: string }
-const SIGNED_OUT: Failure = { ok: false, message: "Sign in again." }
 
+/**
+ * The caller, or the failure in its own words (S3-R6, V6): signed out, the
+ * second sign-in step, an inactive account or a failed account check.
+ */
 async function actor() {
   const auth = await getMediaActor(["staff", "manager", "admin"])
-  return auth.ok ? auth.actor : null
+  return auth.ok
+    ? { ok: true as const, actor: auth.actor }
+    : ({ ok: false, message: actorFailureMessage(auth) } satisfies Failure)
 }
 
 function refresh() {
@@ -42,8 +47,9 @@ export async function createPackageAction(input: {
   customHeight?: unknown
   note?: unknown
 }): Promise<{ ok: true; packageId: string } | Failure> {
-  const a = await actor()
-  if (!a) return SIGNED_OUT
+  const auth = await actor()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await createExportPackage(a, input)
   if (!result.ok) return { ok: false, message: result.message }
   refresh()
@@ -54,8 +60,9 @@ export async function rebuildPackageAction(input: {
   requestKey: unknown
   packageId: unknown
 }): Promise<{ ok: true; packageId: string; removed: number } | Failure> {
-  const a = await actor()
-  if (!a) return SIGNED_OUT
+  const auth = await actor()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await rebuildExportPackage(a, input)
   if (!result.ok) return { ok: false, message: result.message }
   refresh()
@@ -77,8 +84,9 @@ export async function recordPublicationAction(input: {
   note?: unknown
   packageId?: unknown
 }): Promise<{ ok: true; state: string | null } | Failure> {
-  const a = await actor()
-  if (!a) return SIGNED_OUT
+  const auth = await actor()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await recordPublication(a, input)
   if (!result.ok) return { ok: false, message: result.message }
   refresh()
@@ -93,8 +101,9 @@ export async function saveDestinationAction(input: {
   active: unknown
   revision: unknown
 }): Promise<{ ok: true } | Failure> {
-  const a = await actor()
-  if (!a) return SIGNED_OUT
+  const auth = await actor()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await saveDestination(a, input)
   if (!result.ok) return { ok: false, message: result.message }
   refresh()
@@ -110,8 +119,9 @@ export async function setProfileAction(input: {
   quality: unknown
   revision: unknown
 }): Promise<{ ok: true } | Failure> {
-  const a = await actor()
-  if (!a) return SIGNED_OUT
+  const auth = await actor()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await setExportProfile(a, input)
   if (!result.ok) return { ok: false, message: result.message }
   refresh()

@@ -19,6 +19,7 @@ import {
 } from "../integration/gaps-support"
 import { actorFor, syntheticJpeg } from "../slice/media-actor"
 import {
+  ADMIN_LANDING,
   openPortfolio,
   STAFF_LANDING,
   staffTile,
@@ -202,7 +203,7 @@ test.describe("admin library refreshes on focus", () => {
       session: false,
     })
     const page = await signIn(browser, adminUser, baseURL!)
-    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page).toHaveURL(ADMIN_LANDING)
 
     // Take manual control of the 15 s foreground timer so only the event under
     // test can refresh the gallery. Every other interval runs normally.

@@ -26,6 +26,7 @@ import {
 import { openEmailLink } from "./helpers/email-link"
 import { provisioner, psql } from "./helpers/stack"
 import {
+  ADMIN_LANDING,
   openPortfolio as gotoPortfolio,
   STAFF_LANDING,
   staffTile,
@@ -970,7 +971,8 @@ test("staff: long name and paused venue", async ({
 
 test("admin: library and filters", async ({ browser, baseURL }, testInfo) => {
   const page = await signIn(browser, fx.admin.email, baseURL!)
-  await expect(page).toHaveURL(/\/admin$/)
+  await expect(page).toHaveURL(ADMIN_LANDING)
+  await page.goto("/admin")
   await expect(page.getByRole("list", { name: "Library" })).toBeVisible()
   await capture(page, testInfo, "admin-library")
   await expectFocusVisibleEverywhere(page, "admin-library")

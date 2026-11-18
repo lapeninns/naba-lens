@@ -7,14 +7,15 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 import { supportedMp4, syntheticJpeg, type SourceFile } from "./helpers/media"
 import { appBarFit, horizontalOverflow } from "./helpers/overflow"
 import {
+  ADMIN_LANDING,
   libraryList,
+  openPortfolio,
   portfolioList,
+  STAFF_LANDING,
   staffTile,
   tile,
   uploadSheet,
   uploadThroughDialog,
-  openPortfolio,
-  STAFF_LANDING,
 } from "./helpers/ui"
 import { provisionWorld, signedInPage, type World } from "./helpers/world"
 
@@ -63,7 +64,8 @@ test.beforeAll(async ({ browser }) => {
   await openPortfolio(staff)
   await uploadThroughDialog(staff, [jpeg, mp4])
   admin = await signedInPage(browser, world.adminA)
-  await expect(admin).toHaveURL(/\/admin$/)
+  await expect(admin).toHaveURL(ADMIN_LANDING)
+  await admin.goto("/admin")
   anon = await (await browser.newContext()).newPage()
 })
 

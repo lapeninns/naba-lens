@@ -178,6 +178,7 @@ describe("access: admins only", () => {
       ["library_asset_detail", { p_asset_id: asset }],
       ["library_withdraw_asset", { p_asset_id: asset, p_reason: "Not ours" }],
       ["library_restore_asset", { p_asset_id: asset, p_reason: "Back again" }],
+      ["library_suspend_asset", { p_asset_id: asset, p_reason: "Not ours" }],
       [
         "admin_correct_asset_venue",
         { p_asset_id: asset, p_venue_id: venueB, p_reason: "Wrong pub" },
@@ -463,6 +464,84 @@ describe("withdraw and restore", () => {
   })
 })
 
+describe("suspend from use (K11, M3-suspend)", () => {
+  const slotState = async (subject: string) =>
+    (
+      await ok<{ slots: { slotId: string; state: string }[] }>(
+        rpc(admin, "coverage_slots", { p_venue_id: venueA })
+      )
+    ).slots.find((s) => s.slotId === subject)?.state
+
+  it("withdraw keeps the slot covered; suspend empties it and records why", async () => {
+    // Withdraw from use: review decisions and coverage stay (S2-LIBRARY).
+    const kept = await ready(staff)
+    const keptPlace = acceptPlacePhoto(kept, manager.id)
+    expect(await slotState(keptPlace)).toBe("covered")
+    await ok(
+      rpc(admin, "library_withdraw_asset", {
+        p_asset_id: kept,
+        p_reason: "Shows a guest's face",
+      })
+    )
+    expect(await slotState(keptPlace)).toBe("covered")
+
+    // Suspend: every approval is withdrawn, so the place needs another photo.
+    const asset = await ready(staff)
+    const place = acceptPlacePhoto(asset, manager.id)
+    expect(await slotState(place)).toBe("covered")
+    await refused(
+      rpc(admin, "library_suspend_asset", { p_asset_id: asset, p_reason: "x" }),
+      "reason_required"
+    )
+    const r = await ok<{
+      changed: boolean
+      slots: { dishes: number; places: number; facilities: number }
+    }>(
+      rpc(admin, "library_suspend_asset", {
+        p_asset_id: asset,
+        p_reason: "The bar was rebuilt",
+      })
+    )
+    expect(r).toMatchObject({
+      changed: true,
+      slots: { dishes: 0, places: 1, facilities: 0 },
+    })
+    expect(await slotState(place)).not.toBe("covered")
+    expect(
+      psql(
+        `select d.action || ':' || d.reason || ':' || (d.decided_by = '${admin.id}')
+         from public.area_photo_decisions d
+         where d.asset_id = '${asset}' order by d.id desc limit 1`
+      )
+    ).toBe("withdrawn:The bar was rebuilt:true")
+    expect(psql(`select private.library_is_withdrawn('${asset}')::text`)).toBe(
+      "true"
+    )
+    expect(
+      psql(
+        `select count(*) from public.activity_events
+         where object_id = '${asset}' and action = 'library_asset_suspended'`
+      )
+    ).toBe("1")
+
+    // A repeat changes nothing; Restore lifts the Library withdrawal only.
+    const again = await ok<{ changed: boolean }>(
+      rpc(admin, "library_suspend_asset", {
+        p_asset_id: asset,
+        p_reason: "Again",
+      })
+    )
+    expect(again.changed).toBe(false)
+    await ok(
+      rpc(admin, "library_restore_asset", {
+        p_asset_id: asset,
+        p_reason: "Cleared to use",
+      })
+    )
+    expect(await slotState(place)).not.toBe("covered")
+  })
+})
+
 describe("library_page fast paths", () => {
   it("keeps a withdrawn photo out of the labelled/unlabelled set page", async () => {
     const asset = await ready(staff)
@@ -541,6 +620,85 @@ describe("venue correction (spec §11)", () => {
     }>(rpc(admin, "library_asset_detail", { p_asset_id: asset }))
     expect(detail.corrections[0]?.correctedVenueId).toBe(venueB)
     expect(detail.withdrawal?.reason).toMatch(/^Venue corrected: /)
+  })
+
+  it("never restores a corrected photo into use at the wrong venue (S3-R6, V19)", async () => {
+    const asset = await ready(staff)
+    const subject = acceptPlacePhoto(asset, manager.id)
+    const inExport = async () =>
+      (
+        await ok<{ items: { assetId: string }[] }>(
+          rpc(admin, "export_candidates", {
+            p_venue_id: venueA,
+            p_mode: "public",
+          })
+        )
+      ).items.some((i) => i.assetId === asset)
+    expect(await inExport()).toBe(true)
+    await ok(
+      rpc(admin, "admin_correct_asset_venue", {
+        p_asset_id: asset,
+        p_venue_id: venueB,
+        p_reason: "Taken at the other pub",
+      })
+    )
+    expect(await inExport()).toBe(false)
+
+    // Restore, as for an ordinary withdrawal: refused, nothing changes.
+    await refused(
+      rpc(admin, "library_restore_asset", {
+        p_asset_id: asset,
+        p_reason: "Looks like an ordinary withdrawal",
+      }),
+      "venue_correction_pending"
+    )
+    expect(psql(`select private.library_is_withdrawn('${asset}')::text`)).toBe(
+      "true"
+    )
+    expect(
+      psql(
+        `select string_agg(action, ',' order by id) from public.media_asset_withdrawal_events where asset_id = '${asset}'`
+      )
+    ).toBe("withdrawn")
+    expect(await inExport()).toBe(false)
+    expect(
+      (
+        await ok<{ items: { assetId: string }[] }>(
+          rpc(admin, "export_candidates", {
+            p_venue_id: venueA,
+            p_mode: "internal",
+          })
+        )
+      ).items.some((i) => i.assetId === asset)
+    ).toBe(false)
+    // Nor can it become the declared venue's main photo.
+    await refused(
+      rpc(admin, "set_slot_primary_photo", {
+        p_slot_kind: "area",
+        p_slot_id: subject,
+        p_asset_id: asset,
+      }),
+      "asset_withdrawn"
+    )
+    // An ordinary withdrawal still restores.
+    const plain = await ready(staff)
+    acceptPlacePhoto(plain, manager.id)
+    await ok(
+      rpc(admin, "library_withdraw_asset", {
+        p_asset_id: plain,
+        p_reason: "Shows a guest's face",
+      })
+    )
+    expect(
+      (
+        await ok<{ changed: boolean }>(
+          rpc(admin, "library_restore_asset", {
+            p_asset_id: plain,
+            p_reason: "Cropped copy agreed",
+          })
+        )
+      ).changed
+    ).toBe(true)
   })
 })
 
