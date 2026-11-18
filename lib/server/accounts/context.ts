@@ -47,6 +47,8 @@ export type AccountErrorCode =
   | "account_inactive"
   | "auth_failed"
   | "database_failed"
+  /** The last active admin cannot lose the role or be deactivated. */
+  | "last_admin"
 
 export type AccountResult<T = object> = ({ ok: true } & T) | AccountError
 
