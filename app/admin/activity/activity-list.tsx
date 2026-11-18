@@ -49,7 +49,7 @@ export function ActivityList({
             className="grid gap-1 px-4 py-3.5"
           >
             <p className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-bold text-ink">
+              <span className="font-semibold text-ink">
                 {actionWords(item.action)}
               </span>
               <span className="text-meta text-ink-muted">

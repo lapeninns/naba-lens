@@ -143,7 +143,7 @@ function CategoryCell({
   return (
     <TableCell
       label={label}
-      className={cn("min-w-32 border-l border-line align-top", tint(counts))}
+      className={cn("min-w-32 border-l border-line", tint(counts))}
       data-testid={`overview-${counts.category}`}
     >
       <span className="grid gap-0.5">
@@ -191,287 +191,283 @@ function OverviewTable({
       >
         {OVERVIEW_COPY.tableTitle}
       </h2>
-      <div className="overflow-hidden rounded-card border border-line bg-surface">
-        <Table
-          stacked
-          aria-labelledby="overview-table-title"
-          className="md:min-w-[60rem]"
-          data-testid="overview-table"
-        >
-          <TableHeader>
-            <TableRow>
-              <TableHead>{OVERVIEW_COPY.venue}</TableHead>
-              {columns.map((c) => (
-                <TableHead key={c.key} className="border-l border-line">
-                  {c.label}
-                </TableHead>
-              ))}
-              <TableHead className="border-l border-line">
-                {OVERVIEW_COPY.facts}
+      <Table
+        stacked
+        framed
+        aria-labelledby="overview-table-title"
+        className="md:min-w-[60rem]"
+        data-testid="overview-table"
+      >
+        <TableHeader>
+          <TableRow>
+            <TableHead>{OVERVIEW_COPY.venue}</TableHead>
+            {columns.map((c) => (
+              <TableHead key={c.key} className="border-l border-line">
+                {c.label}
               </TableHead>
-              <TableHead className="border-l border-line">
-                {OVERVIEW_COPY.unlabelled}
-              </TableHead>
-              <TableHead className="border-l border-line">
-                {OVERVIEW_COPY.review}
-              </TableHead>
-              <TableHead className="border-l border-line">
-                {OVERVIEW_COPY.checks}
-              </TableHead>
-              <TableHead className="border-l border-line">
-                {OVERVIEW_COPY.publication}
-              </TableHead>
-              <TableHead className="border-l border-line">
-                {OVERVIEW_COPY.added(filters.period)}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => {
-              const href = rowHrefs(row, filters)
-              const facts = ofWords(row.facts.confirmed, row.facts.total)
-              const age = ageWords(row.review.oldestAt, now)
-              return (
-                <TableRow
-                  key={row.venueId}
-                  className="hover:bg-transparent"
-                  data-testid="overview-row"
-                  data-venue={row.venueId}
-                >
-                  <TableHead
-                    scope="row"
-                    className="align-top text-ink md:min-w-48"
-                  >
-                    <span className="grid gap-1">
-                      <Link
-                        href={href.venue}
-                        className="inline-flex min-h-12 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
-                      >
-                        {row.name}
-                      </Link>
-                      {row.operatingStatus !== "open" ? (
-                        <StatusChip
-                          state={operatingStatusChip(
-                            row.operatingStatus as OperatingStatus
-                          )}
-                        />
-                      ) : null}
-                      {filters.menu === "next" && row.nextMenu ? (
-                        <span className="text-meta font-normal text-ink-muted">
-                          Next: {row.nextMenu.title}
-                        </span>
-                      ) : null}
-                    </span>
-                  </TableHead>
-                  {columns.map((c) => (
-                    <CategoryCell
-                      key={c.key}
-                      row={row}
-                      counts={row.categories.find((x) => x.category === c.key)}
-                      label={c.label}
-                      filters={filters}
-                    />
-                  ))}
-                  <TableCell
-                    label={OVERVIEW_COPY.facts}
-                    className="border-l border-line align-top"
-                  >
-                    {row.facts.total === 0 ? (
-                      <span className="text-ink-muted">
-                        {OVERVIEW_COPY.noSlots}
+            ))}
+            <TableHead className="border-l border-line">
+              {OVERVIEW_COPY.facts}
+            </TableHead>
+            <TableHead className="border-l border-line">
+              {OVERVIEW_COPY.unlabelled}
+            </TableHead>
+            <TableHead className="border-l border-line">
+              {OVERVIEW_COPY.review}
+            </TableHead>
+            <TableHead className="border-l border-line">
+              {OVERVIEW_COPY.checks}
+            </TableHead>
+            <TableHead className="border-l border-line">
+              {OVERVIEW_COPY.publication}
+            </TableHead>
+            <TableHead className="border-l border-line">
+              {OVERVIEW_COPY.added(filters.period)}
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => {
+            const href = rowHrefs(row, filters)
+            const facts = ofWords(row.facts.confirmed, row.facts.total)
+            const age = ageWords(row.review.oldestAt, now)
+            return (
+              <TableRow
+                key={row.venueId}
+                className="hover:bg-transparent"
+                data-testid="overview-row"
+                data-venue={row.venueId}
+              >
+                <TableHead scope="row" className="text-ink md:min-w-48">
+                  <span className="grid gap-1">
+                    <Link
+                      href={href.venue}
+                      className="inline-flex min-h-12 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+                    >
+                      {row.name}
+                    </Link>
+                    {row.operatingStatus !== "open" ? (
+                      <StatusChip
+                        state={operatingStatusChip(
+                          row.operatingStatus as OperatingStatus
+                        )}
+                      />
+                    ) : null}
+                    {filters.menu === "next" && row.nextMenu ? (
+                      <span className="text-meta font-normal text-ink-muted">
+                        Next: {row.nextMenu.title}
                       </span>
-                    ) : (
-                      <NumberLink
-                        href={href.facts}
-                        label={`Facts confirmed at ${row.name}: ${facts.main}`}
-                        testId="overview-facts"
-                      >
-                        <span className="whitespace-nowrap">{facts.main}</span>
-                        {facts.pct ? (
-                          <span className="font-sans text-meta font-normal">
-                            · {facts.pct}
-                          </span>
-                        ) : null}
-                      </NumberLink>
-                    )}
-                  </TableCell>
-                  <TableCell
-                    label={OVERVIEW_COPY.unlabelled}
-                    className="border-l border-line align-top"
-                  >
-                    <NumberLink
-                      href={href.unlabelled}
-                      label={`Unlabelled at ${row.name}: ${row.unlabelled}`}
-                      testId="overview-unlabelled"
-                    >
-                      {row.unlabelled}
-                    </NumberLink>
-                  </TableCell>
-                  <TableCell
-                    label={OVERVIEW_COPY.review}
-                    className="border-l border-line align-top"
-                  >
-                    {age ? (
-                      <span className="grid gap-0.5">
-                        <NumberLink
-                          href={href.review}
-                          label={`Oldest photo waiting at ${row.name}: ${age}`}
-                          testId="overview-review"
-                        >
-                          {age}
-                        </NumberLink>
-                        <span className="text-meta">
-                          {OVERVIEW_COPY.waiting(row.review.waiting)}
-                        </span>
-                      </span>
-                    ) : (
-                      <NumberLink
-                        href={href.review}
-                        label={`Nothing waiting at ${row.name}`}
-                        testId="overview-review"
-                      >
-                        <span className="font-sans font-normal">
-                          {OVERVIEW_COPY.nothingWaiting}
-                        </span>
-                      </NumberLink>
-                    )}
-                  </TableCell>
-                  <TableCell
-                    label={OVERVIEW_COPY.checks}
-                    className="border-l border-line align-top"
-                  >
-                    <span className="grid gap-0.5">
-                      <NumberLink
-                        href={href.checksDue}
-                        label={`Checks due at ${row.name}: ${row.checksDue.total}`}
-                        testId="overview-checks"
-                      >
-                        {row.checksDue.total}
-                      </NumberLink>
-                      {row.checksDue.total > 0 ? (
-                        <span
-                          className="flex flex-wrap gap-x-2 text-meta"
-                          data-testid="overview-check-parts"
-                        >
-                          {CHECK_PARTS.filter(
-                            (p) => row.checksDue[p.key] > 0
-                          ).map((p) => (
-                            <Link
-                              key={p.key}
-                              href={href.checkParts[p.key]}
-                              data-part={p.key}
-                              className="inline-flex min-h-12 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
-                            >
-                              {p.words(row.checksDue[p.key])}
-                            </Link>
-                          ))}
-                        </span>
-                      ) : null}
-                    </span>
-                  </TableCell>
-                  <TableCell
-                    label={OVERVIEW_COPY.publication}
-                    className="border-l border-line align-top"
-                  >
-                    <span className="grid gap-0.5">
-                      <NumberLink
-                        href={href.publication}
-                        label={`Publication errors at ${row.name}: ${row.publication.total}`}
-                        testId="overview-publication"
-                      >
-                        {row.publication.total}
-                      </NumberLink>
-                      {row.publication.total > 0 ? (
-                        <span className="text-meta">
-                          {row.publication.failed} failed ·{" "}
-                          {row.publication.withdrawalPending} withdrawal pending
-                        </span>
-                      ) : null}
-                    </span>
-                  </TableCell>
-                  <TableCell
-                    label={OVERVIEW_COPY.added(filters.period)}
-                    className="border-l border-line align-top"
-                  >
-                    <NumberLink
-                      href={href.added}
-                      label={`Photos added at ${row.name} in ${periodLabel(filters.period)}: ${row.added ?? 0}`}
-                      testId="overview-added"
-                    >
-                      {row.added ?? 0}
-                    </NumberLink>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-          {rows.length > 1 ? (
-            <TableFooter>
-              <TableRow className="hover:bg-transparent">
-                <TableHead scope="row" className="text-ink">
-                  {OVERVIEW_COPY.allVenues}
+                    ) : null}
+                  </span>
                 </TableHead>
-                {columns.map((c) => {
-                  const t = categoryTotals(rows, c.key)
-                  const w = ofWords(t.covered, t.total)
-                  return (
-                    <TableCell
-                      key={c.key}
-                      label={c.label}
-                      className="border-l border-line font-mono tabular-nums"
-                    >
-                      {t.total ? `${w.main} · ${w.pct}` : OVERVIEW_COPY.noSlots}
-                    </TableCell>
-                  )
-                })}
+                {columns.map((c) => (
+                  <CategoryCell
+                    key={c.key}
+                    row={row}
+                    counts={row.categories.find((x) => x.category === c.key)}
+                    label={c.label}
+                    filters={filters}
+                  />
+                ))}
                 <TableCell
                   label={OVERVIEW_COPY.facts}
-                  className="border-l border-line font-mono tabular-nums"
+                  className="border-l border-line"
                 >
-                  {(() => {
-                    const n = rows.reduce((s, r) => s + r.facts.confirmed, 0)
-                    const d = rows.reduce((s, r) => s + r.facts.total, 0)
-                    const w = ofWords(n, d)
-                    return d ? `${w.main} · ${w.pct}` : OVERVIEW_COPY.noSlots
-                  })()}
+                  {row.facts.total === 0 ? (
+                    <span className="text-ink-muted">
+                      {OVERVIEW_COPY.noSlots}
+                    </span>
+                  ) : (
+                    <NumberLink
+                      href={href.facts}
+                      label={`Facts confirmed at ${row.name}: ${facts.main}`}
+                      testId="overview-facts"
+                    >
+                      <span className="whitespace-nowrap">{facts.main}</span>
+                      {facts.pct ? (
+                        <span className="font-sans text-meta font-normal">
+                          · {facts.pct}
+                        </span>
+                      ) : null}
+                    </NumberLink>
+                  )}
                 </TableCell>
                 <TableCell
                   label={OVERVIEW_COPY.unlabelled}
-                  className="border-l border-line font-mono tabular-nums"
+                  className="border-l border-line"
                 >
-                  {rows.reduce((s, r) => s + r.unlabelled, 0)}
+                  <NumberLink
+                    href={href.unlabelled}
+                    label={`Unlabelled at ${row.name}: ${row.unlabelled}`}
+                    testId="overview-unlabelled"
+                  >
+                    {row.unlabelled}
+                  </NumberLink>
                 </TableCell>
                 <TableCell
                   label={OVERVIEW_COPY.review}
-                  className="border-l border-line font-mono tabular-nums"
+                  className="border-l border-line"
                 >
-                  {OVERVIEW_COPY.waiting(
-                    rows.reduce((s, r) => s + r.review.waiting, 0)
+                  {age ? (
+                    <span className="grid gap-0.5">
+                      <NumberLink
+                        href={href.review}
+                        label={`Oldest photo waiting at ${row.name}: ${age}`}
+                        testId="overview-review"
+                      >
+                        {age}
+                      </NumberLink>
+                      <span className="text-meta">
+                        {OVERVIEW_COPY.waiting(row.review.waiting)}
+                      </span>
+                    </span>
+                  ) : (
+                    <NumberLink
+                      href={href.review}
+                      label={`Nothing waiting at ${row.name}`}
+                      testId="overview-review"
+                    >
+                      <span className="font-sans font-normal">
+                        {OVERVIEW_COPY.nothingWaiting}
+                      </span>
+                    </NumberLink>
                   )}
                 </TableCell>
                 <TableCell
                   label={OVERVIEW_COPY.checks}
-                  className="border-l border-line font-mono tabular-nums"
+                  className="border-l border-line"
                 >
-                  {rows.reduce((s, r) => s + r.checksDue.total, 0)}
+                  <span className="grid gap-0.5">
+                    <NumberLink
+                      href={href.checksDue}
+                      label={`Checks due at ${row.name}: ${row.checksDue.total}`}
+                      testId="overview-checks"
+                    >
+                      {row.checksDue.total}
+                    </NumberLink>
+                    {row.checksDue.total > 0 ? (
+                      <span
+                        className="flex flex-wrap gap-x-2 text-meta"
+                        data-testid="overview-check-parts"
+                      >
+                        {CHECK_PARTS.filter(
+                          (p) => row.checksDue[p.key] > 0
+                        ).map((p) => (
+                          <Link
+                            key={p.key}
+                            href={href.checkParts[p.key]}
+                            data-part={p.key}
+                            className="inline-flex min-h-12 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+                          >
+                            {p.words(row.checksDue[p.key])}
+                          </Link>
+                        ))}
+                      </span>
+                    ) : null}
+                  </span>
                 </TableCell>
                 <TableCell
                   label={OVERVIEW_COPY.publication}
-                  className="border-l border-line font-mono tabular-nums"
+                  className="border-l border-line"
                 >
-                  {rows.reduce((s, r) => s + r.publication.total, 0)}
+                  <span className="grid gap-0.5">
+                    <NumberLink
+                      href={href.publication}
+                      label={`Publication errors at ${row.name}: ${row.publication.total}`}
+                      testId="overview-publication"
+                    >
+                      {row.publication.total}
+                    </NumberLink>
+                    {row.publication.total > 0 ? (
+                      <span className="text-meta">
+                        {row.publication.failed} failed ·{" "}
+                        {row.publication.withdrawalPending} withdrawal pending
+                      </span>
+                    ) : null}
+                  </span>
                 </TableCell>
                 <TableCell
                   label={OVERVIEW_COPY.added(filters.period)}
-                  className="border-l border-line font-mono tabular-nums"
+                  className="border-l border-line"
                 >
-                  {rows.reduce((s, r) => s + (r.added ?? 0), 0)}
+                  <NumberLink
+                    href={href.added}
+                    label={`Photos added at ${row.name} in ${periodLabel(filters.period)}: ${row.added ?? 0}`}
+                    testId="overview-added"
+                  >
+                    {row.added ?? 0}
+                  </NumberLink>
                 </TableCell>
               </TableRow>
-            </TableFooter>
-          ) : null}
-        </Table>
-      </div>
+            )
+          })}
+        </TableBody>
+        {rows.length > 1 ? (
+          <TableFooter>
+            <TableRow className="hover:bg-transparent">
+              <TableHead scope="row" className="text-ink">
+                {OVERVIEW_COPY.allVenues}
+              </TableHead>
+              {columns.map((c) => {
+                const t = categoryTotals(rows, c.key)
+                const w = ofWords(t.covered, t.total)
+                return (
+                  <TableCell
+                    key={c.key}
+                    label={c.label}
+                    className="border-l border-line font-mono tabular-nums"
+                  >
+                    {t.total ? `${w.main} · ${w.pct}` : OVERVIEW_COPY.noSlots}
+                  </TableCell>
+                )
+              })}
+              <TableCell
+                label={OVERVIEW_COPY.facts}
+                className="border-l border-line font-mono tabular-nums"
+              >
+                {(() => {
+                  const n = rows.reduce((s, r) => s + r.facts.confirmed, 0)
+                  const d = rows.reduce((s, r) => s + r.facts.total, 0)
+                  const w = ofWords(n, d)
+                  return d ? `${w.main} · ${w.pct}` : OVERVIEW_COPY.noSlots
+                })()}
+              </TableCell>
+              <TableCell
+                label={OVERVIEW_COPY.unlabelled}
+                className="border-l border-line font-mono tabular-nums"
+              >
+                {rows.reduce((s, r) => s + r.unlabelled, 0)}
+              </TableCell>
+              <TableCell
+                label={OVERVIEW_COPY.review}
+                className="border-l border-line font-mono tabular-nums"
+              >
+                {OVERVIEW_COPY.waiting(
+                  rows.reduce((s, r) => s + r.review.waiting, 0)
+                )}
+              </TableCell>
+              <TableCell
+                label={OVERVIEW_COPY.checks}
+                className="border-l border-line font-mono tabular-nums"
+              >
+                {rows.reduce((s, r) => s + r.checksDue.total, 0)}
+              </TableCell>
+              <TableCell
+                label={OVERVIEW_COPY.publication}
+                className="border-l border-line font-mono tabular-nums"
+              >
+                {rows.reduce((s, r) => s + r.publication.total, 0)}
+              </TableCell>
+              <TableCell
+                label={OVERVIEW_COPY.added(filters.period)}
+                className="border-l border-line font-mono tabular-nums"
+              >
+                {rows.reduce((s, r) => s + (r.added ?? 0), 0)}
+              </TableCell>
+            </TableRow>
+          </TableFooter>
+        ) : null}
+      </Table>
     </section>
   )
 }
@@ -502,7 +498,7 @@ function AttentionList({
         <EmptyState variant="done" title={OVERVIEW_COPY.attentionNone} />
       ) : (
         <ul
-          className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface"
+          className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
           data-testid="overview-attention"
         >
           {rows.map((row) => {
@@ -513,7 +509,10 @@ function AttentionList({
               period: "2000-01",
             })
             return (
-              <li key={row.venueId} className="grid gap-2 px-4 py-3">
+              <li
+                key={row.venueId}
+                className="flex flex-wrap items-center gap-x-4 gap-y-0 px-4 py-1"
+              >
                 <Link
                   href={hrefs.venue}
                   className="inline-flex min-h-12 items-center gap-2 text-label text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
@@ -576,7 +575,7 @@ export function OverviewFiltersForm({
   return (
     <form
       method="get"
-      className="grid gap-4 rounded-card border border-line bg-surface p-4"
+      className="grid gap-4 rounded-card bg-surface p-4 shadow-card"
       aria-label="Filters"
       data-testid="overview-filters"
     >

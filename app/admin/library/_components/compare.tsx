@@ -1,5 +1,6 @@
 import Link from "next/link"
 
+import { MetaList } from "@/components/nabalens/meta-list"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { buttonVariants } from "@/components/ui/button"
 import { Photo } from "@/components/ui/photo"
@@ -28,7 +29,7 @@ export function CompareView({ a, b }: { a: AssetDetail; b: AssetDetail }) {
           <section
             key={d.asset.id}
             aria-label={`Photo by ${d.asset.uploaderName}`}
-            className="grid content-start gap-3 rounded-card border border-line bg-surface p-3"
+            className="grid content-start gap-3 rounded-card bg-surface p-3 shadow-card"
           >
             {d.asset.deletedAt ? (
               <p className="text-body text-ink-muted">Removed.</p>
@@ -45,40 +46,42 @@ export function CompareView({ a, b }: { a: AssetDetail; b: AssetDetail }) {
                 <StatusChip tone="closed">Withdrawn from use</StatusChip>
               ) : null}
             </div>
-            <dl className="grid grid-cols-[8rem_minmax(0,1fr)] gap-1.5 text-body">
-              <dt className="text-ink-muted">Venue</dt>
-              <dd>{d.asset.venueName}</dd>
-              <dt className="text-ink-muted">Taken by</dt>
-              <dd>{d.asset.uploaderName}</dd>
-              <dt className="text-ink-muted">Uploaded</dt>
-              <dd>{formatWhen(d.asset.createdAt, d.asset.timezone)}</dd>
-              <dt className="text-ink-muted">Taken</dt>
-              <dd>
-                {d.asset.capturedAt
-                  ? formatWhen(d.asset.capturedAt, d.asset.timezone)
-                  : "Unknown"}
-              </dd>
-              <dt className="text-ink-muted">Size</dt>
-              <dd>
-                {d.asset.width && d.asset.height
-                  ? `${d.asset.width} × ${d.asset.height}`
-                  : "Unknown"}
-                {d.asset.sizeBytes
-                  ? ` · ${formatBytes(d.asset.sizeBytes)}`
-                  : ""}
-              </dd>
-              <dt className="text-ink-muted">Used for</dt>
-              <dd>
-                {d.slots.length === 0
-                  ? "Nothing yet"
-                  : d.slots
-                      .map(
-                        (s) =>
-                          `${s.name} (${usageWord(s.state)}${s.isPrimary ? ", main photo" : ""})`
-                      )
-                      .join("; ")}
-              </dd>
-            </dl>
+            <MetaList
+              items={[
+                { label: "Venue", value: d.asset.venueName },
+                { label: "Taken by", value: d.asset.uploaderName },
+                {
+                  label: "Uploaded",
+                  value: formatWhen(d.asset.createdAt, d.asset.timezone),
+                },
+                {
+                  label: "Taken",
+                  value: d.asset.capturedAt
+                    ? formatWhen(d.asset.capturedAt, d.asset.timezone)
+                    : "Unknown",
+                },
+                {
+                  label: "Size",
+                  value: `${
+                    d.asset.width && d.asset.height
+                      ? `${d.asset.width} × ${d.asset.height}`
+                      : "Unknown"
+                  }${d.asset.sizeBytes ? ` · ${formatBytes(d.asset.sizeBytes)}` : ""}`,
+                },
+                {
+                  label: "Used for",
+                  value:
+                    d.slots.length === 0
+                      ? "Nothing yet"
+                      : d.slots
+                          .map(
+                            (s) =>
+                              `${s.name} (${usageWord(s.state)}${s.isPrimary ? ", main photo" : ""})`
+                          )
+                          .join("; "),
+                },
+              ]}
+            />
             <Link
               href={`/admin/library/${d.asset.id}`}
               className={buttonVariants({ variant: "secondary" })}

@@ -133,7 +133,7 @@ export function CollectionsView({
               <div className="flex flex-wrap items-center gap-2">
                 <Link
                   href={`/admin/library/collections/${c.id}`}
-                  className="text-body font-bold [overflow-wrap:anywhere] text-accent-text underline underline-offset-4"
+                  className="text-body font-semibold [overflow-wrap:anywhere] text-accent-text underline underline-offset-4"
                 >
                   {c.name}
                 </Link>
@@ -410,7 +410,7 @@ export function TagsView({ tags }: { tags: LibraryTag[] }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/admin?tag=${t.id}&use=all`}
-                    className="text-body font-bold text-accent-text underline underline-offset-4"
+                    className="text-body font-semibold text-accent-text underline underline-offset-4"
                   >
                     {t.name}
                   </Link>

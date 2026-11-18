@@ -64,7 +64,7 @@ export default async function ShotTemplatePage({
       <div className="grid gap-6">
         <Link
           href="/admin/settings#shot-templates"
-          className="inline-flex min-h-12 items-center gap-1 justify-self-start font-bold text-ink focus-ring"
+          className="inline-flex min-h-12 items-center gap-1 justify-self-start font-semibold text-ink focus-ring"
         >
           <ArrowLeftIcon aria-hidden className="size-5" />
           Settings

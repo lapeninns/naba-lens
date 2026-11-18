@@ -174,7 +174,7 @@ export function ImportFlow({
           <a
             href="/admin/menus/csv-template"
             download
-            className="rounded-square font-bold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+            className="rounded-square font-semibold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
           >
             Download the CSV template
           </a>{" "}

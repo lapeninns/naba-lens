@@ -87,7 +87,7 @@ export function LibraryMoreFilters({
       className="rounded-card border border-line bg-surface p-4"
       data-testid="library-more-filters"
     >
-      <summary className="min-h-12 cursor-pointer content-center text-body font-bold text-ink">
+      <summary className="min-h-12 cursor-pointer content-center text-body font-semibold text-ink">
         Use, review and collections
         {count > 0 ? (
           <span className="ms-2 font-mono text-meta text-ink-muted">

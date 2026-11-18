@@ -288,7 +288,7 @@ export function VersionRowActions({
         </DropdownMenuContent>
       </DropdownMenu>
       {draft.error ? (
-        <p role="alert" className="text-meta font-bold text-warn-fg">
+        <p role="alert" className="text-meta font-semibold text-warn-fg">
           {draft.error}
         </p>
       ) : null}

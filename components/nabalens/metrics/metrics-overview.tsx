@@ -48,74 +48,72 @@ export function MetricsOverviewTable({
       {overview.venues.length === 0 ? (
         <EmptyState title={C.noVenuesTitle} description={C.noVenues} />
       ) : (
-        <div className="overflow-hidden rounded-card border border-line bg-surface">
-          <Table stacked>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{C.venueColumn}</TableHead>
-                <TableHead>{C.photosColumn}</TableHead>
-                {METRIC_CATEGORIES.filter((c) => c !== "other").map((c) => (
-                  <TableHead key={c}>{CATEGORY_WORDS[c]}</TableHead>
-                ))}
-                <TableHead>{C.factsColumn}</TableHead>
-                <TableHead numeric>{C.waitingColumn}</TableHead>
-                <TableHead numeric>{C.needsLabelColumn}</TableHead>
-                <TableHead numeric>{C.failuresColumn}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {overview.venues.map((v) => (
-                <TableRow key={v.venueId} data-venue={v.venueId}>
-                  <TableCell className="font-bold">
-                    <Link
-                      href={venueHref(v.venueId)}
-                      className="rounded-control text-accent-text underline-offset-4 focus-ring outline-none hover:underline"
-                    >
-                      {v.venueName}
-                    </Link>
-                  </TableCell>
-                  <TableCell label={C.photosColumn}>
-                    <OfNumber
-                      n={v.coverage.totals.covered}
-                      d={v.coverage.totals.total}
-                    />
-                  </TableCell>
-                  {METRIC_CATEGORIES.filter((c) => c !== "other").map((c) => {
-                    const counts = categoryCounts(v, c)
-                    return (
-                      <TableCell key={c} label={CATEGORY_WORDS[c]}>
-                        <OfNumber n={counts.covered} d={counts.total} />
-                      </TableCell>
-                    )
-                  })}
-                  <TableCell label={C.factsColumn}>
-                    <OfNumber n={v.facts.numerator} d={v.facts.denominator} />
-                  </TableCell>
-                  <TableCell label={C.waitingColumn} numeric>
-                    {v.review.waiting}
-                    {v.review.oldestWaitingAt ? (
-                      <span className="block text-meta text-ink-muted">
-                        {C.oldest(
-                          durationWords(
-                            (Date.parse(overview.generatedAt) -
-                              Date.parse(v.review.oldestWaitingAt)) /
-                              1000
-                          )
-                        )}
-                      </span>
-                    ) : null}
-                  </TableCell>
-                  <TableCell label={C.needsLabelColumn} numeric>
-                    {v.needsLabel.count}
-                  </TableCell>
-                  <TableCell label={C.failuresColumn} numeric>
-                    {v.reliability.technical}
-                  </TableCell>
-                </TableRow>
+        <Table framed stacked>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{C.venueColumn}</TableHead>
+              <TableHead>{C.photosColumn}</TableHead>
+              {METRIC_CATEGORIES.filter((c) => c !== "other").map((c) => (
+                <TableHead key={c}>{CATEGORY_WORDS[c]}</TableHead>
               ))}
-            </TableBody>
-          </Table>
-        </div>
+              <TableHead>{C.factsColumn}</TableHead>
+              <TableHead numeric>{C.waitingColumn}</TableHead>
+              <TableHead numeric>{C.needsLabelColumn}</TableHead>
+              <TableHead numeric>{C.failuresColumn}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {overview.venues.map((v) => (
+              <TableRow key={v.venueId} data-venue={v.venueId}>
+                <TableCell className="font-semibold">
+                  <Link
+                    href={venueHref(v.venueId)}
+                    className="rounded-control text-accent-text underline-offset-4 focus-ring outline-none hover:underline"
+                  >
+                    {v.venueName}
+                  </Link>
+                </TableCell>
+                <TableCell label={C.photosColumn}>
+                  <OfNumber
+                    n={v.coverage.totals.covered}
+                    d={v.coverage.totals.total}
+                  />
+                </TableCell>
+                {METRIC_CATEGORIES.filter((c) => c !== "other").map((c) => {
+                  const counts = categoryCounts(v, c)
+                  return (
+                    <TableCell key={c} label={CATEGORY_WORDS[c]}>
+                      <OfNumber n={counts.covered} d={counts.total} />
+                    </TableCell>
+                  )
+                })}
+                <TableCell label={C.factsColumn}>
+                  <OfNumber n={v.facts.numerator} d={v.facts.denominator} />
+                </TableCell>
+                <TableCell label={C.waitingColumn} numeric>
+                  {v.review.waiting}
+                  {v.review.oldestWaitingAt ? (
+                    <span className="block text-meta text-ink-muted">
+                      {C.oldest(
+                        durationWords(
+                          (Date.parse(overview.generatedAt) -
+                            Date.parse(v.review.oldestWaitingAt)) /
+                            1000
+                        )
+                      )}
+                    </span>
+                  ) : null}
+                </TableCell>
+                <TableCell label={C.needsLabelColumn} numeric>
+                  {v.needsLabel.count}
+                </TableCell>
+                <TableCell label={C.failuresColumn} numeric>
+                  {v.reliability.technical}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </CoverageSection>
   )

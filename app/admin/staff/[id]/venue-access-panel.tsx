@@ -142,8 +142,8 @@ export function VenueAccessPanel({
             : `${member.displayName}'s access has ended.`}
         </p>
       ) : (
-        <div ref={tableRef} tabIndex={-1} className="min-w-0 overflow-x-auto">
-          <Table>
+        <div ref={tableRef} tabIndex={-1} className="min-w-0">
+          <Table framed>
             <TableHeader>
               <TableRow>
                 <TableHead>Venue</TableHead>
@@ -161,7 +161,9 @@ export function VenueAccessPanel({
             <TableBody>
               {privileges.map((row) => (
                 <TableRow key={row.venueId ?? "all"}>
-                  <TableCell className="font-bold">{row.venueName}</TableCell>
+                  <TableCell className="font-semibold">
+                    {row.venueName}
+                  </TableCell>
                   <TableCell>
                     {row.effectiveRole
                       ? ROLE_WORD[row.effectiveRole]
@@ -192,7 +194,7 @@ export function VenueAccessPanel({
 
       {member.active && privileges !== null ? (
         <form onSubmit={save} className="grid gap-3" noValidate>
-          <h3 className="text-heading-sm font-bold text-ink">
+          <h3 className="text-heading-sm font-semibold text-ink">
             Add a venue or change the role
           </h3>
           <div className="grid gap-1.5">
@@ -233,7 +235,7 @@ export function VenueAccessPanel({
           />
           {formError ? <Notice tone="negative">{formError}</Notice> : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" variant="primary" loading={saving}>
+            <Button type="submit" variant="secondary" loading={saving}>
               Save venue role
             </Button>
             <Button

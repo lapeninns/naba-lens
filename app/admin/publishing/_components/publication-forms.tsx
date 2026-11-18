@@ -382,8 +382,10 @@ export function ProfileForm({ profile }: { profile: ExportProfile }) {
   const sized = profile.key === "website" || profile.key === "social"
   const digits = (v: string) => v.replace(/\D/g, "")
   return (
+    // A column, not a grid: a short card (Original) beside a tall one keeps
+    // its rows at their own height and its Save button at the foot.
     <form
-      className="grid gap-3 rounded-card border border-line bg-surface p-4"
+      className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4"
       onSubmit={(e) => {
         e.preventDefault()
         start(async () => {
@@ -472,6 +474,7 @@ export function ProfileForm({ profile }: { profile: ExportProfile }) {
         type="submit"
         variant="secondary"
         size="sm"
+        className="mt-auto"
         disabled={pending}
         aria-busy={pending || undefined}
       >

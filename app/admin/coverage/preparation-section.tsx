@@ -5,6 +5,14 @@ import { formatDate } from "@/components/nabalens/format"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 import { Notice } from "@/components/nabalens/notice"
 import { StatusChip } from "@/components/nabalens/status-chip"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import type {
   Page,
   PeriodView,
@@ -28,13 +36,6 @@ import {
   type VenuePreparation,
 } from "./preparation"
 import { PrepareButton, PrepareRetryButton } from "./prepare-control"
-
-const TH =
-  "px-3 py-2.5 text-left text-meta font-semibold text-ink-muted first:pl-4 last:pr-4"
-const TD =
-  "px-3 py-2.5 align-top text-body text-ink first:pl-4 last:pr-4 max-md:flex max-md:gap-2 max-md:px-4 max-md:py-1 max-md:before:min-w-32 max-md:before:text-ink-muted max-md:before:content-[attr(data-label)]"
-const TABLE =
-  "w-full border-collapse max-md:block max-md:[&_tbody]:block max-md:[&_thead]:sr-only max-md:[&_tr]:block max-md:[&_tr]:py-2"
 
 function runScope(entry: PreparationEntry, names: Record<string, string>) {
   return entry.run.venueId
@@ -189,53 +190,42 @@ export function PreparationSection({
           title={PREPARATION_COPY.venues}
           note={PREPARATION_COPY.venuesNote}
         />
-        <div className="overflow-x-auto rounded-card bg-surface shadow-card">
-          <table aria-label={PREPARATION_COPY.venuesTable} className={TABLE}>
-            <thead className="border-b border-line">
-              <tr>
-                <th scope="col" className={TH}>
-                  {PREPARATION_COPY.columns.venue}
-                </th>
-                <th scope="col" className={TH}>
-                  {month}
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  {PREPARATION_COPY.columns.targetsCopied}
-                </th>
-                <th scope="col" className={TH}>
-                  {PREPARATION_COPY.columns.needSetup}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {model.venues.map((venue) => (
-                <tr key={venue.venue.id}>
-                  <th
-                    scope="row"
-                    className={`${TD} text-left font-bold max-md:before:content-none`}
-                  >
-                    {venue.venue.name}
-                  </th>
-                  <td data-label={month} className={TD}>
-                    <MonthState venue={venue} />
-                  </td>
-                  <td
-                    data-label={PREPARATION_COPY.columns.targetsCopied}
-                    className={`${TD} tabular-nums md:text-right`}
-                  >
-                    {venue.withTarget} of {venue.staff}
-                  </td>
-                  <td
-                    data-label={PREPARATION_COPY.columns.needSetup}
-                    className={TD}
-                  >
-                    {needSetupText(venue)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table stacked framed aria-label={PREPARATION_COPY.venuesTable}>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{PREPARATION_COPY.columns.venue}</TableHead>
+              <TableHead>{month}</TableHead>
+              <TableHead numeric>
+                {PREPARATION_COPY.columns.targetsCopied}
+              </TableHead>
+              <TableHead>{PREPARATION_COPY.columns.needSetup}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {model.venues.map((venue) => (
+              <TableRow key={venue.venue.id}>
+                <TableHead scope="row" className="text-label text-ink">
+                  {venue.venue.name}
+                </TableHead>
+                <TableCell label={month} className="whitespace-normal">
+                  <MonthState venue={venue} />
+                </TableCell>
+                <TableCell
+                  label={PREPARATION_COPY.columns.targetsCopied}
+                  numeric
+                >
+                  {venue.withTarget} of {venue.staff}
+                </TableCell>
+                <TableCell
+                  label={PREPARATION_COPY.columns.needSetup}
+                  className="whitespace-normal"
+                >
+                  {needSetupText(venue)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
 
       <div className="grid gap-3">
@@ -249,59 +239,46 @@ export function PreparationSection({
             {PREPARATION_COPY.noRecentRuns(formatDate(model.recentSince))}
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-card bg-surface shadow-card">
-            <table aria-label={PREPARATION_COPY.recentRuns} className={TABLE}>
-              <thead className="border-b border-line">
-                <tr>
-                  <th scope="col" className={TH}>
-                    {PREPARATION_COPY.columns.when}
-                  </th>
-                  <th scope="col" className={TH}>
-                    {PREPARATION_COPY.columns.startedBy}
-                  </th>
-                  <th scope="col" className={TH}>
-                    {PREPARATION_COPY.columns.result}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {model.recent.map((entry) => (
-                  <tr key={entry.run.id}>
-                    <td
-                      className={`${TD} whitespace-nowrap tabular-nums max-md:font-bold max-md:before:content-none`}
-                    >
-                      {formatDateTime(entry.run.finishedAt)}
-                    </td>
-                    <td
-                      data-label={PREPARATION_COPY.columns.startedBy}
-                      className={TD}
-                    >
-                      {entry.run.trigger === "scheduled"
-                        ? PREPARATION_COPY.hourly
-                        : PREPARATION_COPY.manual}
-                    </td>
-                    <td
-                      data-label={PREPARATION_COPY.columns.result}
-                      className={TD}
-                    >
-                      {runResult(entry, venueNames)}
-                      {entry.run.errorCode ? (
-                        <>
-                          {" "}
-                          <span className="font-mono text-meta text-ink-muted">
-                            {failureCode(entry.run.errorCode)}
-                          </span>
-                        </>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table stacked framed aria-label={PREPARATION_COPY.recentRuns}>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{PREPARATION_COPY.columns.when}</TableHead>
+                <TableHead>{PREPARATION_COPY.columns.startedBy}</TableHead>
+                <TableHead>{PREPARATION_COPY.columns.result}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {model.recent.map((entry) => (
+                <TableRow key={entry.run.id}>
+                  <TableCell className="tabular-nums max-md:font-semibold">
+                    {formatDateTime(entry.run.finishedAt)}
+                  </TableCell>
+                  <TableCell label={PREPARATION_COPY.columns.startedBy}>
+                    {entry.run.trigger === "scheduled"
+                      ? PREPARATION_COPY.hourly
+                      : PREPARATION_COPY.manual}
+                  </TableCell>
+                  <TableCell
+                    label={PREPARATION_COPY.columns.result}
+                    className="whitespace-normal"
+                  >
+                    {runResult(entry, venueNames)}
+                    {entry.run.errorCode ? (
+                      <>
+                        {" "}
+                        <span className="font-mono text-meta text-ink-muted">
+                          {failureCode(entry.run.errorCode)}
+                        </span>
+                      </>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
         <details id="all-runs" className="group">
-          <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 px-1 text-body font-bold text-ink underline underline-offset-4 focus-ring outline-none [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 px-1 text-body font-semibold text-ink underline underline-offset-4 focus-ring outline-none [&::-webkit-details-marker]:hidden">
             <CaretRightIcon
               aria-hidden
               className="size-5 shrink-0 transition-transform group-open:rotate-90 motion-reduce:transition-none"
