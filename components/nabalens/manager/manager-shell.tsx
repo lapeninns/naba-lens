@@ -14,8 +14,9 @@ const FOCUS = "outline-none focus-ring"
 
 /**
  * Page frame of the venue manager workspace: the wordmark, the venue's name,
- * Overview · Review · Album · Requests · Venue at every width (a row under the
- * header from md, a bottom tab bar on phones), Account and Log out. Add shows
+ * Overview · Review · Album · Requests · Venue at every width (v2's SideNav
+ * from bp-desktop, a row under the header from md, a bottom tab bar on
+ * phones), Account and Log out. Add shows
  * only inside the workspace's Add host, once R8 says this account can upload
  * (B02-c); there is no Photos, People or Me.
  * The Review badge count lives in a ReviewCountProvider, so Review can move
@@ -45,19 +46,25 @@ export function ManagerShell({
 }) {
   return (
     <ReviewCountProvider count={reviewCount}>
-      <div className="flex min-h-svh flex-col bg-canvas text-ink">
+      <div className="flex min-h-svh flex-col bg-canvas text-ink desktop:pl-rail">
         <a
           href="#main"
           className="sr-only z-overlay rounded-control bg-accent px-4 py-3 text-button text-on-accent focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
         >
           Skip to content
         </a>
-        {/* Common Room top bar: white, a hairline under it. */}
+        <ManagerNav
+          kind="rail"
+          reviewCount={reviewCount}
+          confirmCount={confirmCount}
+        />
+        {/* v2 VenueBar: surface, a line under it, the venue named in full.
+            From bp-desktop the name Naba-Lens moves to the SideNav. */}
         <header className="relative z-local bg-surface shadow-[0_1px_0_var(--line)]">
           <div className="mx-auto flex min-h-15 w-full max-w-page items-center gap-3 px-3 md:gap-4 md:px-6">
             <Link
               href={managerHrefs.overview}
-              className={`inline-flex flex-none items-baseline rounded-control font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap text-ink max-md:py-2.5 ${FOCUS}`}
+              className={`inline-flex flex-none items-baseline rounded-control type-title whitespace-nowrap text-ink max-md:py-2.5 desktop:hidden ${FOCUS}`}
             >
               Naba-Lens
             </Link>
@@ -68,7 +75,7 @@ export function ManagerShell({
               title={venueName}
               // Below 352px the header holds Add beside the account; every
               // page header names the venue there instead (S2-MGR).
-              className="line-clamp-2 min-w-0 border-l border-edge-strong pl-3 text-meta font-semibold [overflow-wrap:anywhere] text-ink-muted max-[22rem]:sr-only"
+              className="line-clamp-2 min-w-0 border-l border-edge-strong pl-3 text-heading [overflow-wrap:anywhere] text-ink max-[22rem]:sr-only desktop:border-l-0 desktop:pl-0"
             >
               {venueName}
             </p>
@@ -104,7 +111,7 @@ export function ManagerShell({
               </form>
             </div>
           </div>
-          <div className="mx-auto hidden w-full max-w-page px-2 md:block md:px-4">
+          <div className="mx-auto hidden w-full max-w-page px-2 md:block md:px-4 desktop:hidden">
             <ManagerNav
               kind="tabs"
               reviewCount={reviewCount}

@@ -25,15 +25,13 @@ export type AllowEntry = {
  * no token or recipe fits, and expect to be asked. Do not raise it to get a
  * red test to pass.
  */
-export const MAX_ALLOWED = 33
+export const MAX_ALLOWED = 30
 export const MAX_ALLOWED_DEV = 9
 
 const HEADER_HAIRLINE =
   "The hairline under a header has no utility: shadow-bar is the line above a bottom bar."
 const TAB_UNDERLINE =
   "The 3px tab underline is drawn on the shadow layer until the tab recipe lands in Batch 2."
-const WORDMARK =
-  "The wordmark is 24px in the display face and has no type role; the shells should share one wordmark recipe."
 const SEGMENT_EDGE =
   "A raised segment's outer edge is 1.5px beside shadow-control, and edge-strong is 1px."
 const EDGE_1_5 =
@@ -164,24 +162,6 @@ export const ALLOW: AllowEntry[] = [
   },
 
   /* ----------------------------------------- arbitrary-value: type size */
-  {
-    file: "components/nabalens/app-shell.tsx",
-    rule: "arbitrary-value",
-    match: "text-[1.5rem]",
-    reason: WORDMARK,
-  },
-  {
-    file: "components/nabalens/manager/manager-shell.tsx",
-    rule: "arbitrary-value",
-    match: "text-[1.5rem]",
-    reason: WORDMARK,
-  },
-  {
-    file: "components/nabalens/manager/venue-access-unavailable.tsx",
-    rule: "arbitrary-value",
-    match: "text-[1.5rem]",
-    reason: WORDMARK,
-  },
   {
     file: "components/nabalens/common-room/stamp.tsx",
     rule: "arbitrary-value",
