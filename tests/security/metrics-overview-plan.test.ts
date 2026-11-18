@@ -59,9 +59,11 @@ describe("metrics_overview reads each venue once", () => {
     const active = Number(
       psql(`select count(*) from public.venues where active`)
     )
-    const calls = callsDuring(admin.id, "select public.metrics_overview(30)", [
-      "metrics_venue_json",
-    ])
+    const calls = callsDuring(
+      admin.id,
+      "select length(public.metrics_overview(30)::text) > 0",
+      ["metrics_venue_json"]
+    )
     // Before the repair: three per venue (the aggregate and both sort keys).
     expect(calls.metrics_venue_json).toBe(active)
   })
