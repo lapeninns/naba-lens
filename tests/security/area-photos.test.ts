@@ -687,7 +687,11 @@ describe("month credit for area photos", () => {
     })
   })
 
-  it("removes the credit when the uploader removes or changes the area", async () => {
+  // S3-R2 (release review V12; spec §6 S4, FA-21): this was the G-9 model,
+  // where the uploader could remove or change a reviewed area and lose the
+  // credit. Only an unreviewed area may change now; a reviewed one keeps its
+  // credit and goes through a removal or correction request instead.
+  it("keeps the credit: the uploader cannot remove or change a reviewed area", async () => {
     const s = await newStaff("area-credit-remove", f.venue)
     const a = await areaPhoto(s, f.places.bar)
     const b = await areaPhoto(s, f.places.garden)
@@ -695,22 +699,29 @@ describe("month credit for area photos", () => {
     await ok(decide(f.manager, b.label, "accepted"))
     expect((await counts(s, f.venue)).accepted).toBe(2)
 
-    await ok(setArea(s, a.asset, null))
+    await fails(setArea(s, a.asset, null), "area_photo_decided", "P0001")
+    await fails(
+      setArea(s, b.asset, f.places.toilets),
+      "area_photo_decided",
+      "P0001"
+    )
     expect(await counts(s, f.venue)).toEqual({
-      accepted: 1,
+      accepted: 2,
       waiting: 0,
       needs: 0,
     })
-    // A new area is a new label: it waits for review again.
-    await ok(setArea(s, b.asset, f.places.toilets))
+
+    // An unreviewed area still changes: a new area is a new label that
+    // waits for review, and the old label is closed.
+    const c = await areaPhoto(s, f.places.bar)
+    await ok(setArea(s, c.asset, f.places.toilets))
     expect(await counts(s, f.venue)).toEqual({
-      accepted: 0,
+      accepted: 2,
       waiting: 1,
       needs: 0,
     })
-    // The old decision cannot be used on a closed label.
     await fails(
-      decide(f.manager, a.label, "withdrawn", "x"),
+      decide(f.manager, c.label, "accepted"),
       "area_photo_not_found",
       "P0002"
     )
