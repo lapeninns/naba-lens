@@ -3,6 +3,8 @@ import {
   ArrowUpIcon,
   CheckIcon,
   ClockIcon,
+  DownloadSimpleIcon,
+  GlobeIcon,
   EnvelopeSimpleIcon,
   FileTextIcon,
   ForkKnifeIcon,
@@ -384,6 +386,87 @@ export const CHIP_STATES = {
     tone: "neutral",
     icon: MinusIcon,
     shape: "na",
+  },
+  // S1-EXPORT (spec §10 publication states, §8 A5). Admin and manager
+  // screens only (FA-7): staff never see these words. Exported is never
+  // Published (§10 inv. 9).
+  publication_not_selected: {
+    word: "Not exported",
+    tone: "neutral",
+    shape: "plain",
+  },
+  publication_exported: {
+    word: "Exported",
+    tone: "neutral",
+    icon: DownloadSimpleIcon,
+    shape: "neutralSquare",
+  },
+  publication_queued: {
+    word: "Queued",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "waiting",
+  },
+  publication_published_confirmed: {
+    word: "Published",
+    tone: "positive",
+    icon: GlobeIcon,
+    shape: "present",
+  },
+  publication_update_pending: {
+    word: "Update pending",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "waiting",
+  },
+  publication_withdrawal_pending: {
+    word: "Withdrawal pending",
+    tone: "attention",
+    icon: ArrowUUpLeftIcon,
+    shape: "needs",
+  },
+  publication_withdrawn_confirmed: {
+    word: "Withdrawn",
+    tone: "closed",
+    icon: MinusCircleIcon,
+    shape: "closed",
+  },
+  publication_failed_unknown: {
+    word: "Failed or unknown",
+    tone: "negative",
+    icon: WarningCircleIcon,
+    shape: "warnSquare",
+  },
+  // An export package
+  package_ready: {
+    word: "Ready to download",
+    tone: "neutral",
+    icon: DownloadSimpleIcon,
+    shape: "neutralSquare",
+  },
+  package_exported: {
+    word: "Exported",
+    tone: "neutral",
+    icon: DownloadSimpleIcon,
+    shape: "neutralSquare",
+  },
+  package_needs_rebuild: {
+    word: "Needs rebuilding",
+    tone: "attention",
+    icon: WarningCircleIcon,
+    shape: "needs",
+  },
+  package_invalidated: {
+    word: "Can't be downloaded",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  internal_only: {
+    word: "Internal only",
+    tone: "closed",
+    icon: LockSimpleIcon,
+    shape: "closed",
   },
 } as const satisfies Record<string, ChipState>
 

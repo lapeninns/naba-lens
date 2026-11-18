@@ -1,6 +1,7 @@
 import Link from "next/link"
 import {
   ClipboardTextIcon,
+  ExportIcon,
   ForkKnifeIcon,
   ImagesIcon,
   ImagesSquareIcon,
@@ -19,7 +20,8 @@ import { TabBadge } from "./shell/tab-badge"
 import { TAB_ITEM } from "./shell/tab-item"
 import { CountBadge } from "./status-chip"
 
-type AdminSection = "content" | "staff" | "menus" | "coverage" | "albums"
+type AdminSection =
+  "content" | "staff" | "menus" | "coverage" | "albums" | "publishing"
 type StaffSection =
   "tasks" | "menu" | "portfolio" | "community" | "people" | "manage"
 
@@ -84,6 +86,13 @@ const ADMIN_NAV: NavItem<AdminSection>[] = [
     label: "Albums",
     href: "/admin/albums",
     icon: SquaresFourIcon,
+  },
+  // S1-EXPORT (spec §8 A5): export packages and where photos are published.
+  {
+    id: "publishing",
+    label: "Publishing",
+    href: "/admin/publishing",
+    icon: ExportIcon,
   },
 ]
 

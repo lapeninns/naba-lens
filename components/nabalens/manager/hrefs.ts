@@ -60,6 +60,8 @@ export const managerHrefs = {
    * Add does not fit the 390px phone bar.
    */
   search: "/manager/search",
+  /** S1-EXPORT: the venue's export packages; no nav tab. */
+  exports: "/manager/exports",
   review: (q?: ReviewQuery) => withQuery("/manager/review", q),
   contributor: (id: string) =>
     `/manager/review/contributors/${encodeURIComponent(id)}`,
