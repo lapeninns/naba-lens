@@ -34,6 +34,7 @@ function upload(
     duplicate: false,
     labelRevision: 1,
     sharedKinds: [],
+    labelHelp: false,
     removalRequested: false,
     removalRequestId: null,
     ...over,
@@ -52,6 +53,7 @@ const slot = (
   reason,
   decidedAt: null,
   replacesAssetId: null,
+  retakeAnswered: false,
 })
 
 const UPLOADS: MyUpload[] = [

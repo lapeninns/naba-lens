@@ -21,7 +21,6 @@ import { Button } from "@/components/ui/button"
 import type { AlbumSlot } from "@/lib/album/model"
 import {
   OUTCOME_CHIP,
-  OUTCOME_WORDS,
   shortDay,
   type UploadOutcome,
 } from "@/lib/staff/my-uploads"
@@ -196,9 +195,7 @@ export function AlbumSlotScreen({
                     key={photo.assetId}
                     className="flex flex-wrap items-center gap-2"
                   >
-                    <StatusChip state={OUTCOME_CHIP[photo.outcome]}>
-                      {OUTCOME_WORDS[photo.outcome]}
-                    </StatusChip>
+                    <StatusChip state={OUTCOME_CHIP[photo.outcome]} />
                     <span className="text-meta text-ink-muted">
                       Sent {shortDay(photo.uploadedAt)}
                     </span>

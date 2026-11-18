@@ -1,7 +1,9 @@
 // Where a staff notice leads (spec §17; FA-10; S2-STAFF). Pure: the inbox
 // itself is read through lib/server/notifications. A retake opens its slot
 // with the reviewer's reason (AC17); a check given to the person opens it;
-// an upload problem opens Me, where My uploads shows it.
+// an "Asked for" request opens the slot it names (V10); a label correction
+// opens the dish it now shows; an upload problem opens Me, where My uploads
+// shows it.
 import type { AppNotification } from "@/lib/ops/notifications"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -20,8 +22,25 @@ export function noticeHref(n: AppNotification): string {
       return "/staff"
     }
     case "assigned": {
-      const check = id(p.checkId) ?? id(n.subjectId)
+      // V10: an "Asked for" request (S2-REQ) names its slot, never a check:
+      // its subject id is the request's own id.
+      if (n.subjectType === "media_request" || p.source === "media_request") {
+        const slot = id(p.slotId)
+        if (slot && (p.slotKind === "dish" || p.slotKind === "area"))
+          return `/staff/album/slot/${p.slotKind}/${slot}`
+        if (slot && p.slotKind === "amenity")
+          return `/staff/tasks/amenities/${slot}`
+        return "/staff/tasks"
+      }
+      const check =
+        id(p.checkId) ??
+        (n.subjectType === "amenity_check" ? id(n.subjectId) : null)
       return check ? `/staff/tasks/amenities/${check}` : "/staff/tasks/other"
+    }
+    case "label_corrected": {
+      // FA-7: the dish a reviewer matched the photo to.
+      const item = id(p.itemId)
+      return item ? `/staff/album/slot/dish/${item}` : "/staff"
     }
     default:
       return "/staff"

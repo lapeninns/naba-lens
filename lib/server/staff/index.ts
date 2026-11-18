@@ -123,6 +123,104 @@ export async function getMyUpload(
 }
 
 /**
+ * The caller's own photos of one dish or place slot, newest first, however
+ * many newer photos were sent since (V14): the slot page reads the
+ * reviewer's exact retake reason from here, not from My uploads' first page.
+ */
+export async function getMySlotUploads(
+  caller: Caller,
+  slot: { kind: "dish" | "area"; slotId: string }
+): Promise<Result<{ page: MyUploadsPage }>> {
+  if (!UUID.test(slot.slotId)) return apiError("not_found", { field: "slot" })
+  const { data, error } = await rpc(caller, "my_uploads", {
+    p_limit: 60,
+    p_slot_kind: slot.kind,
+    p_slot_id: slot.slotId,
+  })
+  if (error) return failed("my slot uploads", error)
+  const page = parseMyUploads(data)
+  return page ? { ok: true, page } : apiError("unavailable")
+}
+
+/** Words for a refused Change slot (move_my_upload_slot), safe to show. */
+export const MOVE_SLOT_WORDS = {
+  decided:
+    "A manager has just checked this photo, so it can't be changed now. Reload the page.",
+  noSlot:
+    "This photo has no slot now. Match it again from Album, under Match later.",
+  conflict: "This photo was changed just now. Reload the page.",
+  catalogue:
+    "The menu changed just now. Reload the page and choose the dish again.",
+  itemGone: "That dish is no longer on the menu. Choose another.",
+  placeGone: "That place is no longer listed for this venue. Choose another.",
+  wrongVenue:
+    "That slot belongs to another venue. Switch to the venue the photo was sent to.",
+  withdrawn:
+    "A reviewer withdrew this photo's place, so it can't be given another one.",
+  failed: "The slot couldn't be changed. Try again.",
+} as const
+
+const MOVE_ERRORS: Record<string, string> = {
+  upload_decided: MOVE_SLOT_WORDS.decided,
+  upload_no_slot: MOVE_SLOT_WORDS.noSlot,
+  label_conflict: MOVE_SLOT_WORDS.conflict,
+  menu_catalogue_conflict: MOVE_SLOT_WORDS.catalogue,
+  menu_item_unavailable: MOVE_SLOT_WORDS.itemGone,
+  area_unavailable: MOVE_SLOT_WORDS.placeGone,
+  menu_item_wrong_venue: MOVE_SLOT_WORDS.wrongVenue,
+  area_wrong_venue: MOVE_SLOT_WORDS.wrongVenue,
+  area_photo_withdrawn: MOVE_SLOT_WORDS.withdrawn,
+  area_photo_decided: MOVE_SLOT_WORDS.decided,
+}
+
+/**
+ * Change slot on the caller's own waiting photo, in one transaction
+ * (move_my_upload_slot, 20261118123100; V5): a refused move keeps the old
+ * slot. The words for each refusal are MOVE_SLOT_WORDS.
+ */
+export async function moveMyUploadSlot(
+  caller: Caller,
+  input: {
+    assetId: string
+    expectedRevision: number
+    catalogueVersionId: string | null
+    target:
+      | { kind: "dish"; itemId: string }
+      | { kind: "area"; subjectId: string }
+      | { kind: "shared"; sharedKind: string }
+  }
+): Promise<{ ok: true; changed: boolean } | { ok: false; message: string }> {
+  const { target } = input
+  const { data, error } = await rpc(caller, "move_my_upload_slot", {
+    p_asset_id: input.assetId,
+    p_expected_revision: input.expectedRevision,
+    p_catalogue_version_id: input.catalogueVersionId,
+    p_target_kind: target.kind,
+    p_target_id:
+      target.kind === "dish"
+        ? target.itemId
+        : target.kind === "area"
+          ? target.subjectId
+          : null,
+    p_shared_kind: target.kind === "shared" ? target.sharedKind : null,
+  })
+  if (error) {
+    const known = error.message ? MOVE_ERRORS[error.message] : undefined
+    if (known) return { ok: false, message: known }
+    const mapped = failed("move slot", error)
+    return {
+      ok: false,
+      message:
+        mapped.code === "unavailable" ? MOVE_SLOT_WORDS.failed : mapped.message,
+    }
+  }
+  return {
+    ok: true,
+    changed: (data as { changed?: unknown } | null)?.changed !== false,
+  }
+}
+
+/**
  * Corrects when the caller's own photo was taken (S1-UPLOAD
  * set_media_captured_at): an instant, or null for "I don't know".
  */

@@ -12,8 +12,8 @@ import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { findSlot } from "@/lib/album/model"
 import { loadAlbum } from "@/lib/server/album"
 import { getCoverageActor } from "@/lib/server/coverage"
-import { getMyUploads } from "@/lib/server/staff"
-import { replacedIds } from "@/lib/staff/my-uploads"
+import { getMySlotUploads } from "@/lib/server/staff"
+import { openRetake } from "@/lib/staff/my-uploads"
 
 export const metadata: Metadata = { title: "Album" }
 
@@ -23,8 +23,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  * One slot (spec §6 S3; S2-STAFF): a dish (`/staff/album/slot/dish/<item>`)
  * or a place (`/staff/album/slot/area/<place>`). An amenity slot opens its
  * question (DESIGN.md §6.3); an unknown slot is 404. The person's own photos
- * of it come from My uploads' newest page, so the reviewer's reason for a
- * retake is the one on Me (AC17).
+ * of it come from My uploads read for this one slot (V14), however many
+ * newer photos they sent since, so the reviewer's exact reason for a retake
+ * is the one on Me (AC17). A retake counts as answered only by a photo sent
+ * after it was asked (E8).
  */
 export default async function AlbumSlotPage({
   params,
@@ -43,13 +45,12 @@ export default async function AlbumSlotPage({
     staffShellStatus(actor, profile),
     loadAlbum(actor),
     // Own photos are a help on this page, never a reason to fail it.
-    getMyUploads(actor).catch(() => null),
+    getMySlotUploads(actor, { kind, slotId }).catch(() => null),
   ])
   const found = album.ok ? findSlot(album.album, `${kind}:${slotId}`) : null
   if (album.ok && !found) notFound()
 
   const items = mine?.ok ? mine.page.items : []
-  const replaced = replacedIds(items)
   const ownPhotos = items.flatMap((item) =>
     item.slots
       .filter((s) => s.kind === kind && s.slotId === slotId)
@@ -58,7 +59,7 @@ export default async function AlbumSlotPage({
         outcome: s.outcome,
         uploadedAt: item.uploadedAt,
         reason: s.reason,
-        open: s.outcome === "retake_requested" && !replaced.has(item.assetId),
+        open: openRetake({ ...item, slots: [s] }) !== null,
       }))
   )
   const retakeOf = ownPhotos.find((p) => p.open)

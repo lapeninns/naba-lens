@@ -4,13 +4,16 @@
 // upload offers. The database decides every action again.
 //
 // Sections (§6 S4), in Album's words:
-//   attention  Needs attention: a retake asked for and not yet replaced,
-//              processing that failed, or a photo with no slot (Match later)
+//   attention  Needs attention: a retake asked for and not yet answered by a
+//              photo sent after it was asked (E8), processing that failed, or
+//              a photo with no slot (Match later, or "I'm not sure": with the
+//              manager, who chooses its slot; E4)
 //   sending    Uploading or processing (the server's view; the phone's own
 //              queue is on the Add sheet)
 //   waiting    Waiting for review
 //   reviewed   Reviewed: every slot decided, or a shared photo with no slot
 
+import type { ChipStateKey } from "@/components/nabalens/status-chip"
 import { RECEIPT_WORDS } from "@/lib/upload/states"
 
 export type UploadOutcome =
@@ -32,6 +35,12 @@ export type UploadSlot = {
   decidedAt: string | null
   /** The caller's own earlier photo of this slot that was asked to be retaken. */
   replacesAssetId: string | null
+  /**
+   * A retake asked on this photo that the person answered with another photo
+   * of the slot sent after it was asked (my_uploads, E8). Read across all
+   * their photos, so it does not depend on which page is loaded.
+   */
+  retakeAnswered: boolean
 }
 
 export type MyUpload = {
@@ -48,6 +57,8 @@ export type MyUpload = {
   /** Shared-photo kinds chosen with Not for a slot ("team", "venue"…). */
   sharedKinds: string[]
   slots: UploadSlot[]
+  /** "I'm not sure" was asked and it still has no label: the manager labels it. */
+  labelHelp: boolean
   removalRequested: boolean
   removalRequestId: string | null
 }
@@ -96,22 +107,12 @@ export const UPLOAD_SECTIONS: ReadonlyArray<{
 ]
 
 /**
- * The words staff see for each outcome (FA-7): the spec's Approved for public
- * use, Kept as reference, Another photo requested, Label corrected and Not
- * used, in Album's words. The chip keys are in status-chip.tsx.
+ * The StatusChip key that draws each outcome (FA-7). The words staff see
+ * (In the album, Kept for reference, Retake, Label corrected, Not used…) live
+ * only in status-chip.tsx (V25): render `<StatusChip state={OUTCOME_CHIP[o]} />`
+ * with no children.
  */
-export const OUTCOME_WORDS: Record<UploadOutcome, string> = {
-  awaiting_review: "Waiting",
-  public: "In the album",
-  reference: "Kept for reference",
-  retake_requested: "Retake",
-  not_used: "Not used",
-  withdrawn: "Withdrawn",
-  label_corrected: "Label corrected",
-}
-
-/** The StatusChip key that draws an outcome (status-chip.tsx). */
-export const OUTCOME_CHIP: Record<UploadOutcome, string> = {
+export const OUTCOME_CHIP: Record<UploadOutcome, ChipStateKey> = {
   awaiting_review: "outcome_waiting",
   public: "outcome_public",
   reference: "outcome_reference",
@@ -121,7 +122,7 @@ export const OUTCOME_CHIP: Record<UploadOutcome, string> = {
   label_corrected: "outcome_label_corrected",
 }
 
-const OUTCOMES = new Set<string>(Object.keys(OUTCOME_WORDS))
+const OUTCOMES = new Set<string>(Object.keys(OUTCOME_CHIP))
 const STATES = new Set(["uploading", "processing", "ready", "failed"])
 const SOURCES = new Set(["metadata", "supplied", "estimated", "unknown"])
 const KINDS = new Set(["dish", "area", "amenity"])
@@ -142,6 +143,7 @@ function parseSlot(raw: unknown): UploadSlot | null {
     reason: str(r.reason),
     decidedAt: str(r.decidedAt),
     replacesAssetId: str(r.replacesAssetId),
+    retakeAnswered: r.retakeAnswered === true,
   }
 }
 
@@ -177,6 +179,7 @@ function parseUpload(raw: unknown): MyUpload | null {
           return slot ? [slot] : []
         })
       : [],
+    labelHelp: r.labelHelp === true,
     removalRequested: r.removalRequested === true,
     removalRequestId: str(r.removalRequestId),
   }
@@ -219,66 +222,66 @@ export function parseVenueManagers(data: unknown): VenueManager[] | null {
   })
 }
 
-/** The ids of photos a newer photo of the same slot has replaced. */
-export function replacedIds(items: ReadonlyArray<MyUpload>): Set<string> {
-  return new Set(
-    items.flatMap((item) =>
-      item.slots.flatMap((s) => (s.replacesAssetId ? [s.replacesAssetId] : []))
-    )
+/**
+ * A retake asked for on this photo that the person has not answered with a
+ * photo sent after it was asked (E8: a newer photo from the same batch, sent
+ * before the retake was asked, does not answer it).
+ */
+export function openRetake(item: MyUpload): UploadSlot | null {
+  return (
+    item.slots.find(
+      (s) => s.outcome === "retake_requested" && !s.retakeAnswered
+    ) ?? null
   )
 }
 
-/** A retake asked for on this photo that no newer photo has answered. */
-export function openRetake(
-  item: MyUpload,
-  replaced: ReadonlySet<string>
-): UploadSlot | null {
-  if (replaced.has(item.assetId)) return null
-  return item.slots.find((s) => s.outcome === "retake_requested") ?? null
+/** A photo with no slot and no shared kind: Match later or I'm not sure. */
+export function unmatched(item: MyUpload): boolean {
+  return (
+    item.uploadState === "ready" &&
+    item.mediaType === "image" &&
+    item.slots.length === 0 &&
+    item.sharedKinds.length === 0
+  )
 }
 
 /** Which section an upload sits in (spec §6 S4). */
-export function uploadSection(
-  item: MyUpload,
-  replaced: ReadonlySet<string> = new Set()
-): UploadSection {
+export function uploadSection(item: MyUpload): UploadSection {
   if (item.uploadState === "failed") return "attention"
   if (item.uploadState !== "ready") return "sending"
-  if (openRetake(item, replaced)) return "attention"
+  if (openRetake(item)) return "attention"
   if (item.slots.some((s) => s.outcome === "awaiting_review")) return "waiting"
-  // A photo with no slot and no shared kind waits under Match later.
-  if (
-    item.slots.length === 0 &&
-    item.sharedKinds.length === 0 &&
-    item.mediaType === "image"
-  )
-    return "attention"
+  // No slot yet: under Match later, or with the manager after "I'm not
+  // sure" (E4). Either way it needs attention until it has a slot.
+  if (unmatched(item)) return "attention"
   return "reviewed"
 }
 
 /** Uploads grouped by section, each newest first, with the counts. */
 export function groupUploads(items: ReadonlyArray<MyUpload>) {
-  const replaced = replacedIds(items)
   const groups: Record<UploadSection, MyUpload[]> = {
     attention: [],
     sending: [],
     waiting: [],
     reviewed: [],
   }
-  for (const item of items) groups[uploadSection(item, replaced)].push(item)
-  return { groups, replaced }
+  for (const item of items) groups[uploadSection(item)].push(item)
+  return { groups }
 }
 
 export type UploadActions = {
   /** Withdraw: nothing on it has been decided (FA-21). */
   withdraw: boolean
-  /** Change slot: one dish or place slot, still waiting, and a photo. */
+  /**
+   * Change slot: one dish or place slot, still waiting, a photo, and sent to
+   * the current venue (V13: the slots offered are that venue's).
+   */
   changeSlot: boolean
   /** Retake: open the slot with the reviewer's reason. */
   retake: UploadSlot | null
   /** Ask for a correction: something on it has been decided (§23.6). */
   correction: boolean
-  /** Ask to remove: it is accepted (public or reference) (FA-21). */
+  /** Ask to remove: it is accepted (public, reference or relabelled) (FA-21). */
   removal: boolean
   /** Fix the date it was taken (S1-UPLOAD's set_media_captured_at). */
   fixDate: boolean
@@ -292,15 +295,24 @@ const DECIDED = new Set<UploadOutcome>([
   "label_corrected",
 ])
 
-/** What one upload offers, by its state (spec §6 S4). */
+/** Accepted outcomes: the photo is kept, so only an admin removes it. */
+const ACCEPTED = new Set<UploadOutcome>([
+  "public",
+  "reference",
+  "label_corrected",
+])
+
+/**
+ * What one upload offers, by its state (spec §6 S4). `currentVenueId` is the
+ * person's active venue: Change slot lists that venue's slots, so it is
+ * offered only for a photo sent there (V13).
+ */
 export function uploadActions(
   item: MyUpload,
-  replaced: ReadonlySet<string> = new Set()
+  currentVenueId: string | null = null
 ): UploadActions {
   const decided = item.slots.some((s) => DECIDED.has(s.outcome))
-  const accepted = item.slots.some(
-    (s) => s.outcome === "public" || s.outcome === "reference"
-  )
+  const accepted = item.slots.some((s) => ACCEPTED.has(s.outcome))
   const ready = item.uploadState === "ready"
   return {
     withdraw: !decided && item.uploadState !== "uploading",
@@ -308,10 +320,11 @@ export function uploadActions(
       ready &&
       item.mediaType === "image" &&
       !decided &&
+      (currentVenueId === null || item.venueId === currentVenueId) &&
       item.slots.length === 1 &&
       item.slots[0]!.outcome === "awaiting_review" &&
       item.slots[0]!.kind !== "amenity",
-    retake: openRetake(item, replaced),
+    retake: openRetake(item),
     correction: ready && decided,
     removal: ready && accepted && !item.removalRequested,
     fixDate: ready,
