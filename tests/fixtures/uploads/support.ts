@@ -11,6 +11,7 @@ import {
 import { provisioner } from "../../e2e/helpers/stack"
 import {
   STAFF_LANDING,
+  meSheetButton,
   openPortfolio,
   staffTile,
   uploadSheet,
@@ -107,15 +108,12 @@ export async function objectsOf(uploaderId: string, assetId: string) {
 }
 
 /**
- * Opens the upload sheet from My portfolio. Its name changes from "Upload
- * photos or videos" to "Saving N photos" once files are picked, so the locator
- * matches both (and a queue Add reopens while files are still waiting).
+ * Opens the upload sheet from Me's Add a video (R15-1). Its name changes from
+ * "Add photos or videos" to "Saving N photos" once files are picked, so the
+ * locator matches both (and a queue Add reopens while files are still waiting).
  */
 export async function openUploadDialog(page: Page) {
-  await page
-    .getByRole("button", { name: "Add photos or videos" })
-    .first()
-    .click()
+  await meSheetButton(page).click()
   const dialog = uploadSheet(page)
   await expect(dialog).toBeVisible()
   return dialog

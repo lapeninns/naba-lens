@@ -450,7 +450,7 @@ for (const width of [360, 412]) {
     test.setTimeout(180_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
-    // The label journeys start from Me's Add (the Album tab opens Match).
+    // The label journeys start from Me's Add a video (Add photos opens Match).
     await page.goto("/staff")
     await expect(meAddButton(page)).toBeVisible()
     await resetModals(page)
@@ -482,7 +482,7 @@ for (const width of [360, 412]) {
     test.setTimeout(240_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
-    // The label journeys start from Me's Add (the Album tab opens Match).
+    // The label journeys start from Me's Add a video (Add photos opens Match).
     await page.goto("/staff")
     await expect(meAddButton(page)).toBeVisible()
     await resetModals(page)

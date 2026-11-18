@@ -132,10 +132,7 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
       staffPage.getByRole("main").getByText("Your profile starts here.")
     ).toBeVisible()
 
-    await staffPage
-      .getByRole("button", { name: "Add photos or videos" })
-      .first()
-      .click()
+    await staffPage.getByRole("button", { name: "Add a video" }).first().click()
     const dialog = uploadSheet(staffPage)
     await expect(dialog).toBeVisible()
     // Both start saving as soon as they are picked.

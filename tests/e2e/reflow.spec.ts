@@ -97,7 +97,7 @@ for (const size of SIZES) {
 
   test(`staff pages, Add and Match reflow at ${size.name}`, async () => {
     for (const path of staffPages(m)) await reflow(staff, size, path)
-    // Me's Add: the upload sheet.
+    // Me's Add a video: the upload sheet.
     await reflow(staff, size, "/staff")
     await dialogReflows(
       staff,
@@ -106,7 +106,7 @@ for (const size of SIZES) {
       () =>
         staff
           .getByRole("main")
-          .getByRole("button", { name: "Add photos or videos" })
+          .getByRole("button", { name: "Add a video" })
           .first()
           .click(),
       staff.getByRole("dialog", { name: "Add photos or videos" })

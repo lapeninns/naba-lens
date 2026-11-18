@@ -47,6 +47,8 @@ const APP_MARKUP = [
   ">Content<",
   'data-slot="skeleton"',
   "Add photos or videos",
+  // Me's way to the older Add sheet (R15-1).
+  "Add a video",
 ]
 /** Other people's details, filled in once the identities exist. */
 const PEOPLE: string[] = []

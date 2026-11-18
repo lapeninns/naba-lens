@@ -599,9 +599,7 @@ test("staff: upload dialog states and focus return", async ({
   await openPortfolio(page)
 
   // Open by keyboard so focus return is meaningful.
-  const uploadButton = page
-    .getByRole("button", { name: "Add photos or videos" })
-    .first()
+  const uploadButton = page.getByRole("button", { name: "Add a video" }).first()
   await uploadButton.focus()
   await page.keyboard.press("Enter")
   const dialog = uploadSheet(page)
@@ -658,7 +656,7 @@ test("staff: upload dialog states and focus return", async ({
     .soft(
       await activeElementMatches(
         page,
-        page.getByRole("button", { name: "Add photos or videos" }).first()
+        page.getByRole("button", { name: "Add a video" }).first()
       ),
       "focus returns to the Upload button after the upload dialog closes"
     )
@@ -936,7 +934,7 @@ test("staff: dark mode portfolio, viewer, upload dialog", async ({
   })
   await page.keyboard.press("Escape")
   await expect(page.getByRole("dialog")).toBeHidden()
-  await page.getByRole("button", { name: "Add photos or videos" }).click()
+  await page.getByRole("button", { name: "Add a video" }).click()
   await expect(page.getByRole("dialog")).toBeVisible()
   await capture(page, testInfo, "upload-dialog", {
     widths: some(page, testInfo, [390, 1280]),
@@ -962,9 +960,11 @@ test("staff: long name and paused venue", async ({
   await expect(paused).toHaveURL(STAFF_LANDING)
   await openPortfolio(paused)
   await expect(paused.getByText("uploads are paused")).toBeVisible()
-  await expect(
-    paused.getByRole("button", { name: "Add photos or videos" })
-  ).toHaveCount(0)
+  // Neither of Me's Add buttons (R15-1) is offered at a paused venue.
+  await expect(paused.getByRole("button", { name: "Add a video" })).toHaveCount(
+    0
+  )
+  await expect(paused.locator('[data-slot="me-add"]')).toHaveCount(0)
   await capture(paused, testInfo, "staff-paused-venue")
   await paused.context().close()
 })

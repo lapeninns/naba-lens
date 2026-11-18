@@ -1180,11 +1180,11 @@ test.describe("leaving while uploads run", () => {
       held.push(route)
     })
 
-    // Me's Add opens the upload dialog (Album's Add photos opens Match).
+    // Me's Add a video opens the upload dialog (Add photos opens Match).
     if (new URL(page.url()).pathname !== "/staff") await page.goto("/staff")
     await page
       .getByRole("main")
-      .getByRole("button", { name: "Add photos or videos" })
+      .getByRole("button", { name: "Add a video" })
       .first()
       .click()
     const queue = uploadSheet(page)
@@ -1235,7 +1235,7 @@ test.describe("leaving while uploads run", () => {
     await expect(queue).toBeHidden()
     await page
       .getByRole("main")
-      .getByRole("button", { name: "Add photos or videos" })
+      .getByRole("button", { name: "Add a video" })
       .first()
       .click()
     await expect(queue).toHaveAccessibleName("Saving 2 photos")
@@ -1297,11 +1297,11 @@ test.describe("leaving while uploads run", () => {
     const tabbar = page.locator('[data-slot="tabbar"]')
     const sheet = page.getByRole("dialog", { name: "Add photos", exact: true })
     const queue = uploadSheet(page)
-    // Me's Add opens the upload sheet (Album's Add photos opens Match).
+    // Me's Add a video opens the upload sheet (Add photos opens Match).
     if (new URL(page.url()).pathname !== "/staff") await page.goto("/staff")
     await page
       .getByRole("main")
-      .getByRole("button", { name: "Add photos or videos" })
+      .getByRole("button", { name: "Add a video" })
       .first()
       .click()
     await expect(queue).toHaveAccessibleName("Add photos or videos")
