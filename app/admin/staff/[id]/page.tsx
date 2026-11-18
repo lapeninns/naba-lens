@@ -28,6 +28,7 @@ import { firstName } from "../staff-order"
 import { AccountHeader, type GrantRecord } from "./account-header"
 import { AccountTypePanel } from "./account-type-panel"
 import { AdminPortfolio } from "./admin-portfolio"
+import { MfaResetPanel } from "./mfa-reset-panel"
 import { StaffMonth } from "./staff-month"
 import { VenueAccessPanel } from "./venue-access-panel"
 
@@ -144,6 +145,10 @@ export default async function StaffPortfolioPage({
               onRemove={removeVenueMembershipAction}
               onMakeAdmin={grantAdminAction}
             />
+            {/* S2-ADMIN: a lost authenticator (FA-23); never one's own. */}
+            {member.id !== admin.id && member.status !== "invited" ? (
+              <MfaResetPanel profileId={member.id} firstName={first} />
+            ) : null}
           </>
         }
         month={

@@ -177,6 +177,13 @@ const ALLOWED_PAGES = new Set([
   "/admin/publishing",
   "/admin/publishing/new",
   "/admin/publishing/packages/[id]",
+  // Full App v1, S2-ADMIN (spec §8 A1, A2): Overview, Venues, and More (every
+  // admin section on phones and tablets).
+  "/admin/overview",
+  "/admin/venues",
+  "/admin/venues/new",
+  "/admin/venues/[venueId]",
+  "/admin/more",
   "/manager/exports",
   "/manager/exports/new",
   "/manager/exports/packages/[id]",
