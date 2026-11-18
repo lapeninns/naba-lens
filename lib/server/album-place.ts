@@ -4,7 +4,9 @@ import { cookies } from "next/headers"
 
 import {
   ALBUM_PLACE_COOKIE,
+  ALBUM_SHOW_COOKIE,
   parseAlbumPlace,
+  parseAlbumShowCookie,
 } from "@/lib/album/remembered-place"
 
 /**
@@ -15,6 +17,16 @@ export async function rememberedAlbumPlace(): Promise<string | null> {
   try {
     const jar = await cookies()
     return parseAlbumPlace(jar.get(ALBUM_PLACE_COOKIE)?.value)
+  } catch {
+    return null
+  }
+}
+
+/** The state filter this phone last chose in a place, or null (never throws). */
+export async function rememberedAlbumShow(): Promise<string | null> {
+  try {
+    const jar = await cookies()
+    return parseAlbumShowCookie(jar.get(ALBUM_SHOW_COOKIE)?.value)
   } catch {
     return null
   }

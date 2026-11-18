@@ -93,6 +93,10 @@ type StaffPortfolioProps = {
    * it out.
    */
   otherJobs?: number | null
+  /** My uploads (FA-1; spec §6 S4), Me's first section; null to leave it out. */
+  myUploads?: React.ReactNode
+  /** Help and account (spec §6 S5), after the work links; null to leave it out. */
+  account?: React.ReactNode
 }
 
 /** The three milestones of an own photo, in these exact words. */
@@ -366,6 +370,8 @@ export function StaffPortfolio({
   findings = null,
   month = null,
   otherJobs,
+  myUploads = null,
+  account = null,
 }: StaffPortfolioProps) {
   const router = useRouter()
   const [editOpen, setEditOpen] = React.useState(initialEditOpen)
@@ -481,6 +487,8 @@ export function StaffPortfolio({
       {profileSaved ? (
         <Notice tone="positive">{PROFILE_SAVE_COPY.saved}</Notice>
       ) : null}
+      {/* FA-1: My uploads is Me's first section (spec §6 S4). */}
+      {myUploads}
       {month}
       {manage ? (
         <ManageRow
@@ -538,6 +546,7 @@ export function StaffPortfolio({
           ) : null}
         </ul>
       </nav>
+      {account}
       <NeedsAttention
         refreshSignal={addRefreshSignal}
         onFixed={(saved) => {

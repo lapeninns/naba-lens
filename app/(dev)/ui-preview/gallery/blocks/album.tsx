@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button"
 import * as React from "react"
 import { buildAlbum, currentPlace, type AlbumInput } from "@/lib/album/model"
 
+import { StaffMeSpecimens } from "../staff-me-specimens"
+
 /*
  * Gallery block for the Album components (DESIGN.md §5). A1: the slot tile.
  * A2: Album Home, a place, and the manager's Album places, on made-up data.
@@ -73,6 +75,8 @@ export function AlbumBlock() {
   return (
     <div className="grid gap-8">
       <AlbumScreensBlock />
+      {/* S2-STAFF: filters, the slot page, My uploads and Help and account. */}
+      <StaffMeSpecimens album={SAMPLE} barId={BAR} />
       <MatchSpecimen />
       <div className="grid gap-4">
         <h3 className="type-heading-sm text-ink">Slot tile</h3>

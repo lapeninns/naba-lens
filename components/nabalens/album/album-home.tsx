@@ -18,11 +18,12 @@ import {
 } from "@/components/nabalens/shell/add-context"
 import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import { Button } from "@/components/ui/button"
-import type {
-  AlbumCounts,
-  AlbumPlace,
-  AlbumSlot,
-  AlbumView,
+import {
+  slotHref,
+  type AlbumCounts,
+  type AlbumPlace,
+  type AlbumSlot,
+  type AlbumView,
 } from "@/lib/album/model"
 import { rememberAlbumPlace } from "@/lib/album/remembered-place"
 import { cn } from "@/lib/utils"
@@ -349,21 +350,15 @@ export function AlbumSlotTile({
         offline={send.state === "sending" && !online}
       />
     )
-  if (slot.target.kind === "amenity")
+  // An amenity opens its question; a filled dish or place opens its slot
+  // page (DESIGN.md §5: "tapping a filled slot opens the slot"; spec §6 S3).
+  if (slot.target.kind === "amenity" || !fillable)
     return (
       <SlotTile
         name={slot.name}
         state={slot.state}
         photoSrc={slot.thumbnailUrl ?? undefined}
-        href={`/staff/tasks/amenities/${slot.target.checkId}`}
-      />
-    )
-  if (!fillable)
-    return (
-      <SlotTile
-        name={slot.name}
-        state={slot.state}
-        photoSrc={slot.thumbnailUrl ?? undefined}
+        href={slotHref(slot)}
       />
     )
   const target = slot.target

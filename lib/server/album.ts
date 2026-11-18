@@ -3,7 +3,7 @@ import "server-only"
 import {
   BRIEF_MAX,
   buildAlbum,
-  coverageByAlbumId,
+  coverageSlotsByAlbumId,
   isBriefText,
   parseCoverage,
   type AlbumBriefs,
@@ -512,22 +512,31 @@ export async function loadAlbum(
     ])
   if (!dishes) return unavailableFailure("album dishes", null)
   // The coverage rule's state on each slot; a failed read leaves the older
-  // per-source rules in lib/album/model.ts to decide.
-  const states = coverageByAlbumId(coverage)
-  const stateOf = (id: string): CoverageState | undefined => states.get(id)
+  // per-source rules in lib/album/model.ts to decide. Its category and
+  // waiting count feed Album's filters and tiles (S2-STAFF, spec §6 S3).
+  const rows = coverageSlotsByAlbumId(coverage)
+  const extras = (id: string) => {
+    const row = rows.get(id)
+    return row
+      ? {
+          coverage: row.state as CoverageState,
+          coverageCategory: row.category,
+          pendingCount: row.pendingCount,
+        }
+      : {}
+  }
   const input: AlbumInput = {
     places: placements.places,
     placements: placements.placements,
     sections: placements.sections,
-    dishes: dishes.map((d) => ({
-      ...d,
-      coverage: stateOf(`dish:${d.itemId}`),
-    })),
+    dishes: dishes.map((d) => ({ ...d, ...extras(`dish:${d.itemId}`) })),
     amenities: amenities.map((a) => ({
       ...a,
-      coverage: stateOf(`amenity:${a.checkId}`),
+      ...extras(`amenity:${a.checkId}`),
     })),
-    areas,
+    // An area keeps its own state read (album_area_states); the coverage row
+    // adds its category, waiting count and whether it needs updating.
+    areas: areas.map((a) => ({ ...a, ...extras(`area:${a.subjectId}`) })),
     myRetakeItemIds: retakes,
     briefs,
   }

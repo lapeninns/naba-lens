@@ -83,6 +83,7 @@ export function FirstRun({
   homeHref,
   back = null,
   dismiss,
+  notice = null,
 }: {
   name: string
   venueName: string | null
@@ -113,6 +114,8 @@ export function FirstRun({
   back?: { href: string; label: string } | null
   /** Records the dismissal (welcome_dismissed_at); errors are ignored. */
   dismiss: (dismissed: boolean) => Promise<unknown>
+  /** The contribution-use notice (spec §3.2; S2-STAFF), after the welcome. */
+  notice?: React.ReactNode
 }) {
   const router = useRouter()
   const openAdd = useAdd()
@@ -286,6 +289,7 @@ export function FirstRun({
           </p>
         </section>
 
+        {notice}
         {gapsFirst ? middle : null}
         {milestones}
         {!gapsFirst || monthly?.completionProgress ? targetProgress : null}

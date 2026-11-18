@@ -62,6 +62,12 @@ const ALLOWED_PAGES = new Set([
   // slots by section. Photos only; no scoring or ranking.
   "/staff/album/[placeId]",
   "/staff/album/match-later",
+  // Full App v1 S2-STAFF (spec §6 S3): one slot's page with its photo in the
+  // album, brief, waiting count, Add a photo and Report a change.
+  "/staff/album/slot/[kind]/[slotId]",
+  // Full App v1 S2-STAFF (spec §17, FA-10): the staff notice inbox and its
+  // preferences, an in-app list and a badge on Me, never toasts.
+  "/staff/notifications",
   // Self-described work details (November 2026): main job and extra areas for
   // Home's prompt and the label picker's order; never access or team.
   "/staff/profile",

@@ -462,6 +462,50 @@ export const CHIP_STATES = {
     icon: XIcon,
     shape: "warnSquare",
   },
+  // S2-STAFF, My uploads (spec §6 S4; FA-7): what happened to a person's
+  // own photo, in staff words. Managers see the spec's action names.
+  outcome_waiting: {
+    word: "Waiting",
+    tone: "pending",
+    icon: ArrowUpIcon,
+    shape: "waiting",
+  },
+  outcome_public: {
+    word: "In the album",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "accepted",
+  },
+  outcome_reference: {
+    word: "Kept for reference",
+    tone: "closed",
+    icon: FileTextIcon,
+    shape: "closed",
+  },
+  outcome_retake: {
+    word: "Retake",
+    tone: "attention",
+    icon: ArrowUUpLeftIcon,
+    shape: "needs",
+  },
+  outcome_label_corrected: {
+    word: "Label corrected",
+    tone: "neutral",
+    icon: PencilSimpleIcon,
+    shape: "plain",
+  },
+  outcome_not_used: {
+    word: "Not used",
+    tone: "closed",
+    icon: MinusCircleIcon,
+    shape: "closed",
+  },
+  outcome_withdrawn: {
+    word: "Withdrawn",
+    tone: "closed",
+    icon: XIcon,
+    shape: "closed",
+  },
   internal_only: {
     word: "Internal only",
     tone: "closed",

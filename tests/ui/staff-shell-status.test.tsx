@@ -236,8 +236,10 @@ describe("staff pages", () => {
     expect(pages.map((p) => relative(process.cwd(), p)).sort()).toEqual([
       "app/staff/album/[placeId]/page.tsx",
       "app/staff/album/match-later/page.tsx",
+      "app/staff/album/slot/[kind]/[slotId]/page.tsx",
       "app/staff/community/page.tsx",
       "app/staff/menu/page.tsx",
+      "app/staff/notifications/page.tsx",
       "app/staff/page.tsx",
       "app/staff/people/[id]/page.tsx",
       "app/staff/people/page.tsx",

@@ -2,7 +2,7 @@ import { CheckIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { AppShell } from "@/components/nabalens/app-shell"
 import { Card } from "@/components/nabalens/common-room/card"
-import { DishGuide } from "@/components/nabalens/guide"
+import { CantAddHelp, DishGuide } from "@/components/nabalens/guide"
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { BackToTasks } from "@/components/nabalens/tasks"
@@ -76,6 +76,9 @@ export default async function PhotoGuidePage() {
             Examples, not your menu.
           </p>
         </section>
+
+        {/* Spec §6 S5, §15.3: permission and file-format help (S2-STAFF). */}
+        <CantAddHelp />
       </div>
     </AppShell>
   )

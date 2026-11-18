@@ -140,6 +140,18 @@ export type AlbumSlot = {
    */
   brief: string | null
   target: AlbumSlotTarget
+  /** The spec's category (§4.1, FA-6), for Album's category filter. */
+  category: CoverageCategory
+  /**
+   * Photos waiting for review on this slot, anyone's (coverage_slots): staff
+   * see the number, never a colleague's unreviewed photo (FA-20).
+   */
+  pendingCount: number
+  /**
+   * The slot needs updating (spec §6 S3): a reviewer asked for another photo
+   * or a check is due (FA-11), whoever is asked to retake it.
+   */
+  needsUpdate: boolean
 }
 
 export type AlbumGroup = {
@@ -192,6 +204,12 @@ export type DishInput = {
   neededBy: { date: string; passed: boolean } | null
   /** The coverage rule's state, when the coverage read succeeded. */
   coverage?: CoverageState
+} & SlotCoverageExtras
+
+/** What the coverage read adds to any slot, when it succeeded. */
+export type SlotCoverageExtras = {
+  coverageCategory?: CoverageCategory
+  pendingCount?: number
 }
 
 export type AmenityInput = {
@@ -209,7 +227,7 @@ export type AmenityInput = {
   thumbnailUrl?: string | null
   /** The coverage rule's state, when the coverage read succeeded. */
   coverage?: CoverageState
-}
+} & SlotCoverageExtras
 
 export type AreaInput = {
   subjectId: string
@@ -217,7 +235,9 @@ export type AreaInput = {
   state: "needed" | "waiting" | "retake" | "accepted" | "check-due"
   /** The accepted or waiting slot's current photo (AL-7), when it has one. */
   thumbnailUrl?: string | null
-}
+  /** The coverage rule's state, when the coverage read succeeded. */
+  coverage?: CoverageState
+} & SlotCoverageExtras
 
 export type PlacementInput = {
   source: "menu_section" | "amenity_category"
@@ -374,6 +394,124 @@ const isEmpty = (state: SlotState) => state === "needed" || state === "retake"
 const isWaiting = (state: SlotState) =>
   state === "waiting" || state === "sending" || state === "check-due"
 
+/**
+ * Whether a slot needs updating (spec §6 S3): the coverage rule says another
+ * photo was asked for or a check is due, or the viewer sees it as Retake or
+ * Needs checking.
+ */
+export function needsUpdate(
+  coverage: CoverageState | undefined,
+  state: SlotState
+): boolean {
+  return (
+    coverage === "replacement_needed" ||
+    coverage === "check_due" ||
+    state === "retake" ||
+    state === "check-due"
+  )
+}
+
+// ---- filters (spec §6 S3; FA-6) ---------------------------------------------
+
+/**
+ * Album's state filters in Album's words (DESIGN.md §7; FA-7): the spec's
+ * Needed / Awaiting review / Approved / Needs updating / All.
+ */
+export type AlbumShow = "needed" | "waiting" | "in-album" | "updating" | "all"
+
+export const ALBUM_SHOWS: ReadonlyArray<{ key: AlbumShow; label: string }> = [
+  { key: "needed", label: "Needed" },
+  { key: "waiting", label: "Waiting" },
+  { key: "in-album", label: "In the album" },
+  { key: "updating", label: "Needs updating" },
+  { key: "all", label: "All" },
+]
+
+export const isAlbumShow = (v: unknown): v is AlbumShow =>
+  ALBUM_SHOWS.some((s) => s.key === v)
+
+export const isCoverageCategory = (v: unknown): v is CoverageCategory =>
+  COVERAGE_CATEGORIES.some((c) => c.key === v)
+
+/** Whether one slot is shown under a state filter. */
+export function slotMatchesShow(slot: AlbumSlot, show: AlbumShow): boolean {
+  switch (show) {
+    case "needed":
+      return slot.state === "needed" || slot.state === "retake"
+    case "waiting":
+      return slot.state === "waiting" || slot.state === "sending"
+    case "in-album":
+      return slot.state === "accepted"
+    case "updating":
+      return slot.needsUpdate
+    case "all":
+      return true
+  }
+}
+
+/**
+ * A place with only the slots a filter shows, group by group (empty groups
+ * left out). Counts on the place and its groups stay those of the whole
+ * place, so "9 of 14" never changes with a filter.
+ */
+export function filterPlace(
+  place: AlbumPlace,
+  filter: { show: AlbumShow; category: CoverageCategory | null }
+): AlbumPlace {
+  return {
+    ...place,
+    groups: place.groups
+      .map((group) => ({
+        ...group,
+        slots: group.slots.filter(
+          (slot) =>
+            slotMatchesShow(slot, filter.show) &&
+            (filter.category === null || slot.category === filter.category)
+        ),
+      }))
+      .filter((group) => group.slots.length > 0),
+  }
+}
+
+/** The categories present in a place, in the spec's order. */
+export function placeCategories(place: AlbumPlace): CoverageCategory[] {
+  const present = new Set(
+    place.groups.flatMap((g) => g.slots.map((s) => s.category))
+  )
+  return COVERAGE_CATEGORIES.map((c) => c.key).filter((k) => present.has(k))
+}
+
+/** Every slot in the album, wherever it is placed. */
+export function allSlots(view: AlbumView): Array<{
+  place: AlbumPlace
+  slot: AlbumSlot
+}> {
+  return [...view.places, ...(view.unplaced ? [view.unplaced] : [])].flatMap(
+    (place) =>
+      place.groups.flatMap((g) => g.slots.map((slot) => ({ place, slot })))
+  )
+}
+
+/**
+ * A slot's own page (spec §6 S3): a dish or place opens its slot page, an
+ * amenity its question (DESIGN.md §6.3).
+ */
+export function slotHref(slot: Pick<AlbumSlot, "target">): string {
+  const t = slot.target
+  if (t.kind === "amenity") return `/staff/tasks/amenities/${t.checkId}`
+  return t.kind === "dish"
+    ? `/staff/album/slot/dish/${t.itemId}`
+    : `/staff/album/slot/area/${t.subjectId}`
+}
+
+/** One slot by its album id ("dish:<id>", "area:<id>", "amenity:<id>"). */
+export function findSlot(
+  view: AlbumView,
+  id: string
+): { place: AlbumPlace; slot: AlbumSlot } | null {
+  return allSlots(view).find((entry) => entry.slot.id === id) ?? null
+}
+
 /** Needed slots first (with a needed-by date first of all), then retakes, waiting, accepted, not here. */
 const ORDER: Record<SlotState, number> = {
   retake: 0,
@@ -430,6 +568,12 @@ export function buildAlbum(input: AlbumInput): AlbumView {
           briefs
         ),
         target: { kind: "dish", itemId: dish.itemId, itemName: dish.name },
+        category: dish.coverageCategory ?? "food",
+        pendingCount: dish.pendingCount ?? 0,
+        needsUpdate: needsUpdate(
+          dish.coverage,
+          dishState(dish, input.myRetakeItemIds.has(dish.itemId))
+        ),
       },
     })
   }
@@ -453,6 +597,9 @@ export function buildAlbum(input: AlbumInput): AlbumView {
         neededBy: null,
         brief: slotBrief({ kind: "amenity", key: check.key ?? null }, briefs),
         target: { kind: "amenity", checkId: check.checkId },
+        category: check.coverageCategory ?? "facilities",
+        pendingCount: check.pendingCount ?? 0,
+        needsUpdate: needsUpdate(check.coverage, state),
       },
     })
   }
@@ -476,6 +623,9 @@ export function buildAlbum(input: AlbumInput): AlbumView {
         neededBy: null,
         brief: null,
         target: { kind: "area", subjectId: area.subjectId },
+        category: area.coverageCategory ?? "spaces",
+        pendingCount: area.pendingCount ?? 0,
+        needsUpdate: needsUpdate(area.coverage, area.state),
       },
     })
   }
@@ -663,6 +813,13 @@ export function countCoverage(
     inactive: n("inactive"),
     unavailable: counted.filter((s) => s.unavailable).length,
   }
+}
+
+/** A slot's coverage row by its album id ("dish:<id>" and so on). */
+export function coverageSlotsByAlbumId(
+  view: CoverageView | null
+): Map<string, CoverageSlot> {
+  return new Map((view?.slots ?? []).map((s) => [`${s.kind}:${s.slotId}`, s]))
 }
 
 /** A slot's coverage state by its album id ("dish:<id>" and so on). */

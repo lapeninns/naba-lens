@@ -457,6 +457,9 @@ const BHAJI_SLOT: AlbumSlot = {
   neededBy: null,
   brief: null,
   target: { kind: "dish", itemId: "item-bhaji", itemName: "Onion Bhaji" },
+  category: "food",
+  pendingCount: 0,
+  needsUpdate: false,
 }
 
 function TileOnAlbum({ slot = BHAJI_SLOT }: { slot?: AlbumSlot }) {
@@ -540,7 +543,8 @@ describe("should-fix 5: Album's tiles show a slot this phone is sending", () => 
     await user.click(await screen.findByRole("button", { name: "Close" }))
     await screen.findByRole("group", { name: "Onion Bhaji: sending" })
     rerender(view({ ...BHAJI_SLOT, state: "waiting" }))
-    await screen.findByRole("group", {
+    // A filled slot opens its slot page (DESIGN.md §5; S2-STAFF).
+    await screen.findByRole("link", {
       name: "Onion Bhaji: waiting for review",
     })
     rerender(view({ ...BHAJI_SLOT, state: "retake" }))
@@ -553,8 +557,10 @@ describe("should-fix 5: Album's tiles show a slot this phone is sending", () => 
 
   it("a slot the album already reads as waiting shows the album's state", () => {
     albumHost(<TileOnAlbum slot={{ ...BHAJI_SLOT, state: "waiting" }} />)
-    expect(
-      screen.getByRole("group", { name: "Onion Bhaji: waiting for review" })
-    ).toBeTruthy()
+    const tile = screen.getByRole("link", {
+      name: "Onion Bhaji: waiting for review",
+    })
+    // A filled slot opens its own page (DESIGN.md §5; spec §6 S3).
+    expect(tile.getAttribute("href")).toBe("/staff/album/slot/dish/item-bhaji")
   })
 })

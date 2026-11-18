@@ -2,3 +2,4 @@
 export { DishGuide } from "./dish-guide"
 export { GuideViewer } from "./guide-viewer"
 export { GUIDE_PATH, guideLede, TaskPhotoGuide } from "./task-photo-guide"
+export { CANT_ADD_HREF, CantAddHelp } from "./cant-add-help"

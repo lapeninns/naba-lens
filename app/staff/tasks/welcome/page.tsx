@@ -1,5 +1,8 @@
 import { setWelcomeDismissedAction } from "@/app/staff/actions"
+import { ContributionNoticeCard } from "@/components/nabalens/me/contribution-notice"
 import { FirstRun, setupGaps } from "@/components/nabalens/tasks"
+import { acknowledgeNoticeAction } from "@/lib/auth/venue-actions"
+import { getOnboardingState, venueRoleLabel } from "@/lib/auth/venues"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { isDepartment } from "@/lib/config/departments"
 import { workRoleLabel } from "@/lib/config/work-roles"
@@ -25,9 +28,11 @@ export default async function WelcomePage({
   const { actor } = unwrap(await getCoverageActor())
   // Your month, read the way the month screen reads it (v0.5 rule 23: the
   // month has no due date). One row per venue; the welcome shows this venue's.
-  const [{ month }, params] = await Promise.all([
+  const [{ month }, params, onboarding] = await Promise.all([
     getMyMonth(actor, { period: periodKeyOf(new Date()) }).then(unwrap),
     searchParams,
+    // The notice still shows (unrecorded) when its state can't be read.
+    getOnboardingState(actor.db).catch(() => null),
   ])
   const fromMe = params.from === "me"
   const reason = uploadBlockReason(profile)
@@ -77,6 +82,14 @@ export default async function WelcomePage({
       homeHref={TASKS_PATH}
       back={fromMe ? { href: PORTFOLIO_PATH, label: "Back to Me" } : null}
       dismiss={setWelcomeDismissedAction}
+      notice={
+        <ContributionNoticeCard
+          venueName={onboarding?.venueName ?? venueName}
+          roleLabel={venueRoleLabel(onboarding?.role ?? "staff")}
+          acknowledged={Boolean(onboarding?.noticeAcknowledgedAt)}
+          acknowledge={acknowledgeNoticeAction}
+        />
+      }
     />
   )
 }
