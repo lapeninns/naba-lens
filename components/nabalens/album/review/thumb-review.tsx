@@ -1,5 +1,6 @@
 "use client"
 
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import {
   ArrowUUpLeftIcon,
   CheckIcon,
@@ -509,6 +510,15 @@ export function ThumbReview({
         <ListBulletsIcon aria-hidden className="size-5" />
         {C.allPhotos}
       </Link>
+      {current && !current.own && current.subject.assetId ? (
+        <Link
+          href={managerHrefs.photo(current.subject.assetId)}
+          data-review-details
+          className="inline-flex min-h-12 items-center gap-2 justify-self-start font-bold text-accent-text underline underline-offset-4 focus-ring"
+        >
+          {C.details}
+        </Link>
+      ) : null}
     </div>
   )
 }

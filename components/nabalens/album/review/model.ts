@@ -30,7 +30,12 @@ export type MenuSubject = {
   correctsVariantId: string | null
 }
 
-export type AreaSubject = { kind: "area"; labelId: string }
+export type AreaSubject = {
+  kind: "area"
+  labelId: string
+  /** S2-REVIEW: the photo, for its review detail. */
+  assetId?: string
+}
 
 /** One photo on the stage. */
 export type ReviewPhoto = {
@@ -136,7 +141,7 @@ export function fromAreaCard(card: AreaPhotoCard): ReviewPhoto {
     place: card.area,
     imageUrl: card.previewUrl ?? card.thumbnailUrl,
     own: !card.canDecide,
-    subject: { kind: "area", labelId: card.labelId },
+    subject: { kind: "area", labelId: card.labelId, assetId: card.assetId },
   }
 }
 
