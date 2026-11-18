@@ -11,6 +11,7 @@
 // to signed-out people reach no new action. Until a sender is registered,
 // events wait in a small queue.
 
+import { newClientId } from "../client-id"
 import {
   CAPTURE_ROUTES,
   EVENT_BATCH_MAX,
@@ -35,10 +36,6 @@ let listening = false
 
 /** At most this many events wait for a sender; the oldest go first. */
 export const QUEUE_MAX = 200
-
-function newId(): string {
-  return globalThis.crypto.randomUUID()
-}
 
 /** Sends what is queued now. */
 export function flushFlowEvents(): void {
@@ -81,7 +78,7 @@ export function trackFlow(input: FlowEventInput): void {
       return
     queue.push({
       ...input,
-      clientEventId: newId(),
+      clientEventId: newClientId(),
       occurredAt: new Date().toISOString(),
     })
     if (queue.length > QUEUE_MAX) queue = queue.slice(-QUEUE_MAX)

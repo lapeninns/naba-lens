@@ -114,6 +114,7 @@ import type { UploadReceipt } from "@/lib/upload/states"
 import { localUploadKeyStore } from "@/lib/upload/upload-keys"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
+import { newClientId } from "@/lib/client-id"
 import type { CaptureRoute } from "@/lib/metrics/events"
 import { registerFlowSender, trackFlow } from "@/lib/metrics/track"
 import { recordFlowEventsAction } from "@/app/_metrics/actions"
@@ -1026,7 +1027,7 @@ export function AddHost({
     // S2-METRICS (K5): a manager's Asked for is its own route.
     matchFlow.current = {
       route: fromRequest ? "request" : decided ? "slot" : "gallery",
-      batchId: crypto.randomUUID(),
+      batchId: newClientId(),
     }
     trackFlow({
       name: "flow_started",
