@@ -68,4 +68,4 @@ Coordinator's full security run on the merged head: see "Known failures" at the 
 
 ## Known failures
 
-(Filled in by the coordinator after the merged-head security run.)
+None. The coordinator's full security run on the merged head (`719fc0a24`'s parent tree, fresh isolated stack) passed: 85 files, 1327 tests, 452 s. The asset-search test that some workers saw fail on long-lived stacks passed here.
