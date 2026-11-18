@@ -15,6 +15,7 @@
       "schedule": "7 * * * *"
     },
     { "path": "/api/internal/menus/activate-due", "schedule": "*/15 * * * *" },
-    { "path": "/api/internal/knowledge-rechecks", "schedule": "37 * * * *" }
+    { "path": "/api/internal/knowledge-rechecks", "schedule": "37 * * * *" },
+    { "path": "/api/internal/notifications", "schedule": "37 * * * *" }
   ]
 }

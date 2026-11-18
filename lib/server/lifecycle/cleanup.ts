@@ -27,6 +27,12 @@ export type CleanupOptions = {
   batchSize?: number
   /** Batches per run; the next scheduled run picks up the rest. */
   maxBatches?: number
+  /**
+   * How long an unfinished or failed upload is left before it is abandoned,
+   * as a Postgres interval. Defaults to MEDIA_LIMITS (24 hours); the scheduled
+   * run passes the admin's orphan window (Settings, default 7 days, §16).
+   */
+  abandonedAfter?: string
   /** Lease lifetime; must exceed the longest expected run. */
   leaseSeconds?: number
   removeObjects?: RemoveObjects
@@ -112,7 +118,8 @@ export async function runMediaCleanup(
 
     for (let batch = 0; ; batch++) {
       const { data, error } = await service.rpc("prepare_media_cleanup", {
-        p_abandoned_after: abandonedUploadInterval(MEDIA_LIMITS),
+        p_abandoned_after:
+          options.abandonedAfter ?? abandonedUploadInterval(MEDIA_LIMITS),
         p_limit: batchSize,
         // Exclude failures before the database limit so they cannot hide later work.
         p_exclude_asset_ids: [...failed.keys()],

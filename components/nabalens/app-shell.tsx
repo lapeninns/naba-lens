@@ -3,6 +3,7 @@ import {
   ClipboardTextIcon,
   ExportIcon,
   ForkKnifeIcon,
+  GearSixIcon,
   ImagesIcon,
   ImagesSquareIcon,
   SignOutIcon,
@@ -21,7 +22,13 @@ import { TAB_ITEM } from "./shell/tab-item"
 import { CountBadge } from "./status-chip"
 
 type AdminSection =
-  "content" | "staff" | "menus" | "coverage" | "albums" | "publishing"
+  | "content"
+  | "staff"
+  | "menus"
+  | "coverage"
+  | "albums"
+  | "publishing"
+  | "settings"
 type StaffSection =
   "tasks" | "menu" | "portfolio" | "community" | "people" | "manage"
 
@@ -56,7 +63,7 @@ type AppShellProps = {
   | {
       variant: "admin"
       active: AdminSection
-      /** Defaults: /admin, /admin/staff, /admin/menus, /admin/coverage and /admin/albums. */
+      /** Defaults: /admin, /admin/staff, /admin/menus, /admin/coverage, /admin/albums and /admin/settings. */
       hrefs?: Partial<Record<AdminSection, string>>
     }
 )
@@ -93,6 +100,13 @@ const ADMIN_NAV: NavItem<AdminSection>[] = [
     label: "Publishing",
     href: "/admin/publishing",
     icon: ExportIcon,
+  },
+  // Spec §8 A7, Settings and activity: one section, two pages.
+  {
+    id: "settings",
+    label: "Settings",
+    href: "/admin/settings",
+    icon: GearSixIcon,
   },
 ]
 
