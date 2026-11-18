@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test"
 
 import { createIdentity, createVenue } from "../support/identities"
+import { passMfaIfAsked } from "./helpers/mfa"
 import { provisioner, psql } from "./helpers/stack"
 
 // Final review F4: the /admin and /staff layouts read the profile for their
@@ -29,6 +30,8 @@ async function signedIn(browser: Browser, email: string) {
   )
   await page.getByRole("button", { name: "Continue" }).click()
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/confirm"))
+  // FA-23: an admin passes the two-step sign-in before the outage starts.
+  await passMfaIfAsked(page, email)
   return page
 }
 

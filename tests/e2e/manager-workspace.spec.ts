@@ -423,8 +423,9 @@ test.describe("venue manager workspace (Phase 2)", () => {
     await expect(
       main(mgr).getByText("0 photos waiting for a decision")
     ).toBeVisible()
+    // S2-MGR Overview says it twice: in Review next and in the empty state.
     await expect(
-      main(mgr).getByText("Nothing waiting for review")
+      main(mgr).getByText("Nothing waiting for review").first()
     ).toBeVisible()
     await evidence(mgr, "overview-after")
     await mgr.goto("/manager/menu")

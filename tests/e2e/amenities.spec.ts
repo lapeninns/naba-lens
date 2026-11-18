@@ -522,8 +522,18 @@ test.describe("amenity checks", () => {
 
     const manager = await signedInPage(browser, w.managerA)
     await manager.goto(MANAGER.check(id))
-    // Archive and Restore act at once; there is no confirmation dialog.
+    // S2-MGR (AC29): Archive and Restore ask for a reason, kept in the
+    // venue's history.
     await manager
+      .getByRole("button", { name: UI_TEXT.archive, exact: true })
+      .click()
+    const archiveDialog = manager.getByRole("dialog", {
+      name: "Archive this check as not here?",
+    })
+    await archiveDialog
+      .getByLabel("Reason")
+      .fill(`No darts board any more ${w.tag}`)
+    await archiveDialog
       .getByRole("button", { name: UI_TEXT.archive, exact: true })
       .click()
     await expect.poll(() => checkState(id).status).toBe("archived")
@@ -537,6 +547,13 @@ test.describe("amenity checks", () => {
     await archived.getByRole("link", { name: question("darts") }).click()
     await expect(manager).toHaveURL(new RegExp(`${escape(MANAGER.check(id))}$`))
     await manager
+      .getByRole("button", { name: UI_TEXT.restore, exact: true })
+      .click()
+    const restoreDialog = manager.getByRole("dialog", {
+      name: "Restore this check?",
+    })
+    await restoreDialog.getByLabel("Reason").fill(`The board is back ${w.tag}`)
+    await restoreDialog
       .getByRole("button", { name: UI_TEXT.restore, exact: true })
       .click()
     await expect.poll(() => checkState(id).status).toBe("active")

@@ -257,7 +257,8 @@ test.describe("private media responses send no-referrer (D-004)", () => {
     const cases: [Page, string, number[]][] = [
       [owner, `/api/media/${photo}/thumb`, [302]],
       [owner, `/api/media/${photo}/preview`, [302]],
-      [colleague, `/api/media/${photo}/thumb`, [302]],
+      // FA-20: a colleague's unreviewed photo is not shown to staff.
+      [colleague, `/api/media/${photo}/thumb`, [404]],
       [colleague, `/api/media/${photo}/download`, [403, 404]],
       [owner, `/api/media/${randomUUID()}/thumb`, [404]],
       [colleague, `/api/avatars/${w.staffA.id}`, [302]],

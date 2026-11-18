@@ -640,21 +640,23 @@ test("(j) answer freshness finds the photo behind an answer, labelled as the ans
     await main(page)
       .getByRole("button", { name: /More filters/ })
       .click()
-    await choose(page, "Answer freshness", "Not rated yet")
-    await expect(page).toHaveURL(/answerFreshness=unrated/)
+    // OD-15 is decided (S1-FACTS: 90-day check dates for every question),
+    // so a fresh answer is Current, never Not rated yet.
+    await choose(page, "Answer freshness", "Current")
+    await expect(page).toHaveURL(/answerFreshness=current/)
     await expect(cards(page)).toHaveCount(1)
     const card = cards(page).first()
     await expect(card).toContainText(
-      `Supports \u201c${question("guest_toilets")}\u201d: not rated yet (internal and public)`
+      `Supports \u201c${question("guest_toilets")}\u201d: current (internal and public)`
     )
     await expect(
       main(page).getByRole("button", {
-        name: "Showing: Answer not rated yet (internal use). Remove filter",
+        name: "Showing: Answer current (internal use). Remove filter",
       })
     ).toBeVisible()
-    // No freshness policy is set yet (OD-15): nothing is current.
-    await choose(page, "Answer freshness", "Current")
+    await choose(page, "Answer freshness", "Not rated yet")
     await expect(cards(page)).toHaveCount(0)
+    await choose(page, "Answer freshness", "Current")
     await choose(page, "Freshness for", "Public use")
     await expect(page).toHaveURL(/answerUse=public/)
     await readOnly(page)

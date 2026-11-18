@@ -366,9 +366,17 @@ test.describe("signed previews", () => {
 
     // A load that fails once (e.g. expired between redirect and fetch) is
     // re-signed and retried once, invisibly.
+    // Me also lists the photo under Your photos (S2-STAFF My uploads), which
+    // loads the same thumb route: fail every first load (no `r`) once, so
+    // each image on the page shows its own retry.
     let failures = 0
+    let retries = 0
     await staffPage.route(`**/api/media/${photos[1].id}/thumb*`, (route) => {
-      if (failures++ === 0) return route.fulfill({ status: 503, body: "" })
+      if (!new URL(route.request().url()).searchParams.has("r")) {
+        failures++
+        return route.fulfill({ status: 503, body: "" })
+      }
+      retries++
       return route.continue()
     })
     await staffPage.reload()
@@ -377,7 +385,8 @@ test.describe("signed previews", () => {
     expect(await second.getAttribute("src")).toBe(
       `/api/media/${photos[1].id}/thumb?r=1`
     )
-    expect(failures).toBe(2)
+    expect(failures).toBeGreaterThanOrEqual(1)
+    expect(retries).toBeGreaterThanOrEqual(1)
     await expect(previewAlert(staffPage)).toHaveCount(0)
 
     // A load that keeps failing shows a visible error; Try again recovers.

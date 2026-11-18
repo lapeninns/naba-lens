@@ -188,9 +188,19 @@ for (const width of WIDTHS) {
     await expect(
       page.getByRole("heading", { level: 1, name: "Menus" })
     ).toBeVisible()
-    const nav = page.getByRole("navigation", { name: "Admin" })
-    for (const name of ["Content", "Staff", "Menus"]) {
-      const box = await nav.getByRole("link", { name }).boundingBox()
+    // S2-ADMIN nav: the app bar (lg and up) names every section; below lg the
+    // tab bar shows Overview, Venues, Library and More (Menus is under More).
+    const wide = width >= 1024
+    const nav = page
+      .getByRole("navigation", { name: "Admin" })
+      .filter({ visible: true })
+    const names = wide
+      ? ["Library", "People", "Menus"]
+      : ["Overview", "Venues", "Library", "More"]
+    for (const name of names) {
+      const box = await nav
+        .getByRole("link", { name, exact: true })
+        .boundingBox()
       expect.soft(box, `nav ${name}@${width}`).not.toBeNull()
       if (box) {
         expect
@@ -204,11 +214,20 @@ for (const width of WIDTHS) {
     }
     await check(page, width, "menus-venues")
 
-    await nav.getByRole("link", { name: "Content" }).click()
+    // The Library section's page is still titled Content.
+    await nav.getByRole("link", { name: "Library", exact: true }).click()
     await expect(
       page.getByRole("heading", { level: 1, name: "Content" })
     ).toBeVisible()
-    await nav.getByRole("link", { name: "Menus" }).click()
+    if (wide) {
+      await nav.getByRole("link", { name: "Menus", exact: true }).click()
+    } else {
+      await nav.getByRole("link", { name: "More", exact: true }).click()
+      await page
+        .getByRole("main")
+        .getByRole("link", { name: /^Menus & catalog/ })
+        .click()
+    }
     await expect(
       page.getByRole("heading", { level: 1, name: "Menus" })
     ).toBeVisible()

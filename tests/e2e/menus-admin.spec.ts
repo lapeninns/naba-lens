@@ -137,6 +137,11 @@ async function activateOpenDraft(page: Page) {
   await expect(dialog).toContainText(
     "Active means available for labelling, nothing more."
   )
+  // R15: dishes leaving the menu are retired only when confirmed here.
+  const retire = dialog.getByText(
+    /^Retire (it|them) from current coverage\. Photos and history are kept\.$/
+  )
+  if (await retire.count()) await retire.click()
   await dialog.getByRole("button", { name: "Activate for labelling" }).click()
   await expect(dialog).toBeHidden()
   await expect(
@@ -423,10 +428,14 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
     await expect(
       preview.getByRole("region", { name: "Needs a decision" })
     ).toContainText("1 item · decide before activating")
+    // "Changed presentation" is its own group now (S2-INT); retirements are
+    // proposed, confirmed at activation (R15).
     await expect(
-      preview.getByRole("region", { name: "Changed" })
+      preview.getByRole("region", { name: "Changed", exact: true })
     ).toContainText("2 items")
-    await expect(preview.getByRole("region", { name: "Removed" })).toBeVisible()
+    await expect(
+      preview.getByRole("region", { name: "Proposed retirements" })
+    ).toBeVisible()
     await expect(preview.getByRole("region", { name: "Added" })).toHaveCount(0)
     await expect(preview).toContainText("Onion Bhaji Tower")
     await expect(preview).toContainText("Spring Roll")
