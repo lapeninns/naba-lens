@@ -456,10 +456,11 @@ export const CHIP_STATES = {
     icon: ArrowUUpLeftIcon,
     shape: "needs",
   },
+  // One Withdrawn, one icon: the same X as outcome_withdrawn (S4-DOCS).
   publication_withdrawn_confirmed: {
     word: "Withdrawn",
     tone: "closed",
-    icon: MinusCircleIcon,
+    icon: XIcon,
     shape: "closed",
   },
   publication_failed_unknown: {

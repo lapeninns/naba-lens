@@ -74,3 +74,38 @@ describe("status words have one source", () => {
     }
   })
 })
+
+describe("one word, one look", () => {
+  /**
+   * Words two chips share for different things, each drawn its own way on
+   * purpose. Anything else that shares a word draws the same icon and tone.
+   */
+  const DIFFERENT = new Map<string, string>([
+    // An upload queue row (mono, no box) and a staff outcome: two concepts
+    // sharing a word, handed to S3-R12 (reports/S3-R14.md).
+    ["Waiting", "upload queue vs review outcome"],
+    // A venue's operating status and a request's state.
+    ["Open", "venue status vs request state"],
+    // Me's milestone (plain, no icon) and a knowledge finding.
+    ["Saved", "portfolio milestone vs knowledge finding"],
+  ])
+
+  it("draws a shared word with the same icon and tone (Withdrawn, S4-DOCS)", () => {
+    const byWord = new Map<string, Array<{ icon: unknown; tone: string }>>()
+    for (const s of Object.values(CHIP_STATES)) {
+      const list = byWord.get(s.word) ?? []
+      list.push({ icon: "icon" in s ? s.icon : undefined, tone: s.tone })
+      byWord.set(s.word, list)
+    }
+    const mixed = [...byWord]
+      .filter(([word, list]) => list.length > 1 && !DIFFERENT.has(word))
+      .filter(([, list]) =>
+        list.some((x) => x.icon !== list[0]!.icon || x.tone !== list[0]!.tone)
+      )
+      .map(([word]) => word)
+    expect(mixed).toEqual([])
+    expect(CHIP_STATES.publication_withdrawn_confirmed.icon).toBe(
+      CHIP_STATES.outcome_withdrawn.icon
+    )
+  })
+})
