@@ -766,8 +766,11 @@ describe("visibility", () => {
     const v = await world("mgr-upload-convert")
     const mine = await readyUpload(v.manager)
     const colleague = await readyUpload(v.staffB)
-    // FA-20: a colleague's photo reads once accepted.
+    // FA-20: a colleague's photo reads once accepted. The manager-era upload
+    // is accepted too, so only the M1 rule (uploader_role) keeps it out
+    // (S2-FIX R27: 20261118107000 had dropped it).
     acceptAsset(colleague, v.admin.id)
+    acceptAsset(mine, v.admin.id)
     await ok(
       v.admin.client.rpc("convert_manager_to_staff", {
         p_profile_id: v.manager.id,
