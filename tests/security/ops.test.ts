@@ -80,8 +80,7 @@ const setSettings = (
   })
 const inbox = (who: TestIdentity, args: object = {}) =>
   rpc<Inbox>(who, "my_notifications", args)
-const unread = (who: TestIdentity) =>
-  rpc<number>(who, "my_notification_count")
+const unread = (who: TestIdentity) => rpc<number>(who, "my_notification_count")
 
 async function anonRefused(fn: string, args: object = {}) {
   const { error } = await anonClient().rpc(fn as never, args as never)
@@ -154,7 +153,10 @@ describe("ops_settings", () => {
         exportProfiles: expect.any(Array),
       })
     }
-    await fails(settings(await leaver(v, "ops-s-gone", "staff")), "not_active_user")
+    await fails(
+      settings(await leaver(v, "ops-s-gone", "staff")),
+      "not_active_user"
+    )
     await anonRefused("ops_settings")
   })
 
@@ -266,7 +268,10 @@ describe("admin_activity", () => {
         .eq("id", person.id)
     )
     await ok(
-      v.admin.client.from("profiles").update({ active: true }).eq("id", person.id)
+      v.admin.client
+        .from("profiles")
+        .update({ active: true })
+        .eq("id", person.id)
     )
     const page = await ok(
       activity(v.admin, { p_venue_id: v.venue, p_source: "activity" })
@@ -291,9 +296,12 @@ describe("admin_activity", () => {
     })
     const reservation = await uploadingAsset(v, v.staffA)
     await ok(
-      v.staffA.client.rpc("delete_media_asset" as never, {
-        p_asset_id: ready.id,
-      } as never)
+      v.staffA.client.rpc(
+        "delete_media_asset" as never,
+        {
+          p_asset_id: ready.id,
+        } as never
+      )
     )
     psql(
       `update public.media_assets set deleted_at = now() where id = '${reservation.id}'`
@@ -319,7 +327,9 @@ describe("admin_activity", () => {
     )
     expect(knowledge.items.length).toBeGreaterThan(0)
 
-    const first = await ok(activity(v.admin, { p_venue_id: v.venue, p_limit: 2 }))
+    const first = await ok(
+      activity(v.admin, { p_venue_id: v.venue, p_limit: 2 })
+    )
     expect(first.items).toHaveLength(2)
     expect(first.nextCursor).not.toBeNull()
     const second = await ok(
@@ -330,7 +340,8 @@ describe("admin_activity", () => {
       })
     )
     const seen = new Set(first.items.map((i) => `${i.source}:${i.id}`))
-    for (const i of second.items) expect(seen.has(`${i.source}:${i.id}`)).toBe(false)
+    for (const i of second.items)
+      expect(seen.has(`${i.source}:${i.id}`)).toBe(false)
 
     // Filters by actor; another venue's rows stay out.
     const byAdmin = await ok(activity(v.admin, { p_actor_id: v.admin.id }))
@@ -354,7 +365,9 @@ describe("admin_activity", () => {
 
 describe("notification preferences", () => {
   it("are the person's own, with organisation quiet hours by default", async () => {
-    const start = await ok(rpc<Record<string, unknown>>(v.staffB, "my_notification_preferences"))
+    const start = await ok(
+      rpc<Record<string, unknown>>(v.staffB, "my_notification_preferences")
+    )
     expect(start).toMatchObject({
       retakes: true,
       assignments: true,
@@ -365,21 +378,35 @@ describe("notification preferences", () => {
       timezone: "Europe/London",
     })
     const set = await ok(
-      rpc<Record<string, unknown>>(v.staffB, "set_my_notification_preferences", {
-        p_patch: { digests: false, quietStart: "22:30", quietEnd: "07:00" },
-      })
+      rpc<Record<string, unknown>>(
+        v.staffB,
+        "set_my_notification_preferences",
+        {
+          p_patch: { digests: false, quietStart: "22:30", quietEnd: "07:00" },
+        }
+      )
     )
-    expect(set).toMatchObject({ digests: false, quietStart: "22:30", quietEnd: "07:00" })
+    expect(set).toMatchObject({
+      digests: false,
+      quietStart: "22:30",
+      quietEnd: "07:00",
+    })
     // Another person's preferences are untouched.
     expect(
-      await ok(rpc<Record<string, unknown>>(v.staffA, "my_notification_preferences"))
+      await ok(
+        rpc<Record<string, unknown>>(v.staffA, "my_notification_preferences")
+      )
     ).toMatchObject({ digests: true, quietStart: null })
     // Both null returns to the organisation's quiet hours.
     expect(
       await ok(
-        rpc<Record<string, unknown>>(v.staffB, "set_my_notification_preferences", {
-          p_patch: { quietStart: null, quietEnd: null, digests: true },
-        })
+        rpc<Record<string, unknown>>(
+          v.staffB,
+          "set_my_notification_preferences",
+          {
+            p_patch: { quietStart: null, quietEnd: null, digests: true },
+          }
+        )
       )
     ).toMatchObject({ digests: true, quietStart: null })
   })
@@ -401,7 +428,9 @@ describe("notification preferences", () => {
     const gone = await leaver(v, "ops-pref-gone", "staff")
     await fails(rpc(gone, "my_notification_preferences"), "not_active_user")
     await fails(
-      rpc(gone, "set_my_notification_preferences", { p_patch: { digests: false } }),
+      rpc(gone, "set_my_notification_preferences", {
+        p_patch: { digests: false },
+      }),
       "not_active_user"
     )
     await anonRefused("my_notification_preferences")
@@ -426,7 +455,9 @@ describe("notifications", () => {
     expect(await ok(unread(v.staffA))).toBe(before + 1)
 
     // Failing again while the notice is unread: no repeat.
-    psql(`update public.media_assets set upload_state = 'uploading' where id = '${asset.id}'`)
+    psql(
+      `update public.media_assets set upload_state = 'uploading' where id = '${asset.id}'`
+    )
     failAsset(asset.id)
     box = await ok(inbox(v.staffA))
     expect(box.items.filter((i) => i.subjectId === asset.id)).toHaveLength(1)
@@ -437,12 +468,17 @@ describe("notifications", () => {
        update public.media_assets set upload_state = 'ready', validated_mime_type = 'image/jpeg' where id = '${asset.id}'`
     )
     box = await ok(inbox(v.staffA))
-    expect(box.items.find((i) => i.subjectId === asset.id)?.state).toBe("resolved")
+    expect(box.items.find((i) => i.subjectId === asset.id)?.state).toBe(
+      "resolved"
+    )
     expect(await ok(unread(v.staffA))).toBe(before)
   })
 
   it("tells the author about a retake with the reviewer's reason", async () => {
-    const asset = await insertAsset(service, { uploader: v.staffA.id, venue: v.venue })
+    const asset = await insertAsset(service, {
+      uploader: v.staffA.id,
+      venue: v.venue,
+    })
     const itemId = await insertSubmittedItem(service, {
       asset,
       venue: v.venue,
@@ -451,7 +487,13 @@ describe("notifications", () => {
     })
     const { revision } = await itemRevision(service, itemId)
     await ok(
-      review(v.staffManager, itemId, revision, "needs_another_photo", "TEST too dark")
+      review(
+        v.staffManager,
+        itemId,
+        revision,
+        "needs_another_photo",
+        "TEST too dark"
+      )
     )
     const box = await ok(inbox(v.staffA))
     expect(box.items.find((i) => i.subjectId === itemId)).toMatchObject({
@@ -513,16 +555,22 @@ describe("notifications", () => {
     // Someone else (another venue, a manager) cannot mark it.
     for (const who of [other.staffA, v.manager])
       expect(
-        await ok(rpc<number>(who, "mark_notifications_read", { p_ids: [mine.id] }))
+        await ok(
+          rpc<number>(who, "mark_notifications_read", { p_ids: [mine.id] })
+        )
       ).toBe(0)
     expect(
-      await ok(rpc<number>(v.staffA, "mark_notifications_read", { p_ids: [mine.id] }))
+      await ok(
+        rpc<number>(v.staffA, "mark_notifications_read", { p_ids: [mine.id] })
+      )
     ).toBe(1)
     expect(
       (await ok(inbox(v.staffA))).items.find((i) => i.id === mine.id)?.state
     ).toBe("read")
     // After reading, a new failure is a new notice.
-    psql(`update public.media_assets set upload_state = 'uploading' where id = '${asset.id}'`)
+    psql(
+      `update public.media_assets set upload_state = 'uploading' where id = '${asset.id}'`
+    )
     failAsset(asset.id)
     expect(
       (await ok(inbox(v.staffA))).items.filter((i) => i.subjectId === asset.id)
@@ -533,11 +581,14 @@ describe("notifications", () => {
   })
 
   it("pages the inbox", async () => {
-    for (let i = 0; i < 3; i++) failAsset((await uploadingAsset(v, v.staffA)).id)
+    for (let i = 0; i < 3; i++)
+      failAsset((await uploadingAsset(v, v.staffA)).id)
     const first = await ok(inbox(v.staffA, { p_limit: 2 }))
     expect(first.items).toHaveLength(2)
     expect(first.nextBefore).toBe(first.items[1].id)
-    const second = await ok(inbox(v.staffA, { p_limit: 2, p_before: first.nextBefore }))
+    const second = await ok(
+      inbox(v.staffA, { p_limit: 2, p_before: first.nextBefore })
+    )
     expect(second.items[0].id).toBeLessThan(first.items[1].id)
   })
 
@@ -588,13 +639,19 @@ describe("monitoring and the notification job", () => {
         quotaBytes: expect.any(Number),
         state: expect.stringMatching(/^(ok|warning|full)$/),
       },
-      processing: { stuck: expect.any(Number), failedLastDay: expect.any(Number) },
+      processing: {
+        stuck: expect.any(Number),
+        failedLastDay: expect.any(Number),
+      },
       jobs: expect.any(Array),
       exceptions: expect.any(Array),
     })
     for (const who of [v.staffA, v.manager, v.staffManager, other.manager])
       await fails(rpc(who, "ops_status"), "not_admin", "42501")
-    await fails(rpc(await leaver(v, "ops-st-gone", "admin"), "ops_status"), "not_admin")
+    await fails(
+      rpc(await leaver(v, "ops-st-gone", "admin"), "ops_status"),
+      "not_admin"
+    )
     await anonRefused("ops_status")
   })
 
@@ -613,7 +670,10 @@ describe("monitoring and the notification job", () => {
   })
 
   it("sends the venue's managers one digest when work waits, outside quiet hours", async () => {
-    const asset = await insertAsset(service, { uploader: v.staffB.id, venue: v.venue })
+    const asset = await insertAsset(service, {
+      uploader: v.staffB.id,
+      venue: v.venue,
+    })
     await insertSubmittedItem(service, {
       asset,
       venue: v.venue,
@@ -622,30 +682,44 @@ describe("monitoring and the notification job", () => {
     })
     const digests = (who: TestIdentity) =>
       ok(inbox(who)).then((b) =>
-        b.items.filter((i) => i.kind === "review_digest" && i.subjectId === v.venue)
+        b.items.filter(
+          (i) => i.kind === "review_digest" && i.subjectId === v.venue
+        )
       )
     // 22:00 London: quiet, nothing sent.
     await ok(
-      service.rpc("ops_run_notification_jobs" as never, {
-        p_now: "2026-11-20T22:00:00Z",
-      } as never)
+      service.rpc(
+        "ops_run_notification_jobs" as never,
+        {
+          p_now: "2026-11-20T22:00:00Z",
+        } as never
+      )
     )
     expect(await digests(v.staffManager)).toHaveLength(0)
     // 10:00: one digest to the grant holder; staff and the other venue get none.
     await ok(
-      service.rpc("ops_run_notification_jobs" as never, {
-        p_now: "2026-11-20T10:00:00Z",
-      } as never)
+      service.rpc(
+        "ops_run_notification_jobs" as never,
+        {
+          p_now: "2026-11-20T10:00:00Z",
+        } as never
+      )
     )
     const [d] = await digests(v.staffManager)
-    expect(d.payload).toMatchObject({ checklistPhotos: 1, waiting: expect.any(Number) })
+    expect(d.payload).toMatchObject({
+      checklistPhotos: 1,
+      waiting: expect.any(Number),
+    })
     expect(await digests(v.staffA)).toHaveLength(0)
     expect(await digests(other.staffManager)).toHaveLength(0)
     // Again in the same period: no repeat.
     await ok(
-      service.rpc("ops_run_notification_jobs" as never, {
-        p_now: "2026-11-20T11:00:00Z",
-      } as never)
+      service.rpc(
+        "ops_run_notification_jobs" as never,
+        {
+          p_now: "2026-11-20T11:00:00Z",
+        } as never
+      )
     )
     expect(await digests(v.staffManager)).toHaveLength(1)
   })
@@ -653,15 +727,22 @@ describe("monitoring and the notification job", () => {
   it("tells every admin once about a failed job and resolves it when the job recovers", async () => {
     const job = `test_${randomUUID().slice(0, 8)}`
     await ok(
-      service.rpc("ops_record_job_run" as never, {
-        p_job: job,
-        p_state: "failed",
-        p_error_code: "export_failed",
-        p_detail: { packages: 1 },
-      } as never)
+      service.rpc(
+        "ops_record_job_run" as never,
+        {
+          p_job: job,
+          p_state: "failed",
+          p_error_code: "export_failed",
+          p_detail: { packages: 1 },
+        } as never
+      )
     )
-    const status = await ok(rpc<{ jobs: { job: string; lastState: string }[] }>(v.admin, "ops_status"))
-    expect(status.jobs.find((j) => j.job === job)).toMatchObject({ lastState: "failed" })
+    const status = await ok(
+      rpc<{ jobs: { job: string; lastState: string }[] }>(v.admin, "ops_status")
+    )
+    expect(status.jobs.find((j) => j.job === job)).toMatchObject({
+      lastState: "failed",
+    })
 
     const notices = () =>
       ok(inbox(v.admin)).then((b) =>
@@ -682,17 +763,22 @@ describe("monitoring and the notification job", () => {
     ).toBe(false)
 
     await ok(
-      service.rpc("ops_record_job_run" as never, {
-        p_job: job,
-        p_state: "succeeded",
-      } as never)
+      service.rpc(
+        "ops_record_job_run" as never,
+        {
+          p_job: job,
+          p_state: "succeeded",
+        } as never
+      )
     )
     await ok(service.rpc("ops_run_notification_jobs" as never, {} as never))
     expect((await notices())[0].state).toBe("resolved")
   })
 
   it("flags storage near the quota without deleting anything", async () => {
-    const before = Number(psql(`select count(*) from public.media_assets where deleted_at is null`))
+    const before = Number(
+      psql(`select count(*) from public.media_assets where deleted_at is null`)
+    )
     const { revision } = await ok(settings(v.admin))
     await ok(
       setSettings(v.admin, revision, {
@@ -702,15 +788,24 @@ describe("monitoring and the notification job", () => {
     )
     // Make usage cross 50% of 1 GiB with one large recorded original.
     const big = await uploadingAsset(v, v.staffA)
-    psql(`update public.media_assets set size_bytes = 600000000 where id = '${big.id}'`)
+    psql(
+      `update public.media_assets set size_bytes = 600000000 where id = '${big.id}'`
+    )
     const status = await ok(
-      rpc<{ storage: { state: string }; exceptions: { topic: string }[] }>(v.admin, "ops_status")
+      rpc<{ storage: { state: string }; exceptions: { topic: string }[] }>(
+        v.admin,
+        "ops_status"
+      )
     )
     expect(status.storage.state).toBe("warning")
     expect(status.exceptions.map((e) => e.topic)).toContain("storage")
     await ok(service.rpc("ops_run_notification_jobs" as never, {} as never))
     expect(
-      Number(psql(`select count(*) from public.media_assets where deleted_at is null`))
+      Number(
+        psql(
+          `select count(*) from public.media_assets where deleted_at is null`
+        )
+      )
     ).toBe(before + 1)
     psql(`update public.media_assets set size_bytes = 4 where id = '${big.id}'`)
   })

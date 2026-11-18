@@ -42,7 +42,8 @@ export async function runCleanup(
         job: "media_cleanup",
         state: report.failed.length > 0 ? "failed" : "succeeded",
         startedAt,
-        errorCode: report.failed.length > 0 ? "storage_remove_failed" : undefined,
+        errorCode:
+          report.failed.length > 0 ? "storage_remove_failed" : undefined,
         detail: {
           removedAssets: report.removed.assets,
           reaped: report.reaped.assetIds.length,

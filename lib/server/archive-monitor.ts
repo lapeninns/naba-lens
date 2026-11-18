@@ -5,6 +5,20 @@ import { createHash, timingSafeEqual } from "node:crypto"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 export const WATCHDOG_OWNER = "amanshresthaaaaa@gmail.com"
+
+/**
+ * Who the watchdog emails (spec §8 A7: integrations are configured, not
+ * hard-coded). ARCHIVE_WATCHDOG_EMAIL_TO overrides the original owner when it
+ * is one plain address; anything else falls back to WATCHDOG_OWNER.
+ */
+export function watchdogRecipient(
+  env: Record<string, string | undefined> = process.env
+): string {
+  const to = env.ARCHIVE_WATCHDOG_EMAIL_TO?.trim()
+  return to && /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(to)
+    ? to
+    : WATCHDOG_OWNER
+}
 export const WATCHDOG_CRON = "*/5 * * * *"
 const REQUEST_TIMEOUT_MS = 8_000
 const TOKEN = /^[A-Za-z0-9_-]{32,256}$/
@@ -143,7 +157,7 @@ export function createWatchdogEmailSender(fetchImpl: typeof fetch = fetch) {
       },
       body: JSON.stringify({
         from,
-        to: [WATCHDOG_OWNER],
+        to: [watchdogRecipient()],
         subject: `Naba-Lens archive monitor: ${event.kind}`,
         text: [
           `Condition: ${event.kind}`,

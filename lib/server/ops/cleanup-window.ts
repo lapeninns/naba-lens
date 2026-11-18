@@ -23,7 +23,9 @@ export async function orphanCleanupInterval(service: Db): Promise<string> {
     if (typeof days === "number" && Number.isInteger(days) && days >= 1)
       return `${days * 24} hours`
   } catch (error) {
-    console.error("[ops] orphan window read failed", { error: redactError(error) })
+    console.error("[ops] orphan window read failed", {
+      error: redactError(error),
+    })
   }
   return MEDIA_LIMITS.abandonedUploadWindowHours > fallbackDays * 24
     ? abandonedUploadInterval(MEDIA_LIMITS)

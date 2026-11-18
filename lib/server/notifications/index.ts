@@ -20,7 +20,9 @@ import type { OpsCaller, OpsResult } from "@/lib/server/ops/types"
 
 function logged(context: string, error: { code?: string; message?: string }) {
   console.error(`[notifications] ${context} failed`, {
-    error: redactError(new Error(`${error.code ?? "unknown"}: ${error.message ?? ""}`)),
+    error: redactError(
+      new Error(`${error.code ?? "unknown"}: ${error.message ?? ""}`)
+    ),
   })
 }
 
@@ -58,7 +60,10 @@ export async function markRead(
   caller: OpsCaller,
   ids: number[] | null
 ): Promise<OpsResult<{ changed: number }>> {
-  if (ids && (ids.length > 500 || !ids.every((id) => Number.isSafeInteger(id) && id > 0)))
+  if (
+    ids &&
+    (ids.length > 500 || !ids.every((id) => Number.isSafeInteger(id) && id > 0))
+  )
     return apiError("invalid_input", { field: "ids" })
   const { data, error } = await caller.db.rpc("mark_notifications_read", {
     p_ids: ids ?? undefined,
@@ -85,16 +90,22 @@ export async function loadPreferences(
 }
 
 export type PreferencesPatch = Partial<
-  Pick<NotificationPreferences, "retakes" | "assignments" | "uploadProblems" | "digests">
+  Pick<
+    NotificationPreferences,
+    "retakes" | "assignments" | "uploadProblems" | "digests"
+  >
 > & { quietStart?: string | null; quietEnd?: string | null }
 
 export async function savePreferences(
   caller: OpsCaller,
   patch: PreferencesPatch
 ): Promise<OpsResult<{ preferences: NotificationPreferences }>> {
-  const { data, error } = await caller.db.rpc("set_my_notification_preferences", {
-    p_patch: patch,
-  })
+  const { data, error } = await caller.db.rpc(
+    "set_my_notification_preferences",
+    {
+      p_patch: patch,
+    }
+  )
   if (error) {
     const mapped = fromDbError(error, {
       invalid_quiet_hours: {
@@ -186,6 +197,8 @@ export async function recordJobRun(
     })
     if (error) logged("job record", error)
   } catch (error) {
-    console.error("[notifications] job record failed", { error: redactError(error) })
+    console.error("[notifications] job record failed", {
+      error: redactError(error),
+    })
   }
 }

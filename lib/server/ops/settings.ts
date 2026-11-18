@@ -17,7 +17,10 @@ import type { OpsCaller, OpsResult } from "./types"
 // and writes run as the caller; the database refuses anyone but an active
 // admin for the write and for ops_status (20261118106100, 20261118106300).
 
-const SETTINGS_ERRORS: Record<string, { field: SettingsField; message: string }> = {
+const SETTINGS_ERRORS: Record<
+  string,
+  { field: SettingsField; message: string }
+> = {
   invalid_quiet_hours: {
     field: "quietStart",
     message: "Use a 24-hour time such as 21:00.",
@@ -46,13 +49,18 @@ const SETTINGS_ERRORS: Record<string, { field: SettingsField; message: string }>
     field: "storageAlertPercent",
     message: "Choose 50 to 99 per cent.",
   },
-  reason_required: { field: "reason", message: "Say why you are changing this." },
+  reason_required: {
+    field: "reason",
+    message: "Say why you are changing this.",
+  },
   invalid_reason: { field: "reason", message: "At most 500 characters." },
 }
 
 function logged(context: string, error: { code?: string; message?: string }) {
   console.error(`[ops] ${context} failed`, {
-    error: redactError(new Error(`${error.code ?? "unknown"}: ${error.message ?? ""}`)),
+    error: redactError(
+      new Error(`${error.code ?? "unknown"}: ${error.message ?? ""}`)
+    ),
   })
 }
 
@@ -117,7 +125,10 @@ export async function saveOpsSettings(
   }
   const settings = parseOpsSettings(data)
   if (!settings)
-    return { ok: false, message: "Saved, but the page could not refresh. Reload it." }
+    return {
+      ok: false,
+      message: "Saved, but the page could not refresh. Reload it.",
+    }
   return {
     ok: true,
     settings: { ...settings, timezone: base.timezone },
