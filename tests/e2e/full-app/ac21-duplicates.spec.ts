@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 
 import {
   labelAsUploader,
@@ -6,7 +6,8 @@ import {
 } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
 import { psql, requireIsolatedStack } from "../helpers/stack"
-import { openPortfolio, uploadThroughDialog } from "../helpers/ui"
+import { matchSummary, startMatch } from "../helpers/full-app"
+import { openPortfolio } from "../helpers/ui"
 import {
   acceptAsManager,
   as,
@@ -20,8 +21,8 @@ import {
 /**
  * AC21 (spec §12.4, §22; FA-35): an exact duplicate, found by the SHA-256 of
  * its original at finalisation, never adds coverage or contribution credit.
- * The same file is uploaded twice through the real upload sheet, so the hash
- * is computed by the app, not the fixture.
+ * The same file is uploaded twice through Me's Add photos (the gallery, then
+ * Match; S3-R12), so the hash is computed by the app, not the fixture.
  */
 
 test.describe.configure({ mode: "serial" })
@@ -37,6 +38,23 @@ const assetsNamed = (uploaderId: string, name: string) =>
     .split(",")
     .filter(Boolean)
 
+/**
+ * Me's Add photos (S3-R12: the tab bar's gallery and Match), answered Match
+ * later so the photo is sent without a label, as the old sheet sent it.
+ */
+async function addFromMe(page: Page, path: string) {
+  await openPortfolio(page)
+  const { match } = await startMatch(
+    page,
+    [path],
+    page.locator('[data-slot="me-add"]').first()
+  )
+  await match.getByRole("button", { name: "Match later" }).click()
+  await expect(matchSummary(page)).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(match).toBeHidden()
+}
+
 test("AC21: an exact duplicate does not inflate coverage or contribution counts, and the manager can mark it", async ({
   browser,
 }) => {
@@ -44,8 +62,12 @@ test("AC21: an exact duplicate does not inflate coverage or contribution counts,
   const file = await syntheticJpeg(`ac21-${w.tag}.jpg`)
 
   const staff = await as(browser, w.staffA1, PHONE)
-  await openPortfolio(staff)
-  await uploadThroughDialog(staff, [file])
+  await addFromMe(staff, file.path)
+  await expect
+    .poll(() => assetsNamed(w.staffA1.id, file.name).length, {
+      timeout: 60_000,
+    })
+    .toBe(1)
   const [original] = assetsNamed(w.staffA1.id, file.name)
   expect(original).toBeTruthy()
   await labelAsUploader(w.staffA1, w.venueA.id, original!, [w.itemsA.soup])
@@ -61,8 +83,12 @@ test("AC21: an exact duplicate does not inflate coverage or contribution counts,
   const coveredBefore = covered()
 
   // The same bytes again.
-  await openPortfolio(staff)
-  await uploadThroughDialog(staff, [file])
+  await addFromMe(staff, file.path)
+  await expect
+    .poll(() => assetsNamed(w.staffA1.id, file.name).length, {
+      timeout: 60_000,
+    })
+    .toBe(2)
   const both = assetsNamed(w.staffA1.id, file.name)
   expect(both).toHaveLength(2)
   const copy = both[1]!
