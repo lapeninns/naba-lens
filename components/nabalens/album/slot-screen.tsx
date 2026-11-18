@@ -41,6 +41,8 @@ export const SLOT_COPY = {
   noBrief: "No brief yet. Show it clearly, as a guest would see it.",
   inAlbum: "The photo in the album",
   noPhoto: "No photo in the album yet.",
+  /** FA-51: a packaged item without Photo wanted. */
+  optional: "Optional: a photo is welcome, but none is needed.",
   waiting: (n: number) =>
     n === 1
       ? "1 photo is waiting for a manager to check it."
@@ -153,6 +155,7 @@ export function AlbumSlotScreen({
               state={slot.state}
               photoSrc={slot.thumbnailUrl ?? undefined}
               onSelect={empty && canAdd ? add : undefined}
+              optional={slot.optional}
             />
           </div>
           <figcaption className="text-meta text-ink-muted">
@@ -160,6 +163,11 @@ export function AlbumSlotScreen({
               ? SLOT_COPY.inAlbum
               : SLOT_COPY.noPhoto}
           </figcaption>
+          {slot.optional ? (
+            <p className="text-body text-ink" data-slot="slot-optional">
+              {SLOT_COPY.optional}
+            </p>
+          ) : null}
         </figure>
 
         <div className="grid content-start gap-4">

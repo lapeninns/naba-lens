@@ -50,6 +50,12 @@ export type MatchSlot = {
    * search finds it. Only in `MatchBoard.filled`.
    */
   filled?: "accepted" | "check-due"
+  /**
+   * FA-51: an optional slot (a packaged item without Photo wanted) with no
+   * photo yet: found by search, never suggested as empty. Only in
+   * `MatchBoard.optional`.
+   */
+  optional?: boolean
 }
 
 /** Everything Match needs to offer slots, read once when it opens. */
@@ -67,6 +73,8 @@ export type MatchBoard = {
    * §6, X5): found by search and kept as recent choices, never suggested.
    */
   filled?: MatchSlot[]
+  /** FA-51: optional empty slots, found by search only. */
+  optional?: MatchSlot[]
   /** The venue these slots belong to (spec §5.1, AC11), when known. */
   venue?: { id: string; name: string } | null
 }
@@ -141,6 +149,7 @@ export function matchBoardOf(
   const slots: MatchSlot[] = []
   const waiting: MatchSlot[] = []
   const filled: MatchSlot[] = []
+  const optional: MatchSlot[] = []
   const amenities: string[] = []
   for (const place of places)
     for (const group of place.groups)
@@ -152,9 +161,11 @@ export function matchBoardOf(
         const match = toMatchSlot(place, slot, aliases)
         if (match?.waiting) waiting.push(match)
         else if (match?.filled) filled.push(match)
+        else if (match && slot.optional)
+          optional.push({ ...match, optional: true })
         else if (match) slots.push(match)
       }
-  return { slots, amenities, waiting, filled, venue }
+  return { slots, amenities, waiting, filled, optional, venue }
 }
 
 /**
@@ -162,7 +173,12 @@ export function matchBoardOf(
  * ones, then the ones already in the album.
  */
 export function allSlots(board: MatchBoard): MatchSlot[] {
-  return [...board.slots, ...(board.waiting ?? []), ...(board.filled ?? [])]
+  return [
+    ...board.slots,
+    ...(board.waiting ?? []),
+    ...(board.filled ?? []),
+    ...(board.optional ?? []),
+  ]
 }
 
 /** How many recent slots Match offers above the suggestions. */

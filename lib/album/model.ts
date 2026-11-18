@@ -46,6 +46,12 @@ export const SLOT_MARK_WORDS = {
 } as const satisfies Partial<Record<SlotState, string>>
 
 /**
+ * The word on an optional slot with no photo yet (FA-51: a packaged item
+ * without Photo wanted; DESIGN.md §4). It takes photos but none is needed.
+ */
+export const OPTIONAL_SLOT_WORD = "Optional"
+
+/**
  * A slot's requirement coverage state (spec §10), as
  * private.coverage_slot_rows gives it (20261118100200_coverage_slots.sql):
  *   covered             a current public-level photo
@@ -166,6 +172,12 @@ export type AlbumSlot = {
    * or a check is due (FA-11), whoever is asked to retake it.
    */
   needsUpdate: boolean
+  /**
+   * FA-51: an optional slot (a packaged item without Photo wanted). It is
+   * listed and takes photos, but leaves every count and is never empty; its
+   * tile reads Optional (DESIGN.md §4).
+   */
+  optional?: boolean
 }
 
 export type AlbumGroup = {
@@ -192,7 +204,7 @@ export type AlbumCounts = {
   waiting: number
   /** Needed or retake. */
   empty: number
-  /** Every slot except Not here (DESIGN.md §4, "Counts"). */
+  /** Every slot except Not here and optional ones (DESIGN.md §4, "Counts"). */
   total: number
 }
 
@@ -415,6 +427,9 @@ export function amenityState(check: AmenityInput): SlotState | null {
 }
 
 const isEmpty = (state: SlotState) => state === "needed" || state === "retake"
+/** In Album's counts: not Not here and not optional (DESIGN.md §4; FA-51). */
+const isCounted = (slot: AlbumSlot) =>
+  slot.state !== "not-here" && !slot.optional
 /** Waiting on someone else: a review, a send, or a manager's check (FA-11). */
 const isWaiting = (state: SlotState) =>
   state === "waiting" || state === "sending" || state === "check-due"
@@ -467,7 +482,9 @@ export const isCoverageCategory = (v: unknown): v is CoverageCategory =>
 export function slotMatchesShow(slot: AlbumSlot, show: AlbumShow): boolean {
   switch (show) {
     case "needed":
-      return slot.state === "needed" || slot.state === "retake"
+      return (
+        (slot.state === "needed" || slot.state === "retake") && !slot.optional
+      )
     case "waiting":
       return slot.state === "waiting" || slot.state === "sending"
     case "in-album":
@@ -589,13 +606,20 @@ export function buildAlbum(input: AlbumInput): AlbumView {
   for (const dish of input.dishes) {
     const slug = slugOf.get(dish.sectionId)
     const place = slug ? (placeOf.get(`menu_section:${slug}`) ?? null) : null
+    // FA-51: the rule gives an optional packaged item "inactive"; its tile
+    // still shows its photos, read from the dish itself.
+    const optional = dish.coverage === "inactive"
+    const myRetake = input.myRetakeItemIds.has(dish.itemId)
+    const state = optional
+      ? dishState({ ...dish, coverage: undefined }, myRetake)
+      : dishState(dish, myRetake)
     slots.push({
       place,
       slot: {
         id: `dish:${dish.itemId}`,
         name: dish.name,
         group: dish.sectionName,
-        state: dishState(dish, input.myRetakeItemIds.has(dish.itemId)),
+        state,
         thumbnailUrl: dish.thumbnailUrl,
         neededBy: dish.neededBy
           ? dish.neededBy.passed
@@ -609,10 +633,8 @@ export function buildAlbum(input: AlbumInput): AlbumView {
         target: { kind: "dish", itemId: dish.itemId, itemName: dish.name },
         category: dish.coverageCategory ?? "food",
         pendingCount: dish.pendingCount ?? 0,
-        needsUpdate: needsUpdate(
-          dish.coverage,
-          dishState(dish, input.myRetakeItemIds.has(dish.itemId))
-        ),
+        needsUpdate: needsUpdate(optional ? undefined : dish.coverage, state),
+        ...(optional ? { optional: true } : {}),
       },
     })
   }
@@ -687,13 +709,13 @@ export function buildAlbum(input: AlbumInput): AlbumView {
       g.push(slot)
       groups.set(slot.group, g)
     }
-    const counted = list.filter((s) => s.state !== "not-here")
+    const counted = list.filter(isCounted)
     return {
       subjectId,
       label,
       groups: [...groups.entries()]
         .map(([name, g]) => {
-          const real = g.filter((s) => s.state !== "not-here")
+          const real = g.filter(isCounted)
           return {
             name,
             slots: [...g].sort(sortSlots),
@@ -725,7 +747,7 @@ export function buildAlbum(input: AlbumInput): AlbumView {
     ? toPlace(null, "Not placed yet", unplacedList)
     : null
 
-  const all = slots.map((s) => s.slot).filter((s) => s.state !== "not-here")
+  const all = slots.map((s) => s.slot).filter(isCounted)
   return {
     counts: {
       filled: all.filter((s) => s.state === "accepted").length,

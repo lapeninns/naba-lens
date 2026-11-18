@@ -330,7 +330,8 @@ const MARK_META: Record<SlotMark, string> = {
  * Slots as buttons, name then place: an empty one in the dashed Needed frame
  * (§4); one with a photo already on its way or waiting in a plain edge with
  * ↑, one already in the album in a plain edge with a photo icon (the dashed
- * frame belongs to Needed alone), each with its line.
+ * frame belongs to Needed alone), each with its line. An optional slot
+ * (FA-51) takes a plain edge with + and "Optional".
  */
 function SlotChoices({
   label,
@@ -372,9 +373,12 @@ function SlotChoices({
                 data-slot="match-slot"
                 data-waiting={mark === "waiting" ? "" : undefined}
                 data-mark={mark ?? undefined}
+                data-optional={slot.optional ? "" : undefined}
                 className={cn(
                   "flex min-h-15 w-full items-center gap-3 rounded-card bg-surface px-3 py-2 text-start text-ink focus-ring disabled:opacity-60",
-                  mark ? "edge" : "slot-needed"
+                  // FA-51: an optional slot is not Needed; it never takes
+                  // the dashed frame.
+                  mark || slot.optional ? "edge" : "slot-needed"
                 )}
               >
                 {mark === "accepted" || mark === "check-due" ? (
@@ -405,6 +409,10 @@ function SlotChoices({
                   {mark ? (
                     <span className="text-meta text-ink-muted">
                       {MARK_META[mark]}
+                    </span>
+                  ) : slot.optional ? (
+                    <span className="text-meta text-ink-muted">
+                      {MATCH_COPY.optionalMeta}
                     </span>
                   ) : slot.brief ? (
                     <span className="text-meta text-ink-muted">
