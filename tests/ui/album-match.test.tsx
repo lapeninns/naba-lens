@@ -348,9 +348,7 @@ describe("matching", () => {
       }),
       "darts"
     )
-    expect(
-      within(dialog).getByText('No slot matches "darts".')
-    ).toBeTruthy()
+    expect(within(dialog).getByText('No slot matches "darts".')).toBeTruthy()
     expect(
       within(dialog).getByText(/Amenities are not matched here/)
     ).toBeTruthy()
