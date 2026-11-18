@@ -18,14 +18,19 @@ import {
 } from "@/components/nabalens/shell/add-context"
 import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import { Button } from "@/components/ui/button"
+import { PillGroup } from "@/components/ui/filter-pill"
+import { SearchField } from "@/components/ui/search-field"
 import {
   slotHref,
   type AlbumCounts,
   type AlbumPlace,
   type AlbumSlot,
   type AlbumView,
+  COVERAGE_CATEGORIES,
+  type CoverageCategory,
 } from "@/lib/album/model"
 import { rememberAlbumPlace } from "@/lib/album/remembered-place"
+import { ALBUM_UPLOAD_TRAY } from "@/lib/config/album-upload-tray"
 import { cn } from "@/lib/utils"
 
 import { UnfinishedRow } from "./unfinished-row"
@@ -200,6 +205,10 @@ export function AlbumHome({
 
       {askedFor}
 
+      {ALBUM_UPLOAD_TRAY && allPlaces.length > 0 ? (
+        <AlbumSearch places={allPlaces} add={add} />
+      ) : null}
+
       {allPlaces.length > 0 ? (
         <section aria-labelledby="album-where" className="grid gap-2">
           <Section id="album-where" className="type-section-title text-ink">
@@ -341,9 +350,11 @@ function RetakeRow({
 export function AlbumSlotTile({
   slot,
   add,
+  layout,
 }: {
   slot: AlbumSlot
   add: (opts: OpenAddOptions) => void
+  layout?: "tile" | "row"
 }) {
   const fillable = slot.state === "needed" || slot.state === "retake"
   const addContext = useAddContext()
@@ -359,6 +370,7 @@ export function AlbumSlotTile({
   if (fillable && send)
     return (
       <SlotTile
+        layout={layout}
         name={slot.name}
         state={send.state}
         photoSrc={sentSrc ?? undefined}
@@ -372,6 +384,7 @@ export function AlbumSlotTile({
   if (slot.target.kind === "amenity" || !fillable || slot.optional)
     return (
       <SlotTile
+        layout={layout}
         name={slot.name}
         state={slot.state}
         photoSrc={slot.thumbnailUrl ?? undefined}
@@ -382,6 +395,7 @@ export function AlbumSlotTile({
   const target = slot.target
   return (
     <SlotTile
+      layout={layout}
       name={slot.name}
       state={slot.state}
       onSelect={() =>
@@ -393,5 +407,126 @@ export function AlbumSlotTile({
         })
       }
     />
+  )
+}
+
+/** Venue-wide search uses the same slot action as a place (DESIGN.md §6.1a). */
+function AlbumSearch({
+  places,
+  add,
+}: {
+  places: AlbumPlace[]
+  add: (opts: OpenAddOptions) => void
+}) {
+  const [query, setQuery] = React.useState("")
+  const [category, setCategory] = React.useState<CoverageCategory | null>(null)
+  const [browsing, setBrowsing] = React.useState(false)
+  const term = query.toLocaleLowerCase("en-GB").trim()
+  const shown = browsing || term.length > 0
+  const groups = places.flatMap((place) =>
+    place.groups.map((group) => ({ ...group, place: place.label }))
+  )
+  const matches = shown
+    ? groups
+        .map((group) => ({
+          ...group,
+          slots: group.slots.filter(
+            (slot) =>
+              (category === null || slot.category === category) &&
+              slot.name.toLocaleLowerCase("en-GB").includes(term)
+          ),
+        }))
+        .filter((group) => group.slots.length > 0)
+    : []
+  const count = matches.reduce((sum, group) => sum + group.slots.length, 0)
+  const categories = new Set(
+    groups.flatMap((group) => group.slots.map((slot) => slot.category))
+  )
+  const searchId = React.useId()
+
+  return (
+    <section
+      data-slot="album-search"
+      aria-label="Browse album"
+      className="grid min-w-0 gap-2 rounded-card border border-line bg-surface p-3"
+    >
+      <SearchField
+        label="Search album"
+        placeholder="Find a dish, drink or space"
+        value={query}
+        onValueChange={setQuery}
+        onClear={() => setCategory(null)}
+        resultCount={shown ? `${count} ${count === 1 ? "slot" : "slots"}` : ""}
+      />
+      <Button
+        type="button"
+        variant="quiet"
+        className="min-h-12 justify-self-start"
+        aria-expanded={shown}
+        aria-controls={searchId}
+        onClick={() => {
+          if (shown) {
+            setQuery("")
+            setCategory(null)
+          }
+          setBrowsing(!shown)
+        }}
+      >
+        {shown ? "Close list" : "Browse all slots"}
+      </Button>
+      <div id={searchId} hidden={!shown}>
+        {shown ? (
+          <div className="grid gap-3">
+            <PillGroup label="Album category">
+              <Button
+                type="button"
+                variant={category === null ? "primary" : "secondary"}
+                className="min-h-12"
+                aria-pressed={category === null}
+                onClick={() => setCategory(null)}
+              >
+                All
+              </Button>
+              {COVERAGE_CATEGORIES.filter(({ key }) => categories.has(key)).map(
+                ({ key, label }) => (
+                  <Button
+                    key={key}
+                    type="button"
+                    variant={category === key ? "primary" : "secondary"}
+                    className="min-h-12"
+                    aria-pressed={category === key}
+                    onClick={() => setCategory(key)}
+                  >
+                    {label}
+                  </Button>
+                )
+              )}
+            </PillGroup>
+            {count === 0 ? (
+              <p className="text-body text-ink-muted">
+                No slots match. Try another name or category.
+              </p>
+            ) : null}
+            {matches.map((group) => (
+              <div
+                key={`${group.place}:${group.name}`}
+                className="grid gap-1.5"
+              >
+                <h3 className="text-meta font-bold text-ink-muted">
+                  {group.place} · {group.name}
+                </h3>
+                <ul className="grid gap-1.5">
+                  {group.slots.map((slot) => (
+                    <li key={slot.id}>
+                      <AlbumSlotTile slot={slot} add={add} layout="row" />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
   )
 }

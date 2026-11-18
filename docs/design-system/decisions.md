@@ -49,3 +49,13 @@ These were settled in the Common Room spec before it came into the repo. They bi
 | No toasts. Feedback is written on the page.                                         | `common-room.md` §5     | A message that disappears cannot be re-read.                                                  |
 | Lists grow with "Load more". No page numbers, no infinite scroll.                   | Shipped behaviour       | One consistent pattern across every list.                                                     |
 | The stepper's minus and plus carry no visible word.                                 | `common-room.md` §4     | They are drawn signs beside a labelled field, each with an `aria-label`.                      |
+
+## Batch Match phone preview
+
+- **D13**. Should staff Home become a separate gallery hub with the month
+  in the header, as in the two-route reference? The phone trial starts from
+  Album as Home so both upload routes can be compared first.
+- **D14**. Should gallery picks transfer into a private draft before staff
+  commit their matches? The phone trial sends on confirmation and uses the
+  existing Match later destination. Early transfer needs a decision about
+  draft retention and recovery.

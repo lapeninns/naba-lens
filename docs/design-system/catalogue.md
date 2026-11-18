@@ -80,6 +80,12 @@ Built to [DESIGN.md](DESIGN.md) §5. Each batch adds its rows.
 
 AlbumAddTrigger is Add photos in the staff shell (tab and AppBar). Since A5 it is the only staff Add trigger; `ALBUM_ADD_OPTIONS` in the same file (the gallery for many photos, then Match) is what every Album Add photos opens.
 
+The Batch Match phone preview (DESIGN.md §6.1a) uses `MatchTray` in
+`components/nabalens/album/match/match-tray.tsx` for group selection and
+receipts. The tray shares MatchPicker, photo thumbnails, and receipt words
+with MatchScreen. AlbumHome's search renders results using SlotTile's row
+layout and the same AlbumSlotTile actions as the grid.
+
 ## Primitives
 
 One row per file in `components/ui/`. The count is for the root component; sub-parts are listed in the notes.

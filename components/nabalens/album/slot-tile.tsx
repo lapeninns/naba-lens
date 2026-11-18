@@ -59,6 +59,8 @@ type SlotTileProps = {
   onSelect?: () => void
   /** FA-51: an optional slot; an empty one reads Optional, not Needed. */
   optional?: boolean
+  /** Compact Album search result (DESIGN.md §6.1a). */
+  layout?: "tile" | "row"
   className?: string
 }
 
@@ -71,6 +73,7 @@ const STATE_WORDS: Record<SlotState, string> = {
   "check-due": "needs checking",
   "not-here": "not here",
 }
+const NOT_HERE_WORD = "Not here"
 
 /**
  * The Sending word (DESIGN.md §4: "Sending 40%", Saved on this phone without
@@ -147,6 +150,7 @@ function SlotTile({
   href,
   onSelect,
   optional = false,
+  layout = "tile",
   className,
 }: SlotTileProps) {
   const emptyOptional = optional && state === "needed"
@@ -160,20 +164,57 @@ function SlotTile({
   }`
   const hasPhoto = state !== "needed" && state !== "not-here"
 
-  const frame = cn(
-    "group/slot relative flex aspect-square w-full flex-col overflow-hidden rounded-card text-start",
-    state === "needed" &&
-      !emptyOptional &&
-      "justify-between slot-needed bg-surface p-2 text-ink",
-    emptyOptional && "justify-between bg-surface p-2 text-ink edge-strong",
-    state === "not-here" &&
-      "justify-end slot-not-here bg-surface p-2 text-ink-muted",
-    hasPhoto && "bg-media-placeholder",
-    (href || onSelect) && "cursor-pointer focus-ring",
-    className
-  )
+  const row = layout === "row"
+  const frame = row
+    ? cn(
+        "flex min-h-14 w-full items-center gap-3 rounded-card border border-line bg-surface px-2 py-1.5 text-start",
+        state === "needed" && !emptyOptional && "slot-needed",
+        (href || onSelect) && "cursor-pointer focus-ring",
+        className
+      )
+    : cn(
+        "group/slot relative flex aspect-square w-full flex-col overflow-hidden rounded-card text-start",
+        state === "needed" &&
+          !emptyOptional &&
+          "justify-between slot-needed bg-surface p-2 text-ink",
+        emptyOptional && "justify-between bg-surface p-2 text-ink edge-strong",
+        state === "not-here" &&
+          "justify-end slot-not-here bg-surface p-2 text-ink-muted",
+        hasPhoto && "bg-media-placeholder",
+        (href || onSelect) && "cursor-pointer focus-ring",
+        className
+      )
 
-  const body: React.ReactNode = hasPhoto ? (
+  const body: React.ReactNode = row ? (
+    <>
+      {hasPhoto && photoSrc ? (
+        <Photo
+          src={photoSrc}
+          alt=""
+          ratio="1/1"
+          className={cn(
+            "size-10 shrink-0",
+            state === "waiting" && "slot-ring-waiting",
+            state === "retake" && "slot-ring-retake",
+            state === "check-due" && "slot-ring-check"
+          )}
+        />
+      ) : null}
+      <span className="min-w-0 flex-1 text-label [overflow-wrap:anywhere]">
+        {name}
+      </span>
+      {state === "needed" ? (
+        <span className="inline-flex shrink-0 items-center gap-1 text-meta font-bold text-accent-text">
+          <PlusIcon aria-hidden weight="bold" className="size-4" />
+          {emptyOptional ? OPTIONAL_SLOT_WORD : "Add"}
+        </span>
+      ) : state === "not-here" ? (
+        <span className="text-meta text-ink-muted">{NOT_HERE_WORD}</span>
+      ) : (
+        <StateMark state={state} progress={progress} offline={offline} />
+      )}
+    </>
+  ) : hasPhoto ? (
     <>
       {/* A tile with no photo yet (one being prepared) shows the
           placeholder fill alone, not a "photo unavailable" message. */}
@@ -225,7 +266,7 @@ function SlotTile({
       {/* Hatching on its own layer: cn() would merge bg-hatch away beside
           the bg-surface fill. */}
       <span aria-hidden className="absolute inset-0 bg-hatch" />
-      <span className="relative text-label">Not here</span>
+      <span className="relative text-label">{NOT_HERE_WORD}</span>
       <span className="relative line-clamp-2 text-caption leading-tight">
         {name}
       </span>

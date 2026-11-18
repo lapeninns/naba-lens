@@ -223,6 +223,27 @@ Older blocks follow (Needs labels, accepted photos, findings; departure A-S2). L
 5. Each tap fills a slot (Sending 40%, then Checking, then Waiting, each on the end's row with Retry when a photo did not send) and moves to the next photo. The next photo of the same dish is one tap under Recent, wherever it sits in the strip. Match later keeps the photo unmatched on the phone and on Home. Not for a slot sends it as a shared photo with no slot. I'm not sure sends it to the manager, who chooses the slot (FA-4). A run of one subject takes one answer: tap the last photo of the run under "Same slot for the next photos too?" (or All N left), then the slot; nothing is grouped until the person says so. A dark, blurred or small photo gets a one-line hint under the stage that never stops the send.
 6. At the end: "5 slots filled", the venue and photo count, what happens next, and See the album.
 
+### 6.1a Batch Match phone preview
+
+Local trial of the two routes. Enable it in development with
+`NEXT_PUBLIC_NABALENS_UPLOAD_TRAY=1`.
+
+- **MT-1**. Search the active venue's slots on Album. Results show place,
+  section, item, and state. Tapping a Needed result uses that slot's Add action.
+- **MT-2**. Add photos opens the native picker. Match shows the whole
+  selection in a two-column tray, with every photo initially unselected.
+  Select one or more, choose a slot, and review the assigned groups before
+  Send. Ask my manager and Not for a slot use their existing destinations.
+  The chooser carries a missing search name to the manager as a note.
+- **MT-3**. A known slot accepts multiple photos with one gallery pick.
+  Both routes show a receipt with one row per file and Retry on recoverable
+  failures. Count files already sent for review separately from those still
+  sending. Match later continues to keep unassigned photos.
+
+In the tray, assignments are drafts until Send. The existing upload queue
+sends the files and their matches together. Each slot-first pick already has
+its destination so it starts sending when the gallery returns.
+
 ### 6.2 A place
 
 Every slot in one place, by section (for the bar: Drinks on the menu, Games and amenities, The space), each section with its "9 of 14" count. The main button adds photos for the place's empty slots.
