@@ -103,10 +103,18 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
   {
     title: "Surfaces",
     swatches: [
-      { name: "canvas", fill: "bg-canvas", role: "Paper behind everything" },
+      {
+        name: "canvas",
+        fill: "bg-canvas",
+        role: "v2 paper: behind everything",
+      },
       { name: "surface", fill: "bg-surface", role: "Cards, bars, sheets" },
-      { name: "surface-2", fill: "bg-surface-2", role: "Grey buttons, fields" },
-      { name: "raised", fill: "bg-raised", role: "Hover on grey" },
+      {
+        name: "surface-2",
+        fill: "bg-surface-2",
+        role: "v2 surface-sunken: empty slots, tracks",
+      },
+      { name: "raised", fill: "bg-raised", role: "v2 surface-hover" },
       {
         name: "media-placeholder",
         fill: "bg-media-placeholder",
@@ -119,11 +127,6 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
     swatches: [
       { name: "ink", fill: "bg-ink", role: "Text and icons" },
       { name: "ink-muted", fill: "bg-ink-muted", role: "Secondary text" },
-      {
-        name: "ink-subtle",
-        fill: "bg-ink-subtle",
-        role: "Separators between words",
-      },
     ],
   },
   {
@@ -170,7 +173,7 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
       {
         name: "ok-waiting",
         fill: "bg-ok-waiting",
-        role: "Waiting part of the album bar",
+        role: "v2 sky: waiting part of a bar",
       },
       { name: "on-ok", fill: "bg-on-ok", role: "Text on the Accepted mark" },
       {
@@ -186,7 +189,7 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
       {
         name: "warn-fg",
         fill: "bg-warn-fg",
-        role: "Problems and warnings: text and bar",
+        role: "v2 brass-ink: attention text",
       },
       { name: "warn-bg", fill: "bg-warn-bg", role: "Its tint" },
       {
@@ -195,6 +198,14 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
         role: "Information: text and bar",
       },
       { name: "info-bg", fill: "bg-info-bg", role: "Its tint" },
+      {
+        name: "brass",
+        fill: "bg-brass",
+        role: "v2 brass: a mark beside a word",
+      },
+      { name: "signal", fill: "bg-signal", role: "v2 problem tone, danger" },
+      { name: "on-signal", fill: "bg-on-signal", role: "Text on signal" },
+      { name: "signal-soft", fill: "bg-signal-soft", role: "Problem notice" },
       { name: "stamp-fg", fill: "bg-stamp-fg", role: "The Complete stamp" },
       { name: "hatch", fill: "bg-hatch", role: "Needs setup: hatched fill" },
       { name: "stripe", fill: "bg-stripe", role: "Submitted: striped segment" },
@@ -232,11 +243,6 @@ export const EDGES = [
     name: "edge-strong",
     className: "edge-strong",
     role: "A field or a grey control",
-  },
-  {
-    name: "edge-accent",
-    className: "edge-accent",
-    role: "The primary button. Shows in dark only",
   },
   {
     name: "edge-selected",

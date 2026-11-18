@@ -1,10 +1,10 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { CaretRightIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { Row, RowList } from "@/components/nabalens/common-room/row"
 import { CoverageSection } from "@/components/nabalens/coverage"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
@@ -42,36 +42,26 @@ function SetupChecklist({ venue }: { venue: AdminVenueDetail }) {
       title="Setup checklist"
       count={`${venue.setup.done} of ${venue.setup.total} in place`}
     >
-      <ul
-        className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface"
-        data-testid="setup-checklist"
-      >
-        {venue.setup.items.map((item) => (
-          <li key={item.key}>
-            <Link
+      {/* v2 SCREENS A2: the setup checklist as ListRows with StatusChips. */}
+      <div data-testid="setup-checklist" className="contents">
+        <RowList list>
+          {venue.setup.items.map((item) => (
+            <Row
+              key={item.key}
               href={setupHref(item, venue.id)}
               data-testid={`setup-${item.key}`}
               data-done={item.done}
-              className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 focus-ring-inset outline-none hover:bg-surface-2"
-            >
-              <span className="grid min-w-0 gap-1">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-label text-ink">
-                    {SETUP_TITLES[item.key]}
-                  </span>
-                  <StatusChip
-                    state={item.done ? "setup_in_place" : "needs_setup"}
-                  />
-                </span>
-                <span className="text-meta text-ink-muted">
-                  {setupDetail(item)}
-                </span>
-              </span>
-              <CaretRightIcon aria-hidden className="size-5 text-ink-muted" />
-            </Link>
-          </li>
-        ))}
-      </ul>
+              title={SETUP_TITLES[item.key]}
+              subtitle={setupDetail(item)}
+              chips={
+                <StatusChip
+                  state={item.done ? "setup_in_place" : "needs_setup"}
+                />
+              }
+            />
+          ))}
+        </RowList>
+      </div>
     </CoverageSection>
   )
 }
@@ -202,27 +192,18 @@ export default async function AdminVenuePage({
         ) : null}
 
         <CoverageSection id="details" title="Name and location">
-          <div className="rounded-card border border-line bg-surface p-4">
+          <div className="rounded-card bg-surface p-4 shadow-card">
             <VenueDetailsForm venue={venue} />
           </div>
         </CoverageSection>
 
         <CoverageSection id="menus" title="Menus">
-          <Link
+          <Row
             href={`/admin/menus/${venue.id}`}
             data-testid="venue-menus-link"
-            className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-card border border-line bg-surface px-4 py-3 focus-ring-inset outline-none hover:bg-surface-2"
-          >
-            <span className="grid gap-0.5">
-              <span className="text-label text-ink">
-                {inventory?.menuTitle ?? "No active menu"}
-              </span>
-              <span className="text-meta text-ink-muted">
-                Menu versions, imports and schedules for this venue.
-              </span>
-            </span>
-            <CaretRightIcon aria-hidden className="size-5 text-ink-muted" />
-          </Link>
+            title={inventory?.menuTitle ?? "No active menu"}
+            subtitle="Menu versions, imports and schedules for this venue."
+          />
         </CoverageSection>
 
         {venue.active ? (
@@ -245,7 +226,7 @@ export default async function AdminVenuePage({
         ) : null}
 
         <CoverageSection id="status" title="Status">
-          <div className="rounded-card border border-line bg-surface p-4">
+          <div className="rounded-card bg-surface p-4 shadow-card">
             <StatusForm venue={venue} />
           </div>
         </CoverageSection>

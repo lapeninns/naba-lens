@@ -66,7 +66,8 @@ describe("SlotTile", () => {
       expect(tile.getAttribute("data-state")).toBe(state)
       expect(tile.textContent).toMatch(word)
       expect(tile.textContent).toContain("Guinness, pint")
-      if (frame) expect(tile.className).toContain(frame)
+      // The frame is drawn on the tile's photo box (v2 SubjectCard).
+      if (frame) expect(tile.innerHTML).toContain(frame)
     }
   )
 
@@ -77,7 +78,7 @@ describe("SlotTile", () => {
       )
       const tile = container.querySelector('[data-slot="slot-tile"]')!
       const ring = tile.querySelector('[aria-hidden="true"].absolute')
-      const signature = `${tile.className} | ${ring?.className ?? ""} | ${tile.textContent}`
+      const signature = `${tile.innerHTML} | ${ring?.className ?? ""} | ${tile.textContent}`
       unmount()
       return signature
     })
@@ -135,7 +136,8 @@ describe("SlotTile", () => {
     const { container } = render(
       <SlotTile name="X" state="accepted" photoSrc="/p.jpg" />
     )
-    expect(container.innerHTML).toContain("bg-ok-fg")
+    // v2's positive chip: bottle on bottle-soft.
+    expect(container.innerHTML).toContain("bg-ok-bg")
     expect(container.innerHTML).not.toContain("bg-accent")
   })
 })

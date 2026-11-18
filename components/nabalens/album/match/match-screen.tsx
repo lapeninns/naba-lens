@@ -294,7 +294,7 @@ export function MatchScreen({
             ) : null}
             {!done && photos.length > 1 ? (
               <p
-                className="font-mono text-mono font-semibold text-ink-muted tabular-nums"
+                className="text-caption text-ink-muted tabular-nums"
                 data-slot="match-open-count"
               >
                 {MATCH_COPY.openCount(
@@ -820,7 +820,7 @@ function Decided({
           <SendBar name={name} percent={percent} />
           <span
             aria-hidden
-            className="font-mono text-mono font-semibold text-ink-muted tabular-nums"
+            className="text-caption text-ink-muted tabular-nums"
           >
             {percent}%
           </span>
@@ -924,7 +924,7 @@ function Summary({
       <h3
         ref={headingRef}
         tabIndex={-1}
-        className="type-page-title text-ink tabular-nums outline-none"
+        className="type-display text-ink tabular-nums outline-none"
       >
         {filled > 0
           ? MATCH_COPY.filled(filled)
@@ -970,12 +970,12 @@ function Summary({
               return (
                 <li
                   key={photo.key}
-                  className="flex min-h-15 items-center gap-3 rounded-card bg-surface px-2 py-1.5 edge"
+                  className="flex min-h-16 items-center gap-3 rounded-card bg-surface p-2 edge"
                   data-state={state ?? "sending"}
                 >
                   <span
                     className={cn(
-                      "relative size-12 shrink-0 overflow-hidden rounded-control bg-media-placeholder",
+                      "relative size-14 shrink-0 overflow-hidden rounded-square bg-media-placeholder",
                       state === "waiting" && "slot-ring-waiting"
                     )}
                   >
@@ -987,7 +987,7 @@ function Summary({
                     </span>
                     <span
                       className={cn(
-                        "flex items-center gap-1 font-mono text-mono font-semibold tabular-nums",
+                        "flex items-center gap-1 text-caption tabular-nums",
                         state === "failed" ||
                           state === "unfinished" ||
                           state === "unprocessable"
@@ -1079,7 +1079,7 @@ function Summary({
         href={ALBUM_HREF}
         variant="primary"
         size="lg"
-        className="min-h-16 w-full"
+        className="min-h-14 w-full"
         onClick={onClose}
       >
         <ImagesIcon data-icon="inline-start" aria-hidden />

@@ -109,7 +109,11 @@ export function useAmenityAction() {
       success: string | ((result: { ok: true } & T) => string)
     ): Promise<AmenityOutcome<T>> => {
       const key = requestIds.requestIdFor(scope, payload)
-      return run(() => call(key), success, () => requestIds.settle(scope))
+      return run(
+        () => call(key),
+        success,
+        () => requestIds.settle(scope)
+      )
     },
     [requestIds, run]
   )

@@ -171,6 +171,96 @@ for (const size of SIZES) {
   })
 }
 
+/**
+ * Every staff target is 48px or more at every width (DESIGN.md §8, §11 rule
+ * 6; V2-4): v2's 40px compact size is only for manager and admin shells, so
+ * a staff page at a phone and a touch laptop (1366, past bp-desktop) has no
+ * visible control under 48px tall. Each failure names the control. Skipped:
+ * visually hidden inputs (their label is the target), focus guards and the
+ * skip link (sr-only until focused).
+ */
+async function smallTargets(page: Page) {
+  await settle(page)
+  return page.evaluate(() => {
+    const sel = [
+      "a[href]",
+      "button",
+      "input:not([type=hidden])",
+      "select",
+      "textarea",
+      "summary",
+      "[role=button]",
+      "[role=link]",
+      "[role=tab]",
+      "[role=checkbox]",
+      "[role=radio]",
+      "[role=switch]",
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(",")
+    const out: string[] = []
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+      if (el.closest("[aria-hidden=true], [inert], .sr-only")) continue
+      const r = el.getBoundingClientRect()
+      if (r.width <= 1 || r.height <= 1) continue
+      const s = getComputedStyle(el)
+      if (s.visibility === "hidden" || s.display === "none") continue
+      // A visually hidden radio or checkbox: its label is the target.
+      const target =
+        el.offsetWidth <= 1 ? (el.closest("label") ?? el) : (el as Element)
+      const box = target.getBoundingClientRect()
+      if (Math.round(box.height) < 48)
+        out.push(
+          `${target.tagName.toLowerCase()}${target.getAttribute("data-slot") ? `[data-slot=${target.getAttribute("data-slot")}]` : ""} "${(target.textContent || target.getAttribute("aria-label") || "").trim().slice(0, 30)}" ${Math.round(box.width)}x${Math.round(box.height)}`
+        )
+    }
+    return out
+  })
+}
+
+test("staff targets are 48px at 390 and 1366 (review Z1)", async () => {
+  test.setTimeout(240_000)
+  let measured = 0
+  // Album place: the first place Album home links to.
+  await staff.setViewportSize({ width: 390, height: 844 })
+  await staff.goto("/staff/tasks")
+  const place = await staff
+    .locator('main a[href^="/staff/album/"]')
+    .first()
+    .getAttribute("href")
+    .catch(() => null)
+  const paths = [...staffPages(m), ...(place ? [place] : [])]
+  for (const width of [390, 1366]) {
+    await staff.setViewportSize({ width, height: 900 })
+    for (const path of paths) {
+      await staff.goto(path)
+      await expect(staff.locator("h1").first()).toBeVisible()
+      measured++
+      expect
+        .soft(await smallTargets(staff), `${path}@${width} under 48px`)
+        .toEqual([])
+    }
+  }
+  expect(measured).toBeGreaterThan(8)
+})
+
+test("the staff TabBar is --spacing-tabbar tall at 320 (review Z8)", async () => {
+  await staff.setViewportSize({ width: 320, height: 640 })
+  await staff.goto("/staff/tasks")
+  const bar = staff.locator('[data-slot="tabbar"]')
+  await expect(bar).toBeVisible()
+  await settle(staff)
+  const { height, token } = await bar.evaluate((el) => {
+    const probe = document.createElement("div")
+    probe.style.height = "var(--spacing-tabbar)"
+    document.body.append(probe)
+    const token = probe.getBoundingClientRect().height
+    probe.remove()
+    return { height: el.getBoundingClientRect().height, token }
+  })
+  expect(token).toBe(64)
+  expect(height).toBe(token)
+})
+
 type Mark = {
   border: boolean
   outline: boolean

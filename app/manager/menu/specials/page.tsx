@@ -77,7 +77,7 @@ export default async function ManagerSpecialsPage({
               ? "/manager/menu/specials"
               : "/manager/menu/specials?archived=1"
           }
-          className="rounded-square font-bold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+          className="rounded-square font-semibold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
         >
           {archived
             ? "Hide ended specials"

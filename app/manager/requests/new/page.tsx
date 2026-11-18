@@ -90,7 +90,7 @@ export default async function NewRequestPage({
     <>
       <Link
         href={requestHrefs.list()}
-        className="inline-flex min-h-12 items-center gap-1 justify-self-start font-bold text-ink focus-ring"
+        className="inline-flex min-h-12 items-center gap-1 justify-self-start font-semibold text-ink focus-ring"
       >
         <ArrowLeftIcon aria-hidden className="size-5" />
         Requests
@@ -109,7 +109,7 @@ export default async function NewRequestPage({
             href={requestHrefs.new(m.id)}
             aria-current={m.id === mode ? "page" : undefined}
             className={cn(
-              "inline-flex min-h-11 items-center rounded-round px-4 font-bold focus-ring",
+              "inline-flex min-h-11 items-center rounded-round px-4 font-semibold focus-ring",
               m.id === mode
                 ? "bg-accent-soft text-accent-text inset-ring-2 inset-ring-accent"
                 : "bg-surface text-ink shadow-card"

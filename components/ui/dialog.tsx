@@ -82,10 +82,11 @@ function DialogContent({
             render={
               <Button
                 variant="quiet"
-                size="sm"
-                // A labelled Close (common-room.md §4) with a 48px target, clear
-                // of the title's first line at every width.
-                className="absolute top-2.5 right-2 min-h-12 min-w-12 gap-1 px-2.5 md:top-3.5 md:right-3.5"
+                size="md"
+                // A labelled Close with a 48px target (v2 target-staff) at
+                // every width, clear of the title's first line. md, not sm:
+                // the Close never takes the compact size (review Z3).
+                className="absolute top-2.5 right-2 min-h-12 min-w-12 gap-1 px-2.5 py-1.5 md:top-3.5 md:right-3.5"
               />
             }
           >
@@ -143,7 +144,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "pr-24 type-section-title text-balance text-ink md:pr-28 md:type-page-title",
+        "pr-24 type-section-title text-balance text-ink md:pr-28",
         className
       )}
       {...props}
@@ -159,7 +160,7 @@ function DialogDescription({
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "text-body text-ink-muted *:[a]:font-bold *:[a]:text-ink *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-ink",
+        "text-body text-ink-muted *:[a]:font-semibold *:[a]:text-accent-text *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-accent-text",
         className
       )}
       {...props}

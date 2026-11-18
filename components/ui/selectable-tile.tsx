@@ -7,10 +7,11 @@ import { Checkbox, type CheckboxProps } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 
 /*
- * Selectable tile (common-room.md §4 "Tile check"): a photo that can be picked.
- * The children are the photo. A tick box sits in a corner on a plate, so it
- * reads on any picture; picked, the box fills and the tile takes the 3px
- * select ring. The whole tile is the target.
+ * Selectable tile, drawn as v2 ThumbPick (`nl-thumbpick`, D10): a photo
+ * that can be picked. The children are the photo. A tick box sits in the
+ * top-right corner on a round scrim plate, so it reads on any picture;
+ * picked, the box fills bottle and the tile takes the 3px bottle inset
+ * ring. The whole tile is the target, with 12px corners.
  *
  * It is a checkbox, named "Select" or "Selected" and then the label, so the
  * state is in words as well as in the ring. A photo that cannot be used
@@ -107,7 +108,7 @@ function SelectableTile({
       />
       <span
         data-slot="selectable-tile-plate"
-        className="absolute start-1.5 top-1.5 grid size-11 place-items-center rounded-control bg-plate"
+        className="absolute end-1 top-1 grid size-11 place-items-center rounded-round bg-scrim"
       >
         <Checkbox
           {...props}

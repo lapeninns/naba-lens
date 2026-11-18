@@ -18,6 +18,14 @@ import {
 } from "@/components/nabalens"
 import { ErrorState, ERROR_COPY } from "@/components/nabalens/error-state"
 import { PageHeader } from "@/components/nabalens/page-header"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import type { MenuVersionSummary } from "@/lib/menus/types"
 import { requireActiveAdmin } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
@@ -75,89 +83,87 @@ function VersionsTable({
   versions: MenuVersionSummary[]
   venueId: string
 }) {
-  const cell = "px-3 py-3 align-middle first:pl-4 last:pr-2"
+  // v2 DataTable (SCREENS A3), framed; phones keep the four-column layout
+  // with When, By and Status folded under the title.
+  const cell = "px-3 first:pl-4 last:pr-2"
   return (
-    <div className="overflow-x-auto rounded-card bg-surface shadow-card">
-      <table
-        aria-label="Menu versions"
-        className="w-full border-collapse text-body"
-      >
-        <thead>
-          <tr className="border-b border-line text-left text-meta font-semibold text-ink-muted">
-            <th scope="col" className={cell}>
-              Version
-            </th>
-            <th scope="col" className={cn(cell, "hidden md:table-cell")}>
-              Status
-            </th>
-            <th scope="col" className={cn(cell, "text-right")}>
-              Items
-            </th>
-            <th scope="col" className={cn(cell, "hidden md:table-cell")}>
-              When
-            </th>
-            <th scope="col" className={cn(cell, "hidden md:table-cell")}>
-              By
-            </th>
-            <th scope="col" className={cn(cell, "w-0")}>
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
-          {versions.map((v) => {
-            const closed = v.status === "retired" || v.status === "discarded"
-            return (
-              <tr key={v.id} className={cn(closed && "text-ink-muted")}>
-                <td className={cn(cell, "min-w-0")}>
-                  <Link
-                    href={versionHref(v.id)}
-                    className={cn(
-                      "rounded-square font-bold break-words underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2",
-                      closed ? "text-ink-muted" : "text-ink"
-                    )}
-                  >
-                    {v.title}
-                  </Link>
-                  <span className={cn("block md:hidden", menuMetaClassName)}>
-                    {versionWhen(v)} · {versionBy(v)}
-                  </span>
-                  {/* On phones the status sits under the title and may wrap:
+    <Table framed aria-label="Menu versions">
+      <TableHeader>
+        <TableRow>
+          <TableHead className={cell}>Version</TableHead>
+          <TableHead className={cn(cell, "hidden md:table-cell")}>
+            Status
+          </TableHead>
+          <TableHead numeric className={cell}>
+            Items
+          </TableHead>
+          <TableHead className={cn(cell, "hidden md:table-cell")}>
+            When
+          </TableHead>
+          <TableHead className={cn(cell, "hidden md:table-cell")}>By</TableHead>
+          <TableHead className={cn(cell, "w-0")}>
+            <span className="sr-only">Actions</span>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {versions.map((v) => {
+          const closed = v.status === "retired" || v.status === "discarded"
+          return (
+            <TableRow key={v.id} className={cn(closed && "text-ink-muted")}>
+              <TableCell
+                className={cn(
+                  cell,
+                  "min-w-0 whitespace-normal [&_a]:text-current"
+                )}
+              >
+                <Link
+                  href={versionHref(v.id)}
+                  className={cn(
+                    "rounded-square font-semibold break-words underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2",
+                    closed ? "text-ink-muted" : "text-ink"
+                  )}
+                >
+                  {v.title}
+                </Link>
+                <span className={cn("block md:hidden", menuMetaClassName)}>
+                  {versionWhen(v)} · {versionBy(v)}
+                </span>
+                {/* On phones the status sits under the title and may wrap:
                       "Active · for labelling only" on one line is wider than
                       a 320px table's spare room. */}
-                  <MenuVersionStatusBadge
-                    status={v.status}
-                    className="mt-1 whitespace-normal md:hidden"
-                  />
-                </td>
-                <td className={cn(cell, "hidden md:table-cell")}>
-                  <MenuVersionStatusBadge status={v.status} />
-                </td>
-                <td className={cn(cell, "text-right tabular-nums")}>
-                  {v.itemCount}
-                </td>
-                <td
-                  className={cn(cell, "hidden whitespace-nowrap md:table-cell")}
-                >
-                  {versionWhen(v)}
-                </td>
-                <td className={cn(cell, "hidden md:table-cell")}>
-                  {versionBy(v)}
-                </td>
-                <td className={cell}>
-                  <VersionRowActions
-                    versionId={v.id}
-                    title={v.title}
-                    venueId={venueId}
-                    isActive={v.status === "active"}
-                  />
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+                <MenuVersionStatusBadge
+                  status={v.status}
+                  className="mt-1 whitespace-normal md:hidden"
+                />
+              </TableCell>
+              <TableCell className={cn(cell, "hidden md:table-cell")}>
+                <MenuVersionStatusBadge status={v.status} />
+              </TableCell>
+              <TableCell numeric className={cell}>
+                {v.itemCount}
+              </TableCell>
+              <TableCell
+                className={cn(cell, "hidden whitespace-nowrap md:table-cell")}
+              >
+                {versionWhen(v)}
+              </TableCell>
+              <TableCell className={cn(cell, "hidden md:table-cell")}>
+                {versionBy(v)}
+              </TableCell>
+              <TableCell className={cell}>
+                <VersionRowActions
+                  versionId={v.id}
+                  title={v.title}
+                  venueId={venueId}
+                  isActive={v.status === "active"}
+                />
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
   )
 }
 

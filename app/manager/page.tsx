@@ -1,10 +1,11 @@
-import { HomeRow } from "@/components/nabalens/album/home-rows"
+import { Row } from "@/components/nabalens/common-room/row"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { OverviewBody } from "@/components/nabalens/manager/overview/overview-body"
 import {
   BacklogPanel,
   CategoryCoverage,
+  MANAGER_ROW_LIST,
   OverviewActions,
   VenueAtAGlance,
 } from "@/components/nabalens/manager/overview/overview-panels"
@@ -180,13 +181,16 @@ export default async function ManagerOverviewPage() {
               venueHref={managerHrefs.venue}
               reviewersHref={`${managerHrefs.venue}#reviewers`}
             />
-            <HomeRow
-              href={managerHrefs.exports}
-              slot="exports-row"
-              icon={<ExportIcon aria-hidden />}
-              title={MANAGER_COPY.overview.exportsTitle}
-              line={MANAGER_COPY.overview.exportsLine}
-            />
+            <ul className={MANAGER_ROW_LIST}>
+              <li data-slot="exports-row">
+                <Row
+                  href={managerHrefs.exports}
+                  icon={<ExportIcon />}
+                  title={MANAGER_COPY.overview.exportsTitle}
+                  subtitle={MANAGER_COPY.overview.exportsLine}
+                />
+              </li>
+            </ul>
           </>
         }
         triage={

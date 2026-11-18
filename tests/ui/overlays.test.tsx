@@ -79,11 +79,9 @@ describe("sheet recipe", () => {
       expect(cls).toContain("z-overlay")
       expect(cls).toContain("duration-sheet")
       // The grip and the safe-area padding under the last control.
-      expect(cls).toContain("before:w-11")
+      expect(cls).toContain("before:w-10")
       expect(cls).toContain("md:before:hidden")
-      expect(cls).toContain(
-        "pb-[calc(1.75rem+env(safe-area-inset-bottom,0px))]"
-      )
+      expect(cls).toContain("pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]")
       // Forced colours remove the shadow: the popup keeps an outline.
       expect(cls).toContain("forced-colors:outline-solid")
     }

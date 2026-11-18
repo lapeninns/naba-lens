@@ -9,12 +9,12 @@ import {
 import { cn } from "@/lib/utils"
 
 type InputProps = Omit<React.ComponentProps<"input">, "size"> & {
-  /** sm 44px, md 56px (default), lg 60px. Replaces the native character-count `size`. */
+  /** sm 44px, md 48px (default), lg 48px. Replaces the native character-count `size`. */
   size?: FieldControlSize
 }
 
 /*
- * Text input (common-room.md §4 Field): the shared field recipe, at least 56px
+ * Text input (v2 Field): the shared field recipe, at least 48px
  * tall and full width. Put it in a FormField so it has a label, and so its
  * hint and error are linked.
  *

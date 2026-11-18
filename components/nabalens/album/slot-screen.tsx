@@ -17,6 +17,7 @@ import { SlotTile } from "@/components/nabalens/album/slot-tile"
 import { Notice } from "@/components/nabalens/notice"
 import { useAdd } from "@/components/nabalens/shell/add-context"
 import { StatusChip } from "@/components/nabalens/status-chip"
+import { VenueBar } from "@/components/nabalens/venue-bar"
 import { Button } from "@/components/ui/button"
 import { Photo } from "@/components/ui/photo"
 import type { AlbumSlot } from "@/lib/album/model"
@@ -109,20 +110,24 @@ export function AlbumSlotScreen({
 
   return (
     <div className="grid gap-5 pb-4" data-slot="album-slot">
-      <div>
+      <VenueBar
+        name={venueName}
+        className="-mx-page-gutter md:mx-0 md:rounded-card md:border md:border-line"
+      />
+      <div className="-mt-3">
         <Link
           href={placeHref}
-          className="inline-flex min-h-12 items-center gap-1 font-bold text-ink focus-ring"
+          className="inline-flex min-h-12 items-center gap-1 text-label text-ink focus-ring"
         >
           <ArrowLeftIcon aria-hidden className="size-5" />
           {SLOT_COPY.back(placeLabel)}
         </Link>
       </div>
       <header className="grid gap-0.5">
-        <p className="font-mono text-mono font-semibold text-ink-muted">
+        <p className="text-caption text-ink-muted">
           {venueName} · {slot.group}
         </p>
-        <Title className="type-page-title [overflow-wrap:anywhere] text-ink">
+        <Title className="type-display [overflow-wrap:anywhere] text-ink">
           {slot.name}
         </Title>
       </header>
@@ -130,7 +135,9 @@ export function AlbumSlotScreen({
       {retake ? (
         <section
           aria-label={SLOT_COPY.retakeTitle}
-          className="flex items-start gap-3 rounded-card bg-warn-bg p-3 text-ink"
+          // Drawn as v2 Notice (attention): brass soft ground, brass icon and
+          // title, the reviewer's words in ink.
+          className="flex items-start gap-3 rounded-card bg-warn-bg p-4 text-ink"
           data-slot="slot-retake"
         >
           <ArrowUUpLeftIcon
@@ -139,7 +146,7 @@ export function AlbumSlotScreen({
             className="mt-0.5 size-6 shrink-0 text-warn-fg"
           />
           <span className="grid gap-0.5">
-            <span className="text-label text-warn-fg">
+            <span className="text-heading text-warn-fg">
               {SLOT_COPY.retakeTitle}
             </span>
             <span className="text-body [overflow-wrap:anywhere]">
@@ -203,10 +210,7 @@ export function AlbumSlotScreen({
           </section>
 
           {slot.pendingCount > 0 ? (
-            <p
-              className="font-mono text-mono font-semibold text-ink-muted"
-              data-slot="slot-pending"
-            >
+            <p className="text-body text-ink-muted" data-slot="slot-pending">
               {SLOT_COPY.waiting(slot.pendingCount)}
             </p>
           ) : null}
@@ -240,11 +244,7 @@ export function AlbumSlotScreen({
           {blocked ? <Notice tone="attention">{blocked}</Notice> : null}
 
           <div className="grid gap-2 sm:flex sm:flex-wrap">
-            <Button
-              variant="secondary"
-              className="min-h-13"
-              onClick={() => setReporting(true)}
-            >
+            <Button variant="secondary" onClick={() => setReporting(true)}>
               <MegaphoneSimpleIcon data-icon="inline-start" aria-hidden />
               {SLOT_COPY.report}
             </Button>
@@ -257,7 +257,7 @@ export function AlbumSlotScreen({
           <Button
             variant="primary"
             size="lg"
-            className="min-h-16 w-full md:w-auto"
+            className="min-h-14 w-full md:w-auto"
             disabled={!canAdd}
             onClick={add}
           >

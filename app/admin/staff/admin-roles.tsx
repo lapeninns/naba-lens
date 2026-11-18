@@ -60,7 +60,7 @@ export function AdminRoles({
             key={admin.id}
             className="flex flex-wrap items-center justify-between gap-3 py-3"
           >
-            <p className="text-body font-bold text-ink">
+            <p className="text-body font-semibold text-ink">
               {admin.displayName}
               {admin.id === selfId ? (
                 <span className="font-normal text-ink-muted"> (you)</span>

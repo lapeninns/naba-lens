@@ -35,10 +35,9 @@ import { MANAGER_COPY } from "../copy"
 import { managerHrefs } from "../hrefs"
 import { WorkspacePending } from "../workspace-pending"
 import { ActivationBanner, menuMeta } from "./activation-banner"
+import { MANAGER_ROW_LIST } from "./overview-panels"
 
-/** Rows grouped in one white card with hairlines (RowList, keeping each li). */
-const ROW_LIST =
-  "grid min-w-0 divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card [&_[data-slot=cr-row]]:rounded-none [&_[data-slot=cr-row]]:shadow-none [&_[data-slot=cr-row]]:focus-visible:-outline-offset-3"
+const ROW_LIST = MANAGER_ROW_LIST
 
 const TALLY_ICON: Record<string, React.ReactNode> = {
   photos: <ImagesIcon />,

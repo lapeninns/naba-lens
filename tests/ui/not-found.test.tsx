@@ -48,10 +48,10 @@ describe("branded not-found pages", () => {
     expect(metadata.title).toBe("Page not found")
   })
 
-  it("the way back is a 52px primary button", () => {
+  it("the way back is a 48px primary button", () => {
     render(<NotFoundCard backHref="/staff/tasks" backLabel="Go to Home" />)
     const back = screen.getByRole("link", { name: "Go to Home" })
-    expect(back.className).toContain("min-h-13")
+    expect(back.className).toContain("min-h-12")
     // The screen's one blue (accent) button.
     expect(back.className).toContain("bg-accent")
   })

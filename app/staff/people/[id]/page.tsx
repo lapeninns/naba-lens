@@ -72,7 +72,7 @@ export default async function ColleaguePage({
                 ) : null}
                 <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                   <MapPinIcon aria-hidden className="size-[18px] shrink-0" />
-                  <b className="font-bold [overflow-wrap:anywhere] text-ink">
+                  <b className="font-semibold [overflow-wrap:anywhere] text-ink">
                     {member.venueName ?? "No venue assigned"}
                   </b>
                 </p>

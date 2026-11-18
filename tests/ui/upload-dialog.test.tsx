@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -25,7 +31,8 @@ const fakeUploader: Uploader = async (file, ctx) => {
   ctx.onProgress(0.5)
   ctx.onProcessing()
   await Promise.resolve()
-  if (file.name.includes("fail") && ctx.attempt === 1) throw new Error("Server validation failed")
+  if (file.name.includes("fail") && ctx.attempt === 1)
+    throw new Error("Server validation failed")
 }
 
 function setup(uploader: Uploader = fakeUploader) {
@@ -90,9 +97,13 @@ describe("UploadDialog", () => {
 
   it("does not close while uploads are running, and cancel stops them", async () => {
     const never: Uploader = (_file, ctx) =>
-      new Promise((_, reject) => ctx.signal.addEventListener("abort", () => reject(new Error("x"))))
+      new Promise((_, reject) =>
+        ctx.signal.addEventListener("abort", () => reject(new Error("x")))
+      )
     const { user, onOpenChange } = setup(never)
-    await user.upload(screen.getByLabelText("Choose photos or videos"), [jpeg("slow.jpg")])
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("slow.jpg"),
+    ])
     await user.click(screen.getByRole("button", { name: "Upload 1 file" }))
     expect(screen.getByText(/Uploading/)).toBeTruthy()
 
@@ -101,7 +112,9 @@ describe("UploadDialog", () => {
     expect(screen.getByText(/Uploads are still running/)).toBeTruthy()
 
     await user.click(screen.getByRole("button", { name: "Cancel all" }))
-    await waitFor(() => expect(screen.getByText("0 uploaded · 1 cancelled")).toBeTruthy())
+    await waitFor(() =>
+      expect(screen.getByText("0 uploaded · 1 cancelled")).toBeTruthy()
+    )
     expect(screen.getByRole("button", { name: "Retry slow.jpg" })).toBeTruthy()
   })
 
@@ -126,7 +139,9 @@ describe("UploadDialog", () => {
     )
     const { rerender } = render(view(true))
     const user = userEvent.setup()
-    await user.upload(screen.getByLabelText("Choose photos or videos"), [jpeg("slow.jpg")])
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("slow.jpg"),
+    ])
     await user.click(screen.getByRole("button", { name: "Upload 1 file" }))
     await user.keyboard("{Escape}")
     expect(onOpenChange).toHaveBeenCalledWith(false)
@@ -156,11 +171,23 @@ describe("UploadDialog", () => {
     ])
     await user.click(screen.getByRole("button", { name: "Upload 1 file" }))
     expect(await screen.findByText("0 uploaded · 1 failed")).toBeTruthy()
-    expect(onBusyChange).toHaveBeenCalledWith({ active: 1, failed: 0, stopped: 0 })
-    expect(onBusyChange).toHaveBeenLastCalledWith({ active: 0, failed: 1, stopped: 0 })
+    expect(onBusyChange).toHaveBeenCalledWith({
+      active: 1,
+      failed: 0,
+      stopped: 0,
+    })
+    expect(onBusyChange).toHaveBeenLastCalledWith({
+      active: 0,
+      failed: 1,
+      stopped: 0,
+    })
 
     await user.click(screen.getByRole("button", { name: "Retry fail.jpg" }))
     expect(await screen.findByText("1 uploaded")).toBeTruthy()
-    expect(onBusyChange).toHaveBeenLastCalledWith({ active: 0, failed: 0, stopped: 0 })
+    expect(onBusyChange).toHaveBeenLastCalledWith({
+      active: 0,
+      failed: 0,
+      stopped: 0,
+    })
   })
 })

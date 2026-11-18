@@ -3,8 +3,10 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /*
- * Table (common-room.md §4, Table; strategy 7.5: tables on admin from md, stacked
- * below). Two modes:
+ * Table: v2 DataTable (`nl-table`, D10; strategy 7.5: tables on admin from
+ * md, stacked below). Caption 13px headers in ink-muted over a line-strong
+ * rule, 16px cell sides, rows at least 56px with a surface-hover hover,
+ * numbers right-aligned in tabular figures. Two modes:
  *
  *  - scroll (default): the table keeps its columns and its wrapper scrolls
  *    sideways.
@@ -16,8 +18,9 @@ import { cn } from "@/lib/utils"
  * `table`, `tr` or `td` whose display is changed, which is what stacking
  * does; written out, a screen reader still hears rows, cells and headers.
  *
- * Draw the surface (card fill, radius, shadow) on a wrapper: the table is
- * the grid only.
+ * `framed` draws v2's `nl-tablewrap` on the scroll box (surface, a line
+ * edge, 12px corners), so it scrolls sideways in its own box; leave it off
+ * when a card around the table already draws the surface.
  */
 
 // Applies below md, and only inside a stacked table.
@@ -29,17 +32,24 @@ const STACKED = {
 function Table({
   className,
   stacked = false,
+  framed = false,
   ...props
 }: React.ComponentProps<"table"> & {
   /** Below md, turn each row into a block of labelled values. */
   stacked?: boolean
+  /** Draw v2's table box: surface, a line edge, 12px corners. */
+  framed?: boolean
 }) {
   return (
     <div
       data-slot="table-container"
       data-mode={stacked ? "stacked" : "scroll"}
       data-stacked={stacked || undefined}
-      className="group/table relative w-full overflow-x-auto max-md:data-stacked:overflow-x-visible"
+      data-framed={framed || undefined}
+      className={cn(
+        "group/table relative w-full overflow-x-auto max-md:data-stacked:overflow-x-visible",
+        framed && "rounded-card bg-surface shadow-card"
+      )}
     >
       <table
         role="table"
@@ -57,7 +67,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
       role="rowgroup"
       data-slot="table-header"
       className={cn(
-        "[&_tr]:border-b [&_tr]:border-line [&_tr]:hover:bg-transparent",
+        "[&_tr]:border-b [&_tr]:border-edge-strong [&_tr]:hover:bg-transparent",
         STACKED.srOnly,
         className
       )}
@@ -83,7 +93,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
       role="rowgroup"
       data-slot="table-footer"
       className={cn(
-        "border-t border-line bg-surface-2 font-bold [&>tr]:last:border-b-0",
+        "border-t border-line bg-surface-2 font-semibold [&>tr]:last:border-b-0",
         STACKED.block,
         className
       )}
@@ -100,7 +110,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
       className={cn(
         // A selected row is told apart by its fill, which forced colours
         // remove; it gets an outline there. Give it a tick or a word too.
-        "border-b border-line transition-colors hover:bg-surface-2 has-aria-expanded:bg-surface-2 aria-selected:bg-accent-soft data-[state=selected]:bg-accent-soft forced-colors:aria-selected:outline-2 forced-colors:aria-selected:-outline-offset-2 forced-colors:aria-selected:outline-solid forced-colors:data-[state=selected]:outline-2 forced-colors:data-[state=selected]:-outline-offset-2 forced-colors:data-[state=selected]:outline-solid",
+        "border-b border-line transition-colors hover:bg-raised has-aria-expanded:bg-raised aria-selected:bg-accent-soft data-[state=selected]:bg-accent-soft forced-colors:aria-selected:outline-2 forced-colors:aria-selected:-outline-offset-2 forced-colors:aria-selected:outline-solid forced-colors:data-[state=selected]:outline-2 forced-colors:data-[state=selected]:-outline-offset-2 forced-colors:data-[state=selected]:outline-solid",
         STACKED.block,
         "max-md:group-data-stacked/table:py-2",
         className
@@ -127,7 +137,7 @@ function TableHead({
       data-slot="table-head"
       data-numeric={numeric || undefined}
       className={cn(
-        "h-11 px-3 py-2.5 text-left align-middle text-label font-semibold whitespace-nowrap text-ink-muted [&:has([role=checkbox])]:pr-0",
+        "h-11 px-4 py-3 text-left align-middle text-chip whitespace-nowrap text-ink-muted [&:has([role=checkbox])]:pr-0",
         numeric && "text-right",
         STACKED.block,
         "max-md:group-data-stacked/table:h-auto max-md:group-data-stacked/table:py-1 max-md:group-data-stacked/table:text-left max-md:group-data-stacked/table:whitespace-normal",
@@ -158,9 +168,10 @@ function TableCell({
       data-label={label}
       data-numeric={numeric || undefined}
       className={cn(
-        "px-3 py-3 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "h-14 px-4 py-3 align-middle text-label font-normal whitespace-nowrap [&_a]:text-accent-text [&_a]:underline-offset-3 [&:has([role=checkbox])]:pr-0",
         numeric && "text-right font-mono tabular-nums",
-        "max-md:group-data-stacked/table:py-1 max-md:group-data-stacked/table:text-left max-md:group-data-stacked/table:whitespace-normal",
+        // Stacked, a cell is one line of a block, not a 56px row.
+        "max-md:group-data-stacked/table:h-auto max-md:group-data-stacked/table:py-1 max-md:group-data-stacked/table:text-left max-md:group-data-stacked/table:whitespace-normal",
         label === undefined
           ? STACKED.block
           : "max-md:group-data-stacked/table:flex max-md:group-data-stacked/table:items-baseline max-md:group-data-stacked/table:gap-2",
@@ -201,7 +212,7 @@ function TableCaption({
     <caption
       data-slot="table-caption"
       className={cn(
-        "px-3 py-3 text-left type-section-title text-ink",
+        "px-4 py-3 text-left type-section-title text-ink",
         STACKED.block,
         className
       )}

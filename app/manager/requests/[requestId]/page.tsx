@@ -1,3 +1,4 @@
+import { MetaList } from "@/components/nabalens/meta-list"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -86,7 +87,7 @@ export default async function RequestPage({
   const back = (
     <Link
       href={requestHrefs.list()}
-      className="inline-flex min-h-12 items-center gap-1 justify-self-start font-bold text-ink focus-ring"
+      className="inline-flex min-h-12 items-center gap-1 justify-self-start font-semibold text-ink focus-ring"
     >
       <ArrowLeftIcon aria-hidden className="size-5" />
       Requests
@@ -142,16 +143,10 @@ export default async function RequestPage({
         </p>
       ) : null}
 
-      <dl className="grid gap-x-6 gap-y-2 rounded-card bg-surface p-3 shadow-card sm:grid-cols-2 sm:p-4">
-        {facts(r).map(([term, value]) => (
-          <div key={term} className="grid min-w-0 gap-0.5">
-            <dt className="text-meta text-ink-muted">{term}</dt>
-            <dd className="text-body [overflow-wrap:anywhere] text-ink">
-              {value}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <MetaList
+        className="rounded-card bg-surface p-4 shadow-card"
+        items={facts(r).map(([label, value]) => ({ label, value }))}
+      />
 
       {!closed ? (
         <RequestControls

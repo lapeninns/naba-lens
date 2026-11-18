@@ -307,7 +307,8 @@ describe("FilterPill", () => {
     for (const name of [
       "min-h-11",
       "rounded-round",
-      "bg-surface-2",
+      "bg-surface",
+      "edge-strong",
       "focus-ring",
       "text-ink",
     ]) {
@@ -324,9 +325,9 @@ describe("FilterPill", () => {
     const on = screen.getByRole("button", { name: "Mains" })
     expect(on.getAttribute("aria-pressed")).toBe("true")
     expect(on.hasAttribute("data-selected")).toBe(true)
-    expect(on.className).toContain("bg-accent-soft")
-    expect(on.className).toContain("edge-selected")
-    expect(on.className).toContain("text-ink")
+    // v2 PickChip: an ink fill with paper (canvas) text, and the tick.
+    expect(on.className.split(" ")).toContain("bg-ink")
+    expect(on.className.split(" ")).toContain("text-canvas")
     const tick = on.querySelector('[data-slot="filter-pill-tick"]')
     expect(tick?.getAttribute("aria-hidden")).toBe("true")
   })
@@ -393,7 +394,7 @@ describe("FilterPill", () => {
     })
     expect(pill.hasAttribute("aria-pressed")).toBe(false)
     expect(pill.hasAttribute("data-removable")).toBe(true)
-    expect(pill.className).toContain("bg-accent-soft")
+    expect(pill.className.split(" ")).toContain("bg-ink")
     expect(
       pill.querySelector('[data-slot="filter-pill-remove"]')
     ).not.toBeNull()
@@ -500,11 +501,11 @@ describe("FilterPill", () => {
   })
 
   it("merges a caller's class last", () => {
-    render(<FilterPill className="w-full bg-surface">Mains</FilterPill>)
+    render(<FilterPill className="w-full bg-surface-2">Mains</FilterPill>)
     const pill = screen.getByRole("button", { name: "Mains" })
     expect(pill.className).toContain("w-full")
-    expect(pill.className).toContain("bg-surface")
-    expect(pill.className).not.toContain("bg-surface-2")
+    expect(pill.className.split(" ")).toContain("bg-surface-2")
+    expect(pill.className.split(" ")).not.toContain("bg-surface")
   })
 })
 

@@ -112,7 +112,7 @@ export function VenuePeople({
               className="flex flex-wrap items-center justify-between gap-3 py-3"
             >
               <div className="grid min-w-0 gap-0.5">
-                <p className="text-body font-bold text-ink">
+                <p className="text-body font-semibold text-ink">
                   {person.displayName}
                 </p>
                 <p className="text-meta text-ink-muted">

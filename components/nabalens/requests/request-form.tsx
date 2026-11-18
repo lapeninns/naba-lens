@@ -388,7 +388,7 @@ export function RequestForm({
       </div>
 
       <details className="group grid gap-4 rounded-control bg-surface-2 p-3">
-        <summary className="min-h-11 cursor-pointer content-center font-bold text-ink focus-ring">
+        <summary className="min-h-11 cursor-pointer content-center font-semibold text-ink focus-ring">
           More detail
         </summary>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">

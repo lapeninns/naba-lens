@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../../components.css"><title>DecisionBar — preview</title></head>
+<body>
+<div class="nl-stage nl-stage--stack" style="max-width:720px;gap:var(--space-4)">
+<div class="nl-decide" role="toolbar" aria-label="Review decision">
+<button class="nl-btn nl-btn--primary nl-btn--compact">Approve for public use</button>
+<button class="nl-btn nl-btn--compact">Fix label</button>
+<button class="nl-btn nl-btn--compact">Keep as reference</button>
+<button class="nl-btn nl-btn--compact">Ask for another photo</button>
+<span class="nl-decide__spacer"></span>
+<button class="nl-btn nl-btn--quiet nl-btn--compact">More</button>
+</div>
+<div role="group" aria-label="Why another photo?" style="display:flex;flex-wrap:wrap;gap:var(--space-2)">
+<button class="nl-pick" aria-pressed="true">Whole item not visible</button>
+<button class="nl-pick" aria-pressed="false">Not enough light</button>
+<button class="nl-pick" aria-pressed="false">Out of focus</button>
+<button class="nl-pick" aria-pressed="false">Not how we serve it now</button>
+</div>
+</div>
+</body>
+</html>

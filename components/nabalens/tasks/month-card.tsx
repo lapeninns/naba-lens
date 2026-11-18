@@ -126,8 +126,8 @@ export function MonthCard({
       {monthly && !needsSetup ? (
         <div className="grid gap-3">
           <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="type-count text-ink tabular-nums">{count}</span>
-            <span className="type-section-title text-ink-muted">
+            <span className="type-figure text-ink">{count}</span>
+            <span className="text-heading text-ink-muted">
               of {target} {completion ? "completed" : "accepted"}
             </span>
             {monthly.complete ? (

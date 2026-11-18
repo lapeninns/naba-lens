@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 import { OfflineShell } from "./offline-notice"
+import { SideNav } from "./side-nav"
 import { AlbumAddTrigger } from "./album/album-add-trigger"
 import { TabBadge } from "./shell/tab-badge"
 import { TAB_ITEM } from "./shell/tab-item"
@@ -196,16 +197,18 @@ const MANAGE: NavItem<StaffSection> = {
   icon: ClipboardTextIcon,
 }
 
-// AppBar section link (md up). Like the phone tabs: muted Figtree, the
-// current one in accent-text with a 3px bar under it. No other blue.
+// AppBar section link (md up), drawn as v2 Tabs: label type in ink-muted,
+// the current one in ink with a 3px bottle bar under it.
 const BAR_LINK =
-  "inline-flex items-center gap-2 px-3 md:max-lg:px-2 type-tab-label text-ink-muted whitespace-nowrap shadow-[inset_0_-3px_0_transparent] transition-colors duration-quick outline-none hover:bg-surface-2 hover:text-ink focus-ring-inset"
+  "inline-flex items-center gap-2 px-3 md:max-lg:px-2 text-label text-ink-muted whitespace-nowrap shadow-[inset_0_-3px_0_transparent] transition-colors duration-quick outline-none hover:text-ink focus-ring-inset"
 
 /**
  * Page frame for signed-in pages. From md: the AppBar with the role's
  * sections, Add photos (staff) and Log out. Below md: a slim bar with the
  * wordmark, and the TabBar pinned to the bottom (staff: Album, Add photos and
- * Me, DESIGN.md §5 Tab bar; Me holds Log out).
+ * Me, DESIGN.md §5 Tab bar; Me holds Log out). Admins get v2's SideNav from
+ * bp-desktop in place of the AppBar's sections (D10); staff screens stay one
+ * centred column at every width.
  */
 export function AppShell(props: AppShellProps) {
   const { children, userName, onLogout, className } = props
@@ -266,7 +269,13 @@ export function AppShell(props: AppShellProps) {
 
   return (
     <div
-      className={cn("flex min-h-svh flex-col bg-canvas text-ink", className)}
+      // Admin controls take v2's compact size (V2-4); staff keep 48px.
+      data-density={admin ? "compact" : undefined}
+      className={cn(
+        "flex min-h-svh flex-col bg-canvas text-ink",
+        admin && "desktop:pl-rail",
+        className
+      )}
     >
       <a
         href="#main"
@@ -274,17 +283,34 @@ export function AppShell(props: AppShellProps) {
       >
         Skip to content
       </a>
-      {/* Common Room top bar: white, a hairline under it. */}
+      {admin ? (
+        <SideNav
+          label={navLabel}
+          active={active}
+          homeHref="/admin/overview"
+          items={barItems.map(({ item, href }) => ({
+            id: item.id,
+            label: item.label,
+            href,
+            icon: item.icon,
+          }))}
+        />
+      ) : null}
+      {/* v2 top bar: surface, a line under it. */}
       <header className="relative z-local bg-surface shadow-[0_1px_0_var(--line)]">
         <div className="mx-auto flex min-h-15 w-full max-w-page items-center gap-3 px-3 md:px-6 lg:gap-6">
           <Link
             href={admin ? "/admin/overview" : "/staff/tasks"}
-            className="inline-flex flex-none items-baseline gap-2 rounded-control font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap text-ink focus-ring outline-none max-md:py-2.5"
+            className={cn(
+              "inline-flex flex-none items-baseline gap-2 rounded-control py-2.5 type-title whitespace-nowrap text-ink focus-ring outline-none",
+              // From bp-desktop the admin's name is in the SideNav.
+              admin && "desktop:hidden"
+            )}
           >
             Naba-Lens
             {admin ? " " : null}
             {admin ? (
-              <span className="border-l border-edge-strong pl-2 font-sans text-meta font-semibold tracking-normal text-ink-muted">
+              <span className="border-l border-edge-strong pl-2 font-sans text-meta text-ink-muted">
                 Admin
               </span>
             ) : null}
@@ -298,8 +324,9 @@ export function AppShell(props: AppShellProps) {
             // nav shrank with the group, squeezing its links (S3-R11).
             className={cn(
               "hidden shrink-0 gap-1 self-stretch md:max-lg:gap-0",
-              // Seven admin sections need lg; below it the tab bar has them.
-              admin ? "lg:flex" : "md:flex"
+              // Seven admin sections need lg; below it the tab bar has them,
+              // and from bp-desktop the SideNav does.
+              admin ? "lg:flex desktop:hidden" : "md:flex"
             )}
           >
             {barItems.map(({ item, href, count }) => {
@@ -314,7 +341,7 @@ export function AppShell(props: AppShellProps) {
                   className={cn(
                     BAR_LINK,
                     current &&
-                      "font-extrabold text-accent-text shadow-[inset_0_-3px_0_var(--accent-text)] hover:text-accent-text"
+                      "text-ink shadow-[inset_0_-3px_0_var(--accent-text)]"
                   )}
                 >
                   {item.label}
@@ -366,7 +393,7 @@ export function AppShell(props: AppShellProps) {
       </header>
       <main
         id="main"
-        // Feed gutter 12px on phones (common-room.md §2), on the grey canvas.
+        // v2 phone gutter (space-4) on paper; centred, at most content-max.
         // overflow-x-clip (not hidden: sticky docks still stick) keeps an
         // older -mx-4 full-bleed bar from scrolling a 320px page sideways.
         className={cn(
@@ -423,7 +450,11 @@ export function AppShell(props: AppShellProps) {
   )
 }
 
-function TabLink({
+/**
+ * One TabBar tab (v2 `nl-tab`). Exported for the dev preview, which shows
+ * the bar outside a page frame; screens get it through AppShell.
+ */
+export function TabLink({
   item,
   href,
   current,
@@ -447,14 +478,13 @@ function TabLink({
       aria-current={current ? "page" : undefined}
       className={cn(
         TAB_ITEM,
-        "text-ink-muted hover:bg-surface-2 hover:text-ink",
-        // Active tab: accent-text, 800, a 3px bar along the top. The only
-        // light blue on the screen.
+        "text-ink-muted hover:bg-raised hover:text-ink",
+        // Active tab (v2 TabBar): bottle, a 3px bar along the top edge.
         current &&
-          "font-extrabold text-accent-text before:absolute before:inset-x-[18%] before:top-0 before:h-[3px] before:rounded-b-[3px] before:bg-accent-text hover:text-accent-text"
+          "text-accent-text before:absolute before:inset-x-1/4 before:top-0 before:h-[3px] before:rounded-b-[3px] before:bg-accent-text hover:text-accent-text"
       )}
     >
-      <Icon aria-hidden className="size-[26px]" />
+      <Icon aria-hidden className="size-6" />
       {item.label}
       <TabBadge
         count={count}

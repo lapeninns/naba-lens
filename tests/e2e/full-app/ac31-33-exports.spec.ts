@@ -94,7 +94,7 @@ for (const [size, options] of SIZES) {
 
     const mgr = await as(browser, w.mgrA, options)
     await mgr.goto("/manager")
-    await mgr.locator('a[data-slot="exports-row"]').click()
+    await mgr.locator('[data-slot="exports-row"] a').click()
     await expect(mgr).toHaveURL(/\/manager\/exports$/)
     const pkg = await makePackage(mgr, "/manager/exports", ["Soup"])
 

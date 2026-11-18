@@ -1,5 +1,6 @@
 import {
   CheckCircleIcon,
+  ClockIcon,
   InfoIcon,
   WarningCircleIcon,
   WarningIcon,
@@ -11,35 +12,38 @@ export type NoticeTone =
   "plain" | "info" | "attention" | "negative" | "positive"
 
 /*
- * Common Room notice (common-room.md §4): a 12px card. Plain is a white card;
- * the tones are a tint with a 4px bar of the tone on the left. Attention and
- * negative are both the warn tone; the icon and role tell them apart.
+ * v2 Notice (`nl-notice`, D10): a 12px block on the tone's soft ground, the
+ * tone's icon and a title in the tone's colour, the text in ink. Plain is
+ * v2's neutral notice (surface-sunken); info is progress (sky), attention
+ * brass, negative v2's problem (signal on signal-soft) and positive bottle.
+ * The icon and the role tell attention and negative apart as well.
  */
-const TONE: Record<NoticeTone, { ground: string; icon: string }> = {
-  plain: { ground: "bg-surface shadow-card", icon: "text-ink-muted" },
-  info: {
-    ground: "bg-info-bg rail-start-info",
-    icon: "text-info-fg",
-  },
+const TONE: Record<
+  NoticeTone,
+  { ground: string; icon: string; title: string }
+> = {
+  plain: { ground: "bg-surface-2", icon: "text-ink-muted", title: "" },
+  info: { ground: "bg-info-bg", icon: "text-info-fg", title: "text-info-fg" },
   attention: {
-    ground: "bg-warn-bg rail-start-warn",
+    ground: "bg-warn-bg",
     icon: "text-warn-fg",
+    title: "text-warn-fg",
   },
   negative: {
-    ground: "bg-warn-bg rail-start-warn",
-    icon: "text-warn-fg",
+    ground: "bg-signal-soft",
+    icon: "text-signal",
+    title: "text-signal",
   },
-  positive: {
-    ground: "bg-ok-bg rail-start-ok",
-    icon: "text-ok-fg",
-  },
+  positive: { ground: "bg-ok-bg", icon: "text-ok-fg", title: "text-ok-fg" },
 }
 
+// v2's fixed icon meanings: clock for progress, exclamation for a person
+// needing to act, the triangle for a problem, the check for done.
 const ICON = {
   plain: InfoIcon,
-  info: InfoIcon,
-  attention: WarningIcon,
-  negative: WarningCircleIcon,
+  info: ClockIcon,
+  attention: WarningCircleIcon,
+  negative: WarningIcon,
   positive: CheckCircleIcon,
 } as const
 
@@ -66,8 +70,8 @@ type NoticeProps = Omit<React.ComponentProps<"div">, "title" | "role"> & {
 }
 
 /**
- * An inline message in the flow of the page. Text stays ink; only the icon
- * takes the tone. Failure copy says what happened, then what to do.
+ * An inline message in the flow of the page. Text stays ink; the icon and
+ * the title take the tone. Failure copy says what happened, then what to do.
  */
 export function Notice({
   tone = "plain",
@@ -93,13 +97,15 @@ export function Notice({
       )}
       {...props}
     >
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2.5 py-3.5 pr-4 pl-5 text-body @max-compact:grid-cols-[auto_minmax(0,1fr)]">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2.5 p-4 text-body @max-compact:grid-cols-[auto_minmax(0,1fr)]">
         <Icon
           aria-hidden
-          className={cn("mt-0.5 size-6 shrink-0", TONE[tone].icon)}
+          className={cn("mt-px size-5.5 shrink-0", TONE[tone].icon)}
         />
         <div className="grid min-w-0 gap-0.5">
-          {title ? <p className="font-bold">{title}</p> : null}
+          {title ? (
+            <p className={cn("text-label", TONE[tone].title)}>{title}</p>
+          ) : null}
           {children ? <div className="min-w-0">{children}</div> : null}
         </div>
         {action ? (

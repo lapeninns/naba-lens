@@ -16,16 +16,15 @@ import { Button } from "@/components/ui/button"
 afterEach(cleanup)
 
 describe("manager phone tab bar (D3)", () => {
-  it("scales each label to fit a fifth of the bar, with no side padding", () => {
+  it("sets each label in v2's caption so it fits a fifth of the bar, with no side padding", () => {
     render(<ManagerNav kind="bar" />)
     const links = screen
       .getByRole("navigation", { name: "Venue workspace" })
       .querySelectorAll("a")
     expect(links).toHaveLength(5)
     for (const link of links) {
-      expect(link.className).toContain(
-        "[font-size:min(1.0625rem,calc((100vw_-_0.5rem)/24))]!"
-      )
+      // v2 TabBar: 13px caption labels, whole words at 320px.
+      expect(link.className.split(" ")).toContain("type-tab-label")
       expect(link.className).toContain("px-0")
       expect(link.className).not.toContain("px-0.5")
     }

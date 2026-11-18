@@ -12,7 +12,8 @@ import {
   UsersThreeIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
-import { HomeRow } from "@/components/nabalens/album/home-rows"
+import { Row } from "@/components/nabalens/common-room/row"
+import { MANAGER_ROW_LIST } from "@/components/nabalens/manager/overview/overview-panels"
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
@@ -190,51 +191,51 @@ export default async function ManagerVenuePage() {
             </p>
           ))}
         </div>
-        <ul className="grid gap-2 md:grid-cols-2">
+        <ul className={MANAGER_ROW_LIST}>
           <li>
-            <HomeRow
+            <Row
               href={managerHrefs.menuVersions}
-              slot="venue-link"
               icon={<CalendarCheckIcon aria-hidden />}
               title={copy.menusLink}
-              line={copy.menusLine}
+              subtitle={copy.menusLine}
             />
           </li>
           <li>
-            <HomeRow
+            <Row
               href={managerHrefs.menu()}
-              slot="venue-link"
               icon={<ForkKnifeIcon aria-hidden />}
               title={copy.availabilityLink}
-              line={copy.availabilityLine}
+              subtitle={copy.availabilityLine}
             />
           </li>
         </ul>
       </Section>
 
       <Section id="specials" title={copy.specialsTitle}>
-        <HomeRow
-          href={managerHrefs.specials}
-          slot="venue-link"
-          icon={<StarIcon aria-hidden />}
-          title={copy.specialsTitle}
-          line={
-            running === undefined || waiting === undefined
-              ? copy.specialsUnknown
-              : copy.specialsLine(running, waiting)
-          }
-        />
+        <ul className={MANAGER_ROW_LIST}>
+          <li>
+            <Row
+              href={managerHrefs.specials}
+              icon={<StarIcon aria-hidden />}
+              title={copy.specialsTitle}
+              subtitle={
+                running === undefined || waiting === undefined
+                  ? copy.specialsUnknown
+                  : copy.specialsLine(running, waiting)
+              }
+            />
+          </li>
+        </ul>
       </Section>
 
       <Section id="spaces" title={copy.spacesTitle}>
-        <ul className="grid gap-2 md:grid-cols-2">
+        <ul className={MANAGER_ROW_LIST}>
           <li>
-            <HomeRow
+            <Row
               href={`${managerHrefs.overview}/amenities/places`}
-              slot="venue-link"
               icon={<MapPinIcon aria-hidden />}
               title={copy.spacesTitle}
-              line={
+              subtitle={
                 spacesCurrent === undefined || spacesDue === undefined
                   ? copy.spacesUnknown
                   : copy.spacesLine(spacesCurrent, spacesDue)
@@ -242,46 +243,42 @@ export default async function ManagerVenuePage() {
             />
           </li>
           <li>
-            <HomeRow
+            <Row
               href={managerHrefs.albumPlaces}
-              slot="venue-link"
               icon={<MapPinIcon aria-hidden />}
               title={copy.placesLink}
-              line={copy.placesLine}
+              subtitle={copy.placesLine}
             />
           </li>
         </ul>
       </Section>
 
       <Section id="facilities" title={copy.facilitiesTitle}>
-        <ul className="grid gap-2 md:grid-cols-2">
+        <ul className={MANAGER_ROW_LIST}>
           <li>
-            <HomeRow
+            <Row
               href={managerHrefs.venueFacts}
-              slot="venue-link"
               icon={<SealCheckIcon aria-hidden />}
               title={copy.toConfirmLink}
-              line={copy.toConfirmLine(toConfirm)}
+              subtitle={copy.toConfirmLine(toConfirm)}
             />
           </li>
           <li>
-            <HomeRow
+            <Row
               href={managerHrefs.venueReports}
-              slot="venue-link"
               icon={<FlagIcon aria-hidden />}
               title={copy.reportsLink}
-              line={copy.reportsLine(
+              subtitle={copy.reportsLine(
                 reports?.ok ? reports.reports.length : null
               )}
             />
           </li>
           <li>
-            <HomeRow
+            <Row
               href={amenityHrefs(managerHrefs.overview).list}
-              slot="venue-link"
               icon={<ListChecksIcon aria-hidden />}
               title={copy.amenitiesLink}
-              line={
+              subtitle={
                 facts && factWords
                   ? copy.factsLine(
                       factWords.text,
@@ -296,23 +293,21 @@ export default async function ManagerVenuePage() {
       </Section>
 
       <Section id="team" title={copy.teamTitle}>
-        <ul className="grid gap-2 md:grid-cols-2">
+        <ul className={MANAGER_ROW_LIST}>
           <li>
-            <HomeRow
+            <Row
               href={managerHrefs.team}
-              slot="venue-link"
               icon={<UsersThreeIcon aria-hidden />}
               title={copy.teamLink}
-              line={copy.teamLine}
+              subtitle={copy.teamLine}
             />
           </li>
           <li>
-            <HomeRow
+            <Row
               href={managerHrefs.exports}
-              slot="venue-link"
               icon={<ExportIcon aria-hidden />}
               title={copy.exportsLink}
-              line={copy.exportsLine}
+              subtitle={copy.exportsLine}
             />
           </li>
         </ul>
@@ -344,7 +339,7 @@ export default async function ManagerVenuePage() {
         )}
         <Link
           href={managerHrefs.venueHistory}
-          className="inline-flex min-h-12 items-center gap-2 justify-self-start rounded-control text-body font-bold text-accent-text underline underline-offset-4 focus-ring"
+          className="inline-flex min-h-12 items-center gap-2 justify-self-start rounded-control text-body font-semibold text-accent-text underline underline-offset-4 focus-ring"
         >
           <ClockCounterClockwiseIcon aria-hidden className="size-5" />
           {copy.historyAll}

@@ -85,7 +85,7 @@ export default async function ManagerAlbumPlacesPage() {
           No places listed yet.{" "}
           <Link
             href="/manager/amenities/places"
-            className="font-bold underline"
+            className="font-semibold underline"
           >
             Add the bar, the kitchen pass and the other places
           </Link>{" "}
@@ -97,7 +97,7 @@ export default async function ManagerAlbumPlacesPage() {
           Missing a place?{" "}
           <Link
             href="/manager/amenities/places"
-            className="font-bold text-accent-text underline underline-offset-4"
+            className="font-semibold text-accent-text underline underline-offset-4"
           >
             Add it under Places
           </Link>

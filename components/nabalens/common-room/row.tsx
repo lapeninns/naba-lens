@@ -5,27 +5,30 @@ import { cn } from "@/lib/utils"
 
 export type RowTone = "neutral" | "warn" | "info" | "ok"
 
+// v2 ListRow's lead is a 20px line icon; a tone colours it, never alone.
 const ICON_TONE: Record<RowTone, string> = {
-  neutral: "bg-surface-2 text-ink",
-  warn: "bg-warn-bg text-warn-fg",
-  info: "bg-info-bg text-info-fg",
-  ok: "bg-ok-bg text-ok-fg",
+  neutral: "text-ink-muted",
+  warn: "text-warn-fg",
+  info: "text-info-fg",
+  ok: "text-ok-fg",
 }
 
+// v2 ListRow (`nl-row`, D10): lead, title and meta, then the trail; 12px
+// above and below, 16px sides, on surface with a line outline.
 const ROW =
-  "grid min-h-16 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-card bg-surface p-3 text-left text-ink shadow-card"
+  "grid min-h-16 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-card bg-surface px-4 py-3 text-left text-ink shadow-card"
 const INTERACTIVE =
-  "transition-colors duration-quick outline-none hover:bg-surface-2 focus-ring"
+  "transition-colors duration-quick outline-none hover:bg-raised focus-ring"
 
 type RowProps = {
-  /** A 44px round icon disc on the left (decorative). */
+  /** A 20px icon on the left (decorative), in the tone's colour. */
   icon?: React.ReactNode
   /** A 56px square thumbnail instead of the icon. */
   thumb?: React.ReactNode
   tone?: RowTone
-  /** First line, bold 18px. */
+  /** First line, v2 label type (15px, 600). */
   title: React.ReactNode
-  /** Second line, muted. */
+  /** Second line, v2 caption in ink-muted. */
   subtitle?: React.ReactNode
   /** Chips under the two lines. */
   chips?: React.ReactNode
@@ -43,7 +46,7 @@ type RowProps = {
 }
 
 /**
- * A to-do row (common-room.md §4): icon, two lines, chevron. The rail of secondary
+ * A to-do row, drawn as v2 ListRow: icon, two lines, chevron. The rail of secondary
  * jobs under the lead card. Use RowList to group rows in one card.
  */
 export function Row({
@@ -63,14 +66,14 @@ export function Row({
   const interactive = Boolean(href || onClick)
   const showChevron = chevron ?? interactive
   const lead = thumb ? (
-    <span className="block size-14 shrink-0 overflow-hidden rounded-control bg-media-placeholder [&_img]:size-full [&_img]:object-cover">
+    <span className="block size-14 shrink-0 overflow-hidden rounded-square bg-media-placeholder [&_img]:size-full [&_img]:object-cover">
       {thumb}
     </span>
   ) : icon ? (
     <span
       aria-hidden
       className={cn(
-        "grid size-11 shrink-0 place-items-center rounded-round [&_svg]:size-6",
+        "grid shrink-0 place-items-center [&_svg]:size-5",
         ICON_TONE[tone]
       )}
     >
@@ -81,11 +84,9 @@ export function Row({
     <>
       {lead}
       <span className="grid min-w-0 gap-0.5">
-        <span className="text-item-title [overflow-wrap:anywhere]">
-          {title}
-        </span>
+        <span className="text-label [overflow-wrap:anywhere]">{title}</span>
         {subtitle ? (
-          <span className="text-body [overflow-wrap:anywhere] text-ink-muted">
+          <span className="text-meta [overflow-wrap:anywhere] text-ink-muted">
             {subtitle}
           </span>
         ) : null}
@@ -135,7 +136,7 @@ export function Row({
 }
 
 /**
- * Rows grouped in one card with hairlines between them. Pass Row children;
+ * Rows grouped in one box with lines between them (v2 `nl-list`). Pass Row children;
  * an optional `head` sits above the first row. Renders a <ul> when `list`.
  */
 export function RowList({

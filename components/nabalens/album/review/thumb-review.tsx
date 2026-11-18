@@ -373,9 +373,14 @@ export function ThumbReview({
         <section
           aria-labelledby={`${uid}-name`}
           aria-roledescription={C.stageLabel}
-          className="grid gap-4"
+          // v2 review: the photo uncropped, at most a wide sheet's width so
+          // the decision stays in view beside the SideNav.
+          className="grid w-full max-w-dialog-wide gap-4"
         >
-          <div className="grid gap-3 rounded-card bg-stage p-3 text-on-stage">
+          {/* `dark`: what sits on the stage reads the dark tokens, so the
+              heading's focus ring (focus moves here after each decision) is
+              the light ink on near-black, as media-viewer does (review Z5). */}
+          <div className="dark grid gap-3 rounded-card bg-stage p-3 text-on-stage">
             {current.imageUrl ? (
               <Photo
                 key={current.key}
@@ -519,7 +524,7 @@ export function ThumbReview({
 
       <Link
         href={listHref}
-        className="inline-flex min-h-12 items-center gap-2 justify-self-start font-bold text-accent-text underline underline-offset-4 focus-ring"
+        className="inline-flex min-h-12 items-center gap-2 justify-self-start font-semibold text-accent-text underline underline-offset-4 focus-ring"
       >
         <ListBulletsIcon aria-hidden className="size-5" />
         {C.allPhotos}
@@ -528,7 +533,7 @@ export function ThumbReview({
         <Link
           href={managerHrefs.photo(current.subject.assetId)}
           data-review-details
-          className="inline-flex min-h-12 items-center gap-2 justify-self-start font-bold text-accent-text underline underline-offset-4 focus-ring"
+          className="inline-flex min-h-12 items-center gap-2 justify-self-start font-semibold text-accent-text underline underline-offset-4 focus-ring"
         >
           {C.details}
         </Link>

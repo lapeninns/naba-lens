@@ -9,6 +9,14 @@ import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { buttonVariants } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { requireActiveAdmin } from "@/lib/auth"
 import {
   operatingStatusChip,
@@ -41,36 +49,70 @@ function reviewerLine(v: AdminVenue) {
   return `Reviewers: ${main ?? "no main"} · ${backup ?? "no backup"}`
 }
 
-function VenueRow({ venue }: { venue: AdminVenue }) {
+/**
+ * One group of venues as a v2 DataTable (SCREENS A2): the name links to the
+ * venue; below md each row stacks into labelled values.
+ */
+function VenueTable({
+  venues,
+  labelledBy,
+}: {
+  venues: AdminVenue[]
+  labelledBy: string
+}) {
   return (
-    <li>
-      <Link
-        href={`/admin/venues/${venue.id}`}
-        data-testid="venue-row"
-        className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 focus-ring-inset outline-none hover:bg-surface-2"
-      >
-        <span className="grid min-w-0 gap-1">
-          <span className="text-label text-ink">{venue.name}</span>
-          <span className="text-meta text-ink-muted">
-            {[venue.locality, venue.timezone].filter(Boolean).join(" · ")}
-          </span>
-          <span className="flex flex-wrap items-center gap-2">
-            <StatusChip state={operatingStatusChip(venue.operatingStatus)} />
-            {venue.active ? (
-              <StatusChip
-                state={setupBlocked(venue) ? "needs_setup" : "setup_in_place"}
-              >
-                {VENUES_COPY.setup(venue)}
-              </StatusChip>
-            ) : null}
-          </span>
-          <span className="text-meta text-ink-muted">
-            {reviewerLine(venue)}
-          </span>
-        </span>
-        <CaretRightIcon aria-hidden className="size-5 text-ink-muted" />
-      </Link>
-    </li>
+    <Table stacked framed aria-labelledby={labelledBy}>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Venue</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Setup</TableHead>
+          <TableHead>Reviewers</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {venues.map((venue) => (
+          <TableRow key={venue.id}>
+            <TableHead scope="row" className="h-auto text-ink">
+              <span className="grid min-w-0 gap-0.5 py-1">
+                <Link
+                  href={`/admin/venues/${venue.id}`}
+                  data-testid="venue-row"
+                  className="inline-flex min-h-11 items-center gap-1 text-label whitespace-normal text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+                >
+                  {venue.name}
+                  <CaretRightIcon
+                    aria-hidden
+                    className="size-4 shrink-0 text-ink-muted"
+                  />
+                </Link>
+                <span className="text-meta font-normal whitespace-normal text-ink-muted">
+                  {[venue.locality, venue.timezone].filter(Boolean).join(" · ")}
+                </span>
+              </span>
+            </TableHead>
+            <TableCell label="Status">
+              <StatusChip state={operatingStatusChip(venue.operatingStatus)} />
+            </TableCell>
+            <TableCell label="Setup">
+              {venue.active ? (
+                <StatusChip
+                  state={setupBlocked(venue) ? "needs_setup" : "setup_in_place"}
+                >
+                  {VENUES_COPY.setup(venue)}
+                </StatusChip>
+              ) : null}
+            </TableCell>
+            <TableCell
+              label="Reviewers"
+              className="whitespace-normal text-ink-muted"
+            >
+              {reviewerLine(venue)}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }
 
@@ -131,11 +173,7 @@ export default async function AdminVenuesPage({
                 >
                   Setup still to do
                 </h2>
-                <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
-                  {blocked.map((v) => (
-                    <VenueRow key={v.id} venue={v} />
-                  ))}
-                </ul>
+                <VenueTable venues={blocked} labelledBy="venues-blocked" />
               </section>
             ) : null}
             {rest.length ? (
@@ -146,11 +184,7 @@ export default async function AdminVenuesPage({
                 >
                   {blocked.length ? "Set up" : "All venues"}
                 </h2>
-                <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
-                  {rest.map((v) => (
-                    <VenueRow key={v.id} venue={v} />
-                  ))}
-                </ul>
+                <VenueTable venues={rest} labelledBy="venues-rest" />
               </section>
             ) : null}
           </>

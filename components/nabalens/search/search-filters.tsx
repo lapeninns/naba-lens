@@ -486,7 +486,7 @@ function FieldError({ id, text }: { id: string; text: string | null }) {
   return (
     <p
       id={id}
-      className="flex items-start gap-1.5 text-body font-bold text-warn-fg"
+      className="flex items-start gap-1.5 text-body font-semibold text-warn-fg"
     >
       <WarningCircleIcon aria-hidden className="mt-0.5 size-5 shrink-0" />
       {text}
@@ -698,7 +698,7 @@ function MenuItemFilter({
                   i === active && "bg-surface-2 text-ink"
                 )}
               >
-                <span className="font-bold">{item.name}</span>
+                <span className="font-semibold">{item.name}</span>
                 {item.sectionName ? (
                   <span className="text-meta text-ink-muted">
                     {item.sectionName}

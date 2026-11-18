@@ -108,7 +108,10 @@ export function RemovalForm({
         {done === "pending"
           ? "; the stored files will be deleted by the next clean-up."
           : "."}{" "}
-        <Link href="/admin" className="font-bold underline underline-offset-4">
+        <Link
+          href="/admin"
+          className="font-semibold underline underline-offset-4"
+        >
           Back to the library
         </Link>
       </Notice>
@@ -201,7 +204,7 @@ export function RemovalRequestList({
             className="grid gap-2 rounded-card border border-line bg-surface p-4"
           >
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-body font-bold">{r.venueName}</span>
+              <span className="text-body font-semibold">{r.venueName}</span>
               <StatusChip tone="pending">Open</StatusChip>
             </div>
             <p className="text-body [overflow-wrap:anywhere]">

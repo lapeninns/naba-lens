@@ -1,5 +1,5 @@
 import { cloneElement, isValidElement, useId } from "react"
-import { WarningCircleIcon } from "@phosphor-icons/react/dist/ssr"
+import { WarningIcon } from "@phosphor-icons/react/dist/ssr"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 
 /*
- * The field family (common-room.md §4 Field, §7): a label, one control, its error
- * and its hint. FormField is the way to write a labelled control: it makes
+ * The field family (v2 Field, D10): a label, one control, its error and its
+ * hint. The label is v2 label type, the hint caption in ink-muted, the
+ * error caption in signal with the triangle. FormField is the way to write a labelled control: it makes
  * the ids and links the parts. The loose parts stay for layouts it does not
  * cover (choice cards, fieldsets, a row of fields).
  *
@@ -153,9 +154,9 @@ function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="field-description"
       className={cn(
-        "text-left text-body font-normal text-ink-muted group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5",
+        "text-left text-meta text-ink-muted group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5",
         "last:mt-0 nth-last-2:-mt-1",
-        "[&>a]:font-bold [&>a]:text-ink [&>a]:underline [&>a]:underline-offset-4",
+        "[&>a]:font-semibold [&>a]:text-accent-text [&>a]:underline [&>a]:underline-offset-3",
         className
       )}
       {...props}
@@ -215,14 +216,12 @@ function FieldError({
     <div
       role={announce === "polite" ? "status" : "alert"}
       data-slot="field-error"
-      // Never colour alone: an icon and the words, in warn (common-room.md §4).
-      className={cn(
-        "flex items-start gap-1.5 text-body font-bold text-warn-fg",
-        className
-      )}
+      // Never colour alone: the triangle and the words, in signal (v2 Field
+      // `nl-field__error`).
+      className={cn("flex items-start gap-1 text-chip text-signal", className)}
       {...props}
     >
-      <WarningCircleIcon aria-hidden className="mt-0.5 size-5 shrink-0" />
+      <WarningIcon aria-hidden className="size-4 shrink-0" />
       <div className="min-w-0">{content}</div>
     </div>
   )

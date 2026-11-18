@@ -47,28 +47,24 @@ export function EmptyState({
     <div
       data-slot="empty-state"
       className={cn(
-        // Common Room empty state (common-room.md §5): icon, what appears here,
-        // how it gets there, one action at most. A white card on the canvas.
-        "grid justify-items-center gap-2.5 text-center",
-        inline ? "px-4 py-8" : "rounded-card bg-surface px-5 py-8 shadow-card",
+        // v2 EmptyState (`nl-empty`, D10): a 32px line icon in ink-muted, a
+        // title, one sentence, at most one action. No illustration and no
+        // card; `inline` only tightens the space inside a panel.
+        "grid justify-items-center gap-2 text-center",
+        inline ? "px-4 py-6" : "px-4 py-8",
         className
       )}
     >
-      <span
-        aria-hidden
-        className="mb-1 grid size-18 place-items-center rounded-round bg-surface-2 text-ink-muted"
-      >
+      <span aria-hidden className="text-ink-muted">
         {variant === "filtered" ? (
-          <MagnifyingGlassIcon className="size-9" />
+          <MagnifyingGlassIcon className="size-8" />
         ) : (
-          <ImageIcon className="size-9" />
+          <ImageIcon className="size-8" />
         )}
       </span>
-      <Title className="max-w-[32ch] type-section-title text-ink">
-        {title}
-      </Title>
+      <Title className="max-w-[32ch] type-title text-ink">{title}</Title>
       {description ? (
-        <div className="max-w-[40ch] text-body text-ink-muted">
+        <div className="max-w-[36ch] text-body text-ink-muted">
           {description}
         </div>
       ) : null}

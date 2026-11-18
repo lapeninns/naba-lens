@@ -64,7 +64,7 @@ function RequestRow({ request }: { request: MenuChangeRequest }) {
   return (
     <li className="grid gap-3 py-3">
       <div className="grid gap-1">
-        <p className="text-body font-bold text-ink">
+        <p className="text-body font-semibold text-ink">
           {CHANGE_KIND_LABEL[request.kind]}
           {request.itemName ? ` · ${request.itemName}` : ""}
         </p>

@@ -194,6 +194,9 @@ export function UiPreview() {
           on the first attempt.
         </p>
         <div className="flex flex-wrap items-center gap-3">
+          <LinkButton href="/ui-preview/v2" variant="primary">
+            Open design system v2
+          </LinkButton>
           <LinkButton href="/ui-preview/gallery">
             Open the design system gallery
           </LinkButton>

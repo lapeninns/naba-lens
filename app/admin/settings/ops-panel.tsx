@@ -3,7 +3,10 @@ import {
   Tally,
   TallyItem,
 } from "@/components/nabalens/coverage"
+import { Row, RowList } from "@/components/nabalens/common-room/row"
 import { EmptyState } from "@/components/nabalens/empty-state"
+import { MetaList } from "@/components/nabalens/meta-list"
+import { Notice } from "@/components/nabalens/notice"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import {
   Table,
@@ -31,6 +34,9 @@ const DATE = new Intl.DateTimeFormat("en-GB", {
 export const when = (iso: string | null) =>
   iso ? DATE.format(new Date(iso)) : "Never"
 
+// v2 tones: something failed is a problem; the rest need a person to act.
+const PROBLEM_TOPICS = new Set(["processing", "job", "archive", "preparation"])
+
 export function ExceptionsPanel({ status }: { status: OpsStatus }) {
   const items = status.exceptions
   return (
@@ -46,16 +52,20 @@ export function ExceptionsPanel({ status }: { status: OpsStatus }) {
           description="Storage, processing, jobs, backlogs and venue setup are all fine."
         />
       ) : (
-        <ul className="grid divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
+        <ul className="grid gap-2">
           {items.map((e, i) => {
             const words = exceptionText(e)
             return (
-              <li
-                key={`${e.topic}-${e.venueId ?? i}`}
-                className="grid gap-0.5 px-4 py-3.5"
-              >
-                <p className="font-bold text-ink">{words.title}</p>
-                <p className="text-body text-ink-muted">{words.detail}</p>
+              <li key={`${e.topic}-${e.venueId ?? i}`}>
+                {/* v2 SCREENS A1: problem and attention Notices first. Page
+                    content, not a message after an action: no live role. */}
+                <Notice
+                  tone={PROBLEM_TOPICS.has(e.topic) ? "negative" : "attention"}
+                  role="none"
+                  title={words.title}
+                >
+                  <p className="text-ink-muted">{words.detail}</p>
+                </Notice>
               </li>
             )
           })}
@@ -99,61 +109,59 @@ export function OperationsPanel({ status }: { status: OpsStatus }) {
           tone="attention"
         />
       </Tally>
-      <div className="overflow-hidden rounded-card border border-line bg-surface">
-        <Table stacked>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Job</TableHead>
-              <TableHead>Last run</TableHead>
-              <TableHead>State</TableHead>
-              <TableHead>Last success</TableHead>
-              <TableHead>Failures this week</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow>
-              <TableCell>Original archive check</TableCell>
-              <TableCell label="Last run">
-                {when(status.archive.lastRunAt)}
-              </TableCell>
+      <Table stacked framed>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Job</TableHead>
+            <TableHead>Last run</TableHead>
+            <TableHead>State</TableHead>
+            <TableHead>Last success</TableHead>
+            <TableHead>Failures this week</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            <TableCell>Original archive check</TableCell>
+            <TableCell label="Last run">
+              {when(status.archive.lastRunAt)}
+            </TableCell>
+            <TableCell label="State">
+              <JobState
+                state={
+                  !status.archive.outcome
+                    ? null
+                    : ["timeout", "lease_lost", "failed"].includes(
+                          status.archive.outcome
+                        )
+                      ? "failed"
+                      : "succeeded"
+                }
+              />
+            </TableCell>
+            <TableCell label="Last success">
+              {when(status.archive.lastCompletedCycleAt)}
+            </TableCell>
+            <TableCell label="Failures this week" numeric>
+              {status.archive.error ? "1+" : "0"}
+            </TableCell>
+          </TableRow>
+          {status.jobs.map((j) => (
+            <TableRow key={j.job}>
+              <TableCell>{jobWords(j.job)}</TableCell>
+              <TableCell label="Last run">{when(j.lastRunAt)}</TableCell>
               <TableCell label="State">
-                <JobState
-                  state={
-                    !status.archive.outcome
-                      ? null
-                      : ["timeout", "lease_lost", "failed"].includes(
-                            status.archive.outcome
-                          )
-                        ? "failed"
-                        : "succeeded"
-                  }
-                />
+                <JobState state={j.lastState} code={j.lastErrorCode} />
               </TableCell>
               <TableCell label="Last success">
-                {when(status.archive.lastCompletedCycleAt)}
+                {when(j.lastSuccessAt)}
               </TableCell>
               <TableCell label="Failures this week" numeric>
-                {status.archive.error ? "1+" : "0"}
+                {j.failuresLastWeek}
               </TableCell>
             </TableRow>
-            {status.jobs.map((j) => (
-              <TableRow key={j.job}>
-                <TableCell>{jobWords(j.job)}</TableCell>
-                <TableCell label="Last run">{when(j.lastRunAt)}</TableCell>
-                <TableCell label="State">
-                  <JobState state={j.lastState} code={j.lastErrorCode} />
-                </TableCell>
-                <TableCell label="Last success">
-                  {when(j.lastSuccessAt)}
-                </TableCell>
-                <TableCell label="Failures this week" numeric>
-                  {j.failuresLastWeek}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+          ))}
+        </TableBody>
+      </Table>
       <p className="px-1 text-meta text-ink-muted">
         Last restore rehearsal:{" "}
         {status.restoreRehearsal.lastAt
@@ -190,14 +198,15 @@ export function LimitsPanel({
 }) {
   return (
     <CoverageSection id="limits" title="Media limits">
-      <dl className="grid gap-x-6 gap-y-2 rounded-card border border-line bg-surface p-4 sm:grid-cols-[max-content_1fr]">
-        <dt className="font-bold">Largest photo</dt>
-        <dd>{formatBytes(limits.photoBytes)}</dd>
-        <dt className="font-bold">Largest video</dt>
-        <dd>{formatBytes(limits.videoBytes)}</dd>
-        <dt className="font-bold">Files in one batch</dt>
-        <dd>{limits.batchFiles}</dd>
-      </dl>
+      <div className="rounded-card bg-surface p-4 shadow-card">
+        <MetaList
+          items={[
+            { label: "Largest photo", value: formatBytes(limits.photoBytes) },
+            { label: "Largest video", value: formatBytes(limits.videoBytes) },
+            { label: "Files in one batch", value: limits.batchFiles },
+          ]}
+        />
+      </div>
       <p className="px-1 text-meta text-ink-muted">
         Set with each release, so the phone and the server always agree. Ask for
         a change in a release.
@@ -224,22 +233,20 @@ export function IntegrationsPanel({
 }) {
   return (
     <CoverageSection id="integrations" title="Integrations">
-      <ul className="grid divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
+      <RowList list>
         {integrations.map((i) => (
-          <li
+          <Row
             key={i.id}
-            className="flex flex-wrap items-center justify-between gap-2 px-4 py-3.5"
-          >
-            <div className="grid gap-0.5">
-              <p className="font-bold">{i.name}</p>
-              <p className="text-meta text-ink-muted">{i.purpose}</p>
-            </div>
-            <span className="text-body">
-              {i.configured ? "Set up" : "Not set up"}
-            </span>
-          </li>
+            title={i.name}
+            subtitle={i.purpose}
+            end={
+              <span className="text-body text-ink">
+                {i.configured ? "Set up" : "Not set up"}
+              </span>
+            }
+          />
         ))}
-      </ul>
+      </RowList>
       <p className="px-1 text-meta text-ink-muted">
         Keys and passwords are kept in the hosting environment and never shown
         here.

@@ -113,7 +113,7 @@ export function CommonRoomPreview() {
           <p className="type-section-title">Card title 24</p>
           <p className="type-section-title">Heading MD 21</p>
           <p className="type-count tabular-nums">46</p>
-          <p className="text-lead">Lead 18. Atkinson Hyperlegible Next.</p>
+          <p className="text-lead">Lead 16. Figtree.</p>
           <p className="text-body">Body 17. The floor for product text.</p>
           <p className="font-mono text-meta font-semibold tabular-nums">
             Meta mono 17 · 2 Nov 2026, 14:06 · 42%
