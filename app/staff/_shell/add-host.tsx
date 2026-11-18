@@ -950,7 +950,8 @@ export function AddHost({
   const startMatch = (
     files: File[],
     current: string | null,
-    decided: MatchOutcome | null
+    decided: MatchOutcome | null,
+    fromRequest = false
   ) => {
     const run = (matchSeq.current += 1)
     // A photo the queue would never take is said now and left in the
@@ -966,8 +967,9 @@ export function AddHost({
       kept.map((file, i) => ({ key: `m${run}-${i}`, file }))
     )
     for (const photo of photos) matchKeys.current.set(photo.file, photo.key)
+    // S2-METRICS (K5): a manager's Asked for is its own route.
     matchFlow.current = {
-      route: decided ? "slot" : "gallery",
+      route: fromRequest ? "request" : decided ? "slot" : "gallery",
       batchId: crypto.randomUUID(),
     }
     trackFlow({
@@ -1029,7 +1031,9 @@ export function AddHost({
           ? "subject_selected"
           : outcome.kind === "later"
             ? "match_later"
-            : "not_for_slot",
+            : outcome.kind === "unsure"
+              ? "label_uncertain"
+              : "not_for_slot",
       ...matchFlow.current,
       subjectKind: target?.kind ?? null,
       subjectId: target
@@ -1125,8 +1129,8 @@ export function AddHost({
   // What the gallery's next pick is for: today's Add, Match, or one slot.
   const pickMode = React.useRef<
     | { kind: "add" }
-    | { kind: "match"; place: string | null }
-    | { kind: "slot"; slot: MatchTarget }
+    | { kind: "match"; place: string | null; request: boolean }
+    | { kind: "slot"; slot: MatchTarget; request: boolean }
   >({ kind: "add" })
 
   // Add's own picker (the phone's gallery; Add has no camera, DESIGN.md §9),
@@ -1139,14 +1143,16 @@ export function AddHost({
       const owner = pickerOwner.current
       pickerOwner.current = null
       if (mode.kind === "match") {
-        startMatch(files, mode.place, null)
+        startMatch(files, mode.place, null, mode.request)
         return
       }
       if (mode.kind === "slot") {
-        startMatch(files.slice(0, 1), null, {
-          kind: "slot",
-          slot: slotOf(mode.slot),
-        })
+        startMatch(
+          files.slice(0, 1),
+          null,
+          { kind: "slot", slot: slotOf(mode.slot) },
+          mode.request
+        )
         return
       }
       claim(files, owner)
@@ -1424,9 +1430,10 @@ export function AddHost({
           sheetOwner.current = null
           pickerOwner.current = null
           setImagesOnly(true)
+          const request = opts.route === "request"
           pickMode.current = opts.slot
-            ? { kind: "slot", slot: opts.slot }
-            : { kind: "match", place: opts.match?.place ?? null }
+            ? { kind: "slot", slot: opts.slot, request }
+            : { kind: "match", place: opts.match?.place ?? null, request }
           openPicker({ multiple: !opts.slot, imagesOnly: true })
           return
         }

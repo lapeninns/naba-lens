@@ -17,6 +17,7 @@ import {
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { trackFlow } from "@/lib/metrics/track"
 import { AddHost } from "@/app/staff/_shell/add-host"
 import type { MatchBoard } from "@/components/nabalens/album/match/model"
 import {
@@ -138,6 +139,11 @@ vi.mock("@/app/_media/use-media-uploader", () => ({
 vi.mock("@/app/_labels/actions", () => actions)
 vi.mock("@/app/staff/_shell/match-actions", () => match)
 vi.mock("@/app/_labels/area-actions", () => area)
+
+vi.mock("@/lib/metrics/track", async (original) => ({
+  ...(await original<typeof import("@/lib/metrics/track")>()),
+  trackFlow: vi.fn(),
+}))
 
 vi.mock("@/lib/upload/quality", async (original) => ({
   ...(await original<typeof import("@/lib/upload/quality")>()),
@@ -399,6 +405,29 @@ describe("the picker cancelled (spec §6 S2)", () => {
     expect(
       await screen.findByRole("dialog", { name: "Photo 1 of 1" })
     ).toBeTruthy()
+  })
+})
+
+describe("workflow events (S2-METRICS, K5)", () => {
+  const events = () =>
+    vi.mocked(trackFlow).mock.calls.map(([e]) => [e.name, e.route ?? null])
+
+  it("records I'm not sure as its own event", async () => {
+    const user = await pick({ match: { place: PASS } }, [jpeg("u.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      within(dialog).getByRole("button", { name: /I'm not sure/ })
+    )
+    await waitFor(() =>
+      expect(events().map(([name]) => name)).toContain("label_uncertain")
+    )
+    expect(events().map(([name]) => name)).not.toContain("not_for_slot")
+  })
+
+  it("records photos started from Asked for under the request route", async () => {
+    await pick({ match: { place: PASS }, route: "request" }, [jpeg("r.jpg")])
+    await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    expect(events()).toContainEqual(["flow_started", "request"])
   })
 })
 

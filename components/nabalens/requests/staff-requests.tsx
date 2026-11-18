@@ -48,7 +48,8 @@ export function AskedFor({
   const openAdd = useAdd()
   if (items.length === 0) return null
   const add = (opts: OpenAddOptions) => {
-    if (canAdd && openAdd) openAdd(opts)
+    // S2-METRICS (K5): photos started here count under the request route.
+    if (canAdd && openAdd) openAdd({ ...opts, route: "request" })
   }
   const Heading = `h${headingLevel}` as "h2"
   const shown = items.slice(0, MAX)

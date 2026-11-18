@@ -494,13 +494,18 @@ describe("Asked for on Album Home (AC01, FA-5)", () => {
     expect(section.textContent).not.toMatch(/\bdue\b|overdue|task|request/i)
 
     await userEvent.click(within(section).getByRole("button", { name: /Pie/ }))
+    // K5: counted under the request route (S2-METRICS).
     expect(openAdd).toHaveBeenCalledWith({
       slot: { kind: "dish", itemId: PIE, name: "Pie" },
+      route: "request",
     })
     await userEvent.click(
       within(section).getByRole("button", { name: "Add photos for this" })
     )
-    expect(openAdd).toHaveBeenLastCalledWith({ match: { place: null } })
+    expect(openAdd).toHaveBeenLastCalledWith({
+      match: { place: null },
+      route: "request",
+    })
   })
 
   it("shows the manager's example photo beside the brief", () => {

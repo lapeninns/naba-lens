@@ -55,6 +55,12 @@ export type OpenAddOptions = {
    * as its venue-area label), then Match's end for that one photo.
    */
   slot?: AddSlot
+  /**
+   * How the photos were started, for the workflow events (spec §18.3,
+   * S2-METRICS): "request" from a manager's Asked for. Omitted: from a
+   * slot's tile or the gallery.
+   */
+  route?: "request"
   /** Accept photos only for the files picked from this call (task screens). */
   imagesOnly?: boolean
   /**
