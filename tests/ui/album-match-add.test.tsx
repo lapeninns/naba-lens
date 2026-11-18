@@ -9,7 +9,6 @@
 // the two journeys the delivery measures.
 import {
   cleanup,
-  fireEvent,
   render,
   screen,
   waitFor,
@@ -21,7 +20,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { AddHost } from "@/app/staff/_shell/add-host"
 import type { MatchBoard } from "@/components/nabalens/album/match/model"
 import {
-  AddTrigger,
   useAdd,
   type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
