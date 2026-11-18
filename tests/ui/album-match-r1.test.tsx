@@ -457,6 +457,9 @@ const BHAJI_SLOT: AlbumSlot = {
   neededBy: null,
   brief: null,
   target: { kind: "dish", itemId: "item-bhaji", itemName: "Onion Bhaji" },
+  category: "food",
+  pendingCount: 0,
+  needsUpdate: false,
 }
 
 function TileOnAlbum({ slot = BHAJI_SLOT }: { slot?: AlbumSlot }) {

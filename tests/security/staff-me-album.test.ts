@@ -268,6 +268,13 @@ describe("my_uploads", () => {
     ).toBe("invalid_cursor")
   })
 
+  it("reads one own upload by id, and nobody else's", async () => {
+    const one = await uploads(v.w.staffA, { p_asset_id: first })
+    expect(one.items.map((i) => i.assetId)).toEqual([first])
+    const theirs = await uploads(v.w.staffB, { p_asset_id: first })
+    expect(theirs.items).toEqual([])
+  })
+
   it("never returns a colleague's or another venue's photos", async () => {
     const mine = new Set(
       (await uploads(v.w.staffA)).items.map((i) => i.assetId)

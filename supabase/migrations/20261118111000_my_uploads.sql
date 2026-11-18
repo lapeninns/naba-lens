@@ -23,6 +23,8 @@ set lock_timeout = '5s';
 --                (spec §6 S4). Nothing is stored; the read derives it.
 --   requests     whether an open removal request (FA-21) or an open
 --                correction request (20261118111100) exists
+--   p_asset_id   reads one own upload (a Change slot re-checks it is still
+--                waiting before it saves)
 --   revision     the photo's label revision, for a version-checked Change
 --                slot (save_media_labels' expected revision)
 --
@@ -31,12 +33,13 @@ set lock_timeout = '5s';
 -- from the same private helpers the manager's asset_usages reads
 -- (20261118100200_coverage_slots.sql), so staff and managers see one rule.
 --
--- Rollback: drop function public.my_uploads(timestamptz, uuid, integer).
+-- Rollback: drop function public.my_uploads(timestamptz, uuid, integer, uuid).
 
 create function public.my_uploads(
   p_before timestamptz default null,
   p_before_id uuid default null,
-  p_limit integer default 30
+  p_limit integer default 30,
+  p_asset_id uuid default null
 )
 returns jsonb
 language plpgsql
@@ -63,6 +66,7 @@ begin
     from public.media_assets a
     where a.uploader_id = v_uid and a.deleted_at is null
       and (p_before is null or (a.created_at, a.id) < (p_before, p_before_id))
+      and (p_asset_id is null or a.id = p_asset_id)
     order by a.created_at desc, a.id desc
     limit v_limit + 1
   ),
@@ -190,6 +194,7 @@ begin
     from public.media_assets a
     where a.uploader_id = v_uid and a.deleted_at is null
       and (p_before is null or (a.created_at, a.id) < (p_before, p_before_id))
+      and (p_asset_id is null or a.id = p_asset_id)
     order by a.created_at desc, a.id desc
     limit v_limit + 1
   ) y;
@@ -198,8 +203,8 @@ begin
 end;
 $$;
 
-comment on function public.my_uploads(timestamptz, uuid, integer) is
+comment on function public.my_uploads(timestamptz, uuid, integer, uuid) is
   'S2-STAFF, spec §6 S4: the caller''s own uploads (any venue) with venue, dates, slots and review outcomes; never a colleague''s.';
 
-revoke all on function public.my_uploads(timestamptz, uuid, integer) from public, anon, service_role;
-grant execute on function public.my_uploads(timestamptz, uuid, integer) to authenticated;
+revoke all on function public.my_uploads(timestamptz, uuid, integer, uuid) from public, anon, service_role;
+grant execute on function public.my_uploads(timestamptz, uuid, integer, uuid) to authenticated;

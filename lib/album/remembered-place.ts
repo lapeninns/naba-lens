@@ -38,3 +38,31 @@ export function rememberAlbumPlace(placeId: string): void {
     window.location.protocol === "https:"
   )
 }
+
+/**
+ * The state filter a person last chose on purpose in a place (spec §6 S3:
+ * "preserve an intentional browsing choice"), kept like the place. A prompt
+ * that opens a place on Needed passes `?show=needed` and is not remembered.
+ */
+export const ALBUM_SHOW_COOKIE = "nl_album_show"
+
+const SHOW = /^(needed|waiting|in-album|updating|all)$/
+
+/** The cookie's value as a filter key, or null when missing or malformed. */
+export function parseAlbumShowCookie(
+  value: string | null | undefined
+): string | null {
+  return value && SHOW.test(value) ? value : null
+}
+
+/** Remember a filter the person chose. Browser only; a bad key is ignored. */
+export function rememberAlbumShow(show: string): void {
+  if (typeof document === "undefined" || !parseAlbumShowCookie(show)) return
+  document.cookie = [
+    `${ALBUM_SHOW_COOKIE}=${show}`,
+    "Path=/staff",
+    `Max-Age=${MAX_AGE_SECONDS}`,
+    "SameSite=Lax",
+    ...(window.location.protocol === "https:" ? ["Secure"] : []),
+  ].join("; ")
+}

@@ -10,21 +10,66 @@ import {
   type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { Button } from "@/components/ui/button"
-import type { AlbumPlace } from "@/lib/album/model"
+import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
+import {
+  ALBUM_SHOWS,
+  COVERAGE_CATEGORIES,
+  filterPlace,
+  placeCategories,
+  type AlbumPlace,
+  type AlbumShow,
+  type CoverageCategory,
+} from "@/lib/album/model"
+import { rememberAlbumShow } from "@/lib/album/remembered-place"
 
 /*
  * One place in the album (DESIGN.md §6.2): every slot there, by section, each
  * with its "filled of total" count, and the main button that adds photos.
+ *
+ * Filters (spec §6 S3, FA-6, FA-7; S2-STAFF): the spec's categories (Food,
+ * Drinks, Spaces, Facilities, Other) present in the place, and the states in
+ * Album's words: Needed, Waiting, In the album, Needs updating, All. Both
+ * live in the URL (`?show=`, `?cat=`). A state the person chooses here is
+ * remembered on the phone; a prompt opens the place with `?show=needed`.
+ * Counts never change with a filter. A tile shows how many photos wait for
+ * review on it, never a colleague's unreviewed photo (FA-20).
  */
+
+export const PLACE_COPY = {
+  stateFilter: "Show",
+  categoryFilter: "Category",
+  allCategories: "Everything",
+  nothingHere: "No slots here match these filters. Choose another filter.",
+  waiting: (n: number) => `${n} waiting`,
+}
+
+export type PlaceFilter = {
+  show: AlbumShow
+  category: CoverageCategory | null
+}
+
+export const DEFAULT_PLACE_FILTER: PlaceFilter = { show: "all", category: null }
+
+/** The URL of this place with a filter (the default one leaves it clean). */
+export function placeFilterHref(placeKey: string, filter: PlaceFilter): string {
+  const params = new URLSearchParams()
+  if (filter.show !== "all") params.set("show", filter.show)
+  if (filter.category) params.set("cat", filter.category)
+  const query = params.toString()
+  return `/staff/album/${placeKey}${query ? `?${query}` : ""}`
+}
+
 export function AlbumPlaceScreen({
   venueName,
   place,
   canAdd,
+  filter = DEFAULT_PLACE_FILTER,
   headingLevel = 1,
 }: {
   venueName: string
   place: AlbumPlace
   canAdd: boolean
+  filter?: PlaceFilter
   /** The screen's title level; 1 on a page, deeper when embedded (the dev gallery). */
   headingLevel?: 1 | 2 | 3 | 4
 }) {
@@ -37,11 +82,14 @@ export function AlbumPlaceScreen({
   const add = (opts: OpenAddOptions) => {
     if (canAdd && openAdd) openAdd(opts)
   }
+  const placeKey = place.subjectId ?? "unplaced"
+  const categories = placeCategories(place)
+  const shown = filterPlace(place, filter)
   return (
     <div className="grid gap-5 pb-4" data-slot="album-place">
       <div>
         <Link
-          href={`/staff/tasks?place=${place.subjectId ?? "unplaced"}`}
+          href={`/staff/tasks?place=${placeKey}`}
           className="inline-flex min-h-12 items-center gap-1 font-bold text-ink focus-ring"
         >
           <ArrowLeftIcon aria-hidden className="size-5" />
@@ -60,37 +108,99 @@ export function AlbumPlaceScreen({
         </p>
       </header>
 
-      {place.groups.map((group, index) => (
-        <section
-          key={group.name}
-          aria-labelledby={`${idBase}-group-${index}`}
-          className="grid gap-2"
-        >
-          <div className="flex items-baseline justify-between gap-3">
-            <Section
-              id={`${idBase}-group-${index}`}
-              className="type-section-title text-ink"
+      <div className="grid gap-2" data-slot="album-place-filters">
+        <PillGroup label={PLACE_COPY.stateFilter}>
+          {ALBUM_SHOWS.map(({ key, label }) => (
+            <FilterPill
+              key={key}
+              href={placeFilterHref(placeKey, { ...filter, show: key })}
+              scroll={false}
+              replace
+              current="true"
+              selected={filter.show === key}
+              onClick={() => rememberAlbumShow(key)}
             >
-              {group.name}
-            </Section>
-            <span className="font-mono text-mono font-semibold text-ink-muted tabular-nums">
-              {group.filled} of {group.total}
-            </span>
-          </div>
-          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-            {group.slots.map((slot) => (
-              <li key={slot.id} className="grid content-start gap-1">
-                <AlbumSlotTile slot={slot} add={add} />
-                {slot.neededBy ? (
-                  <span className="text-meta text-ink-muted">
-                    {slot.neededBy}
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+              {label}
+            </FilterPill>
+          ))}
+        </PillGroup>
+        {categories.length > 1 ? (
+          <PillGroup label={PLACE_COPY.categoryFilter}>
+            <FilterPill
+              href={placeFilterHref(placeKey, { ...filter, category: null })}
+              scroll={false}
+              replace
+              current="true"
+              selected={filter.category === null}
+            >
+              {PLACE_COPY.allCategories}
+            </FilterPill>
+            {COVERAGE_CATEGORIES.filter((c) => categories.includes(c.key)).map(
+              ({ key, label }) => (
+                <FilterPill
+                  key={key}
+                  href={placeFilterHref(placeKey, { ...filter, category: key })}
+                  scroll={false}
+                  replace
+                  current="true"
+                  selected={filter.category === key}
+                >
+                  {label}
+                </FilterPill>
+              )
+            )}
+          </PillGroup>
+        ) : null}
+      </div>
+
+      {shown.groups.length === 0 ? (
+        <p className="text-body text-ink-muted" role="status">
+          {PLACE_COPY.nothingHere}
+        </p>
+      ) : null}
+
+      {shown.groups.map((group, index) => {
+        const whole = place.groups.find((g) => g.name === group.name) ?? group
+        return (
+          <section
+            key={group.name}
+            aria-labelledby={`${idBase}-group-${index}`}
+            className="grid gap-2"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <Section
+                id={`${idBase}-group-${index}`}
+                className="type-section-title text-ink"
+              >
+                {group.name}
+              </Section>
+              <span className="font-mono text-mono font-semibold text-ink-muted tabular-nums">
+                {whole.filled} of {whole.total}
+              </span>
+            </div>
+            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+              {group.slots.map((slot) => (
+                <li key={slot.id} className="grid content-start gap-1">
+                  <AlbumSlotTile slot={slot} add={add} />
+                  {slot.neededBy ? (
+                    <span className="text-meta text-ink-muted">
+                      {slot.neededBy}
+                    </span>
+                  ) : null}
+                  {slot.pendingCount > 0 ? (
+                    <span
+                      className="font-mono text-meta font-semibold text-ink-muted tabular-nums"
+                      data-slot="slot-pending-count"
+                    >
+                      {PLACE_COPY.waiting(slot.pendingCount)}
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      })}
 
       {place.empty > 0 ? (
         <div className="sticky bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+0.5rem)] z-dock md:static">
@@ -99,9 +209,7 @@ export function AlbumPlaceScreen({
             size="lg"
             className="min-h-16 w-full"
             disabled={!canAdd}
-            onClick={() =>
-              add({ match: { place: place.subjectId ?? "unplaced" } })
-            }
+            onClick={() => add({ match: { place: placeKey } })}
           >
             <ImagesIcon data-icon="inline-start" aria-hidden />
             {place.empty === 1

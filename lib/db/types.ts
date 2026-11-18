@@ -6454,6 +6454,118 @@ export type Database = {
           },
         ]
       }
+      slot_change_report_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          id: number
+          note: string | null
+          report_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          id?: never
+          note?: string | null
+          report_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          id?: never
+          note?: string | null
+          report_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slot_change_report_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slot_change_report_events_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "slot_change_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      slot_change_reports: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          id: string
+          note: string | null
+          reason: string
+          reporter_id: string
+          state: string
+          subject_id: string
+          subject_kind: string
+          subject_name: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          note?: string | null
+          reason: string
+          reporter_id: string
+          state?: string
+          subject_id: string
+          subject_kind: string
+          subject_name: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          note?: string | null
+          reason?: string
+          reporter_id?: string
+          state?: string
+          subject_id?: string
+          subject_kind?: string
+          subject_name?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slot_change_reports_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slot_change_reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slot_change_reports_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slot_primary_choices: {
         Row: {
           asset_id: string
@@ -8061,6 +8173,10 @@ export type Database = {
           state: string
         }[]
       }
+      decide_slot_change_report: {
+        Args: { p_action: string; p_note?: string; p_report_id: string }
+        Returns: Json
+      }
       decline_media_removal_request: {
         Args: { p_reason: string; p_request_id: string }
         Returns: Json
@@ -9163,6 +9279,7 @@ export type Database = {
           width: number
         }[]
       }
+      my_month_replacements: { Args: { p_month?: string }; Returns: Json }
       my_notification_count: { Args: never; Returns: number }
       my_notification_preferences: { Args: never; Returns: Json }
       my_notifications: {
@@ -9202,7 +9319,18 @@ export type Database = {
           variant_name: string
         }[]
       }
+      my_slot_change_reports: { Args: { p_limit?: number }; Returns: Json }
+      my_uploads: {
+        Args: {
+          p_asset_id?: string
+          p_before?: string
+          p_before_id?: string
+          p_limit?: number
+        }
+        Returns: Json
+      }
       my_venue_capabilities: { Args: { p_venue_id?: string }; Returns: Json }
+      my_venue_managers: { Args: never; Returns: Json }
       my_venue_memberships: {
         Args: never
         Returns: {
@@ -9392,6 +9520,15 @@ export type Database = {
           outcome: string
           reassigned: Json
         }[]
+      }
+      report_slot_change: {
+        Args: {
+          p_kind: string
+          p_note?: string
+          p_reason: string
+          p_subject_id: string
+        }
+        Returns: Json
       }
       request_media_removal: {
         Args: { p_asset_id: string; p_reason: string }
@@ -9725,6 +9862,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      slot_change_reports: {
+        Args: { p_limit?: number; p_state?: string; p_venue_id?: string }
+        Returns: Json
+      }
       stage_media_labels: {
         Args: { p_asset_id: string; p_input: Json; p_venue_id: string }
         Returns: string
@@ -9890,6 +10031,10 @@ export type Database = {
           state: string
         }[]
       }
+      withdraw_slot_change_report: {
+        Args: { p_report_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "staff" | "admin" | "manager"
@@ -10017,6 +10162,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: ["staff", "admin", "manager"],
