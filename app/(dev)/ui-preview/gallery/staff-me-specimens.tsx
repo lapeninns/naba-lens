@@ -109,7 +109,7 @@ export function StaffMeSpecimens({
   const found = findSlot(album, firstFilled.id)!
   return (
     <div className="grid gap-8">
-      <Frame title="A place, filtered to Needs updating (spec §6 S3)">
+      <Frame title="A place, filtered to Retake or needs checking (spec §6 S3: Needs updating)">
         <AlbumPlaceScreen
           venueName="The Bell"
           place={bar}

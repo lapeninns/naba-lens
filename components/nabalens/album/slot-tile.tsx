@@ -10,7 +10,7 @@ import Link from "next/link"
 import type * as React from "react"
 
 import { Photo } from "@/components/ui/photo"
-import type { SlotState } from "@/lib/album/model"
+import { SLOT_MARK_WORDS, type SlotState } from "@/lib/album/model"
 import { cn } from "@/lib/utils"
 
 /*
@@ -87,14 +87,14 @@ function StateMark({
       return (
         <span className="inline-flex max-w-full items-center gap-0.5 rounded-round bg-surface px-1.5 text-caption leading-tight font-bold text-ink">
           <ArrowUpIcon aria-hidden weight="bold" className="size-4" />
-          Waiting
+          {SLOT_MARK_WORDS.waiting}
         </span>
       )
     case "retake":
       return (
         <span className="inline-flex max-w-full items-center gap-0.5 rounded-round bg-warn-bg px-1.5 text-caption leading-tight font-bold text-warn-fg">
           <ArrowUUpLeftIcon aria-hidden weight="bold" className="size-4" />
-          Retake
+          {SLOT_MARK_WORDS.retake}
         </span>
       )
     case "check-due":
@@ -105,7 +105,7 @@ function StateMark({
             weight="bold"
             className="size-4"
           />
-          Needs checking
+          {SLOT_MARK_WORDS["check-due"]}
         </span>
       )
     case "accepted":
@@ -116,7 +116,7 @@ function StateMark({
             weight="bold"
             className="mt-px size-4 shrink-0"
           />
-          In the album
+          {SLOT_MARK_WORDS.accepted}
         </span>
       )
     default:
