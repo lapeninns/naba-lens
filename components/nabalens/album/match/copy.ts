@@ -119,6 +119,10 @@ export const MATCH_COPY = {
   // The end (§6.1 step 6).
   filled: (n: number) => (n === 1 ? "1 slot filled" : `${n} slots filled`),
   noneFilled: "No slots filled",
+  /** The end while every matched photo is still on the phone (§6.8, AC09). */
+  savedHeading: (n: number) =>
+    n === 1 ? "1 photo saved on this phone" : `${n} photos saved on this phone`,
+  heldLine: "They send when the signal returns.",
   next: "Each one shows as Waiting in the album until your manager has looked at it.",
   /** The end's heading line (spec §6 S2): venue and how many photos. */
   summaryVenue: (venue: string, n: number) =>

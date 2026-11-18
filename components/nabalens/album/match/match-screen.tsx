@@ -774,16 +774,26 @@ function Summary({
   const refused = photos.filter(
     (p) => sendStates.get(p.key) === "refused"
   ).length
-  // A photo whose slot was not saved with it ("sent") fills no slot.
+  // A photo whose slot was not saved with it ("sent") fills no slot, nor
+  // does one still on the phone (§6.8, AC09) or one that did not send.
   // Slots, not photos: four photos of one dish fill one slot (§5.4).
+  const NOT_FILLING: readonly (SendState | undefined)[] = [
+    "refused",
+    "sent",
+    "offline",
+    "failed",
+    "unfinished",
+  ]
   const filled = new Set(
     matched
-      .filter(({ photo }) => {
-        const state = sendStates.get(photo.key)
-        return state !== "refused" && state !== "sent"
-      })
+      .filter(({ photo }) => !NOT_FILLING.includes(sendStates.get(photo.key)))
       .map(({ slot }) => slot.id)
   ).size
+  // Matched photos waiting on the phone for a signal (S3-E2E-1 E6).
+  const held = matched.filter(
+    ({ photo }) => sendStates.get(photo.key) === "offline"
+  ).length
+  const going = matched.length - held
   return (
     <section
       className="grid grid-cols-[minmax(0,1fr)] gap-4 px-3 pt-3"
@@ -795,7 +805,11 @@ function Summary({
         tabIndex={-1}
         className="type-page-title text-ink tabular-nums outline-none"
       >
-        {filled > 0 ? MATCH_COPY.filled(filled) : MATCH_COPY.noneFilled}
+        {filled > 0
+          ? MATCH_COPY.filled(filled)
+          : held > 0
+            ? MATCH_COPY.savedHeading(held)
+            : MATCH_COPY.noneFilled}
       </h3>
       <p
         className="flex items-center gap-1 text-label [overflow-wrap:anywhere] text-ink-muted"
@@ -821,7 +835,12 @@ function Summary({
       ) : null}
       {matched.length > 0 ? (
         <>
-          <p className="text-body text-ink">{MATCH_COPY.next}</p>
+          {held > 0 ? (
+            <p className="text-body text-ink">{MATCH_COPY.heldLine}</p>
+          ) : null}
+          {going > 0 ? (
+            <p className="text-body text-ink">{MATCH_COPY.next}</p>
+          ) : null}
           <ul className="grid gap-2">
             {matched.map(({ photo, slot }) => {
               const state = sendStates.get(photo.key) ?? null
