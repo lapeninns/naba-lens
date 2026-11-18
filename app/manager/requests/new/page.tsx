@@ -14,10 +14,11 @@ import {
 } from "@/components/nabalens/requests/request-form"
 import { COVERAGE_CATEGORIES } from "@/lib/album/model"
 import { FACT_VERIFICATION_LABEL } from "@/lib/knowledge/facts"
-import type { RequestSlotKind } from "@/lib/requests/model"
+import { REQUEST_BRIEF_MAX, type RequestSlotKind } from "@/lib/requests/model"
 import { getCoverageSlots } from "@/lib/server/album"
 import { getFactStates } from "@/lib/server/knowledge"
 import { listRequests } from "@/lib/server/requests"
+import { loadSlotBriefs } from "@/lib/server/shot-templates"
 import { cn } from "@/lib/utils"
 
 import { createRequestAction } from "../actions"
@@ -29,6 +30,15 @@ const MODES = [
   { id: "new", label: "New brief" },
   { id: "fact", label: "Fact check" },
 ] as const
+
+/**
+ * A standing brief that fits a request's one line (a facility question's
+ * catalogue brief can be longer); else no prefill.
+ */
+const prefillBrief = (resolved: { text: string } | undefined) =>
+  resolved && [...resolved.text].length <= REQUEST_BRIEF_MAX
+    ? resolved.text
+    : null
 
 const CATEGORY = new Map(COVERAGE_CATEGORIES.map((c) => [c.key, c.label]))
 const SLOT_KINDS: RequestSlotKind[] = ["dish", "area", "amenity"]
@@ -60,11 +70,19 @@ export default async function NewRequestPage({
       ? { kind, slotId: one(search.slot)! }
       : null
 
-  const [list, coverage, facts] = await Promise.all([
+  const [list, coverage, facts, briefs] = await Promise.all([
     listRequests(ctx.actor, { venueId: ctx.venueId }),
     mode === "slot" ? getCoverageSlots(ctx.actor, ctx.venueId) : null,
     mode === "fact"
       ? getFactStates(ctx.actor, { venueId: ctx.venueId }).catch(() => null)
+      : null,
+    // FA-52: each slot's standing brief prefills Brief. A failed read leaves
+    // Brief empty, as before.
+    mode === "slot"
+      ? loadSlotBriefs(ctx.actor, {
+          venueId: ctx.venueId,
+          includeRequests: false,
+        }).catch(() => null)
       : null,
   ])
 
@@ -134,6 +152,9 @@ export default async function NewRequestPage({
         categoryLabel: CATEGORY.get(s.category) ?? s.category,
         state: s.state,
         primaryAssetId: s.primaryAssetId,
+        brief: prefillBrief(
+          briefs?.ok ? briefs.briefs.get(`${s.kind}:${s.slotId}`) : undefined
+        ),
       }))
   }
 

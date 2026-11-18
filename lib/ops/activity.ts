@@ -133,6 +133,7 @@ const ACTION_WORDS: Record<string, string> = {
   place_cleared: "Cleared a group's place",
   brief_set: "Wrote a brief",
   brief_cleared: "Cleared a brief",
+  shot_template_set: "Changed a shot template",
   needed_by_set: "Set a needed-by date",
   needed_by_cleared: "Cleared a needed-by date",
 }

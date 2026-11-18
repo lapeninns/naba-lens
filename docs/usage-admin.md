@@ -238,6 +238,12 @@ venue**:
 - **Allowed export profiles**: Original, Website, Social, Custom.
 - **Storage**: the quota and the warning level.
 
+**Shot templates** gives each category (Food, Drinks, Spaces, Facilities,
+Other) one line on what the photo must show and, optionally, an **Example
+photo** chosen from Library photos accepted for public use. Staff see it
+beside a slot when no request or manager's brief says otherwise; choose
+**Edit**, change it and **Save template**. It never changes a manager's brief.
+
 Every change asks **Why are you changing this?**. **Activity**
 (`/admin/activity`, the button at the top of Settings) shows who changed
 what, where and why, filtered by **Venue** and **Kind of change**.

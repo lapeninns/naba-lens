@@ -20,6 +20,7 @@
  * (the read failed) the older per-source rules below still apply.
  */
 
+import type { SlotBriefs } from "@/lib/album/brief"
 import type { WorkArea } from "@/lib/config/work-roles"
 import { dayLabel } from "@/lib/server/coverage/time"
 import type { FactVerificationState } from "@/lib/knowledge/facts"
@@ -159,6 +160,11 @@ export type AlbumSlot = {
    * for an area or when none is set (see slotBrief).
    */
   brief: string | null
+  /**
+   * An approved example photo beside the brief (spec §5.2 step 2; FA-52):
+   * the request's reference or the category template's example.
+   */
+  exampleAssetId?: string | null
   target: AlbumSlotTarget
   /** The spec's category (§4.1, FA-6), for Album's category filter. */
   category: CoverageCategory
@@ -289,6 +295,13 @@ export type AlbumInput = {
   myRetakeItemIds: ReadonlySet<string>
   /** The venue's briefs (20261117130000_album_briefs.sql); none when absent. */
   briefs?: AlbumBriefs
+  /**
+   * Every slot's brief resolved by public.slot_briefs (FA-52): request,
+   * manager, catalogue, then the category's shot template. When given it
+   * decides each slot's brief; `briefs` is only the fallback for a slot it
+   * does not list.
+   */
+  slotBriefs?: SlotBriefs
 }
 
 /** Briefs as the loader reads them, keyed for lookup. */
@@ -344,6 +357,21 @@ export function slotBrief(
   if (target.kind === "amenity")
     return target.key ? (briefs.amenities.get(target.key) ?? null) : null
   return null
+}
+
+/**
+ * A slot's brief and example: the resolved brief (public.slot_briefs) when
+ * listed, else the older per-source rule.
+ */
+function briefOf(
+  resolved: SlotBriefs | undefined,
+  id: string,
+  fallback: () => string | null
+): { brief: string | null; exampleAssetId: string | null } {
+  const found = resolved?.get(id)
+  return found
+    ? { brief: found.text, exampleAssetId: found.exampleAssetId }
+    : { brief: fallback(), exampleAssetId: null }
 }
 
 // ---- state rules -------------------------------------------------------------
@@ -626,9 +654,11 @@ export function buildAlbum(input: AlbumInput): AlbumView {
             ? "Needed"
             : `Needed by ${dayLabel(dish.neededBy.date)}`
           : null,
-        brief: slotBrief(
-          { kind: "dish", itemId: dish.itemId, sectionSlug: slug ?? null },
-          briefs
+        ...briefOf(input.slotBriefs, `dish:${dish.itemId}`, () =>
+          slotBrief(
+            { kind: "dish", itemId: dish.itemId, sectionSlug: slug ?? null },
+            briefs
+          )
         ),
         target: { kind: "dish", itemId: dish.itemId, itemName: dish.name },
         category: dish.coverageCategory ?? "food",
@@ -656,7 +686,9 @@ export function buildAlbum(input: AlbumInput): AlbumView {
             ? (check.thumbnailUrl ?? null)
             : null,
         neededBy: null,
-        brief: slotBrief({ kind: "amenity", key: check.key ?? null }, briefs),
+        ...briefOf(input.slotBriefs, `amenity:${check.checkId}`, () =>
+          slotBrief({ kind: "amenity", key: check.key ?? null }, briefs)
+        ),
         target: { kind: "amenity", checkId: check.checkId },
         category: check.coverageCategory ?? "facilities",
         pendingCount: check.pendingCount ?? 0,
@@ -682,7 +714,7 @@ export function buildAlbum(input: AlbumInput): AlbumView {
             ? (area.thumbnailUrl ?? null)
             : null,
         neededBy: null,
-        brief: null,
+        ...briefOf(input.slotBriefs, `area:${area.subjectId}`, () => null),
         target: { kind: "area", subjectId: area.subjectId },
         category: area.coverageCategory ?? "spaces",
         pendingCount: area.pendingCount ?? 0,

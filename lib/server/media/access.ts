@@ -145,9 +145,11 @@ async function getColleagueAsset(
   }
 }
 
+type ThumbnailGate = "asset_search_can_open" | "shot_template_example_can_open"
+
 type CanOpenClient = {
   rpc(
-    fn: "asset_search_can_open",
+    fn: ThumbnailGate,
     args: { p_asset_id: string }
   ): PromiseLike<{ data: unknown; error: unknown }>
 }
@@ -159,15 +161,19 @@ type CanOpenClient = {
  * with the search predicate itself (`asset_search_can_open`, as the caller);
  * only then does the service role read the storage paths. Thumbnails only:
  * originals, previews and downloads keep the rules of `getReadableAsset`.
+ *
+ * FA-52 adds a second gate with the same shape: a shot template's example
+ * (`shot_template_example_can_open`), which every active person may see
+ * while it is a current, public-level example.
  */
 async function getSearchThumbnailAsset(
   actor: MediaActor,
-  assetId: string
+  assetId: string,
+  gate: ThumbnailGate = "asset_search_can_open"
 ): Promise<Outcome<{ asset: ReadableAsset }>> {
-  const checked = await (actor.db as unknown as CanOpenClient).rpc(
-    "asset_search_can_open",
-    { p_asset_id: assetId }
-  )
+  const checked = await (actor.db as unknown as CanOpenClient).rpc(gate, {
+    p_asset_id: assetId,
+  })
   if (checked.error) return unavailable
   if (checked.data !== true) return notFound
   const { data, error } = await actor.service
@@ -238,6 +244,20 @@ export async function signDerivative(
     UUID.test(assetId)
   )
     found = await getSearchThumbnailAsset(actor, assetId)
+  // FA-52: a shot template's example photo, shown beside a slot's brief.
+  if (
+    !found.ok &&
+    found.status === 404 &&
+    which === "thumbnail" &&
+    actor.profile.active &&
+    actor.profile.role !== "admin" &&
+    UUID.test(assetId)
+  )
+    found = await getSearchThumbnailAsset(
+      actor,
+      assetId,
+      "shot_template_example_can_open"
+    )
   if (!found.ok) return found
   const path =
     which === "thumbnail" ? found.asset.thumbnailPath : found.asset.previewPath
