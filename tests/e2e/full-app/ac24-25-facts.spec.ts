@@ -1,18 +1,24 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Browser } from "@playwright/test"
 
-import { staffCaptureHref } from "../../../lib/amenities/contract"
 import {
+  amenityHrefs,
+  staffCaptureHref,
+  UI_TEXT,
+} from "../../../lib/amenities/contract"
+import {
+  amenityOk,
   captureForm,
+  checkId,
+  checkState,
   londonToday,
   provisionAmenitiesWorld,
   question,
   readyCheck,
   seedPhoto,
+  sessionOf,
   submitAndComplete,
 } from "../helpers/amenities-world"
 import { psql, requireIsolatedStack } from "../helpers/stack"
-import { signIn } from "../../support/identities"
-import { provisioner } from "../helpers/stack"
 import { OTHER_JOBS_PATH, otherJobsCheck } from "../helpers/ui"
 import { as, closeAll, DESKTOP, evidence, PHONE, sql } from "./helpers"
 
@@ -30,23 +36,54 @@ test.setTimeout(240_000)
 test.afterEach(({ browser }) => closeAll(browser))
 
 /**
- * Puts a check on the venue's working list as the admin, the step the admin
- * venue template takes (S2-ADMIN, venue_apply_template): only checks on the
- * working list count in coverage (private.knowledge_in_scope).
+ * The admin brings venue A onto the knowledge layer on its venue page: "What
+ * this venue collects", the group catalogue template (AC23). That puts the
+ * venue's core questions on its working list, including a core check that is
+ * already active (S3-R9), and from then on a check a manager adds at the
+ * venue joins the list too. Only checks on the working list count in
+ * coverage (private.knowledge_in_scope).
  */
-async function onWorkingList(
-  w: Awaited<ReturnType<typeof provisionAmenitiesWorld>>,
-  key: string
+async function applyVenueTemplate(
+  browser: Browser,
+  w: Awaited<ReturnType<typeof provisionAmenitiesWorld>>
 ) {
-  const admin = await signIn(provisioner(), w.admin.email)
-  const { error } = await admin.rpc("knowledge_set_working_list", {
-    p_venue_id: w.venueA.id,
-    p_keys: [key],
-    p_enabled: true,
-    p_reason: "DEV FIXTURE: on this venue's working list",
-  })
-  if (error) throw new Error(`working list: ${error.message}`)
+  const admin = await as(browser, w.admin, DESKTOP)
+  await admin.goto(`/admin/venues/${w.venueA.id}`)
+  const template = admin.getByTestId("venue-template")
+  await template.getByTestId("template-preview-button").click()
+  await expect(template.getByTestId("template-preview")).toBeVisible()
+  await template
+    .getByLabel("Why are you adding these?")
+    .fill(`New venue setup ${w.tag}`)
+  await template.getByTestId("template-apply").click()
+  await expect
+    .poll(() =>
+      psql(`select count(*) > 0 from public.knowledge_working_list
+        where venue_id = ${sql(w.venueA.id)}::uuid and disabled_at is null`)
+    )
+    .toBe("t")
+  await admin.context().close()
 }
+
+const MANAGER = amenityHrefs("/manager")
+
+/** Assigns the check in the admin's session (setup; not under test here). */
+async function assignTo(
+  w: Awaited<ReturnType<typeof provisionAmenitiesWorld>>,
+  id: string,
+  who: { id: string }
+) {
+  await amenityOk(await sessionOf(w.admin), "amenity_assign_check", {
+    p_check_id: id,
+    p_assignee_id: who.id,
+    p_revision: checkState(id).revision,
+  })
+}
+
+const onList = (venueId: string, key: string) =>
+  psql(`select count(*) from public.knowledge_working_list
+    where venue_id = ${sql(venueId)}::uuid and question_key = ${sql(key)}
+      and disabled_at is null`)
 
 const fact = (venueId: string, key: string) =>
   psql(`select coalesce(current_answer, '') || '|' || coalesce(verification, '')
@@ -76,8 +113,8 @@ test("AC24: a confirmed No for the pool table resolves the fact and leaves no ta
 
   // The fact is resolved; nothing asks for a photo of a table.
   expect(fact(w.venueA.id, "pool_table")).toMatch(/^no\|/)
-  // No required photo slot for it: this check is not on the working list,
-  // so it has no coverage slot at all (the FA-32 test adds one).
+  // No required photo slot for it. This venue has no working list, so the
+  // check has no coverage slot at all (the FA-32 test has one).
   expect(slot(w.venueA.id, id)).not.toMatch(/:true$/)
   await staff.goto(OTHER_JOBS_PATH)
   await expect(otherJobsCheck(staff, question("pool_table")).card).toHaveCount(
@@ -99,7 +136,9 @@ test("AC25: a router photo leaves guest Wi-Fi unconfirmed until the manager veri
 }) => {
   const w = await provisionAmenitiesWorld()
   const id = await readyCheck(w, w.venueA, "guest_wifi", w.staffA)
-  await onWorkingList(w, "guest_wifi")
+  // The check is already active; the template brings it into coverage.
+  await applyVenueTemplate(browser, w)
+  expect(onList(w.venueA.id, "guest_wifi")).toBe("1")
   const router = await seedPhoto(w.staffA, w.venueA, `router-${w.tag}`)
 
   const staff = await as(browser, w.staffA, PHONE)
@@ -144,10 +183,24 @@ test("FA-32 (AC24 context): a pool table Yes asks for a reviewed photo in covera
   // FA-32: "a confirmed Yes still needs a reviewed photo where the catalogue
   // asks for one". pool_table's catalogue evidence rule is `photo`.
   const w = await provisionAmenitiesWorld()
-  const id = await readyCheck(w, w.venueA, "pool_table", w.staffA)
-  // S3-R2 (D4): pool_table has a knowledge rule now, so the admin venue
-  // template puts it on the working list; this is that step.
-  await onWorkingList(w, "pool_table")
+  await applyVenueTemplate(browser, w)
+
+  // The manager adds Pool table from the catalogue (amenity_add_checks). At
+  // a venue with a working list it joins the list (S3-R9, W5): no other step.
+  const mgr = await as(browser, w.managerA, DESKTOP)
+  await mgr.goto(MANAGER.list)
+  await mgr.getByRole("button", { name: UI_TEXT.addFromCatalogue }).click()
+  const add = mgr.getByRole("dialog", { name: UI_TEXT.addFromCatalogue })
+  await add
+    .getByRole("checkbox", { name: question("pool_table"), exact: true })
+    .check()
+  await add.getByRole("button", { name: UI_TEXT.addSelected }).click()
+  await expect(add).toBeHidden()
+  const id = checkId(w.venueA, "pool_table")
+  expect(onList(w.venueA.id, "pool_table")).toBe("1")
+  expect(slot(w.venueA.id, id)).toBe("missing:true")
+  await assignTo(w, id, w.staffA)
+
   const photo = await seedPhoto(w.staffA, w.venueA, `pool-${w.tag}`)
   const staff = await as(browser, w.staffA, PHONE)
   await staff.goto(staffCaptureHref(id))

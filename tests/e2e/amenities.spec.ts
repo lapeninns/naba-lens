@@ -259,7 +259,12 @@ test.describe("amenity checks", () => {
     expect([200, 206, 302]).toContain(stream.status())
   })
 
-  test("Wi-Fi needs a photo, a video and the redaction tick, and records the test notes internally", async ({
+  // FA-32 / FA-47 (catalogue version 2, 20261118109300): guest Wi-Fi is a
+  // policy question, so its evidence rule is `none` and a Yes needs no photo
+  // or video. A Yes still needs the test notes and the redaction tick, and
+  // media that is sent is kept with the answer. (Before S2-INT this test
+  // required a photo and a video; that rule was changed on purpose.)
+  test("Wi-Fi needs the test notes and the redaction tick, not a photo or video, and records the test notes internally", async ({
     browser,
   }) => {
     const w = await provisionAmenitiesWorld()
@@ -282,29 +287,20 @@ test.describe("amenity checks", () => {
     await form.wifi.download.fill(String(wifi.downloadMbps))
     await form.wifi.upload.fill(String(wifi.uploadMbps))
 
-    // Photo only, even with the tick.
+    // A photo and a video without the tick.
     await form.attach(photo)
-    await form.redaction.check()
-    await expectSubmitRefused(staff, id)
-    // Video only.
-    await form.detach(photo)
     await form.attach(video)
-    await expectSubmitRefused(staff, id)
-    // Photo and video without the tick.
-    await form.attach(photo)
     if (await form.redaction.isChecked()) await form.redaction.uncheck()
     await expectSubmitRefused(staff, id)
 
     const db = await sessionOf(w.staffA)
     const metadata = { ...wifi }
+    // No media is not a reason to refuse (rule `none`); the tick is.
     await expectRefused(
       db,
       "amenity_submit_finding",
-      submitArgs(id, "yes", [photo], {
-        p_internal_metadata: metadata,
-        p_redaction_confirmed: true,
-      }),
-      "evidence_rule_unmet"
+      submitArgs(id, "yes", [], { p_internal_metadata: metadata }),
+      "redaction_not_confirmed"
     )
     await expectRefused(
       db,
@@ -315,7 +311,7 @@ test.describe("amenity checks", () => {
     await expectRefused(
       db,
       "amenity_submit_finding",
-      submitArgs(id, "yes", [photo, video], { p_redaction_confirmed: true }),
+      submitArgs(id, "yes", [photo], { p_redaction_confirmed: true }),
       "invalid_wifi_metadata"
     )
     expect(checkState(id)).toMatchObject({
@@ -323,10 +319,12 @@ test.describe("amenity checks", () => {
       submissions: 0,
     })
 
+    // A photo alone is enough media, with the notes and the tick.
+    await form.detach(video)
     await form.redaction.check()
     await submitAndComplete(staff, id)
     const current = currentSubmission(id)
-    expect([...current.assets].sort()).toEqual([photo, video].sort())
+    expect(current.assets).toEqual([photo])
     expect(current.metadata).toMatchObject(wifi)
 
     // Internal notes: the venue manager sees them on the check page.
