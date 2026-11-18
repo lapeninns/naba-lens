@@ -538,6 +538,85 @@ describe("venue correction (spec §11)", () => {
     expect(detail.corrections[0]?.correctedVenueId).toBe(venueB)
     expect(detail.withdrawal?.reason).toMatch(/^Venue corrected: /)
   })
+
+  it("never restores a corrected photo into use at the wrong venue (S3-R6, V19)", async () => {
+    const asset = await ready(staff)
+    const subject = acceptPlacePhoto(asset, manager.id)
+    const inExport = async () =>
+      (
+        await ok<{ items: { assetId: string }[] }>(
+          rpc(admin, "export_candidates", {
+            p_venue_id: venueA,
+            p_mode: "public",
+          })
+        )
+      ).items.some((i) => i.assetId === asset)
+    expect(await inExport()).toBe(true)
+    await ok(
+      rpc(admin, "admin_correct_asset_venue", {
+        p_asset_id: asset,
+        p_venue_id: venueB,
+        p_reason: "Taken at the other pub",
+      })
+    )
+    expect(await inExport()).toBe(false)
+
+    // Restore, as for an ordinary withdrawal: refused, nothing changes.
+    await refused(
+      rpc(admin, "library_restore_asset", {
+        p_asset_id: asset,
+        p_reason: "Looks like an ordinary withdrawal",
+      }),
+      "venue_correction_pending"
+    )
+    expect(psql(`select private.library_is_withdrawn('${asset}')::text`)).toBe(
+      "true"
+    )
+    expect(
+      psql(
+        `select string_agg(action, ',' order by id) from public.media_asset_withdrawal_events where asset_id = '${asset}'`
+      )
+    ).toBe("withdrawn")
+    expect(await inExport()).toBe(false)
+    expect(
+      (
+        await ok<{ items: { assetId: string }[] }>(
+          rpc(admin, "export_candidates", {
+            p_venue_id: venueA,
+            p_mode: "internal",
+          })
+        )
+      ).items.some((i) => i.assetId === asset)
+    ).toBe(false)
+    // Nor can it become the declared venue's main photo.
+    await refused(
+      rpc(admin, "set_slot_primary_photo", {
+        p_slot_kind: "area",
+        p_slot_id: subject,
+        p_asset_id: asset,
+      }),
+      "asset_withdrawn"
+    )
+    // An ordinary withdrawal still restores.
+    const plain = await ready(staff)
+    acceptPlacePhoto(plain, manager.id)
+    await ok(
+      rpc(admin, "library_withdraw_asset", {
+        p_asset_id: plain,
+        p_reason: "Shows a guest's face",
+      })
+    )
+    expect(
+      (
+        await ok<{ changed: boolean }>(
+          rpc(admin, "library_restore_asset", {
+            p_asset_id: plain,
+            p_reason: "Cropped copy agreed",
+          })
+        )
+      ).changed
+    ).toBe(true)
+  })
 })
 
 describe("asset detail and filters", () => {
