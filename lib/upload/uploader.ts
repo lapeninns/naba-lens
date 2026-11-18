@@ -111,6 +111,7 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
           preferResumable:
             checked.kind === "video" || file.size > resumableThresholdBytes,
           ...(uploadOptions.purpose ? { purpose: uploadOptions.purpose } : {}),
+          ...(uploadOptions.batchId ? { batchId: uploadOptions.batchId } : {}),
         })
       } catch (error) {
         if (error instanceof ReservationGoneError) {
@@ -214,9 +215,12 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
         })
         if (result.state === "ready") {
           onStateChange("ready")
-          return result.labels
-            ? { assetId, state: "ready", labels: result.labels }
-            : { assetId, state: "ready" }
+          return {
+            assetId,
+            state: "ready",
+            ...(result.labels ? { labels: result.labels } : {}),
+            ...(result.duplicate ? { duplicate: true as const } : {}),
+          }
         }
         return fail({
           code: "processing_failed",

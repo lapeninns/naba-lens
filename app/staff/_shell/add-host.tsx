@@ -105,6 +105,7 @@ import {
   type CaptureSession,
 } from "@/lib/upload/capture-session"
 import type { JournalEntry } from "@/lib/upload/journal"
+import type { UploadReceipt } from "@/lib/upload/states"
 import { localUploadKeyStore } from "@/lib/upload/upload-keys"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
@@ -701,7 +702,7 @@ export function AddHost({
         // A later photo for the same slot owns it now.
         if (was && was.file !== file && !(state === "sending")) return current
         const tile =
-          state === "sending" || state === "offline"
+          state === "sending" || state === "offline" || state === "checking"
             ? "sending"
             : state === "waiting"
               ? "waiting"
@@ -1081,7 +1082,7 @@ export function AddHost({
   // screen selects it), then every subscriber. False: the screen that picked
   // it is gone, so the sheet keeps it listed as not added there.
   const handleReady = React.useCallback(
-    (ids: string[], files: File[]) => {
+    (ids: string[], files: File[], receipts?: UploadReceipt[]) => {
       let kept = true
       ids.forEach((id, i) => {
         const owner = fileOwners.current.get(files[i])
@@ -1095,7 +1096,12 @@ export function AddHost({
           if (areaTries.current.get(id) === "failed")
             void saveArea(files[i], id, owner.area)
         }
-        owner?.onSent?.(files[i], "waiting")
+        // Never Waiting without a review entry (spec §5.6): a photo whose
+        // slot could not be saved with it reads Sent.
+        owner?.onSent?.(
+          files[i],
+          receipts?.[i] === "label_not_saved" ? "sent" : "waiting"
+        )
       })
       for (const listener of readyListeners.current) listener(ids)
       return kept
@@ -1539,11 +1545,19 @@ export function AddHost({
                 onRoomChange={setRoom}
                 onQueued={queued}
                 onHoldsChange={holdsChanged}
-                onUnfinished={(file, reason) => {
+                onProcessing={(file) =>
+                  fileOwners.current.get(file)?.onSent?.(file, "checking")
+                }
+                onUnfinished={(file, reason, stage) => {
                   // Removed or cancelled: its asset needs no label clear (M5).
                   if (reason !== "failed") labelJournal.forgetFile(file)
                   fileOwners.current.get(file)?.onUnfinished?.(reason, file)
-                  fileOwners.current.get(file)?.onSent?.(file, "failed")
+                  fileOwners.current
+                    .get(file)
+                    ?.onSent?.(
+                      file,
+                      stage === "processing" ? "unfinished" : "failed"
+                    )
                 }}
                 onReserved={reservedForSet}
                 setOf={groupsOn ? setOf : undefined}

@@ -171,6 +171,20 @@ export async function processImage(bytes: Uint8Array, declaredMime = "") {
     throw new MediaError(errorCode(e))
   }
 }
+/**
+ * Width and height of an encoded derivative (a header read, no decode); null
+ * when they can't be read. Used to record renditions (spec §12.3).
+ */
+export async function imageSize(
+  bytes: Uint8Array
+): Promise<{ width: number; height: number } | null> {
+  try {
+    const m = await sharp(view(bytes)).metadata()
+    return m.width && m.height ? { width: m.width, height: m.height } : null
+  } catch {
+    return null
+  }
+}
 export async function createImageDerivatives(bytes: Uint8Array, mime: string) {
   return processImage(bytes, mime)
 }

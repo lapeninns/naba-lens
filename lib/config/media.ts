@@ -1,20 +1,35 @@
 /**
- * NabaLens media limits (spec v0.2 §5). These are chosen product defaults, not
- * hosting allowances. This file is the only place the limits are defined; server
- * routes enforce them and the client uses them for early feedback only.
+ * NabaLens media limits (Full App spec §12.1). These are chosen product
+ * defaults, not hosting allowances. This file is the only place the app's
+ * limits are defined; server routes enforce them and the client uses them for
+ * early feedback only. The database's reservation limit
+ * (private.media_upload_max_bytes, 20261118102000) and the media bucket's
+ * file_size_limit hold the same byte limits; change them together.
  */
 
 const MiB = 1024 * 1024
 
 export const MEDIA_LIMITS = {
-  /** Files a staff member can add to one upload batch. */
-  maxBatchFiles: 10,
+  /** Files a staff member can add to one upload batch (spec §5.4, §12.1). */
+  maxBatchFiles: 20,
   /** Simultaneous transfers per batch. */
   maxParallelUploads: 2,
-  /** Largest photo original, in bytes (20 MiB). */
-  maxPhotoBytes: 20 * MiB,
-  /** Largest video original, in bytes (200 MiB). */
-  maxVideoBytes: 200 * MiB,
+  /** Largest photo original, in bytes (25 MiB; JPEG, PNG, WebP, HEIC/HEIF). */
+  maxPhotoBytes: 25 * MiB,
+  /** Largest video original, in bytes (250 MiB). */
+  maxVideoBytes: 250 * MiB,
+  /**
+   * Longest video, in seconds, read from the stored file's own metadata at
+   * finalise. A video whose length can't be read (fragmented MP4) is held to
+   * the byte limit only.
+   */
+  maxVideoSeconds: 60,
+  /**
+   * Public-quality target: a photo's long edge should be at least this many
+   * pixels. Advisory only (spec §5.5, §12.1): smaller photos are still
+   * accepted and can be kept for reference.
+   */
+  publicQualityLongEdgePx: 1600,
   /**
    * Largest avatar upload before the server makes its derivative (4 MiB). Avatars
    * pass through a function, so file + multipart framing must stay under the
@@ -75,6 +90,23 @@ export const MEDIA_LIMITS = {
 } as const
 
 export type MediaLimits = typeof MEDIA_LIMITS
+
+/**
+ * Version of the derivative pipeline (lib/media), stored with each rendition
+ * (media_renditions.pipeline_version). Bump it when previews or thumbnails are
+ * made differently, so older renditions can be found and remade.
+ */
+export const MEDIA_PIPELINE_VERSION = "img-2026-11-18"
+
+/** True when a photo is below the public-quality target (advisory, §12.1). */
+export function belowPublicQuality(
+  width: number | null | undefined,
+  height: number | null | undefined,
+  limits: Pick<MediaLimits, "publicQualityLongEdgePx"> = MEDIA_LIMITS
+): boolean {
+  if (!width || !height) return false
+  return Math.max(width, height) < limits.publicQualityLongEdgePx
+}
 
 /** The abandoned window as a Postgres interval for `prepare_media_cleanup`. */
 export function abandonedUploadInterval(

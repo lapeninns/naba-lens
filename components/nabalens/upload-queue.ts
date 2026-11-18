@@ -75,6 +75,20 @@ export type QueueItem = {
    * example after a reload): the server may already keep or show labels.
    */
   resumed?: boolean
+  /**
+   * Stable ID of the selection (one `add` call) this file came in, sent with
+   * its reservation so the server tracks the batch (spec §12.2 step 1).
+   */
+  batchId?: string
+  /** The server found it is an exact copy of an earlier file (§12.4). */
+  duplicate?: true
+  /**
+   * Where a failed file stopped (spec §5.6, §10): "transfer" (the bytes did
+   * not all arrive: Retry sends them) or "processing" (the server had the
+   * file and could not finish it: Retry asks it again, without resending
+   * the bytes unless the server removed them). See lib/upload/states.ts.
+   */
+  failedStage?: "transfer" | "processing"
 }
 
 export type UploadContext = {
@@ -96,6 +110,8 @@ export type UploadContext = {
   onReserved?: (assetId: string, resumed?: boolean) => void
   /** The signed-in account, when the owner knows it (scopes resume keys). */
   account?: string
+  /** Stable ID of the selection the file was added in (spec §12.2). */
+  batchId?: string
 }
 
 /** Mirrors `media_assets.purpose`. */
@@ -109,7 +125,11 @@ export type UploadPurpose = "general" | "amenity"
 export type Uploader = (
   file: File,
   context: UploadContext
-) => Promise<void | { assetId: string; labels?: FinaliseLabels }>
+) => Promise<void | {
+  assetId: string
+  labels?: FinaliseLabels
+  duplicate?: true
+}>
 
 export type RejectedFile = {
   name: string
@@ -251,6 +271,15 @@ function nextId() {
   return `upload-${Date.now().toString(36)}-${idCounter}`
 }
 
+/** A batch ID the server accepts (`^[A-Za-z0-9_-]{8,128}$`). */
+export function newBatchId(): string {
+  const random =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  return `batch-${random}`
+}
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message
   if (typeof error === "string" && error) return error
@@ -345,6 +374,7 @@ export class UploadQueue {
     const added: QueueItem[] = []
     // The batch limit counts files that are waiting or in flight, not finished ones.
     let pending = this.pending()
+    const batchId = newBatchId()
 
     for (const file of files) {
       const refused = checkFile(file, this.limits)
@@ -371,6 +401,7 @@ export class UploadQueue {
         progress: 0,
         error: null,
         attempts: 0,
+        batchId,
       })
     }
 
@@ -445,6 +476,7 @@ export class UploadQueue {
       stopped: false,
       retryable: undefined,
       processingAt: undefined,
+      failedStage: undefined,
     })
     this.pump()
   }
@@ -503,6 +535,7 @@ export class UploadQueue {
     const context: UploadContext = {
       signal: controller.signal,
       attempt,
+      batchId: item.batchId,
       resumeToken: this.resumeTokens.get(id),
       setResumeToken: (token) => {
         if (this.runIds.has(id)) this.resumeTokens.set(id, token)
@@ -538,6 +571,7 @@ export class UploadQueue {
         status: "done",
         progress: 1,
         ...(result?.assetId ? { assetId: result.assetId } : {}),
+        ...(result?.duplicate ? { duplicate: true as const } : {}),
         ...(result?.labels ? { labels: result.labels } : {}),
       })
     } catch (error) {
@@ -561,8 +595,15 @@ export class UploadQueue {
         this.setPause()
         this.update(id, { status: "queued", progress: 0, error: null })
       } else {
+        const code = errorDetail(error)?.code
+        const atProcessing =
+          this.items.find((i) => i.id === id)?.status === "processing" ||
+          code === "processing_failed" ||
+          code === "finalise_failed" ||
+          code === "finalise_refused"
         this.update(id, {
           status: "failed",
+          failedStage: atProcessing ? "processing" : "transfer",
           error: errorMessage(error),
           ...(isRetryable(error) ? {} : { retryable: false }),
           ...(errorDetail(error)?.code === "finalise_refused"

@@ -30,10 +30,24 @@ export type MatchOutcome =
   | { kind: "shared"; shared: SharedKind }
 
 /**
- * How a decided photo is getting on in Add's queue. "refused": the queue
- * would not take it (too large, say); it is still in the gallery.
+ * How a decided photo is getting on in Add's queue (the honest receipts of
+ * spec §5.6, in Album's words: lib/upload/states.ts). "checking": the server
+ * has it and is still processing it. "waiting": processed and its slot saved
+ * with it, so the manager can review it. "sent": processed, but its slot
+ * was not saved with it (fixed from Me). "unfinished": the server had it and
+ * could not finish it; Add photos tries again without sending it twice.
+ * "refused": the queue would not take it (too large, say); it is still in
+ * the gallery.
  */
-export type SendState = "sending" | "waiting" | "failed" | "offline" | "refused"
+export type SendState =
+  | "sending"
+  | "checking"
+  | "waiting"
+  | "sent"
+  | "failed"
+  | "unfinished"
+  | "offline"
+  | "refused"
 
 /**
  * After a choice, a finger's tap this soon on the next photo's picker is the
@@ -351,6 +365,9 @@ function Stage({ file, alt }: { file: File; alt: string }) {
 
 function stateWord(state: SendState | null) {
   if (state === "waiting") return MATCH_COPY.waiting
+  if (state === "checking") return MATCH_COPY.checking
+  if (state === "sent") return MATCH_COPY.sentWord
+  if (state === "unfinished") return MATCH_COPY.unfinishedWord
   if (state === "failed") return MATCH_COPY.notSent
   if (state === "refused") return MATCH_COPY.notAddedWord
   if (state === "offline") return MATCH_COPY.savedOnPhone
@@ -361,7 +378,7 @@ function StateIcon({ state }: { state: SendState | null }) {
   const cls = "size-5 shrink-0"
   if (state === "waiting")
     return <ArrowUpIcon aria-hidden weight="bold" className={cls} />
-  if (state === "failed" || state === "refused")
+  if (state === "failed" || state === "refused" || state === "unfinished")
     return <WarningIcon aria-hidden weight="bold" className={cls} />
   if (state === "offline")
     return <CloudArrowUpIcon aria-hidden className={cls} />
@@ -423,12 +440,17 @@ function Summary({
   const later = count("later")
   const shared = count("shared")
   const failed = photos.filter((p) => sendStates.get(p.key) === "failed").length
+  const unfinished = photos.filter(
+    (p) => sendStates.get(p.key) === "unfinished"
+  ).length
   const refused = photos.filter(
     (p) => sendStates.get(p.key) === "refused"
   ).length
-  const filled = matched.filter(
-    ({ photo }) => sendStates.get(photo.key) !== "refused"
-  ).length
+  // A photo whose slot was not saved with it ("sent") fills no slot.
+  const filled = matched.filter(({ photo }) => {
+    const state = sendStates.get(photo.key)
+    return state !== "refused" && state !== "sent"
+  }).length
   return (
     <section
       className="grid grid-cols-[minmax(0,1fr)] gap-4 px-3 pt-3"
@@ -469,7 +491,9 @@ function Summary({
                     <span
                       className={cn(
                         "flex items-center gap-1 font-mono text-mono font-semibold",
-                        state === "failed" ? "text-warn-fg" : "text-ink-muted"
+                        state === "failed" || state === "unfinished"
+                          ? "text-warn-fg"
+                          : "text-ink-muted"
                       )}
                     >
                       <StateIcon state={state} />
@@ -491,6 +515,11 @@ function Summary({
       {failed > 0 ? (
         <Notice tone="negative" role="alert">
           {MATCH_COPY.failedLine(failed)}
+        </Notice>
+      ) : null}
+      {unfinished > 0 ? (
+        <Notice tone="negative" role="alert">
+          {MATCH_COPY.unfinishedLine(unfinished)}
         </Notice>
       ) : null}
       {refused > 0 ? (
