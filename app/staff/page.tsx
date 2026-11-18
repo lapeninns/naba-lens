@@ -62,6 +62,7 @@ import {
   staffShellStatus,
 } from "./_shell/shell-status"
 import { getMyAreaLabels } from "@/lib/server/area-photos"
+import { isMenuUse } from "@/lib/staff/my-uploads"
 
 import { ADD_BLOCKED } from "./add-blocked"
 import { StaffPortfolio } from "./staff-portfolio"
@@ -78,7 +79,8 @@ type SearchParams = Record<string, string | string[] | undefined>
 const DECISION_TILES = 24
 
 /**
- * The caller's newest accepted menu decisions and their photos, whichever
+ * The caller's newest menu decisions accepted for public use (X9: not a
+ * photo kept as reference) and their photos, whichever
  * gallery page the photos are on; Me still works when this fails. Retake
  * notes are read separately (my_retake_notes).
  */
@@ -90,7 +92,7 @@ async function menuPhotoDecisions(
     if (!result.ok) return { states: [], items: [] }
     const ids = new Set<string>()
     for (const state of result.states) {
-      if (state.state !== "accepted" || ids.size >= DECISION_TILES) continue
+      if (!isMenuUse(state) || ids.size >= DECISION_TILES) continue
       ids.add(state.assetId)
     }
     const media = await listOwnMediaByIds(actor, [...ids])

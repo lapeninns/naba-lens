@@ -498,8 +498,10 @@ Each photo passes three separate milestones:
    Photos.
 2. **Ready to label**: say which dish or drink it shows, so it can be found.
 3. **Accepted for menu use**: a manager chose it to show a dish on your
-   venue's menu. **Me** lists these photos under **Accepted for menu use**
-   with the dish, however long ago you uploaded them. If a reviewer asks for
+   venue's menu. **Me** lists these photos under **Accepted for menu use**,
+   each marked **In the album**, with the dish, however long ago you
+   uploaded them. A photo the manager kept for reference is not listed
+   there; **Your photos** shows it as **Kept for reference**. If a reviewer asks for
    another photo instead, **Album** shows it as a retake and **Me** shows a
    **Needs another photo** note, each with the dish and their reason.
 

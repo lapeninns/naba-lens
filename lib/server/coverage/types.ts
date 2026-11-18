@@ -794,6 +794,12 @@ export type MyMenuPhotoState = {
   variantId: string | null
   variantName: string | null
   state: Exclude<ItemPhotoState, "withdrawn" | "invalidated">
+  /**
+   * Accepted only: for public use, or kept as reference (X9). Only a public
+   * acceptance is Me's "Accepted for menu use"; reference is the staff
+   * outcome Kept for reference.
+   */
+  reviewLevel: "public" | "reference"
   isPrimary: boolean
   /** The reviewer's note: what a better photo needs (or an accept note). */
   reason: string | null
