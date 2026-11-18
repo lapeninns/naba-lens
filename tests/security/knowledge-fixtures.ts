@@ -88,9 +88,11 @@ export type World = {
   checks: Record<string, string>
 }
 
-let sharedAdmin: TestIdentity | null = null
+// The promise is shared, so concurrent world() calls make one admin (and one
+// second-factor sign-in), not one each.
+let sharedAdmin: Promise<TestIdentity> | null = null
 export async function admin() {
-  sharedAdmin ??= await createIdentity(service, {
+  sharedAdmin ??= createIdentity(service, {
     label: "knowledge-admin",
     role: "admin",
   })

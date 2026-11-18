@@ -43,7 +43,7 @@ import {
   readSessionCookie,
   redirectOf,
 } from "./auth-support"
-import { followEmailLink } from "./auth-confirm"
+import { followEmailLink, passMfa } from "./auth-confirm"
 
 const service = serviceClient()
 const INVITED = /invited/i
@@ -51,11 +51,13 @@ const INVITED = /invited/i
 let venue: { id: string }
 let admin: { id: string; email: string; browser: Browser; rest: Db }
 
-async function signIn(email: string) {
+/** Signs an admin in, including the second step (FA-23: aal2 for admin). */
+async function signIn(email: string, adminId: string) {
   const browser = new Browser(email)
   const link = await issueSignInLink(service, email)
   const res = await followEmailLink(browser, link)
   expect(res.location).toBe("/")
+  await passMfa(browser, adminId)
   const { session } = readSessionCookie(browser)
   const rest = anonClient()
   await rest.auth.setSession({
@@ -107,7 +109,7 @@ beforeAll(async () => {
     role: "admin",
     session: false,
   })
-  admin = { ...identity, ...(await signIn(identity.email)) }
+  admin = { ...identity, ...(await signIn(identity.email, identity.id)) }
 })
 
 describe("invitations", { timeout: 60_000 }, () => {
@@ -445,7 +447,7 @@ describe("admins cannot lock themselves out", () => {
       role: "admin",
       session: false,
     })
-    const peer = await signIn(other.email)
+    const peer = await signIn(other.email, other.id)
     for (const [db, target] of [
       [admin.rest, other.id],
       [peer.rest, admin.id],
@@ -489,5 +491,75 @@ describe("admins cannot lock themselves out", () => {
     })
     expect([401, 403]).toContain(remove.status)
     await stillAdmin()
+  })
+})
+
+// S6-CI regression (FA-23): the account Server Functions act with the service
+// role once the caller is checked, so the check itself must require the
+// second step. Before the fix an admin signed in by email link alone (aal1)
+// could invite, resend, deactivate and edit staff.
+describe("an admin who has not passed the second step", () => {
+  it("is refused by every account Server Function, and nothing changes", async () => {
+    const identity = await createIdentity(service, {
+      label: "inv-aal1-admin",
+      role: "admin",
+      session: false,
+    })
+    const browser = new Browser("aal1-admin")
+    const res = await followEmailLink(
+      browser,
+      await issueSignInLink(service, identity.email)
+    )
+    expect(res.location).toBe("/")
+    expect((await browser.run(getAuthState)).status).toBe("mfa_required")
+
+    const target = await createIdentity(service, {
+      label: "inv-aal1-target",
+      role: "staff",
+      venueId: venue.id,
+      session: false,
+    })
+    const before = await profileOf(target.id)
+    const email = testEmail("inv-aal1-invitee")
+    const forbidden = { error: "You do not have permission to do that." }
+
+    expect(
+      await browser.run(() =>
+        inviteStaffAction({
+          displayName: "TEST aal1 invitee",
+          email,
+          jobTitle: null,
+          venueId: venue.id,
+        })
+      )
+    ).toMatchObject({ status: "error", ...forbidden })
+    expect(
+      await browser.run(() => resendInvitationAction(target.id))
+    ).toMatchObject({ ok: false, ...forbidden })
+    expect(
+      await browser.run(() => setStaffActiveAction(target.id, false))
+    ).toMatchObject({ ok: false, ...forbidden })
+    expect(
+      await browser.run(() =>
+        updateStaffAccountAction(target.id, { jobTitle: "TEST changed" })
+      )
+    ).toMatchObject({ ok: false, ...forbidden })
+
+    expect(authUserCount(email)).toBe(0)
+    expect(await mailCount(email)).toBe(0)
+    expect(await profileOf(target.id)).toEqual(before)
+
+    // Control: after the second step the same browser may invite.
+    await passMfa(browser, identity.id)
+    expect(
+      await browser.run(() =>
+        inviteStaffAction({
+          displayName: "TEST aal2 invitee",
+          email,
+          jobTitle: null,
+          venueId: venue.id,
+        })
+      )
+    ).toEqual({ status: "sent" })
   })
 })

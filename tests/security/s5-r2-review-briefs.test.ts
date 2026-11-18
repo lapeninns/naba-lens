@@ -92,9 +92,13 @@ const queue = (who: { client: unknown }, venue: string) =>
 let a: V
 let b: V
 let adminAal1: TestIdentity
-let spaces: string
+let spaces: string | undefined
 
 beforeAll(async () => {
+  // Read first: afterAll restores it even when the setup below fails.
+  spaces = psql(
+    `select instruction from public.shot_templates where category = 'spaces'`
+  )
   ;[a, b] = await Promise.all([venue("s5r2-a"), venue("s5r2-b")])
   adminAal1 = await createIdentity(service, {
     label: "s5r2-admin-aal1",
@@ -107,13 +111,13 @@ beforeAll(async () => {
       .update({ role: "admin", venue_id: null })
       .eq("id", adminAal1.id)
   )
-  spaces = psql(
-    `select instruction from public.shot_templates where category = 'spaces'`
-  )
 })
 
 afterAll(() => {
-  // Templates are organisation-wide: leave Spaces as it was.
+  // Templates are organisation-wide: leave Spaces as it was. Without a read
+  // there is nothing to restore; writing `undefined` would break the next
+  // file that reads the seeded words (S6-CI: shot-templates.test.ts).
+  if (spaces === undefined) return
   psql(
     `update public.shot_templates set instruction = $q$${spaces}$q$
      where category = 'spaces'`

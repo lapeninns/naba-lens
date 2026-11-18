@@ -20,7 +20,7 @@ import {
 } from "@/lib/requests/model"
 import {
   closeRequest,
-  createRequest,
+  createManagerRequest,
   listMyRequests,
   listRequests,
   requestError,
@@ -374,7 +374,7 @@ describe("server module", () => {
     const { db, calls } = fakeDb({})
     expect(
       (
-        await createRequest(
+        await createManagerRequest(
           { db },
           { type: "missing_photo", slotKind: "dish", slotId: "nope" }
         )
@@ -393,7 +393,7 @@ describe("server module", () => {
 
   it("sends a create with its defaults and reads the id back", async () => {
     const { db, calls } = fakeDb({ data: { id: ID, revision: 1 } })
-    const out = await createRequest(
+    const out = await createManagerRequest(
       { db },
       {
         type: "campaign",

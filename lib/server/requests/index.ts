@@ -248,7 +248,7 @@ export type CreateRequestInput = {
 
 const optionalUuid = (v: unknown) => v === undefined || v === null || isUuid(v)
 
-export async function createRequest(
+export async function createManagerRequest(
   caller: RequestCaller,
   input: CreateRequestInput
 ): Promise<RequestResult<{ id: string; revision: number }>> {

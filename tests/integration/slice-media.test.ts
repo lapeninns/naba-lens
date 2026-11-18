@@ -10,6 +10,7 @@ import {
   signDerivative,
   streamOriginal,
 } from "../../lib/server/media/access"
+import { MEDIA_LIMITS } from "../../lib/config/media"
 import { rpcFailure } from "../../lib/server/media/errors"
 import { finaliseAsset } from "../../lib/server/media/finalise"
 import {
@@ -31,6 +32,7 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
+import { acceptForColleagues } from "./accepted"
 
 const fixture = (name: string) =>
   readFile(
@@ -183,7 +185,8 @@ describe("slice: reserve, upload, finalise, read (local Supabase)", () => {
     it("re-checks size and type limits on the server", async () => {
       const big = await reserveAsset(actorA, {
         ...request(new Uint8Array(1)),
-        sizeBytes: 21 * 1024 * 1024,
+        // One byte over the 25 MiB photo limit (spec §12.1).
+        sizeBytes: MEDIA_LIMITS.maxPhotoBytes + 1,
       })
       expect(big).toMatchObject({ ok: false, status: 400 })
       const exe = await reserveAsset(actorA, {
@@ -426,10 +429,20 @@ describe("slice: reserve, upload, finalise, read (local Supabase)", () => {
       assetId = reserved.assetId
     })
 
-    it("staff B can view ready media but cannot finalise, own-list or delete A's asset", async () => {
+    it("staff B can view accepted media but cannot finalise, own-list or delete A's asset", async () => {
       expect(
         await finaliseAsset(actorB, { assetId, idempotencyKey: newKey() })
       ).toMatchObject({ ok: false, status: 404 })
+      // FA-20 (spec §3.3): nothing for a colleague until it is accepted.
+      expect(await signDerivative(actorB, assetId, "thumbnail")).toMatchObject({
+        ok: false,
+        status: 404,
+      })
+      expect(await getReadableAsset(actorB, assetId)).toMatchObject({
+        ok: false,
+        status: 404,
+      })
+      await acceptForColleagues(assetId)
       expect(await signDerivative(actorB, assetId, "thumbnail")).toMatchObject({
         ok: true,
       })

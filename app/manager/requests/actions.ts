@@ -17,7 +17,7 @@ import { actorFailureMessage } from "@/lib/server/media/context"
 import {
   cancelShotList,
   closeRequest,
-  createRequest,
+  createManagerRequest,
   createShotList,
   editRequest,
   setRequestBlocked,
@@ -80,7 +80,7 @@ export async function createRequestAction(
   const type = oneOf(REQUEST_TYPES, i.type)
   if (!type)
     return { ok: false, error: "Choose the kind of request.", field: "type" }
-  const result = await createRequest(auth.actor, {
+  const result = await createManagerRequest(auth.actor, {
     type,
     slotKind: oneOf(SLOT_KINDS, i.slotKind),
     slotId: optText(i.slotId),

@@ -82,7 +82,7 @@ All four applied in order on a fresh reset of my own stack (port 587xx). They ar
 
 ## What Sprint 2 workers need to know
 
-- **Staff inbox and badge (S2-STAFF), manager badge (S2-MGR):** use `loadInbox`, `unreadCount`, `markRead`, `loadPreferences` and `savePreferences` from `lib/server/notifications`, and the words from `notificationWords` in `lib/ops/notifications.ts`.
+- **Staff inbox and badge (S2-STAFF), manager badge (S2-MGR):** use `loadInbox`, `unreadCount`, `markRead`, `loadPreferences` and `saveNotificationPreferences` (renamed in S6-CI) from `lib/server/notifications`, and the words from `notificationWords` in `lib/ops/notifications.ts`.
   - Kinds: `retake_requested`, `assigned`, `upload_problem`, `review_digest`, `exception`.
   - States: `unread`, `read`, `resolved`.
 - **Requests and shot lists (S2-REQ):** inside your SQL, call `private.notify(recipient, venue, 'assigned', subject_type, subject_id, dedupe_key, payload)` when a request names a person.
