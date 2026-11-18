@@ -20,6 +20,7 @@ import {
   slotsByState,
 } from "@/lib/metrics/model"
 import { CHIP_STATES } from "@/components/nabalens/status-chip"
+import { METRICS_COPY } from "@/components/nabalens/metrics/copy"
 
 // S2-METRICS (spec §18.1, AC39): parsing the metrics reads and the derived
 // numbers the screens show.
@@ -119,6 +120,19 @@ describe("AC39: the number reproduces from its slots", () => {
     expect(groups.find((g) => g.state === "not_here")!.counted).toBe(false)
     expect(slotsByState(fixtureMetrics().slots, "spaces")).toHaveLength(2)
     expect(slotsByState(emptyFixtureMetrics().slots, null)).toEqual([])
+  })
+
+  it("names slot states with the coverage chips' own words (X11)", () => {
+    expect(METRICS_COPY.covered).toBe(CHIP_STATES.coverage_covered.word)
+    expect(METRICS_COPY.awaitingReview).toBe(CHIP_STATES.coverage_pending.word)
+    expect(METRICS_COPY.checkDue).toBe(CHIP_STATES.coverage_check_due.word)
+    expect(METRICS_COPY.anotherPhoto).toBe(
+      CHIP_STATES.coverage_replacement_needed.word
+    )
+    expect(METRICS_COPY.missing).toBe(CHIP_STATES.coverage_missing.word)
+    expect(METRICS_COPY.coverageRule).toContain(
+      CHIP_STATES.coverage_inactive.word
+    )
   })
 
   it("has a status chip for every slot state", () => {

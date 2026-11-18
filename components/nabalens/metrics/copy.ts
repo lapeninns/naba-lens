@@ -1,6 +1,19 @@
 // Words for the manager and admin metrics screens (spec §18; FA-7, FA-8).
 // British English, sentence case (DESIGN.md §7). Managers and admins may see
-// the spec's names; nobody is named or ranked.
+// the spec's names; nobody is named or ranked. A slot state's word is its
+// coverage_* chip (status-chip.tsx), read here, never typed again (X11).
+
+import { CHIP_STATES } from "@/components/nabalens/status-chip"
+
+const SLOT = {
+  covered: CHIP_STATES.coverage_covered.word,
+  checkDue: CHIP_STATES.coverage_check_due.word,
+  pending: CHIP_STATES.coverage_pending.word,
+  replacement: CHIP_STATES.coverage_replacement_needed.word,
+  missing: CHIP_STATES.coverage_missing.word,
+  notHere: CHIP_STATES.coverage_not_here.word,
+  inactive: CHIP_STATES.coverage_inactive.word,
+} as const
 
 const plural = (n: number, one: string, many: string) =>
   `${n} ${n === 1 ? one : many}`
@@ -24,26 +37,25 @@ export const METRICS_COPY = {
   generated: (when: string) => `Counted on ${when}.`,
 
   attentionTitle: "Needs attention",
-  missing: "Missing",
+  missing: SLOT.missing,
   missingNote: (retakes: number) =>
     retakes > 0
       ? `${plural(retakes, "retake", "retakes")} asked for`
       : "slots with no photo",
-  awaitingReview: "Awaiting review",
+  awaitingReview: SLOT.pending,
   needsLabel: "Needs label",
   needsLabelNote: (inQueue: number) =>
     inQueue > 0 ? `${inQueue} waiting over 7 days` : "photos without a slot",
-  checkDue: "Check due",
+  checkDue: SLOT.checkDue,
   factsDue: (n: number) =>
     n > 0 ? `${plural(n, "fact", "facts")} to confirm` : "no facts to confirm",
   technicalFailures: "Technical failures",
 
   coverageTitle: "Photo coverage",
-  coverageRule:
-    "Covered means a current photo accepted for public use. A reference photo, an extra photo or a duplicate never adds to it. Not here and No photo needed leave the total; a dish that is sold out stays in it.",
+  coverageRule: `${SLOT.covered} means a current photo accepted for public use. A reference photo, an extra photo or a duplicate never adds to it. ${SLOT.notHere} and ${SLOT.inactive} leave the total; a dish that is sold out stays in it.`,
   category: "Category",
-  covered: "Covered",
-  anotherPhoto: "Another photo requested",
+  covered: SLOT.covered,
+  anotherPhoto: SLOT.replacement,
   notCounted: "Not counted",
   unavailable: (n: number) =>
     `${plural(n, "slot is", "slots are")} temporarily unavailable and still counted.`,
@@ -118,7 +130,7 @@ export const METRICS_COPY = {
   venueColumn: "Venue",
   photosColumn: "Photos covered",
   factsColumn: "Facts confirmed",
-  waitingColumn: "Awaiting review",
+  waitingColumn: SLOT.pending,
   needsLabelColumn: "Needs label",
   failuresColumn: "Technical failures",
   failedJobs: (n: number) =>

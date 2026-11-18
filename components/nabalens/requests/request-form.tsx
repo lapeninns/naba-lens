@@ -4,6 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 
 import { Notice } from "@/components/nabalens/notice"
+import { chipState } from "@/components/nabalens/status-chip"
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
@@ -70,13 +71,8 @@ type CreateAction = (
   { ok: true; id: string } | { ok: false; error: string; field?: string }
 >
 
-const SLOT_STATE_WORD: Record<string, string> = {
-  missing: "No photo yet",
-  pending: "Photo waiting for review",
-  replacement_needed: "Another photo asked for",
-  covered: "In the album",
-  check_due: "Check due",
-}
+/** A slot's coverage word: the coverage_* chip, as on Metrics (X11). */
+const slotStateWord = (state: string) => chipState(`coverage_${state}`).word
 
 const slotKey = (kind: string, id: string) => `${kind}:${id}`
 
@@ -244,7 +240,7 @@ export function RequestForm({
           error={errors.slotId}
           description={
             chosen
-              ? `${chosen.categoryLabel} · ${SLOT_STATE_WORD[chosen.state] ?? chosen.state}`
+              ? `${chosen.categoryLabel} · ${slotStateWord(chosen.state)}`
               : "The dish, place or facility the photo is for."
           }
         >

@@ -158,12 +158,30 @@ describe("New request form (M4-required-fields)", () => {
         create={create}
       />
     )
-    expect(screen.getByText("Food · No photo yet")).toBeTruthy()
+    // The coverage chip's word, as on Metrics (X11), never a second word.
+    expect(screen.getByText("Food · Missing")).toBeTruthy()
     fireEvent.submit(screen.getByRole("button", { name: "Send the request" }))
     expect(
       await screen.findByText("Write one line on what the photo must show.")
     ).toBeTruthy()
     expect(create).not.toHaveBeenCalled()
+  })
+
+  it("says a covered slot is Covered, the Metrics word, not In the album (X11)", () => {
+    render(
+      <RequestForm
+        mode="slot"
+        today="2026-11-18"
+        slots={[{ ...slots[0]!, state: "covered" }]}
+        facts={[]}
+        people={people}
+        shotLists={[]}
+        initialSlot={{ kind: "dish", slotId: PIE }}
+        create={vi.fn()}
+      />
+    )
+    expect(screen.getByText("Food · Covered")).toBeTruthy()
+    expect(screen.queryByText(/In the album/)).toBeNull()
   })
 
   it("sends a slot request and opens it", async () => {
