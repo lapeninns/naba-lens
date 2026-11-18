@@ -144,9 +144,7 @@ as $$
 declare
   v_venue uuid := private.knowledge_place_venue(p_venue_id);
 begin
-  if not private.can_manage_venue(v_venue) then
-    raise exception 'forbidden' using errcode = '42501';
-  end if;
+  perform private.assert_can_manage_venue(v_venue);
   return jsonb_build_object('venueId', v_venue, 'items', coalesce((
     select jsonb_agg(jsonb_build_object(
         'itemId', o.item_id, 'name', o.name, 'sectionName', o.section_name,
