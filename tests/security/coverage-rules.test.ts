@@ -33,6 +33,7 @@ import {
   submit,
 } from "./coverage-fixtures"
 import { reserve, reserveReady } from "./menus-fixtures"
+import { removeAsAdmin } from "./privacy-fixtures"
 
 const service = serviceClient()
 let venue: string
@@ -758,9 +759,8 @@ describe("credit across month boundaries and deletion", () => {
     for (const id of [insideItem, beforeItem, lateItem, removedItem]) {
       await accept(service, manager, id)
     }
-    await ok(
-      author.client.rpc("delete_media_asset", { p_asset_id: removed.id })
-    )
+    // FA-21: accepted media is removed by an admin, with a reason.
+    await removeAsAdmin(removed.id)
 
     expect(await progressOf(manager, author.id, previous)).toMatchObject({
       accepted_count: 2,
@@ -789,7 +789,7 @@ describe("credit across month boundaries and deletion", () => {
       accepted_count: 1,
     })
 
-    await ok(author.client.rpc("delete_media_asset", { p_asset_id: photo.id }))
+    await removeAsAdmin(photo.id)
 
     ;[req] = (await requirementProgress(manager, venue)).filter(
       (r) => r.requirement_id === requirement

@@ -30,6 +30,7 @@ import {
   submit,
 } from "./coverage-fixtures"
 import { reserveReady } from "./menus-fixtures"
+import { removeAsAdmin } from "./privacy-fixtures"
 
 const service = serviceClient()
 let admin: TestIdentity
@@ -146,10 +147,8 @@ describe("R-03: linked amenity-fact media stays as it is", () => {
       })
     revision = (await ok(save([deleted, leaverPhoto])))[0]!.revision
 
-    const removed = await keeper.client.rpc("delete_media_asset", {
-      p_asset_id: deleted,
-    })
-    if (removed.error) throw removed.error
+    // A manager-linked fact photo is accepted (FA-21): an admin removes it.
+    await removeAsAdmin(deleted)
     const left = await service
       .from("profiles")
       .update({ active: false })
