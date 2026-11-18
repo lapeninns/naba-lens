@@ -285,7 +285,74 @@ describe("global Add gallery refresh", () => {
     expect(gallery.hasAttribute("capture")).toBe(false)
   })
 
-  it("M2: Me's Fix labels and Discard labels reach the Add sheet's rows", async () => {
+  it("R15-1: Me's Add a video opens the older Add sheet, quieter than Add photos", async () => {
+    const user = userEvent.setup()
+    const fetch = vi.fn().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            page: { items: [item(NEW_ID), item(OLD_ID)], nextCursor: null },
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+    )
+    vi.stubGlobal("fetch", fetch)
+    render(
+      host(
+        <StaffPortfolio
+          profile={profile}
+          uploadBlocked={null}
+          initialPage={{ items: [item(OLD_ID)], nextCursor: null }}
+        />
+      )
+    )
+    const video = screen.getByRole("button", { name: "Add a video" })
+    const main = document.querySelector<HTMLButtonElement>(
+      '[data-slot="me-add"]'
+    )!
+    // A secondary button before the main one: blue stays last (DESIGN.md §5).
+    expect(video.dataset.variant).toBe("secondary")
+    expect(main.dataset.variant).toBe("primary")
+    expect(
+      video.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    // Gallery first: it opens the sheet, not a picker, and never a camera.
+    const inputs = [
+      ...document.querySelectorAll<HTMLInputElement>('input[type="file"]'),
+    ]
+    const clicks = inputs.map((input) => vi.spyOn(input, "click"))
+    expect(inputs.some((input) => input.hasAttribute("capture"))).toBe(false)
+    await user.click(video)
+    for (const click of clicks) expect(click).not.toHaveBeenCalled()
+    // The one global queue's sheet (no second dialog), which refreshes Me.
+    expect(
+      screen.getAllByRole("button", { name: "Complete upload" })
+    ).toHaveLength(1)
+    await user.click(screen.getByRole("button", { name: "Complete upload" }))
+    await waitFor(() =>
+      expect(
+        document.querySelector(`[data-media-id="${NEW_ID}"]`)
+      ).not.toBeNull()
+    )
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it("R15-1: a blocked venue shows neither Add photos nor Add a video on Me", () => {
+    render(
+      host(
+        <StaffPortfolio
+          profile={profile}
+          uploadBlocked="Uploads are paused at TEST Venue."
+          initialPage={{ items: [item(OLD_ID)], nextCursor: null }}
+        />
+      )
+    )
+    expect(document.querySelector('[data-slot="me-add"]')).toBeNull()
+    expect(screen.queryByRole("button", { name: "Add a video" })).toBeNull()
+  })
+
+  it("M2:Me's Fix labels and Discard labels reach the Add sheet's rows", async () => {
     const user = userEvent.setup()
     render(
       host(

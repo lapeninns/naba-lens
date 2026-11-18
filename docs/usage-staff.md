@@ -239,6 +239,8 @@ The new photo goes to your manager as **Waiting**.
 
 ## Me
 
+Me's main **Add photos** opens your gallery and then Match, like the tab; the quieter **Add a video** beside it opens the older Add sheet, for a video or a file Match doesn't take.
+
 ### Your photos
 
 **Your photos** is the first section on Me and lists every photo you've
@@ -374,7 +376,7 @@ details. Unreviewed photos stay between you and your managers.
 
 ## Add labels
 
-Me's **Add photos or videos** button opens the older Add sheet with **Choose
+Me's **Add a video** button opens the older Add sheet with **Choose
 from your photos** (and, on some devices, **Take a photo**). Photos start
 saving at once. Optionally fill in the sheet's question:
 

@@ -203,6 +203,8 @@ Me holds the person's own work and their account (FA-1; departure A-S1). Top to 
 2. **Your month** (FA-34): the person's own target and "n slots in the album from your photos". It is never compared with a colleague's (§9).
 3. **Help and account** (spec §6 S5): Your venues with the person's role and the venue switcher, Notices, "If you can't add photos" (on the Photo guide) and Your managers (`components/nabalens/me/me-account.tsx`).
 
+Me's header holds the main Add photos (gallery, then Match, as the tab bar) and, before it, a secondary Add a video that opens the older Add sheet for video and files Match does not take (R15-1, departure A-D2); both open the gallery, never a camera.
+
 Older blocks follow (Needs labels, accepted photos, findings; departure A-S2). Log out is on Me on phones and in the AppBar from md.
 
 **Notices** (FA-10) are an inbox page, `/staff/notifications`, reached from Me: newest first, each with what happened and a link to it, then what to be told about. An unread notice puts a count badge on the Me tab. There are no toasts and no push (§6.7, FA-43). The component is `components/nabalens/me/notices-inbox.tsx`.
