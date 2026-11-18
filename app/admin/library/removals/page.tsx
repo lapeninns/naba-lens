@@ -36,7 +36,10 @@ export default async function LibraryRemovalsPage() {
             </p>
           }
           actions={
-            <Link href="/admin" className={buttonVariants({ variant: "secondary" })}>
+            <Link
+              href="/admin"
+              className={buttonVariants({ variant: "secondary" })}
+            >
               Back to the library
             </Link>
           }

@@ -43,7 +43,7 @@ export default async function LibraryRemovePage({
           summary={
             <p>
               Removing deletes the stored files. The record, who took it, the
-              reason and its history are kept. It can't be undone.
+              reason and its history are kept. It can&apos;t be undone.
             </p>
           }
           className="pb-0 md:pb-0"

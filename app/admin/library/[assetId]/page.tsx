@@ -56,7 +56,10 @@ export default async function LibraryAssetPage({
             ) : null
           }
           actions={
-            <Link href="/admin" className={buttonVariants({ variant: "secondary" })}>
+            <Link
+              href="/admin"
+              className={buttonVariants({ variant: "secondary" })}
+            >
               Back to the library
             </Link>
           }

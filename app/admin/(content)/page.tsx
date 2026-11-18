@@ -57,7 +57,11 @@ export default async function AdminPage({
     getFilterLists(auth.actor),
   ])
   // A failed list leaves that filter without choices, never the page broken.
-  const named = (o: { id: string; name: string; venueName?: string | null }) => ({
+  const named = (o: {
+    id: string
+    name: string
+    venueName?: string | null
+  }) => ({
     id: o.id,
     name: o.venueName ? `${o.name} · ${o.venueName}` : o.name,
   })

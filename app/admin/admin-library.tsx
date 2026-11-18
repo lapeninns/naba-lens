@@ -28,10 +28,7 @@ import {
 import { PageHeader } from "@/components/nabalens/page-header"
 import { SEARCH_COPY } from "@/components/nabalens/search/search-copy"
 import { Button, buttonVariants } from "@/components/ui/button"
-import {
-  NO_EXTRA_FILTERS,
-  type LibraryExtraFilters,
-} from "@/lib/library/model"
+import { NO_EXTRA_FILTERS, type LibraryExtraFilters } from "@/lib/library/model"
 import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from "@/lib/menus/types"
 
 import { loadLibraryPage, type LibraryPageResult } from "./library-actions"

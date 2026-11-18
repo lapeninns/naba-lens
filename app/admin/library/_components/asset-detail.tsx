@@ -116,8 +116,8 @@ export function AssetDetailView({
               {detail.withdrawal.byName
                 ? ` by ${detail.withdrawal.byName}`
                 : ""}
-              : {detail.withdrawal.reason}. It is kept, but it can't be exported
-              or made a main photo until it is restored.
+              : {detail.withdrawal.reason}. It is kept, but it can&apos;t be
+              exported or made a main photo until it is restored.
             </Notice>
           ) : null}
           {removed ? null : <AssetActions detail={detail} options={options} />}
