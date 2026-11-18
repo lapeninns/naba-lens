@@ -5,7 +5,11 @@ import { revalidatePath } from "next/cache"
 import {
   convertToManager,
   convertToStaff,
+  grantAdminRole,
   inviteStaff,
+  removeVenueMember,
+  revokeAdminRole,
+  setVenueMembership,
   resendInvitation,
   setStaffActive,
   updateStaffAccount,
@@ -141,4 +145,43 @@ export async function convertToStaffAction(input: unknown) {
   const result = await convertToStaff(await accountsContext(), input)
   if (result.ok) refreshConvertedPages()
   return result
+}
+
+// Per-venue memberships and admin roles (S1-PEOPLE; spec §3.1, §8 A6). Each
+// call re-checks the admin in the database; nothing is trusted from input.
+
+type SimpleResult = { ok: true } | { ok: false; error: string }
+
+function simple(result: AccountResult<object>): SimpleResult {
+  return result.ok ? { ok: true } : { ok: false, error: result.error }
+}
+
+/** `{ profileId, venueId, role: "staff" | "manager", reason? }` */
+export async function setVenueMembershipAction(
+  input: unknown
+): Promise<SimpleResult> {
+  const result = await setVenueMembership(await accountsContext(), input)
+  if (result.ok) refreshConvertedPages()
+  return simple(result)
+}
+
+/** `{ profileId, venueId, reason, replacementId? }` */
+export async function removeVenueMembershipAction(input: unknown) {
+  const result = await removeVenueMember(await accountsContext(), input)
+  if (result.ok) refreshConvertedPages()
+  return result.ok ? result : { ok: false as const, error: result.error }
+}
+
+/** `{ profileId, reason }` */
+export async function grantAdminAction(input: unknown): Promise<SimpleResult> {
+  const result = await grantAdminRole(await accountsContext(), input)
+  if (result.ok) refreshConvertedPages()
+  return simple(result)
+}
+
+/** `{ profileId, venueId, reason }` */
+export async function revokeAdminAction(input: unknown): Promise<SimpleResult> {
+  const result = await revokeAdminRole(await accountsContext(), input)
+  if (result.ok) refreshConvertedPages()
+  return simple(result)
 }
