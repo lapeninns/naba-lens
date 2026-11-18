@@ -116,8 +116,12 @@ export function AssetDetailView({
               {detail.withdrawal.byName
                 ? ` by ${detail.withdrawal.byName}`
                 : ""}
-              : {detail.withdrawal.reason}. It is kept, but it can&apos;t be
-              exported or made a main photo until it is restored.
+              : {detail.withdrawal.reason}.{" "}
+              {detail.corrections.length > 0
+                ? // S3-R6 (V19): a corrected photo is never restored at the
+                  // venue it was wrongly recorded at.
+                  "It was recorded at the wrong venue, so it stays withdrawn: it can't be exported or made a main photo. To use it at the right venue, add it again there."
+                : "It is kept, but it can't be exported or made a main photo until it is restored."}
             </Notice>
           ) : null}
           {removed ? null : <AssetActions detail={detail} options={options} />}
@@ -531,7 +535,7 @@ function AssetActions({
           <DownloadSimpleIcon aria-hidden />
           Download original
         </a>
-        {detail.withdrawal ? (
+        {detail.withdrawal && detail.corrections.length > 0 ? null : detail.withdrawal ? (
           <Button variant="secondary" onClick={() => setDialog("restore")}>
             <ArrowCounterClockwiseIcon aria-hidden />
             Restore
@@ -615,7 +619,7 @@ function AssetActions({
         open={dialog === "venue"}
         onOpenChange={(o) => setDialog(o ? "venue" : null)}
         title="Correct the venue"
-        description={`Recorded at ${a.venueName}. Use this only when the venue was entered by mistake. The original record is kept, the photo is withdrawn from use, and it needs reviewing again at the right venue.`}
+        description={`Recorded at ${a.venueName}. Use this only when the venue was entered by mistake. The original record is kept and the photo is withdrawn from use for good. To use it at the right venue, add it again there.`}
         label="Why"
         confirmLabel="Record correction"
         pendingLabel="Recording…"

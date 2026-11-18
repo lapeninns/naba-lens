@@ -87,6 +87,11 @@ const MESSAGES: Record<string, { status: Status; message: string }> = {
     status: 409,
     message: "The photo is already recorded at this venue.",
   },
+  venue_correction_pending: {
+    status: 409,
+    message:
+      "This photo was recorded at the wrong venue, so it stays withdrawn. Add it again at the right venue.",
+  },
   asset_withdrawn: {
     status: 409,
     message: "Restore this photo before making it the main photo.",
