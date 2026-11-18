@@ -68,7 +68,10 @@ vi.mock("@/app/staff/_shell/upload-label-api", () => ({
 
 import { AddHost } from "@/app/staff/_shell/add-host"
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
-import { ManagerNav } from "@/components/nabalens/manager/manager-nav"
+import {
+  ManagerAddButton,
+  ManagerNav,
+} from "@/components/nabalens/manager/manager-nav"
 import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
 import { ManagerDishButtons } from "@/components/nabalens/manager/menu/dish-buttons"
 import { OUR_MENU_COPY } from "@/components/nabalens/menu-photos/copy"
@@ -120,6 +123,7 @@ function workspace(entry: Promise<EntryMenu | null> | null) {
       venueName="Lakeside"
       role="manager"
     >
+      <ManagerAddButton />
       <ManagerNav kind="bar" />
       <p id="dish-name">{DISH.name}</p>
       <ManagerDishButtons item={DISH} describedBy="dish-name" />
@@ -131,6 +135,14 @@ function workspace(entry: Promise<EntryMenu | null> | null) {
 
 const nav = () =>
   screen.getByRole("navigation", { name: MANAGER_COPY.navLabel })
+/**
+ * S2-MGR: the phone bar holds the five spec tabs, so the workspace's Add is
+ * in the header at every width (the compact "Add" on phones, "Add photos"
+ * from md): ManagerAddButton.
+ */
+const header = () =>
+  document.querySelector<HTMLElement>('[data-slot="manager-add-compact"]') ??
+  document.body
 
 afterEach(cleanup)
 beforeEach(() => {
@@ -143,20 +155,20 @@ describe("the workspace's Add follows R8", () => {
     workspace(Promise.resolve(null))
     await act(async () => {})
     expect(screen.getByTestId("probe").textContent).toBe("none")
-    expect(within(nav()).queryByRole("button", { name: "Add" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Add" })).toBeNull()
     expect(
       screen.queryByRole("button", { name: OUR_MENU_COPY.addPhotos })
     ).toBeNull()
-    // The bar is today's four tabs, and no picker is on the page.
-    expect(within(nav()).getAllByRole("link")).toHaveLength(4)
+    // The bar is the five spec tabs, and no picker is on the page.
+    expect(within(nav()).getAllByRole("link")).toHaveLength(5)
     expect(document.querySelector('input[type="file"]')).toBeNull()
   })
 
-  it("Add in the middle of the phone bar, and the dish's buttons, once R8 says upload and label", async () => {
+  it("Add in the header beside the five tabs, and the dish's buttons, once R8 says upload and label", async () => {
     workspace(Promise.resolve(menu(["dish", "question", "photos"])))
-    const add = await within(nav()).findByRole("button", { name: "Add" })
+    const add = await within(header()).findByRole("button", { name: "Add" })
     const items = Array.from(nav().children).map((el) => el.textContent)
-    expect(items).toEqual(["Overview", "Review", "Add", "Menu", "Amenities"])
+    expect(items).toEqual(["Overview", "Review", "Album", "Requests", "Venue"])
     expect(add.tagName).toBe("BUTTON")
     expect(
       screen.getByRole("button", { name: OUR_MENU_COPY.addPhotos })
@@ -165,7 +177,7 @@ describe("the workspace's Add follows R8", () => {
 
   it("photos without labelling: Add, but no dish buttons", async () => {
     workspace(Promise.resolve(menu(["photos"])))
-    await within(nav()).findByRole("button", { name: "Add" })
+    await within(header()).findByRole("button", { name: "Add" })
     expect(
       screen.queryByRole("button", { name: OUR_MENU_COPY.addPhotos })
     ).toBeNull()
@@ -242,7 +254,7 @@ async function pickFailing(error: QueueUploadError) {
     throw error
   }
   workspace(Promise.resolve(menu(["photos"])))
-  await within(nav()).findByRole("button", { name: "Add" })
+  await within(header()).findByRole("button", { name: "Add" })
   fireEvent.click(screen.getByRole("button", { name: "Pick" }))
   const input = document.querySelector<HTMLInputElement>(
     'input[data-photo-source="library"]'
@@ -307,8 +319,8 @@ describe("what stays the same for a manager account", () => {
 
   it("no credit, recognition, target or milestone words, and no delete", async () => {
     workspace(Promise.resolve(menu(["dish", "question", "photos"])))
-    await within(nav()).findByRole("button", { name: "Add" })
-    fireEvent.click(within(nav()).getByRole("button", { name: "Add" }))
+    await within(header()).findByRole("button", { name: "Add" })
+    fireEvent.click(within(header()).getByRole("button", { name: "Add" }))
     await act(async () => {})
     const text = document.body.textContent ?? ""
     expect(text).not.toMatch(/credit|recogni|target|milestone/i)

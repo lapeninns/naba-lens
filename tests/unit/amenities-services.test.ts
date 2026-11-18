@@ -837,9 +837,10 @@ describe("amenity services", () => {
 
   it("passes revisions through and reports a stale one", async () => {
     const { actor } = actorWith({
-      amenity_archive_check: (args) =>
+      // S2-MGR: through the reason-recording wrapper.
+      amenity_check_set_applicability: (args) =>
         args.p_revision === 2
-          ? { data: 3 }
+          ? { data: { revision: 3, replayed: false } }
           : {
               error: {
                 message: "amenity_conflict",
@@ -849,11 +850,22 @@ describe("amenity services", () => {
             },
     })
     expect(
-      await amenities.archiveCheck(actor, { checkId: CHECK, revision: 2 })
+      await amenities.archiveCheck(actor, {
+        checkId: CHECK,
+        revision: 2,
+        reason: "TEST",
+      })
     ).toEqual({ ok: true, revision: 3 })
     expect(
-      await amenities.archiveCheck(actor, { checkId: CHECK, revision: 1 })
+      await amenities.archiveCheck(actor, {
+        checkId: CHECK,
+        revision: 1,
+        reason: "TEST",
+      })
     ).toMatchObject({ code: "revision_conflict", currentRevision: 5 })
+    expect(
+      await amenities.archiveCheck(actor, { checkId: CHECK, revision: 2 })
+    ).toMatchObject({ code: "invalid_input" })
     expect(
       await amenities.archiveCheck(actor, { checkId: CHECK })
     ).toMatchObject({ code: "invalid_input" })

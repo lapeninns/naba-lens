@@ -180,6 +180,10 @@ const ALLOWED_PAGES = new Set([
   "/manager/exports",
   "/manager/exports/new",
   "/manager/exports/packages/[id]",
+  // Full App v1 S2-MGR: the Venue hub, To confirm and History (spec §7 M5).
+  "/manager/venue",
+  "/manager/venue/facts",
+  "/manager/venue/history",
 ])
 
 const ALLOWED_HANDLERS = new Set([

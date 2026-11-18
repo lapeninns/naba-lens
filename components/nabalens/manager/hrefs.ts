@@ -76,6 +76,11 @@ export const managerHrefs = {
   venue: "/manager/venue",
   venueFacts: "/manager/venue/facts",
   venueHistory: "/manager/venue/history",
+  /** S1-MENUS screens, reached from the Venue hub. */
+  menuVersions: "/manager/menu/versions",
+  specials: "/manager/menu/specials",
+  /** Album places and briefs (Album A2), reached from the Venue hub. */
+  albumPlaces: "/manager/album",
   /** S2-REQ: requests and shot lists (spec §7 M4). */
   requests: "/manager/requests",
   review: (q?: ReviewQuery) => withQuery("/manager/review", q),

@@ -26,6 +26,9 @@ export const MANAGER_COPY = {
     item: "this menu item",
     account: "your account",
     team: "the team's targets",
+    venue: "the venue",
+    venueFacts: "what needs confirming",
+    venueHistory: "the venue's history",
   },
   notFound: {
     title: "This page isn't available in your workspace",
@@ -56,7 +59,8 @@ export const MANAGER_COPY = {
       `${plural(n, "photo")} ${n === 1 ? "needs" : "need"} labels`,
     reviewPhotos: "Review photos",
     exportsTitle: "Export photos",
-    exportsLine: "Download approved photos and record where they are published.",
+    exportsLine:
+      "Download photos accepted for public use and record where they are published.",
     quietTitle: "Nothing waiting for review",
     quietBody: (n: number) =>
       `${plural(n, "item")} still ${n === 1 ? "needs" : "need"} a photo. Staff see these gaps in Our menu.`,
@@ -69,6 +73,80 @@ export const MANAGER_COPY = {
     banner: (date: string, carried: number, recheck: number, added: number) =>
       `Menu active since ${date}: ${plural(carried, "item")} kept their photo, ${recheck} need a new decision, ${plural(added, "new item")}.`,
     reviewChanges: "Review changes",
+  },
+  /** S2-MGR: the Venue hub and its pages (spec §7 M5). */
+  venue: {
+    title: "Venue",
+    loading: "Loading the venue",
+    summary:
+      "Menus, specials, spaces, facilities, the team and who reviews photos here.",
+    menusTitle: "Current menus",
+    menusFailed: "Menus couldn't be loaded. Try again in a moment.",
+    noMenu:
+      "No menu is active yet. An admin imports and activates it; staff can keep adding photos meanwhile.",
+    startsLater: (title: string, when: string) => `${title} starts ${when}`,
+    menusLink: "Menus and change requests",
+    menusLine: "The current menu, later ones, and asking an admin for a change.",
+    availabilityLink: "Dishes, availability and local names",
+    availabilityLine: "Mark a dish unavailable for now or give it a local name.",
+    specialsTitle: "Local specials",
+    specialsLine: (running: number, waiting: number) =>
+      `${running} running · ${waiting} waiting for a decision`,
+    specialsUnknown: "Dated specials for this venue.",
+    spacesTitle: "Spaces",
+    spacesLine: (current: number, due: number) =>
+      `${current} photos current · ${due} due a check`,
+    spacesUnknown: "Where staff photograph each part of the venue.",
+    placesLink: "Album places and briefs",
+    placesLine: "Where staff stand to photograph each section, and its brief.",
+    facilitiesTitle: "Facilities and policies",
+    factsLine: (text: string, percent: string | null, waiting: number) =>
+      `${text} facts confirmed${percent ? ` (${percent})` : ""} · ${waiting} to confirm`,
+    factsUnknown: "We couldn't count the facts.",
+    amenitiesLink: "Facilities and questions",
+    amenitiesLine: "Answer questions, mark what is not here, assign checks.",
+    toConfirmLink: "To confirm",
+    toConfirmLine: (n: number | null) =>
+      n === null
+        ? "Facts and space photos to confirm as still right."
+        : n === 0
+          ? "Nothing to confirm"
+          : `${n} to confirm as still right`,
+    teamTitle: "Team",
+    teamLink: "People and photo targets",
+    teamLine: "Invite or remove staff, switch venue, set monthly targets.",
+    reviewersTitle: "Review assignments",
+    reviewersFailed: "Reviewers couldn't be loaded. Try again in a moment.",
+    historyTitle: "History",
+    historyEmpty: "No changes recorded yet.",
+    historyFailed: "History couldn't be loaded. Try again in a moment.",
+    historyAll: "See all history",
+    exportsLink: "Export photos",
+    exportsLine:
+      "Packages of photos for public use, and where they are published.",
+  },
+  venueFacts: {
+    title: "To confirm",
+    loading: "Loading what needs confirming",
+    summary:
+      "Say whether each answer or photo is still right. Nothing changes except the date it was checked.",
+    factsTitle: "Facts",
+    factsEmpty: "Every fact is confirmed.",
+    factsFailed: "Facts couldn't be loaded. Try again in a moment.",
+    spacesTitle: "Space photos",
+    spacesEmpty: "No space photos are due a check.",
+    spacesFailed: "Space photos couldn't be loaded. Try again in a moment.",
+  },
+  venueHistory: {
+    title: "History",
+    loading: "Loading the venue's history",
+    summary: "Every recorded change at this venue, newest first.",
+    all: "All changes",
+    empty: "No changes of this kind yet.",
+    more: "Show older changes",
+    loadingMore: "Loading",
+    failed: "Older changes couldn't be loaded. Try again.",
+    by: (name: string | null) => (name ? `by ${name}` : "by the system"),
   },
   review: {
     title: "Review",

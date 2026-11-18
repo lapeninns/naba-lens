@@ -188,7 +188,7 @@ const ACTION_WORDS: Record<string, string> = {
   fact_reconfirmed: "Fact confirmed as still right",
   fact_next_check_set: "Next check date set",
   special_suggested: "Special suggested",
-  special_running: "Special approved",
+  special_running: "Special started",
   special_declined: "Special declined",
   special_ended: "Special ended",
   change_request_open: "Menu change requested",

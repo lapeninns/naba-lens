@@ -163,17 +163,25 @@ describe("AmenityCheckDetail: status and actions", () => {
     expect(screen.queryByRole("region", { name: "Notes" })).toBeNull()
   })
 
-  it("archives, and restores an archived check, with the revision", async () => {
+  // S2-MGR (AC29): both ask for a reason first, in a dialog.
+  it("archives, and restores an archived check, with the revision and a reason", async () => {
     const user = userEvent.setup()
     const h = handlers()
     render(
       <AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />
     )
     await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
+    expect(h.archive).not.toHaveBeenCalled()
+    const dialog = await screen.findByRole("dialog")
+    await user.click(within(dialog).getByRole("button", { name: UI_TEXT.archive }))
+    expect(h.archive).not.toHaveBeenCalled()
+    await user.type(within(dialog).getByLabelText(/Reason/), "TEST no darts")
+    await user.click(within(dialog).getByRole("button", { name: UI_TEXT.archive }))
     expect(h.archive).toHaveBeenCalledWith({
       idempotencyKey: expect.any(String),
       checkId: WIFI_CHECK.id,
       revision: WIFI_CHECK.revision,
+      reason: "TEST no darts",
     })
     cleanup()
     render(
@@ -191,10 +199,14 @@ describe("AmenityCheckDetail: status and actions", () => {
     ).toBeNull()
     expect(screen.getByText("Archived")).toBeTruthy()
     await user.click(screen.getByRole("button", { name: UI_TEXT.restore }))
+    const again = await screen.findByRole("dialog")
+    await user.type(within(again).getByLabelText(/Reason/), "TEST darts back")
+    await user.click(within(again).getByRole("button", { name: UI_TEXT.restore }))
     expect(h.restore).toHaveBeenCalledWith({
       idempotencyKey: expect.any(String),
       checkId: ARCHIVED.id,
       revision: ARCHIVED.revision,
+      reason: "TEST darts back",
     })
   })
 })
