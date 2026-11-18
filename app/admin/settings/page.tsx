@@ -12,6 +12,7 @@ import { MEDIA_LIMITS } from "@/lib/config/media"
 import { requireActiveAdmin } from "@/lib/auth"
 import { getCoverageActor } from "@/lib/server/coverage"
 import { loadOpsSettings, loadOpsStatus } from "@/lib/server/ops"
+import { loadShotTemplates } from "@/lib/server/shot-templates"
 import { integrationStatus } from "@/lib/server/ops/integrations"
 
 import {
@@ -22,13 +23,14 @@ import {
   OperationsPanel,
 } from "./ops-panel"
 import { SettingsFormView } from "./settings-form"
+import { ShotTemplatesPanel } from "./shot-templates-panel"
 
 export const metadata: Metadata = { title: "Settings" }
 
 /**
  * Settings and activity (spec §8 A7, §16, §17). What needs attention first,
- * then operations, the organisation settings form, media limits, categories
- * and integrations. Admins only: the layout's gate, requireActiveAdmin here,
+ * then operations, the organisation settings form, media limits, categories,
+ * shot templates (FA-52) and integrations. Admins only: the layout's gate, requireActiveAdmin here,
  * and the database (ops_status and ops_settings_set refuse anyone else). A
  * failed monitoring read shows a notice in its place, not a failed page.
  */
@@ -36,9 +38,10 @@ export default async function AdminSettingsPage() {
   const profile = await requireActiveAdmin()
   const auth = await getCoverageActor()
   if (!auth.ok) unexpected(auth)
-  const [settings, status] = await Promise.all([
+  const [settings, status, templates] = await Promise.all([
     loadOpsSettings(auth.actor),
     loadOpsStatus(auth.actor),
+    loadShotTemplates(auth.actor),
   ])
   if (!settings.ok) throw new Error(settings.message)
 
@@ -95,6 +98,9 @@ export default async function AdminSettingsPage() {
           }}
         />
         <CategoriesPanel />
+        <ShotTemplatesPanel
+          templates={templates.ok ? templates.templates : null}
+        />
         <IntegrationsPanel integrations={integrationStatus()} />
       </div>
     </AppShell>

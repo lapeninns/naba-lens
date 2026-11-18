@@ -76,6 +76,8 @@ const ALLOWED_PAGES = new Set([
   "/admin/staff/[id]",
   // Full App v1 S1-OPS (spec §8 A7): Settings and activity. Admins only.
   "/admin/settings",
+  // FA-52: Settings › Shot templates, one category's template. Admins only.
+  "/admin/settings/shot-templates/[category]",
   "/admin/activity",
   "/auth/blocked",
   // FA-23: the second sign-in step.

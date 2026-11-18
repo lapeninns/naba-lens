@@ -26,7 +26,8 @@ set lock_timeout = '5s';
 --             action shot_template_set, before and after).
 --   Reads     public.shot_templates: every active signed-in person (staff
 --             read the instruction beside a slot); admins also see who
---             changed it and whether a stored example stopped qualifying.
+--             changed it, the stored example and whether it stopped
+--             qualifying.
 --             public.shot_template_example_choices: admins, the Library's
 --             public-level images, newest first, by venue.
 --             public.shot_template_example_can_open(asset): whether the
@@ -178,6 +179,7 @@ begin
           then t.example_asset_id end,
         'revision', t.revision)
       || case when v_admin then jsonb_build_object(
+          'storedExampleAssetId', t.example_asset_id,
           'exampleUnavailable', t.example_asset_id is not null
             and not private.shot_template_example_eligible(t.example_asset_id),
           'updatedAt', t.updated_at,

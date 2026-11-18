@@ -48,7 +48,7 @@ const MESSAGES: Record<string, CoverageFailure> = {
   }),
   invalid_example: failure(
     "asset_ineligible",
-    "That photo is no longer approved for public use. Choose another."
+    "That photo is no longer accepted for public use. Choose another."
   ),
   stale_revision: failure(
     "revision_conflict",

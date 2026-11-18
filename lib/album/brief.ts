@@ -37,6 +37,8 @@ export type ShotTemplate = {
   /** Shown only while it is a public-level, usable Library photo. */
   exampleAssetId: string | null
   revision: number
+  /** Admins: the stored example, shown or not. */
+  storedExampleAssetId?: string | null
   /** Admins: a stored example that no longer qualifies and is not shown. */
   exampleUnavailable?: boolean
   updatedAt?: string | null
@@ -119,6 +121,9 @@ export function parseShotTemplates(data: unknown): ShotTemplate[] | null {
       instruction,
       exampleAssetId: str(row.exampleAssetId),
       revision,
+      ...("storedExampleAssetId" in row
+        ? { storedExampleAssetId: str(row.storedExampleAssetId) }
+        : {}),
       ...(typeof row.exampleUnavailable === "boolean"
         ? { exampleUnavailable: row.exampleUnavailable }
         : {}),
