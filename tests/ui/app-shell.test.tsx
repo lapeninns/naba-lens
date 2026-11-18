@@ -171,6 +171,30 @@ describe("AppShell admin navigation", () => {
     expect(current("Admin")).toEqual(["Settings"])
     expect(current("Admin", "tabbar")).toEqual(["More"])
   })
+
+  // S3-R11: at 1280px an admin's seven sections, the name and Log out were
+  // 4px over and the nav shrank with them, squeezing its links. The nav keeps
+  // its width; the name (truncated, in a min-w-0 group) gives way. The layout
+  // itself is measured in tests/e2e/app-bar-fit.spec.ts.
+  it("never shrinks the AppBar sections; the name gives way", () => {
+    render(
+      <AppShell
+        variant="admin"
+        active="venues"
+        userName="TEST A very long admin name"
+      >
+        x
+      </AppShell>
+    )
+    const bar = screen
+      .getAllByRole("navigation", { name: "Admin" })
+      .find((el) => el.dataset.slot === "app-nav")!
+    expect(bar.className).toMatch(/\bshrink-0\b/)
+    expect(bar.className).not.toMatch(/\bmin-w-0\b/)
+    const name = screen.getByText("TEST A very long admin name")
+    expect(name.className).toMatch(/\btruncate\b/)
+    expect(name.parentElement!.className).toMatch(/\bmin-w-0\b/)
+  })
 })
 
 describe("AppShell offline notice", () => {

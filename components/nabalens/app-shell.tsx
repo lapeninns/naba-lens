@@ -292,8 +292,12 @@ export function AppShell(props: AppShellProps) {
           <nav
             aria-label={navLabel}
             data-slot="app-nav"
+            // shrink-0: the sections keep their width and the right-hand
+            // group gives way (the name truncates). At 1280px an admin's
+            // seven sections, the name and Log out were 4px over, and the
+            // nav shrank with the group, squeezing its links (S3-R11).
             className={cn(
-              "hidden min-w-0 gap-1 self-stretch md:max-lg:gap-0",
+              "hidden shrink-0 gap-1 self-stretch md:max-lg:gap-0",
               // Seven admin sections need lg; below it the tab bar has them.
               admin ? "lg:flex" : "md:flex"
             )}
