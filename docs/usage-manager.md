@@ -67,7 +67,10 @@ opens them.
 
 **Review** (`/manager/review`) shows the waiting photos one at a time, oldest
 first, titled with the count ("12 photos to review"). Each photo shows large
-with its slot, the **Brief** staff were given, and who added it.
+with its slot, the **Brief** staff were given, and who added it. The brief
+is the same one staff saw: your open request's brief, else the album brief,
+else the facility question's, else the category's shot template (area photos
+included).
 
 - **Accept** approves it for public use: it fills its slot and the staff
   member sees **In the album**. The page says so and the next photo comes up.
