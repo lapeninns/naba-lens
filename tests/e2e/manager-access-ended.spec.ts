@@ -89,7 +89,8 @@ test.describe("manager access ends mid-session", () => {
     expect(revoked.error).toBeNull()
 
     // A client navigation inside the open workspace.
-    await navLink(mgr, /^Menu/).click()
+    // Spec §7 nav (S2-MGR): Album replaced the Menu tab.
+    await navLink(mgr, /^Album/).click()
     await expect(mgr).toHaveURL(OVERVIEW)
     await expect(
       mgr.getByRole("heading", { level: 1, name: "Venue access unavailable" })

@@ -953,9 +953,28 @@ test.describe("coverage database acceptance (WS5)", () => {
       satisfied: true,
     })
 
-    // The author deletes all three photos through the normal own-delete call.
-    for (const asset of [current!, past!, pending!]) {
-      await ok(staffA.rpc("delete_media_asset", { p_asset_id: asset }))
+    // FA-21 (S1-PRIVACY): the author withdraws the unreviewed photo with the
+    // own-delete call, but accepted originals are kept: the author is
+    // refused, and an admin removes them with a reason after the impact
+    // preview.
+    await ok(staffA.rpc("delete_media_asset", { p_asset_id: pending! }))
+    const [admin] = await signedIn(w.admin)
+    for (const asset of [current!, past!]) {
+      await refused(
+        staffA.rpc("delete_media_asset", { p_asset_id: asset }),
+        "media_asset_retained",
+        "P0001"
+      )
+      const impact = (await ok(
+        admin!.rpc("media_removal_impact", { p_asset_id: asset })
+      )) as { token: string }
+      await ok(
+        admin!.rpc("admin_delete_media_asset", {
+          p_asset_id: asset,
+          p_reason: "WS5: removed after review",
+          p_impact_token: impact.token,
+        })
+      )
     }
     expect(await requirement(manager, req)).toMatchObject({
       accepted_count: 0,

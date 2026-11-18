@@ -151,11 +151,11 @@ test.describe("Our menu: menu items with an accepted photo", () => {
     await expect(
       manager.getByRole("heading", { level: 1, name: "Our menu" })
     ).toBeVisible()
+    // FA-4: managers label unlabelled photos themselves now, so the old
+    // "need labelling by their uploader first" note is gone.
     await expect(
-      manager.getByText(
-        /Unlabelled photos need labelling by their uploader first/
-      )
-    ).toBeVisible()
+      manager.getByText(/need labelling by their uploader first/)
+    ).toHaveCount(0)
     await expect(progress(manager, 0)).toBeVisible()
     await expect(
       manager.getByText(
