@@ -33,7 +33,7 @@ const suspend = (who: TestIdentity, asset: string, reason: string) =>
     } as never
   ) as unknown as Promise<{
     data: unknown
-    error: { message: string; code?: string } | null
+    error: { message: string; code: string } | null
   }>
 
 /** A facility answer by `who` with one photo, accepted by the manager. */

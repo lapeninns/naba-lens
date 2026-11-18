@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 
 import { getAmenityActor } from "@/lib/server/amenities"
 import { setAlbumBrief, setAlbumPlace } from "@/lib/server/album"
+import { actorFailureMessage } from "@/lib/server/media/context"
 
 /**
  * Album A2: place one menu section or amenity category (DESIGN.md §6.2).
@@ -17,7 +18,8 @@ export async function setAlbumPlaceAction(input: {
   subjectId: unknown
 }) {
   const auth = await getAmenityActor()
-  if (!auth.ok) return { ok: false as const, message: "Sign in again." }
+  if (!auth.ok)
+    return { ok: false as const, message: actorFailureMessage(auth) }
   const result = await setAlbumPlace(auth.actor, {
     source: input.source,
     key: input.key,
@@ -42,7 +44,8 @@ export async function setAlbumBriefAction(input: {
   brief: unknown
 }) {
   const auth = await getAmenityActor()
-  if (!auth.ok) return { ok: false as const, message: "Sign in again." }
+  if (!auth.ok)
+    return { ok: false as const, message: actorFailureMessage(auth) }
   const result = await setAlbumBrief(auth.actor, {
     source: input.source,
     key: input.key,
