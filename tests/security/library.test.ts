@@ -495,7 +495,7 @@ describe("suspend from use (K11, M3-suspend)", () => {
     )
     const r = await ok<{
       changed: boolean
-      approvals: { dishes: number; places: number; facilities: number }
+      slots: { dishes: number; places: number; facilities: number }
     }>(
       rpc(admin, "library_suspend_asset", {
         p_asset_id: asset,
@@ -504,7 +504,7 @@ describe("suspend from use (K11, M3-suspend)", () => {
     )
     expect(r).toMatchObject({
       changed: true,
-      approvals: { dishes: 0, places: 1, facilities: 0 },
+      slots: { dishes: 0, places: 1, facilities: 0 },
     })
     expect(await slotState(place)).not.toBe("covered")
     expect(

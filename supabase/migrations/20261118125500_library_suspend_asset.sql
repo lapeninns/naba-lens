@@ -106,7 +106,7 @@ begin
   end if;
   return jsonb_build_object('assetId', p_asset_id, 'withdrawn', true,
     'changed', v_withdrawn or v_dishes + v_places + v_facilities > 0,
-    'approvals', jsonb_build_object('dishes', v_dishes, 'places', v_places,
+    'slots', jsonb_build_object('dishes', v_dishes, 'places', v_places,
       'facilities', v_facilities));
 end;
 $$;
