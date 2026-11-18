@@ -5,6 +5,12 @@ import {
   toAuthState,
   type CurrentProfile,
 } from "@/lib/auth/profile"
+import {
+  assuranceLevel,
+  mfaRequirement,
+  readsFactors,
+  readVerifiedFactors,
+} from "@/lib/auth/mfa"
 import type { Database } from "@/lib/db/types"
 
 export type Db = SupabaseClient<Database>
@@ -47,6 +53,8 @@ export type AccountErrorCode =
   | "account_inactive"
   | "auth_failed"
   | "database_failed"
+  /** The last active admin cannot lose the role or be deactivated. */
+  | "last_admin"
 
 export type AccountResult<T = object> = ({ ok: true } & T) | AccountError
 
@@ -82,6 +90,22 @@ export async function resolveCaller(
     await loadProfile(caller, claims.sub, email)
   )
   if (state.status !== "active") return { ok: false, code: "forbidden" }
+  // FA-23, as getAuthState applies it: an account that still owes the second
+  // sign-in step is not active yet. Account operations then act with the
+  // service role, where the database's aal2 check no longer applies, so the
+  // level is checked here (S6-CI: an aal1 admin could invite and edit staff).
+  const aal = assuranceLevel(claims)
+  let factors: number | null = null
+  if (aal === "aal1" && readsFactors(state.profile.role)) {
+    try {
+      factors = await readVerifiedFactors(caller)
+    } catch {
+      // Unknown, so not active: fail closed.
+      return { ok: false, code: "forbidden" }
+    }
+  }
+  if (mfaRequirement(state.profile.role, aal, factors))
+    return { ok: false, code: "forbidden" }
   return { ok: true, profile: state.profile }
 }
 

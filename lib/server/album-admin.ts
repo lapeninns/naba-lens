@@ -8,13 +8,16 @@ import {
   type AdminSectionInput,
   type AdminVenueInput,
 } from "@/app/admin/albums/albums-model"
+import { COVERAGE_STATES, type CoverageState } from "@/lib/album/model"
 import { unavailableFailure } from "@/lib/server/coverage/errors"
 import { adminOnly } from "@/lib/server/coverage/context"
 import type { CoverageFailure } from "@/lib/server/coverage/types"
 import { isUuid } from "@/lib/server/coverage/validate"
 import type { MediaActor } from "@/lib/server/media/types"
 
-// Album A4, admin albums (docs/design-system/DESIGN.md §6.6). For every
+// Album A4, admin albums (docs/design-system/DESIGN.md §6.6). Since S1-COV
+// both reads follow the one coverage rule (20261118100200_coverage_slots.sql).
+// For every
 // active venue, two admin-scoped reads:
 //   album_admin_counts   dishes by menu section and amenity questions
 //                        (20261117140000_album_admin.sql, admins only)
@@ -77,6 +80,9 @@ export function parseAdminCounts(data: unknown): AdminVenueInput["counts"] {
           openState: OPEN_STATES.has(row.openState as string)
             ? (row.openState as AdminAmenityInput["openState"])
             : null,
+          ...(COVERAGE_STATES.includes(row.state as CoverageState)
+            ? { state: row.state as CoverageState }
+            : {}),
         },
       ]
     }
@@ -91,8 +97,9 @@ export function parseAreaStates(data: unknown): AdminAreaInput[] {
       (state === "needed" ||
         state === "waiting" ||
         state === "retake" ||
-        state === "accepted")
-      ? [{ state }]
+        state === "accepted" ||
+        state === "check_due")
+      ? [{ state: state === "check_due" ? "check-due" : state }]
       : []
   })
 }

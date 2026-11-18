@@ -83,9 +83,18 @@ export async function activate(admin: TestIdentity, versionId: string) {
     .eq("id", versionId)
     .single()
   if (readError) throw readError
-  const { error } = await admin.client.rpc("activate_menu_version", {
+  // AC28: confirm exactly the items this activation retires (the legacy
+  // activate_menu_version refuses any retirement, S2-FIX R15).
+  const impact = await admin.client.rpc("menu_version_activation_impact", {
+    p_version_id: versionId,
+  })
+  if (impact.error) throw impact.error
+  const retirements = (impact.data as { retirements: unknown[] }).retirements
+    .length
+  const { error } = await admin.client.rpc("activate_menu_version_confirmed", {
     p_version_id: versionId,
     p_expected_revision: v.revision,
+    p_retirements: retirements,
   })
   if (error) throw error
 }

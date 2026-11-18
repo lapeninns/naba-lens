@@ -127,22 +127,73 @@ describe("AppShell staff navigation", () => {
 })
 
 describe("AppShell admin navigation", () => {
-  it("lists Coverage after Menus and tags the role", () => {
+  it("follows spec §8: Overview first, People and Settings last", () => {
     render(
-      <AppShell variant="admin" active="coverage">
+      <AppShell variant="admin" active="venues">
         x
       </AppShell>
     )
     expect(links("Admin")).toEqual([
-      ["Content", "/admin"],
-      ["Staff", "/admin/staff"],
+      ["Overview", "/admin/overview"],
+      ["Venues", "/admin/venues"],
       ["Menus", "/admin/menus"],
-      ["Coverage", "/admin/coverage"],
-      ["Albums", "/admin/albums"],
+      ["Library", "/admin"],
+      ["Publishing", "/admin/publishing"],
+      ["People", "/admin/staff"],
+      ["Settings", "/admin/settings"],
     ])
-    expect(links("Admin", "tabbar")).toEqual(links("Admin"))
-    expect(current("Admin")).toEqual(["Coverage"])
-    expect(screen.getByRole("link", { name: "Naba-Lens Admin" })).toBeTruthy()
+    // Phones and tablets: three sections and More, which lists all seven.
+    expect(links("Admin", "tabbar")).toEqual([
+      ["Overview", "/admin/overview"],
+      ["Venues", "/admin/venues"],
+      ["Library", "/admin"],
+      ["More", "/admin/more"],
+    ])
+    expect(current("Admin")).toEqual(["Venues"])
+    expect(
+      screen.getByRole("link", { name: "Naba-Lens Admin" }).getAttribute("href")
+    ).toBe("/admin/overview")
+  })
+
+  it("lights up Overview for Coverage and Albums, and More for the rest", () => {
+    const { rerender } = render(
+      <AppShell variant="admin" active="coverage">
+        x
+      </AppShell>
+    )
+    expect(current("Admin")).toEqual(["Overview"])
+    expect(current("Admin", "tabbar")).toEqual(["Overview"])
+    rerender(
+      <AppShell variant="admin" active="settings">
+        x
+      </AppShell>
+    )
+    expect(current("Admin")).toEqual(["Settings"])
+    expect(current("Admin", "tabbar")).toEqual(["More"])
+  })
+
+  // S3-R11: at 1280px an admin's seven sections, the name and Log out were
+  // 4px over and the nav shrank with them, squeezing its links. The nav keeps
+  // its width; the name (truncated, in a min-w-0 group) gives way. The layout
+  // itself is measured in tests/e2e/app-bar-fit.spec.ts.
+  it("never shrinks the AppBar sections; the name gives way", () => {
+    render(
+      <AppShell
+        variant="admin"
+        active="venues"
+        userName="TEST A very long admin name"
+      >
+        x
+      </AppShell>
+    )
+    const bar = screen
+      .getAllByRole("navigation", { name: "Admin" })
+      .find((el) => el.dataset.slot === "app-nav")!
+    expect(bar.className).toMatch(/\bshrink-0\b/)
+    expect(bar.className).not.toMatch(/\bmin-w-0\b/)
+    const name = screen.getByText("TEST A very long admin name")
+    expect(name.className).toMatch(/\btruncate\b/)
+    expect(name.parentElement!.className).toMatch(/\bmin-w-0\b/)
   })
 })
 

@@ -138,7 +138,8 @@ describe("To confirm order (B02 R4)", () => {
 })
 
 describe("manager workspace: findings to confirm", () => {
-  it("badges the Amenities tab with the count, in words", () => {
+  // S2-MGR: amenities live under the Album tab, which carries the badge.
+  it("badges the Album tab with the count, in words", () => {
     render(
       <ManagerShell
         venueName="The Old Crown"
@@ -153,7 +154,7 @@ describe("manager workspace: findings to confirm", () => {
     })) {
       const amenities = within(nav)
         .getAllByRole("link")
-        .find((a) => a.getAttribute("href") === "/manager/amenities")!
+        .find((a) => a.getAttribute("href") === "/manager/menu")!
       expect(amenities.textContent).toContain("3")
       expect(
         within(amenities).getByText(/3/).closest("[data-slot]") ?? amenities

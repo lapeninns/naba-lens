@@ -1,6 +1,6 @@
 # Album: Naba-Lens design system
 
-Version 1.3 · 17 Nov 2026 · Status: adopted on 17 Nov 2026 (decisions D8 and D9 in [decisions.md](decisions.md)). Batches A0 to A5 are built on `design/inn-identity` (§12): Album is the staff Home, adding is gallery first with Match, Review and admin Albums are Album screens. Other screens keep their layout in Album colours and type and stay cited to [common-room.md](common-room.md) until a later batch.
+Version 1.6 · 18 Nov 2026 · Status: adopted on 17 Nov 2026 (decisions D8 and D9 in [decisions.md](decisions.md)). Batches A0 to A5 are built on `design/inn-identity` (§12): Album is the staff Home, adding is gallery first with Match, Review and admin Albums are Album screens. Full App v1 (decisions FA-1 to FA-50 in [the Full App decisions](../plans/full-app-v1/decisions.md)) adds Me's Your photos (§5b), the manager screens (§6a) and the admin screens (§6b). Other screens keep their layout in Album colours and type and stay cited to [common-room.md](common-room.md) until a later batch.
 
 Applies to every Naba-Lens surface: the staff app (phone first), the venue manager screens (phone, tablet, desktop) and the admin desktop app.
 
@@ -121,18 +121,36 @@ Fraunces is used only at 17px caps or 21px and up, where a serif stays legible o
 
 A slot's state is shown by its frame, an icon and a word. Colour is never the only signal, and no two states share a frame.
 
-| State                   | Frame                                    | Icon and word                             | Counts as filled          |
-| ----------------------- | ---------------------------------------- | ----------------------------------------- | ------------------------- |
-| **Needed**              | 2px dashed `edge`, `surface` fill        | + Add                                     | No                        |
-| **Sending**             | The photo, no ring                       | Sending 40% (mono) · Saved on this phone  | Shown in the waiting part |
-| **Waiting for review**  | The photo, 3 to 4px `ring-waiting` inset | ↑ Waiting                                 | Shown in the waiting part |
-| **Needs another photo** | The photo, 3 to 4px `ring-retake` inset  | ↩ Retake, with the reviewer's reason      | No                        |
-| **Accepted**            | The photo, no ring                       | ✓ In the album, filled `ok-fg` square tag | Yes                       |
-| **Not here**            | 2px dotted edge, `hatch` hatching        | Not here, with the reason                 | Leaves the total          |
+| State                   | Frame                                    | Icon and word                                                         | Counts as filled          |
+| ----------------------- | ---------------------------------------- | --------------------------------------------------------------------- | ------------------------- |
+| **Needed**              | 2px dashed `edge`, `surface` fill        | + Add                                                                 | No                        |
+| **Sending**             | The photo, no ring                       | Sending 40% (mono) · Saved on this phone · Checking · Couldn't finish | Shown in the waiting part |
+| **Waiting for review**  | The photo, 3 to 4px `ring-waiting` inset | ↑ Waiting                                                             | Shown in the waiting part |
+| **Needs another photo** | The photo, 3 to 4px `ring-retake` inset  | ↩ Retake, with the reviewer's reason                                  | No                        |
+| **Accepted**            | The photo, no ring                       | ✓ In the album, filled `ok-fg` square tag                             | Yes                       |
+| **Check due**           | The photo, 4px `ok-waiting` ring inset   | ⟲ Needs checking                                                      | Shown in the waiting part |
+| **Not here**            | 2px dotted edge, `hatch` hatching        | Not here, with the reason                                             | Leaves the total          |
+| **Optional** (FA-51)    | Empty: 1px `edge-strong` line, `surface` | + Add, Optional; with a photo, its state                              | Leaves the total          |
 
 **Reserved forms.** The dashed empty frame belongs to Needed alone. The filled green square tag with a tick belongs to Accepted alone. The double-bordered stamp belongs to a full section alone. No other element may use them.
 
-**Counts.** The album count is the number of empty slots ("41 slots still empty"). Its bar has three parts: Accepted (`ok-fg`), Waiting and Sending (`ok-waiting`), empty (`surface-2`), with the numbers written under it in mono ("65 in · 7 waiting · 113 in all"). Not here slots are not in the total.
+**Receipt words** (Full App v1, S1-UPLOAD and S2-STAFF; departures.md A-2). A photo on its way reads Saved on this phone (not yet sent), Sending (its bytes are on their way), Checking (the server has it and is preparing it), then Waiting once its slot is saved with it. Sent means it was prepared but no slot was saved with it; Couldn't finish means preparing it failed; Not sent means the transfer stopped. The words are `RECEIPT_WORDS` in `lib/upload/states.ts`. After review, a person's own photo reads In the album, Kept for reference, Retake (with the reviewer's reason), Label corrected or Not used (FA-7); the chips are `outcome_*` in `components/nabalens/status-chip.tsx`. A photo its owner withdrew before review reads Withdrawn.
+
+**Report words** (Full App v1, S2-METRICS; FA-7, FA-8). Manager and admin reports name the same slot states in the spec's words, from the same coverage rule. The chips are `coverage_*` in `CHIP_STATES` (`components/nabalens/status-chip.tsx`):
+
+| Slot state (staff word)              | Report word             | Counted                                 |
+| ------------------------------------ | ----------------------- | --------------------------------------- |
+| Accepted (In the album)              | Covered                 | In the numerator                        |
+| Check due (Needs checking)           | Check due               | In the total, not covered               |
+| Waiting for review (Waiting)         | Awaiting review         | In the total, not covered               |
+| Needs another photo (Retake)         | Another photo requested | In the total, not covered               |
+| Needed                               | Missing                 | In the total, not covered               |
+| Not here                             | Not here                | Leaves the total                        |
+| A slot nothing needs a photo for now | No photo needed         | Leaves the total (never shown to staff) |
+
+Staff never see a report word, and a report never shows a staff-only word for a slot. Publication, package and request words are §7 (manager and admin words).
+
+**Counts.** The album count is the number of empty slots ("41 slots still empty"). Its bar has three parts: Accepted (`ok-fg`), Waiting and Sending (`ok-waiting`), empty (`surface-2`), with the numbers written under it in mono ("65 in · 7 waiting · 113 in all"). Not here slots are not in the total. Check due (FA-11, Full App v1) is a filled slot whose routine or change-triggered check is due: a manager confirms it, so it sits in the waiting part and is not counted as filled. Every state comes from one coverage rule (`public.coverage_slots`).
 
 ## 5. Components
 
@@ -145,7 +163,7 @@ Each component is built once (catalogue: [catalogue.md](catalogue.md)) and named
 - **Main button.** Full width, 64px, `accent`, white text, a leading icon. Always a verb plus its object or count: "Add photos from your gallery", "Add garden photos · 6 to go".
 - **Secondary button.** `surface-2`, ink text, 52 to 56px.
 - **Brief.** One line under a slot's name: what the photo must show. Shown on the slot, in Match and in Review.
-- **Match picker.** The chosen photos as a strip (current one ringed in `accent`), the current photo on the stage, "Which empty slot is this?", suggested empty slots as dashed buttons, a search over all empty slots, and two secondary buttons: Match later, Not for a slot.
+- **Match picker.** The chosen photos as a strip (current one ringed in `accent`), the venue under the title ("For The Bell"), the current photo on the stage, "Which empty slot is this?", the person's recent slots (the ones matched in this visit first), suggested empty slots as dashed buttons, a search over all slots (other names and small spelling slips forgiven; a slot that already has a photo is never hidden: matched just now or waiting shows ↑, in the album or needing its check shows a photo icon, each with "another photo is welcome" in a plain edge, never the dashed frame; Not on the menu? only follows a search that found no slot), and three secondary buttons: Match later, Not for a slot, I'm not sure. Under the photo, "Same slot for the next photos too?" lists the next photos; under the picker, Add a note (collapsed).
 - **Answer pair.** For amenity slots: the guest question as the title, Yes and No as two 60px buttons. The chosen one uses `accent-soft` with a 2px `accent` edge.
 - **Section stamp.** "SECTION FULL", Fraunces caps, 4px double border, 2px radius.
 - **Reason chips.** For Ask again: 48px `warn-bg` pills with a `ring-retake` edge. Choosing one sends the decision.
@@ -170,6 +188,30 @@ Top to bottom, on a phone:
 
 The screen shows nothing else: no colleague feed, no personal month (it is on Me), no ranking.
 
+**Full App v1 rows.** The step numbers above are cited in code and stay. In the shipped order, Start here (step 7) sits under the album count, so a new starter sees it first. Full App v1 adds three rows under the retake row, in this order:
+
+- **Unfinished photos** (spec §6 S1): "3 photos didn't finish · Open them to send again. Nothing is sent twice." on `warn-bg`, for photos that stopped or failed on this phone or were picked in an earlier visit and never finished. It opens Add, which shows them first with Retry. Shown only when there are any (`components/nabalens/album/unfinished-row.tsx`).
+- **A blocked notice**, when the person cannot add photos at this venue, saying why.
+- **Asked for** (S2-REQ, FA-5, FA-50; departure A-R1): a manager's open requests, drawn as the slots themselves (§5 slot tile) with the manager's brief under each and, when dated, "Needed by 30 Nov" as meta text (then "Needed"). The person's own come first, six at most, then "n more in the album". Tapping a Needed slot opens the gallery for that slot; a request with no slot shows its subject and opens Match. Never "task", "request", a due date or Overdue (§7). The component is `AskedFor` (`components/nabalens/requests/staff-requests.tsx`).
+
+Requests never change the album count.
+
+## 5b. Me (staff)
+
+Me holds the person's own work and their account (FA-1; departure A-S1). Top to bottom:
+
+1. **Your photos** (FA-48: the spec's My uploads in Album's words). Filters Needs attention, Sending, Waiting and Reviewed. Each row: thumbnail, slot names (or "No slot yet"), the outcome word (§4), the reviewer's reason on a retake, the venue when it is not the current one, sent and taken dates ("Unknown" when the date taken is not known) and "Already sent before: it doesn't count twice" for an exact copy (FA-35). Actions sit on the row: Retake opens the slot with the reviewer's reason; Change slot (the §5 Match picker) and Withdraw while the photo is undecided; Fix date taken; Ask to remove once it is accepted (FA-21). The component is `components/nabalens/me/my-uploads.tsx`.
+2. **Your month** (FA-34): the person's own target and "n slots in the album from your photos". It is never compared with a colleague's (§9).
+3. **Help and account** (spec §6 S5): Your venues with the person's role and the venue switcher, Notices, "If you can't add photos" (on the Photo guide) and Your managers (`components/nabalens/me/me-account.tsx`).
+
+Me's header holds the main Add photos (gallery, then Match, as the tab bar) and, before it, a secondary Add a video that opens the older Add sheet for video and files Match does not take (R15-1, departure A-D2); both open the gallery, never a camera.
+
+Older blocks follow (Needs labels, accepted photos, findings; departure A-S2). Log out is on Me on phones and in the AppBar from md.
+
+**Notices** (FA-10) are an inbox page, `/staff/notifications`, reached from Me: newest first, each with what happened and a link to it, then what to be told about. An unread notice puts a count badge on the Me tab. There are no toasts and no push (§6.7, FA-43). The component is `components/nabalens/me/notices-inbox.tsx`.
+
+**Slot page** (`/staff/album/slot/[kind]/[slotId]`): the slot's photo when it is in the album or due a check, its brief, its state word, "n waiting" when colleagues' photos wait (never the photos themselves, FA-20), Add photos for the slot and Report a change.
+
 ## 6. Patterns
 
 ### 6.1 Adding photos
@@ -178,8 +220,8 @@ The screen shows nothing else: no colleague feed, no personal month (it is on Me
 2. The phone's photo picker opens. From the tab they may choose up to 20; from a slot, one.
 3. From a slot, the photo goes straight to that slot. From the tab, Match opens.
 4. Match shows one photo at a time. Suggestions are the empty slots of the current place, then of the place where the person last matched. Capture time orders the photos; location in the photo is never read.
-5. Each tap fills a slot (Sending, then Waiting) and moves to the next photo. Match later keeps the photo unmatched on the phone and on Home. Not for a slot sends it as a shared photo with no slot.
-6. At the end: "5 slots filled", what happens next, and See the album.
+5. Each tap fills a slot (Sending 40%, then Checking, then Waiting, each on the end's row with Retry when a photo did not send) and moves to the next photo. The next photo of the same dish is one tap under Recent, wherever it sits in the strip. Match later keeps the photo unmatched on the phone and on Home. Not for a slot sends it as a shared photo with no slot. I'm not sure sends it to the manager, who chooses the slot (FA-4). A run of one subject takes one answer: tap the last photo of the run under "Same slot for the next photos too?" (or All N left), then the slot; nothing is grouped until the person says so. A dark, blurred or small photo gets a one-line hint under the stage that never stops the send.
+6. At the end: "5 slots filled", the venue and photo count, what happens next, and See the album.
 
 ### 6.2 A place
 
@@ -209,6 +251,29 @@ Feedback is written on the page, in the place the person is looking: the slot ch
 
 When the signal drops, matched photos show "Saved on this phone" on their slots and send when it returns. Nothing asks the person to wait.
 
+## 6a. Manager screens
+
+The manager workspace (Full App v1, spec §7) draws in Album tokens and §5 components on phone, tablet and desktop. It shows counts as "n of N" with the percentage as secondary text (FA-8; departure A-M2) and uses the spec's names for review actions, requests and publication (FA-7; §7).
+
+- **Navigation.** Five tabs: Overview, Review (its badge counts photos waiting), Album, Requests, Venue. Add sits in the header on phones and as "Add photos" from md (departure A-M1). Below about 416px the tab labels scale under 17px (departure A-R5-1). Metrics, Team and Search have no tab and are linked from Overview.
+- **Overview** (spec §7 M1). "Do next" first: "Review next · n photos waiting" is the one main button, then the spec's other actions as rows: Check venue details, Request missing photos and Resolve outdated public content (`lib/manager/overview.ts`). To confirm, Needs labels and publication issues are rows of their own with their counts. Then "Collecting and reviewing" (Still to collect and Waiting for your review, two separate counts that are never added), Coverage by category ("18 of 24" per Food, Drinks, Spaces, Facilities and Other, and confirmed facts), This venue (active menu with its monthly Still right, main and backup reviewers), then rows to Requests, Team and Metrics.
+- **Review** (spec §7 M2, M3). The bare page is Review in a thumb (§6.5): Accept and Ask again. A filter or `?view=list` opens the full queue, oldest first, with Needs label photos in the main queue (FA-4), filters for category, contributor, section, age, possible duplicate, needed-by and media type, and a batch of at most 24. The photo detail (`/manager/review/photo/[assetId]`) shows the subject, the other photos sent with it, the album's public photos for each slot, provenance, flags (Needs label, Possible duplicate, Small) and history, and acts with the spec's names: Approve for public use, Keep as reference, Ask for another photo (reason chips, §5), Fix label, Mark duplicate, Not used, Withdraw (departure A-REV-1). Nobody decides on their own photo, except at a venue an admin marked single-reviewer (FA-9; departure A-REV-2).
+- **Requests** (`/manager/requests`, spec §7 M4; FA-5). Open requests first, Blocked, Open and Submitted, by priority and date, each with its kind, slot or subject, person and state chip (`request_*`). New request starts from a slot or as a New brief. A request on a slot has "Needed by" and never reads Overdue; only a New brief or a shot list has a due date. Shot lists show "n of N completed". Cancel always asks for a reason. Staff see requests only as Asked for (§5a).
+- **Metrics** (`/manager/metrics`, spec §18; AC39). Period and category filters, then coverage as "n of N" per category, review delay (median and 90th percentile), label corrections, the Needs label backlog, useful contributions, content use and reliability. "How this is counted" lists every slot with its report word (§4). No number about one named person (§9).
+- **Venue** holds To confirm (facts and space photos due a check, with Still right), Reported changes, history, menus, specials, reviewers, team and exports. **Reported changes** (`/manager/venue/reports`) lists staff reports on a slot and photo correction requests, oldest first: what it is about (linked), kind and reason, the staff note, who and when, then Dealt with or Dismiss, each with an optional note.
+
+## 6b. Admin screens
+
+The admin app (Full App v1, spec §8) is desktop first and works at 320px. Every list puts what is blocked or failing first (§11 rule 3) and every number links to the records behind it.
+
+- **Navigation.** Seven sections in the spec's order, kept in `ADMIN_NAV` (`components/nabalens/app-shell.tsx`): Overview, Venues, Menus & catalog, Library, Publishing, People, Settings & activity. From lg the bar shows all seven with the short labels Menus and Settings; below lg it shows Overview, Venues, Library and More. **More** (`/admin/more`) lists all seven by their full names, each with a one-line description, as 64px link rows (departure A-ADMIN-1). Coverage, Albums and Metrics light up Overview.
+- **Overview** (spec §8 A1). Monitoring exceptions and venues needing attention first, then each venue's coverage by category, confirmed facts, Needs label backlog, oldest waiting review, checks due and publication errors as "n of N" or counts. Filters (venue, categories, menu, month) live in the URL. A failed monitoring read is a notice in its place, never a failed page. Admin albums (§6.6) and Metrics (the §6a report across venues) open from here.
+- **Venues** (spec §8 A2). Venues whose setup is not complete first, then the rest by name; archived venues on request. A venue's page: Setup checklist first, then Reviewers (the main reviewer, and the single-reviewer setting with the decisions people made on their own photos for spot checks, FA-9), Name and location (with timezone), Menus, What this venue collects (templates and scope, with an impact preview before a required reason) and Status (archive and restore, each with a reason and an impact preview).
+- **Library** (spec §8 A4). Every photo and video across the group, with search, filters, collections, tags, compare and removal requests. Library state words live in `lib/library/model.ts` (departure A-LIB-1). An asset's page offers **Suspend from use**: a confirm dialog with a required reason that withdraws the photo and every approval it holds, so each slot it filled counts only its other photos. Restore never brings approvals back.
+- **Publishing** (spec §8 A5, §10). What needs following up first, then export packages and manual Published records, in publication words (§7; departure A-E1). Exported is never Published.
+- **People** (spec §8 A6). Invites, per-venue roles (FA-22), admins and MFA resets (FA-23).
+- **Settings & activity** (spec §8 A7). Settings: what needs attention first, then operations, Rules for every venue, media limits, categories and integrations. **Activity** (`/admin/activity`): who changed what, where, when and why, newest first, filtered by venue, kind of change and person with a plain form that works without JavaScript.
+
 ## 7. Words
 
 British English, sentence case, no exclamation marks, no "please", "oops" or "successfully".
@@ -223,6 +288,13 @@ British English, sentence case, no exclamation marks, no "please", "oops" or "su
 | Accept, Ask again             | Approve, reject                        |
 | Not here                      | N/A, not applicable                    |
 | 41 slots still empty          | 64% complete                           |
+
+**Manager and admin words** (FA-7). Managers and admins see the spec's names where Album's would hide a distinction they act on. The words are in `CHIP_STATES` and are never shown on a staff screen:
+
+- Review actions on the photo detail: Approve for public use, Keep as reference, Ask for another photo, Fix label, Not used (Review in a thumb keeps Accept and Ask again; departure A-REV-1).
+- Report words for slots: §4.
+- Requests (`request_*`): Missing photo, Replacement, Optional angle, Fact confirmation, Campaign; Open, Submitted, Completed, Blocked, Cancelled (departure A-R2).
+- Publication (`publication_*`): Not exported, Exported, Queued, Published, Update pending, Withdrawal pending, Withdrawn, Failed or unknown. Packages (`package_*`): Ready to download, Exported, Needs rebuilding, Can't be downloaded. Internal only marks a file in an internal package (FA-46). See departure A-E1.
 
 Staff screens show no due date and no Overdue for food, drink, amenity or area slots. A manager's "Needed by 30 Nov" is plain meta text and orders the slots; after the date it reads "Needed".
 
@@ -264,7 +336,7 @@ Batch A1 (17 Nov 2026) wrote the Album values to `app/globals.css` under the pub
 | stage, on-stage           | `--stage`, `--on-stage`, `--on-stage-muted`                                                    | same          | The same in both themes                                                 |
 | scrim                     | `--scrim`, `--plate`                                                                           | same          | `plate` sits under a slot name on a photo                               |
 
-Recipes added in A1: `slot-needed` (2px dashed `edge-strong`), `slot-not-here` (2px dotted, with `bg-hatch`), `slot-ring-waiting`, `slot-ring-retake` (4px inset rings). Type recipes: `type-display`, `type-page-title`, `type-section-title` and `type-count` are Fraunces; `type-heading-sm` and `type-tab-label` moved to Atkinson. Fonts: `next/font` sets `--font-fraunces` (with the `opsz` axis), `--font-atkinson-next` and `--font-atkinson-mono` on `<html>`. Radius: control 12, card 14, sheet 20.
+Recipes added in A1: `slot-needed` (2px dashed `edge-strong`), `slot-not-here` (2px dotted, with `bg-hatch`), `slot-ring-waiting`, `slot-ring-retake` (4px inset rings). Full App v1 adds `slot-ring-check`, the 4px `ok-waiting` inset ring of Check due (§4, FA-11). Type recipes: `type-display`, `type-page-title`, `type-section-title` and `type-count` are Fraunces; `type-heading-sm` and `type-tab-label` moved to Atkinson. Fonts: `next/font` sets `--font-fraunces` (with the `opsz` axis), `--font-atkinson-next` and `--font-atkinson-mono` on `<html>`. Radius: control 12, card 14, sheet 20.
 
 Still to remove in batch A5, once no screen uses them: `info-*`, `stamp-fg`, `select` and `on-select`, `bg-stripe`, and the rail recipes. `tests/unit/token-integrity.test.ts` recomputes every contrast pair in §3.2 from the sheet.
 
@@ -299,6 +371,11 @@ Still to remove in batch A5, once no screen uses them: `info-*`, `stamp-fg`, `se
 
 ### Changelog
 
+- **1.7** (18 Nov 2026, Full App v1 S5-PACKAGED): §4 gains **Optional** (FA-51): a packaged item without Photo wanted is listed and takes photos but leaves every count and is never empty. Its empty tile has a solid `edge-strong` line (the dashed frame stays Needed's alone) and the word Optional (`OPTIONAL_SLOT_WORD` in `lib/album/model.ts`); with a photo it shows that photo's state. Its slot page says "Optional: a photo is welcome, but none is needed."; Match finds it by search ("Optional · a photo is welcome") and never suggests it. Reports name it **No photo needed** (the rule's `inactive`).
+- **1.6** (18 Nov 2026, Full App v1 S3-R14): a place's Needs updating filter (spec §6 S3) reads **Retake or needs checking**, the words of the tiles it shows (`SLOT_MARK_WORDS` in `lib/album/model.ts`, drawn by the slot tile). Withdrawn is one chip look everywhere (X icon).
+- **1.5** (18 Nov 2026, Full App v1 S4-DOCS): §4 gains the report words (`coverage_*`) and Withdrawn; §5a lists the Full App rows (Unfinished photos, the blocked notice, Asked for) and where Start here sits; new §5b (Me: Your photos, Your month, Help and account, Notices, the slot page), §6a (manager screens: navigation, Overview, Review, Requests, Metrics, Venue and Reported changes) and §6b (admin screens: `ADMIN_NAV` and More, Overview, Venues, Library and Suspend from use, Publishing, People, Settings & activity); §7 gains the manager and admin words; §10 gains `slot-ring-check`. No section was renumbered.
+
+- **1.4** (18 Nov 2026, Full App v1 S2-STAFF): §4 gains the receipt words (Checking, Sent, Couldn't finish) and the staff outcome words. A place screen filters by category and by Needed, Waiting, In the album, Needs updating and All (`?show=`, `?cat=`); filled dish and place tiles open a slot page (`/staff/album/slot/[kind]/[slotId]`) with Report a change. Me opens with My uploads and adds Help and account.
 - **1.3** (17 Nov 2026): batches A3 to A5 built (docs/plans/album-a3-a5.md, tasks AL-1 to AL-8, release reviews and repair R-1 to R-4):
   - A3: Match on add (§6.1) with an outbox that feeds the upload queue, Match later (`/staff/album/match-later`), the three-tab shell, Your month on Me, the remembered place.
   - A4: one-line briefs per section and dish (`20261117130000_album_briefs.sql`), Review one photo at a time with reason chips (§6.5), admin Albums (`/admin/albums`, `20261117140000_album_admin.sql`, new `ok-half` token), slot photos staff can see (`20261117150000_album_slot_photos.sql`, `/api/album/[assetId]/thumb`).

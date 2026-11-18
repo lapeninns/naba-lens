@@ -19,6 +19,7 @@ import {
 } from "../integration/gaps-support"
 import { actorFor, syntheticJpeg } from "../slice/media-actor"
 import {
+  ADMIN_LANDING,
   openPortfolio,
   STAFF_LANDING,
   staffTile,
@@ -30,6 +31,8 @@ import {
   signIn as signInApi,
   type TestIdentity,
 } from "../support/identities"
+import { acceptPlacePhoto } from "./helpers/accepted"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 /**
  * Acceptance gaps in the real app (next dev + local Supabase):
@@ -64,6 +67,8 @@ async function signIn(
   )
   // Opening the link never uses it (mail scanners prefetch); Continue does.
   await page.getByRole("button", { name: "Continue" }).click()
+  // FA-23: an admin passes the TOTP second step.
+  await passMfaIfAsked(page, identity.email)
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/confirm"))
   return page
 }
@@ -144,10 +149,7 @@ test.describe("GAP-19: leave warning during an active upload", () => {
       hold
     )
 
-    await page
-      .getByRole("button", { name: "Add photos or videos" })
-      .first()
-      .click()
+    await page.getByRole("button", { name: "Add a video" }).first().click()
     const dialog = uploadSheet(page)
     // The upload starts as soon as the file is picked (the hold is already in
     // place, so the transfer stays in flight).
@@ -198,7 +200,7 @@ test.describe("admin library refreshes on focus", () => {
       session: false,
     })
     const page = await signIn(browser, adminUser, baseURL!)
-    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page).toHaveURL(ADMIN_LANDING)
 
     // Take manual control of the 15 s foreground timer so only the event under
     // test can refresh the gallery. Every other interval runs normally.
@@ -297,8 +299,10 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
       staffPage.getByRole("status").filter({ hasText: /isn't taking photos/ })
     ).toBeVisible()
     await expect(
-      staffPage.getByRole("button", { name: /Add photos or videos/ })
+      staffPage.getByRole("button", { name: "Add a video" })
     ).toHaveCount(0)
+    // Me's Add photos (R15-1) is not offered either.
+    await expect(staffPage.locator('[data-slot="me-add"]')).toHaveCount(0)
     // Their own retained media is still listed for them.
     await expect(
       await staffTile(
@@ -343,6 +347,8 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
       session: false,
     })
     const photoA = await readyPhoto(staffA, "private-dish.jpg")
+    // FA-20: colleagues see a photo only once it is accepted.
+    acceptPlacePhoto(photoA, adminUser.id)
 
     const pageA = await signIn(browser, staffA, baseURL!)
     const pageB = await signIn(browser, staffB, baseURL!)
@@ -421,7 +427,7 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
     // feed attribution, with no management or original download controls.
     await openPortfolio(pageB)
     await pageB
-      .getByRole("link", { name: /^Photos Photos your colleagues/ })
+      .getByRole("link", { name: /^Photos Accepted photos from colleagues/ })
       .click()
     await expect(pageB).toHaveURL(/\/staff\/community$/)
     const feedLabel = "Organization portfolio"

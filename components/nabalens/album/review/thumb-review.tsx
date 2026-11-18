@@ -1,5 +1,6 @@
 "use client"
 
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import {
   ArrowUUpLeftIcon,
   CheckIcon,
@@ -67,9 +68,13 @@ export type ThumbReviewProps = {
   areaMore?: boolean
   /** Photos the caller can decide on across both queues (the title). */
   total: number
-  /** Menu section id to album place and brief, item id to its own brief. */
+  /**
+   * Menu section id to album place; slot id to its FA-52 brief; and, only
+   * when that read failed, the album briefs by section and item id.
+   */
   context: {
     sectionPlace: Record<string, string>
+    slotBrief?: Record<string, string>
     sectionBrief: Record<string, string>
     itemBrief: Record<string, string>
   }
@@ -77,6 +82,12 @@ export type ThumbReviewProps = {
   listHref: string
   /** Under the title: the Findings / All switch when triage is on. */
   filter?: React.ReactNode
+  /**
+   * Photos that wait off the stage (Needs label, FA-4): counted in the title
+   * and listed under it, so the empty notice does not say every photo is
+   * reviewed while they wait (S3-R1 E4).
+   */
+  waitingElsewhere?: number
   /** The zone times are written in. */
   timeZone?: string
 }
@@ -99,6 +110,7 @@ const when = (iso: string, timeZone: string) => {
 function toContext(context: ThumbReviewProps["context"]): ReviewContext {
   return {
     sectionPlace: new Map(Object.entries(context.sectionPlace)),
+    slotBrief: new Map(Object.entries(context.slotBrief ?? {})),
     sectionBrief: new Map(Object.entries(context.sectionBrief)),
     itemBrief: new Map(Object.entries(context.itemBrief)),
   }
@@ -114,13 +126,14 @@ export function ThumbReview({
   context,
   listHref,
   filter,
+  waitingElsewhere = 0,
   timeZone = "Europe/London",
 }: ThumbReviewProps) {
   const ctx = React.useMemo(() => toContext(context), [context])
   const [start] = React.useState(() => {
     const all = [
       ...menuCards.flatMap((c) => fromMenuCard(c, ctx) ?? []),
-      ...areaCards.map(fromAreaCard),
+      ...areaCards.map((c) => fromAreaCard(c, ctx)),
     ]
     return {
       line: reviewLine(all),
@@ -212,7 +225,9 @@ export function ThumbReview({
         return
       }
       const seen = seenAreas.current!
-      const fresh = page.cards.map(fromAreaCard).filter((p) => !seen.has(p.key))
+      const fresh = page.cards
+        .map((c) => fromAreaCard(c, ctx))
+        .filter((p) => !seen.has(p.key))
       for (const p of fresh) seen.add(p.key)
       const decidableFresh = reviewLine(fresh)
       setOwn((n) => n + fresh.filter((p) => p.own).length)
@@ -492,7 +507,7 @@ export function ThumbReview({
             {C.moreRetry}
           </Button>
         </div>
-      ) : (
+      ) : waitingElsewhere > 0 ? null : (
         <Notice tone="plain" title={C.emptyTitle} className="max-w-reading">
           <p>{C.emptyBody}</p>
         </Notice>
@@ -509,6 +524,15 @@ export function ThumbReview({
         <ListBulletsIcon aria-hidden className="size-5" />
         {C.allPhotos}
       </Link>
+      {current && !current.own && current.subject.assetId ? (
+        <Link
+          href={managerHrefs.photo(current.subject.assetId)}
+          data-review-details
+          className="inline-flex min-h-12 items-center gap-2 justify-self-start font-bold text-accent-text underline underline-offset-4 focus-ring"
+        >
+          {C.details}
+        </Link>
+      ) : null}
     </div>
   )
 }

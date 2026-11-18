@@ -653,7 +653,7 @@ grant execute on all functions in schema pg_temp to authenticated;
 `
 
 const claims = (id) =>
-  `select set_config('request.jwt.claims', '{"sub":"${id}","role":"authenticated","aud":"authenticated"}', true) is null;`
+  `select set_config('request.jwt.claims', '{"sub":"${id}","role":"authenticated","aud":"authenticated","aal":"aal2"}', true) is null;`
 
 function runScript(body) {
   const out = psql(env.dbUrl, ["-At"], {

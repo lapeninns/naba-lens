@@ -339,6 +339,26 @@ describe("proxy: signed in", () => {
     expect(returnCookie(res)).toEqual([])
   })
 
+  it("keeps it through the second sign-in step, which ends on / (S3-E2E-1 E2)", async () => {
+    for (const [path, init] of [
+      ["/auth/mfa", {}],
+      ["/auth/mfa", { method: "POST", headers: { "next-action": "abc" } }],
+    ] as [string, Parameters<typeof request>[1]][]) {
+      const res = await proxy(
+        request(path, {
+          ...init,
+          cookie: "nl-return-to=%2Fadmin%2Fstaff%3Ffrom%3Demail",
+        })
+      )
+      expect(returnCookie(res), path).toEqual([])
+    }
+    // Not a look-alike path.
+    const other = await proxy(
+      request("/auth/mfa-not", { cookie: "nl-return-to=%2Fadmin%2Fstaff" })
+    )
+    expect(returnCookie(other)).toHaveLength(1)
+  })
+
   it("sets no cookie when there is nothing to clear", async () => {
     expect(returnCookie(await proxy(request("/staff/tasks")))).toEqual([])
   })
@@ -356,8 +376,9 @@ describe("proxy: signed in", () => {
 
 // Server Actions post to the page that called them, so only actions reachable
 // from a public page can run signed out. Every module the public routes import
-// (directly or not) is walked here: the login page's action is the only one,
-// and it posts to /login, which the proxy passes through above.
+// (directly or not) is walked here: the login page's action, which posts to
+// /login, and the second sign-in step's (/auth/mfa, FA-23), which re-reads the
+// account on every call and does nothing for a signed-out caller.
 describe("public pages reach only public Server Actions", () => {
   const root = resolve(__dirname, "../..")
   const entries: string[] = []
@@ -396,7 +417,7 @@ describe("public pages reach only public Server Actions", () => {
     return null
   }
 
-  it("finds app/login/actions.ts and nothing else", () => {
+  it("finds app/login/actions.ts and app/auth/mfa/actions.ts, nothing else", () => {
     const seen = new Set<string>()
     const actions = new Set<string>()
     const queue = [...entries]
@@ -419,6 +440,9 @@ describe("public pages reach only public Server Actions", () => {
       }
     }
     expect(seen.size).toBeGreaterThan(50)
-    expect([...actions]).toEqual(["app/login/actions.ts"])
+    expect([...actions].sort()).toEqual([
+      "app/auth/mfa/actions.ts",
+      "app/login/actions.ts",
+    ])
   })
 })

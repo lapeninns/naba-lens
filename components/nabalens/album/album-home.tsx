@@ -18,14 +18,17 @@ import {
 } from "@/components/nabalens/shell/add-context"
 import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import { Button } from "@/components/ui/button"
-import type {
-  AlbumCounts,
-  AlbumPlace,
-  AlbumSlot,
-  AlbumView,
+import {
+  slotHref,
+  type AlbumCounts,
+  type AlbumPlace,
+  type AlbumSlot,
+  type AlbumView,
 } from "@/lib/album/model"
 import { rememberAlbumPlace } from "@/lib/album/remembered-place"
 import { cn } from "@/lib/utils"
+
+import { UnfinishedRow } from "./unfinished-row"
 
 /*
  * Album, the staff Home (DESIGN.md §5a). Top to bottom: the venue's album
@@ -85,6 +88,7 @@ export function AlbumHome({
   matchLater = null,
   startHere = null,
   otherJobs = null,
+  askedFor = null,
 }: {
   venueName: string
   album: AlbumView
@@ -100,6 +104,11 @@ export function AlbumHome({
   startHere?: React.ReactNode
   /** The Other jobs row (R-2), under the Match later row. */
   otherJobs?: React.ReactNode
+  /**
+   * A manager's open requests as slots with their brief (S2-REQ, spec §7
+   * M4), under the retake row: asked-for work comes before the places.
+   */
+  askedFor?: React.ReactNode
 }) {
   const openAdd = useAdd()
   const Title = `h${headingLevel}` as "h1"
@@ -115,7 +124,9 @@ export function AlbumHome({
   const emptyHere = current
     ? current.groups
         .flatMap((g) => g.slots)
-        .filter((s) => s.state === "needed" || s.state === "retake")
+        .filter(
+          (s) => (s.state === "needed" || s.state === "retake") && !s.optional
+        )
     : []
 
   return (
@@ -182,7 +193,12 @@ export function AlbumHome({
         />
       ) : null}
 
+      {/* Photos that stopped or failed, under the retake row (spec §6 S1). */}
+      {canAdd ? <UnfinishedRow /> : null}
+
       {blocked ? <Notice tone="attention">{blocked}</Notice> : null}
+
+      {askedFor}
 
       {allPlaces.length > 0 ? (
         <section aria-labelledby="album-where" className="grid gap-2">
@@ -349,21 +365,18 @@ export function AlbumSlotTile({
         offline={send.state === "sending" && !online}
       />
     )
-  if (slot.target.kind === "amenity")
+  // An amenity opens its question; a filled dish or place opens its slot
+  // page (DESIGN.md §5: "tapping a filled slot opens the slot"; spec §6 S3).
+  // FA-51: an optional slot opens its slot page too, which says it is
+  // optional and still offers Add.
+  if (slot.target.kind === "amenity" || !fillable || slot.optional)
     return (
       <SlotTile
         name={slot.name}
         state={slot.state}
         photoSrc={slot.thumbnailUrl ?? undefined}
-        href={`/staff/tasks/amenities/${slot.target.checkId}`}
-      />
-    )
-  if (!fillable)
-    return (
-      <SlotTile
-        name={slot.name}
-        state={slot.state}
-        photoSrc={slot.thumbnailUrl ?? undefined}
+        href={slotHref(slot)}
+        optional={slot.optional}
       />
     )
   const target = slot.target

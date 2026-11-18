@@ -96,8 +96,8 @@ changed toolchain/lock/source or incomplete check list fails before stack startu
 Changing the local lci profile invalidates its prior proof-cache fingerprint.
 
 Hosted CI requires the common job and all four existing browser/shard lanes.
-The local profile requires the common job and all three existing browser lanes,
-plus the existing smoke contract. Nothing substitutes a common pass for browser,
+The local profile requires the common job, both Chromium shards, Firefox,
+WebKit and the smoke contract. Nothing substitutes a common pass for browser,
 database/security or privacy coverage. `local-matrix.sh` remains a complete
 standalone full matrix; agents should not use it as an iteration loop.
 

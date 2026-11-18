@@ -55,6 +55,8 @@ type MediaGalleryProps = {
   showAttribution?: boolean
   getDownloadHref?: (item: MediaItem) => string
   getPortfolioHref?: (item: MediaItem) => string
+  /** Admin library: the asset detail page (S2-LIBRARY). */
+  getDetailHref?: (item: MediaItem) => string
   canDelete?: boolean
   /**
    * Foreground refresh interval in ms (admin library: ~15 s). Paused while the
@@ -146,6 +148,7 @@ export function MediaGallery({
   showAttribution = false,
   getDownloadHref,
   getPortfolioHref,
+  getDetailHref,
   canDelete = false,
   refreshIntervalMs,
   refreshSignal,
@@ -479,6 +482,7 @@ export function MediaGallery({
           downloadError?.id === openId ? downloadError.message : null
         }
         getPortfolioHref={getPortfolioHref}
+        getDetailHref={getDetailHref}
         onDelete={canDelete ? openDelete : undefined}
         onEditLabels={canLabel ? (item) => setLabelIds([item.id]) : undefined}
       />

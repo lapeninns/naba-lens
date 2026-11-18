@@ -7,14 +7,15 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 import { supportedMp4, syntheticJpeg, type SourceFile } from "./helpers/media"
 import { appBarFit, horizontalOverflow } from "./helpers/overflow"
 import {
+  ADMIN_LANDING,
   libraryList,
+  openPortfolio,
   portfolioList,
+  STAFF_LANDING,
   staffTile,
   tile,
   uploadSheet,
   uploadThroughDialog,
-  openPortfolio,
-  STAFF_LANDING,
 } from "./helpers/ui"
 import { provisionWorld, signedInPage, type World } from "./helpers/world"
 
@@ -63,7 +64,8 @@ test.beforeAll(async ({ browser }) => {
   await openPortfolio(staff)
   await uploadThroughDialog(staff, [jpeg, mp4])
   admin = await signedInPage(browser, world.adminA)
-  await expect(admin).toHaveURL(/\/admin$/)
+  await expect(admin).toHaveURL(ADMIN_LANDING)
+  await admin.goto("/admin")
   anon = await (await browser.newContext()).newPage()
 })
 
@@ -194,9 +196,7 @@ for (const width of WIDTHS) {
     const portfolio = portfolioList(staff)
     const ownPhoto = await staffTile(portfolio, jpeg.name)
     await expect(ownPhoto).toBeVisible()
-    const upload = staff
-      .getByRole("button", { name: "Add photos or videos" })
-      .first()
+    const upload = staff.getByRole("button", { name: "Add a video" }).first()
     await check(staff, width, "staff-portfolio", upload)
 
     await upload.click()
@@ -392,7 +392,7 @@ test("keyboard only: upload, open the viewer, download", async () => {
   await staff.goto("/staff")
   // Wait for the streamed page, not just the load event, before tabbing.
   await expect(portfolioList(staff)).toBeVisible()
-  await tabTo(staff, /^Add photos or videos$/)
+  await tabTo(staff, /^Add a video$/)
   await staff.keyboard.press("Enter")
   const dialog = uploadSheet(staff)
   await expect(dialog).toBeVisible()

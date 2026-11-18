@@ -3,6 +3,8 @@ import {
   ArrowUpIcon,
   CheckIcon,
   ClockIcon,
+  DownloadSimpleIcon,
+  GlobeIcon,
   EnvelopeSimpleIcon,
   FileTextIcon,
   ForkKnifeIcon,
@@ -94,6 +96,10 @@ type ChipState = {
 /**
  * The fixed words from the system's States and words table, keyed by the
  * service's state names. Never add a synonym (Approved, Rejected, Done…).
+ * The one "Approved" is FA-7's manager and admin name for a public
+ * acceptance (`review_public`); staff see `outcome_public` instead.
+ * Every other file reads its state words from here (CHIP_STATES or
+ * chipState), never restates them.
  */
 export const CHIP_STATES = {
   // A file uploading (technical only, never an approval)
@@ -204,6 +210,33 @@ export const CHIP_STATES = {
   },
   read_only: {
     word: "Read-only",
+    tone: "closed",
+    icon: LockSimpleIcon,
+    shape: "closed",
+  },
+  // A venue's setup checklist item (S2-ADMIN, spec §8 A2): needs_setup or
+  // this.
+  setup_in_place: {
+    word: "In place",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "met",
+  },
+  // A venue's operating status (S2-ADMIN, spec §8 A2; FA-33)
+  venue_open: {
+    word: "Open",
+    tone: "neutral",
+    icon: CheckIcon,
+    shape: "neutralSquare",
+  },
+  venue_temporarily_closed: {
+    word: "Temporarily closed",
+    tone: "attention",
+    icon: ClockIcon,
+    shape: "overdue",
+  },
+  venue_archived: {
+    word: "Closed and archived",
     tone: "closed",
     icon: LockSimpleIcon,
     shape: "closed",
@@ -384,6 +417,292 @@ export const CHIP_STATES = {
     tone: "neutral",
     icon: MinusIcon,
     shape: "na",
+  },
+  // S1-EXPORT (spec §10 publication states, §8 A5). Admin and manager
+  // screens only (FA-7): staff never see these words. Exported is never
+  // Published (§10 inv. 9).
+  publication_not_selected: {
+    word: "Not exported",
+    tone: "neutral",
+    shape: "plain",
+  },
+  publication_exported: {
+    word: "Exported",
+    tone: "neutral",
+    icon: DownloadSimpleIcon,
+    shape: "neutralSquare",
+  },
+  publication_queued: {
+    word: "Queued",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "waiting",
+  },
+  publication_published_confirmed: {
+    word: "Published",
+    tone: "positive",
+    icon: GlobeIcon,
+    shape: "present",
+  },
+  publication_update_pending: {
+    word: "Update pending",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "waiting",
+  },
+  publication_withdrawal_pending: {
+    word: "Withdrawal pending",
+    tone: "attention",
+    icon: ArrowUUpLeftIcon,
+    shape: "needs",
+  },
+  // One Withdrawn, one icon: the same X as outcome_withdrawn (S4-DOCS).
+  publication_withdrawn_confirmed: {
+    word: "Withdrawn",
+    tone: "closed",
+    icon: XIcon,
+    shape: "closed",
+  },
+  publication_failed_unknown: {
+    word: "Failed or unknown",
+    tone: "negative",
+    icon: WarningCircleIcon,
+    shape: "warnSquare",
+  },
+  // An export package
+  package_ready: {
+    word: "Ready to download",
+    tone: "neutral",
+    icon: DownloadSimpleIcon,
+    shape: "neutralSquare",
+  },
+  package_exported: {
+    word: "Exported",
+    tone: "neutral",
+    icon: DownloadSimpleIcon,
+    shape: "neutralSquare",
+  },
+  package_needs_rebuild: {
+    word: "Needs rebuilding",
+    tone: "attention",
+    icon: WarningCircleIcon,
+    shape: "needs",
+  },
+  package_invalidated: {
+    word: "Can't be downloaded",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  // S3-R14 (X10): why one photo in a package is no longer eligible, since
+  // the package was made (export_package_detail staleReason). Withdrawn is
+  // kept for a real withdrawal; a review or coverage change says so.
+  package_item_withdrawn: {
+    word: "Withdrawn since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_deleted: {
+    word: "Deleted since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_off_menu: {
+    word: "Off the menu since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_subject_retired: {
+    word: "Retired since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_label_changed: {
+    word: "Label changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_check_due: {
+    word: "Check due since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_fact_changed: {
+    word: "Answer changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_review_changed: {
+    word: "Review changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_changed: {
+    word: "Changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  // S2-METRICS (spec §18.1): a slot's state in a manager or admin report,
+  // from the one coverage rule (public.coverage_slots). Only "Covered"
+  // counts in the numerator; Not here and No photo needed leave the total.
+  coverage_covered: {
+    word: "Covered",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "present",
+  },
+  coverage_check_due: {
+    word: "Check due",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "changed",
+  },
+  coverage_pending: {
+    word: "Awaiting review",
+    tone: "pending",
+    icon: ArrowUpIcon,
+    shape: "waiting",
+  },
+  coverage_replacement_needed: {
+    word: "Another photo requested",
+    tone: "attention",
+    icon: ArrowUUpLeftIcon,
+    shape: "needs",
+  },
+  coverage_missing: {
+    word: "Missing",
+    tone: "neutral",
+    icon: MinusIcon,
+    shape: "neutralSquare",
+  },
+  coverage_not_here: {
+    word: "Not here",
+    tone: "closed",
+    shape: "na",
+  },
+  coverage_inactive: {
+    word: "No photo needed",
+    tone: "closed",
+    icon: MinusCircleIcon,
+    shape: "closed",
+  },
+  // S2-STAFF, My uploads (spec §6 S4; FA-7): what happened to a person's
+  // own photo, in staff words. Managers see the spec's action names.
+  outcome_waiting: {
+    word: "Waiting",
+    tone: "pending",
+    icon: ArrowUpIcon,
+    shape: "waiting",
+  },
+  outcome_public: {
+    word: "In the album",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "accepted",
+  },
+  outcome_reference: {
+    word: "Kept for reference",
+    tone: "closed",
+    icon: FileTextIcon,
+    shape: "closed",
+  },
+  outcome_retake: {
+    word: "Retake",
+    tone: "attention",
+    icon: ArrowUUpLeftIcon,
+    shape: "needs",
+  },
+  outcome_label_corrected: {
+    word: "Label corrected",
+    tone: "neutral",
+    icon: PencilSimpleIcon,
+    shape: "plain",
+  },
+  outcome_not_used: {
+    word: "Not used",
+    tone: "closed",
+    icon: MinusCircleIcon,
+    shape: "closed",
+  },
+  outcome_withdrawn: {
+    word: "Withdrawn",
+    tone: "closed",
+    icon: XIcon,
+    shape: "closed",
+  },
+  // S3-R14: a photo's review in the admin Library (FA-7: managers and
+  // admins see the spec's names). Waiting, another photo and withdrawn use
+  // waiting_for_review, coverage_replacement_needed and outcome_withdrawn.
+  review_public: {
+    word: "Approved for public use",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "present",
+  },
+  review_reference: {
+    word: "Kept as reference",
+    tone: "closed",
+    icon: FileTextIcon,
+    shape: "closed",
+  },
+  review_unreviewed: {
+    word: "Not reviewed yet",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "waiting",
+  },
+  review_not_used: {
+    word: "Not used",
+    tone: "closed",
+    icon: MinusCircleIcon,
+    shape: "closed",
+  },
+  internal_only: {
+    word: "Internal only",
+    tone: "closed",
+    icon: LockSimpleIcon,
+    shape: "closed",
+  },
+  // S2-REQ: a request's state (spec §7 M4). Manager and admin screens only;
+  // staff see the slot itself, never these words.
+  request_open: {
+    word: "Open",
+    tone: "neutral",
+    icon: TargetIcon,
+    shape: "neutralSquare",
+  },
+  request_submitted: {
+    word: "Submitted",
+    tone: "pending",
+    icon: ArrowUpIcon,
+    shape: "submitted",
+  },
+  request_completed: {
+    word: "Completed",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "met",
+  },
+  request_blocked: {
+    word: "Blocked",
+    tone: "attention",
+    icon: WarningCircleIcon,
+    shape: "needs",
+  },
+  request_cancelled: {
+    word: "Cancelled",
+    tone: "closed",
+    icon: XIcon,
+    shape: "closed",
   },
 } as const satisfies Record<string, ChipState>
 

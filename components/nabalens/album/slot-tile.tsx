@@ -2,6 +2,7 @@ import {
   ArrowUUpLeftIcon,
   ArrowUpIcon,
   CheckIcon,
+  ClockCounterClockwiseIcon,
   CloudArrowUpIcon,
   PlusIcon,
 } from "@phosphor-icons/react/dist/ssr"
@@ -9,7 +10,11 @@ import Link from "next/link"
 import type * as React from "react"
 
 import { Photo } from "@/components/ui/photo"
-import type { SlotState } from "@/lib/album/model"
+import {
+  OPTIONAL_SLOT_WORD,
+  SLOT_MARK_WORDS,
+  type SlotState,
+} from "@/lib/album/model"
 import { cn } from "@/lib/utils"
 
 /*
@@ -23,7 +28,13 @@ import { cn } from "@/lib/utils"
  *   waiting   the photo, ring-waiting inset, ↑ Waiting
  *   retake    the photo, ring-retake inset, ↩ Retake
  *   accepted  the photo, green square mark, ✓ In the album
+ *   check-due the photo, ok-waiting ring, ⟲ Needs checking (FA-11: a manager
+ *             confirms it is still right; not counted as filled)
  *   not-here  dotted edge over hatching, Not here
+ *
+ * `optional` (FA-51: a packaged item without Photo wanted) changes only an
+ * empty tile: a plain solid edge-strong line instead of Needed's reserved dashed one,
+ * + Add, and the word Optional. With a photo it draws its state as usual.
  *
  * The whole tile is one target: a link when `href` is given, else a button
  * when `onSelect` is, else plain content. Its accessible name says the slot
@@ -46,6 +57,8 @@ type SlotTileProps = {
   href?: string
   /** Used when there is no href. */
   onSelect?: () => void
+  /** FA-51: an optional slot; an empty one reads Optional, not Needed. */
+  optional?: boolean
   className?: string
 }
 
@@ -55,10 +68,15 @@ const STATE_WORDS: Record<SlotState, string> = {
   waiting: "waiting for review",
   retake: "needs another photo",
   accepted: "in the album",
+  "check-due": "needs checking",
   "not-here": "not here",
 }
 
-function sendingWord(progress: number | undefined, offline: boolean) {
+/**
+ * The Sending word (DESIGN.md §4: "Sending 40%", Saved on this phone without
+ * a signal), shared with Match's rows (X6) so the words live here once.
+ */
+export function sendingWord(progress: number | undefined, offline = false) {
   if (offline) return "Saved on this phone"
   if (progress === undefined) return "Sending"
   return `Sending ${Math.round(Math.min(100, Math.max(0, progress)))}%`
@@ -83,14 +101,25 @@ function StateMark({
       return (
         <span className="inline-flex max-w-full items-center gap-0.5 rounded-round bg-surface px-1.5 text-caption leading-tight font-bold text-ink">
           <ArrowUpIcon aria-hidden weight="bold" className="size-4" />
-          Waiting
+          {SLOT_MARK_WORDS.waiting}
         </span>
       )
     case "retake":
       return (
         <span className="inline-flex max-w-full items-center gap-0.5 rounded-round bg-warn-bg px-1.5 text-caption leading-tight font-bold text-warn-fg">
           <ArrowUUpLeftIcon aria-hidden weight="bold" className="size-4" />
-          Retake
+          {SLOT_MARK_WORDS.retake}
+        </span>
+      )
+    case "check-due":
+      return (
+        <span className="inline-flex max-w-full items-center gap-0.5 rounded-round bg-surface px-1.5 text-caption leading-tight font-bold text-ink">
+          <ClockCounterClockwiseIcon
+            aria-hidden
+            weight="bold"
+            className="size-4"
+          />
+          {SLOT_MARK_WORDS["check-due"]}
         </span>
       )
     case "accepted":
@@ -101,7 +130,7 @@ function StateMark({
             weight="bold"
             className="mt-px size-4 shrink-0"
           />
-          In the album
+          {SLOT_MARK_WORDS.accepted}
         </span>
       )
     default:
@@ -117,17 +146,26 @@ function SlotTile({
   offline = false,
   href,
   onSelect,
+  optional = false,
   className,
 }: SlotTileProps) {
+  const emptyOptional = optional && state === "needed"
   // An offline sending tile shows "Saved on this phone", so its name says so too.
   const label = `${name}: ${
-    state === "sending" && offline ? "saved on this phone" : STATE_WORDS[state]
+    state === "sending" && offline
+      ? "saved on this phone"
+      : emptyOptional
+        ? OPTIONAL_SLOT_WORD.toLowerCase()
+        : STATE_WORDS[state]
   }`
   const hasPhoto = state !== "needed" && state !== "not-here"
 
   const frame = cn(
     "group/slot relative flex aspect-square w-full flex-col overflow-hidden rounded-card text-start",
-    state === "needed" && "justify-between slot-needed bg-surface p-2 text-ink",
+    state === "needed" &&
+      !emptyOptional &&
+      "justify-between slot-needed bg-surface p-2 text-ink",
+    emptyOptional && "justify-between bg-surface p-2 text-ink edge-strong",
     state === "not-here" &&
       "justify-end slot-not-here bg-surface p-2 text-ink-muted",
     hasPhoto && "bg-media-placeholder",
@@ -154,7 +192,8 @@ function SlotTile({
         className={cn(
           "pointer-events-none absolute inset-0 rounded-card",
           state === "waiting" && "slot-ring-waiting",
-          state === "retake" && "slot-ring-retake"
+          state === "retake" && "slot-ring-retake",
+          state === "check-due" && "slot-ring-check"
         )}
       />
       <span className="relative flex h-full min-h-0 flex-col justify-between gap-1 p-1.5">
@@ -172,7 +211,14 @@ function SlotTile({
         <PlusIcon aria-hidden weight="bold" className="size-6" />
         Add
       </span>
-      <span className="line-clamp-3 text-label leading-tight">{name}</span>
+      <span className="grid gap-0.5">
+        <span className="line-clamp-3 text-label leading-tight">{name}</span>
+        {emptyOptional ? (
+          <span className="text-caption leading-tight text-ink-muted">
+            {OPTIONAL_SLOT_WORD}
+          </span>
+        ) : null}
+      </span>
     </>
   ) : (
     <>
@@ -193,6 +239,7 @@ function SlotTile({
         aria-label={label}
         data-slot="slot-tile"
         data-state={state}
+        data-optional={optional || undefined}
         className={frame}
       >
         {body}
@@ -206,6 +253,7 @@ function SlotTile({
         aria-label={label}
         data-slot="slot-tile"
         data-state={state}
+        data-optional={optional || undefined}
         className={frame}
       >
         {body}
@@ -217,6 +265,7 @@ function SlotTile({
       aria-label={label}
       data-slot="slot-tile"
       data-state={state}
+      data-optional={optional || undefined}
       className={frame}
     >
       {body}

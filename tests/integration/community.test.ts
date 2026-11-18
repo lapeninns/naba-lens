@@ -9,6 +9,7 @@ import { getReadableAsset } from "@/lib/server/media/access"
 import { signAvatar } from "@/lib/server/media/profile"
 import type { MediaActor } from "@/lib/server/media/types"
 import { seedAsset } from "../library/seed"
+import { acceptForColleagues } from "./accepted"
 import { actorFor } from "../slice/media-actor"
 import {
   anonClient,
@@ -24,7 +25,9 @@ describe("organization portfolio community", () => {
   let viewer: TestIdentity
   let owner: TestIdentity
   let viewerActor: MediaActor
+  let teammateActor: MediaActor
   let readyId: string
+  let unreviewedId: string
   let deletedId: string
   let pendingId: string
   let ownerVenueId: string
@@ -61,7 +64,20 @@ describe("organization portfolio community", () => {
       .eq("id", owner.id)
     if (linkedAvatar.error) throw linkedAvatar.error
     viewerActor = await actorFor(viewer)
+    // A colleague at the owner's own venue (S1-PRIVACY: accepted media is
+    // shown only at the venue it was taken for).
+    const teammate = await createIdentity(service, {
+      label: "community-teammate",
+      role: "staff",
+      venueId: b.id,
+    })
+    teammateActor = await actorFor(teammate)
     readyId = (
+      await seedAsset(service, { uploaderId: owner.id, venueId: b.id })
+    ).id
+    // FA-20: colleagues see a photo only once it is accepted.
+    await acceptForColleagues(readyId)
+    unreviewedId = (
       await seedAsset(service, { uploaderId: owner.id, venueId: b.id })
     ).id
     deletedId = (
@@ -91,8 +107,14 @@ describe("organization portfolio community", () => {
         id: owner.id,
         department: "boh",
         venueId: ownerVenueId,
-        mediaCount: 1,
+        // FA-20 / S1-PRIVACY: none of their media is visible from another
+        // venue, accepted or not.
+        mediaCount: 0,
       },
+    })
+    expect(await getCommunityMember(teammateActor, owner.id)).toMatchObject({
+      ok: true,
+      member: { id: owner.id, mediaCount: 1 },
     })
     if (member.ok) expect(Object.keys(member.member)).not.toContain("email")
     const raw = await viewer.client
@@ -110,18 +132,31 @@ describe("organization portfolio community", () => {
     expect(direct.data?.[0]).not.toHaveProperty("role")
   })
 
-  it("shows ready assets only, filters by venue/department and retains write isolation", async () => {
-    const media = await listCommunityMedia(viewerActor, {
+  it("shows accepted ready assets only, filters by venue/department and retains write isolation", async () => {
+    const media = await listCommunityMedia(teammateActor, {
       venueId: ownerVenueId,
       department: "boh",
     })
     expect(media.ok && media.items.map((item) => item.id)).toEqual([readyId])
-    expect((await getReadableAsset(viewerActor, readyId)).ok).toBe(true)
-    for (const id of [pendingId, deletedId]) {
-      expect(await getReadableAsset(viewerActor, id)).toMatchObject({
-        ok: false,
-        status: 404,
-      })
+    expect((await getReadableAsset(teammateActor, readyId)).ok).toBe(true)
+    // From another venue: nothing, not even the accepted photo (S1-PRIVACY).
+    const elsewhere = await listCommunityMedia(viewerActor, {
+      venueId: ownerVenueId,
+      department: "boh",
+    })
+    expect(elsewhere.ok && elsewhere.items).toEqual([])
+    expect(await getReadableAsset(viewerActor, readyId)).toMatchObject({
+      ok: false,
+      status: 404,
+    })
+    // Ready but not reviewed: hidden from colleagues (FA-20, spec §3.3).
+    for (const id of [unreviewedId, pendingId, deletedId]) {
+      for (const actor of [teammateActor, viewerActor]) {
+        expect(await getReadableAsset(actor, id)).toMatchObject({
+          ok: false,
+          status: 404,
+        })
+      }
       expect(
         (await viewer.client.from("media_assets").select("id").eq("id", id))
           .data

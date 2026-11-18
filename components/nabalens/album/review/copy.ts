@@ -37,6 +37,8 @@ export const ALBUM_REVIEW_COPY = {
   ownRefused: "This is your photo. Another reviewer decides on it.",
   next: "Next photo",
   allPhotos: "See every photo as a list",
+  /** S2-REVIEW: the current photo's review detail. */
+  details: "Details, Fix label and more decisions",
   failed: "That decision wasn't sent. Check your signal and try again.",
   moreFailed: "The next photos didn't load. Try again.",
   moreRetry: "Load the next photos",

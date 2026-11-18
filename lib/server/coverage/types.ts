@@ -694,6 +694,11 @@ export type OurMenuItem = {
   /** G-7: set while a manager's date is live; such dishes lead the list. */
   neededBy?: NeededBy | null
   /**
+   * FA-51: a packaged item without Photo wanted. It takes photos but is never
+   * a gap, in no total and never has a needed-by date (S5-R1).
+   */
+  optional?: boolean
+  /**
    * For a dish still needed (decision 11): "being_checked" when a photo is
    * being checked after a menu change, "waiting" when a photo waits for a
    * first decision, else null. Set by listOurMenuItems; left out when that
@@ -794,6 +799,12 @@ export type MyMenuPhotoState = {
   variantId: string | null
   variantName: string | null
   state: Exclude<ItemPhotoState, "withdrawn" | "invalidated">
+  /**
+   * Accepted only: for public use, or kept as reference (X9). Only a public
+   * acceptance is Me's "Accepted for menu use"; reference is the staff
+   * outcome Kept for reference.
+   */
+  reviewLevel: "public" | "reference"
   isPrimary: boolean
   /** The reviewer's note: what a better photo needs (or an accept note). */
   reason: string | null

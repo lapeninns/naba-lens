@@ -45,8 +45,11 @@ export const LABEL_LIMITS = {
   maxContentTypes: 4,
   maxNoteLength: 280,
   maxMissingItemLength: 120,
-  /** Assets one label-editor batch may hold (same as an upload batch). */
-  maxBatchAssets: 10,
+  /**
+   * Assets one label-editor batch may hold: the same as an upload batch
+   * (spec §5.4: 20 per selection; MEDIA_LIMITS.maxBatchFiles).
+   */
+  maxBatchAssets: 20,
 } as const
 
 /** Mirrors the database checks in save_menu_draft. */
@@ -175,6 +178,10 @@ export type DiffChange = DiffItemRef & {
     variants?: string[]
     meta?: SourceMeta
   }
+  /** The section kind (food, drinks, other) changed. */
+  kindChanged?: boolean
+  /** Options of the current menu this item no longer offers. */
+  variantsRemoved?: string[]
 }
 
 export type UncertainMatch = DiffItemRef & {
@@ -214,6 +221,8 @@ export type MenuVersionSummary = {
   activatedAt: string | null
   activatedByName: string | null
   retiredAt: string | null
+  /** A draft approved to become active at this instant (S1-MENUS). */
+  scheduledFor?: string | null
 }
 
 export type MenuVersionDetail = MenuVersionSummary & {

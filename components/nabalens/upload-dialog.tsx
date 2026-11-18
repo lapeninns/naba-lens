@@ -40,6 +40,7 @@ import type {
 } from "@/lib/knowledge/contract"
 import { guardBeforeUnload } from "@/lib/upload/before-unload"
 import { forgetCapture } from "@/lib/upload/capture-session"
+import { uploadReceipt, type UploadReceipt } from "@/lib/upload/states"
 import { unconfirmedMessage } from "@/lib/upload/uploader"
 import { cn } from "@/lib/utils"
 
@@ -74,6 +75,8 @@ import {
   type Uploader,
   type UploadPurpose,
 } from "./upload-queue"
+import { trackFlow } from "@/lib/metrics/track"
+
 import { useStillWaiting } from "./use-still-waiting"
 import { useObjectUrl, useUploadQueue } from "./use-upload-queue"
 
@@ -93,7 +96,38 @@ type UploadDialogProps = {
    * false when the screen that picked it is gone: the file stays listed as
    * saved but not added there, until the person has seen it.
    */
-  onReady?: (assetIds: string[], files: File[]) => boolean | void
+  onReady?: (
+    assetIds: string[],
+    files: File[],
+    /**
+     * Each file's honest receipt (lib/upload/states.ts): "sent_for_review"
+     * when its labels were saved with it, "label_not_saved" when they could
+     * not be, "ready" when finalise had none.
+     */
+    receipts?: UploadReceipt[],
+    /**
+     * Per file, true when finalise found the same bytes were sent before at
+     * this venue (S1-UPLOAD duplicate link): it counts once (AC21).
+     */
+    duplicates?: boolean[]
+  ) => boolean | void
+  /**
+   * Called once per file attempt when its bytes have arrived and the server
+   * is processing it ("Checking", spec §5.6 Uploaded — processing).
+   */
+  onProcessing?: (file: File) => void
+  /**
+   * Called while a file's bytes are on their way, with its transfer
+   * progress in whole percent (0 to 100), each time that number changes
+   * (spec §5.2 step 5, §5.4: per-file progress; Match shows it, X6).
+   */
+  onProgress?: (file: File, percent: number) => void
+  /**
+   * Set to this queue's controls while the dialog is mounted, so an owner
+   * that keeps the dialog closed (Match) can offer Retry on its own rows
+   * (spec §5.4, X6). Null when unmounted.
+   */
+  controlRef?: React.RefObject<UploadControl | null>
   /**
    * Optional labels in the sheet ("What's in these photos?"): sent by asset
    * ID as soon as each file is reserved, and on the photo once it is ready.
@@ -165,7 +199,21 @@ type UploadDialogProps = {
    * Called once per file that ends without becoming ready, and why: it
    * failed, was cancelled, or was removed (or cleared) from the queue.
    */
-  onUnfinished?: (file: File, reason: UploadUnfinishedReason) => void
+  onUnfinished?: (
+    file: File,
+    reason: UploadUnfinishedReason,
+    /**
+     * For a failed file, where it stopped: "processing" when the server had
+     * the original and could not finish it (spec §5.6 Processing failed),
+     * "transfer" when the bytes did not all arrive.
+     */
+    stage?: "transfer" | "processing",
+    /**
+     * For a failed file, whether Retry can still finish it (false: the
+     * server refused it for good, so only choosing it again starts anew).
+     */
+    retryable?: boolean
+  ) => void
   /** Called once per file when the server has reserved it, with its asset ID. */
   onReserved?: (file: File, assetId: string) => void
   /**
@@ -200,6 +248,16 @@ type UploadDialogProps = {
    * uploads that didn't finish in an earlier tab, and the probe line).
    */
   idle?: React.ReactNode
+}
+
+/** What an owner may do with a file in this queue from outside it (X6). */
+export type UploadControl = {
+  /**
+   * Retry the file's failed (or cancelled) transfer or finalise, as the
+   * row's Retry does: the same asset, never sent twice. False when the file
+   * has nothing Retry can finish.
+   */
+  retry: (file: File) => boolean
 }
 
 /** Where a replacement asked for from a row stands. */
@@ -360,6 +418,10 @@ export type QueuedOutcome = {
   rejected: readonly RejectedFile[]
   /** Files the queue can still take before it is full. */
   room: number
+  /** The files this pick added, each one new queue item. */
+  added: readonly File[]
+  /** The selection they joined: their `UploadContext.batchId`. */
+  batchId: string
 }
 
 export type UploadBusy = {
@@ -769,6 +831,9 @@ export function UploadDialog({
   limits,
   onUploaded,
   onReady,
+  onProcessing,
+  onProgress,
+  controlRef,
   labels: labelsConfig,
   startOnPick = false,
   keepRunningWhenClosed = false,
@@ -997,7 +1062,14 @@ export function UploadDialog({
     onUploaded?.(fresh.length)
     if (!onReady) return
     const gone = fresh.filter(
-      (item) => item.assetId && onReady([item.assetId], [item.file]) === false
+      (item) =>
+        item.assetId &&
+        onReady(
+          [item.assetId],
+          [item.file],
+          [uploadReceipt(item)],
+          [item.duplicate === true]
+        ) === false
     )
     if (gone.length === 0) return
     // The screen that picked them closed: keep them listed until seen.
@@ -1009,13 +1081,70 @@ export function UploadDialog({
     })
   }, [signedOut, items, onUploaded, onReady])
 
+  // Each attempt that reaches the server's processing, once ("Checking").
+  const checking = React.useRef(new Set<string>())
+  React.useEffect(() => {
+    for (const item of items) {
+      if (item.status === "processing") {
+        if (checking.current.has(item.id)) continue
+        checking.current.add(item.id)
+        onProcessing?.(item.file)
+      } else if (item.status !== "done") checking.current.delete(item.id)
+    }
+  }, [items, onProcessing])
+
+  // Each file's transfer progress, in whole percent, when it changes (X6).
+  const percents = React.useRef(new Map<string, number>())
+  React.useEffect(() => {
+    if (!onProgress) return
+    for (const item of items) {
+      if (item.status !== "uploading") {
+        percents.current.delete(item.id)
+        continue
+      }
+      const percent = Math.round(Math.min(1, Math.max(0, item.progress)) * 100)
+      if (percents.current.get(item.id) === percent) continue
+      percents.current.set(item.id, percent)
+      onProgress(item.file, percent)
+    }
+  }, [items, onProgress])
+
+  // Retry from outside the sheet (Match's rows, X6): the row's own Retry.
+  React.useImperativeHandle(
+    controlRef,
+    () => ({
+      retry: (file: File) => {
+        const item = [...items]
+          .reverse()
+          .find(
+            (i) =>
+              i.file === file &&
+              ((i.status === "failed" && i.retryable !== false) ||
+                i.status === "cancelled")
+          )
+        if (!item) return false
+        trackFlow({ name: "transfer_retried", count: 1 })
+        queue.retry(item.id)
+        return true
+      },
+    }),
+    [items, queue]
+  )
+
   // Each file that ends without becoming ready, once, and why.
   const ended = React.useRef(new Set<string>())
   const unfinished = React.useCallback(
     (item: QueueItem, reason: UploadUnfinishedReason) => {
       if (item.status === "done" || ended.current.has(item.id)) return
       ended.current.add(item.id)
-      onUnfinished?.(item.file, reason)
+      if (reason === "failed" && item.failedStage)
+        onUnfinished?.(
+          item.file,
+          reason,
+          item.failedStage,
+          item.retryable !== false
+        )
+      else onUnfinished?.(item.file, reason)
     },
     [onUnfinished]
   )
@@ -1353,6 +1482,8 @@ export function UploadDialog({
       onQueued?.({
         rejected: refused,
         room: Math.max(0, limits.maxBatchFiles - queue.pending()),
+        added: result.addedFiles,
+        batchId: result.batchId,
       }) ?? []
     setRejected(refused.filter((r) => !r.file || !kept.includes(r.file)))
     setCloseBlocked(false)
@@ -1653,6 +1784,7 @@ export function UploadDialog({
                   }}
                   onRetry={() => {
                     focusStatus(item.id)
+                    trackFlow({ name: "transfer_retried", count: 1 })
                     queue.retry(item.id)
                   }}
                   onRetryLabels={() => {
@@ -1799,7 +1931,16 @@ export function UploadDialog({
                 </Button>
               ) : null}
               {!startOnPick && settled && retryableFailed > 0 ? (
-                <Button variant="secondary" onClick={queue.retryFailed}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    trackFlow({
+                      name: "transfer_retried",
+                      count: retryableFailed,
+                    })
+                    queue.retryFailed()
+                  }}
+                >
                   <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
                   Retry {retryableFailed} failed
                 </Button>

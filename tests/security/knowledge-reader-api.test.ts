@@ -14,6 +14,7 @@ import { GET } from "@/app/api/knowledge/v1/venues/[venueId]/answers/route"
 import { createVenue } from "../support/identities"
 import {
   call,
+  confirmWaiting,
   decide,
   json,
   service,
@@ -162,10 +163,15 @@ describe("internal reader over the database", () => {
       finding: "TEST car park behind",
       limitations: "TEST gravel",
     })
-    await yes(w.staffA, w, "guest_wifi", {
-      finding: "TEST password is hunter2",
-      limitations: "TEST hunter2 on the bar",
-    })
+    // S1-FACTS (AC25): a manager confirms guest Wi-Fi.
+    await confirmWaiting(
+      w,
+      "guest_wifi",
+      await yes(w.staffA, w, "guest_wifi", {
+        finding: "TEST password is hunter2",
+        limitations: "TEST hunter2 on the bar",
+      })
+    )
     await submit(w.staffB, w, "guest_toilets", { answer: "unknown" })
     await yes(w.staffA, w, "step_free_entrance")
     await yes(other.staffA, other, "onsite_parking", {
@@ -205,7 +211,12 @@ describe("internal reader over the database", () => {
         redactionProof: null,
         evidence: { photos: 1, videos: 0 },
       },
-      freshness: { observedAt: null, nextCheckDue: null, state: "unrated" },
+      // S1-FACTS: 90 days from the day it was verified (spec §9.3).
+      freshness: {
+        observedAt: null,
+        nextCheckDue: expect.any(String),
+        state: "current",
+      },
     })
     expect(Object.keys(p.provenance).sort()).toEqual(PROVENANCE_KEYS)
     expect(Object.keys(p.freshness).sort()).toEqual(FRESHNESS_KEYS)

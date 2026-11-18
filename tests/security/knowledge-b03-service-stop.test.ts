@@ -47,7 +47,7 @@ const WEEKLY = {
 function attach(contributionId: string, detail: object, schema = "service") {
   psql(`insert into public.knowledge_contribution_details
       (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
-    select x.id, x.venue_id, 1, '${schema}', 1, '${JSON.stringify(detail)}'::jsonb,
+    select x.id, x.venue_id, (select max(v.version) from public.knowledge_question_versions v where v.key = x.question_key), '${schema}', 1, '${JSON.stringify(detail)}'::jsonb,
       encode(sha256(x.id::text::bytea), 'hex')
     from public.knowledge_contributions x where x.id = '${contributionId}'`)
 }
@@ -987,7 +987,7 @@ rollback;
 
 /** Switches the transaction to a signed-in caller (role authenticated). */
 const as = (who: Identity) => `reset role;
-set local "request.jwt.claims" to ${lit({ sub: who.id, role: "authenticated" })};
+set local "request.jwt.claims" to ${lit({ sub: who.id, role: "authenticated", aal: "aal2" })};
 set local role authenticated;`
 
 /** Stores the slot revision in a40.rev, as the owner. */

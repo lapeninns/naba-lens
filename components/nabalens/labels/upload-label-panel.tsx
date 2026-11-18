@@ -652,7 +652,8 @@ export function UploadLabelPanel({
       <div className="grid gap-2">
         {!one ? (
           <p className={FIELD_HINT}>
-            These go on every photo. Use Adjust to change one photo only.
+            {/* Spec §5.4: the scope of the shared choice is said, never assumed. */}
+            {`These go on all ${files.length} photos. Use Adjust to change one photo only.`}
           </p>
         ) : null}
         <ul

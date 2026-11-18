@@ -14,8 +14,13 @@ export const ROUTES = {
   managerReview: "/manager/review",
   managerMenu: "/manager/menu",
   managerAccount: "/manager/account",
+  /** Admin area root (the Library); the protected prefix. */
   adminHome: "/admin",
+  /** Where admins land: Overview first (spec §8; K7). */
+  adminLanding: "/admin/overview",
   blocked: "/auth/blocked",
+  /** Second sign-in step: set up or enter an authenticator code (FA-23). */
+  mfa: "/auth/mfa",
 } as const
 
 /**
@@ -29,7 +34,7 @@ export function homePathFor(role: AppRole): string {
     case "manager":
       return ROUTES.managerHome
     case "admin":
-      return ROUTES.adminHome
+      return ROUTES.adminLanding
     default: {
       const unknownRole: never = role
       throw new Error(`No home for role ${String(unknownRole)}`)

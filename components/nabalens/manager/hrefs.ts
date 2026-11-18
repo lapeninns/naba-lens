@@ -14,7 +14,7 @@ import type {
 export type ReviewStatusFilter = QueueStatus
 
 /** An eligible menu item's photo status (`/manager/menu?status=`). */
-export type MenuPhotoStatus = MenuItemStatus
+export type MenuPhotoStatus = Exclude<MenuItemStatus, "optional">
 
 export type ReviewQuery = {
   status?: ReviewStatusFilter
@@ -24,7 +24,25 @@ export type ReviewQuery = {
   contributor?: string
   /** Menu item id. */
   item?: string
+  /** S2-REVIEW: category (food or drinks dishes). */
+  category?: ReviewCategory
+  /** S2-REVIEW: waiting at least this many days ("2" or "7"). */
+  age?: `${ReviewAge}`
+  /** S2-REVIEW: possible duplicates only ("1"). */
+  dupes?: "1"
+  /** S2-REVIEW: dishes with a needed-by date only ("1"). */
+  needed?: "1"
+  /** K11: photos or videos only. */
+  media?: ReviewMedia
 }
+
+/** Media type filters (spec §7 M2 video/photo). */
+export type ReviewMedia = "photo" | "video"
+
+/** The dish categories a Review list can narrow to (FA-6). */
+export type ReviewCategory = "food" | "drinks"
+/** Age filters, in days (spec §7 M2). */
+export type ReviewAge = 2 | 7
 
 export type MenuQuery = {
   status?: MenuStatusFilter
@@ -33,7 +51,13 @@ export type MenuQuery = {
   q?: string
 }
 
-export type ManagerSection = "overview" | "review" | "menu" | "amenities"
+/**
+ * Spec §7 navigation (S2-MGR): Overview / Review / Album / Requests / Venue.
+ * Album holds the menu and amenity screens (they were two tabs); Venue holds
+ * menus and specials, team, reviewers, facts, exports and history.
+ */
+export type ManagerSection =
+  "overview" | "review" | "album" | "requests" | "venue"
 
 function withQuery(
   path: string,
@@ -60,6 +84,21 @@ export const managerHrefs = {
    * Add does not fit the 390px phone bar.
    */
   search: "/manager/search",
+  /** S1-EXPORT: the venue's export packages, under Venue. */
+  exports: "/manager/exports",
+  /** S2-MGR: the Venue hub (spec §7 M5). */
+  venue: "/manager/venue",
+  venueFacts: "/manager/venue/facts",
+  venueHistory: "/manager/venue/history",
+  /** S3-R5 (K3): staff reports of a changed slot or photo detail. */
+  venueReports: "/manager/venue/reports",
+  /** S1-MENUS screens, reached from the Venue hub. */
+  menuVersions: "/manager/menu/versions",
+  specials: "/manager/menu/specials",
+  /** Album places and briefs (Album A2), reached from the Venue hub. */
+  albumPlaces: "/manager/album",
+  /** S2-REQ: requests and shot lists (spec §7 M4). */
+  requests: "/manager/requests",
   review: (q?: ReviewQuery) => withQuery("/manager/review", q),
   contributor: (id: string) =>
     `/manager/review/contributors/${encodeURIComponent(id)}`,
@@ -68,6 +107,12 @@ export const managerHrefs = {
   /** The admin Review page for a venue (same Review screen, admin layout). */
   adminMenuPhotos: (venueId: string, q?: ReviewQuery) =>
     withQuery(`/admin/coverage/${encodeURIComponent(venueId)}/menu-photos`, q),
+  /** S2-REVIEW: one photo's review detail. */
+  photo: (assetId: string) =>
+    `/manager/review/photo/${encodeURIComponent(assetId)}`,
+  /** S3-R11 (review V18): one photo's review detail for an admin. */
+  adminPhoto: (venueId: string, assetId: string) =>
+    `/admin/coverage/${encodeURIComponent(venueId)}/menu-photos/photo/${encodeURIComponent(assetId)}`,
   adminContributor: (venueId: string, id: string) =>
     `/admin/coverage/${encodeURIComponent(venueId)}/menu-photos/contributors/${encodeURIComponent(id)}`,
 } as const
@@ -78,8 +123,23 @@ export function managerSectionFor(pathname: string): ManagerSection | null {
   const under = (prefix: string) =>
     path === prefix || path.startsWith(`${prefix}/`)
   if (under("/manager/review")) return "review"
-  if (under("/manager/menu")) return "menu"
-  if (under("/manager/amenities")) return "amenities"
+  if (under("/manager/requests")) return "requests"
+  if (
+    under("/manager/venue") ||
+    under("/manager/team") ||
+    under("/manager/exports") ||
+    under("/manager/menu/versions") ||
+    under("/manager/menu/specials")
+  )
+    return "venue"
+  if (
+    under("/manager/menu") ||
+    under("/manager/amenities") ||
+    under("/manager/album") ||
+    under("/manager/search") ||
+    under("/manager/uploads")
+  )
+    return "album"
   if (path === "/manager") return "overview"
   return null
 }

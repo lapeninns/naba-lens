@@ -111,6 +111,7 @@ function area(over: Partial<AreaPhotoCard> = {}): AreaPhotoCard {
     assetId: id(0xb1),
     authorName: "TEST Ana Park",
     area: "Beer garden",
+    subjectId: id(0xd7),
     uploadedAt: "2026-11-04T18:00:00.000Z",
     labelledAt: "2026-11-04T18:01:00.000Z",
     creditMonth: "2026-11-01",
@@ -156,6 +157,41 @@ const accepted = (itemId = SOUP, itemRevision = 4) => ({
 })
 
 describe("Review in a thumb", () => {
+  // S5-R2 (Y4, FA-52): the stage shows the brief staff were given.
+  it("shows each slot's resolved brief: a request's for a dish, the template's for an area", () => {
+    renderReview({
+      menuCards: [dish(1)],
+      areaCards: [area({ labelledAt: "2026-11-05T18:01:00.000Z" })],
+      total: 2,
+      context: {
+        sectionPlace: {},
+        slotBrief: {
+          [`dish:${SOUP}`]: "Side view showing the mash",
+          [`area:${id(0xd7)}`]: "Wide, from the door",
+        },
+        sectionBrief: {},
+        itemBrief: {},
+      },
+    })
+    expect(screen.getByText("Side view showing the mash")).toBeTruthy()
+    cleanup()
+    renderReview({
+      menuCards: [],
+      areaCards: [area()],
+      total: 1,
+      context: {
+        sectionPlace: {},
+        slotBrief: { [`area:${id(0xd7)}`]: "Wide, from the door" },
+        sectionBrief: {},
+        itemBrief: {},
+      },
+    })
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Beer garden" })
+    ).toBeTruthy()
+    expect(screen.getByText("Wide, from the door")).toBeTruthy()
+  })
+
   it("titles the page with the queue count and shows one photo with its slot, brief, author, time and place", () => {
     renderReview({
       menuCards: [dish(1), dish(2, {}, { itemId: PIE, name: "Pie" })],
@@ -232,11 +268,13 @@ describe("Review in a thumb", () => {
         .getAllByRole("button")
         .map((b) => b.textContent)
     ).toEqual([
+      "Show all of it",
       "Too dark",
       "Out of focus",
-      "Wrong item",
-      "Show more of it",
+      "Not how it's served now",
+      "Show the way in",
       "Messy background",
+      "People or personal details in shot",
       "Other",
       "Cancel",
     ])

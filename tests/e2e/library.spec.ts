@@ -10,7 +10,7 @@ import {
 } from "../library/e2e"
 import { secondsBefore, seedAsset, setupIdentity } from "../library/seed"
 import { createVenue, serviceClient } from "../support/identities"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { ADMIN_LANDING, openPortfolio, STAFF_LANDING } from "./helpers/ui"
 
 /**
  * The library track's browser checks (spec §3 admin library and portfolio, §7
@@ -132,7 +132,7 @@ test.describe("admin library", () => {
 
     const page = await signInAs(browser, admin, adminUser, baseURL!)
     const checkOptimiser = forbidImageOptimiser(page)
-    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page).toHaveURL(ADMIN_LANDING)
 
     // URL -> filters: a shared link opens with the same filters applied.
     await page.goto(`/admin?venue=${venueA.id}&type=image`)
@@ -366,9 +366,17 @@ test.describe("signed previews", () => {
 
     // A load that fails once (e.g. expired between redirect and fetch) is
     // re-signed and retried once, invisibly.
+    // Me also lists the photo under Your photos (S2-STAFF My uploads), which
+    // loads the same thumb route: fail every first load (no `r`) once, so
+    // each image on the page shows its own retry.
     let failures = 0
+    let retries = 0
     await staffPage.route(`**/api/media/${photos[1].id}/thumb*`, (route) => {
-      if (failures++ === 0) return route.fulfill({ status: 503, body: "" })
+      if (!new URL(route.request().url()).searchParams.has("r")) {
+        failures++
+        return route.fulfill({ status: 503, body: "" })
+      }
+      retries++
       return route.continue()
     })
     await staffPage.reload()
@@ -377,7 +385,8 @@ test.describe("signed previews", () => {
     expect(await second.getAttribute("src")).toBe(
       `/api/media/${photos[1].id}/thumb?r=1`
     )
-    expect(failures).toBe(2)
+    expect(failures).toBeGreaterThanOrEqual(1)
+    expect(retries).toBeGreaterThanOrEqual(1)
     await expect(previewAlert(staffPage)).toHaveCount(0)
 
     // A load that keeps failing shows a visible error; Try again recovers.
@@ -386,8 +395,16 @@ test.describe("signed previews", () => {
       route.fulfill({ status: 503, body: "" })
     )
     await staffPage.reload()
-    const alert = previewAlert(staffPage)
+    // Me lists Your photos first (S2-STAFF), so the portfolio's lazy tiles
+    // load only once scrolled to.
+    await portfolio.getByRole("button").nth(2).scrollIntoViewIfNeeded()
+    // Your photos follows the same rule (S3-R4, F7) with its own notice.
+    const yours = staffPage.locator('[data-slot="my-uploads-broken"]')
+    const alert = previewAlert(staffPage).and(
+      staffPage.locator(':not([data-slot="my-uploads-broken"])')
+    )
     await expect(alert).toHaveText(/1 preview could not load\./)
+    await expect(yours).toHaveText(/1 preview could not load\./)
     await expect(
       portfolio.getByRole("button").nth(2).locator("img")
     ).toHaveCount(0)
@@ -395,6 +412,8 @@ test.describe("signed previews", () => {
     await alert.getByRole("button", { name: "Try again" }).click()
     await expectImageLoaded(portfolio.getByRole("button").nth(2).locator("img"))
     await expect(alert).toHaveCount(0)
+    await yours.getByRole("button", { name: "Try again" }).click()
+    await expect(yours).toHaveCount(0)
     checkStaffOptimiser()
 
     // --- Admin portfolio (/admin/staff/[id]): the same gallery and recovery.

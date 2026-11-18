@@ -1,4 +1,6 @@
 import { plural } from "@/components/nabalens/coverage/copy"
+import { CHIP_STATES } from "@/components/nabalens/status-chip"
+import { INBOX_COPY } from "@/components/nabalens/manager/review/inbox-copy"
 
 /** Words of the venue manager workspace, shared by its pages and tests. */
 export const MANAGER_COPY = {
@@ -26,6 +28,10 @@ export const MANAGER_COPY = {
     item: "this menu item",
     account: "your account",
     team: "the team's targets",
+    venue: "the venue",
+    venueFacts: "what needs confirming",
+    venueHistory: "the venue's history",
+    venueReports: "reported changes",
   },
   notFound: {
     title: "This page isn't available in your workspace",
@@ -55,10 +61,18 @@ export const MANAGER_COPY = {
     needsLabels: (n: number) =>
       `${plural(n, "photo")} ${n === 1 ? "needs" : "need"} labels`,
     reviewPhotos: "Review photos",
+    exportsTitle: "Export photos",
+    exportsLine:
+      "Download photos accepted for public use and record where they are published.",
     quietTitle: "Nothing waiting for review",
     quietBody: (n: number) =>
       `${plural(n, "item")} still ${n === 1 ? "needs" : "need"} a photo. Staff see these gaps in Our menu.`,
     quietLink: "See items without a photo",
+    // S3-R5: with the actions panel, Review next already says "Nothing
+    // waiting for review", so the quiet card leads with the gap instead.
+    gapsTitle: (n: number) =>
+      `${plural(n, "item")} still ${n === 1 ? "needs" : "need"} a photo`,
+    gapsBody: "Staff see these gaps in Our menu.",
     doneTitle: "Every menu item has a photo",
     doneLink: "Review newer photos",
     sectionsTitle: "By section",
@@ -67,6 +81,100 @@ export const MANAGER_COPY = {
     banner: (date: string, carried: number, recheck: number, added: number) =>
       `Menu active since ${date}: ${plural(carried, "item")} kept their photo, ${recheck} need a new decision, ${plural(added, "new item")}.`,
     reviewChanges: "Review changes",
+  },
+  /** S2-MGR: the Venue hub and its pages (spec §7 M5). */
+  venue: {
+    title: "Venue",
+    loading: "Loading the venue",
+    summary:
+      "Menus, specials, spaces, facilities, the team and who reviews photos here.",
+    menusTitle: "Current menus",
+    menusFailed: "Menus couldn't be loaded. Try again in a moment.",
+    noMenu:
+      "No menu is active yet. An admin imports and activates it; staff can keep adding photos meanwhile.",
+    startsLater: (title: string, when: string) => `${title} starts ${when}`,
+    menusLink: "Menus and change requests",
+    menusLine:
+      "The current menu, later ones, and asking an admin for a change.",
+    availabilityLink: "Dishes, availability and local names",
+    availabilityLine:
+      "Mark a dish unavailable for now or give it a local name.",
+    specialsTitle: "Local specials",
+    specialsLine: (running: number, waiting: number) =>
+      `${running} running · ${waiting} waiting for a decision`,
+    specialsUnknown: "Dated specials for this venue.",
+    spacesTitle: "Spaces",
+    spacesLine: (current: number, due: number) =>
+      `${current} photos current · ${due} due a check`,
+    spacesUnknown: "Where staff photograph each part of the venue.",
+    placesLink: "Album places and briefs",
+    placesLine: "Where staff stand to photograph each section, and its brief.",
+    facilitiesTitle: "Facilities and policies",
+    factsLine: (text: string, percent: string | null, waiting: number) =>
+      `${text} facts confirmed${percent ? ` (${percent})` : ""} · ${waiting} to confirm`,
+    factsUnknown: "We couldn't count the facts.",
+    amenitiesLink: "Facilities and questions",
+    amenitiesLine: "Answer questions, mark what is not here, assign checks.",
+    toConfirmLink: "To confirm",
+    toConfirmLine: (n: number | null) =>
+      n === null
+        ? "Facts and space photos to confirm as still right."
+        : n === 0
+          ? "Nothing to confirm"
+          : `${n} to confirm as still right`,
+    // S3-R5 (K3): staff reports of a changed slot or photo detail.
+    reportsLink: "Reported changes",
+    reportsLine: (n: number | null) =>
+      n === null
+        ? "What staff told you has changed."
+        : n === 0
+          ? "Nothing reported"
+          : `${n} reported by staff`,
+    teamTitle: "Team",
+    teamLink: "People and photo targets",
+    teamLine: "Invite or remove staff, switch venue, set monthly targets.",
+    reviewersTitle: "Review assignments",
+    reviewersFailed: "Reviewers couldn't be loaded. Try again in a moment.",
+    historyTitle: "History",
+    historyEmpty: "No changes recorded yet.",
+    historyFailed: "History couldn't be loaded. Try again in a moment.",
+    historyAll: "See all history",
+    exportsLink: "Export photos",
+    exportsLine:
+      "Packages of photos for public use, and where they are published.",
+  },
+  venueFacts: {
+    title: "To confirm",
+    loading: "Loading what needs confirming",
+    summary:
+      "Say whether each answer or photo is still right. Nothing changes except the date it was checked.",
+    factsTitle: "Facts",
+    factsEmpty: "Every fact is confirmed.",
+    factsFailed: "Facts couldn't be loaded. Try again in a moment.",
+    spacesTitle: "Space photos",
+    spacesEmpty: "No space photos are due a check.",
+    spacesFailed: "Space photos couldn't be loaded. Try again in a moment.",
+  },
+  /** S3-R5 (K3): Venue › Reported changes (spec §6 S3, S4, §7 M5). */
+  venueReports: {
+    title: "Reported changes",
+    loading: "Loading reported changes",
+    summary:
+      "Staff told you something has changed. Nothing changes until you change it: open it, then mark the report dealt with.",
+    listLabel: "Reported changes",
+    empty: "Nothing reported. Staff can report a change from any slot.",
+    failed: "Reported changes couldn't be loaded. Try again in a moment.",
+  },
+  venueHistory: {
+    title: "History",
+    loading: "Loading the venue's history",
+    summary: "Every recorded change at this venue, newest first.",
+    all: "All changes",
+    empty: "No changes of this kind yet.",
+    more: "Show older changes",
+    loadingMore: "Loading",
+    failed: "Older changes couldn't be loaded. Try again.",
+    by: (name: string | null) => (name ? `by ${name}` : "by the system"),
   },
   review: {
     title: "Review",
@@ -82,7 +190,8 @@ export const MANAGER_COPY = {
       "A contributor's photos will appear here once item review is switched on for your venue.",
   },
   menu: {
-    title: "Menu",
+    // S3-R13: the page the Album tab opens is headed as the tab is named.
+    title: "Album",
     loading: "Loading the menu",
     search: "Search items",
     searchPlaceholder: "Item name",
@@ -114,7 +223,7 @@ export const MANAGER_COPY = {
   item: {
     title: "Menu item",
     loading: "Loading this menu item",
-    back: "Menu",
+    back: "Album",
     menuPhoto: "Menu photo",
     noMenuPhoto: "No menu photo yet",
     fallback: "Showing the earliest accepted photo",
@@ -124,18 +233,19 @@ export const MANAGER_COPY = {
     alternatives: "Accepted alternatives",
     setPreferred: "Set as menu photo",
     withdrawAcceptance: "Withdraw acceptance",
-    askedForAnother: "Asked for another photo",
+    askedForAnother: CHIP_STATES.coverage_replacement_needed.word,
     withdraw: "Withdraw",
     recheck: "Needs a recheck",
     recheckKind: {
       name_changed: "Name changed on the new menu",
       section_changed: "Section type changed",
       variant_removed: "Option no longer on the menu",
+      presentation_changed: "Served differently now",
     },
-    acceptAgain: "Accept again for this menu",
+    acceptAgain: INBOX_COPY.publicUse.again,
     variantRemoved: "This option is no longer on the menu",
     movedFrom: (name: string) => `Moved from ${name}`,
-    waiting: "Waiting for review",
+    waiting: CHIP_STATES.coverage_pending.word,
     waitingCount: (n: number) => `${plural(n, "photo")} waiting for a decision`,
     reviewWaiting: "Review these photos",
     noneWaiting: "No photos of this item are waiting for a decision.",
@@ -158,7 +268,7 @@ export const MANAGER_COPY = {
     done: {
       set_preferred: (item: string) => `Set as the menu photo for ${item}.`,
       withdraw: "Withdrawn.",
-      reaccept: (item: string) => `Accepted again for ${item}.`,
+      reaccept: INBOX_COPY.publicUse.doneAgain,
     },
     history: "History",
     historyVerb: {

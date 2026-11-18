@@ -87,62 +87,66 @@ export async function addChecks(
   return { ok: true, checkIds: data }
 }
 
+/**
+ * Archive (not here) or restore a check, always with a reason (S2-MGR; spec
+ * §4.4, AC29). Both go through amenity_check_set_applicability, which records
+ * the reason in amenity_scope_events and wraps the keyed archive and restore;
+ * the reasonless commands are no longer granted to signed-in users. A request
+ * without a key gets one here, so a retry of the same call is still safe.
+ */
+async function setApplicability(
+  actor: MediaActor,
+  input: unknown,
+  applicable: boolean
+): Promise<AmenityResult<KeyedRevision>> {
+  const parsed = parseRevisionInput(input)
+  if (!parsed.ok) return parsed
+  const key = requestKey(input)
+  if (key === null) return KEY_INVALID
+  const raw = isObject(input) ? input.reason : undefined
+  const reason = typeof raw === "string" ? raw.trim() : ""
+  if (!reason) return invalid({ reason: "Enter a reason." })
+  if (reason.length > 500)
+    return invalid({ reason: "Use up to 500 characters." })
+  const { data, error } = await actor.db.rpc(
+    "amenity_check_set_applicability",
+    {
+      p_check_id: parsed.value.checkId,
+      p_applicable: applicable,
+      p_reason: reason,
+      p_revision: parsed.value.revision,
+      p_idempotency_key: key ?? crypto.randomUUID(),
+    }
+  )
+  if (error)
+    return amenityRpcFailure(
+      error,
+      applicable ? "restore check" : "archive check"
+    )
+  const result = data as { revision?: unknown; replayed?: unknown } | null
+  if (typeof result?.revision !== "number")
+    return amenityRpcFailure(null, "archive check shape")
+  return {
+    ok: true,
+    revision: result.revision,
+    ...(key ? { replayed: result.replayed === true } : {}),
+  }
+}
+
+/** Not here at this venue, with a reason (`{ checkId, revision, reason }`). */
 export async function archiveCheck(
   actor: MediaActor,
   input: unknown
 ): Promise<AmenityResult<KeyedRevision>> {
-  const parsed = parseRevisionInput(input)
-  if (!parsed.ok) return parsed
-  const key = requestKey(input)
-  if (key === null) return KEY_INVALID
-  if (key) {
-    const { data, error } = await amenityKeyedRpc(
-      actor,
-      "amenity_archive_check",
-      {
-        p_check_id: parsed.value.checkId,
-        p_revision: parsed.value.revision,
-        p_idempotency_key: key,
-      }
-    )
-    if (error) return amenityRpcFailure(error, "archive check")
-    return { ok: true, ...data }
-  }
-  const { data, error } = await amenityRpc(actor, "amenity_archive_check", {
-    p_check_id: parsed.value.checkId,
-    p_revision: parsed.value.revision,
-  })
-  if (error) return amenityRpcFailure(error, "archive check")
-  return { ok: true, revision: data }
+  return setApplicability(actor, input, false)
 }
 
+/** Here again, with a reason (`{ checkId, revision, reason }`). */
 export async function restoreCheck(
   actor: MediaActor,
   input: unknown
 ): Promise<AmenityResult<KeyedRevision>> {
-  const parsed = parseRevisionInput(input)
-  if (!parsed.ok) return parsed
-  const key = requestKey(input)
-  if (key === null) return KEY_INVALID
-  if (key) {
-    const { data, error } = await amenityKeyedRpc(
-      actor,
-      "amenity_restore_check",
-      {
-        p_check_id: parsed.value.checkId,
-        p_revision: parsed.value.revision,
-        p_idempotency_key: key,
-      }
-    )
-    if (error) return amenityRpcFailure(error, "restore check")
-    return { ok: true, ...data }
-  }
-  const { data, error } = await amenityRpc(actor, "amenity_restore_check", {
-    p_check_id: parsed.value.checkId,
-    p_revision: parsed.value.revision,
-  })
-  if (error) return amenityRpcFailure(error, "restore check")
-  return { ok: true, revision: data }
+  return setApplicability(actor, input, true)
 }
 
 /** `assigneeId: null` unassigns. */

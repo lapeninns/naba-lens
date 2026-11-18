@@ -71,6 +71,7 @@ describe("amenity services", () => {
   let video1: string
   let managerPhoto: string
   let wifiCheck: { id: string; revision: number }
+  let stepFreeCheck: { id: string; revision: number }
   let dartsId: string
 
   beforeAll(async () => {
@@ -194,6 +195,15 @@ describe("amenity services", () => {
     })
     const wifi = view.active.find((c) => c.entry.key === "guest_wifi")!
     wifiCheck = { id: wifi.id, revision: wifi.revision }
+    // FA-47 (catalogue v2): Wi-Fi is a policy question, the fact only. The
+    // step-free entrance still asks for a video, so it carries the
+    // evidence-rule checks below.
+    expect(wifi.entry.evidenceRule).toBe("none")
+    const stepFree = view.active.find(
+      (c) => c.entry.key === "step_free_entrance"
+    )!
+    expect(stepFree.entry.evidenceRule).toBe("video")
+    stepFreeCheck = { id: stepFree.id, revision: stepFree.revision }
   })
 
   it("keeps managers to their own venue and staff out of venue lists", async () => {
@@ -216,8 +226,13 @@ describe("amenity services", () => {
       await archiveCheck(actors.otherManager, {
         checkId: wifiCheck.id,
         revision: wifiCheck.revision,
+        reason: "TEST not here",
       })
-    ).toMatchObject({ code: "not_found" })
+      // amenity_check_set_applicability (S2-MGR) checks the venue first.
+    ).toMatchObject({
+      code: "not_permitted",
+      message: expect.stringMatching(/this venue's manager/),
+    })
     expect(
       await enableAmenities(actors.otherManager, { venueId: venueB })
     ).toMatchObject({ code: "not_permitted" })
@@ -270,7 +285,17 @@ describe("amenity services", () => {
 
     const revision = okOf(await getCheck(actors.manager, { checkId: darts }))
       .detail.check.revision
-    okOf(await archiveCheck(actors.manager, { checkId: darts, revision }))
+    // Archive and restore always carry a reason (S2-MGR; spec §4.4, AC29).
+    expect(
+      await archiveCheck(actors.manager, { checkId: darts, revision })
+    ).toMatchObject({ code: "invalid_input" })
+    okOf(
+      await archiveCheck(actors.manager, {
+        checkId: darts,
+        revision,
+        reason: "TEST not offered",
+      })
+    )
     expect(
       okOf(await addChecks(actors.manager, { keys: ["darts"] })).checkIds
     ).toEqual([darts])
@@ -370,13 +395,24 @@ describe("amenity services", () => {
       },
       redactionConfirmed: true,
     }
+    // The evidence rule, on a check that still asks for a video (FA-47).
+    const stepFree = okOf(
+      await assignCheck(actors.manager, {
+        checkId: stepFreeCheck.id,
+        revision: stepFreeCheck.revision,
+        assigneeId: staff1.id,
+      })
+    )
     expect(
       await submitFinding(actors.staff1, {
-        ...base,
+        checkId: stepFreeCheck.id,
+        revision: stepFree.revision,
         idempotencyKey: crypto.randomUUID(),
+        answer: "yes",
+        finding: "Level entrance at the front",
         assetIds: [photo1],
       })
-    ).toMatchObject({ code: "evidence_rule_unmet", rule: "both" })
+    ).toMatchObject({ code: "evidence_rule_unmet", rule: "video" })
     expect(
       await submitFinding(actors.staff1, {
         ...base,
@@ -556,10 +592,20 @@ describe("amenity services", () => {
         notes: "Cover the router label",
       })
     )
-    const archived = okOf(
+    // Wi-Fi is a core question: only an admin marks it not here or restores
+    // it (S2-MGR), always with a reason.
+    expect(
       await archiveCheck(actors.manager, {
         checkId: wifiCheck.id,
         revision: notes.revision,
+        reason: "TEST closed for refit",
+      })
+    ).toMatchObject({ code: "not_permitted" })
+    const archived = okOf(
+      await archiveCheck(actors.admin, {
+        checkId: wifiCheck.id,
+        revision: notes.revision,
+        reason: "TEST closed for refit",
       })
     )
     expect(
@@ -573,9 +619,10 @@ describe("amenity services", () => {
       })
     ).toMatchObject({ code: "state_conflict" })
     const restored = okOf(
-      await restoreCheck(actors.manager, {
+      await restoreCheck(actors.admin, {
         checkId: wifiCheck.id,
         revision: archived.revision,
+        reason: "TEST open again",
       })
     )
     expect(restored.revision).toBe(archived.revision + 1)

@@ -5,9 +5,10 @@ import { expect, test, type Locator, type Route } from "@playwright/test"
 
 import { provisioner, psql } from "../e2e/helpers/stack"
 import {
-  STAFF_LANDING,
+  ADMIN_LANDING,
   libraryList,
   openPortfolio,
+  STAFF_LANDING,
   staffTile,
 } from "../e2e/helpers/ui"
 import {
@@ -33,7 +34,7 @@ import {
 /**
  * Media upload interruption and recovery against the real local Supabase
  * stack (real TUS resumable uploads and signed PUTs through the real upload
- * sheet: Me's "Add photos or videos" opens Add's queue, which starts
+ * sheet: Me's "Add a video" (R15-1) opens Add's queue, which starts
  * uploading as soon as files are picked and is titled "Saving N photos" from
  * then on). Every test asserts the CORRECT behaviour; the interruption is made
  * with Playwright routes or the browser's offline switch, never with Docker.
@@ -737,7 +738,7 @@ test.describe("media.reload-metadata", () => {
       browser,
       world.adminA,
       baseURL!,
-      /\/admin$/
+      ADMIN_LANDING
     )
     await adminPage.goto(`/admin?staff=${staff.id}`)
     const library = libraryList(adminPage)

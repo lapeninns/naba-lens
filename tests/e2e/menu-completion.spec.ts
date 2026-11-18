@@ -151,11 +151,11 @@ test.describe("Our menu: menu items with an accepted photo", () => {
     await expect(
       manager.getByRole("heading", { level: 1, name: "Our menu" })
     ).toBeVisible()
+    // FA-4: managers label unlabelled photos themselves now, so the old
+    // "need labelling by their uploader first" note is gone.
     await expect(
-      manager.getByText(
-        /Unlabelled photos need labelling by their uploader first/
-      )
-    ).toBeVisible()
+      manager.getByText(/need labelling by their uploader first/)
+    ).toHaveCount(0)
     await expect(progress(manager, 0)).toBeVisible()
     await expect(
       manager.getByText(
@@ -170,8 +170,8 @@ test.describe("Our menu: menu items with an accepted photo", () => {
       "src",
       new RegExp(`/api/menu-photos/${escape(asset)}/thumb`)
     )
-    await card.getByRole("button", { name: "Accept for this dish" }).click()
-    await expect(manager.getByText(/^Accepted for Soup\./)).toBeVisible()
+    await card.getByRole("button", { name: "Approve for public use" }).click()
+    await expect(manager.getByText(/^Approved for Soup\./)).toBeVisible()
     // Once accepted, the photo leaves the "To review" queue (the refresh may
     // land before or after this line), so assert the settled queue instead.
     await expect(card).toHaveCount(0)

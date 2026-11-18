@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { listMyMenuPhotoDecisions } from "@/lib/server/coverage/menu-items"
 import type { MediaActor } from "@/lib/server/media/types"
+import { isMenuUse } from "@/lib/staff/my-uploads"
 
 vi.mock("server-only", () => ({}))
 
@@ -151,5 +152,39 @@ describe("Me's better-photo requests and the current menu (B9)", () => {
       )
     )
     expect(result.ok && result.states[0].canRetake).toBeUndefined()
+  })
+})
+
+describe("Me's accepted for menu use (X9)", () => {
+  it("reads each accepted decision's review level, and only a public one is menu use", async () => {
+    const calls: string[][] = []
+    const result = await listMyMenuPhotoDecisions(
+      actor(
+        {
+          menu_item_photos: {
+            data: [
+              {
+                ...state("p1", "pie", null, "accepted"),
+                review_level: "public",
+              },
+              {
+                ...state("p2", "soup", null, "accepted"),
+                review_level: "reference",
+              },
+            ],
+            error: null,
+          },
+        },
+        calls
+      )
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(calls[0]?.[2]).toContain("review_level")
+    expect(result.states.map((s) => [s.photoId, s.reviewLevel])).toEqual([
+      ["p1", "public"],
+      ["p2", "reference"],
+    ])
+    expect(result.states.map(isMenuUse)).toEqual([true, false])
   })
 })

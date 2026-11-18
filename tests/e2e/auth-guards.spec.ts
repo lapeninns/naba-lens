@@ -11,6 +11,7 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 // Privacy audit R3: a signed-in account that may not see a page must get a
 // server redirect (307) before anything renders, not 200 plus a client-side
@@ -31,6 +32,8 @@ async function signedIn(browser: Browser, identity: TestIdentity) {
   )
   await page.getByRole("button", { name: "Continue" }).click()
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/confirm"))
+  // FA-23: an admin's session counts only after the second step.
+  await passMfaIfAsked(page, identity.email)
   return context
 }
 
@@ -44,6 +47,8 @@ const APP_MARKUP = [
   ">Content<",
   'data-slot="skeleton"',
   "Add photos or videos",
+  // Me's way to the older Add sheet (R15-1).
+  "Add a video",
 ]
 /** Other people's details, filled in once the identities exist. */
 const PEOPLE: string[] = []
@@ -128,9 +133,12 @@ test.describe("server-side role guards", () => {
     await context.close()
   })
 
-  test("admins get a 307 to /admin from /staff", async ({ browser }) => {
+  // K7: an admin's landing is Overview (/admin stays the Library).
+  test("admins get a 307 to /admin/overview from /staff", async ({
+    browser,
+  }) => {
     const context = await signedIn(browser, adminUser)
-    await expectRedirect(context.request, "/staff", "/admin")
+    await expectRedirect(context.request, "/staff", "/admin/overview")
     const own = await context.request.get("/admin/staff", { maxRedirects: 0 })
     expect(own.status()).toBe(200)
     await context.close()

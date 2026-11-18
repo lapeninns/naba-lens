@@ -34,7 +34,12 @@ export {
   type MenuDocumentEditorProps,
 } from "./menu-document-editor"
 export { editorIssues, itemMatches } from "./editor-ops"
-export { ActivateMenuDialog, activationBlockers } from "./activate-menu-dialog"
+export {
+  ActivateMenuDialog,
+  activationBlockers,
+  scheduleInstant,
+  type ActivationChoice,
+} from "./activate-menu-dialog"
 export {
   ConfirmMenuActionDialog,
   DiscardDraftDialog,

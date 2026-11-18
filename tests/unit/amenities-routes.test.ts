@@ -225,6 +225,8 @@ describe("amenity evidence video stream", () => {
         mimeType: "video/mp4",
         sizeBytes: 1234,
         originalFilename: null,
+        // The sender, the venue's managers and admins get the original (FA-24).
+        colleague: false,
       },
       "bytes=0-"
     )
@@ -274,9 +276,11 @@ describe("amenity server actions", () => {
 
   it("refreshes staff, manager and admin coverage pages only after a successful write", async () => {
     const actions = await import("@/app/_amenities/actions")
-    const rpc = vi.fn(async (fn: string) =>
-      fn === "amenity_archive_check"
-        ? { data: 2, error: null }
+    const rpc = vi.fn(async (fn: string, args?: Record<string, unknown>) =>
+      // S2-MGR: archive and restore go through the reason-recording
+      // wrapper; here archive saves and restore meets a conflict.
+      fn === "amenity_check_set_applicability" && args?.p_applicable === false
+        ? { data: { revision: 2, replayed: false }, error: null }
         : {
             data: null,
             error: { message: "amenity_conflict", details: '{"revision":4}' },
@@ -287,7 +291,11 @@ describe("amenity server actions", () => {
       actor: { profile: { id: "u", active: true }, db: { rpc } },
     })
     expect(
-      await actions.archiveCheckAction({ checkId: CHECK, revision: 1 })
+      await actions.archiveCheckAction({
+        checkId: CHECK,
+        revision: 1,
+        reason: "TEST gone",
+      })
     ).toEqual({ ok: true, revision: 2 })
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/staff", "layout")
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager", "layout")
@@ -297,7 +305,11 @@ describe("amenity server actions", () => {
     )
     mocks.revalidatePath.mockReset()
     expect(
-      await actions.restoreCheckAction({ checkId: CHECK, revision: 1 })
+      await actions.restoreCheckAction({
+        checkId: CHECK,
+        revision: 1,
+        reason: "TEST back",
+      })
     ).toMatchObject({ code: "revision_conflict", currentRevision: 4 })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
     // Untrusted input is validated before any database call.

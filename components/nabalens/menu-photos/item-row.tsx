@@ -12,6 +12,7 @@ import {
   type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { StatusChip } from "@/components/nabalens/status-chip"
+import { OPTIONAL_SLOT_WORD } from "@/lib/album/model"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -86,6 +87,10 @@ export function OurMenuItemRow({
               <ImageIcon aria-hidden className="size-4" />
               {OUR_MENU_COPY.hasPhoto}
             </StatusChip>
+          ) : item.optional ? (
+            // FA-51: a packaged item without Photo wanted is never a gap
+            // (S5-R1); Album's word for it (DESIGN.md §4).
+            <StatusChip tone="closed">{OPTIONAL_SLOT_WORD}</StatusChip>
           ) : (
             <StatusChip tone="neutral">{OUR_MENU_COPY.gaps}</StatusChip>
           )}

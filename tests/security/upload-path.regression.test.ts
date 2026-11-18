@@ -113,7 +113,8 @@ async function uploadReady(
     assetId: r.assetId,
     idempotencyKey: input.idempotencyKey,
   })
-  expect(f).toEqual({ ok: true, state: "ready" })
+  // Repeated bytes are flagged as a duplicate (S1-UPLOAD); still ready.
+  expect(f).toMatchObject({ ok: true, state: "ready" })
   return { input, r }
 }
 

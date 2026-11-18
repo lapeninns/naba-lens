@@ -113,3 +113,31 @@ export function parseAccountPatch(
   if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors }
   return { ok: true, value }
 }
+
+export type VenueInviteInput = {
+  displayName: string
+  email: string
+  jobTitle: string | null
+  venueId: string
+}
+
+/**
+ * Validates a manager's invitation (AC40): name, email, optional job title
+ * and the venue. There is no role field: a venue invitation is always staff.
+ */
+export function parseVenueInviteInput(
+  raw: unknown
+):
+  | { ok: true; value: VenueInviteInput }
+  | { ok: false; fieldErrors: FieldErrors } {
+  const input = (raw ?? {}) as Record<string, unknown>
+  const parsed = parseInviteInput({
+    displayName: input.displayName,
+    email: input.email,
+    jobTitle: input.jobTitle,
+    venueId: input.venueId,
+  })
+  if (!parsed.ok) return parsed
+  const { displayName, email, jobTitle, venueId } = parsed.value
+  return { ok: true, value: { displayName, email, jobTitle, venueId } }
+}

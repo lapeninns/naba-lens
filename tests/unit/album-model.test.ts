@@ -101,6 +101,43 @@ describe("amenityState", () => {
     )
     expect(amenityState(check({ progress: "needs_recheck" }))).toBe("retake")
   })
+  it("reads a complete Yes that is not currently confirmed as Check due (S2-INT, AC30)", () => {
+    const yes = { progress: "complete" as const, answer: "yes" as const }
+    expect(amenityState(check({ ...yes, verification: "confirmed" }))).toBe(
+      "accepted"
+    )
+    for (const verification of [
+      "check_due",
+      "unconfirmed",
+      "withdrawn",
+    ] as const)
+      expect(amenityState(check({ ...yes, verification }))).toBe("check-due")
+    // An answer the resolver withholds has no value; it is still a check due.
+    expect(
+      amenityState(
+        check({ progress: "complete", answer: null, verification: "check_due" })
+      )
+    ).toBe("check-due")
+    // No stays Not here; without a verification read nothing changes.
+    expect(
+      amenityState(
+        check({ progress: "complete", answer: "no", verification: "check_due" })
+      )
+    ).toBe("not-here")
+    expect(amenityState(check(yes))).toBe("accepted")
+  })
+  it("lets the coverage rule decide when it is present", () => {
+    expect(
+      amenityState(
+        check({
+          progress: "complete",
+          answer: "yes",
+          verification: "unconfirmed",
+          coverage: "covered",
+        })
+      )
+    ).toBe("accepted")
+  })
 })
 
 describe("buildAlbum", () => {
@@ -172,7 +209,7 @@ describe("buildAlbum", () => {
     expect(view.counts).toEqual({ filled: 1, waiting: 1, empty: 1, total: 3 })
   })
 
-  it("orders places by most empty, slots retake and needed first", () => {
+  it("orders places by most empty; slots by a manager's needed-by, then retakes, then needed (spec §6 S1)", () => {
     const view = buildAlbum(
       base({
         dishes: [
@@ -197,8 +234,29 @@ describe("buildAlbum", () => {
     )
     expect(view.places.map((p) => p.label)).toEqual(["The bar", "Kitchen pass"])
     const drinks = view.places[0].groups[0].slots
-    expect(drinks.map((s) => s.state)).toEqual(["retake", "needed", "accepted"])
-    expect(drinks[1].neededBy).toMatch(/^Needed by /)
+    expect(drinks.map((s) => s.state)).toEqual(["needed", "retake", "accepted"])
+    expect(drinks[0].neededBy).toMatch(/^Needed by /)
+  })
+
+  it("opens on a place that fits the person's work areas when none was asked for", () => {
+    const view = buildAlbum(
+      base({
+        dishes: [
+          dish(),
+          dish({
+            itemId: "00000000-0000-4000-8000-0000000d0007",
+            sectionId: DESSERTS,
+            sectionName: "Desserts",
+          }),
+        ],
+      })
+    )
+    // Both places have gaps; the person works the pass.
+    expect(currentPlace(view, null, ["plating"])?.label).toBe("Kitchen pass")
+    expect(currentPlace(view, null, ["bar"])?.label).toBe("The bar")
+    // An asked-for place always wins; no areas is All (most gaps first).
+    expect(currentPlace(view, BAR, ["plating"])?.subjectId).toBe(BAR)
+    expect(currentPlace(view, null, [])?.label).toBe(view.places[0].label)
   })
 
   it("opens on the place asked for, else the one with most gaps", () => {

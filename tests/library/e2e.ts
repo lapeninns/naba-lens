@@ -1,6 +1,7 @@
 import { expect, type Browser, type Locator, type Page } from "@playwright/test"
 
 import type { Db, TestIdentity } from "../support/identities"
+import { passMfaIfAsked } from "../e2e/helpers/mfa"
 
 /**
  * Signs in through the app's own /auth/confirm route with a magic-link token
@@ -27,6 +28,8 @@ export async function signInAs(
   )
   // Opening the link never uses it (mail scanners prefetch); Continue does.
   await page.getByRole("button", { name: "Continue" }).click()
+  // FA-23: an admin passes the TOTP second step.
+  await passMfaIfAsked(page, identity.email)
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/confirm"))
   return page
 }

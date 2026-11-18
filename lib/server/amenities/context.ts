@@ -2,14 +2,11 @@ import "server-only"
 
 import type { AmenityResult } from "@/lib/amenities/contract"
 import { readAccess, type Access } from "@/lib/server/coverage/context"
-import {
-  failure as coverageFailure,
-  WRONG_VENUE,
-} from "@/lib/server/coverage/errors"
+import { WRONG_VENUE } from "@/lib/server/coverage/errors"
 import { getMediaActor, ROLE_NOT_ALLOWED } from "@/lib/server/media/context"
 import type { MediaActor } from "@/lib/server/media/types"
 
-import { fromCoverage, invalid, NOT_PERMITTED } from "./errors"
+import { failure, fromCoverage, invalid, NOT_PERMITTED } from "./errors"
 import { isUuid } from "./validate"
 
 /**
@@ -28,6 +25,8 @@ export async function getAmenityActor(): Promise<
 > {
   const auth = await getMediaActor(AMENITY_ROLES)
   if (auth.ok) return { ok: true, actor: auth.actor }
+  // The account check's own words are kept (S3-R11, review V6): a failed
+  // profile read says to retry, not that Amenities failed.
   const code =
     auth.status === 401
       ? "unauthenticated"
@@ -36,7 +35,7 @@ export async function getAmenityActor(): Promise<
         : auth.status === 403
           ? "account_inactive"
           : "unavailable"
-  return fromCoverage(coverageFailure(code, auth.message))
+  return failure(code, auth.message)
 }
 
 /** Role, venue and manager grant as the database sees them now. */

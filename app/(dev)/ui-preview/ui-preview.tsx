@@ -37,6 +37,18 @@ import { LinkButton } from "@/components/ui/link-button"
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { TaskPhotoGuide } from "@/components/nabalens/guide"
 import { suggestedAngles } from "@/lib/guide/dish-guide"
+import { OverviewView } from "@/app/admin/overview/overview-view"
+
+import {
+  FAKE_OVERVIEW_FILTERS,
+  FAKE_OVERVIEW_NOW,
+  FAKE_OVERVIEW_ROWS,
+} from "./admin-overview-fixture"
+import { NO_EXTRA_FILTERS, type LibraryExtraFilters } from "@/lib/library/model"
+import {
+  LibraryMoreFilters,
+  type LibraryExtraOptions,
+} from "@/app/admin/library-more-filters"
 
 import { CommonRoomPreview } from "./common-room-preview"
 import {
@@ -121,6 +133,17 @@ function ThemeToggle() {
   )
 }
 
+const PREVIEW_EXTRA_OPTIONS: LibraryExtraOptions = {
+  tags: [
+    { id: "tag-1", name: "Christmas" },
+    { id: "tag-2", name: "Garden" },
+  ],
+  collections: [{ id: "col-1", name: "Winter menu launch" }],
+  requests: [{ id: "req-1", name: "Sunday roast · Sample venue" }],
+  destinations: [{ id: "dest-1", name: "Website · Sample venue" }],
+  imports: [{ id: "import-1", name: "2019 shared drive · 120 imported" }],
+}
+
 function applyFilters(items: MediaItem[], f: LibraryFilterValue) {
   const venueName = FAKE_VENUES.find((v) => v.id === f.venueId)?.name
   return items.filter(
@@ -145,6 +168,8 @@ export function UiPreview() {
   const [filters, setFilters] = React.useState<LibraryFilterValue>(
     EMPTY_LIBRARY_FILTERS
   )
+  const [extraFilters, setExtraFilters] =
+    React.useState<LibraryExtraFilters>(NO_EXTRA_FILTERS)
   const [pagerError, setPagerError] = React.useState(false)
   const [lastEvent, setLastEvent] = React.useState("None yet")
 
@@ -286,7 +311,7 @@ export function UiPreview() {
 
       <Section
         title="Admin library"
-        note="AppShell admin variant, Content active. Filters are live on the fake data."
+        note="AppShell admin variant, Library active. Filters are live on the fake data."
       >
         <Frame>
           <AppShell
@@ -306,6 +331,16 @@ export function UiPreview() {
                 onChange={(v) => {
                   setFilters(v)
                   setLastEvent(`filters ${JSON.stringify(v)}`)
+                }}
+              />
+              {/* S2-LIBRARY: the A4 filters (fixture options; not applied
+                  to the fake data). */}
+              <LibraryMoreFilters
+                value={extraFilters}
+                options={PREVIEW_EXTRA_OPTIONS}
+                onChange={(v) => {
+                  setExtraFilters(v)
+                  setLastEvent(`library filters ${JSON.stringify(v)}`)
                 }}
               />
               {library.length > 0 ? (
@@ -343,8 +378,37 @@ export function UiPreview() {
       </Section>
 
       <Section
+        title="Admin overview"
+        note="S2-ADMIN (spec §8 A1): venues needing attention first, then the table; below 768px each venue is a labelled block. Below 1024px the tab bar shows Overview, Venues, Library and More."
+      >
+        <Frame>
+          <AppShell
+            variant="admin"
+            active="overview"
+            hrefs={{ overview: "#", venues: "#", content: "#" }}
+            onLogout={() => setLastEvent("logout")}
+            className="min-h-0"
+          >
+            <div className="grid gap-6">
+              <h1 className="type-page-title">Overview</h1>
+              <OverviewView
+                rows={FAKE_OVERVIEW_ROWS}
+                filters={FAKE_OVERVIEW_FILTERS}
+                now={FAKE_OVERVIEW_NOW}
+              />
+              <OverviewView
+                rows={[]}
+                filters={FAKE_OVERVIEW_FILTERS}
+                now={FAKE_OVERVIEW_NOW}
+              />
+            </div>
+          </AppShell>
+        </Frame>
+      </Section>
+
+      <Section
         title="Staff directory"
-        note="AppShell admin variant, Staff active. Table from 768px, list below."
+        note="AppShell admin variant, People active. Table from 768px, list below."
       >
         <Frame>
           <AppShell
@@ -461,6 +525,7 @@ export function UiPreview() {
         getPortfolioHref={
           viewerMode === "admin" ? () => "#portfolio" : undefined
         }
+        getDetailHref={viewerMode === "admin" ? () => "#details" : undefined}
         onDelete={(item) => {
           setViewerItem(null)
           setDeleteItem(item)

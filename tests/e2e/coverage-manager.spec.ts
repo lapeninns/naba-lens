@@ -135,9 +135,11 @@ async function reviewJourney(
   ).toBeVisible()
   expect(itemState(items[w.manager.id]!)).toBe("accepted:true")
 
-  // Staff A sees the reason in Home's retake note (G-3); the admin sees the
-  // self-review.
+  // Staff A sees the reason in the retake note on Me (G-3); the admin sees
+  // the self-review. Album Home (DESIGN.md §5a, A5) keeps only the dish
+  // retake row, so a month photo's note and reason are on Me.
   const staffA = await signedInPage(browser, w.staffA, context)
+  await staffA.goto("/staff")
   await expect(
     staffA
       .getByRole("region", { name: "Needs another photo" })
@@ -413,12 +415,16 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
       })
     )
     await ok(
-      adminDb.rpc("activate_menu_version", {
+      adminDb.rpc("activate_menu_version_confirmed", {
         p_version_id: draft as string,
         p_expected_revision: Number(
           psql(
             `select revision from public.menu_versions where id = '${draft}'::uuid`
           )
+        ),
+        // AC28: confirm exactly the items this activation retires.
+        p_retirements: Number(
+          psql(`select private.menu_retired_count('${draft}'::uuid)`)
         ),
       })
     )

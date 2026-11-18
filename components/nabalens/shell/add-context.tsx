@@ -55,6 +55,12 @@ export type OpenAddOptions = {
    * as its venue-area label), then Match's end for that one photo.
    */
   slot?: AddSlot
+  /**
+   * How the photos were started, for the workflow events (spec §18.3,
+   * S2-METRICS): "request" from a manager's Asked for. Omitted: from a
+   * slot's tile or the gallery.
+   */
+  route?: "request"
   /** Accept photos only for the files picked from this call (task screens). */
   imagesOnly?: boolean
   /**
@@ -163,6 +169,11 @@ type AddContextValue = {
   slots?: ReadonlyMap<string, SlotSend>
   /** The album reads this slot itself now: its tile no longer needs `slots`. */
   settleSlot?: (slotId: string) => void
+  /**
+   * Photos picked in an earlier visit that never finished (the capture
+   * journal): Album Home offers them under the Add action (spec §6 S1).
+   */
+  earlier?: number
 }
 
 /**

@@ -16,6 +16,7 @@ import { MEDIA_LIMITS } from "../../lib/config/media"
 import { signDerivative } from "../../lib/server/media/access"
 import { signAvatar } from "../../lib/server/media/profile"
 import { actorFor } from "../slice/media-actor"
+import { acceptAsset } from "./privacy-fixtures"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 
 const service = serviceClient()
@@ -306,6 +307,9 @@ describe("finding 1: the app read path still serves authorised callers", () => {
 
   it("an active colleague receives bounded preview and avatar URLs through the app", async () => {
     const actor = await actorFor(other)
+    // FA-20: a colleague reads a photo only once it has been accepted.
+    expect((await signDerivative(actor, assetId, "preview")).ok).toBe(false)
+    acceptAsset(assetId, admin.id)
     const preview = await signDerivative(actor, assetId, "preview")
     const photo = await signAvatar(actor, staff.id)
     expect(preview.ok).toBe(true)

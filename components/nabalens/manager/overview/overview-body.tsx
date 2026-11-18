@@ -2,11 +2,13 @@ import Link from "next/link"
 import {
   ArrowsClockwiseIcon,
   CameraIcon,
+  ChartBarIcon,
   ClockIcon,
   ForkKnifeIcon,
   HourglassIcon,
   ImageSquareIcon,
   ImagesIcon,
+  ListChecksIcon,
   MagnifyingGlassIcon,
   PencilSimpleIcon,
   ShieldCheckIcon,
@@ -22,6 +24,8 @@ import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 
 import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
+import { METRICS_COPY } from "@/components/nabalens/metrics/copy"
+import { metricsHrefs } from "@/components/nabalens/metrics/hrefs"
 import { Notice } from "@/components/nabalens/notice"
 import { SEARCH_COPY } from "@/components/nabalens/search/search-copy"
 import { amenityHrefs } from "@/lib/amenities/contract"
@@ -110,6 +114,22 @@ function SearchRow() {
   )
 }
 
+/** S2-REQ: requests and shot lists (spec §7 M4, "Request missing photos"). */
+function RequestsRow() {
+  return (
+    <ul className={ROW_LIST}>
+      <li data-link="requests">
+        <Row
+          href={managerHrefs.requests}
+          icon={<ListChecksIcon />}
+          title="Requests and shot lists"
+          subtitle="Ask for a missing photo, a new angle or a fact check."
+        />
+      </li>
+    </ul>
+  )
+}
+
 /** G-6: the venue default and each person's monthly photo target. */
 function TeamRow() {
   return (
@@ -126,6 +146,22 @@ function TeamRow() {
   )
 }
 
+/** S2-METRICS (spec §18.1): the venue's metrics, with how each is counted. */
+function MetricsRow() {
+  return (
+    <ul className={ROW_LIST}>
+      <li data-link="metrics">
+        <Row
+          href={metricsHrefs.manager()}
+          icon={<ChartBarIcon />}
+          title={METRICS_COPY.entry}
+          subtitle={METRICS_COPY.entryNote}
+        />
+      </li>
+    </ul>
+  )
+}
+
 export function OverviewBody({
   overview,
   now,
@@ -133,6 +169,8 @@ export function OverviewBody({
   confirmCount = 0,
   triage,
   needsLabels = null,
+  actions,
+  panels,
 }: {
   overview: ManagerOverview
   staffTargets?: React.ReactNode
@@ -147,6 +185,17 @@ export function OverviewBody({
   triage?: React.ReactNode
   /** R1: this manager account's uploads that need labels; null hides the row. */
   needsLabels?: number | null
+  /**
+   * S2-MGR (spec §7 M1): the actions panel, first after the page header.
+   * When given it carries Review next as the screen's main button, so the
+   * menu card's Review photos button is not drawn (DESIGN.md §11 rule 2).
+   */
+  actions?: React.ReactNode
+  /**
+   * S2-MGR: collection vs review backlog, coverage by category and the
+   * venue's menu and reviewers, before the menu photo detail.
+   */
+  panels?: React.ReactNode
 }) {
   const copy = MANAGER_COPY.overview
   const venueName = overview.venueName
@@ -156,7 +205,9 @@ export function OverviewBody({
       <NeedsLabelsRow count={needsLabels} />
       {/* Search needs a menu; photo targets don't (review c, 6). */}
       {overview.menuState !== "no_menu" ? <SearchRow /> : null}
+      <RequestsRow />
       <TeamRow />
+      <MetricsRow />
     </>
   )
 
@@ -169,6 +220,8 @@ export function OverviewBody({
           noteTitle={copy.noMenuTitle}
           note={copy.noMenuBody}
         />
+        {actions}
+        {panels}
         {confirm}
         {staffTargets}
       </div>
@@ -189,6 +242,8 @@ export function OverviewBody({
     return (
       <div className="grid gap-gutter">
         {header}
+        {actions}
+        {panels}
         {confirm}
         <EmptyState
           title={copy.emptyTitle}
@@ -266,6 +321,8 @@ export function OverviewBody({
   return (
     <div className="grid gap-gutter">
       {header}
+      {actions}
+      {panels}
       {confirm}
       <ActivationBanner overview={overview} now={now} />
       <section aria-labelledby="overview-photos" className="grid gap-gutter">
@@ -284,7 +341,7 @@ export function OverviewBody({
             tone="ok"
           />
           {meta ? <p className="text-meta text-ink-muted">{meta}</p> : null}
-          {pendingPhotos > 0 ? (
+          {pendingPhotos > 0 && !actions ? (
             <Link
               href={managerHrefs.review()}
               className={buttonVariants({
@@ -322,8 +379,14 @@ export function OverviewBody({
           />
         ) : (
           <EmptyState
-            title={copy.quietTitle}
-            description={<p>{copy.quietBody(eligible - covered)}</p>}
+            title={
+              actions ? copy.gapsTitle(eligible - covered) : copy.quietTitle
+            }
+            description={
+              <p>
+                {actions ? copy.gapsBody : copy.quietBody(eligible - covered)}
+              </p>
+            }
             action={
               <Link
                 href={managerHrefs.menu({ status: "needs_photo" })}

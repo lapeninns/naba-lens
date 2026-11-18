@@ -26,7 +26,7 @@ import {
 } from "@/components/nabalens/shell/add-context"
 import type { Uploader } from "@/components/nabalens/upload-queue"
 
-import { CATALOGUE } from "./labels-fixtures"
+import { CATALOGUE, savedAnswer } from "./labels-fixtures"
 
 const PASS = "00000000-0000-4000-8000-00000000b002"
 const GARDEN = "00000000-0000-4000-8000-00000000b003"
@@ -121,7 +121,7 @@ function labelApi(url: string, init?: RequestInit) {
   if (method === "POST") {
     const sent = JSON.parse(String(init!.body))
     posted.push(sent)
-    body = { ok: true, assetId: sent.input.assetId, state: "pending" }
+    body = savedAnswer(sent)
   } else if (method === "DELETE") body = { ok: true }
   else if (url.includes("attention=1")) body = { ok: true, items: [] }
   else body = { ok: true, catalogue: CATALOGUE, focus: null }
@@ -322,11 +322,11 @@ describe("matching", () => {
     const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
     await user.type(
       await within(dialog).findByRole("searchbox", {
-        name: "Search all empty slots",
+        name: "Search all slots",
       }),
       "garden"
     )
-    expect(within(dialog).getByText("1 empty slot")).toBeTruthy()
+    expect(within(dialog).getByText("1 slot")).toBeTruthy()
     await user.click(within(dialog).getByRole("button", { name: /The garden/ }))
     await waitFor(() =>
       expect(area.setAreaLabelAction).toHaveBeenCalledWith(
@@ -344,13 +344,11 @@ describe("matching", () => {
     const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
     await user.type(
       await within(dialog).findByRole("searchbox", {
-        name: "Search all empty slots",
+        name: "Search all slots",
       }),
       "darts"
     )
-    expect(
-      within(dialog).getByText('No empty slot matches "darts".')
-    ).toBeTruthy()
+    expect(within(dialog).getByText('No slot matches "darts".')).toBeTruthy()
     expect(
       within(dialog).getByText(/Amenities are not matched here/)
     ).toBeTruthy()

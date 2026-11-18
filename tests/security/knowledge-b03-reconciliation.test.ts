@@ -457,7 +457,7 @@ describe("external sources (§8.2)", () => {
       // the shared test registry. Reconciliation itself runs as a signed-in admin.
       psql(`insert into public.knowledge_contribution_details
         (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
-        values ('${sent.contributionId}', '${v.venue}', 1, 'facility', 1,
+        values ('${sent.contributionId}', '${v.venue}', (select max(kv.version) from public.knowledge_question_versions kv join public.knowledge_contributions kc on kc.question_key = kv.key where kc.id = '${sent.contributionId}'), 'facility', 1,
           '${JSON.stringify(original)}'::jsonb, repeat('a', 64))`)
       for (const { label, detail } of sources) {
         const { sourceId } = await json<{ sourceId: string }>(

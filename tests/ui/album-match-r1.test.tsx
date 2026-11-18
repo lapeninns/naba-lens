@@ -31,7 +31,7 @@ import {
 } from "@/components/nabalens/shell/add-context"
 import type { Uploader } from "@/components/nabalens/upload-queue"
 
-import { CATALOGUE } from "./labels-fixtures"
+import { CATALOGUE, savedAnswer } from "./labels-fixtures"
 
 const PASS = "00000000-0000-4000-8000-00000000b002"
 const GARDEN = "00000000-0000-4000-8000-00000000b003"
@@ -126,7 +126,7 @@ function labelApi(url: string, init?: RequestInit) {
   if (method === "POST") {
     const sent = JSON.parse(String(init!.body))
     posted.push(sent)
-    body = { ok: true, assetId: sent.input.assetId, state: "pending" }
+    body = savedAnswer(sent)
   } else if (method === "DELETE") body = { ok: true }
   else if (url.includes("attention=1")) body = { ok: true, items: [] }
   else body = { ok: true, catalogue: CATALOGUE, focus: null }
@@ -303,7 +303,7 @@ describe("B1: Match never loses a photo to the queue's limit", () => {
     const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
     expect(
       within(dialog).getByText(
-        "1 photo was left in your gallery. Photos can be up to 20 MB."
+        "1 photo was left in your gallery. Photos can be up to 25 MB."
       )
     ).toBeTruthy()
   })
@@ -338,7 +338,7 @@ describe("should-fix 1: a failed send, then Add photos", () => {
     )
     expect(
       await screen.findByText(
-        "1 photo didn't send. Open Add photos to send it again.",
+        "1 photo didn't send. Choose Retry; it won't be sent twice.",
         undefined,
         { timeout: 8000 }
       )
@@ -457,6 +457,9 @@ const BHAJI_SLOT: AlbumSlot = {
   neededBy: null,
   brief: null,
   target: { kind: "dish", itemId: "item-bhaji", itemName: "Onion Bhaji" },
+  category: "food",
+  pendingCount: 0,
+  needsUpdate: false,
 }
 
 function TileOnAlbum({ slot = BHAJI_SLOT }: { slot?: AlbumSlot }) {
@@ -540,7 +543,8 @@ describe("should-fix 5: Album's tiles show a slot this phone is sending", () => 
     await user.click(await screen.findByRole("button", { name: "Close" }))
     await screen.findByRole("group", { name: "Onion Bhaji: sending" })
     rerender(view({ ...BHAJI_SLOT, state: "waiting" }))
-    await screen.findByRole("group", {
+    // A filled slot opens its slot page (DESIGN.md §5; S2-STAFF).
+    await screen.findByRole("link", {
       name: "Onion Bhaji: waiting for review",
     })
     rerender(view({ ...BHAJI_SLOT, state: "retake" }))
@@ -553,8 +557,10 @@ describe("should-fix 5: Album's tiles show a slot this phone is sending", () => 
 
   it("a slot the album already reads as waiting shows the album's state", () => {
     albumHost(<TileOnAlbum slot={{ ...BHAJI_SLOT, state: "waiting" }} />)
-    expect(
-      screen.getByRole("group", { name: "Onion Bhaji: waiting for review" })
-    ).toBeTruthy()
+    const tile = screen.getByRole("link", {
+      name: "Onion Bhaji: waiting for review",
+    })
+    // A filled slot opens its own page (DESIGN.md §5; spec §6 S3).
+    expect(tile.getAttribute("href")).toBe("/staff/album/slot/dish/item-bhaji")
   })
 })

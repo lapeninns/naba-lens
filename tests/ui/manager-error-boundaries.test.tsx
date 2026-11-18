@@ -41,7 +41,7 @@ const CASES: [string, Boundary, string, string, [string, string] | null][] = [
     "We couldn't load this contributor's photos",
     [REVIEW_COPY.backToReview, "/manager/review"],
   ],
-  ["Menu", ManagerMenuError, "Menu", "We couldn't load the menu", null],
+  ["Menu", ManagerMenuError, "Album", "We couldn't load the menu", null],
   [
     "Menu item",
     ManagerMenuItemError,

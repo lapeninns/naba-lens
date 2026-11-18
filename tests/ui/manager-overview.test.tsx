@@ -69,14 +69,16 @@ const hrefOf = (name: string | RegExp) =>
   screen.getByRole("link", { name }).getAttribute("href")
 
 describe("Overview", () => {
-  it("no_menu: the setup-pending note; only Team targets is offered", () => {
+  it("no_menu: the setup-pending note; only Requests, Team and Metrics targets are offered", () => {
     show(overview({ menuState: "no_menu", menu: null, eligible: 0 }))
     expect(screen.getByText(MANAGER_COPY.overview.noMenuTitle)).toBeTruthy()
     expect(screen.getByText(MANAGER_COPY.overview.noMenuBody)).toBeTruthy()
-    // Photo targets don't need a menu, so a new venue can still set them.
+    // Photo targets and requests (a New brief, a fact check) don't need a
+    // menu, so a new venue can still use them; Metrics also counts spaces and
+    // facilities (S2-METRICS).
     expect(
       screen.getAllByRole("link").map((l) => l.getAttribute("href"))
-    ).toEqual(["/manager/team"])
+    ).toEqual(["/manager/requests", "/manager/team", "/manager/metrics"])
     expect(screen.queryByRole("progressbar")).toBeNull()
   })
 
@@ -164,6 +166,24 @@ describe("Overview", () => {
         "6 items still need a photo. Staff see these gaps in Our menu."
       )
     ).toBeTruthy()
+    expect(hrefOf("See items without a photo")).toBe(
+      "/manager/menu?status=needs_photo"
+    )
+  })
+
+  // S3-R5 (S3-E2E-2, manager-workspace): with the actions panel, Review next
+  // already says "Nothing waiting for review"; the quiet card does not repeat it.
+  it("quiet queue with the actions panel: says it once and leads with the gap", () => {
+    render(
+      <OverviewBody
+        overview={overview({ pendingPhotos: 0, oldestPendingAt: null })}
+        now={NOW}
+        actions={<p>Nothing waiting for review</p>}
+      />
+    )
+    expect(screen.getAllByText("Nothing waiting for review")).toHaveLength(1)
+    expect(screen.getByText("6 items still need a photo")).toBeTruthy()
+    expect(screen.getByText("Staff see these gaps in Our menu.")).toBeTruthy()
     expect(hrefOf("See items without a photo")).toBe(
       "/manager/menu?status=needs_photo"
     )

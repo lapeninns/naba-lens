@@ -101,8 +101,15 @@ describe("released amenity constraints (T11a)", () => {
       extra: string[]
     }
     expect(result.expected).toBe(21)
-    expect(result.missing).toEqual([])
-    expect(result.extra).toEqual(["amenity_submissions_submitter_basis_check"])
+    // S2-INT (20261118109300, FA-32) widens the evidence rule with 'none';
+    // every other released CHECK is unchanged.
+    expect(result.missing).toEqual([
+      "amenity_submissions: CHECK ((evidence_rule = ANY (ARRAY['photo'::text, 'video'::text, 'either'::text, 'both'::text])))",
+    ])
+    expect(result.extra).toEqual([
+      "amenity_submissions_evidence_rule_check",
+      "amenity_submissions_submitter_basis_check",
+    ])
   })
 })
 

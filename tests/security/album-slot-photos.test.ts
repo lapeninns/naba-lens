@@ -1,6 +1,10 @@
 // Album AL-7 (docs/plans/album-a3-a5.md, A5): staff at a venue see the
 // current photo of its accepted or waiting area slots and its accepted
-// amenity slots (review never gates visibility). public.album_slot_photos
+// amenity slots. Since S1-COV an amenity slot is accepted when a reviewer
+// accepts its photo (FA-32). Since S1-PRIVACY (FA-20, spec §3.3) a waiting
+// photo, and amenity evidence no manager has confirmed, is drawn only for its
+// uploader, the venue's manager and admins; colleagues see accepted photos only
+// (20261118107000_privacy_colleague_media.sql). public.album_slot_photos
 // lists them; public.album_slot_asset is the gate before a thumbnail is
 // signed. Real signed-in identities through PostgREST; the service role and
 // psql only build fixtures.
@@ -47,6 +51,17 @@ const setArea = (who: TestIdentity, asset: string, subject: string) =>
     who.client.rpc("set_media_area_label", {
       p_asset_id: asset,
       p_subject_id: subject,
+    })
+  )
+
+// FA-32 (20261118100100): an amenity photo fills its slot once a reviewer
+// accepts it for public use, separately from the answer.
+const acceptAmenityPhoto = (who: TestIdentity, check: string, asset: string) =>
+  ok(
+    who.client.rpc("decide_amenity_photo", {
+      p_check_id: check,
+      p_asset_id: asset,
+      p_action: "accepted",
     })
   )
 
@@ -137,6 +152,7 @@ beforeAll(async () => {
     `select sa.asset_id from public.amenity_submission_assets sa
      where sa.submission_id = '${parking.submissionId}' limit 1`
   )
+  await acceptAmenityPhoto(w.manager, w.checks.onsite_parking, shown.amenity)
 
   // The other venue: one accepted area photo.
   const theirs = await areaPhoto(other.w.staffA, other.places.bar)
@@ -145,8 +161,8 @@ beforeAll(async () => {
 })
 
 describe("album_slot_photos", () => {
-  it("lists the accepted and waiting area photos and the accepted amenity photo", async () => {
-    const read = await photos(v.w.staffB)
+  it("lists the accepted and waiting area photos and the accepted amenity photo to their uploader", async () => {
+    const read = await photos(v.w.staffA)
     expect(read.venueId).toBe(v.w.venue)
     const byAsset = new Map(read.items.map((i) => [i.assetId, i]))
     expect(byAsset.get(shown.areaAccepted!)).toEqual({
@@ -168,8 +184,23 @@ describe("album_slot_photos", () => {
     expect(read.items).toHaveLength(3)
   })
 
+  it("lists only the accepted photos to a colleague (FA-20)", async () => {
+    const read = await photos(v.w.staffB)
+    expect(read.venueId).toBe(v.w.venue)
+    // S2-INT (review R2): an amenity photo accepted in its own review counts
+    // as accepted, so colleagues see it too.
+    expect(read.items).toEqual([
+      {
+        kind: "amenity",
+        slotId: v.w.checks.onsite_parking,
+        assetId: shown.amenity,
+      },
+      { kind: "area", slotId: v.places.bar, assetId: shown.areaAccepted },
+    ])
+  })
+
   it("is the same for the venue's manager and for an admin naming it", async () => {
-    const mine = await photos(v.w.staffB)
+    const mine = await photos(v.w.staffA)
     expect(await photos(v.w.manager)).toEqual(mine)
     expect(await photos(v.w.admin, v.w.venue)).toEqual(mine)
   })
@@ -186,14 +217,21 @@ describe("album_slot_photos", () => {
 })
 
 describe("album_slot_asset", () => {
-  it("lets every colleague at the venue, its manager and an admin open a shown photo", async () => {
+  it("lets the uploader, the venue's manager and an admin open a shown photo", async () => {
     for (const asset of Object.values(shown)) {
-      for (const who of [v.w.staffB, v.w.staffA, v.w.manager, v.w.admin]) {
+      for (const who of [v.w.staffA, v.w.manager, v.w.admin]) {
         const rows = await gate(who, asset)
         expect(rows).toHaveLength(1)
         expect(rows[0]).toMatchObject({ asset_id: asset, venue_id: v.w.venue })
       }
     }
+  })
+
+  it("lets a colleague open the accepted photos only (FA-20)", async () => {
+    expect(await gate(v.w.staffB, shown.areaAccepted!)).toHaveLength(1)
+    expect(await gate(v.w.staffB, shown.areaWaiting!)).toEqual([])
+    // S2-INT (review R2): accepted in its own amenity review.
+    expect(await gate(v.w.staffB, shown.amenity!)).toHaveLength(1)
   })
 
   it("returns nothing for a retake, a withdrawn or an unknown photo", async () => {
@@ -216,7 +254,7 @@ describe("album_slot_asset", () => {
       role: "staff",
       venueId: v.w.venue,
     })
-    expect(await gate(mover, shown.areaWaiting!)).toHaveLength(1)
+    expect(await gate(mover, shown.areaAccepted!)).toHaveLength(1)
     const elsewhere = await createVenue(service, "album-al7-elsewhere")
     await ok(
       service
@@ -224,7 +262,7 @@ describe("album_slot_asset", () => {
         .update({ venue_id: elsewhere.id })
         .eq("id", mover.id)
     )
-    expect(await gate(mover, shown.areaWaiting!)).toEqual([])
+    expect(await gate(mover, shown.areaAccepted!)).toEqual([])
   })
 
   it("returns nothing for a deleted photo, and anon cannot call it", async () => {
@@ -282,10 +320,13 @@ describe("an amenity whose service has ended", () => {
        join public.venue_amenity_checks c on c.current_submission_id = sa.submission_id
        where c.id = '${w.checks.guest_toilets}' limit 1`
     )
+    await acceptAmenityPhoto(w.manager, w.checks.guest_toilets, asset)
+    // Read as the uploader: a colleague sees it only once a manager has
+    // confirmed it (FA-20), which a rule-adopted answer is not.
     const listed = async () =>
-      (await photos(w.staffB)).items.some((i) => i.assetId === asset)
+      (await photos(w.staffA)).items.some((i) => i.assetId === asset)
     expect(await listed()).toBe(true)
-    expect(await gate(w.staffB, asset)).toHaveLength(1)
+    expect(await gate(w.staffA, asset)).toHaveLength(1)
 
     // A stop from two days ago, attached as the B03 A40 suite does.
     const twoDaysAgo = new Date(
@@ -295,7 +336,7 @@ describe("an amenity whose service has ended", () => {
       .slice(0, 10)
     psql(`insert into public.knowledge_contribution_details
         (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
-      select x.id, x.venue_id, 1, 'service', 1, '{"lastDayOffered": "${twoDaysAgo}"}'::jsonb,
+      select x.id, x.venue_id, (select max(v.version) from public.knowledge_question_versions v where v.key = x.question_key), 'service', 1, '{"lastDayOffered": "${twoDaysAgo}"}'::jsonb,
         encode(sha256(x.id::text::bytea), 'hex')
       from public.knowledge_contributions x where x.id = '${sent.contributionId}'`)
     expect(
@@ -304,6 +345,6 @@ describe("an amenity whose service has ended", () => {
       )
     ).toBe("true")
     expect(await listed()).toBe(false)
-    expect(await gate(w.staffB, asset)).toEqual([])
+    expect(await gate(w.staffA, asset)).toEqual([])
   })
 })

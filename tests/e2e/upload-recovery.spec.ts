@@ -29,8 +29,10 @@ import {
 } from "../fixtures/uploads/support"
 import { intentDialog, visibleBadgeText } from "./helpers/add-entry"
 import { firefoxLaunchOptions } from "./helpers/firefox"
+import { syntheticJpeg } from "./helpers/media"
 import { mailboxIds, SUBJECTS, waitForLink } from "./helpers/mailpit"
 import {
+  ADMIN_LANDING,
   openPortfolio,
   STAFF_LANDING,
   staffTile,
@@ -169,6 +171,9 @@ function watchStorage(page: Page) {
   }
 }
 
+const isFinaliseBody = (b: string) =>
+  b.includes('"assetId"') && b.includes('"idempotencyKey"')
+
 /** Server Function calls (reserve/finalise) posted from the staff page. */
 function watchActions(page: Page) {
   const bodies: string[] = []
@@ -179,7 +184,9 @@ function watchActions(page: Page) {
   })
   return {
     bodies,
-    finalises: () => bodies.filter((b) => b.includes('"assetId"')),
+    // A finalise carries the asset and its idempotency key; the metrics
+    // events (S2-METRICS) are Server Actions too and may name an asset.
+    finalises: () => bodies.filter(isFinaliseBody),
   }
 }
 
@@ -190,6 +197,11 @@ test.describe("upload recovery in the real UI", () => {
   }, testInfo) => {
     test.setTimeout(180_000)
     const { staff } = await newStaff("e2e-upl-batch")
+    const fillers = await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        syntheticJpeg(`filler-${String(i + 1).padStart(2, "0")}.jpg`)
+      )
+    )
     const page = await signIn(browser, staff, baseURL!)
     const storage = watchStorage(page)
     // Slow each storage request a little so parallel transfers overlap and the
@@ -208,12 +220,13 @@ test.describe("upload recovery in the real UI", () => {
       "clip.mov",
       "clip.webm",
       "extra.jpg",
+      ...fillers.map((f) => f.name),
     ]
     const dialog = await openUploadDialog(page)
-    // 12 chosen: 10 within the batch limit (8 valid, disguised, corrupt), the
-    // oversized photo (refused for size, so it does not use a slot) and the
-    // 11th batch file. The 10 accepted start uploading as soon as they are
-    // picked.
+    // 22 chosen: 20 within the batch limit (spec §5.4: 8 valid, 10 plain
+    // fillers, disguised, corrupt), the oversized photo (refused for size,
+    // so it does not use a slot) and the 21st batch file. The 20 accepted
+    // start uploading as soon as they are picked.
     await dialog
       .getByLabel("Choose photos or videos")
       .setInputFiles([
@@ -228,6 +241,7 @@ test.describe("upload recovery in the real UI", () => {
         file("corrupt.jpg"),
         file("oversized.jpg"),
         file("extra.jpg"),
+        ...fillers.map((f) => f.path),
         file("eleventh.jpg"),
       ])
     // The sheet's label panel can show alerts of its own (menu not loaded).
@@ -236,17 +250,17 @@ test.describe("upload recovery in the real UI", () => {
       .filter({ hasText: /files? (was|were) not added/ })
     await expect(rejected).toContainText("2 files were not added")
     await expect(rejected).toContainText(
-      "oversized.jpg: Photos can be up to 20 MB."
+      "oversized.jpg: Photos can be up to 25 MB."
     )
     await expect(rejected).toContainText(
-      "eleventh.jpg: You can upload up to 10 files at a time."
+      "eleventh.jpg: You can upload up to 20 files at a time."
     )
     await expect(
       dialog.getByRole("list", { name: "Files" }).getByRole("listitem")
-    ).toHaveCount(10)
-    await expect(dialog).toHaveAccessibleName("Saving 10 files")
+    ).toHaveCount(20)
+    await expect(dialog).toHaveAccessibleName("Saving 20 files")
 
-    await expectSummary(dialog, "8 saved · 2 need attention", 120_000)
+    await expectSummary(dialog, "18 saved · 2 need attention", 180_000)
     for (const name of valid) {
       await expect(row(dialog, name)).toContainText("Saved")
     }
@@ -287,12 +301,12 @@ test.describe("upload recovery in the real UI", () => {
     const tusCreates = storage.log.filter(
       (r) => TUS.test(r.url) && r.method === "POST"
     )
-    expect(puts).toHaveLength(7) // 5 photos + disguised + corrupt
+    expect(puts).toHaveLength(17) // 5 photos + 10 fillers + disguised + corrupt
     expect(tusCreates).toHaveLength(3) // every video uses TUS
 
-    // Server state: exactly the 10 accepted files, 8 ready and 2 failed.
+    // Server state: exactly the 20 accepted files, 18 ready and 2 failed.
     const rows = await rowsOf(staff.id)
-    expect(rows).toHaveLength(10)
+    expect(rows).toHaveLength(20)
     const ready = rows.filter((r) => r.upload_state === "ready")
     expect(ready.map((r) => r.original_filename).sort()).toEqual(
       [...valid].sort()
@@ -328,6 +342,7 @@ test.describe("upload recovery in the real UI", () => {
       "photo.webp": "image/webp",
       "photo.heic": "image/heic",
       "extra.jpg": "image/jpeg",
+      ...Object.fromEntries(fillers.map((f) => [f.name, "image/jpeg"])),
       "clip-h264.mp4": "video/mp4",
       "clip.mov": "video/quicktime",
       "clip.webm": "video/webm",
@@ -338,7 +353,7 @@ test.describe("upload recovery in the real UI", () => {
     // Reload and a fresh context show the same states from the server.
     const expectPortfolio = async (p: Page) => {
       const portfolio = p.getByRole("list", { name: "Your portfolio" })
-      await expect(portfolio.getByRole("button")).toHaveCount(10)
+      await expect(portfolio.getByRole("button")).toHaveCount(20)
       await expect(
         portfolio.getByRole("button", { name: /, Failed$/ })
       ).toHaveCount(2)
@@ -476,7 +491,7 @@ test.describe("upload recovery in the real UI", () => {
     await expect(dialog).toHaveAccessibleName("Add photos or videos")
 
     const sent = actions.bodies.slice(before)
-    expect(sent.filter((b) => b.includes('"assetId"'))).toHaveLength(0)
+    expect(sent.filter(isFinaliseBody)).toHaveLength(0)
     expect(sent.filter((b) => b.includes("eleventh.jpg"))).toHaveLength(0)
     const rows = await rowsOf(staff.id)
     const cancelled = rows.filter((r) =>
@@ -715,7 +730,7 @@ test.describe("upload recovery in the real UI", () => {
 
     // Admin downloads the HEVC original: identical bytes.
     const hevc = rows.find((r) => r.original_filename === "clip-hevc.mp4")!
-    const adminPage = await signIn(browser, adminUser, baseURL!, /\/admin$/)
+    const adminPage = await signIn(browser, adminUser, baseURL!, ADMIN_LANDING)
     const response = await adminPage.request.get(
       `/api/media/${hevc.id}/download`
     )
@@ -1165,11 +1180,11 @@ test.describe("leaving while uploads run", () => {
       held.push(route)
     })
 
-    // Me's Add opens the upload dialog (Album's Add photos opens Match).
+    // Me's Add a video opens the upload dialog (Add photos opens Match).
     if (new URL(page.url()).pathname !== "/staff") await page.goto("/staff")
     await page
       .getByRole("main")
-      .getByRole("button", { name: "Add photos or videos" })
+      .getByRole("button", { name: "Add a video" })
       .first()
       .click()
     const queue = uploadSheet(page)
@@ -1220,7 +1235,7 @@ test.describe("leaving while uploads run", () => {
     await expect(queue).toBeHidden()
     await page
       .getByRole("main")
-      .getByRole("button", { name: "Add photos or videos" })
+      .getByRole("button", { name: "Add a video" })
       .first()
       .click()
     await expect(queue).toHaveAccessibleName("Saving 2 photos")
@@ -1282,11 +1297,11 @@ test.describe("leaving while uploads run", () => {
     const tabbar = page.locator('[data-slot="tabbar"]')
     const sheet = page.getByRole("dialog", { name: "Add photos", exact: true })
     const queue = uploadSheet(page)
-    // Me's Add opens the upload sheet (Album's Add photos opens Match).
+    // Me's Add a video opens the upload sheet (Add photos opens Match).
     if (new URL(page.url()).pathname !== "/staff") await page.goto("/staff")
     await page
       .getByRole("main")
-      .getByRole("button", { name: "Add photos or videos" })
+      .getByRole("button", { name: "Add a video" })
       .first()
       .click()
     await expect(queue).toHaveAccessibleName("Add photos or videos")

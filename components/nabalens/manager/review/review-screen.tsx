@@ -9,7 +9,8 @@ import type {
   QueueStatus,
 } from "@/lib/server/menu-photos/types"
 
-import type { ReviewScope, ReviewView } from "./links"
+import { InboxBatch } from "./inbox-batch"
+import { venueIdOf, type ReviewScope, type ReviewView } from "./links"
 import { ReviewFilters } from "./review-filters"
 import { ReviewList } from "./review-list"
 
@@ -59,6 +60,9 @@ export function ReviewScreen({
         itemName={itemName}
         startTransition={startTransition}
       />
+      {view.status === "pending" ? (
+        <InboxBatch cards={initial.items} venueId={venueIdOf(scope)} />
+      ) : null}
       <div aria-busy={updating || undefined} className="grid">
         <ReviewList
           initial={initial}

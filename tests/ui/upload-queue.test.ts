@@ -6,6 +6,7 @@ import {
   SIGNED_OUT_MESSAGE,
   summarize,
   UploadQueue,
+  UploadWithdrawnError,
   type UploadContext,
   type Uploader,
 } from "@/components/nabalens/upload-queue"
@@ -44,6 +45,46 @@ function statuses(queue: UploadQueue) {
 }
 
 describe("UploadQueue", () => {
+  it("drops a file its owner withdrew before its turn, and runs the next (V7)", async () => {
+    const { upload, calls } = controllableUploader()
+    const withdrawn = new Set<string>(["b.jpg"])
+    const queue = new UploadQueue((f, ctx) => {
+      if (withdrawn.has(f.name))
+        return Promise.reject(new UploadWithdrawnError())
+      return upload(f, ctx)
+    }, LIMITS)
+    queue.add([file("a.jpg"), file("b.jpg"), file("c.jpg")])
+    queue.start()
+    await flush()
+    // a runs; b was withdrawn (removed, no failure), so c takes its place.
+    expect(statuses(queue)).toEqual(["a.jpg:uploading", "c.jpg:uploading"])
+    expect(calls.map((c) => c.file.name)).toEqual(["a.jpg", "c.jpg"])
+    expect(summarize(queue.getSnapshot()).failed).toBe(0)
+  })
+
+  it("names each queue item by its File and selection, even when one File waits twice (W6)", async () => {
+    const { upload, calls } = controllableUploader()
+    const queue = new UploadQueue(upload, { ...LIMITS, maxParallelUploads: 1 })
+    const p = file("p.jpg")
+    const first = queue.add([file("a.jpg"), p])
+    const second = queue.add([p])
+    expect(first.addedFiles.map((f) => f.name)).toEqual(["a.jpg", "p.jpg"])
+    expect(second.addedFiles).toEqual([p])
+    expect(second.batchId).not.toBe(first.batchId)
+    queue.start()
+    await flush()
+    calls[0]!.resolve()
+    await flush()
+    calls[1]!.resolve()
+    await flush()
+    // Each turn of p carries the selection it joined.
+    expect(calls.map((c) => [c.file.name, c.ctx.batchId])).toEqual([
+      ["a.jpg", first.batchId],
+      ["p.jpg", first.batchId],
+      ["p.jpg", second.batchId],
+    ])
+  })
+
   it("keeps selected files until start and allows removing them", () => {
     const { upload, calls } = controllableUploader()
     const queue = new UploadQueue(upload, LIMITS)

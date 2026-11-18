@@ -40,6 +40,7 @@ import {
   section,
   type CatalogueRow,
 } from "./menus-fixtures"
+import { removeAsAdmin } from "./privacy-fixtures"
 
 const service = serviceClient()
 let admin: TestIdentity
@@ -678,7 +679,12 @@ describe("eligibility: deleted, relabelled and non-image photos, label removal",
     const b = await accept(f.manager, second.id, tikka)
     expect(a.is_primary).toBe(true)
     expect(b.is_primary).toBe(false)
-    await ok(f.staff.client.rpc("delete_media_asset", { p_asset_id: first.id }))
+    // FA-21: an accepted photo is kept; only an admin removes it.
+    const own = await f.staff.client.rpc("delete_media_asset", {
+      p_asset_id: first.id,
+    })
+    expect(own.error?.message).toBe("media_asset_retained")
+    await removeAsAdmin(first.id)
     expect(await itemRow(f.staff, f.venue, tikka.itemId)).toMatchObject({
       covered: true,
       accepted_count: 1,
@@ -694,9 +700,7 @@ describe("eligibility: deleted, relabelled and non-image photos, label removal",
       "evidence_not_eligible",
       "P0001"
     )
-    await ok(
-      f.staff2.client.rpc("delete_media_asset", { p_asset_id: second.id })
-    )
+    await removeAsAdmin(second.id)
     expect(await itemRow(f.staff, f.venue, tikka.itemId)).toMatchObject({
       covered: false,
       accepted_count: 0,

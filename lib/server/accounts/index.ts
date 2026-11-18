@@ -38,5 +38,23 @@ export {
   type ConversionInput,
   type ConversionOutcome,
 } from "./conversion"
+export {
+  getPersonVenuePrivileges,
+  grantAdminRole,
+  inviteStaffToVenue,
+  listActiveAdmins,
+  listVenueTeam,
+  membershipError,
+  reassignOpenWork,
+  removeVenueMember,
+  revokeAdminRole,
+  setVenueMembership,
+  type EffectiveVenueRole,
+  type MembershipRole,
+  type RemovalOutcome,
+  type VenueInviteOutcome,
+  type VenuePrivileges,
+  type VenueTeamMember,
+} from "./memberships"
 export { replaceProfileAvatar, type AvatarDeriver } from "./avatar"
-export type { AccountPatch, InviteInput } from "./validation"
+export type { AccountPatch, InviteInput, VenueInviteInput } from "./validation"

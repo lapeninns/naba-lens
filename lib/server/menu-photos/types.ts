@@ -7,11 +7,18 @@ import type { CoverageFailure, NeededBy } from "@/lib/server/coverage/types"
 
 export type ManagerMenuState = "no_menu" | "empty" | "ready"
 
-/** An item's headline: the same for every caller (manager or admin). */
-export type MenuItemStatus = "covered" | "awaiting_review" | "needs_photo"
+/**
+ * An item's headline: the same for every caller (manager or admin).
+ * `optional` (FA-51, S5-R1): a packaged item without Photo wanted, with no
+ * accepted photo and nothing waiting. It is never a filter: every status
+ * filter leaves optional items out, as the Overview's counts do.
+ */
+export type MenuItemStatus =
+  "covered" | "awaiting_review" | "needs_photo" | "optional"
 
 /** Menu list filter: a headline, or "Needs a recheck" / "New photo waiting". */
-export type MenuStatusFilter = MenuItemStatus | "recheck" | "replacement"
+export type MenuStatusFilter =
+  Exclude<MenuItemStatus, "optional"> | "recheck" | "replacement"
 
 export type ContributorStatus = "here" | "moved" | "left" | "manager"
 
@@ -27,7 +34,12 @@ export type QueueStatus =
 
 export type PhotoState = "accepted" | "better_photo_requested" | "needs_recheck"
 
-export type RecheckKind = "name_changed" | "section_changed" | "variant_removed"
+export type RecheckKind =
+  | "name_changed"
+  | "section_changed"
+  | "variant_removed"
+  /** S1-MENUS: a manager marked the dish's presentation as changed. */
+  | "presentation_changed"
 
 export type PhotoBasis = "staff_label" | "reviewer"
 
@@ -114,6 +126,14 @@ export type StaffLabel = {
 
 export type QueueCardKind = "labelled" | "unlabelled" | "stale" | "decided"
 
+/**
+ * Why a photo needs a label (FA-4, the one unlabelled rule): its person chose
+ * I'm not sure, tagged it food or drink without a dish, or left it with no
+ * label for 7 days.
+ */
+/** "imported": a legacy import whose label matched no single slot (FA-54). */
+export type UnlabelledReason = "not_sure" | "no_dish" | "unmatched" | "imported"
+
 export type QueueCard = {
   /** Stable card key (label, photo or asset id); also the paging key. */
   key: string
@@ -158,6 +178,25 @@ export type QueueCard = {
   /** Other cards of the same item in this status set. */
   groupCount: number
   /**
+   * The photo's latest Not used / Mark duplicate / Restore id, or null: a
+   * batch Not used is made against it (S3-R1 V16). Absent on fixtures.
+   */
+  dispositionId?: number | null
+  /**
+   * The caller's own photo at their single-reviewer venue (FA-9, S3-R1 K6):
+   * they may decide on it. Absent on fixtures (false).
+   */
+  selfReviewAllowed?: boolean
+  /** Why a Needs label card waits (S3-R1 K1); null on other cards. */
+  unlabelledReason?: UnlabelledReason | null
+  /** Photo or video (K11). Absent on fixtures (image). */
+  mediaType?: "image" | "video"
+  /**
+   * S2-REVIEW provenance and flags (spec §7 M2, §12.1, FA-35). Absent on
+   * cards built before the review inbox read them (fixtures).
+   */
+  provenance?: CardProvenance
+  /**
    * What accepting this card's item also counts for (ORP-3b): the venue's
    * current menu-section tasks holding the dish, and the uploader's month
    * (`YYYY-MM-01`) when they labelled it themselves. Absent when unknown.
@@ -166,6 +205,19 @@ export type QueueCard = {
 }
 
 export type AlsoCounts = { tasks: string[]; month: string | null }
+
+/** Where the photo came from and what a reviewer should check first. */
+export type CardProvenance = {
+  /** When it was taken; null when unknown (never the upload time). */
+  capturedAt: string | null
+  capturedAtSource: "metadata" | "supplied" | "estimated" | "unknown"
+  /** The same file is already at the venue (hash match or finalise link). */
+  possibleDuplicate: boolean
+  /** The staff member's optional note. */
+  note: string | null
+  /** The dish's section kind; null on itemless cards. */
+  sectionKind: SectionKind | null
+}
 
 export type ItemPhoto = {
   photoId: string

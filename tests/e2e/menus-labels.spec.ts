@@ -211,10 +211,7 @@ const tileLabels = (list: Locator) =>
  * optional labels ("What's in these photos?") inline.
  */
 async function pickInSheet(page: Page, files: SourceFile[]) {
-  await page
-    .getByRole("button", { name: "Add photos or videos" })
-    .first()
-    .click()
+  await page.getByRole("button", { name: "Add a video" }).first().click()
   const sheet = uploadSheet(page)
   await expect(sheet).toBeVisible()
   await sheet
@@ -890,6 +887,13 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
   psql(`set session_replication_role = replica; update public.media_assets set created_at = now() - interval '10 days',
     use_baseline = case when now() - interval '10 days' < (select s.cutover_at from private.media_use_settings s) then 'legacy_unknown' else use_baseline end
     where id in (${sql(aImg[28])}, ${sql(aImg[29])})`)
+  // The other unlabelled uploads (img 27, 28 and video 03) have waited 8
+  // days: an admin's Needs labels is the one unlabelled rule (S3-R1 K1,
+  // FA-4), where an upload with no label counts only after 7 days in Match
+  // later. 8, not 10, so the date filter below still selects only 29 and 30.
+  psql(`set session_replication_role = replica; update public.media_assets set created_at = now() - interval '8 days',
+    use_baseline = case when now() - interval '8 days' < (select s.cutover_at from private.media_use_settings s) then 'legacy_unknown' else use_baseline end
+    where id in (${sql(aImg[26])}, ${sql(aImg[27])}, ${sql(aVid[2])})`)
   const tenDaysAgo = psql(
     `select to_char((now() - interval '10 days') at time zone 'Europe/London', 'YYYY-MM-DD')`
   )

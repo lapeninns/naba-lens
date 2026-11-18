@@ -39,6 +39,8 @@ export type InviteFormValues = {
 
 export type InviteResult =
   | { status: "sent" }
+  /** An existing person now also works at this venue; no email is sent. */
+  | { status: "added"; message: string }
   /** The account exists but the email did not go out; no false success. */
   | { status: "partial"; message: string }
   | {
@@ -59,6 +61,11 @@ type InviteStaffDialogProps = {
   onOpenChange: (open: boolean) => void
   /** Active venues only. */
   venues: Option[]
+  /**
+   * A manager's invitation (spec §3.1, AC40): the venue is fixed to the one
+   * they manage, the account is always staff, and there is no team choice.
+   */
+  lockedVenue?: Option
   onSubmit: (values: InviteFormValues) => Promise<InviteResult> | InviteResult
   /** Looks up who already has an email the server refused as taken. */
   findAccount?: (email: string) => ExistingAccount | null
@@ -137,6 +144,7 @@ function InviteForm({
   venues,
   onSubmit,
   findAccount,
+  lockedVenue,
   pending,
   setPending,
 }: InviteStaffDialogProps & {
@@ -148,7 +156,7 @@ function InviteForm({
     email: "",
     jobTitle: "",
     department: null,
-    venueId: "",
+    venueId: lockedVenue?.id ?? "",
   })
   const [result, setResult] = React.useState<InviteResult | null>(null)
   const sessionEnded = useSessionEndedCatch()
@@ -195,6 +203,24 @@ function InviteForm({
 
   const name = values.displayName.trim()
   const first = firstWord(name)
+
+  if (result?.status === "added") {
+    return (
+      <div className="grid gap-5">
+        <DialogHeader>
+          <DialogTitle>Added to {lockedVenue?.name ?? "the venue"}</DialogTitle>
+          <DialogDescription className="text-ink">
+            {result.message}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="primary" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </div>
+    )
+  }
 
   if (result?.status === "sent" || result?.status === "partial") {
     const sent = result.status === "sent"
@@ -292,8 +318,9 @@ function InviteForm({
       <DialogHeader>
         <DialogTitle>Invite staff</DialogTitle>
         <DialogDescription>
-          Creates a staff account and emails a single-use sign-in link. New
-          admins are added through setup, not here.
+          {lockedVenue
+            ? `Adds them as staff at ${lockedVenue.name} and emails a single-use sign-in link. Only an admin can make someone a manager.`
+            : "Creates a staff account and emails a single-use sign-in link. New admins are added through setup, not here."}
         </DialogDescription>
       </DialogHeader>
       {/* OfflineNotice needs the app router; mount it only when it shows so
@@ -325,31 +352,39 @@ function InviteForm({
         </>,
         { maxLength: 80 }
       )}
-      <Field className="gap-1.5">
-        <FieldLabel htmlFor={`${id}-venueId`}>Venue</FieldLabel>
-        <OptionSelect
-          id={`${id}-venueId`}
-          options={venues}
-          value={values.venueId || null}
-          onValueChange={(v) => set("venueId")(v ?? "")}
-          placeholder="Choose a venue"
-          invalid={!!errorFor("venueId")}
-          aria-describedby={`${id}-venueId-hint`}
+      {lockedVenue ? (
+        <p className="text-body text-ink">
+          Venue: <strong>{lockedVenue.name}</strong>
+        </p>
+      ) : (
+        <Field className="gap-1.5">
+          <FieldLabel htmlFor={`${id}-venueId`}>Venue</FieldLabel>
+          <OptionSelect
+            id={`${id}-venueId`}
+            options={venues}
+            value={values.venueId || null}
+            onValueChange={(v) => set("venueId")(v ?? "")}
+            placeholder="Choose a venue"
+            invalid={!!errorFor("venueId")}
+            aria-describedby={`${id}-venueId-hint`}
+          />
+          {errorFor("venueId") ? (
+            <FieldError>{errorFor("venueId")}</FieldError>
+          ) : (
+            <FieldDescription id={`${id}-venueId-hint`}>
+              Only active venues. Photos are counted at this venue.
+            </FieldDescription>
+          )}
+        </Field>
+      )}
+      {lockedVenue ? null : (
+        <TeamField
+          value={values.department ?? null}
+          onChange={(department) => setValues((v) => ({ ...v, department }))}
+          hint="Teams (FOH/BOH) only suggest who to assign. They do not give anyone extra access. Without a team, the monthly target shows Needs setup."
+          error={errorFor("department")}
         />
-        {errorFor("venueId") ? (
-          <FieldError>{errorFor("venueId")}</FieldError>
-        ) : (
-          <FieldDescription id={`${id}-venueId-hint`}>
-            Only active venues. Photos are counted at this venue.
-          </FieldDescription>
-        )}
-      </Field>
-      <TeamField
-        value={values.department ?? null}
-        onChange={(department) => setValues((v) => ({ ...v, department }))}
-        hint="Teams (FOH/BOH) only suggest who to assign. They do not give anyone extra access. Without a team, the monthly target shows Needs setup."
-        error={errorFor("department")}
-      />
+      )}
       <DialogFooter>
         <Button
           type="button"

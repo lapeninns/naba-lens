@@ -37,6 +37,8 @@ export type AreaPhotoCard = {
   assetId: string
   authorName: string
   area: string
+  /** The area's knowledge subject: its slot ("area:<id>") for the brief. */
+  subjectId: string | null
   uploadedAt: string
   labelledAt: string
   creditMonth: string
@@ -86,6 +88,12 @@ const MESSAGES: Record<string, CoverageFailure> = {
   area_photo_withdrawn: failure(
     "state_conflict",
     "A reviewer withdrew this photo's area, so it can't be given another one."
+  ),
+  // S3-R2 (V12): a reviewed area is not the uploader's to change any more
+  // (spec §6 S4). Same words as staff Me's STILL_WAITING.
+  area_photo_decided: failure(
+    "state_conflict",
+    "A manager has just checked this photo, so it can't be changed now. Reload the page."
   ),
   area_label_image_only: failure(
     "invalid_input",
@@ -222,6 +230,7 @@ export async function listAreaPhotoQueue(
           assetId: r.asset_id,
           authorName: text(r.author_name) ?? "",
           area: text(r.subject_label) ?? "",
+          subjectId: isUuid(r.subject_id) ? r.subject_id : null,
           uploadedAt: text(r.uploaded_at) ?? "",
           labelledAt: text(r.labelled_at) ?? "",
           creditMonth: text(r.credit_month) ?? "",

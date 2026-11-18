@@ -14,9 +14,11 @@ import Link from "next/link"
 import {
   CoverageNotice,
   CoverageSection,
+  ReasonDialog,
   Tally,
   TallyItem,
 } from "@/components/nabalens/coverage"
+import { REPORTED } from "@/components/nabalens/coverage/use-coverage-action"
 import { Notice } from "@/components/nabalens/notice"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { SegmentedControl } from "@/components/ui/segmented-control"
@@ -58,9 +60,11 @@ export type AmenitiesOverviewHandlers = {
     keys: string[],
     idempotencyKey: string
   ) => Promise<AmenityResult<{ checkIds: string[] }>>
+  /** Here again, with a reason (S2-MGR, AC29). */
   restore: (input: {
     checkId: string
     revision: number
+    reason: string
     idempotencyKey: string
   }) => Promise<AmenityResult<{ revision: number }>>
 }
@@ -188,17 +192,34 @@ export function AmenitiesOverview({
     }
   }
 
-  async function restore(check: CheckSummary) {
+  // S2-MGR: restoring asks for the reason first (AC29).
+  const [restoreFor, setRestoreFor] = React.useState<CheckSummary | null>(null)
+
+  async function restore(check: CheckSummary, reason: string) {
     focusNotice.current = true
     restoring.current = true
-    const input = { checkId: check.id, revision: check.revision }
+    const input = { checkId: check.id, revision: check.revision, reason }
     const result = await action.runKeyed(
       `amenity-check:${check.id}:restore`,
       input,
       (idempotencyKey) => handlers.restore({ ...input, idempotencyKey }),
       `Restored “${check.entry.question}”.`
     )
-    if (result.ok) setRestored(check.id)
+    if (result.ok) {
+      setRestored(check.id)
+      return { ok: true as const }
+    }
+    // A reason the server refused stays in the dialog; any other failure
+    // closes it and is said in the page's notice, like Reopen.
+    const reasonError =
+      "fieldErrors" in result ? result.fieldErrors?.reason : undefined
+    if (reasonError)
+      return {
+        ok: false as const,
+        error: result.message,
+        fieldError: reasonError,
+      }
+    return REPORTED
   }
 
   const notice = (
@@ -559,7 +580,7 @@ export function AmenitiesOverview({
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => restore(check)}
+                    onClick={() => setRestoreFor(check)}
                     disabled={action.pending}
                     aria-describedby={`archived-${check.id}`}
                   >
@@ -572,6 +593,28 @@ export function AmenitiesOverview({
           </ul>
         </CoverageSection>
       ) : null}
+      <ReasonDialog
+        open={restoreFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setRestoreFor(null)
+        }}
+        title="Restore this check?"
+        description={
+          restoreFor
+            ? `“${restoreFor.entry.question}” comes back for staff and in the counts. The reason is kept in the venue's history.`
+            : undefined
+        }
+        label="Reason"
+        confirmLabel={UI_TEXT.restore}
+        pendingLabel="Saving…"
+        // A failure is said in the page's notice, which takes focus.
+        reportFocus={() => noticeRef.current}
+        onConfirm={(reason) =>
+          restoreFor
+            ? restore(restoreFor, reason)
+            : Promise.resolve({ ok: true as const })
+        }
+      />
     </div>
   )
 }

@@ -293,6 +293,7 @@ function itemView(row: ItemRow, canReview: boolean): OurMenuItem {
         : null,
     itemRevision: row.item_revision,
     neededBy: neededByView(row.needed_by, row.needed_by_passed),
+    optional: row.optional === true,
     review:
       canReview && row.candidate_count !== null
         ? {
@@ -679,7 +680,7 @@ export async function getMyMenuPhotoStates(
 }
 
 const MY_STATE_COLUMNS =
-  "id, asset_id, item_id, item_name, variant_id, variant_name, state, is_primary, reason, decided_at"
+  "id, asset_id, item_id, item_name, variant_id, variant_name, state, review_level, is_primary, reason, decided_at"
 
 function myStateView(r: {
   id: string
@@ -689,6 +690,7 @@ function myStateView(r: {
   variant_id: string | null
   variant_name: string | null
   state: string
+  review_level: string
   is_primary: boolean
   reason: string | null
   decided_at: string
@@ -701,6 +703,7 @@ function myStateView(r: {
     variantId: r.variant_id,
     variantName: r.variant_name,
     state: r.state as MyMenuPhotoState["state"],
+    reviewLevel: r.review_level === "reference" ? "reference" : "public",
     isPrimary: r.is_primary,
     reason: r.reason,
     decidedAt: r.decided_at,
@@ -711,6 +714,8 @@ function myStateView(r: {
  * The caller's own accepted and better-photo-requested decisions, newest
  * decision first, whichever of their photos they are on (Me's "Accepted for
  * menu use" and "Better photo requested", not limited to the loaded page).
+ * An accepted row carries its review level: only a public one is "Accepted
+ * for menu use" (X9; isMenuUse in lib/staff/my-uploads).
  * `requestsOnly` returns only the better-photo requests (To do, B02 R2).
  */
 export async function listMyMenuPhotoDecisions(

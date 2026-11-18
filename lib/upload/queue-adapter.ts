@@ -164,6 +164,8 @@ export function toQueueUploader(
       result = await upload(file, {
         idempotencyKey,
         ...(context.purpose ? { purpose: context.purpose } : {}),
+        ...(context.batchId ? { batchId: context.batchId } : {}),
+        ...(context.venueId ? { venueId: context.venueId } : {}),
         signal: context.signal,
         onProgress: (fraction) => {
           context.onProgress(fraction)
@@ -231,9 +233,11 @@ export function toQueueUploader(
     // Ready: report the asset (and what finalise did with labels waiting for
     // it) so the queue can tell when the photo and its labels are saved.
     if (!result.assetId) return undefined
-    return result.labels
-      ? { assetId: result.assetId, labels: result.labels }
-      : { assetId: result.assetId }
+    return {
+      assetId: result.assetId,
+      ...(result.labels ? { labels: result.labels } : {}),
+      ...(result.duplicate ? { duplicate: true as const } : {}),
+    }
   }
 }
 

@@ -131,6 +131,31 @@ export function summary(
   }
 }
 
+/**
+ * What POST /api/upload-labels answers once the photo is ready (it is in
+ * these mocked queues before any label is sent): the labels are on it now.
+ */
+export function savedAnswer(sent: {
+  input: {
+    assetId: string
+    items: { itemId: string; variantId: string | null }[]
+    contentTypes?: MediaLabelSummary["contentTypes"]
+    note?: string | null
+  }
+}) {
+  return {
+    ok: true,
+    assetId: sent.input.assetId,
+    state: "saved" as const,
+    labels: summary({
+      revision: 1,
+      items: sent.input.items.map((i) => view(i.itemId, i.itemId, "Mains")),
+      contentTypes: sent.input.contentTypes ?? [],
+      note: sent.input.note ?? null,
+    }),
+  }
+}
+
 export function asset(
   id: string,
   labels: MediaLabelSummary = EMPTY_LABEL_SUMMARY,

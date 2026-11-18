@@ -16,7 +16,7 @@ import { createHash, randomUUID } from "node:crypto"
 import { execFileSync, spawnSync } from "node:child_process"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { homedir } from "node:os"
-import { transition } from "./policy.mjs"
+import { localGatePassed, transition } from "./policy.mjs"
 
 const git = (...args) =>
   execFileSync("git", args, {
@@ -46,20 +46,6 @@ function installedProfileDigest() {
     ? createHash("sha256").update(readFileSync(path)).digest("hex")
     : null
 }
-const requiredLocalStatuses = [
-  "fixtures-common",
-  "fixtures-chromium",
-  "fixtures-firefox",
-  "fixtures-webkit",
-  "smoke-production-contract",
-  "result",
-]
-const localGatePassed = (pr) =>
-  requiredLocalStatuses.every((name) =>
-    pr.statusCheckRollup.some(
-      (c) => c.context === "local-ci/" + name && c.state === "SUCCESS"
-    )
-  )
 function context() {
   const head = git("rev-parse", "HEAD"),
     tree = git("rev-parse", "HEAD^{tree}")

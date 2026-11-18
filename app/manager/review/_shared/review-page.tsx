@@ -3,7 +3,9 @@ import "server-only"
 import { notFound } from "next/navigation"
 
 import { ContributorHeader } from "@/components/nabalens/manager/review/contributor-header"
+import { NeedsLabelList } from "@/components/nabalens/manager/review/inbox-needs-label"
 import {
+  narrowingOf,
   reviewHref,
   type ReviewScope,
   type ReviewView,
@@ -24,6 +26,7 @@ import {
 import { isUuid } from "@/lib/server/coverage/validate"
 
 import { failedRead } from "../../load-overview"
+import { listAllNeedsLabel } from "./needs-label"
 
 // The server half of the Review screen, shared by the manager workspace
 // (/manager/review, the contributor view) and the admin Review pages
@@ -51,7 +54,22 @@ export function reviewViewOf(
     sectionId: uuidOr(one(search, "section")),
     contributorId: fixedContributorId ?? uuidOr(one(search, "contributor")),
     itemId: uuidOr(one(search, "item")),
+    ...narrowingFromSearch(search),
   }
+}
+
+/** S2-REVIEW filters from the URL; unknown values are ignored. */
+function narrowingFromSearch(search: ReviewSearch) {
+  const category = one(search, "category")
+  const age = one(search, "age")
+  const media = one(search, "media")
+  return {
+    category: category === "food" || category === "drinks" ? category : null,
+    minAgeDays: age === "2" ? 2 : age === "7" ? 7 : null,
+    possibleDuplicate: one(search, "dupes") === "1",
+    neededBy: one(search, "needed") === "1",
+    media: media === "photo" || media === "video" ? media : null,
+  } as const
 }
 
 /**
@@ -83,6 +101,45 @@ function MenuNotReady({ empty }: { empty: boolean }) {
   )
 }
 
+/**
+ * The menu-pending state, with the photos that still need a label under it
+ * (S3-R8 W2, K1, E4): Overview counts them whatever the menu state, so the
+ * list it links to shows them too, all of them (S3-R13 X2). Each opens its
+ * detail, where Not used and Fix label to a place or amenity need no menu;
+ * choosing a dish waits for the menu. Admins get the list too, linking to
+ * the admin photo route (S3-R13 X1).
+ */
+async function MenuNotReadyBody({
+  ctx,
+  scope,
+  view,
+  empty,
+  path,
+}: {
+  ctx: ManagerPhotoCtx
+  scope: ReviewScope
+  view: ReviewView
+  empty: boolean
+  path: string
+}) {
+  const waiting = await listAllNeedsLabel(ctx, {
+    contributorId: view.contributorId ?? undefined,
+    ...narrowingOf(view),
+  })
+  if (!waiting.ok) failed(waiting, scope, path)
+  return (
+    <div className="grid gap-6">
+      <MenuNotReady empty={empty} />
+      <NeedsLabelList
+        cards={waiting.items}
+        more={waiting.more}
+        scope={scope}
+        note={REVIEW_COPY.needsLabelMenuNotReady}
+      />
+    </div>
+  )
+}
+
 /** Filters and list of the Review screen for `search`. */
 export async function ReviewBody({
   ctx,
@@ -103,11 +160,20 @@ export async function ReviewBody({
       sectionId: view.sectionId ?? undefined,
       contributorId: view.contributorId ?? undefined,
       itemId: view.itemId ?? undefined,
+      ...narrowingOf(view),
     }),
   ])
   if (!overview.ok) failed(overview, scope, path)
   if (overview.overview.menuState !== "ready")
-    return <MenuNotReady empty={overview.overview.menuState === "empty"} />
+    return (
+      <MenuNotReadyBody
+        ctx={ctx}
+        scope={scope}
+        view={view}
+        empty={overview.overview.menuState === "empty"}
+        path={path}
+      />
+    )
   if (!contributors.ok) failed(contributors, scope, path)
   if (!queue.ok) failed(queue, scope, path)
   return (
@@ -169,6 +235,7 @@ export async function ContributorBody({
       sectionId: view.sectionId ?? undefined,
       contributorId: staffId,
       itemId: view.itemId ?? undefined,
+      ...narrowingOf(view),
     }),
   ])
   if (!contributor.ok) failed(contributor, scope, path)
@@ -186,7 +253,13 @@ export async function ContributorBody({
     return (
       <div className="grid gap-6">
         {header}
-        <MenuNotReady empty={overview.overview.menuState === "empty"} />
+        <MenuNotReadyBody
+          ctx={ctx}
+          scope={scope}
+          view={view}
+          empty={overview.overview.menuState === "empty"}
+          path={path}
+        />
       </div>
     )
   }

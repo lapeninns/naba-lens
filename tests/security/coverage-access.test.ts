@@ -156,8 +156,13 @@ describe("manager grants", () => {
     expect(
       await ok(staffA1.client.from("venue_manager_grants").select("id"))
     ).toEqual([])
+    // Filtered to this file's managers: the shared stack holds more grants
+    // than one PostgREST response (max_rows 1000) by the late files (S6-CI).
     const all = await ok(
-      admin.client.from("venue_manager_grants").select("staff_id")
+      admin.client
+        .from("venue_manager_grants")
+        .select("staff_id")
+        .in("staff_id", [managerA.id, managerB.id])
     )
     expect(all.map((g) => g.staff_id)).toEqual(
       expect.arrayContaining([managerA.id, managerB.id])

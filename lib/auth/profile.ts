@@ -77,6 +77,15 @@ export type AuthState =
   | { status: "no_profile"; userId: string; email: string | null }
   | { status: "inactive"; profile: CurrentProfile }
   | { status: "active"; profile: CurrentProfile }
+  /**
+   * Active, but the session must pass the second sign-in step first (FA-23):
+   * an admin always, anyone else who has turned it on. /auth/mfa.
+   */
+  | {
+      status: "mfa_required"
+      profile: CurrentProfile
+      requirement: "enrol" | "verify"
+    }
 
 /**
  * Reads the caller's profile through their own RLS-scoped client. Always hits the

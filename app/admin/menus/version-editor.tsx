@@ -64,7 +64,9 @@ import {
   discardDraftAction,
   retireVersionAction,
   saveDraftAction,
+  scheduleVersionAction,
   setItemArchivedAction,
+  unscheduleVersionAction,
 } from "./actions"
 import {
   blockingErrors,
@@ -88,6 +90,19 @@ const READ_ONLY_NOTE: Record<
   active: "Active versions are read-only. Start a draft to change items.",
   retired: `No longer used for new labels. ${LABELS_KEPT_COPY}`,
   discarded: "Kept for history. It was never active, so no labels use it.",
+}
+
+/** "Mon 1 Dec 2026, 09:00" in Europe/London, where every venue is. */
+function formatInstant(iso: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso))
 }
 
 const countItems = (doc: MenuDocument) =>
@@ -568,6 +583,33 @@ export function VersionEditor({
                     ? "Ready to activate"
                     : "Before you activate"}
                 </h2>
+                {version.scheduledFor ? (
+                  <Notice tone="attention" title="Scheduled">
+                    Becomes active on {formatInstant(version.scheduledFor)}.
+                    Saving the draft again cancels the schedule.{" "}
+                    <Button
+                      variant="secondary"
+                      className="mt-2"
+                      disabled={!online}
+                      onClick={async () => {
+                        const result = await wrap(() =>
+                          unscheduleVersionAction(version.id)
+                        )
+                        setMessage(
+                          result.ok
+                            ? {
+                                tone: "positive",
+                                text: "The schedule is cancelled. The draft stays a draft.",
+                              }
+                            : { tone: "negative", text: result.error }
+                        )
+                        if (result.ok) router.refresh()
+                      }}
+                    >
+                      Unschedule
+                    </Button>
+                  </Notice>
+                ) : null}
                 {unresolved > 0 ? (
                   <Notice
                     tone="attention"
@@ -626,11 +668,30 @@ export function VersionEditor({
             errorCount={errors.length}
             itemCount={itemCount}
             hasUnsavedChanges={dirty || saving}
-            onConfirm={async () => {
+            retirements={diff?.removed.map((r) => r.name) ?? []}
+            allowSchedule
+            onConfirm={async ({ retirements, at }) => {
+              if (at) {
+                const scheduled = await wrap(() =>
+                  scheduleVersionAction({
+                    versionId: version.id,
+                    expectedRevision: version.revision,
+                    at,
+                    retirements,
+                  })
+                )
+                if (scheduled.ok)
+                  setMessage({
+                    tone: "positive",
+                    text: `${document.title} is scheduled to become active at ${venue} on ${formatInstant(at)}. The current menu stays until then.`,
+                  })
+                return scheduled
+              }
               const result = await wrap(() =>
                 activateVersionAction({
                   versionId: version.id,
                   expectedRevision: version.revision,
+                  retirements,
                 })
               )
               if (result.ok)

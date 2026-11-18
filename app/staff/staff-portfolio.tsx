@@ -9,12 +9,12 @@ import {
   CameraIcon,
   CaretRightIcon,
   ClipboardTextIcon,
+  FilmStripIcon,
   ForkKnifeIcon,
   ImagesIcon,
   PencilSimpleIcon,
   SignOutIcon,
   TagIcon,
-  UploadSimpleIcon,
   UsersIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
@@ -34,9 +34,18 @@ import {
 } from "@/components/nabalens"
 import type { MediaItem } from "@/components/nabalens/types"
 import { formatBytes } from "@/components/nabalens/format"
+import {
+  ALBUM_ADD_LABEL,
+  ALBUM_ADD_OPTIONS,
+} from "@/components/nabalens/album/album-add-trigger"
 import { HOME_ROWS_COPY } from "@/components/nabalens/album/home-rows"
 import { GUIDE_PATH } from "@/components/nabalens/guide"
-import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
+import {
+  CountBadge,
+  StatusChip,
+  type ChipStateKey,
+} from "@/components/nabalens/status-chip"
+import { isMenuUse } from "@/lib/staff/my-uploads"
 import { ThemeSetting } from "@/components/nabalens/theme-setting"
 import {
   useAdd,
@@ -93,21 +102,28 @@ type StaffPortfolioProps = {
    * it out.
    */
   otherJobs?: number | null
+  /** My uploads (FA-1; spec §6 S4), Me's first section; null to leave it out. */
+  myUploads?: React.ReactNode
+  /** Help and account (spec §6 S5), after the work links; null to leave it out. */
+  account?: React.ReactNode
 }
 
-/** The three milestones of an own photo, in these exact words. */
-export const MILESTONES = {
-  saved: "Saved to your portfolio",
-  label: "Ready to label",
-  accepted: "Accepted for menu use",
-  better: "Needs another photo",
-} as const
+/**
+ * The milestones of an own photo (docs/usage-staff.md). A tile's state word
+ * is its chip's (MILESTONE_STATE): status words live only in status-chip.tsx.
+ */
+export type Milestone = "saved" | "label" | "accepted" | "better"
 
-export type Milestone = keyof typeof MILESTONES
+/** The heading of Me's section of photos accepted for menu use. */
+/** Me's way to the older Add sheet, beside Add photos (R15-1). */
+export const ME_ADD_VIDEO_LABEL = "Add a video"
+
+const ACCEPTED_HEADING = "Accepted for menu use"
 
 /**
- * Where one own photo stands: accepted for menu use (any live accepted
- * decision), ready to label (ready, labels loaded and none yet), or saved.
+ * Where one own photo stands: accepted for menu use (a live decision
+ * accepted for public use; X9: never one kept as reference), ready to label
+ * (ready, labels loaded and none yet), or saved.
  * Files still uploading, processing or failed have no milestone.
  */
 export function photoMilestone(
@@ -325,11 +341,10 @@ function MilestoneTile({
         ) : null}
       </span>
       <span className="sr-only">{kind}: </span>
-      {/* Common Room §3 shapes: Accepted is the filled ok square, a better
-          photo request the warn pill, the rest a plain grey pill. */}
-      <StatusChip state={MILESTONE_STATE[milestone]} className="w-fit">
-        {MILESTONES[milestone]}
-      </StatusChip>
+      {/* The chip's own word and shape (status-chip.tsx): In the album is
+          the filled ok square, a better photo request the warn pill, the
+          rest a plain grey pill. */}
+      <StatusChip state={MILESTONE_STATE[milestone]} className="w-fit" />
       {detail ? (
         <span
           title={detail}
@@ -342,11 +357,14 @@ function MilestoneTile({
   )
 }
 
-/** Which §3 state shape draws each milestone (the word stays MILESTONES'). */
-const MILESTONE_STATE: Record<Milestone, string> = {
+/**
+ * The chip that draws each milestone on a tile, word and shape. Accepted for
+ * menu use is the staff outcome In the album (FA-7), as My uploads says.
+ */
+const MILESTONE_STATE: Record<Milestone, ChipStateKey> = {
   saved: "portfolio_saved",
   label: "needs_labels",
-  accepted: "accepted",
+  accepted: "outcome_public",
   better: "needs_another_photo",
 }
 
@@ -366,6 +384,8 @@ export function StaffPortfolio({
   findings = null,
   month = null,
   otherJobs,
+  myUploads = null,
+  account = null,
 }: StaffPortfolioProps) {
   const router = useRouter()
   const [editOpen, setEditOpen] = React.useState(initialEditOpen)
@@ -411,7 +431,8 @@ export function StaffPortfolio({
   const accepted = React.useMemo(() => {
     const accepted = new Map<string, string[]>()
     for (const state of menuPhotos) {
-      if (state.state !== "accepted") continue
+      // X9: a photo kept as reference is not accepted for menu use.
+      if (!isMenuUse(state)) continue
       const name = state.variantName
         ? `${state.itemName} (${state.variantName})`
         : state.itemName
@@ -428,11 +449,35 @@ export function StaffPortfolio({
   const acceptedItems = menuPhotoItems.filter(
     (item) => photoMilestone(item, acceptedIds) === "accepted"
   )
+  // S3-R12 (S4-DOCS): Me's Add photos is the tab bar's: the phone's
+  // gallery first, then Match (DESIGN.md §6.1, D9). Match takes photos only;
+  // video goes where a requirement asks for it (departures.md A-D2).
   const uploadButton = (variant: "primary" | "secondary" = "primary") =>
     uploadBlocked || !openAdd ? null : (
-      <Button variant={variant} onClick={() => openAdd({ dialog: true })}>
-        <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-        Add photos or videos
+      <Button
+        variant={variant}
+        data-slot="me-add"
+        // Synchronously, inside the click: the host clicks its hidden input.
+        onClick={() => openAdd(ALBUM_ADD_OPTIONS)}
+      >
+        <ImagesIcon data-icon="inline-start" aria-hidden />
+        {ALBUM_ADD_LABEL}
+      </Button>
+    )
+  // S3-R15 (R15-1): Match takes photos only, so Me keeps a quieter way to
+  // the older Add sheet for a video and anything Match does not take
+  // (departures.md A-D2). Gallery first: the sheet opens the phone's photos,
+  // never a camera (DESIGN.md §9). A secondary button beside the main one
+  // (DESIGN.md §5).
+  const videoButton =
+    uploadBlocked || !openAdd ? null : (
+      <Button
+        variant="secondary"
+        data-slot="me-add-video"
+        onClick={() => openAdd({ dialog: true })}
+      >
+        <FilmStripIcon data-icon="inline-start" aria-hidden />
+        {ME_ADD_VIDEO_LABEL}
       </Button>
     )
 
@@ -474,6 +519,7 @@ export function StaffPortfolio({
               <PencilSimpleIcon data-icon="inline-start" aria-hidden />
               Edit profile
             </Button>
+            {videoButton}
             {uploadButton()}
           </>
         }
@@ -481,6 +527,8 @@ export function StaffPortfolio({
       {profileSaved ? (
         <Notice tone="positive">{PROFILE_SAVE_COPY.saved}</Notice>
       ) : null}
+      {/* FA-1: My uploads is Me's first section (spec §6 S4). */}
+      {myUploads}
       {month}
       {manage ? (
         <ManageRow
@@ -520,7 +568,7 @@ export function StaffPortfolio({
             href="/staff/community"
             icon={<ImagesIcon />}
             title="Photos"
-            hint="Photos your colleagues have added, newest first"
+            hint="Accepted photos from colleagues at your venue, newest first"
           />
           <MeRow
             href="/staff/people"
@@ -538,6 +586,7 @@ export function StaffPortfolio({
           ) : null}
         </ul>
       </nav>
+      {account}
       <NeedsAttention
         refreshSignal={addRefreshSignal}
         onFixed={(saved) => {
@@ -588,7 +637,7 @@ export function StaffPortfolio({
             id="accepted-heading"
             className="px-1 type-section-title text-ink"
           >
-            {MILESTONES.accepted}
+            {ACCEPTED_HEADING}
           </h2>
           <ul aria-label="Photos accepted for menu use" className={TILE_GRID}>
             {acceptedItems.map((item) => (

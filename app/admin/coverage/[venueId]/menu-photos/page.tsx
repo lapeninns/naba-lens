@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 
+import { AmenityReviewSection } from "@/app/manager/review/_shared/amenity-section"
 import { AreaReviewSection } from "@/app/manager/review/_shared/area-section"
+import { showsPhotoOnlySections } from "@/app/manager/review/_shared/mode"
 import {
   ReviewBody,
   type ReviewSearch,
@@ -17,7 +19,8 @@ export const metadata: Metadata = {
 /**
  * The admin Review page for one venue: the manager workspace's Review screen
  * (relink, old-menu labels and unlabelled photos included), with every action
- * naming the venue. No review badge provider here.
+ * naming the venue, then place and facility photos (the waiting count on
+ * Overview links here). No review badge provider here.
  */
 export default async function AdminMenuPhotosPage({
   params,
@@ -30,6 +33,7 @@ export default async function AdminMenuPhotosPage({
   const ctx = await adminVenueContext(venueId)
   const scope = await getManagerPhotoCtx(ctx.venueId)
   if (!scope.ok) throw new Error(`Could not open Review: ${scope.code}`)
+  const search = await searchParams
   return (
     <ManageFrame
       ctx={ctx}
@@ -41,9 +45,15 @@ export default async function AdminMenuPhotosPage({
       <ReviewBody
         ctx={scope.ctx}
         scope={{ kind: "admin", venueId: ctx.venueId }}
-        search={await searchParams}
+        search={search}
       />
-      <AreaReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
+      {showsPhotoOnlySections(search) ? (
+        <AreaReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
+      ) : null}
+      {/* S3-R11 (V18): the facility photos Overview counts as waiting. */}
+      {showsPhotoOnlySections(search) ? (
+        <AmenityReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
+      ) : null}
     </ManageFrame>
   )
 }

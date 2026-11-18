@@ -7,7 +7,10 @@
  * including that nobody reviews their own photo.
  */
 
-import { availableActions } from "@/components/nabalens/manager/review/card-model"
+import {
+  availableActions,
+  ownPhotoBlocked,
+} from "@/components/nabalens/manager/review/card-model"
 import type { DecisionPayload } from "@/components/nabalens/manager/review/use-decision"
 import { dishName } from "@/lib/menus/dish-name"
 import type { AreaPhotoCard } from "@/lib/server/area-photos"
@@ -30,7 +33,12 @@ export type MenuSubject = {
   correctsVariantId: string | null
 }
 
-export type AreaSubject = { kind: "area"; labelId: string }
+export type AreaSubject = {
+  kind: "area"
+  labelId: string
+  /** S2-REVIEW: the photo, for its review detail. */
+  assetId?: string
+}
 
 /** One photo on the stage. */
 export type ReviewPhoto = {
@@ -53,23 +61,37 @@ export type ReviewPhoto = {
 }
 
 /**
- * Where each menu section sits in the album, and each item's brief. Built by
- * the server from the album placements and the menu; both maps may be empty.
+ * Where each menu section sits in the album, and each slot's brief. Built by
+ * the server from the album placements and public.slot_briefs; every map may
+ * be empty.
  */
 export type ReviewContext = {
   /** Menu section id to album place label. */
   sectionPlace: ReadonlyMap<string, string>
-  /** Menu section id to the section's brief (AL-4). */
+  /**
+   * S5-R2 (Y4, FA-52): the brief staff were given, keyed as Album's slot ids
+   * ("dish:<item id>", "area:<subject id>"), resolved once by
+   * public.slot_briefs: an open request's brief, the manager's, the
+   * catalogue's, then the category's shot template. The reviewer judges
+   * against the same words (DESIGN.md §2 principle 4).
+   */
+  slotBrief?: ReadonlyMap<string, string>
+  /**
+   * Fallback only, when the slot_briefs read failed: menu section id to the
+   * section's brief (AL-4).
+   */
   sectionBrief: ReadonlyMap<string, string>
   /**
-   * Menu item id to the dish's own brief (AL-4). A dish without one takes its
-   * section's; never the guest-facing menu description (§2 principle 4).
+   * Fallback only, when the slot_briefs read failed: menu item id to the
+   * dish's own brief (AL-4). A dish without one takes its section's; never
+   * the guest-facing menu description (§2 principle 4).
    */
   itemBrief: ReadonlyMap<string, string>
 }
 
 const EMPTY_CONTEXT: ReviewContext = {
   sectionPlace: new Map(),
+  slotBrief: new Map(),
   sectionBrief: new Map(),
   itemBrief: new Map(),
 }
@@ -98,14 +120,19 @@ export function fromMenuCard(
   return {
     key: `dish:${card.key}`,
     name: dishName(item, label?.unspecified === true),
+    // FA-52's resolved brief first; the album briefs only stand in when
+    // that read failed (the loader then leaves slotBrief empty).
     brief:
+      clean(context.slotBrief?.get(`dish:${item.itemId}`)) ??
       clean(context.itemBrief.get(item.itemId)) ??
       clean(context.sectionBrief.get(item.sectionId)),
     author: card.contributor.name,
     addedAt: card.labelledAt ?? card.uploadedAt,
     place: context.sectionPlace.get(item.sectionId) ?? null,
     imageUrl: card.asset.previewUrl ?? card.asset.thumbnailUrl,
-    own: card.isSelf,
+    // The manager's own photo, unless their venue is single-reviewer (K6,
+    // S3-R8 W3): the list's rule, so both views offer the same photos.
+    own: ownPhotoBlocked(card, "manager"),
     subject: {
       kind: "dish",
       assetId: card.asset.assetId,
@@ -122,21 +149,28 @@ export function fromMenuCard(
 }
 
 /**
- * A waiting area photo as a stage photo. The area is its own place, and
- * areas have no brief (AL-4). A photo the caller may not decide on while it
- * waits is their own: the queue says so with `canDecide`.
+ * A waiting area photo as a stage photo. The area is its own place. Its
+ * brief is the one staff were given for the area's slot (FA-52: an open
+ * request's, else the Spaces template); none when that read failed. A photo
+ * the caller may not decide on while it waits is their own: the queue says
+ * so with `canDecide`.
  */
-export function fromAreaCard(card: AreaPhotoCard): ReviewPhoto {
+export function fromAreaCard(
+  card: AreaPhotoCard,
+  context: ReviewContext = EMPTY_CONTEXT
+): ReviewPhoto {
   return {
     key: `area:${card.labelId}`,
     name: card.area,
-    brief: null,
+    brief: card.subjectId
+      ? clean(context.slotBrief?.get(`area:${card.subjectId}`))
+      : null,
     author: card.authorName,
     addedAt: card.labelledAt || card.uploadedAt,
     place: card.area,
     imageUrl: card.previewUrl ?? card.thumbnailUrl,
     own: !card.canDecide,
-    subject: { kind: "area", labelId: card.labelId },
+    subject: { kind: "area", labelId: card.labelId, assetId: card.assetId },
   }
 }
 
@@ -170,16 +204,32 @@ export function reviewLine(photos: readonly ReviewPhoto[]): ReviewPhoto[] {
 
 // ---- Ask again ---------------------------------------------------------------
 
-/** The reason chips, in order (DESIGN.md §5 Reason chips). */
-export const REASONS = [
-  "Too dark",
-  "Out of focus",
-  "Wrong item",
-  "Show more of it",
-  "Messy background",
+/**
+ * The reusable retake reasons (spec §7 M2, §9.1), in Album's plain words
+ * (DESIGN.md §5 Reason chips), each with the spec's code. A wrong label is
+ * not a photo-quality reason: it is fixed with Fix label, never a retake.
+ */
+export const RETAKE_REASONS = [
+  { code: "whole_item_not_visible", words: "Show all of it" },
+  { code: "insufficient_light", words: "Too dark" },
+  { code: "out_of_focus", words: "Out of focus" },
+  { code: "wrong_presentation", words: "Not how it's served now" },
+  { code: "route_not_shown", words: "Show the way in" },
+  { code: "background_issue", words: "Messy background" },
+  { code: "people_visible", words: "People or personal details in shot" },
 ] as const
 
-export type Reason = (typeof REASONS)[number]
+export type RetakeReasonCode = (typeof RETAKE_REASONS)[number]["code"]
+
+/** The reason chips, in order (DESIGN.md §5 Reason chips). */
+export const REASONS = RETAKE_REASONS.map((r) => r.words)
+
+export type Reason = (typeof RETAKE_REASONS)[number]["words"]
+
+/** The spec code of a chip's words; null for a written reason. */
+export function retakeReasonCode(words: string): RetakeReasonCode | null {
+  return RETAKE_REASONS.find((r) => r.words === words)?.code ?? null
+}
 
 /** The most a written reason may hold (the decision actions' limit). */
 export const REASON_MAX = 500

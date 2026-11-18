@@ -109,12 +109,27 @@ const LINK =
  * date and no Overdue (rule 23); the month ends with the calendar month. G-2
  * replaces what it reads; the card takes the month as a prop.
  */
+/**
+ * The spec's two figures for the month (§6 S4; S2-STAFF): slots the
+ * person's photos now fill in the album, and how many of those replaced an
+ * outdated photo. Personal only, never compared (FA-34).
+ */
+export function replacementsLine(r: { covered: number; replaced: number }) {
+  const slots = `${plural(r.covered, "slot", "slots")} in the album from your photos`
+  return r.replaced > 0
+    ? `${slots} · ${plural(r.replaced, "outdated photo", "outdated photos")} replaced`
+    : slots
+}
+
 export function YourMonthCard({
   monthly,
   monthHref = "/staff/tasks/month",
+  replacements = null,
 }: {
   monthly: MonthlyProgress | null
   monthHref?: string
+  /** This month's slots filled and outdated photos replaced, when read. */
+  replacements?: { covered: number; replaced: number } | null
 }) {
   const needsSetup = monthly?.status === "needs_setup"
   return (
@@ -144,6 +159,12 @@ export function YourMonthCard({
       ) : (
         <TargetProgress monthly={monthly} />
       )}
+
+      {replacements ? (
+        <p className="text-body text-ink" data-slot="month-replacements">
+          {replacementsLine(replacements)}
+        </p>
+      ) : null}
 
       <p className="max-w-reading text-meta text-ink-muted">{COPY.counts}</p>
 

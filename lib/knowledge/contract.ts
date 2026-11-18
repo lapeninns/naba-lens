@@ -13,6 +13,14 @@ import type {
   WifiMetadata,
 } from "@/lib/amenities/contract"
 
+import type {
+  FactCoverageView,
+  FactStateView,
+  GuestAnswersView,
+  ReconfirmResult,
+  SpacePhotoFreshnessRow,
+} from "./facts"
+
 export const KNOWLEDGE_ANSWERS = [
   "yes",
   "no",
@@ -972,8 +980,10 @@ export type FreshnessEntry = {
   use: "internal" | "public"
   state: "current" | "due_soon" | "expired" | "basis_missing" | "unrated"
   nextCheckDue: string | null
-  basis: "observed_on" | "stated_on" | "event_end" | null
+  basis: "observed_on" | "stated_on" | "event_end" | "verified_on" | null
   basisDate: string | null
+  /** S1-FACTS: a manager brought the next check forward. */
+  nextCheckSetBy?: "manager"
   /** The freshness policy version in force at the time read (B08 M1). */
   policyId?: string
   policyVersion?: number
@@ -1260,7 +1270,7 @@ export type FreshnessPolicyView = {
   use: "internal" | "public"
   maxAge: string | null
   recheckLead: string | null
-  basis: "observed_on" | "stated_on" | "event_end"
+  basis: "observed_on" | "stated_on" | "event_end" | "verified_on"
   note: string | null
   createdAt: string
 }
@@ -1692,7 +1702,56 @@ export type KnowledgeRpcs = {
     }
     returns: ContributionGroupReplaceResult
   }
+  // S1-FACTS (20261118104000_facts_freshness.sql)
+  knowledge_fact_states: {
+    args: { p_venue_id: string }
+    returns: { venueId: string; items: FactStateView[] }
+  }
+  knowledge_fact_coverage: {
+    args: { p_venue_id: string }
+    returns: FactCoverageView
+  }
+  knowledge_guest_answers: {
+    args: { p_venue_id: string; p_keys: string[]; p_use: "internal" | "public" }
+    returns: GuestAnswersView
+  }
+  knowledge_reconfirm: {
+    args: {
+      p_check_id: string
+      p_slot_revision: number
+      p_checked_on: string | null
+      p_next_check_on: string | null
+      p_note: string | null
+      p_reconfirm: boolean
+    }
+    returns: ReconfirmResult
+  }
+  area_photo_reconfirm: {
+    args: {
+      p_subject_id: string
+      p_checked_on: string | null
+      p_note: string | null
+    }
+    returns: { subjectId: string; photos: number; checkedOn: string }
+  }
+  area_photo_report_change: {
+    args: { p_subject_id: string; p_reason: string; p_replacement: boolean }
+    returns: {
+      subjectId: string
+      photos: number
+      state: "check_due" | "needs_replacement"
+    }
+  }
+  area_photo_set_end_date: {
+    args: { p_label_id: string; p_valid_until: string; p_reason: string | null }
+    returns: { labelId: string; validUntil: string; freshness: unknown }
+  }
+  area_photo_freshness_list: {
+    args: { p_venue_id: string | null }
+    returns: SpacePhotoFreshnessRow[]
+  }
 }
+
 export type KnowledgeRpcName = keyof KnowledgeRpcs
 
 /**

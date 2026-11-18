@@ -473,11 +473,13 @@ describe("UploadLabelPanel", () => {
     const { last } = setup({ files: files(...ids) })
     expect(
       screen.getAllByRole("button", { name: /^Adjust labels/ })
-    ).toHaveLength(10)
+    ).toHaveLength(LABEL_LIMITS.maxBatchAssets)
     expect(
-      screen.getByRole("button", { name: "Adjust labels for photo 10" })
+      screen.getByRole("button", {
+        name: `Adjust labels for photo ${LABEL_LIMITS.maxBatchAssets}`,
+      })
     ).toBeTruthy()
-    expect(last()).toHaveLength(10)
+    expect(last()).toHaveLength(LABEL_LIMITS.maxBatchAssets)
     expect(last().map((i) => i.assetId)).toEqual(ids)
     cleanup()
 

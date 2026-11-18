@@ -28,6 +28,7 @@ import {
   section,
   type CatalogueRow,
 } from "./menus-fixtures"
+import { acceptAsset } from "./privacy-fixtures"
 
 type Who = World["staffA"]
 
@@ -532,6 +533,8 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
       await asset(w.staffA.id, w.venue, "failed"),
     ]
     await add(w.staffA, g, [ready, fresh, old, failed])
+    // FA-20: a colleague sees the group through an accepted member.
+    acceptAsset(ready, w.admin.id)
     backdate(fresh, 59)
     backdate(old, 61)
     const stopped = (v: GroupView) =>
@@ -868,6 +871,9 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
     const fresh = await asset(w.staffA.id, w.venue, "uploading")
     await replace(w.staffA, g, failed, fresh)
     await markReady(service, fresh, "image/jpeg")
+    // FA-20: colleagues see accepted members only.
+    acceptAsset(ready, w.admin.id)
+    acceptAsset(fresh, w.admin.id)
     await ok(
       service.from("media_pending_labels").insert([
         {
@@ -971,12 +977,20 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
       (await view(w.admin, g)).members.map((m) => m.assetId).sort()
     ).toEqual([ready, uploading, attention, failed, fresh].sort())
 
-    // Colleagues, here and at another venue: gated members, the creator's
-    // first name, no states, no summary, and no id of a hidden asset.
+    // A colleague: gated members, the creator's first name, no states, no
+    // summary, and no id of a hidden asset. Another venue's staff see no
+    // member since FA-20, so not the group.
+    await refused(
+      other.staffA,
+      "contribution_group",
+      { p_group_id: g },
+      "contribution_group_not_found",
+      "P0002"
+    )
     const firstName = psql(
       `select nullif(split_part(btrim(display_name), ' ', 1), '') from public.profiles where id = '${w.staffA.id}'`
     )
-    for (const who of [w.staffB, other.staffA]) {
+    for (const who of [w.staffB]) {
       const v = await view(who, g)
       expect(Object.keys(v).sort()).toEqual([
         "createdAt",
@@ -999,6 +1013,7 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
 
     // A replaced member that later becomes visible shows its id to them.
     await markReady(service, failed, "image/jpeg")
+    acceptAsset(failed, w.admin.id)
     expect(byId(await view(w.staffB, g))[fresh]!.replacesAssetId).toBe(failed)
 
     // A manager account at another venue sees nothing.
@@ -1016,6 +1031,7 @@ describe("group states, replacement and the live cap (B05-m5)", () => {
     const kept = await asset(w.staffA.id, w.venue, "ready")
     const gone = await asset(w.staffA.id, w.venue, "failed")
     await add(w.staffA, g, [kept, gone])
+    acceptAsset(kept, w.admin.id)
     await ok(call(w.staffA, "delete_media_asset", { p_asset_id: gone }))
     const v = await view(w.staffA, g)
     expect(v.members.map((m) => [m.assetId, m.technical])).toEqual([

@@ -17,6 +17,7 @@ vi.mock("@/lib/server/media/storage", () => ({
 }))
 vi.mock("@/lib/media", () => ({
   sniffMedia: () => ({ kind: "image", mime: "image/jpeg" }),
+  imageSize: async () => ({ width: 1, height: 1 }),
   validateMedia: async () => ({
     ok: true,
     kind: "image",
@@ -48,6 +49,8 @@ function actorFixture() {
   const asset = {
     id,
     uploader_id: "00000000-0000-4000-8000-000000000002",
+    venue_id: "00000000-0000-4000-8000-000000000003",
+    uploader_role: "staff",
     original_path: "owner/asset/original.jpg",
     original_filename: "food.jpg",
     media_type: "image",
@@ -88,7 +91,7 @@ function actorFixture() {
         ],
       }
     },
-    from() {
+    from(table: string) {
       let patch: Record<string, unknown> | null = null
       const query = {
         select() {
@@ -106,6 +109,16 @@ function actorFixture() {
         update(value: Record<string, unknown>) {
           patch = value
           return query
+        },
+        // media_renditions (S1-UPLOAD): recorded before ready.
+        upsert() {
+          events.push("renditions")
+          return query
+        },
+        async single() {
+          if (table !== "venues")
+            throw new Error(`unexpected single row read from ${table}`)
+          return { error: null, data: { timezone: "Europe/London" } }
         },
         async maybeSingle() {
           return {
@@ -147,7 +160,11 @@ function actorFixture() {
   }
   return {
     actor: {
-      profile: { id: asset.uploader_id, role: "staff" },
+      profile: {
+        id: asset.uploader_id,
+        role: "staff",
+        venueId: asset.venue_id,
+      },
       db,
       service,
       storage: { url: "http://fixture", serviceKey: "fixture" },
@@ -180,6 +197,7 @@ describe("archive enforced at successful upload and physical deletion boundaries
         idempotencyKey: "fixture-key",
       })
     ).toMatchObject({ ok: false, status: 503 })
+    expect(archive.beforeReady).toHaveBeenCalledOnce()
     expect(f.updates.some((value) => value.upload_state === "ready")).toBe(
       false
     )

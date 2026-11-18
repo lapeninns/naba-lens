@@ -408,7 +408,7 @@ export function sendBeforeCutOver(
   const out = psql(`begin;
     alter function private.menu_section_send_closed(uuid, uuid) rename to menu_section_send_closed_held;
     create function private.menu_section_send_closed(uuid, uuid) returns boolean language sql as 'select false';
-    select set_config('request.jwt.claims', '{"sub":"${staffId}","role":"authenticated"}', true) is null;
+    select set_config('request.jwt.claims', '{"sub":"${staffId}","role":"authenticated","aal":"aal2"}', true) is null;
     select coalesce(json_agg(t), '[]') from public.submit_coverage_photos(array[${ids}], '${requirementId}'::uuid, '${key}') t;
     drop function private.menu_section_send_closed(uuid, uuid);
     alter function private.menu_section_send_closed_held(uuid, uuid) rename to menu_section_send_closed;

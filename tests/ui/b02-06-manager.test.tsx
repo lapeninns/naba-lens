@@ -80,14 +80,16 @@ describe("check detail writes (MG-12, MG-26)", () => {
   it("says Saving… on the pressed button only, then focuses the outcome", async () => {
     const user = userEvent.setup()
     const reply = deferred<{ ok: true; revision: number }>()
+    // S2-MGR: Archive now asks for a reason in a dialog first, so the
+    // direct write pressed here is Unassign.
     render(
       <AmenityCheckDetail
         detail={detail()}
         basePath={BASE}
-        handlers={detailHandlers({ archive: () => reply.promise })}
+        handlers={detailHandlers({ assign: () => reply.promise })}
       />
     )
-    await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
+    await user.click(screen.getByRole("button", { name: UI_TEXT.unassign }))
     const busy = screen.getByRole("button", { name: SAVING })
     expect(busy.getAttribute("aria-busy")).toBe("true")
     // Only the pressed button changes its words.
@@ -95,7 +97,7 @@ describe("check detail writes (MG-12, MG-26)", () => {
     await act(async () => reply.resolve({ ok: true, revision: 5 }))
     const status = screen
       .getAllByRole("status")
-      .find((el) => el.textContent?.includes("Archived."))!
+      .find((el) => el.textContent?.includes("Unassigned."))!
     expect(status).toBeTruthy()
     expect(document.activeElement).toBe(status)
     expect(screen.queryByRole("button", { name: SAVING })).toBeNull()
@@ -126,10 +128,10 @@ describe("check detail writes (MG-12, MG-26)", () => {
       <AmenityCheckDetail
         detail={detail()}
         basePath={BASE}
-        handlers={detailHandlers({ archive: () => new Promise(() => {}) })}
+        handlers={detailHandlers({ assign: () => new Promise(() => {}) })}
       />
     )
-    fireEvent.click(screen.getByRole("button", { name: UI_TEXT.archive }))
+    fireEvent.click(screen.getByRole("button", { name: UI_TEXT.unassign }))
     expect(screen.queryByText(STILL_SAVING)).toBeNull()
     act(() => {
       vi.advanceTimersByTime(15_000)
@@ -201,6 +203,12 @@ describe("restore on the archived list (MG-13)", () => {
     await user.click(
       within(archived).getByRole("button", { name: UI_TEXT.restore })
     )
+    // S2-MGR (AC29): the reason first.
+    const dialog = await screen.findByRole("dialog")
+    await user.type(within(dialog).getByLabelText(/Reason/), "TEST back")
+    await user.click(
+      within(dialog).getByRole("button", { name: UI_TEXT.restore })
+    )
     expect(h.restore).toHaveBeenCalled()
     const back = { ...ARCHIVED, status: "active" as const }
     rerender(
@@ -240,6 +248,11 @@ describe("restore on the archived list (MG-13)", () => {
       />
     )
     await user.click(screen.getByRole("button", { name: UI_TEXT.restore }))
+    const dialog = await screen.findByRole("dialog")
+    await user.type(within(dialog).getByLabelText(/Reason/), "TEST back")
+    await user.click(
+      within(dialog).getByRole("button", { name: UI_TEXT.restore })
+    )
     await screen.findByText("Amenities are unavailable.")
     expect(document.activeElement?.getAttribute("role")).toBe("status")
   })

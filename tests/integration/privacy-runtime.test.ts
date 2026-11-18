@@ -19,6 +19,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { join, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import { createServerClient } from "@supabase/ssr"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { syntheticJpeg } from "../slice/media-actor"
@@ -31,6 +32,7 @@ import {
   type Db,
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
+import { knownTotpSecret, rememberTotpFactor, totpCode } from "../support/totp"
 
 /*
  * Every dev-only preview, read from the filesystem: each page in the `(dev)`
@@ -273,6 +275,52 @@ async function signInOverHttp(admin: Db, role: Role, email: string) {
   emailLinkSteps.push({ page, verify })
 }
 
+/**
+ * FA-23: an admin acts as one only on an aal2 session. Raises the role's
+ * signed-in session to aal2 with a TOTP factor, through @supabase/ssr's own
+ * cookie handling on this role's jar, so the server then reads the same
+ * cookies a browser would send after /auth/mfa. The new tokens join the
+ * secrets the server log must not contain.
+ */
+async function passMfaOverHttp(role: Role, userId: string) {
+  const env = getLocalSupabaseEnv()
+  const jar = jars[role]
+  const client = createServerClient(env.url, env.publishableKey, {
+    cookies: {
+      getAll: () => [...jar].map(([name, value]) => ({ name, value })),
+      setAll: (cookies) => {
+        for (const { name, value } of cookies) {
+          if (value) {
+            jar.set(name, value)
+            secrets.add(value)
+          } else jar.delete(name)
+        }
+      },
+    },
+  })
+  let secret = knownTotpSecret(userId)
+  let factorId: string
+  if (secret) {
+    const listed = await client.auth.mfa.listFactors()
+    if (listed.error) throw listed.error
+    factorId = listed.data.totp[0]!.id
+  } else {
+    const enrolled = await client.auth.mfa.enroll({ factorType: "totp" })
+    if (enrolled.error) throw enrolled.error
+    secret = enrolled.data.totp.secret
+    factorId = enrolled.data.id
+    rememberTotpFactor(userId, { factorId, secret })
+  }
+  secrets.add(secret)
+  const { data, error } = await client.auth.mfa.challengeAndVerify({
+    factorId,
+    code: totpCode(secret),
+  })
+  if (error) throw error
+  secrets.add(data.access_token)
+  secrets.add(data.refresh_token)
+}
+
 const sha256 = (b: Uint8Array) => createHash("sha256").update(b).digest("hex")
 const EMAIL =
   /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g
@@ -318,6 +366,7 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
       ids[role] = identity.id
       emails[role] = identity.email
       await signInOverHttp(admin, role, identity.email)
+      if (role === "admin") await passMfaOverHttp(role, identity.id)
     }
     emails.invited = testEmail("privacy-invited")
 
@@ -619,16 +668,15 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
     for (const which of ["thumb", "preview"]) {
       expect(find("anon", which).status).toBe(401)
       expect(find("anon", which).headers.get("location")).toBeNull()
-      // An active colleague (organisation community) gets the derivative
-      // through a private, short-lived redirect, never the original.
+      // FA-20 (spec §3.3): a colleague gets nothing for an unreviewed photo,
+      // not even a derivative, and the refusal is private too. The accepted
+      // case (a private, short-lived redirect) is gaps-http.test.ts.
       const colleague = find("staffB", which)
-      expect(colleague.status, which).toBe(302)
+      expect(colleague.status, which).toBe(404)
       expect(colleague.headers.get("cache-control"), which).toBe(
         "private, no-store"
       )
-      expect(colleague.headers.get("location") ?? "", which).toMatch(
-        which === "thumb" ? /\/thumb\.webp\?/ : /\/preview\.webp\?/
-      )
+      expect(colleague.headers.get("location"), which).toBeNull()
     }
     // Avatars: own, admin, or an active colleague (community profile photo).
     const avatar = (role: Role, id: string) =>

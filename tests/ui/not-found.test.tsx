@@ -90,13 +90,13 @@ describe("branded not-found pages", () => {
     expect(screen.getByRole("link", { name: "Go to Home" })).toBeTruthy()
   })
 
-  it("a missing admin page keeps the admin navigation and goes back to Content", async () => {
+  it("a missing admin page keeps the admin navigation and goes back to Library", async () => {
     const page = (await AdminNotFound()) as unknown as Element
     expect(page.type).toBe(AppShell)
     expect(page.props).toMatchObject({ variant: "admin", userName: "Ravi" })
     expect(cardIn(page)).toMatchObject({
       type: NotFoundCard,
-      props: { backHref: "/admin", backLabel: "Go to Content" },
+      props: { backHref: "/admin", backLabel: "Go to Library" },
     })
   })
 })

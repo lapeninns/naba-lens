@@ -26,8 +26,16 @@ import {
   getVenueMenuOverview,
   listMenuVenues,
 } from "@/lib/server/menus"
+import {
+  getPackaging,
+  listChangeRequests,
+  type PackagingItem,
+} from "@/lib/server/menus/local"
+import { PackagingControl } from "@/components/nabalens/manager/menu/packaging-control"
 import { cn } from "@/lib/utils"
 
+import { setPackagingAction } from "../actions"
+import { ChangeRequestsPanel } from "../change-requests"
 import { RetryButton } from "../retry-button"
 import { itemOptions } from "../review"
 import {
@@ -51,7 +59,9 @@ function versionWhen(v: MenuVersionSummary): string {
     case "discarded":
       return `Discarded ${formatDate(v.updatedAt)}`
     default:
-      return `Saved ${formatDateTime(v.updatedAt)}`
+      return v.scheduledFor
+        ? `Scheduled for ${formatDateTime(v.scheduledFor)}`
+        : `Saved ${formatDateTime(v.updatedAt)}`
   }
 }
 
@@ -192,6 +202,10 @@ function ImportHistory({ versions }: { versions: MenuVersionSummary[] }) {
   )
 }
 
+/** Items the packaged list shows: drinks, and any item already packaged. */
+const packagingRows = (items: PackagingItem[]) =>
+  items.filter((i) => i.kind === "drinks" || i.packaged)
+
 /** One venue: versions, import, suggestions and the import history (A13). */
 export default async function VenueMenusPage({
   params,
@@ -202,9 +216,11 @@ export default async function VenueMenusPage({
   const { venueId } = await params
   const auth = await getMediaActor("admin")
   if (!auth.ok) throw new Error("Not authorised.")
-  const [overview, venueList] = await Promise.all([
+  const [overview, venueList, requests, packaging] = await Promise.all([
     getVenueMenuOverview(auth.actor, venueId),
     listMenuVenues(auth.actor),
+    listChangeRequests(auth.actor, { venueId, status: "open" }),
+    getPackaging(auth.actor, venueId),
   ])
   const venues = venueList.ok
     ? venueList.venues.map((v) => ({ id: v.venueId, name: v.venueName }))
@@ -270,6 +286,61 @@ export default async function VenueMenusPage({
             />
             <VersionsTable versions={versions} venueId={venue.id} />
           </section>
+          <section aria-labelledby="requests-title" className="grid gap-3">
+            <MenuSectionHead
+              id="requests-title"
+              title="Change requests"
+              count={
+                requests.ok
+                  ? `${requests.requests.length} open · from the venue's manager`
+                  : "Could not be loaded"
+              }
+            />
+            {requests.ok ? (
+              <ChangeRequestsPanel requests={requests.requests} />
+            ) : null}
+          </section>
+          {/* FA-51 (spec §4.2): drinks, and anything already packaged. */}
+          {packaging.ok && active ? (
+            <section aria-labelledby="packaged-title" className="grid gap-3">
+              <MenuSectionHead
+                id="packaged-title"
+                title="Packaged items"
+                count="A packaged item only counts in coverage when a photo is wanted"
+              />
+              {packagingRows(packaging.items).length === 0 ? (
+                <EmptyState
+                  variant="done"
+                  title="No drinks on the active menu."
+                  className="py-0"
+                />
+              ) : (
+                <ul
+                  aria-label="Packaged items"
+                  data-slot="packaged-items"
+                  className={menuListClassName}
+                >
+                  {packagingRows(packaging.items).map((i) => (
+                    <PackagingControl
+                      key={i.itemId}
+                      variant="row"
+                      itemId={i.itemId}
+                      name={i.name}
+                      venueId={venue.id}
+                      detail={
+                        i.source === "special" ? "Special" : i.sectionName
+                      }
+                      value={{
+                        packaged: i.packaged,
+                        photoWanted: i.photoWanted,
+                      }}
+                      setAction={setPackagingAction}
+                    />
+                  ))}
+                </ul>
+              )}
+            </section>
+          ) : null}
           <div className="grid items-start gap-6 lg:grid-cols-2">
             <section aria-labelledby="suggestions-title" className="min-w-0">
               <MenuSectionHead

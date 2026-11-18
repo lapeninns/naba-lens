@@ -32,7 +32,7 @@ cropped 256×256 WebP (also through the image gate). sharp operations have a 10-
 Only resized WebP output is returned. EXIF (including GPS/Artist), XMP, orientation
 and source ICC metadata do not propagate; tests assert each of these.
 
-Limits live in `lib/config/media.ts`: 20 MiB photos, 200 MiB videos, 5 MiB avatars,
+Limits live in `lib/config/media.ts`: 25 MiB photos, 250 MiB and 60 s videos (Full App spec §12.1; the database reservation limit `private.media_upload_max_bytes` and the media bucket hold the same byte limits), 5 MiB avatars,
 40 million image pixels, decoder deadlines and budgets, worker V8 limits, image
 output sizes and video dimensions. Decode errors are typed `MediaError`; validation
 returns `{ok:false,error}` including pixel_limit, decode_timeout, decoder_busy,
@@ -272,11 +272,18 @@ every run.
 | 200 MiB video via TUS       | 34 × 6 MiB PATCH requests, 7–8 s locally, finalised `ready`                                                                                                            | real upload of an exactly 209,715,200 B H.264 MP4                                                                  |
 | App limits                  | `reserve` refuses declared sizes over 20 MiB (photo) / 200 MiB (video); `finalise` measures the stored object and fails anything over the limit, whatever was declared | `upload-recovery.test.ts` (21 MiB photo with a 1,000 B declared size → `failed`, "larger than the upload limit")   |
 
-The product limit (200 MiB) equals both the bucket and the global limit, and the
+**Full App v1 (S1-UPLOAD, 18 Nov 2026):** the limits are now 25 MiB photos and
+250 MiB / 60 s videos. Migration `20261118102000_upload_pipeline.sql` sets the
+`media` bucket to 262,144,000 B and `supabase/config.toml` sets the local global
+limit to 250MiB; the table above records the earlier 200 MiB measurements and is
+not re-measured. The hosted project's global upload limit must be raised to at
+least 250 MiB before release (an owner action; not changed by any migration).
+
+The product limit (250 MiB) equals both the bucket and the global limit, and the
 boundary is inclusive. **Hosted Supabase is different**: the global upload limit is
 set per project and depends on the plan (the Free plan caps uploads at 50 MB). Before
 release, check the hosted project's global "Upload file size limit" is at least
-200 MiB and that the `media` bucket's own limit is 200 MiB; otherwise videos between
+250 MiB and that the `media` bucket's own limit is 250 MiB; otherwise videos between
 the two limits fail at storage with HTTP 413, which the client reports as "This file
 is larger than the storage limit."
 

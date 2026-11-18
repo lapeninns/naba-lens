@@ -6,6 +6,7 @@ import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
 import { requireActiveAdmin } from "@/lib/auth"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import {
+  getPersonVenuePrivileges,
   getStaffAccount,
   listAccountRoleHistory,
   listAssignableVenues,
@@ -15,6 +16,11 @@ import { getVenueRoster } from "@/lib/server/coverage"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listLibrary } from "@/lib/server/media/library"
 
+import {
+  grantAdminAction,
+  removeVenueMembershipAction,
+  setVenueMembershipAction,
+} from "../actions"
 import { AuthDetailsNotice } from "../auth-details-notice"
 import { effectiveGrants, loadManagerGrants } from "../manager-grants"
 import { RetryButton } from "../retry-button"
@@ -22,7 +28,9 @@ import { firstName } from "../staff-order"
 import { AccountHeader, type GrantRecord } from "./account-header"
 import { AccountTypePanel } from "./account-type-panel"
 import { AdminPortfolio } from "./admin-portfolio"
+import { MfaResetPanel } from "./mfa-reset-panel"
 import { StaffMonth } from "./staff-month"
+import { VenueAccessPanel } from "./venue-access-panel"
 
 export const metadata: Metadata = { title: "Staff member" }
 
@@ -44,17 +52,28 @@ export default async function StaffPortfolioPage({
   }
   const member = account.staff
   const first = firstName(member.displayName)
-  const [media, venues, grants, roster, history] = await Promise.all([
-    // The admin library filtered to this contributor (ready media, newest first,
-    // each keeping its upload-time venue).
-    listLibrary(auth.actor, { venueId: null, staffId: member.id, type: null }),
-    listAssignableVenues(ctx),
-    loadManagerGrants({ includeEnded: true }),
-    member.venueId
-      ? getVenueRoster(auth.actor, { venueId: member.venueId })
-      : null,
-    listAccountRoleHistory(ctx, member.id),
-  ])
+  const [media, venues, grants, roster, history, privileges] =
+    await Promise.all([
+      // The admin library filtered to this contributor (ready media, newest first,
+      // each keeping its upload-time venue).
+      listLibrary(auth.actor, {
+        venueId: null,
+        staffId: member.id,
+        type: null,
+      }),
+      listAssignableVenues(ctx),
+      loadManagerGrants({ includeEnded: true }),
+      member.venueId
+        ? getVenueRoster(auth.actor, { venueId: member.venueId })
+        : null,
+      listAccountRoleHistory(ctx, member.id),
+      getPersonVenuePrivileges(ctx, member.id),
+    ])
+  if (!privileges.ok) {
+    console.error("[staff] venue privileges unavailable", {
+      code: privileges.code,
+    })
+  }
   // Context only: a failed read says so in the section instead of failing the page.
   if (!history.ok) {
     console.error("[staff] account type history unavailable", {
@@ -100,19 +119,37 @@ export default async function StaffPortfolioPage({
         venueGrants={effectiveGrants(grants)}
         role={member.role}
         accountType={
-          <AccountTypePanel
-            member={{
-              id: member.id,
-              displayName: member.displayName,
-              status: member.status,
-              venueId: member.venueId,
-              venueName: member.venueName,
-            }}
-            role={member.role}
-            venues={venues.ok ? venues.venues : []}
-            grant={grant}
-            history={history.ok ? history.changes : null}
-          />
+          <>
+            <AccountTypePanel
+              member={{
+                id: member.id,
+                displayName: member.displayName,
+                status: member.status,
+                venueId: member.venueId,
+                venueName: member.venueName,
+              }}
+              role={member.role}
+              venues={venues.ok ? venues.venues : []}
+              grant={grant}
+              history={history.ok ? history.changes : null}
+            />
+            <VenueAccessPanel
+              member={{
+                id: member.id,
+                displayName: member.displayName,
+                active: member.status !== "inactive",
+              }}
+              privileges={privileges.ok ? privileges.venues : null}
+              venues={venues.ok ? venues.venues : []}
+              onSetRole={setVenueMembershipAction}
+              onRemove={removeVenueMembershipAction}
+              onMakeAdmin={grantAdminAction}
+            />
+            {/* S2-ADMIN: a lost authenticator (FA-23); never one's own. */}
+            {member.id !== admin.id && member.status !== "invited" ? (
+              <MfaResetPanel profileId={member.id} firstName={first} />
+            ) : null}
+          </>
         }
         month={
           monthly ? (

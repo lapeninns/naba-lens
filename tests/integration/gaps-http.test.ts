@@ -20,6 +20,7 @@ import {
   applyLocalEnv,
   type CookieJar,
 } from "./gaps-support"
+import { acceptForColleagues } from "./accepted"
 
 /**
  * GAP-11 and GAP-12 at the Route Handler / Server Function level: the app's real
@@ -222,7 +223,20 @@ describe("GAP-11: cross-role access and private headers at the HTTP layer", () =
   })
 
   describe("media routes", () => {
-    it("staff B can preview colleague media while original downloads remain admin-only", async () => {
+    it("staff B can preview colleague media once accepted, while original downloads remain admin-only", async () => {
+      // FA-20 (spec §3.3): a colleague's unreviewed media is not theirs to see.
+      for (const [route, id] of [
+        ["thumb", photoA],
+        ["preview", photoA],
+        ["stream", videoA],
+      ] as [MediaRoute, string][]) {
+        const res = await mediaGet(route, staffB, id)
+        expect(res.status, `unreviewed ${route} ${id}`).toBe(404)
+        expect(assertPrivateCaching(res, `${route} unreviewed`)).toEqual([])
+        await res.body?.cancel()
+      }
+      await acceptForColleagues(photoA)
+      await acceptForColleagues(videoA)
       const checks: [MediaRoute, string, number][] = [
         ["thumb", photoA, 302],
         ["preview", photoA, 302],

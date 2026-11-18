@@ -71,6 +71,30 @@ function inLastMonth() {
     .replace(".000Z", "Z")
 }
 
+/**
+ * FA-20: colleagues see a photo only once it is accepted. DEV FIXTURE: accepts
+ * `assetId` as a photo of a new place at its venue, decided by `adminId` (the
+ * same rows the place review writes; see tests/security/facts-freshness).
+ */
+function acceptAsPlacePhoto(
+  assetId: string,
+  venueId: string,
+  uploaderId: string,
+  adminId: string
+) {
+  const first = (out: string) => out.split("\n")[0]!
+  const place = first(
+    psql(`insert into public.knowledge_subjects (venue_id, kind, label, created_by)
+      values ('${venueId}', 'area', 'Bar ${assetId.slice(0, 6)}', '${adminId}') returning id`)
+  )
+  const label = first(
+    psql(`insert into public.media_area_labels (asset_id, venue_id, subject_id, subject_kind, subject_label, added_by)
+      values ('${assetId}', '${venueId}', '${place}', 'area', 'Bar', '${uploaderId}') returning id`)
+  )
+  psql(`insert into public.area_photo_decisions (label_id, venue_id, asset_id, action, decided_by)
+    values ('${label}', '${venueId}', '${assetId}', 'accepted', '${adminId}')`)
+}
+
 type SubmitRow = { item_id: string; asset_id: string; replayed: boolean }
 
 /** Grants the manager and returns a new task at venue 1 assigned to staff A. */
@@ -131,6 +155,15 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
       })
     const stem = clip.name.replace(/\.mp4$/, "")
 
+    // FA-20: unreviewed, the colleague can't stream it at all.
+    expect((await stream(colleague)).status(), "unreviewed").toBe(404)
+    acceptAsPlacePhoto(
+      video!.id,
+      world.venue1.id,
+      world.staffB.id,
+      world.adminA.id
+    )
+
     for (const range of [undefined, "bytes=0-99"]) {
       const res = await stream(colleague, range)
       const label = `colleague ${range ?? "full"}`
@@ -181,6 +214,18 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
       foreign.length,
       `colleague rows through select=* (columns: ${Object.keys(foreign[0] ?? {}).join(", ")})`
     ).toBe(0)
+    // FA-20: unreviewed, the colleague's feed doesn't list it.
+    const before = await rawRpc(staffA, "community_media_page", {
+      p_uploader: world.staffB.id,
+    })
+    expect(before.status).toBe(200)
+    expect(before.text).not.toContain(asset!.id)
+    acceptAsPlacePhoto(
+      asset!.id,
+      world.venue1.id,
+      world.staffB.id,
+      world.adminA.id
+    )
     const community = await rawRpc(staffA, "community_media_page", {
       p_uploader: world.staffB.id,
     })
@@ -376,8 +421,21 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
       )
 
     expect((await setFact([deletedLater!, leaverPhoto!])).error).toBeNull()
-    // Then the owner deletes one linked photo and the other's uploader leaves.
-    await ok(staffA.rpc("delete_media_asset", { p_asset_id: deletedLater! }))
+    // Then one linked photo is removed and the other's uploader leaves. FA-21:
+    // a linked (accepted) original is kept from its owner; an admin removes
+    // it with a reason after the impact preview. The unlinked one is the
+    // owner's to withdraw.
+    const admin = await signIn(service, w.admin.email)
+    const impact = (await ok(
+      admin.rpc("media_removal_impact", { p_asset_id: deletedLater! })
+    )) as { token: string }
+    await ok(
+      admin.rpc("admin_delete_media_asset", {
+        p_asset_id: deletedLater!,
+        p_reason: "R-03: removed after review",
+        p_impact_token: impact.token,
+      })
+    )
     await ok(staffA.rpc("delete_media_asset", { p_asset_id: deletedNew! }))
     const left = await service
       .from("profiles")

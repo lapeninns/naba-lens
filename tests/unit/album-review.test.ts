@@ -28,6 +28,8 @@ const album = vi.hoisted(() => ({
   getAlbumBriefs: vi.fn(),
 }))
 vi.mock("@/lib/server/album", () => album)
+const templates = vi.hoisted(() => ({ loadSlotBriefs: vi.fn() }))
+vi.mock("@/lib/server/shot-templates", () => templates)
 vi.mock("@/app/manager/actions", () => ({}))
 vi.mock("@/app/manager/area-actions", () => ({}))
 
@@ -44,12 +46,14 @@ import {
   menuDecision,
   otherReason,
   REASONS,
+  retakeReasonCode,
   reviewLine,
   withRevision,
   type MenuSubject,
   type ReviewContext,
 } from "@/components/nabalens/album/review/model"
 import { reviewHref } from "@/components/nabalens/manager/review/links"
+import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
 import type { AreaPhotoCard } from "@/lib/server/area-photos"
 import type { QueueCard } from "@/lib/server/menu-photos/types"
 
@@ -119,6 +123,7 @@ function area(over: Partial<AreaPhotoCard> = {}): AreaPhotoCard {
     assetId: id(0xb1),
     authorName: "TEST Ana Park",
     area: "Beer garden",
+    subjectId: id(0xd7),
     uploadedAt: "2026-11-04T09:00:00.000Z",
     labelledAt: "2026-11-04T09:01:00.000Z",
     creditMonth: "2026-11-01",
@@ -212,6 +217,31 @@ describe("stage photos from the queues", () => {
     expect(fromAreaCard(area({ canDecide: false })).own).toBe(true)
   })
 
+  // S5-R2 (Y4, FA-52): the reviewer judges against the words staff were
+  // given, resolved once by public.slot_briefs.
+  it("a dish takes its resolved slot brief (a request's) over the album briefs", () => {
+    const withSlot: ReviewContext = {
+      ...CONTEXT,
+      slotBrief: new Map([[`dish:${SOUP}`, " Side view showing\n the mash "]]),
+    }
+    expect(fromMenuCard(card(), withSlot)!.brief).toBe(
+      "Side view showing the mash"
+    )
+  })
+
+  it("an area photo takes its area slot's resolved brief (a template's)", () => {
+    const withSlot: ReviewContext = {
+      ...CONTEXT,
+      slotBrief: new Map([[`area:${id(0xd7)}`, "Wide, from the door"]]),
+    }
+    expect(fromAreaCard(area(), withSlot).brief).toBe("Wide, from the door")
+    // Another area's brief, or no subject, is never borrowed.
+    expect(fromAreaCard(area({ subjectId: id(0xd8) }), withSlot).brief).toBe(
+      null
+    )
+    expect(fromAreaCard(area({ subjectId: null }), withSlot).brief).toBe(null)
+  })
+
   it("own photos and cards only the list can decide never reach the stage", () => {
     const mine = fromMenuCard(card({ isSelf: true }))!
     const stale = fromMenuCard(card({ kind: "stale", key: id(0x12) }))!
@@ -219,6 +249,14 @@ describe("stage photos from the queues", () => {
     expect(decidable(stale)).toBe(false)
     expect(fromMenuCard(card({ item: null, kind: "unlabelled" }))).toBeNull()
     expect(reviewLine([mine, stale])).toEqual([])
+  })
+
+  it("a single-reviewer venue's manager gets their own dish photos on the stage (K6, S3-R8 W3)", () => {
+    const mine = fromMenuCard(card({ isSelf: true, selfReviewAllowed: true }))!
+    expect(mine.own).toBe(false)
+    expect(decidable(mine)).toBe(true)
+    expect((mine.subject as MenuSubject).accept).toBe("accept")
+    expect(reviewLine([mine]).map((p) => p.key)).toEqual([mine.key])
   })
 
   it("the line is longest waiting first across both queues, each photo once", () => {
@@ -288,12 +326,20 @@ describe("decisions", () => {
 
   it("the reason chips, and Other's words trimmed and capped", () => {
     expect(REASONS).toEqual([
+      "Show all of it",
       "Too dark",
       "Out of focus",
-      "Wrong item",
-      "Show more of it",
+      "Not how it's served now",
+      "Show the way in",
       "Messy background",
+      "People or personal details in shot",
     ])
+    // Each chip carries the spec's code (§7 M2); a written reason has none.
+    expect(retakeReasonCode("Too dark")).toBe("insufficient_light")
+    expect(retakeReasonCode("Not how it's served now")).toBe(
+      "wrong_presentation"
+    )
+    expect(retakeReasonCode("Wrong item")).toBeNull()
     expect(otherReason("   ")).toBeNull()
     expect(otherReason("  more   light ")).toBe("more light")
     expect(otherReason("x".repeat(600))).toHaveLength(500)
@@ -367,6 +413,8 @@ describe("AlbumReviewBody (server read)", () => {
       items: [{ itemId: SOUP, description: "Menu description" }],
       nextCursor: null,
     })
+    // By default the resolver's read fails, so the album briefs stand in.
+    templates.loadSlotBriefs.mockResolvedValue({ ok: false, code: "x" })
     album.getAlbumBriefs.mockResolvedValue({
       ok: true,
       briefs: {
@@ -413,14 +461,64 @@ describe("AlbumReviewBody (server read)", () => {
     expect(p.venueName).toBe("The Railway")
     expect(album.getAlbumBriefs).toHaveBeenCalledWith(ctx.actor, ctx.venueId)
     expect(photos.listManagerMenuItems).not.toHaveBeenCalled()
+    expect(templates.loadSlotBriefs).toHaveBeenCalledWith(ctx.actor, {
+      venueId: ctx.venueId,
+      includeRequests: true,
+    })
     expect(p.context).toEqual({
       sectionPlace: { [STARTERS]: "Kitchen pass" },
+      slotBrief: {},
       sectionBrief: { [STARTERS]: "Each starter on its own plate" },
       itemBrief: { [SOUP]: "Steam showing" },
     })
     // One dish and one area photo; the two own photos are not counted.
     expect(p.total).toBe(2)
     expect(p.listHref).toBe(REVIEW_LIST_HREF)
+  })
+
+  it("S5-R2 (Y4): briefs come from the one resolver; the album briefs are not read when it answers", async () => {
+    templates.loadSlotBriefs.mockResolvedValue({
+      ok: true,
+      briefs: new Map([
+        [
+          `dish:${SOUP}`,
+          {
+            text: "Side view showing the mash",
+            source: "request",
+            exampleAssetId: null,
+          },
+        ],
+        [
+          `area:${id(0xd7)}`,
+          {
+            text: "Wide, from the door",
+            source: "template",
+            exampleAssetId: null,
+          },
+        ],
+      ]),
+    })
+    const p = await props()
+    expect(album.getAlbumBriefs).not.toHaveBeenCalled()
+    expect(p.context).toEqual({
+      sectionPlace: { [STARTERS]: "Kitchen pass" },
+      slotBrief: {
+        [`dish:${SOUP}`]: "Side view showing the mash",
+        [`area:${id(0xd7)}`]: "Wide, from the door",
+      },
+      sectionBrief: {},
+      itemBrief: {},
+    })
+  })
+
+  it("a resolver read that throws falls back to the album briefs", async () => {
+    templates.loadSlotBriefs.mockRejectedValue(new Error("down"))
+    const p = await props()
+    expect(album.getAlbumBriefs).toHaveBeenCalledWith(ctx.actor, ctx.venueId)
+    expect(p.context).toMatchObject({
+      slotBrief: {},
+      itemBrief: { [SOUP]: "Steam showing" },
+    })
   })
 
   it("with more menu pages, the overview's count stands in for the unread ones", async () => {
@@ -441,6 +539,7 @@ describe("AlbumReviewBody (server read)", () => {
     const p = await props()
     expect(p.context).toEqual({
       sectionPlace: {},
+      slotBrief: {},
       sectionBrief: {},
       itemBrief: {},
     })
@@ -462,6 +561,33 @@ describe("AlbumReviewBody (server read)", () => {
     const p = await props()
     expect(p.menuCards).toEqual([])
     expect(p.total).toBe(1)
+  })
+
+  it("lists Needs label photos whatever the menu state (S3-R8 W2)", async () => {
+    photos.getManagerOverview.mockResolvedValue(
+      overview({ menuState: "no_menu" })
+    )
+    const waiting = card({ kind: "unlabelled", key: id(0x13), item: null })
+    // S3-R13 X2: the Needs label list is its own read, every page of it.
+    photos.listReviewQueue.mockImplementation(
+      async (_ctx: unknown, args: { status?: string }) =>
+        args.status === "unlabelled"
+          ? { ok: true, items: [waiting], nextCursor: null }
+          : { ok: true, items: [card(), waiting], nextCursor: "c" }
+    )
+    const p = await props()
+    // No dish photos to decide, and no unread dish pages to count.
+    expect(p.menuCards).toEqual([])
+    expect(p.menuCursor).toBeNull()
+    expect(p.waitingElsewhere).toBe(1)
+    // One area photo and the Needs label photo.
+    expect(p.total).toBe(2)
+    const filter = p.filter as { props: { children: unknown[] } }
+    const list = (filter.props.children as Array<{ props?: unknown }>)[1] as {
+      props: { cards: unknown[]; note?: string }
+    }
+    expect(list.props.cards).toEqual([waiting])
+    expect(list.props.note).toBe(REVIEW_COPY.needsLabelMenuNotReady)
   })
 
   it("a refused read goes to Overview, as the list does", async () => {

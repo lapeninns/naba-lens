@@ -54,7 +54,9 @@ describe("UploadDialog onReady", () => {
     expect(onReady).toHaveBeenCalledTimes(1)
     expect(onReady).toHaveBeenLastCalledWith(
       ["asset-a.jpg"],
-      [expect.objectContaining({ name: "a.jpg" })]
+      [expect.objectContaining({ name: "a.jpg" })],
+      ["ready"],
+      [false]
     )
 
     await user.click(screen.getByRole("button", { name: "Retry fail.jpg" }))
@@ -62,7 +64,9 @@ describe("UploadDialog onReady", () => {
     expect(onReady).toHaveBeenCalledTimes(2)
     expect(onReady).toHaveBeenLastCalledWith(
       ["asset-fail.jpg"],
-      [expect.objectContaining({ name: "fail.jpg" })]
+      [expect.objectContaining({ name: "fail.jpg" })],
+      ["ready"],
+      [false]
     )
     // Existing callback unchanged.
     expect(onUploaded).toHaveBeenNthCalledWith(1, 1)
@@ -96,13 +100,17 @@ describe("UploadDialog onReady", () => {
     expect(onReady).toHaveBeenCalledTimes(1)
     expect(onReady).toHaveBeenLastCalledWith(
       ["asset-dish.jpg"],
-      [expect.objectContaining({ name: "dish.jpg" })]
+      [expect.objectContaining({ name: "dish.jpg" })],
+      ["ready"],
+      [false]
     )
     await act(async () => finishVideo())
     expect(await screen.findByText("2 uploaded")).toBeTruthy()
     expect(onReady).toHaveBeenLastCalledWith(
       ["asset-clip.mp4"],
-      [expect.objectContaining({ name: "clip.mp4" })]
+      [expect.objectContaining({ name: "clip.mp4" })],
+      ["ready"],
+      [false]
     )
   })
 

@@ -5,6 +5,7 @@ import * as React from "react"
 import {
   DownloadSimpleIcon,
   ImageBrokenIcon,
+  InfoIcon,
   PencilSimpleIcon,
   TagIcon,
   TrashIcon,
@@ -47,6 +48,8 @@ type MediaViewerProps = {
   /** Why the last download failed, shown in the viewer. */
   downloadError?: string | null
   getPortfolioHref?: (item: MediaItem) => string
+  /** Admin library: the asset detail page (S2-LIBRARY). */
+  getDetailHref?: (item: MediaItem) => string
   onDelete?: (item: MediaItem) => void
   /** Name the contributor. Off on a staff member's own profile ("You"). */
   showAttribution?: boolean
@@ -225,6 +228,7 @@ export function MediaViewer({
   onDownload,
   downloadError,
   getPortfolioHref,
+  getDetailHref,
   onDelete,
   showAttribution = true,
   onEditLabels,
@@ -241,6 +245,8 @@ export function MediaViewer({
   const deletable = !removed ? onDelete : undefined
   const profileHref =
     !removed && item && getPortfolioHref ? getPortfolioHref(item) : null
+  const detailHref =
+    !removed && item && getDetailHref ? getDetailHref(item) : null
   const labelsEmpty = isEmptyLabelSummary(item?.labels)
   // Ready files show labels when there are some or they can be added; an
   // unfinished file of the owner shows that none can be added yet.
@@ -371,7 +377,11 @@ export function MediaViewer({
                       Close
                     </DialogClose>
                   </div>
-                ) : downloadable || editLabels || profileHref || deletable ? (
+                ) : downloadable ||
+                  editLabels ||
+                  profileHref ||
+                  detailHref ||
+                  deletable ? (
                   // Quiet and grey first, the primary last, in DOM order (common-room.md
                   // §4): stacked on phones Download is at the bottom, nearest the
                   // thumb; from md it is on the right. Focus follows what is seen.
@@ -394,6 +404,17 @@ export function MediaViewer({
                       >
                         <UserCircleIcon data-icon="inline-start" aria-hidden />
                         Open profile
+                      </Link>
+                    ) : null}
+                    {detailHref ? (
+                      <Link
+                        href={detailHref}
+                        className={buttonVariants({
+                          variant: "secondary",
+                        })}
+                      >
+                        <InfoIcon data-icon="inline-start" aria-hidden />
+                        Open details
                       </Link>
                     ) : null}
                     {editLabels ? (

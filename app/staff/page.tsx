@@ -3,7 +3,28 @@ import {
   listMyFindingsAction,
   loadMoreContributionsAction,
 } from "@/app/_knowledge/actions"
+import {
+  changeUploadSlotAction,
+  loadMyUploadsAction,
+  reportSlotChangeAction,
+  requestUploadRemovalAction,
+  setCapturedAtAction,
+  withdrawUploadAction,
+} from "@/app/staff/_me/actions"
+import { loadMatchBoardAction } from "@/app/staff/_shell/match-actions"
 import { AppShell } from "@/components/nabalens"
+import { CANT_ADD_HREF } from "@/components/nabalens/guide"
+import { MeAccount } from "@/components/nabalens/me/me-account"
+import { MyUploads } from "@/components/nabalens/me/my-uploads"
+import type { VenueSwitcherVenue } from "@/components/nabalens/venue-switcher"
+import { listMyVenues } from "@/lib/auth/venues"
+import { switchVenueAction } from "@/lib/auth/venue-actions"
+import {
+  getMonthReplacements,
+  getMyUploads,
+  getMyVenueManagers,
+  listMySlotReports,
+} from "@/lib/server/staff"
 import { YourMonthCard } from "@/components/nabalens/album/your-month-card"
 import { YourFindings } from "@/components/nabalens/knowledge/findings-history"
 import { MyContributions } from "@/components/nabalens/knowledge/my-contributions"
@@ -36,10 +57,12 @@ import { workServices } from "@/lib/work-client/services"
 import {
   myOtherJobsCount,
   myTasks,
+  myUnreadNotices,
   myWorkingList,
   staffShellStatus,
 } from "./_shell/shell-status"
 import { getMyAreaLabels } from "@/lib/server/area-photos"
+import { isMenuUse } from "@/lib/staff/my-uploads"
 
 import { ADD_BLOCKED } from "./add-blocked"
 import { StaffPortfolio } from "./staff-portfolio"
@@ -56,7 +79,8 @@ type SearchParams = Record<string, string | string[] | undefined>
 const DECISION_TILES = 24
 
 /**
- * The caller's newest accepted menu decisions and their photos, whichever
+ * The caller's newest menu decisions accepted for public use (X9: not a
+ * photo kept as reference) and their photos, whichever
  * gallery page the photos are on; Me still works when this fails. Retake
  * notes are read separately (my_retake_notes).
  */
@@ -68,7 +92,7 @@ async function menuPhotoDecisions(
     if (!result.ok) return { states: [], items: [] }
     const ids = new Set<string>()
     for (const state of result.states) {
-      if (state.state !== "accepted" || ids.size >= DECISION_TILES) continue
+      if (!isMenuUse(state) || ids.size >= DECISION_TILES) continue
       ids.add(state.assetId)
     }
     const media = await listOwnMediaByIds(actor, [...ids])
@@ -184,6 +208,37 @@ async function history(
   return { kind: "b02", show: sent || onList, page, drafts }
 }
 
+/**
+ * Me's own reads for My uploads and Help and account (S2-STAFF). Each one
+ * that fails is left out or marked unread on its own; Me never fails for
+ * them.
+ */
+async function meReads(actor: MediaActor) {
+  const safe = <T,>(p: Promise<T>) => p.catch(() => null)
+  const [uploads, venues, unread, managers, month, reports] = await Promise.all(
+    [
+      safe(getMyUploads(actor)),
+      safe(listMyVenues(actor.db)),
+      safe(myUnreadNotices(actor)),
+      safe(getMyVenueManagers(actor)),
+      safe(getMonthReplacements(actor)),
+      safe(listMySlotReports(actor)),
+    ]
+  )
+  return {
+    uploads: uploads?.ok ? uploads.page : null,
+    venues: venues as VenueSwitcherVenue[] | null,
+    unread,
+    managers: managers?.ok ? managers.managers : null,
+    month: month?.ok ? month.month : null,
+    correctionsAsked: reports?.ok
+      ? reports.reports
+          .filter((r) => r.subjectKind === "photo" && r.state === "open")
+          .map((r) => r.subjectId)
+      : [],
+  }
+}
+
 /** Me: own profile, Add photos, own month and links, and newest-first own gallery. */
 export default async function StaffPage({
   searchParams,
@@ -193,17 +248,27 @@ export default async function StaffPage({
   const profile = await requireActiveStaff()
   const auth = await getMediaActor("staff")
   if (!auth.ok) throw new Error("Not authorised.")
-  const [page, shell, params, menuPhotos, findings, notes, month, otherJobs] =
-    await Promise.all([
-      listOwnMedia(auth.actor),
-      staffShellStatus(auth.actor, profile),
-      searchParams ?? Promise.resolve({} as SearchParams),
-      menuPhotoDecisions(auth.actor),
-      history(auth.actor, myContributionsSurface()),
-      retakeNotes(auth.actor),
-      ownMonth(auth.actor),
-      myOtherJobsCount(auth.actor),
-    ])
+  const [
+    page,
+    shell,
+    params,
+    menuPhotos,
+    findings,
+    notes,
+    month,
+    otherJobs,
+    me,
+  ] = await Promise.all([
+    listOwnMedia(auth.actor),
+    staffShellStatus(auth.actor, profile),
+    searchParams ?? Promise.resolve({} as SearchParams),
+    menuPhotoDecisions(auth.actor),
+    history(auth.actor, myContributionsSurface()),
+    retakeNotes(auth.actor),
+    ownMonth(auth.actor),
+    myOtherJobsCount(auth.actor),
+    meReads(auth.actor),
+  ])
   if (!page.ok) throw new Error(page.message)
   const areaLabelled = await myAreaLabelled(
     auth.actor,
@@ -251,7 +316,32 @@ export default async function StaffPage({
         menuPhotoItems={menuPhotos.items}
         retakeNotes={notes}
         areaLabelled={areaLabelled}
-        month={<YourMonthCard monthly={month} />}
+        month={<YourMonthCard monthly={month} replacements={me.month} />}
+        myUploads={
+          <MyUploads
+            initial={me.uploads}
+            currentVenueId={profile.venueId ?? null}
+            correctionsAsked={me.correctionsAsked}
+            actions={{
+              loadMore: loadMyUploadsAction,
+              withdraw: withdrawUploadAction,
+              changeSlot: changeUploadSlotAction,
+              loadBoard: loadMatchBoardAction,
+              setCapturedAt: setCapturedAtAction,
+              requestRemoval: requestUploadRemovalAction,
+              report: reportSlotChangeAction,
+            }}
+          />
+        }
+        account={
+          <MeAccount
+            venues={me.venues}
+            switchVenue={switchVenueAction}
+            managers={me.managers}
+            unread={me.unread}
+            helpHref={CANT_ADD_HREF}
+          />
+        }
         otherJobs={otherJobs}
         findings={
           !findings.show ? null : findings.kind === "b02" ? (

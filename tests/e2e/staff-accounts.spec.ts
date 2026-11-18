@@ -9,8 +9,9 @@ import {
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 import { psql } from "./helpers/stack"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { ADMIN_LANDING, openPortfolio, STAFF_LANDING } from "./helpers/ui"
 import { provisionWorld, signedInPage } from "./helpers/world"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 const admin = serviceClient()
 // Server Functions and routes compile on first use under `next dev`.
@@ -27,6 +28,8 @@ async function signInAs(page: Page, email: string) {
     `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`
   )
   await page.getByRole("button", { name: "Continue" }).click()
+  // FA-23: an admin passes the TOTP second step.
+  await passMfaIfAsked(page, email)
 }
 
 /** The invitation link from the real email in the local Mailpit inbox. */
@@ -63,12 +66,12 @@ test.describe("admin staff management", () => {
     })
     const adminPage = await (await browser.newContext()).newPage()
     await signInAs(adminPage, adminUser.email)
-    await expect(adminPage).toHaveURL(/\/admin$/)
+    await expect(adminPage).toHaveURL(ADMIN_LANDING)
 
     // Invite through the dialog.
     await adminPage.goto("/admin/staff")
     await expect(
-      adminPage.getByRole("heading", { name: "Staff", level: 1 })
+      adminPage.getByRole("heading", { name: "People", level: 1 })
     ).toBeVisible()
     const email = testEmail("e2e-invitee")
     const name = `TEST Invitee ${email.slice(10, 18)}`
@@ -220,7 +223,7 @@ test.describe("admin staff management", () => {
     })
     await page.goto("/admin/staff")
     const row = page
-      .getByRole("list", { name: "Staff" })
+      .getByRole("list", { name: "People" })
       .getByRole("listitem")
       .filter({ hasText: name })
     const link = row.getByRole("link", { name })
