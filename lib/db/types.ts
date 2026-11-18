@@ -4099,10 +4099,12 @@ export type Database = {
           duration_seconds: number | null
           height: number | null
           id: string
+          import_batch_id: string | null
           media_type: Database["public"]["Enums"]["media_type"]
           original_filename: string
           original_path: string
           preview_path: string | null
+          provenance: string
           purpose: string
           size_bytes: number | null
           thumbnail_path: string | null
@@ -4128,10 +4130,12 @@ export type Database = {
           duration_seconds?: number | null
           height?: number | null
           id?: string
+          import_batch_id?: string | null
           media_type: Database["public"]["Enums"]["media_type"]
           original_filename: string
           original_path: string
           preview_path?: string | null
+          provenance?: string
           purpose?: string
           size_bytes?: number | null
           thumbnail_path?: string | null
@@ -4157,10 +4161,12 @@ export type Database = {
           duration_seconds?: number | null
           height?: number | null
           id?: string
+          import_batch_id?: string | null
           media_type?: Database["public"]["Enums"]["media_type"]
           original_filename?: string
           original_path?: string
           preview_path?: string | null
+          provenance?: string
           purpose?: string
           size_bytes?: number | null
           thumbnail_path?: string | null
@@ -4174,6 +4180,13 @@ export type Database = {
           width?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "media_assets_import_batch_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "media_import_batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "media_assets_uploader_id_fkey"
             columns: ["uploader_id"]
@@ -4267,6 +4280,130 @@ export type Database = {
           },
           {
             foreignKeyName: "media_contribution_groups_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_import_batches: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          label: string
+          last_run_at: string
+          manifest_sha256: string
+          source_folder: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          label: string
+          last_run_at?: string
+          manifest_sha256: string
+          source_folder?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          label?: string
+          last_run_at?: string
+          manifest_sha256?: string
+          source_folder?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_import_batches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_import_items: {
+        Row: {
+          asset_id: string
+          batch_id: string
+          content_sha256: string
+          contributor_email: string | null
+          contributor_id: string | null
+          created_at: string
+          file_path: string
+          id: string
+          legacy_folder: string | null
+          legacy_label: string | null
+          line_no: number
+          manifest_captured_at: string | null
+          outcome: string
+          staged_id: string | null
+          staged_kind: string | null
+          venue_id: string
+        }
+        Insert: {
+          asset_id: string
+          batch_id: string
+          content_sha256: string
+          contributor_email?: string | null
+          contributor_id?: string | null
+          created_at?: string
+          file_path: string
+          id?: string
+          legacy_folder?: string | null
+          legacy_label?: string | null
+          line_no: number
+          manifest_captured_at?: string | null
+          outcome: string
+          staged_id?: string | null
+          staged_kind?: string | null
+          venue_id: string
+        }
+        Update: {
+          asset_id?: string
+          batch_id?: string
+          content_sha256?: string
+          contributor_email?: string | null
+          contributor_id?: string | null
+          created_at?: string
+          file_path?: string
+          id?: string
+          legacy_folder?: string | null
+          legacy_label?: string | null
+          line_no?: number
+          manifest_captured_at?: string | null
+          outcome?: string
+          staged_id?: string | null
+          staged_kind?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_import_items_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "media_import_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "media_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_import_items_contributor_id_fkey"
+            columns: ["contributor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_import_items_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
@@ -5793,6 +5930,48 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "menu_items"
             referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
+      menu_item_packaging: {
+        Row: {
+          item_id: string
+          packaged: boolean
+          photo_wanted: boolean
+          set_at: string
+          set_by: string | null
+          venue_id: string
+        }
+        Insert: {
+          item_id: string
+          packaged?: boolean
+          photo_wanted?: boolean
+          set_at?: string
+          set_by?: string | null
+          venue_id: string
+        }
+        Update: {
+          item_id?: string
+          packaged?: boolean
+          photo_wanted?: boolean
+          set_at?: string
+          set_by?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_packaging_item_fkey"
+            columns: ["item_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "menu_item_packaging_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -7447,6 +7626,48 @@ export type Database = {
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shot_templates: {
+        Row: {
+          category: string
+          example_asset_id: string | null
+          instruction: string
+          revision: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category: string
+          example_asset_id?: string | null
+          instruction: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category?: string
+          example_asset_id?: string | null
+          instruction?: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shot_templates_example_asset_id_fkey"
+            columns: ["example_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shot_templates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -9787,6 +10008,88 @@ export type Database = {
         Args: { p_limit?: number; p_venue_id?: string }
         Returns: Json
       }
+      legacy_import_begin: {
+        Args: {
+          p_admin: string
+          p_label: string
+          p_manifest_sha256: string
+          p_source_folder?: string
+        }
+        Returns: string
+      }
+      legacy_import_complete: {
+        Args: {
+          p_admin: string
+          p_asset_id: string
+          p_captured_at?: string
+          p_captured_source: string
+          p_content_sha256: string
+          p_contributor_email?: string
+          p_contributor_id?: string
+          p_duration_seconds?: number
+          p_file_path: string
+          p_height?: number
+          p_legacy_folder?: string
+          p_legacy_label?: string
+          p_line_no: number
+          p_manifest_captured_at?: string
+          p_preview_path?: string
+          p_size_bytes: number
+          p_staged_id?: string
+          p_staged_kind?: string
+          p_thumbnail_path?: string
+          p_validated_mime_type: string
+          p_width?: number
+        }
+        Returns: {
+          asset_id: string
+          outcome: string
+          staged_id: string
+          staged_kind: string
+        }[]
+      }
+      legacy_import_context: {
+        Args: {
+          p_admin_email: string
+          p_emails?: string[]
+          p_venues?: string[]
+        }
+        Returns: Json
+      }
+      legacy_import_record_duplicate: {
+        Args: {
+          p_batch_id: string
+          p_captured_at?: string
+          p_content_sha256: string
+          p_contributor_email?: string
+          p_contributor_id?: string
+          p_duplicate_of: string
+          p_file_path: string
+          p_legacy_folder?: string
+          p_legacy_label?: string
+          p_line_no: number
+          p_venue_id: string
+        }
+        Returns: boolean
+      }
+      legacy_import_reserve: {
+        Args: {
+          p_asset_id: string
+          p_batch_id: string
+          p_extension: string
+          p_media_type: Database["public"]["Enums"]["media_type"]
+          p_original_filename: string
+          p_size_bytes: number
+          p_uploader: string
+          p_venue_id: string
+        }
+        Returns: {
+          id: string
+          original_path: string
+          reused: boolean
+          upload_state: Database["public"]["Enums"]["upload_state"]
+        }[]
+      }
       library_asset_detail: { Args: { p_asset_id: string }; Returns: Json }
       library_asset_tag: {
         Args: { p_add: boolean; p_asset_ids: string[]; p_tag_id: string }
@@ -9814,10 +10117,12 @@ export type Database = {
           duration_seconds: number | null
           height: number | null
           id: string
+          import_batch_id: string | null
           media_type: Database["public"]["Enums"]["media_type"]
           original_filename: string
           original_path: string
           preview_path: string | null
+          provenance: string
           purpose: string
           size_bytes: number | null
           thumbnail_path: string | null
@@ -9870,6 +10175,7 @@ export type Database = {
           p_content_type?: string
           p_destination?: string
           p_from?: string
+          p_import?: string
           p_item?: string
           p_label_state?: string
           p_limit?: number
@@ -9898,10 +10204,12 @@ export type Database = {
           duration_seconds: number | null
           height: number | null
           id: string
+          import_batch_id: string | null
           media_type: Database["public"]["Enums"]["media_type"]
           original_filename: string
           original_path: string
           preview_path: string | null
+          provenance: string
           purpose: string
           size_bytes: number | null
           thumbnail_path: string | null
@@ -10339,6 +10647,15 @@ export type Database = {
       }
       menu_item_display_name_set: {
         Args: { p_item_id: string; p_name: string; p_reason?: string }
+        Returns: Json
+      }
+      menu_item_packaging: { Args: { p_venue_id?: string }; Returns: Json }
+      menu_item_packaging_set: {
+        Args: {
+          p_item_id: string
+          p_packaged: boolean
+          p_photo_wanted?: boolean
+        }
         Returns: Json
       }
       menu_item_photo_asset: {
@@ -11237,6 +11554,25 @@ export type Database = {
         }
         Returns: Json
       }
+      shot_template_example_can_open: {
+        Args: { p_asset_id: string }
+        Returns: boolean
+      }
+      shot_template_example_choices: {
+        Args: { p_before?: Json; p_limit?: number; p_venue_id?: string }
+        Returns: Json
+      }
+      shot_template_set: {
+        Args: {
+          p_category: string
+          p_example_asset_id: string
+          p_expected_revision: number
+          p_instruction: string
+          p_reason?: string
+        }
+        Returns: Json
+      }
+      shot_templates: { Args: never; Returns: Json }
       skip_work_profile: {
         Args: never
         Returns: {
@@ -11256,6 +11592,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      slot_briefs: {
+        Args: { p_include_requests?: boolean; p_venue_id?: string }
+        Returns: Json
       }
       slot_change_reports: {
         Args: { p_limit?: number; p_state?: string; p_venue_id?: string }
