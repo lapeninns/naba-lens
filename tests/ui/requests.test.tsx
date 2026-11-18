@@ -169,7 +169,10 @@ describe("New request form (M4-required-fields)", () => {
   })
 
   it("sends a slot request and opens it", async () => {
-    const create = vi.fn(async () => ({ ok: true as const, id: "new-id" }))
+    const create = vi.fn(async (_input: unknown) => ({
+      ok: true as const,
+      id: "new-id",
+    }))
     render(
       <RequestForm
         mode="slot"

@@ -26,6 +26,7 @@ import {
   requestError,
 } from "@/lib/server/requests"
 import { CHIP_STATES } from "@/components/nabalens/status-chip"
+import { notificationWords } from "@/lib/ops/notifications"
 
 vi.mock("server-only", () => ({}))
 
@@ -418,5 +419,31 @@ describe("server module", () => {
     })
     const bad = fakeDb({ data: { nope: true } })
     expect((await listMyRequests({ db: bad.db })).ok).toBe(false)
+  })
+})
+
+describe("the assigned notice (S1-OPS inbox)", () => {
+  const notice = (payload: Record<string, unknown>) => ({
+    id: 1,
+    kind: "assigned" as const,
+    subjectType: "media_request",
+    subjectId: ID,
+    venueId: null,
+    venueName: null,
+    payload,
+    createdAt: "2026-11-18T10:00:00Z",
+    state: "unread" as const,
+  })
+
+  it("names the subject and the brief, with no due words", () => {
+    const words = notificationWords(
+      notice({ requestType: "missing_photo", subject: "Pie", brief: "Whole" })
+    )
+    expect(words).toEqual({ title: "Asked for: Pie", detail: "Whole" })
+    expect(
+      notificationWords(
+        notice({ requestType: "fact_confirmation", subject: "Guest Wi-Fi?" })
+      ).title
+    ).toBe("Confirm: Guest Wi-Fi?")
   })
 })

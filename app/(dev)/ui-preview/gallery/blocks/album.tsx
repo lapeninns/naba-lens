@@ -12,6 +12,10 @@ import {
   MatchScreen,
   type MatchPhoto,
 } from "@/components/nabalens/album/match/match-screen"
+import {
+  AskedFor,
+  askedForItems,
+} from "@/components/nabalens/requests/staff-requests"
 import { Button } from "@/components/ui/button"
 import * as React from "react"
 import { buildAlbum, currentPlace, type AlbumInput } from "@/lib/album/model"
@@ -194,6 +198,53 @@ const PLACES_GROUPS: AlbumPlacesGroup[] = [
   },
 ]
 
+/** S2-REQ: two requests on Album Home, one on a slot and one New brief. */
+const SAMPLE_SLOTS = new Map(
+  SAMPLE.places
+    .flatMap((p) => p.groups.flatMap((g) => g.slots))
+    .map((slot) => [slot.id, slot])
+)
+const ASKED = askedForItems(
+  [
+    {
+      id: "req-1",
+      type: "missing_photo",
+      slot: {
+        kind: "area",
+        slotId: GARDEN,
+        name: "Garden",
+        state: "missing",
+      },
+      subject: "Garden",
+      brief: "From the gate, benches and the heaters in view",
+      photoCount: 2,
+      neededBy: "2026-11-30",
+      orientation: "landscape",
+      wantsVideo: false,
+      captureWindow: "Before opening",
+      referenceAssetId: null,
+      forMe: true,
+      state: "open",
+    },
+    {
+      id: "req-2",
+      type: "campaign",
+      slot: null,
+      subject: "Bonfire night table",
+      brief: "A full table by the fire pit, lit",
+      photoCount: 1,
+      neededBy: null,
+      orientation: null,
+      wantsVideo: true,
+      captureWindow: null,
+      referenceAssetId: null,
+      forMe: false,
+      state: "open",
+    },
+  ],
+  SAMPLE_SLOTS
+)
+
 export function AlbumScreensBlock() {
   return (
     <div className="grid gap-8">
@@ -215,6 +266,14 @@ export function AlbumScreensBlock() {
             blocked={null}
             headingLevel={4}
           />
+        </div>
+      </div>
+      <div className="grid gap-3">
+        <h3 className="type-heading-sm text-ink">
+          Album Home: Asked for (S2-REQ, spec §7 M4)
+        </h3>
+        <div className="max-w-feed rounded-card bg-canvas p-3 edge">
+          <AskedFor items={ASKED} today="2026-11-18" canAdd headingLevel={4} />
         </div>
       </div>
       <div className="grid gap-3">
