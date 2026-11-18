@@ -18,7 +18,7 @@ import {
 
 import { EXPORTS_COPY, londonToday } from "./_components/copy"
 import { PackageList } from "./_components/package-list"
-import { PublicationPanels } from "./_components/publication-panels"
+import { PublicationPanels } from "./_components/panels"
 
 export const metadata: Metadata = { title: EXPORTS_COPY.adminTitle }
 

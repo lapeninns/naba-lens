@@ -1,7 +1,7 @@
 // S1-EXPORT words for the admin Publishing screen and the manager's Exports
 // (spec §8 A5, §14; DESIGN.md §7). These are admin and manager screens, so
 // the spec's publication words appear here and nowhere on staff screens
-// (FA-7, departures.md "Publication words"). Exported never claims a file is
+// (FA-7, departures.md A-E1). Exported never claims a file is
 // on a website (§10 inv. 9); nothing here claims a downloaded copy can be
 // recalled (§14.2).
 
