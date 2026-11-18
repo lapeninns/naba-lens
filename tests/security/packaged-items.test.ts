@@ -122,7 +122,8 @@ async function coverage(who: TestIdentity, venue?: string) {
 
 const slotOf = (c: Coverage, itemId: string) =>
   c.slots.find((s) => s.kind === "dish" && s.slotId === itemId)!
-const drinks = (c: Coverage) => c.categories.find((x) => x.category === "drinks")!
+const drinks = (c: Coverage) =>
+  c.categories.find((x) => x.category === "drinks")!
 
 /** AC39: the counts reproduce from the counted slots. */
 function expectReproduces(c: Coverage) {
@@ -178,10 +179,7 @@ beforeAll(async () => {
     label: "packaged-admin",
     role: "admin",
   })
-  ;[w, other] = await Promise.all([
-    world("packaged-a"),
-    world("packaged-b"),
-  ])
+  ;[w, other] = await Promise.all([world("packaged-a"), world("packaged-b")])
   // Signed in as staff (aal1), then made an admin: no second factor.
   aal1Admin = await createIdentity(service, {
     label: "packaged-admin-aal1",
@@ -199,17 +197,32 @@ beforeAll(async () => {
 describe("who may set and read the designation", () => {
   it("refuses staff, a manager of another venue, an admin without MFA and anon", async () => {
     const lager = w.id("drinks--lager")
-    await fails(setPackaging(w.staff, lager, true), "not_venue_manager", "42501")
-    await fails(setPackaging(other.mgr, lager, true), "not_venue_manager", "42501")
+    await fails(
+      setPackaging(w.staff, lager, true),
+      "not_venue_manager",
+      "42501"
+    )
+    await fails(
+      setPackaging(other.mgr, lager, true),
+      "not_venue_manager",
+      "42501"
+    )
     const { error } = await setPackaging(aal1Admin, lager, true)
     expect(error).not.toBeNull()
-    const anon = await anonClient().rpc("menu_item_packaging_set" as never, {
-      p_item_id: lager,
-      p_packaged: true,
-    } as never)
+    const anon = await anonClient().rpc(
+      "menu_item_packaging_set" as never,
+      {
+        p_item_id: lager,
+        p_packaged: true,
+      } as never
+    )
     expect(anon.error).not.toBeNull()
 
-    await fails(call(w.staff, "menu_item_packaging", {}), "not_venue_manager", "42501")
+    await fails(
+      call(w.staff, "menu_item_packaging", {}),
+      "not_venue_manager",
+      "42501"
+    )
     // Never a read of another venue's designations.
     const across = await call(other.mgr, "menu_item_packaging", {
       p_venue_id: w.venue,
@@ -328,11 +341,10 @@ describe("the rule (FA-51, AC39)", () => {
       sections: Array<{ kind: string; total: number; accepted: number }>
       totals: Counts
     }
-    expect(
-      albumCounts.sections.find((s) => s.kind === "drinks")
-    ).toMatchObject({ total: 1, accepted: 0 })
+    expect(albumCounts.sections.find((s) => s.kind === "drinks")).toMatchObject(
+      { total: 1, accepted: 0 }
+    )
     expect(albumCounts.totals).toEqual(c.totals)
-
   })
 
   it("Photo wanted brings it back into the total", async () => {
