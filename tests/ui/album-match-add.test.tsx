@@ -714,6 +714,84 @@ describe("a venue change before sending (AC11, spec §6 S2)", () => {
     expect(started).toEqual(["q1.jpg", "q2.jpg"])
   })
 
+  it("drops each queue item taken back, even when one photo waits twice across two switches (W6)", async () => {
+    // q1 and q2 hold their turn; q3 and q4 wait. A->B takes them back and
+    // they are matched again at B, so each waits as two queue items. B->C
+    // before any of them has its turn takes all four back: none is reserved
+    // at C unasked, and matched again at C each is sent once, at C.
+    const holds: (() => void)[] = []
+    const sent: [string, string | undefined][] = []
+    uploads.current = async (file, context) => {
+      started.push(file.name)
+      sent.push([file.name, context.venueId])
+      if (file.name === "q1.jpg" || file.name === "q2.jpg")
+        await new Promise<void>((resolve) => holds.push(resolve))
+      return { assetId: `asset-${file.name}-${context.venueId}` }
+    }
+    const user = userEvent.setup()
+    const view = render(<Host opts={{ match: { place: PASS } }} />)
+    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    await user.upload(
+      gallery(),
+      [1, 2, 3, 4].map((n) => jpeg(`q${n}.jpg`, n))
+    )
+    let dialog = await screen.findByRole("dialog", { name: "Photo 1 of 4" })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Photo 4 too" })
+    )
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    await waitFor(() => expect(started).toEqual(["q1.jpg", "q2.jpg"]))
+
+    const switchTo = async (id: string, name: string) => {
+      match.loadMatchBoardAction.mockResolvedValue({
+        ok: true,
+        board: { ...BOARD, venue: { id, name } },
+      })
+      view.rerender(
+        <Host opts={{ match: { place: PASS } }} venueId={id} venueName={name} />
+      )
+      expect(
+        await within(matchDialog()).findByText(
+          `You are now adding photos for ${name}. Choose the slot again for 2 photos.`
+        )
+      ).toBeTruthy()
+    }
+    const matchAgain = async () => {
+      dialog = await screen.findByRole("dialog", { name: /Photo 3 of 4/ })
+      await user.click(
+        await within(dialog).findByRole("button", { name: "Photo 4 too" })
+      )
+      // Onion Bhaji is still sending (q1, q2), so Match holds it back.
+      await user.click(
+        await within(dialog).findByRole("button", { name: /Chicken Tikka/ })
+      )
+    }
+
+    await switchTo("venue-2", "The Crown")
+    await matchAgain()
+    await switchTo("venue-3", "The Swan")
+
+    // q1 and q2 finish at the first venue; all four waiting items drop.
+    for (const release of holds) release()
+    await waitFor(() => expect(sentFor("asset-q2.jpg-venue-1")).toHaveLength(1))
+    await new Promise((r) => setTimeout(r, 30))
+    expect(sent).toEqual([
+      ["q1.jpg", "venue-1"],
+      ["q2.jpg", "venue-1"],
+    ])
+
+    // Matched again at C: each photo is sent once, for C.
+    await matchAgain()
+    await waitFor(() => expect(sentFor("asset-q4.jpg-venue-3")).toHaveLength(1))
+    await new Promise((r) => setTimeout(r, 30))
+    expect(sent.slice(2).sort()).toEqual([
+      ["q3.jpg", "venue-3"],
+      ["q4.jpg", "venue-3"],
+    ])
+  })
+
   it("reads Sent, not Waiting, while a dish label is not on the photo (V8)", async () => {
     // The label is only staged ("pending") and finalise reports none.
     vi.mocked(fetch).mockImplementation((url, init) => {

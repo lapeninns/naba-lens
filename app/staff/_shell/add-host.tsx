@@ -701,10 +701,16 @@ export function AddHost({
   const [venueNotice, setVenueNotice] = React.useState<string | null>(null)
   const [venuesMixed, setVenuesMixed] = React.useState(false)
   const matchKeys = React.useRef(new WeakMap<File, string>())
-  // Files whose reservation has started (the queue gave them their turn),
-  // and files Match took back before their turn (AC11, revalidateVenue).
+  // Files whose reservation has started (the queue gave them their turn).
+  // Then, per queue item, the matched photos handed to the queue and not
+  // given their turn yet, and those Match took back before their turn
+  // (AC11, revalidateVenue). A queue item is its File and the selection it
+  // joined (UploadContext.batchId): one photo can wait as two items, taken
+  // back at one venue and matched again at the next before the first item's
+  // turn (S3-repair W6), and each item is dropped or sent on its own.
   const reserveStarted = React.useRef(new WeakSet<File>())
-  const withdrawn = React.useRef(new WeakSet<File>())
+  const waitingTurns = React.useRef(new WeakMap<File, Set<string>>())
+  const withdrawn = React.useRef(new WeakMap<File, Set<string>>())
   // Each matched photo's slot, and the slots whose photo this phone is
   // sending or has sent (DESIGN.md §4, §6.8): Album's tiles show them as
   // Sending, Saved on this phone or Waiting until the album reads them, so
@@ -889,9 +895,15 @@ export function AddHost({
    * Match. Either way Match keeps it, so the sheet doesn't list it.
    */
   const queued = React.useCallback(
-    ({ rejected, room: left }: QueuedOutcome) => {
+    ({ rejected, room: left, added, batchId }: QueuedOutcome) => {
       setHanding(false)
       setRoom(left)
+      for (const file of added) {
+        if (!matchKeys.current.has(file)) continue
+        const turns = waitingTurns.current.get(file) ?? new Set<string>()
+        turns.add(batchId)
+        waitingTurns.current.set(file, turns)
+      }
       const kept: File[] = []
       const full: File[] = []
       for (const refused of rejected) {
@@ -1092,7 +1104,15 @@ export function AddHost({
           (current) => new Map([...current].filter(([key]) => !keys.has(key)))
         )
         for (const photo of undone) {
-          if (!waitingFiles.has(photo.file)) withdrawn.current.add(photo.file)
+          // Every queue item of this photo still waiting its turn was handed
+          // for an earlier choice: each is dropped at its turn (W6).
+          const turns = waitingTurns.current.get(photo.file)
+          if (turns && turns.size > 0) {
+            const taken = withdrawn.current.get(photo.file) ?? new Set<string>()
+            for (const turn of turns) taken.add(turn)
+            withdrawn.current.set(photo.file, taken)
+            waitingTurns.current.delete(photo.file)
+          }
           fileOwners.current.delete(photo.file)
           claimedFiles.current.delete(photo.file)
           const slot = fileSlots.current.get(photo.file)
@@ -1552,9 +1572,12 @@ export function AddHost({
   const upload = React.useMemo<Uploader>(
     () => async (file, context) => {
       // Taken back by Match before its turn: dropped, never reserved. The
-      // photo may have been matched again since, as a new queue item.
-      if (withdrawn.current.has(file)) {
-        withdrawn.current.delete(file)
+      // photo may have been matched again since, as a new queue item, which
+      // keeps its own turn (W6).
+      const turn = context.batchId
+      if (turn !== undefined) waitingTurns.current.get(file)?.delete(turn)
+      const taken = withdrawn.current.get(file)
+      if (turn !== undefined && taken?.delete(turn)) {
         throw new UploadWithdrawnError()
       }
       reserveStarted.current.add(file)

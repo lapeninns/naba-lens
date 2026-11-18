@@ -145,7 +145,17 @@ export type RejectedFile = {
   full?: boolean
 }
 
-export type AddResult = { added: number; rejected: RejectedFile[] }
+export type AddResult = {
+  added: number
+  rejected: RejectedFile[]
+  /** The files taken, in order: each is one new queue item. */
+  addedFiles: File[]
+  /**
+   * The selection they joined (each item's `UploadContext.batchId`). With
+   * the File it names one queue item, even when the same File waits twice.
+   */
+  batchId: string
+}
 
 export type QueueSummary = {
   total: number
@@ -424,7 +434,12 @@ export class UploadQueue {
       this.items = [...this.items, ...added]
       this.emit()
     }
-    return { added: added.length, rejected }
+    return {
+      added: added.length,
+      rejected,
+      addedFiles: added.map((i) => i.file),
+      batchId,
+    }
   }
 
   /** Remove an item that is not currently transferring. */

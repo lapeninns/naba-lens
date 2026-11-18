@@ -391,6 +391,10 @@ export type QueuedOutcome = {
   rejected: readonly RejectedFile[]
   /** Files the queue can still take before it is full. */
   room: number
+  /** The files this pick added, each one new queue item. */
+  added: readonly File[]
+  /** The selection they joined: their `UploadContext.batchId`. */
+  batchId: string
 }
 
 export type UploadBusy = {
@@ -1406,6 +1410,8 @@ export function UploadDialog({
       onQueued?.({
         rejected: refused,
         room: Math.max(0, limits.maxBatchFiles - queue.pending()),
+        added: result.addedFiles,
+        batchId: result.batchId,
       }) ?? []
     setRejected(refused.filter((r) => !r.file || !kept.includes(r.file)))
     setCloseBlocked(false)
