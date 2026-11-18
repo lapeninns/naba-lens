@@ -11,9 +11,11 @@ import {
   placesOn,
   SIZES,
   startMatch,
+  uploadStateOf,
 } from "../helpers/full-app"
 import { provisionManagerWorld } from "../helpers/manager-world"
-import { syntheticJpeg } from "../helpers/media"
+import { sha256, syntheticJpeg } from "../helpers/media"
+import { provisioner, psql } from "../helpers/stack"
 import { signedInPage } from "../helpers/world"
 
 /**
@@ -96,6 +98,26 @@ for (const size of ["phone", "narrow", "desktop"] as const) {
       [4, "", `Garden ${w.tag}`],
     ]
     const ids = await Promise.all(files.map((f) => assetNamed(f.name)))
+    // Each asset holds the bytes of the photo whose name it carries (so a
+    // wrong label below is a wrong label, not a renamed file).
+    await expect
+      .poll(() => Promise.all(ids.map(uploadStateOf)), { timeout: 60_000 })
+      .toEqual(ids.map(() => "ready"))
+    const stored = await Promise.all(
+      ids.map(async (id) => {
+        const path = psql(
+          `select original_path from public.media_assets where id = '${id}'::uuid`
+        )
+        const { data, error } = await provisioner()
+          .storage.from("media")
+          .download(path)
+        if (error) throw error
+        return sha256(new Uint8Array(await data.arrayBuffer()))
+      })
+    )
+    expect
+      .soft(stored, "stored bytes match the file name")
+      .toEqual(files.map((f) => f.sha256))
     const want = expected
       .map(([i, dish, place]) => `${files[i]!.name}=${dish}|${place}`)
       .join("; ")
