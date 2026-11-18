@@ -191,7 +191,11 @@ export default async function AlbumHomePage({
           <AlbumHome
             venueName={profile.venue?.name ?? ""}
             album={album.album}
-            current={currentPlace(album.album, place)}
+            current={currentPlace(
+              album.album,
+              place,
+              profile.work?.workAreas ?? []
+            )}
             retakes={retakes ?? []}
             canAdd={blockedReason === null}
             blocked={blockedReason ? ADD_BLOCKED[blockedReason] : null}

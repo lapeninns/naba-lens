@@ -27,6 +27,8 @@ import type {
 import { rememberAlbumPlace } from "@/lib/album/remembered-place"
 import { cn } from "@/lib/utils"
 
+import { UnfinishedRow } from "./unfinished-row"
+
 /*
  * Album, the staff Home (DESIGN.md §5a). Top to bottom: the venue's album
  * count, the retake row, "Where are you?" with the places, the empty slots
@@ -181,6 +183,9 @@ export function AlbumHome({
           }
         />
       ) : null}
+
+      {/* Photos that stopped or failed, under the retake row (spec §6 S1). */}
+      {canAdd ? <UnfinishedRow /> : null}
 
       {blocked ? <Notice tone="attention">{blocked}</Notice> : null}
 

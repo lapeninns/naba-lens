@@ -1371,10 +1371,12 @@ export function AddHost({
       intents,
       slots: slotSends,
       settleSlot,
+      earlier: resumable.length,
     }),
     [
       slotSends,
       settleSlot,
+      resumable.length,
       inProgress,
       blocked,
       ended,

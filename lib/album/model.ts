@@ -20,6 +20,7 @@
  * (the read failed) the older per-source rules below still apply.
  */
 
+import type { WorkArea } from "@/lib/config/work-roles"
 import { dayLabel } from "@/lib/server/coverage/time"
 
 export type SlotState =
@@ -385,8 +386,17 @@ const ORDER: Record<SlotState, number> = {
   "not-here": 6,
 }
 
+/**
+ * Job order (spec §6 S1): a manager's explicit priority first (an empty
+ * slot with a "needed by" date), then update requests (retakes), then the
+ * rest by state.
+ */
+function slotRank(slot: AlbumSlot): number {
+  return slot.state === "needed" && slot.neededBy ? -1 : ORDER[slot.state]
+}
+
 function sortSlots(a: AlbumSlot, b: AlbumSlot) {
-  const byState = ORDER[a.state] - ORDER[b.state]
+  const byState = slotRank(a) - slotRank(b)
   if (byState) return byState
   if (a.neededBy && !b.neededBy) return -1
   if (b.neededBy && !a.neededBy) return 1
@@ -553,15 +563,51 @@ export function buildAlbum(input: AlbumInput): AlbumView {
  * The place Album opens on: the one asked for ("unplaced" for Not placed
  * yet), else the one with the most gaps, else the first.
  */
+/**
+ * Words in a place's name that fit each work area (spec §6 S1 work-area
+ * preference): a recommendation only, never access. Kitchen work fits the
+ * pass and kitchen, the bar fits the bar, front of house fits the rooms
+ * guests use.
+ */
+const AREA_WORDS: Record<WorkArea, RegExp> = {
+  kitchen: /\b(kitchen|pass|grill|tandoor|curry|food)\b/i,
+  curry: /\b(kitchen|pass|curry)\b/i,
+  tandoor: /\b(kitchen|pass|tandoor|grill)\b/i,
+  plating: /\b(kitchen|pass|plating)\b/i,
+  bar: /\b(bar|cellar|drinks?)\b/i,
+  service:
+    /\b(dining|restaurant|room|lounge|snug|terrace|garden|front|floor)\b/i,
+  venue: /\b(garden|terrace|entrance|car park|outside|room|toilets?|lounge)\b/i,
+}
+
+/** True when the place's name fits one of the person's work areas. */
+export function placeFitsWork(
+  place: Pick<AlbumPlace, "label">,
+  workAreas: readonly WorkArea[]
+): boolean {
+  return workAreas.some((area) => AREA_WORDS[area].test(place.label))
+}
+
+/**
+ * The place Album opens on: the one asked for (or remembered); else, among
+ * places with empty slots, the first that fits the person's work areas (an
+ * empty list is All); else the one with the most empty slots.
+ */
 export function currentPlace(
   view: AlbumView,
-  preferred: string | null
+  preferred: string | null,
+  workAreas: readonly WorkArea[] = []
 ): AlbumPlace | null {
   const all = [...view.places, ...(view.unplaced ? [view.unplaced] : [])]
   const asked = preferred
     ? all.find((p) => (p.subjectId ?? "unplaced") === preferred)
     : undefined
-  return asked ?? all.find((p) => p.empty > 0) ?? all[0] ?? null
+  const open = all.filter((p) => p.empty > 0)
+  const fits =
+    workAreas.length > 0
+      ? open.find((p) => placeFitsWork(p, workAreas))
+      : undefined
+  return asked ?? fits ?? open[0] ?? all[0] ?? null
 }
 
 // ---- coverage read ------------------------------------------------------------

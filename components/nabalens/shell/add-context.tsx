@@ -163,6 +163,11 @@ type AddContextValue = {
   slots?: ReadonlyMap<string, SlotSend>
   /** The album reads this slot itself now: its tile no longer needs `slots`. */
   settleSlot?: (slotId: string) => void
+  /**
+   * Photos picked in an earlier visit that never finished (the capture
+   * journal): Album Home offers them under the Add action (spec §6 S1).
+   */
+  earlier?: number
 }
 
 /**
