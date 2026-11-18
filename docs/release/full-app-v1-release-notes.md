@@ -1,6 +1,6 @@
 # Naba-Lens Full App v1: release notes
 
-Release candidate: branch `feat/full-app-v1`, repaired and verified head `b3f726411` plus the Sprint 4 docs. Spec: [NabaLens-Full-App-Specification-v1.0.md](../spec/NabaLens-Full-App-Specification-v1.0.md). Decisions: [FA-1 to FA-50](../plans/full-app-v1/decisions.md). Requirement results: [checklist.md](../plans/full-app-v1/checklist.md). How to use each screen: [staff](../usage-staff.md), [manager](../usage-manager.md), [admin](../usage-admin.md).
+Release candidate: branch `feat/full-app-v1`, final verified head `428b8c90e` plus these docs. Spec: [NabaLens-Full-App-Specification-v1.0.md](../spec/NabaLens-Full-App-Specification-v1.0.md). Decisions: [FA-1 to FA-54](../plans/full-app-v1/decisions.md). Requirement results: [checklist.md](../plans/full-app-v1/checklist.md). How to use each screen: [staff](../usage-staff.md), [manager](../usage-manager.md), [admin](../usage-admin.md).
 
 Four things stay separate throughout the app and these notes:
 
@@ -52,7 +52,7 @@ Four things stay separate throughout the app and these notes:
 
 ## Data and migrations
 
-73 Full App migrations, `20261118100000` to `20261118129000`: Sprint 1 (23), the Sprint 2 fix pass `108000`-`108600` (7), Sprint 2 (20) and the Sprint 3 repair pass `120000`-`129000` (23). Every one applies in order on a fresh stack. (Earlier plan notes say 64; the tree holds 73.) All are additive: new tables, columns, functions and policies, with RLS on and no direct table grants. Run them on staging first.
+83 Full App migrations, `20261118100000` to `20261118138100`: Sprint 1 (23), the Sprint 2 fix pass `108000`-`108600` (7), Sprint 2 (20), the Sprint 3 repair rounds `120000`-`132100` (26) and the Release 1 completion batch `133000`-`138100` (7). With the four Album migrations not yet on `main`, the PR adds 87. Every one applies in order on a fresh stack. All are additive: new tables, columns, functions and policies, with RLS on and no direct table grants. Run them on staging first.
 
 ### Migrations that change existing data
 
@@ -84,7 +84,7 @@ Ordered steps; none has been done by the build agents.
 2. **Raise the hosted project's global upload limit** to at least 250 MiB; no migration changes it (S1-UPLOAD).
 3. **Check TOTP MFA is enabled** in hosted Auth (on by default) and tell admins they will be asked to set up an authenticator app at next sign-in (S1-PRIVACY).
 4. **Set the session expiry** for remembered devices in hosted Auth; it is a hosted setting, not code (S1-PEOPLE).
-5. **Run the migrations on staging, then production**, through the repo's own scripts (`docs/release-checklist.md`), then deploy.
+5. **Run the migrations on staging, then production, then merge**: the exact order and commands are in [full-app-v1-owner-steps.md](full-app-v1-owner-steps.md).
 6. **Check manager grants.** A manager account with no open grant at its venue (already "access ended" today) gets no membership from the backfill; re-grant any that should still manage.
 7. **Set each venue's main reviewer** (admin only) and choose any **single-reviewer** venues (FA-9). Until a venue is single-reviewer, nobody there can decide on their own photo.
 8. **Turn on accommodation** for venues with rooms (Venues › scope), with a reason.
@@ -92,12 +92,24 @@ Ordered steps; none has been done by the build agents.
 10. **Next.js security notice.** `next build` sometimes stopped with "known security vulnerability … upgrade Next.js" and passed on retry (S1-PRIVACY, S3-R3, S3-R5, S3-R6, S3-R8, S3-R11). No dependency was upgraded; decide on the upgrade.
 11. **Performance and pilot.** No real-device or 4G measurements were taken (spec §15.2, §15.3, §21). Run the pilot measurements on real phones.
 12. **Review the decisions marked review** in `decisions.md` (FA-20: staff see colleagues' photos only once accepted).
+13. **Review the five default shot templates** (Settings › Shot templates) and adjust the wording to your venues (FA-52).
+14. **Mark packaged drinks** (bottled and canned) on each venue's menu, and Photo wanted where you want one; coverage totals change only for the items you mark (FA-51).
+15. **Import existing photos** with `pnpm import:legacy`, on staging first, dry run first ([legacy-import.md](../legacy-import.md), FA-54).
+
+## Release 1 completion (FA-51 to FA-54)
+
+- **Packaged drinks (FA-51).** Managers and admins can mark a menu item or local offering **Packaged**. A packaged item is optional (listed, takes photos, never counted as empty or in a total) unless it is also marked **Photo wanted**. Nothing changes until someone marks an item.
+- **Shot templates (FA-52).** Admin **Settings › Shot templates**: a short default instruction per category, with an optional example photo. Staff and reviewers see the request brief first, then the manager's section brief, then the template. Seeded with plain defaults; review them before release.
+- **Installable app (FA-53).** A web app manifest and icons. Me › Help offers **Add to home screen** where the phone's browser supports it, and iPhone steps on iOS. No service worker; browser use is unchanged.
+- **Legacy import (FA-54).** `pnpm import:legacy` brings existing originals in as **awaiting review**, with exact-duplicate skipping and capture dates kept or left unknown. Dry run by default. See [legacy-import.md](../legacy-import.md).
+
+These add no change to existing rows; `20261118134000_shot_templates` seeds the five default templates and `20261118132000` lets the venue template offer active checks never on the working list.
 
 ## Known limits
 
-- **Not built and not covered by a decision** (need an owner call): packaged drinks marked as not needing a photo (§4.2), admin default shot templates (§8 A7), an installable web app (manifest and icons, §15.3), and an import script for existing originals (§20).
-- **Partly built** (37 rows in the checklist), among them: Fix label cannot relabel a place photo; there is no admin upload screen (admins upload only through the database rule); an admin's original download is not recorded as an export; imported price context records no authority.
-- **Wording seams** found during the docs check, left for the next batch: Library opens a page headed "Content" and People one headed "Staff"; the manager Album tab opens a page headed "Menu"; the one-at-a-time review says Accept and Ask again while the photo detail says Approve for public use; a retake has several manager-facing spellings; Album's place filter says "Needs updating" while the tile says "Needs checking"; the manager exports page points to Publishing, which only admins can open; Albums, all-venue Coverage and admin Metrics are reachable from Overview links but have no nav item; Me's Add photos or videos opens the older sheet rather than Match.
+- **Partly built** (36 rows in the checklist), among them: there is no admin upload screen (admins upload only through the database rule); an admin's original download is not recorded as an export; imported price context records no authority.
+- **Navigation:** Albums, all-venue Coverage and admin Metrics are reached from Overview links and have no nav item. The other wording seams the docs check found were fixed in repair round 3 (S3-R12 to S3-R14).
+- **Next batches:** design system v2 (owner decision, 18 Nov 2026); I'm not sure in Me's Change slot, a sending percentage on Album tiles, and Not here dishes on the Match board (S3-R12 deferred items).
 
 ## Deferred to Release 2
 
@@ -114,4 +126,4 @@ Acceptance checks AC20, AC22 and AC33 are deferred by these decisions; each has 
 
 ## Verification
 
-On the merged, repaired head `b3f726411` ([progress.md](../plans/full-app-v1/progress.md)): typecheck clean, ESLint exit 0, `pnpm test` 419 files and 5128 tests passed, the full security suite 106 files and 1579 tests passed, and the e2e suite on Chromium ran all 69 spec files: 288 passed, 0 failed, 28 skipped by design. AC01 to AC40 and their specs are in the [checklist summary](../plans/full-app-v1/checklist.md#acceptance-criteria-ac01-to-ac40). Formal CI (`pnpm verify:release`) runs once on the final rebased head, by the coordinator.
+On the final head `428b8c90e` (fresh isolated stacks): typecheck clean; ESLint exit 0; `pnpm test` 430 files, 5266 tests passed; the full security suite 115 files, 1640 tests passed; the e2e suite on Chromium ran all 76 spec files: 305 passed, 0 failed, 28 skipped by design (opt-in visual and phone-only specs). AC01 to AC40 and their specs are in the [checklist summary](../plans/full-app-v1/checklist.md#acceptance-criteria-ac01-to-ac40). Formal CI (`pnpm verify:release`) runs once on the pushed PR head; its result is recorded in the PR. Release steps for the owner: [full-app-v1-owner-steps.md](full-app-v1-owner-steps.md).
