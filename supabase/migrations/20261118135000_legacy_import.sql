@@ -210,7 +210,8 @@ begin
       join public.profiles p on p.id = u.id
     ), '{}'::jsonb),
     'venues', coalesce((
-      select jsonb_object_agg(k.key, jsonb_build_object('id', v.id, 'name', v.name, 'active', v.active))
+      select jsonb_object_agg(k.key, jsonb_build_object('id', v.id, 'name', v.name,
+        'active', v.active, 'timezone', v.timezone))
       from (select distinct btrim(x) as key from unnest(coalesce(p_venues, '{}')) x
             where x is not null and btrim(x) <> '') k
       join public.venues v

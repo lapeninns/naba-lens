@@ -506,6 +506,26 @@ describe("removing people (M5, A6, AC34)", () => {
     const colleague = await staff("mem-colleague", venueA)
     const requirement = await createRequirement(admin, venueA)
     await assign(admin, requirement, [leaver.id])
+    const createRequest = (subject: string) =>
+      ok(
+        managerA.client.rpc("media_request_create", {
+          p_type: "campaign",
+          p_venue_id: venueA,
+          p_subject: subject,
+          p_brief: "TEST handover",
+          p_intended_use: "public",
+          p_assignee_id: leaver.id,
+        })
+      ) as Promise<{ id: string; revision: number }>
+    const request = await createRequest("Open photos")
+    const closed = await createRequest("Completed photos")
+    await ok(
+      managerA.client.rpc("media_request_close", {
+        p_request_id: closed.id,
+        p_revision: closed.revision,
+        p_state: "completed",
+      })
+    )
     await fails(
       remove(managerA, leaver.id, venueA, staffB.id),
       "replacement_not_eligible"
@@ -514,6 +534,7 @@ describe("removing people (M5, A6, AC34)", () => {
     expect(row!.reassigned).toEqual({
       coverageAssignments: 1,
       amenityChecks: 0,
+      mediaRequests: 1,
     })
     const { data } = await service
       .from("coverage_requirement_assignees")
@@ -521,6 +542,30 @@ describe("removing people (M5, A6, AC34)", () => {
       .eq("requirement_id", requirement)
       .is("ended_at", null)
     expect(data).toEqual([{ staff_id: colleague.id }])
+    expect(
+      psql(`select assignee_id || '|' || revision
+      from public.media_requests where id = '${request.id}'`)
+    ).toBe(`${colleague.id}|${request.revision + 1}`)
+    expect(
+      psql(
+        `select assignee_id from public.media_requests where id = '${closed.id}'`
+      )
+    ).toBe(leaver.id)
+    const work = (await ok(colleague.client.rpc("my_media_requests", {}))) as {
+      items: Array<{ id: string; forMe: boolean }>
+    }
+    expect(work.items).toContainEqual(
+      expect.objectContaining({ id: request.id, forMe: true })
+    )
+    expect(
+      psql(`select recipient_id || '|' || (resolved_at is not null)::text
+      from public.notifications where subject_type = 'media_request' and subject_id = '${request.id}'
+      order by id`).split("\n")
+    ).toEqual([`${leaver.id}|true`, `${colleague.id}|false`])
+    expect(
+      psql(`select actor_id || '|' || reason || '|' || (detail ->> 'assigneeId')
+      from public.media_request_events where request_id = '${request.id}' and kind = 'edited'`)
+    ).toBe(`${managerA.id}|TEST left the venue|${colleague.id}`)
   })
 
   it("reassign_open_work: manager or admin of the venue only", async () => {
@@ -545,6 +590,7 @@ describe("removing people (M5, A6, AC34)", () => {
     expect(await ok(managerA.client.rpc("reassign_open_work", args))).toEqual({
       coverageAssignments: 1,
       amenityChecks: 0,
+      mediaRequests: 0,
     })
     const { error } = await anonClient().rpc("reassign_open_work", args)
     expect(error?.code).toBe("42501")

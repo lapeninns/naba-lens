@@ -213,8 +213,16 @@ async function validateStored(
     if (size > MEDIA_LIMITS.maxPhotoBytes) {
       return { ok: false, error: "file_too_large" }
     }
-    const bytes = await source.read(0, size)
+    const [bytes, venue] = await Promise.all([
+      source.read(0, size),
+      actor.service
+        .from("venues")
+        .select("timezone")
+        .eq("id", row.venue_id)
+        .single(),
+    ])
     if (bytes.byteLength !== size) return { ok: false, error: "size_mismatch" }
+    if (venue.error) throw new Error("asset_venue_timezone")
     for (let attempt = 0; ; attempt++) {
       const result = await validateMedia({
         bytes,
@@ -235,7 +243,9 @@ async function validateStored(
           preview: result.preview,
           thumb: result.thumb,
           sha256: createHash("sha256").update(bytes).digest("hex"),
-          capturedAt: imageCaptureTime(bytes),
+          capturedAt: imageCaptureTime(bytes, {
+            timeZone: venue.data.timezone,
+          }),
         }
       }
       if (attempt >= BUSY_RETRIES) return result

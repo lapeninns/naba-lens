@@ -119,7 +119,10 @@ export function importAssetId(
 type Context = {
   adminId: string | null
   contributors: Record<string, { id: string; role: string; active: boolean }>
-  venues: Record<string, { id: string; name: string; active: boolean }>
+  venues: Record<
+    string,
+    { id: string; name: string; active: boolean; timezone: string }
+  >
 }
 
 async function readContext(
@@ -274,7 +277,8 @@ type Validated = {
 async function validate(
   folder: string,
   row: ManifestRow,
-  file: Prepared
+  file: Prepared,
+  timeZone: string
 ): Promise<Validated> {
   if (file.kind === "image") {
     const result = await validateMedia({
@@ -292,7 +296,7 @@ async function validate(
       height: result.height,
       preview: result.preview,
       thumb: result.thumb,
-      capturedAt: imageCaptureTime(file.bytes),
+      capturedAt: imageCaptureTime(file.bytes, { timeZone }),
     }
   }
   const result = await validateMedia({
@@ -473,7 +477,7 @@ export async function runLegacyImport(
 
     let validated: Validated
     try {
-      validated = await validate(options.folder, row, file)
+      validated = await validate(options.folder, row, file, venue.timezone)
     } catch (error) {
       push({
         ...base,

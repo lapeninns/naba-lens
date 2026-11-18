@@ -28,7 +28,11 @@ export type RemoveResult =
   | {
       ok: true
       outcome: "removed" | "deactivated"
-      reassigned: { coverageAssignments: number; amenityChecks: number }
+      reassigned: {
+        coverageAssignments: number
+        amenityChecks: number
+        mediaRequests: number
+      }
       warning?: string
     }
   | { ok: false; error: string }
@@ -180,13 +184,16 @@ export function VenuePeople({
           if (!result.ok) return { ok: false, error: result.error }
           const moved =
             result.reassigned.coverageAssignments +
-            result.reassigned.amenityChecks
+            result.reassigned.amenityChecks +
+            result.reassigned.mediaRequests
           setDone(
             [
               result.outcome === "deactivated"
                 ? `${removing.displayName} no longer has access to Naba-Lens.`
                 : `${removing.displayName} no longer works at ${venue.name}.`,
-              moved > 0 ? `${moved} open jobs moved to their colleague.` : null,
+              moved > 0
+                ? `${moved} open ${moved === 1 ? "job" : "jobs"} moved to their colleague.`
+                : null,
               result.warning ?? null,
             ]
               .filter(Boolean)

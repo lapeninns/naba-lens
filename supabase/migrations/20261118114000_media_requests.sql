@@ -298,7 +298,8 @@ begin
     return;
   end if;
   perform private.notify(p_request.assignee_id, p_request.venue_id, 'assigned', 'media_request',
-    p_request.id::text, format('assigned:media_request:%s:%s', p_request.id, p_request.assignee_id),
+    p_request.id::text, format('assigned:media_request:%s:%s:%s',
+      p_request.id, p_request.assignee_id, p_request.revision),
     jsonb_strip_nulls(jsonb_build_object('source', 'media_request', 'requestId', p_request.id,
       'requestType', p_request.request_type, 'subject', p_request.subject, 'brief', p_request.brief,
       'slotKind', p_request.slot_kind, 'slotId', p_request.slot_id,
@@ -354,7 +355,9 @@ begin
       if r.verification = 'confirmed' then
         select min(e.created_at) into v_at from public.knowledge_events e
         where e.venue_id = p_venue_id and e.check_id = r.fact_check_id
-          and e.kind in ('decision_recorded', 'fact_reconfirmed') and e.created_at >= r.created_at;
+          and e.created_at >= r.created_at
+          and (e.kind = 'decision_recorded'
+            or (e.kind = 'fact_reconfirmed' and e.detail ->> 'checkedOn' is not null));
         if v_at is not null then
           v_state := 'completed';
         end if;
@@ -1190,6 +1193,42 @@ begin
   perform private.record_activity(v_row.venue_id, 'shot_list_cancelled', 'shot_list', v_row.id::text,
     v_row.revision - 1, v_row.revision, v_reason, null, jsonb_build_object('requestsCancelled', v_count));
   return jsonb_build_object('id', v_row.id, 'revision', v_row.revision, 'requestsCancelled', v_count);
+end;
+$$;
+
+-- Both membership removal and a standalone handover call this function.
+-- The replacement is ordinary staff, so fact confirmations still require
+-- a manager or admin. Settle satisfied requests before moving open work.
+create or replace function private.membership_reassign_work(
+  p_from uuid, p_to uuid, p_venue uuid, p_actor uuid, p_reason text
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_counts jsonb := private.membership_reassign_checks(p_from, p_to, p_venue, p_actor, p_reason);
+  v_request public.media_requests;
+  v_moved integer := 0;
+begin
+  perform private.media_requests_settle(p_venue);
+  for v_request in
+    update public.media_requests m
+    set assignee_id = p_to, revision = m.revision + 1, updated_at = now()
+    where m.venue_id = p_venue and m.assignee_id = p_from
+      and m.closed_state is null and m.request_type <> 'fact_confirmation'
+    returning m.*
+  loop
+    perform private.media_request_event(p_venue, v_request.id, v_request.shot_list_id, 'edited', p_reason,
+      jsonb_build_object('fields', jsonb_build_array('assigneeId'),
+        'previousAssigneeId', p_from, 'assigneeId', p_to));
+    perform private.notification_resolve('assigned', 'media_request', v_request.id::text, p_from);
+    perform private.media_request_notify(v_request);
+    v_moved := v_moved + 1;
+  end loop;
+  return v_counts || jsonb_build_object('mediaRequests', v_moved);
 end;
 $$;
 

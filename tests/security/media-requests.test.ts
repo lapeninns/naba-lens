@@ -839,6 +839,13 @@ describe("fact confirmation (M4-fact-confirmation-task, AC24)", () => {
     await json(v.w.manager, "knowledge_reconfirm", {
       p_check_id: wifi,
       p_slot_revision: slotRevision(v.w.venue, "guest_wifi"),
+      p_reconfirm: false,
+      p_next_check_on: dayPlus(3),
+    })
+    expect((await find(v.w.manager, again.id)).state).toBe("open")
+    await json(v.w.manager, "knowledge_reconfirm", {
+      p_check_id: wifi,
+      p_slot_revision: slotRevision(v.w.venue, "guest_wifi"),
     })
     expect((await find(v.w.manager, again.id)).state).toBe("completed")
   })

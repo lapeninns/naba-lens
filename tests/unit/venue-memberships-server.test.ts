@@ -185,7 +185,11 @@ describe("removeVenueMember", () => {
           {
             outcome: "removed",
             active_venue_id: VENUE,
-            reassigned: { coverageAssignments: 2, amenityChecks: 1 },
+            reassigned: {
+              coverageAssignments: 2,
+              amenityChecks: 1,
+              mediaRequests: 3,
+            },
           },
         ],
         error: null,
@@ -201,7 +205,11 @@ describe("removeVenueMember", () => {
       ok: true,
       outcome: "removed",
       activeVenueId: VENUE,
-      reassigned: { coverageAssignments: 2, amenityChecks: 1 },
+      reassigned: {
+        coverageAssignments: 2,
+        amenityChecks: 1,
+        mediaRequests: 3,
+      },
     })
     expect(updateUserById).not.toHaveBeenCalled()
   })

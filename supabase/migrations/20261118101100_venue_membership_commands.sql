@@ -76,9 +76,9 @@ begin
 end;
 $$;
 
--- Moves open assignments at a venue from one person to a colleague who is
--- currently working there as staff. Returns the counts moved.
-create function private.membership_reassign_work(
+-- Moves coverage and amenity assignments. This also validates the colleague
+-- for membership_reassign_work, which later takes on media requests.
+create function private.membership_reassign_checks(
   p_from uuid,
   p_to uuid,
   p_venue uuid,
@@ -144,6 +144,18 @@ begin
   perform set_config('nabalens.membership_op', '', true);
   return jsonb_build_object('coverageAssignments', v_coverage, 'amenityChecks', v_amenity);
 end;
+$$;
+
+create function private.membership_reassign_work(
+  p_from uuid, p_to uuid, p_venue uuid, p_actor uuid, p_reason text
+)
+returns jsonb
+language sql
+volatile
+security definer
+set search_path = ''
+as $$
+  select private.membership_reassign_checks(p_from, p_to, p_venue, p_actor, p_reason);
 $$;
 
 -- Moves the profile to another of the person's own venues without the
@@ -616,13 +628,16 @@ $$;
 -- ---------------------------------------------------------------------------
 
 revoke all on function
+  private.membership_reassign_checks(uuid, uuid, uuid, uuid, text),
+  private.membership_reassign_work(uuid, uuid, uuid, uuid, text)
+from public, anon, authenticated, service_role;
+
+revoke all on function
   private.membership_end_venue_work(uuid, uuid, uuid, text, text),
-  private.membership_reassign_work(uuid, uuid, uuid, uuid, text),
   private.membership_switch_profile(uuid, uuid, text)
 from public, anon;
 grant execute on function
   private.membership_end_venue_work(uuid, uuid, uuid, text, text),
-  private.membership_reassign_work(uuid, uuid, uuid, uuid, text),
   private.membership_switch_profile(uuid, uuid, text)
 to authenticated, service_role;
 

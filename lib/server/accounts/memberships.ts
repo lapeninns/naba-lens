@@ -68,12 +68,27 @@ export type VenueInviteOutcome =
   | { status: "already_member"; userId: string }
   | ({ status: "error" } & Omit<AccountError, "ok">)
 
+type ReassignedWork = {
+  coverageAssignments: number
+  amenityChecks: number
+  mediaRequests: number
+}
+
 export type RemovalOutcome = {
   /** removed: still works at another venue; deactivated: that was their last venue. */
   outcome: "removed" | "deactivated"
   activeVenueId: string | null
-  reassigned: { coverageAssignments: number; amenityChecks: number }
+  reassigned: ReassignedWork
   warning?: string
+}
+
+function reassignmentCounts(value: unknown): ReassignedWork {
+  const counts = value as Record<string, unknown> | null | undefined
+  return {
+    coverageAssignments: Number(counts?.coverageAssignments ?? 0),
+    amenityChecks: Number(counts?.amenityChecks ?? 0),
+    mediaRequests: Number(counts?.mediaRequests ?? 0),
+  }
 }
 
 const MESSAGES: Record<string, { code: AccountError["code"]; text: string }> = {
@@ -377,20 +392,11 @@ export async function removeVenueMember(
   if (error) return membershipError(error)
   const row = data?.[0]
   if (!row) return dbFailed()
-  const reassigned = {
-    coverageAssignments: Number(
-      (row.reassigned as Record<string, unknown> | null)?.coverageAssignments ??
-        0
-    ),
-    amenityChecks: Number(
-      (row.reassigned as Record<string, unknown> | null)?.amenityChecks ?? 0
-    ),
-  }
   const outcome = row.outcome === "deactivated" ? "deactivated" : "removed"
   const result: RemovalOutcome = {
     outcome,
     activeVenueId: row.active_venue_id,
-    reassigned,
+    reassigned: reassignmentCounts(row.reassigned),
   }
   if (outcome === "deactivated") {
     const { error: banError } = await ctx.service.auth.admin.updateUserById(
@@ -439,9 +445,7 @@ export async function setVenueMembership(
 export async function reassignOpenWork(
   ctx: AccountsContext,
   raw: unknown
-): Promise<
-  AccountResult<{ coverageAssignments: number; amenityChecks: number }>
-> {
+): Promise<AccountResult<ReassignedWork>> {
   const refused = await activeCaller(ctx)
   if (refused) return refused
   const input = (raw ?? {}) as Record<string, unknown>
@@ -460,12 +464,7 @@ export async function reassignOpenWork(
     p_reason: reason,
   })
   if (error) return membershipError(error)
-  const counts = (data ?? {}) as Record<string, unknown>
-  return {
-    ok: true,
-    coverageAssignments: Number(counts.coverageAssignments ?? 0),
-    amenityChecks: Number(counts.amenityChecks ?? 0),
-  }
+  return { ok: true, ...reassignmentCounts(data) }
 }
 
 /** Admin: make a staff or manager account an admin (A6). */

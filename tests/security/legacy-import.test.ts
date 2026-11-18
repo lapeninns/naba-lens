@@ -154,6 +154,34 @@ afterAll(async () => {
 describe("legacy import", () => {
   let batch: string
 
+  it("uses the manifest row's venue timezone for offsetless EXIF", async () => {
+    const local = await world("legacy-capture-time-zone")
+    await ok(
+      service
+        .from("venues")
+        .update({ timezone: "America/New_York" })
+        .eq("id", local.venue)
+    )
+    const file = "local-camera-time.jpg"
+    await writeFile(
+      join(folder, file),
+      await syntheticJpeg(320, 240, "2026:07:10 12:00:00")
+    )
+    const report = await run(true, `file,venue\n${file},${local.venue}`)
+    expect(report.counts, JSON.stringify(report.rows)).toMatchObject({
+      imported: 1,
+      failed: 0,
+    })
+    expect(report.rows[0]).toMatchObject({
+      capturedAt: "2026-07-10T16:00:00.000Z",
+      capturedSource: "metadata",
+    })
+    expect((await assetsOfBatch(report.batchId!))[0]).toMatchObject({
+      captured_at: "2026-07-10T16:00:00+00:00",
+      captured_at_source: "metadata",
+    })
+  })
+
   it("dry run reports and writes nothing", async () => {
     const report = await run(false)
     expect(report.batchId).toBeNull()

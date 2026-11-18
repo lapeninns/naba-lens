@@ -29,25 +29,28 @@ export async function actorFor(identity: TestIdentity): Promise<MediaActor> {
 }
 
 /** A synthetic JPEG with a unique colour, so every upload has distinct bytes. */
-export async function syntheticJpeg(width = 640, height = 480) {
+export async function syntheticJpeg(
+  width = 640,
+  height = 480,
+  dateTimeOriginal?: string
+) {
   const seed = randomUUID()
   const colour = Number.parseInt(seed.slice(0, 6), 16)
-  return new Uint8Array(
-    await sharp({
-      create: {
-        width,
-        height,
-        channels: 3,
-        background: {
-          r: (colour >> 16) & 255,
-          g: (colour >> 8) & 255,
-          b: colour & 255,
-        },
+  const output = sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: {
+        r: (colour >> 16) & 255,
+        g: (colour >> 8) & 255,
+        b: colour & 255,
       },
-    })
-      .jpeg({ quality: 85 })
-      .toBuffer()
-  )
+    },
+  }).jpeg({ quality: 85 })
+  if (dateTimeOriginal)
+    output.withExif({ IFD2: { DateTimeOriginal: dateTimeOriginal } })
+  return new Uint8Array(await output.toBuffer())
 }
 
 export const newKey = () => randomUUID()

@@ -78,7 +78,11 @@ describe("VenuePeople (manager Team)", () => {
     const onRemove = vi.fn(async () => ({
       ok: true as const,
       outcome: "removed" as const,
-      reassigned: { coverageAssignments: 2, amenityChecks: 0 },
+      reassigned: {
+        coverageAssignments: 0,
+        amenityChecks: 0,
+        mediaRequests: 1,
+      },
     }))
     render(
       <VenuePeople
@@ -100,11 +104,9 @@ describe("VenuePeople (manager Team)", () => {
       reason: "Left for college",
       replacementId: null,
     })
-    expect(
-      await screen.findByText(
-        /TEST Sam no longer works at TEST Bell\. 2 open jobs moved/
-      )
-    ).toBeTruthy()
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "TEST Sam no longer works at TEST Bell. 1 open job moved"
+    )
     expect(refresh).toHaveBeenCalled()
   })
 

@@ -243,6 +243,27 @@ describe("reserve_media_asset", () => {
 })
 
 describe("finalise through the app", () => {
+  it("reads an offsetless photo capture time in the upload venue's timezone", async () => {
+    const local = await world("capture-time-zone")
+    await ok(
+      service
+        .from("venues")
+        .update({ timezone: "America/New_York" })
+        .eq("id", local.venue)
+    )
+    const bytes = await syntheticJpeg(320, 240, "2026:07:10 12:00:00")
+    const upload = await stored(local.staffA, bytes)
+    expect(await finalise(local.staffA, upload.id, upload.key)).toMatchObject({
+      ok: true,
+      state: "ready",
+    })
+    expect(column(upload.id, "captured_at_source")).toBe("metadata")
+    expect(
+      psql(`select captured_at = '2026-07-10T16:00:00Z'
+      from public.media_assets where id = '${upload.id}'`)
+    ).toBe("t")
+  })
+
   it("records the hash, renditions and an unknown capture time", async () => {
     const batch = `batch-${randomUUID()}`
     const up = await stored(v.staffA, undefined, batch)
