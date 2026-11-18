@@ -1,4 +1,5 @@
 import { AlbumReviewBody } from "@/app/manager/review/_shared/album-review"
+import { AmenityReviewSection } from "@/app/manager/review/_shared/amenity-section"
 import { AreaReviewSection } from "@/app/manager/review/_shared/area-section"
 import { reviewModeOf } from "@/app/manager/review/_shared/mode"
 import {
@@ -141,6 +142,7 @@ export default async function ManagerReviewPage({
             search={search}
           />
           <AreaReviewSection ctx={scope.ctx} />
+          <AmenityReviewSection ctx={scope.ctx} />
         </>
       ) : (
         <TriageBody ctx={scope.ctx} kind={kind} />
