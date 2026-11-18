@@ -85,6 +85,8 @@ export const managerHrefs = {
   venue: "/manager/venue",
   venueFacts: "/manager/venue/facts",
   venueHistory: "/manager/venue/history",
+  /** S3-R5 (K3): staff reports of a changed slot or photo detail. */
+  venueReports: "/manager/venue/reports",
   /** S1-MENUS screens, reached from the Venue hub. */
   menuVersions: "/manager/menu/versions",
   specials: "/manager/menu/specials",

@@ -29,6 +29,7 @@ export const MANAGER_COPY = {
     venue: "the venue",
     venueFacts: "what needs confirming",
     venueHistory: "the venue's history",
+    venueReports: "reported changes",
   },
   notFound: {
     title: "This page isn't available in your workspace",
@@ -114,6 +115,14 @@ export const MANAGER_COPY = {
         : n === 0
           ? "Nothing to confirm"
           : `${n} to confirm as still right`,
+    // S3-R5 (K3): staff reports of a changed slot or photo detail.
+    reportsLink: "Reported changes",
+    reportsLine: (n: number | null) =>
+      n === null
+        ? "What staff told you has changed."
+        : n === 0
+          ? "Nothing reported"
+          : `${n} reported by staff`,
     teamTitle: "Team",
     teamLink: "People and photo targets",
     teamLine: "Invite or remove staff, switch venue, set monthly targets.",
@@ -138,6 +147,16 @@ export const MANAGER_COPY = {
     spacesTitle: "Space photos",
     spacesEmpty: "No space photos are due a check.",
     spacesFailed: "Space photos couldn't be loaded. Try again in a moment.",
+  },
+  /** S3-R5 (K3): Venue › Reported changes (spec §6 S3, S4, §7 M5). */
+  venueReports: {
+    title: "Reported changes",
+    loading: "Loading reported changes",
+    summary:
+      "Staff told you something has changed. Nothing changes until you change it: open it, then mark the report dealt with.",
+    listLabel: "Reported changes",
+    empty: "Nothing reported. Staff can report a change from any slot.",
+    failed: "Reported changes couldn't be loaded. Try again in a moment.",
   },
   venueHistory: {
     title: "History",
