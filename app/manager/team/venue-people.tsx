@@ -130,7 +130,7 @@ export function VenuePeople({
                     setRemoving(person)
                   }}
                 >
-                  Remove from {venue.name}
+                  Remove {person.displayName} from {venue.name}
                 </Button>
               ) : null}
             </li>
