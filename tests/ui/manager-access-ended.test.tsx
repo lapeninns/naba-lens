@@ -44,6 +44,7 @@ vi.mock("@/lib/server/menus", () => ({
 }))
 vi.mock("@/lib/server/menus/local", () => ({
   getOfferingStates: vi.fn().mockResolvedValue({ ok: true, states: {} }),
+  getPackaging: vi.fn().mockResolvedValue({ ok: true, items: [] }),
 }))
 
 vi.mock("@/app/manager/actions", () => ({
