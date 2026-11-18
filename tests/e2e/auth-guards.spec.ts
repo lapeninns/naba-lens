@@ -131,9 +131,12 @@ test.describe("server-side role guards", () => {
     await context.close()
   })
 
-  test("admins get a 307 to /admin from /staff", async ({ browser }) => {
+  // K7: an admin's landing is Overview (/admin stays the Library).
+  test("admins get a 307 to /admin/overview from /staff", async ({
+    browser,
+  }) => {
     const context = await signedIn(browser, adminUser)
-    await expectRedirect(context.request, "/staff", "/admin")
+    await expectRedirect(context.request, "/staff", "/admin/overview")
     const own = await context.request.get("/admin/staff", { maxRedirects: 0 })
     expect(own.status()).toBe(200)
     await context.close()

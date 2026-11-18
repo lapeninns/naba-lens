@@ -136,6 +136,13 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabase.publishableKey,
       SUPABASE_SERVICE_ROLE_KEY: supabase.serviceRoleKey,
       NEXT_PUBLIC_SITE_URL: baseURL,
+      // The job secrets the app sees are the ones this run sees (S3-R11).
+      // Next never lets a .env file override a variable that is already set,
+      // even to "", so a checkout's .env.local cannot give the app a secret the
+      // specs don't know: without one, the jobs answer 503 not_configured.
+      CLEANUP_SECRET: process.env.CLEANUP_SECRET ?? "",
+      MEDIA_ARCHIVE_MONITOR_SECRET:
+        process.env.MEDIA_ARCHIVE_MONITOR_SECRET ?? "",
     },
   },
 })
