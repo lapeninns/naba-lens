@@ -157,7 +157,7 @@ export function ShotTemplateForm({
         {olderHref ? (
           <a
             href={olderHref}
-            className="justify-self-start font-bold text-ink underline focus-ring"
+            className="justify-self-start font-semibold text-ink underline focus-ring"
           >
             {SHOT_TEMPLATE_COPY.older}
           </a>

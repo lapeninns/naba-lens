@@ -109,7 +109,7 @@ export function TallyItem({
       <span className="text-meta font-semibold text-ink-muted">{label}</span>
       <span
         className={cn(
-          "flex items-baseline gap-1.5 type-section-title font-extrabold tabular-nums",
+          "flex items-baseline gap-1.5 type-figure tabular-nums",
           TALLY_TONE[shownTone]
         )}
       >
@@ -118,7 +118,7 @@ export function TallyItem({
         ) : null}
         {value}
         {of != null ? (
-          <small className="font-sans text-body font-bold text-ink-muted">
+          <small className="font-sans text-body font-semibold text-ink-muted">
             of {of}
           </small>
         ) : null}

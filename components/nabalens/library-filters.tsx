@@ -758,7 +758,7 @@ function MenuItemFilter({
                   i === active && "bg-surface-2 text-ink"
                 )}
               >
-                <span className="font-bold">{item.name}</span>
+                <span className="font-semibold">{item.name}</span>
                 {item.sectionName ? (
                   <span className="text-meta text-ink-muted">
                     {item.sectionName}

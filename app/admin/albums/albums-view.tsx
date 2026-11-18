@@ -245,7 +245,7 @@ export function AdminAlbumsView({ albums }: { albums: AdminAlbums }) {
             id="albums-count"
             className="flex flex-wrap items-baseline gap-x-2"
           >
-            <span className="type-count text-ink tabular-nums">
+            <span className="type-figure text-ink tabular-nums">
               {albums.empty}
             </span>
             <span className="text-label text-ink">
@@ -278,54 +278,53 @@ export function AdminAlbumsView({ albums }: { albums: AdminAlbums }) {
             {ADMIN_ALBUMS_COPY.unavailableNote}
           </p>
         ) : null}
-        <div className="overflow-hidden rounded-card border border-line bg-surface">
-          <Table
-            aria-labelledby="albums-matrix-title"
-            className="min-w-[40rem]"
-          >
-            <TableHeader>
-              <TableRow>
-                <TableHead>{ADMIN_ALBUMS_COPY.venue}</TableHead>
-                {ALBUM_COLUMNS.map((c) => (
-                  <TableHead key={c.key} className="border-l border-line">
-                    {c.label}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {albums.rows.map((row) => (
-                <TableRow key={row.venueId} className="hover:bg-transparent">
-                  <TableHead scope="row" className="align-top text-ink">
-                    <Link
-                      href={`/admin/coverage/${row.venueId}`}
-                      className="inline-flex min-h-12 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
-                    >
-                      {row.venueName}
-                    </Link>
-                  </TableHead>
-                  {ALBUM_COLUMNS.map((c) => (
-                    <Cell key={c.key} cell={row.cells[c.key]} label={c.label} />
-                  ))}
-                </TableRow>
+        <Table
+          framed
+          aria-labelledby="albums-matrix-title"
+          className="min-w-[40rem]"
+        >
+          <TableHeader>
+            <TableRow>
+              <TableHead>{ADMIN_ALBUMS_COPY.venue}</TableHead>
+              {ALBUM_COLUMNS.map((c) => (
+                <TableHead key={c.key} className="border-l border-line">
+                  {c.label}
+                </TableHead>
               ))}
-            </TableBody>
-            <TableFooter>
-              <TableRow className="hover:bg-transparent">
-                <TableHead scope="row" className="text-ink">
-                  {ADMIN_ALBUMS_COPY.allVenues}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {albums.rows.map((row) => (
+              <TableRow key={row.venueId} className="hover:bg-transparent">
+                <TableHead scope="row" className="align-top text-ink">
+                  <Link
+                    href={`/admin/coverage/${row.venueId}`}
+                    className="inline-flex min-h-12 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+                  >
+                    {row.venueName}
+                  </Link>
                 </TableHead>
                 {ALBUM_COLUMNS.map((c) => (
-                  <CountsCell
-                    key={c.key}
-                    counts={albums.totals[c.key]}
-                    label={c.label}
-                  />
+                  <Cell key={c.key} cell={row.cells[c.key]} label={c.label} />
                 ))}
               </TableRow>
-            </TableFooter>
-          </Table>
-        </div>
+            ))}
+          </TableBody>
+          <TableFooter>
+            <TableRow className="hover:bg-transparent">
+              <TableHead scope="row" className="text-ink">
+                {ADMIN_ALBUMS_COPY.allVenues}
+              </TableHead>
+              {ALBUM_COLUMNS.map((c) => (
+                <CountsCell
+                  key={c.key}
+                  counts={albums.totals[c.key]}
+                  label={c.label}
+                />
+              ))}
+            </TableRow>
+          </TableFooter>
+        </Table>
       </section>
 
       <Gaps gaps={albums.gaps} />

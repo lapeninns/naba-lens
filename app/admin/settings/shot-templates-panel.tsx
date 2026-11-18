@@ -55,7 +55,7 @@ export function ShotTemplatesPanel({
                   />
                 )}
                 <div className="grid gap-0.5">
-                  <p className="font-bold">{label}</p>
+                  <p className="font-semibold">{label}</p>
                   <p className="text-body [overflow-wrap:anywhere]">
                     {t.instruction}
                   </p>

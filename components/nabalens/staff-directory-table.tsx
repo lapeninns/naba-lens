@@ -73,7 +73,7 @@ export function TeamLabel({
   if (!department) return <span className="text-ink-muted">Unassigned</span>
   const team = TEAM_SHORT[department]
   return (
-    <abbr title={team.long} className="font-bold no-underline">
+    <abbr title={team.long} className="font-semibold no-underline">
       {team.short}
     </abbr>
   )

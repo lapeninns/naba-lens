@@ -68,7 +68,7 @@ export function OfNumber({ n, d }: { n: number; d: number }) {
   const { text, percent } = ofWords(n, d)
   return (
     <span className="tabular-nums">
-      <span className="font-bold text-ink">{text}</span>
+      <span className="font-semibold text-ink">{text}</span>
       {percent ? <span className="text-ink-muted"> · {percent}</span> : null}
     </span>
   )
@@ -204,48 +204,46 @@ function CoverageTable({
       }
     >
       <p className="px-1 text-body text-ink-muted">{C.coverageRule}</p>
-      <div className="overflow-hidden rounded-card border border-line bg-surface">
-        <Table stacked>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{C.category}</TableHead>
-              <TableHead>{C.covered}</TableHead>
-              <TableHead numeric>{C.awaitingReview}</TableHead>
-              <TableHead numeric>{C.checkDue}</TableHead>
-              <TableHead numeric>{C.anotherPhoto}</TableHead>
-              <TableHead numeric>{C.missing}</TableHead>
-              <TableHead numeric>{C.notCounted}</TableHead>
+      <Table framed stacked>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{C.category}</TableHead>
+            <TableHead>{C.covered}</TableHead>
+            <TableHead numeric>{C.awaitingReview}</TableHead>
+            <TableHead numeric>{C.checkDue}</TableHead>
+            <TableHead numeric>{C.anotherPhoto}</TableHead>
+            <TableHead numeric>{C.missing}</TableHead>
+            <TableHead numeric>{C.notCounted}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((c) => (
+            <TableRow key={c.category} data-category={c.category}>
+              <TableCell className="font-semibold">
+                {CATEGORY_WORDS[c.category]}
+              </TableCell>
+              <TableCell label={C.covered}>
+                <OfNumber n={c.covered} d={c.total} />
+              </TableCell>
+              <TableCell label={C.awaitingReview} numeric>
+                {c.pending}
+              </TableCell>
+              <TableCell label={C.checkDue} numeric>
+                {c.checkDue}
+              </TableCell>
+              <TableCell label={C.anotherPhoto} numeric>
+                {c.replacementNeeded}
+              </TableCell>
+              <TableCell label={C.missing} numeric>
+                {c.missing}
+              </TableCell>
+              <TableCell label={C.notCounted} numeric>
+                {c.notHere + c.inactive}
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((c) => (
-              <TableRow key={c.category} data-category={c.category}>
-                <TableCell className="font-bold">
-                  {CATEGORY_WORDS[c.category]}
-                </TableCell>
-                <TableCell label={C.covered}>
-                  <OfNumber n={c.covered} d={c.total} />
-                </TableCell>
-                <TableCell label={C.awaitingReview} numeric>
-                  {c.pending}
-                </TableCell>
-                <TableCell label={C.checkDue} numeric>
-                  {c.checkDue}
-                </TableCell>
-                <TableCell label={C.anotherPhoto} numeric>
-                  {c.replacementNeeded}
-                </TableCell>
-                <TableCell label={C.missing} numeric>
-                  {c.missing}
-                </TableCell>
-                <TableCell label={C.notCounted} numeric>
-                  {c.notHere + c.inactive}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+          ))}
+        </TableBody>
+      </Table>
       {(category ? categoryCounts(m, category) : m.coverage.totals)
         .unavailable > 0 ? (
         <p className="px-1 text-body text-ink-muted">
@@ -338,7 +336,7 @@ function ReviewSection({ m }: { m: VenueMetrics }) {
             <ul className="grid divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
               {r.byKind.map((k) => (
                 <li key={k.kind} className="grid gap-0.5 px-4 py-3">
-                  <span className="font-bold text-ink">
+                  <span className="font-semibold text-ink">
                     {REVIEW_KIND_WORDS[k.kind] ?? k.kind}
                   </span>
                   <span className="text-meta text-ink-muted">
@@ -352,7 +350,7 @@ function ReviewSection({ m }: { m: VenueMetrics }) {
             <ul className="grid divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
               {m.labels.byRoute.map((x) => (
                 <li key={x.route} className="grid gap-0.5 px-4 py-3">
-                  <span className="font-bold text-ink">
+                  <span className="font-semibold text-ink">
                     {routeWords(x.route)}
                   </span>
                   <span className="text-meta text-ink-muted">

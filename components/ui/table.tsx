@@ -170,7 +170,8 @@ function TableCell({
       className={cn(
         "h-14 px-4 py-3 align-middle text-label font-normal whitespace-nowrap [&_a]:text-accent-text [&_a]:underline-offset-3 [&:has([role=checkbox])]:pr-0",
         numeric && "text-right font-mono tabular-nums",
-        "max-md:group-data-stacked/table:py-1 max-md:group-data-stacked/table:text-left max-md:group-data-stacked/table:whitespace-normal",
+        // Stacked, a cell is one line of a block, not a 56px row.
+        "max-md:group-data-stacked/table:h-auto max-md:group-data-stacked/table:py-1 max-md:group-data-stacked/table:text-left max-md:group-data-stacked/table:whitespace-normal",
         label === undefined
           ? STACKED.block
           : "max-md:group-data-stacked/table:flex max-md:group-data-stacked/table:items-baseline max-md:group-data-stacked/table:gap-2",

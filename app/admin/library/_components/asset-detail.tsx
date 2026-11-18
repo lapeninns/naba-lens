@@ -14,6 +14,7 @@ import {
 } from "@phosphor-icons/react"
 
 import { CoverageSection } from "@/components/nabalens/coverage/layout"
+import { MetaList } from "@/components/nabalens/meta-list"
 import { ReasonDialog } from "@/components/nabalens/coverage/reason-dialog"
 import { Notice } from "@/components/nabalens/notice"
 import { OptionSelect } from "@/components/nabalens/option-select"
@@ -148,46 +149,79 @@ export function AssetDetailView({
       </CoverageSection>
 
       <CoverageSection title="Original and provenance" id="provenance">
-        <dl className="grid gap-2 rounded-card border border-line bg-surface p-4 sm:grid-cols-[12rem_minmax(0,1fr)]">
-          <Term label="Taken by">
-            <Link
-              href={`/admin/staff/${a.uploaderId}`}
-              className="font-bold text-accent-text underline underline-offset-4"
-            >
-              {a.uploaderName}
-            </Link>
-            {a.uploaderActive ? "" : " (no longer active)"}
-          </Term>
-          <Term label="Venue at upload">{a.venueName}</Term>
-          <Term label="Uploaded">{formatWhen(a.createdAt, tz)}</Term>
-          <Term label="Taken">
-            {a.capturedAt
-              ? `${formatWhen(a.capturedAt, tz)} (${CAPTURE_SOURCE_WORDS[a.capturedAtSource] ?? a.capturedAtSource})`
-              : "Unknown"}
-          </Term>
-          <Term label="Original file">
-            <span className="font-mono [overflow-wrap:anywhere]">
-              {[
-                a.originalFilename,
-                a.mimeType,
-                a.sizeBytes ? formatBytes(a.sizeBytes) : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          </Term>
-          <Term label="Size">
-            {a.width && a.height
-              ? `${a.width} × ${a.height}${orientation ? ` · ${ORIENTATION_WORDS[orientation]}` : ""}`
-              : "Unknown"}
-            {a.durationSeconds ? ` · ${Math.round(a.durationSeconds)} s` : ""}
-          </Term>
-          <Term label="File fingerprint">
-            <span className="font-mono [overflow-wrap:anywhere]">
-              {a.contentSha256 ? a.contentSha256.slice(0, 16) : "Not recorded"}
-            </span>
-          </Term>
-        </dl>
+        <div className="rounded-card bg-surface p-4 shadow-card">
+          <MetaList
+            items={[
+              {
+                label: "Taken by",
+                value: (
+                  <>
+                    <Link
+                      href={`/admin/staff/${a.uploaderId}`}
+                      className="font-semibold text-accent-text underline underline-offset-4"
+                    >
+                      {a.uploaderName}
+                    </Link>
+                    {a.uploaderActive ? "" : " (no longer active)"}
+                  </>
+                ),
+              },
+              { label: "Venue at upload", value: a.venueName },
+              { label: "Uploaded", value: formatWhen(a.createdAt, tz) },
+              {
+                label: "Taken",
+                value: (
+                  <>
+                    {a.capturedAt
+                      ? `${formatWhen(a.capturedAt, tz)} (${CAPTURE_SOURCE_WORDS[a.capturedAtSource] ?? a.capturedAtSource})`
+                      : "Unknown"}
+                  </>
+                ),
+              },
+              {
+                label: "Original file",
+                value: (
+                  <>
+                    <span className="font-mono [overflow-wrap:anywhere]">
+                      {[
+                        a.originalFilename,
+                        a.mimeType,
+                        a.sizeBytes ? formatBytes(a.sizeBytes) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </>
+                ),
+              },
+              {
+                label: "Size",
+                value: (
+                  <>
+                    {a.width && a.height
+                      ? `${a.width} × ${a.height}${orientation ? ` · ${ORIENTATION_WORDS[orientation]}` : ""}`
+                      : "Unknown"}
+                    {a.durationSeconds
+                      ? ` · ${Math.round(a.durationSeconds)} s`
+                      : ""}
+                  </>
+                ),
+              },
+              {
+                label: "File fingerprint",
+                value: (
+                  <>
+                    <span className="font-mono [overflow-wrap:anywhere]">
+                      {a.contentSha256
+                        ? a.contentSha256.slice(0, 16)
+                        : "Not recorded"}
+                    </span>
+                  </>
+                ),
+              },
+            ]}
+          />
+        </div>
         {detail.corrections.length > 0 ? (
           <ul className="grid gap-2" data-testid="asset-corrections">
             {detail.corrections.map((c) => (
@@ -216,7 +250,9 @@ export function AssetDetailView({
                 key={r.kind}
                 className="grid gap-1 rounded-card border border-line bg-surface p-3"
               >
-                <span className="text-body font-bold capitalize">{r.kind}</span>
+                <span className="text-body font-semibold capitalize">
+                  {r.kind}
+                </span>
                 <span className="font-mono text-meta [overflow-wrap:anywhere] text-ink-muted">
                   {[
                     r.mimeType,
@@ -318,7 +354,7 @@ export function AssetDetailView({
               >
                 <Link
                   href={`/admin/publishing/packages/${p.packageId}`}
-                  className="font-bold text-accent-text underline underline-offset-4"
+                  className="font-semibold text-accent-text underline underline-offset-4"
                 >
                   {p.profile ?? "Package"} · {formatWhen(p.createdAt, tz)}
                 </Link>
@@ -396,21 +432,6 @@ export function AssetDetailView({
   )
 }
 
-function Term({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <>
-      <dt className="text-body text-ink-muted">{label}</dt>
-      <dd className="min-w-0 text-body text-ink">{children}</dd>
-    </>
-  )
-}
-
 function History({
   label,
   rows,
@@ -461,7 +482,7 @@ function SlotRow({ detail, slot }: { detail: AssetDetail; slot: AssetSlot }) {
   return (
     <li className="grid gap-2 rounded-card border border-line bg-surface p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <div className="grid min-w-0 gap-1">
-        <span className="text-body font-bold [overflow-wrap:anywhere]">
+        <span className="text-body font-semibold [overflow-wrap:anywhere]">
           {SLOT_KIND_WORDS[slot.kind]}: {slot.name}
           {slot.variantName ? ` · ${slot.variantName}` : ""}
         </span>
@@ -717,7 +738,7 @@ function ReferenceEditor({
   return (
     <div className="grid gap-2 rounded-card border border-line bg-surface p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-body font-bold text-ink">{label}</h3>
+        <h3 className="text-body font-semibold text-ink">{label}</h3>
         <Link
           href={manageHref}
           className="text-body text-accent-text underline underline-offset-4"
