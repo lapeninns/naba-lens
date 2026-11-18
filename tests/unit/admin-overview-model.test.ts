@@ -17,7 +17,9 @@ import {
   rowHrefs,
   type OverviewRow,
 } from "@/lib/admin/overview"
+import { coverageWords } from "@/lib/knowledge/facts"
 import {
+  effectiveOperatingStatus,
   operatingStatusChip,
   parseVenueDetail,
   parseVenueList,
@@ -58,7 +60,14 @@ function raw(over: Record<string, unknown> = {}) {
     facts: { confirmed: 6, total: 8, checkDue: 1, unconfirmed: 1 },
     unlabelled: 7,
     review: { waiting: 2, oldestAt: "2026-11-08T12:00:00Z" },
-    checksDue: { slots: 1, facts: 1, total: 2 },
+    checksDue: {
+      dishes: 1,
+      places: 0,
+      facilities: 0,
+      slots: 1,
+      facts: 1,
+      total: 2,
+    },
     publication: { failed: 0, withdrawalPending: 0, total: 0 },
     added: 12,
     setup: setup([true, true, true, true, true]),
@@ -142,12 +151,57 @@ describe("every number links to its records (A1-numbers-link)", () => {
       venue: `/admin/venues/${V1}`,
       facts: `/admin/coverage/${V1}/amenities`,
       unlabelled: `/admin?venue=${V1}&labels=unlabelled`,
-      review: `/admin/coverage/${V1}/review`,
-      checksDue: `/admin/coverage/${V1}/amenities`,
+      // V18: the dish and place queues the count reads, not the checklist.
+      review: `/admin/coverage/${V1}/menu-photos`,
+      // V20: the total opens the biggest part (a tie: the first).
+      checksDue: `/admin/coverage/${V1}/menu-photos?status=recheck`,
+      checkParts: {
+        dishes: `/admin/coverage/${V1}/menu-photos?status=recheck`,
+        places: `/admin/coverage/${V1}/amenities/places`,
+        facilities: `/admin/coverage/${V1}/amenities`,
+        facts: `/admin/coverage/${V1}/amenities`,
+      },
       publication: "/admin/publishing",
       added: `/admin?venue=${V1}&from=2026-10-01&to=2026-10-31`,
       setup: `/admin/venues/${V1}#setup`,
     })
+  })
+
+  it("links Checks due to the part with the most checks (V20)", () => {
+    const [placesFirst] = parseOverview({
+      rows: [
+        raw({
+          checksDue: {
+            dishes: 1,
+            places: 3,
+            facilities: 0,
+            slots: 4,
+            facts: 2,
+            total: 6,
+          },
+        }),
+      ],
+    })!
+    expect(rowHrefs(placesFirst, filters).checksDue).toBe(
+      `/admin/coverage/${V1}/amenities/places`
+    )
+    const [factsOnly] = parseOverview({
+      rows: [
+        raw({
+          checksDue: {
+            dishes: 0,
+            places: 0,
+            facilities: 0,
+            slots: 0,
+            facts: 1,
+            total: 1,
+          },
+        }),
+      ],
+    })!
+    expect(rowHrefs(factsOnly, filters).checksDue).toBe(
+      `/admin/coverage/${V1}/amenities`
+    )
   })
 
   it("sends category numbers to the slot pages, or the next menu", () => {
@@ -199,6 +253,34 @@ describe("attention first (A1-blocked-first)", () => {
     expect(rest.map((r) => r.name)).toEqual(["Aardvark"])
   })
 
+  it("uses the admin's backlog alert setting, as monitoring does (V21)", () => {
+    // Oldest photo waited 5 days.
+    const [row] = parseOverview({
+      rows: [
+        raw({
+          ...clean,
+          review: { waiting: 1, oldestAt: "2026-11-13T12:00:00Z" },
+        }),
+      ],
+    })!
+    expect(rowAttention(row, NOW)).toEqual([])
+    expect(rowAttention(row, NOW, 3)).toEqual([{ kind: "review", days: 5 }])
+    expect(attentionFirst([row], NOW, 3).attention).toHaveLength(1)
+    expect(attentionFirst([row], NOW, 14).attention).toHaveLength(0)
+    // Monitoring's rule: more than N days, so exactly N days is not yet.
+    expect(rowAttention(row, NOW, 5)).toEqual([])
+    expect(
+      rowAttention(row, new Date(NOW.getTime() + 1000), 5).map((a) => a.kind)
+    ).toEqual(["review"])
+  })
+
+  it("shows a switched-off venue as archived whatever its stored status (V22)", () => {
+    const [row] = parseOverview({
+      rows: [{ ...clean, active: false, operatingStatus: "open" }],
+    })!
+    expect(row.operatingStatus).toBe("permanently_closed")
+  })
+
   it("does not flag an archived venue's setup", () => {
     const [row] = parseOverview({
       rows: [
@@ -217,6 +299,9 @@ describe("numbers", () => {
   it("writes n of N with the percentage second (FA-8)", () => {
     expect(ofWords(4, 10)).toEqual({ main: "4 of 10", pct: "40%" })
     expect(ofWords(0, 0)).toEqual({ main: "0 of 0", pct: "" })
+    // F5: one decimal, the same rule as Metrics and the manager Overview.
+    expect(ofWords(1, 3)).toEqual({ main: "1 of 3", pct: "33.3%" })
+    expect(ofWords(2, 3).pct).toBe(coverageWords(2, 3).percent)
   })
 
   it("says how long the oldest photo has waited", () => {
@@ -307,6 +392,18 @@ describe("venues model", () => {
       "venue_temporarily_closed"
     )
     expect(operatingStatusChip("permanently_closed")).toBe("venue_archived")
+  })
+
+  it("reads a switched-off venue as archived, so Open can be chosen (V22)", () => {
+    const [v] = parseVenueList({
+      items: [{ ...venue, active: false, operatingStatus: "open" }],
+    })!
+    expect(v.operatingStatus).toBe("permanently_closed")
+    expect(operatingStatusChip(v.operatingStatus)).toBe("venue_archived")
+    expect(effectiveOperatingStatus("temporarily_closed", true)).toBe(
+      "temporarily_closed"
+    )
+    expect(effectiveOperatingStatus("nonsense", true)).toBe("open")
   })
 
   it("validates the venue form before sending", () => {

@@ -21,6 +21,8 @@ import {
   attentionWords,
   categoryHref,
   categoryTotals,
+  CHECK_PARTS,
+  DEFAULT_BACKLOG_ALERT_DAYS,
   ofWords,
   OVERVIEW_CATEGORIES,
   periodLabel,
@@ -347,9 +349,22 @@ function OverviewTable({
                         {row.checksDue.total}
                       </NumberLink>
                       {row.checksDue.total > 0 ? (
-                        <span className="text-meta">
-                          {row.checksDue.slots} photo · {row.checksDue.facts}{" "}
-                          fact
+                        <span
+                          className="flex flex-wrap gap-x-2 text-meta"
+                          data-testid="overview-check-parts"
+                        >
+                          {CHECK_PARTS.filter(
+                            (p) => row.checksDue[p.key] > 0
+                          ).map((p) => (
+                            <Link
+                              key={p.key}
+                              href={href.checkParts[p.key]}
+                              data-part={p.key}
+                              className="inline-flex min-h-12 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+                            >
+                              {p.words(row.checksDue[p.key])}
+                            </Link>
+                          ))}
                         </span>
                       ) : null}
                     </span>
@@ -461,7 +476,15 @@ function OverviewTable({
   )
 }
 
-function AttentionList({ rows, now }: { rows: OverviewRow[]; now: Date }) {
+function AttentionList({
+  rows,
+  now,
+  reviewAlertDays,
+}: {
+  rows: OverviewRow[]
+  now: Date
+  reviewAlertDays: number
+}) {
   return (
     <section aria-labelledby="overview-attention-title" className="grid gap-3">
       <h2
@@ -502,7 +525,7 @@ function AttentionList({ rows, now }: { rows: OverviewRow[]; now: Date }) {
                   />
                 </Link>
                 <ul className="flex flex-wrap gap-2">
-                  {rowAttention(row, now).map((a) => {
+                  {rowAttention(row, now, reviewAlertDays).map((a) => {
                     const href =
                       a.kind === "setup"
                         ? hrefs.setup
@@ -629,10 +652,13 @@ export function OverviewView({
   rows,
   filters,
   now,
+  reviewAlertDays = DEFAULT_BACKLOG_ALERT_DAYS,
 }: {
   rows: OverviewRow[]
   filters: OverviewFilters
   now: Date
+  /** ops_settings.backlog_alert_days (S3-R6, V21). */
+  reviewAlertDays?: number
 }) {
   if (rows.length === 0)
     return (
@@ -641,10 +667,14 @@ export function OverviewView({
         description={<p>{OVERVIEW_COPY.emptyText}</p>}
       />
     )
-  const { attention } = attentionFirst(rows, now)
+  const { attention } = attentionFirst(rows, now, reviewAlertDays)
   return (
     <div className="grid gap-8">
-      <AttentionList rows={attention} now={now} />
+      <AttentionList
+        rows={attention}
+        now={now}
+        reviewAlertDays={reviewAlertDays}
+      />
       <OverviewTable rows={rows} filters={filters} now={now} />
     </div>
   )

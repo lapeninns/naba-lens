@@ -6,11 +6,15 @@ import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { requireActiveAdmin } from "@/lib/auth"
-import { parseOverviewFilters, recentPeriods } from "@/lib/admin/overview"
+import {
+  DEFAULT_BACKLOG_ALERT_DAYS,
+  parseOverviewFilters,
+  recentPeriods,
+} from "@/lib/admin/overview"
 import { loadGroupOverview } from "@/lib/server/admin/venues"
 import { getCoverageActor } from "@/lib/server/coverage"
 import { periodKeyOf } from "@/lib/server/coverage/time"
-import { loadOpsStatus } from "@/lib/server/ops"
+import { loadOpsSettings, loadOpsStatus } from "@/lib/server/ops"
 
 import { ExceptionsPanel } from "../settings/ops-panel"
 import {
@@ -40,9 +44,11 @@ export default async function AdminOverviewPage({
   const now = new Date()
   const current = periodKeyOf(now)
   const filters = parseOverviewFilters(await searchParams, current)
-  const [read, status, venues] = await Promise.all([
+  const [read, status, settings, venues] = await Promise.all([
     loadGroupOverview(auth.actor, filters),
     loadOpsStatus(auth.actor),
+    // The same backlog alert the monitoring panel uses (S3-R6, V21).
+    loadOpsSettings(auth.actor),
     auth.actor.db
       .from("venues")
       .select("id, name")
@@ -82,7 +88,16 @@ export default async function AdminOverviewPage({
           periods={recentPeriods(current)}
         />
 
-        <OverviewView rows={read.rows} filters={filters} now={now} />
+        <OverviewView
+          rows={read.rows}
+          filters={filters}
+          now={now}
+          reviewAlertDays={
+            settings.ok
+              ? settings.settings.backlogAlertDays
+              : DEFAULT_BACKLOG_ALERT_DAYS
+          }
+        />
       </div>
     </AppShell>
   )

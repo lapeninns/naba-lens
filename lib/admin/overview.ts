@@ -3,7 +3,9 @@
 // (20261118115100_admin_group_overview.sql), the URL filters, where each
 // number links, and which venues need attention first.
 
-import { parseSetup, type SetupChecklist } from "./venues"
+import { coverageWords } from "@/lib/knowledge/facts"
+
+import { effectiveOperatingStatus, parseSetup, type SetupChecklist } from "./venues"
 
 export type OverviewCategory =
   "food" | "drinks" | "spaces" | "facilities" | "other"
@@ -55,7 +57,19 @@ export type OverviewRow = {
   }
   unlabelled: number
   review: { waiting: number; oldestAt: string | null }
-  checksDue: { slots: number; facts: number; total: number }
+  /**
+   * Checks due, each subject once (S3-R6, V20): dish rechecks, place photos
+   * past their check date, facility photos asked to be checked again whose
+   * fact is not itself due, and facts due. `slots` is the three photo parts.
+   */
+  checksDue: {
+    dishes: number
+    places: number
+    facilities: number
+    slots: number
+    facts: number
+    total: number
+  }
   publication: { failed: number; withdrawalPending: number; total: number }
   /** Photos added in the reporting period; null without one. */
   added: number | null
@@ -111,7 +125,12 @@ export function parseOverviewRow(v: unknown): OverviewRow | null {
     venueId,
     name,
     timezone: str(v.timezone) ?? "Europe/London",
-    operatingStatus: str(v.operatingStatus) ?? "open",
+    // A venue switched off is archived whatever its stored trading state
+    // (S3-R6, V22).
+    operatingStatus: effectiveOperatingStatus(
+      str(v.operatingStatus) ?? "open",
+      v.active === true
+    ),
     active: v.active === true,
     categories: (Array.isArray(v.categories) ? v.categories : [])
       .map(parseCategory)
@@ -133,6 +152,9 @@ export function parseOverviewRow(v: unknown): OverviewRow | null {
     unlabelled: num(v.unlabelled),
     review: { waiting: num(review.waiting), oldestAt: str(review.oldestAt) },
     checksDue: {
+      dishes: num(checks.dishes),
+      places: num(checks.places),
+      facilities: num(checks.facilities),
       slots: num(checks.slots),
       facts: num(checks.facts),
       total: num(checks.total),
@@ -247,16 +269,52 @@ export function categoryHref(
   }
 }
 
+export type CheckPart = "dishes" | "places" | "facilities" | "facts"
+
+/** The parts of Checks due in display order, with the words for each. */
+export const CHECK_PARTS: ReadonlyArray<{
+  key: CheckPart
+  words: (n: number) => string
+}> = [
+  { key: "dishes", words: (n) => (n === 1 ? "1 dish" : `${n} dishes`) },
+  { key: "places", words: (n) => (n === 1 ? "1 place" : `${n} places`) },
+  {
+    key: "facilities",
+    words: (n) => (n === 1 ? "1 facility" : `${n} facilities`),
+  },
+  { key: "facts", words: (n) => (n === 1 ? "1 fact" : `${n} facts`) },
+]
+
+/** Where each part of Checks due is listed (S3-R6, V20). */
+export function checkPartHrefs(venueId: string): Record<CheckPart, string> {
+  const base = `/admin/coverage/${venueId}`
+  return {
+    dishes: `${base}/menu-photos?status=recheck`,
+    places: `${base}/amenities/places`,
+    facilities: `${base}/amenities`,
+    facts: `${base}/amenities`,
+  }
+}
+
 export function rowHrefs(row: OverviewRow, filters: OverviewFilters) {
   const base = `/admin/coverage/${row.venueId}`
   const { from, to } = periodRange(filters.period)
   const library = (extra: string) => `/admin?venue=${row.venueId}${extra}`
+  const parts = checkPartHrefs(row.venueId)
+  // The total opens the part that holds the most checks (the first on a tie).
+  const biggest = CHECK_PARTS.reduce<CheckPart>(
+    (best, p) => (row.checksDue[p.key] > row.checksDue[best] ? p.key : best),
+    "dishes"
+  )
   return {
     venue: `/admin/venues/${row.venueId}`,
     facts: `${base}/amenities`,
     unlabelled: library("&labels=unlabelled"),
-    review: `${base}/review`,
-    checksDue: `${base}/amenities`,
+    // The dish and place queues the waiting count reads (S3-R6, V18), not the
+    // legacy checklist queue.
+    review: `${base}/menu-photos`,
+    checksDue: parts[biggest],
+    checkParts: parts,
     publication: "/admin/publishing",
     added: library(`&from=${from}&to=${to}`),
     setup: `/admin/venues/${row.venueId}#setup`,
@@ -265,12 +323,14 @@ export function rowHrefs(row: OverviewRow, filters: OverviewFilters) {
 
 // ---- reading the numbers -----------------------------------------------------
 
-/** "n of N" with the percentage as secondary text (FA-8). */
+/**
+ * "n of N" with the percentage as secondary text (FA-8). The percentage is
+ * the same rule as Metrics and the manager Overview (`coverageWords`, one
+ * decimal; S3-R6, F5).
+ */
 export function ofWords(n: number, d: number): { main: string; pct: string } {
-  return {
-    main: `${n} of ${d}`,
-    pct: d > 0 ? `${Math.floor((n / d) * 100)}%` : "",
-  }
+  const words = coverageWords(n, d)
+  return { main: words.text, pct: words.percent ?? "" }
 }
 
 /** How long the oldest photo has waited: "Under a day", "3 days". */
@@ -289,11 +349,18 @@ export type Attention =
   | { kind: "checks"; count: number }
   | { kind: "review"; days: number }
 
-/** Spec §8 A1: blocked setup and operational exceptions come first. */
+/** ops_settings.backlog_alert_days when it can't be read (its default). */
+export const DEFAULT_BACKLOG_ALERT_DAYS = 7
+
+/**
+ * Spec §8 A1: blocked setup and operational exceptions come first. A long
+ * wait uses the admin's backlog alert setting and the monitoring rule: the
+ * oldest photo has waited more than that many days (S3-R6, V21).
+ */
 export function rowAttention(
   row: OverviewRow,
   now: Date,
-  reviewAlertDays = 7
+  reviewAlertDays = DEFAULT_BACKLOG_ALERT_DAYS
 ): Attention[] {
   const out: Attention[] = []
   if (row.active && row.setup.done < row.setup.total)
@@ -303,10 +370,9 @@ export function rowAttention(
   if (row.checksDue.total > 0)
     out.push({ kind: "checks", count: row.checksDue.total })
   if (row.review.oldestAt) {
-    const days = Math.floor(
-      (now.getTime() - new Date(row.review.oldestAt).getTime()) / 86_400_000
-    )
-    if (days >= reviewAlertDays) out.push({ kind: "review", days })
+    const ms = now.getTime() - new Date(row.review.oldestAt).getTime()
+    if (ms > reviewAlertDays * 86_400_000)
+      out.push({ kind: "review", days: Math.floor(ms / 86_400_000) })
   }
   return out
 }
@@ -334,12 +400,15 @@ export function attentionWords(a: Attention): string {
  */
 export function attentionFirst(
   rows: OverviewRow[],
-  now: Date
+  now: Date,
+  reviewAlertDays = DEFAULT_BACKLOG_ALERT_DAYS
 ): { attention: OverviewRow[]; rest: OverviewRow[] } {
   const attention: OverviewRow[] = []
   const rest: OverviewRow[] = []
   for (const row of rows)
-    (rowAttention(row, now).length ? attention : rest).push(row)
+    (rowAttention(row, now, reviewAlertDays).length ? attention : rest).push(
+      row
+    )
   return { attention, rest }
 }
 
