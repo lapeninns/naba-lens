@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises"
 
 import { expect, test, type Browser, type Page } from "@playwright/test"
 
+import { acceptPlacePhoto } from "./helpers/accepted"
 import { seedImages } from "./helpers/coverage-world"
 import {
   mailboxIds,
@@ -87,7 +88,7 @@ test.describe("release negatives", () => {
     world = await provisionWorld()
   })
 
-  test("staff A gets staff B's previews only; originals and admin routes are denied; anonymous is denied", async ({
+  test("staff A gets nothing of staff B's unreviewed photo; originals and admin routes are denied; anonymous is denied", async ({
     browser,
   }) => {
     const photo = await syntheticJpeg(`b-only-${world.tag}.jpg`)
@@ -106,17 +107,10 @@ test.describe("release negatives", () => {
     ).toBeVisible()
     await expect(await staffTile(staffA, photo.name)).toHaveCount(0)
 
-    // Community (docs/community.md): an active colleague's ready photo has
-    // signed previews; its original never leaves through a staff route (stream
-    // plays videos only, download is admin-only).
-    for (const route of ["thumb", "preview"]) {
-      const r = await staffA.request.get(`/api/media/${asset.id}/${route}`, {
-        maxRedirects: 0,
-      })
-      expect(r.status(), route).toBe(302)
-      expect(r.headers()["cache-control"], route).toBe("private, no-store")
-    }
-    for (const route of ["stream", "download"]) {
+    // FA-20 (spec §3.3 row 3): a colleague's photo nobody has reviewed is
+    // not shown to other staff at all, not even as a preview; the original
+    // never leaves through a staff route (download is admin-only).
+    for (const route of ["thumb", "preview", "stream", "download"]) {
       const r = await staffA.request.get(`/api/media/${asset.id}/${route}`, {
         maxRedirects: 0,
       })
@@ -177,10 +171,17 @@ test.describe("release negatives", () => {
   test("staff are denied media the community hides: inactive uploader, deleted or unfinished", async ({
     browser,
   }) => {
-    const { staffA, staffB, staffC, venue1, venue2, tag } = world
-    // Staff C works at the other venue: community visibility is organisation
-    // wide, so C's media is visible to A until C is deactivated. The video is a
-    // real upload, so its stream answers 200 while it is visible.
+    const { staffA, staffB, staffC, venue1, adminA, tag } = world
+    // FA-20: staff see a colleague's media only once it is accepted at a
+    // venue whose album they can see. Staff C moves to A's venue, and the
+    // controls below are accepted, so C's media is visible to A until C is
+    // deactivated. The video is a real upload, so its stream answers 200
+    // while it is visible.
+    const moved = await provisioner()
+      .from("profiles")
+      .update({ venue_id: venue1.id })
+      .eq("id", staffC.id)
+    if (moved.error) throw moved.error
     const clip = supportedMp4(`c-clip-${tag}.mp4`)
     const staffCPage = await signedInPage(browser, staffC)
     await openPortfolio(staffCPage)
@@ -188,16 +189,21 @@ test.describe("release negatives", () => {
     const video = (await assetIdsOf(staffC.id)).find(
       (a) => a.original_filename === clip.name
     )!
-    const [cPhoto] = await seedImages(staffC, venue2, 1, {
+    const [cPhoto] = await seedImages(staffC, venue1, 1, {
       prefix: `c-photo-${tag}`,
     })
-    const [bShown, bDeleted] = await seedImages(staffB, venue1, 2, {
-      prefix: `b-photo-${tag}`,
-    })
+    const [bShown, bDeleted, bUnreviewed] = await seedImages(
+      staffB,
+      venue1,
+      3,
+      { prefix: `b-photo-${tag}` }
+    )
     const [bUnfinished] = await seedImages(staffB, venue1, 1, {
       prefix: `b-unfinished-${tag}`,
       state: "processing",
     })
+    for (const id of [cPhoto, video.id, bShown, bDeleted, bUnfinished])
+      acceptPlacePhoto(id, adminA.id)
 
     const staff = await signedInPage(browser, staffA)
     const status = async (id: string, route: string) =>
@@ -228,6 +234,7 @@ test.describe("release negatives", () => {
     const hidden = {
       "deleted photo of an active colleague": bDeleted,
       "unfinished photo of an active colleague": bUnfinished,
+      "unreviewed photo of an active colleague (FA-20)": bUnreviewed,
       "photo of a deactivated colleague": cPhoto,
       "video of a deactivated colleague": video.id,
       "unknown id": randomUUID(),

@@ -30,6 +30,7 @@ import {
   signIn as signInApi,
   type TestIdentity,
 } from "../support/identities"
+import { acceptPlacePhoto } from "./helpers/accepted"
 import { passMfaIfAsked } from "./helpers/mfa"
 
 /**
@@ -346,6 +347,8 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
       session: false,
     })
     const photoA = await readyPhoto(staffA, "private-dish.jpg")
+    // FA-20: colleagues see a photo only once it is accepted.
+    acceptPlacePhoto(photoA, adminUser.id)
 
     const pageA = await signIn(browser, staffA, baseURL!)
     const pageB = await signIn(browser, staffB, baseURL!)
@@ -424,7 +427,7 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
     // feed attribution, with no management or original download controls.
     await openPortfolio(pageB)
     await pageB
-      .getByRole("link", { name: /^Photos Photos your colleagues/ })
+      .getByRole("link", { name: /^Photos Accepted photos from colleagues/ })
       .click()
     await expect(pageB).toHaveURL(/\/staff\/community$/)
     const feedLabel = "Organization portfolio"

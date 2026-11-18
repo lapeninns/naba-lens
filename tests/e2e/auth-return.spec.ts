@@ -13,6 +13,7 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import { openEmailLink } from "./helpers/email-link"
+import { passMfaIfAsked } from "./helpers/mfa"
 import { mailboxIds, waitForSignInEmail } from "./helpers/mailpit"
 import { convertToManager } from "./helpers/manager-world"
 import { STAFF_LANDING } from "./helpers/ui"
@@ -301,6 +302,9 @@ test.describe("an ended session mid-task (AUTH-2, charter C-2)", () => {
       await page.goto("/login")
       const { code } = await requestSignIn(page, person.email)
       await enterCode(page, code)
+      // FA-23: an admin passes the second step first.
+      await page.waitForURL((url) => url.pathname !== "/login")
+      await passMfaIfAsked(page, person.email)
       await expect(page).toHaveURL(who === "staff" ? STAFF_LANDING : /\/admin$/)
 
       await context.clearCookies()
@@ -365,6 +369,9 @@ test.describe("unknown URLs inside an app area", () => {
       await expect(page).toHaveURL(loginFor(area.path))
       const { code } = await requestSignIn(page, person.email)
       await enterCode(page, code)
+      // FA-23: an admin passes the second step, then still lands on the URL.
+      await page.waitForURL((url) => url.pathname !== "/login")
+      await passMfaIfAsked(page, person.email)
       await expect(page).toHaveURL(new RegExp(`${escapeRegExp(area.path)}$`))
 
       await expect(
