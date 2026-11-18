@@ -5,6 +5,7 @@
 // on a website (§10 inv. 9); nothing here claims a downloaded copy can be
 // recalled (§14.2).
 
+import type { ExportArea } from "@/lib/server/exports/hrefs"
 import type {
   ExportCategory,
   ExportPackageSummary,
@@ -92,8 +93,11 @@ export const EXPORTS_COPY = {
   rebuild: "Rebuild without those photos",
   rebuilt: "Rebuilt from an earlier package",
   download: "Download ZIP",
-  readMe:
-    "Exported is not Published. After you put a photo somewhere, record it on the Publishing page.",
+  // Only admins record publication (§3.3), so each screen says who does it.
+  readMe: (area: ExportArea) =>
+    area === "admin"
+      ? "Exported is not Published. After you put a photo somewhere, record where under that photo on its package page."
+      : "Exported is not Published. After you put a photo somewhere, tell an admin where: only admins record where a photo is published.",
   unavailable: "Couldn't load. Reload the page to try again.",
   allVenues: "All venues",
   confirmRemoved: "Confirm it's taken down",

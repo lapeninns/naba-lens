@@ -102,7 +102,7 @@ export function PackageDetail({
             {EXPORTS_COPY.download}
           </a>
         )}
-        <p className="text-meta text-ink-muted">{EXPORTS_COPY.readMe}</p>
+        <p className="text-meta text-ink-muted">{EXPORTS_COPY.readMe(area)}</p>
       </section>
 
       <section aria-labelledby="package-photos" className="grid gap-3">

@@ -239,8 +239,9 @@ function readMe(mode: "public" | "internal", profile: ExportProfile): string {
   const lines = [
     "Naba-Lens export",
     "",
-    "This package was exported. Exported does not mean published: record where a file is",
-    "used on the Publishing page, with the page address and the date.",
+    "This package was exported. Exported does not mean published. When a file is used,",
+    "an admin records where on the Publishing page, with the page address and the date.",
+    "If you are not an admin, tell one where you put it.",
     "",
     "manifest.csv and manifest.json list every file with its photo id, venue, subject,",
     "approval, upload date and any use restrictions. The filename is not the record id.",

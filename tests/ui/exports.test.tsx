@@ -288,6 +288,23 @@ describe("PackageDetail", () => {
       `/api/exports/${PKG}/download?from=manager`
     )
     expect(screen.queryByText(/Record where it/)).toBeNull()
+    // A manager can't open Publishing: the note says an admin records it.
+    expect(screen.getByText(/tell an admin where/)).toBeTruthy()
+    expect(screen.queryByText(/Publishing page/)).toBeNull()
+  })
+
+  it("tells an admin to record publication on the package page", () => {
+    render(
+      <PackageDetail
+        area="admin"
+        pkg={pkg({})}
+        notice={null}
+        destinations={[]}
+        today="2026-11-18"
+      />
+    )
+    expect(screen.getByText(/record where under that photo/)).toBeTruthy()
+    expect(screen.queryByText(/tell an admin/)).toBeNull()
   })
 
   it("explains an invalidated package and offers Rebuild, not Download (AC32)", () => {

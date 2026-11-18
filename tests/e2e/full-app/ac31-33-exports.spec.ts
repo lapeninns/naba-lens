@@ -101,7 +101,7 @@ for (const [size, options] of SIZES) {
     await expect(chip(mgr, "package_ready")).toHaveText("Ready to download")
     await expect(
       mgr.getByText(
-        "Exported is not Published. After you put a photo somewhere, record it on the Publishing page."
+        "Exported is not Published. After you put a photo somewhere, tell an admin where: only admins record where a photo is published."
       )
     ).toBeVisible()
 
