@@ -27,7 +27,12 @@ export type QueueStatus =
 
 export type PhotoState = "accepted" | "better_photo_requested" | "needs_recheck"
 
-export type RecheckKind = "name_changed" | "section_changed" | "variant_removed"
+export type RecheckKind =
+  | "name_changed"
+  | "section_changed"
+  | "variant_removed"
+  /** S1-MENUS: a manager marked the dish's presentation as changed. */
+  | "presentation_changed"
 
 export type PhotoBasis = "staff_label" | "reviewer"
 
@@ -158,6 +163,11 @@ export type QueueCard = {
   /** Other cards of the same item in this status set. */
   groupCount: number
   /**
+   * S2-REVIEW provenance and flags (spec §7 M2, §12.1, FA-35). Absent on
+   * cards built before the review inbox read them (fixtures).
+   */
+  provenance?: CardProvenance
+  /**
    * What accepting this card's item also counts for (ORP-3b): the venue's
    * current menu-section tasks holding the dish, and the uploader's month
    * (`YYYY-MM-01`) when they labelled it themselves. Absent when unknown.
@@ -166,6 +176,19 @@ export type QueueCard = {
 }
 
 export type AlsoCounts = { tasks: string[]; month: string | null }
+
+/** Where the photo came from and what a reviewer should check first. */
+export type CardProvenance = {
+  /** When it was taken; null when unknown (never the upload time). */
+  capturedAt: string | null
+  capturedAtSource: "metadata" | "supplied" | "estimated" | "unknown"
+  /** The same file is already at the venue (hash match or finalise link). */
+  possibleDuplicate: boolean
+  /** The staff member's optional note. */
+  note: string | null
+  /** The dish's section kind; null on itemless cards. */
+  sectionKind: SectionKind | null
+}
 
 export type ItemPhoto = {
   photoId: string

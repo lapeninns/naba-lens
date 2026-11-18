@@ -905,7 +905,7 @@ begin
               where pr.item_id = t.item_id),
             'neededBy', (select nb.needed_by from public.menu_item_needed_by nb
               where nb.item_id = t.item_id and nb.venue_id = v_asset.venue_id and nb.cleared_at is null),
-            'approved', coalesce((
+            'publicPhotos', coalesce((
               select jsonb_agg(jsonb_build_object('assetId', ap.asset_id, 'photoId', ap.id,
                 'isPrimary', ap.id = private.menu_item_effective_primary(t.item_id),
                 'hasThumbnail', aa.thumbnail_path is not null)
@@ -942,7 +942,7 @@ begin
         'state', coalesce(d.action, 'pending'),
         'level', coalesce(d.review_level, 'public'),
         'decisionId', d.id,
-        'approved', coalesce((
+        'publicPhotos', coalesce((
           select jsonb_agg(jsonb_build_object('assetId', sp.asset_id,
             'isPrimary', sp.asset_id = private.slot_effective_primary('area', l.subject_id)))
           from (select e.asset_id from private.slot_public_photos('area', l.subject_id) e
@@ -963,7 +963,7 @@ begin
         'photoRequired', private.amenity_photo_required(c.template_key),
         'decisionId', (select x.id from public.amenity_photo_decisions x
           where x.check_id = r.check_id and x.asset_id = r.asset_id order by x.id desc limit 1),
-        'approved', coalesce((
+        'publicPhotos', coalesce((
           select jsonb_agg(jsonb_build_object('assetId', sp.asset_id,
             'isPrimary', sp.asset_id = private.slot_effective_primary('amenity', r.check_id)))
           from (select e.asset_id from private.slot_public_photos('amenity', r.check_id) e

@@ -131,6 +131,7 @@ export const MANAGER_COPY = {
       name_changed: "Name changed on the new menu",
       section_changed: "Section type changed",
       variant_removed: "Option no longer on the menu",
+      presentation_changed: "Served differently now",
     },
     acceptAgain: "Accept again for this menu",
     variantRemoved: "This option is no longer on the menu",

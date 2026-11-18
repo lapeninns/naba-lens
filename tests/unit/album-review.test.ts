@@ -44,6 +44,7 @@ import {
   menuDecision,
   otherReason,
   REASONS,
+  retakeReasonCode,
   reviewLine,
   withRevision,
   type MenuSubject,
@@ -288,12 +289,20 @@ describe("decisions", () => {
 
   it("the reason chips, and Other's words trimmed and capped", () => {
     expect(REASONS).toEqual([
+      "Show all of it",
       "Too dark",
       "Out of focus",
-      "Wrong item",
-      "Show more of it",
+      "Not how it's served now",
+      "Show the way in",
       "Messy background",
+      "People or personal details in shot",
     ])
+    // Each chip carries the spec's code (§7 M2); a written reason has none.
+    expect(retakeReasonCode("Too dark")).toBe("insufficient_light")
+    expect(retakeReasonCode("Not how it's served now")).toBe(
+      "wrong_presentation"
+    )
+    expect(retakeReasonCode("Wrong item")).toBeNull()
     expect(otherReason("   ")).toBeNull()
     expect(otherReason("  more   light ")).toBe("more light")
     expect(otherReason("x".repeat(600))).toHaveLength(500)

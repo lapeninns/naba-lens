@@ -232,11 +232,13 @@ describe("Review in a thumb", () => {
         .getAllByRole("button")
         .map((b) => b.textContent)
     ).toEqual([
+      "Show all of it",
       "Too dark",
       "Out of focus",
-      "Wrong item",
-      "Show more of it",
+      "Not how it's served now",
+      "Show the way in",
       "Messy background",
+      "People or personal details in shot",
       "Other",
       "Cancel",
     ])

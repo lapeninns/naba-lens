@@ -83,6 +83,7 @@ export const RECHECK_LABEL: Record<RecheckKind, string> = {
   name_changed: "Name changed on the new menu",
   section_changed: "Section type changed",
   variant_removed: "Option no longer on the menu",
+  presentation_changed: "Served differently now",
 }
 
 export const REVIEW_COPY = {
