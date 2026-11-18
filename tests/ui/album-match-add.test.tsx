@@ -17,6 +17,7 @@ import {
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { trackFlow } from "@/lib/metrics/track"
 import { AddHost } from "@/app/staff/_shell/add-host"
 import type { MatchBoard } from "@/components/nabalens/album/match/model"
 import {
@@ -25,7 +26,7 @@ import {
 } from "@/components/nabalens/shell/add-context"
 import type { Uploader } from "@/components/nabalens/upload-queue"
 
-import { CATALOGUE } from "./labels-fixtures"
+import { CATALOGUE, savedAnswer } from "./labels-fixtures"
 
 const PASS = "00000000-0000-4000-8000-00000000b002"
 const GARDEN = "00000000-0000-4000-8000-00000000b003"
@@ -139,6 +140,11 @@ vi.mock("@/app/_labels/actions", () => actions)
 vi.mock("@/app/staff/_shell/match-actions", () => match)
 vi.mock("@/app/_labels/area-actions", () => area)
 
+vi.mock("@/lib/metrics/track", async (original) => ({
+  ...(await original<typeof import("@/lib/metrics/track")>()),
+  trackFlow: vi.fn(),
+}))
+
 vi.mock("@/lib/upload/quality", async (original) => ({
   ...(await original<typeof import("@/lib/upload/quality")>()),
   measurePhoto: vi.fn(async () => quality.hints),
@@ -155,7 +161,7 @@ function labelApi(url: string, init?: RequestInit) {
   if (method === "POST") {
     const sent = JSON.parse(String(init!.body))
     posted.push(sent)
-    body = { ok: true, assetId: sent.input.assetId, state: "pending" }
+    body = savedAnswer(sent)
   } else if (method === "DELETE") body = { ok: true }
   else if (url.includes("attention=1")) body = { ok: true, items: [] }
   else body = { ok: true, catalogue: CATALOGUE, focus: null }
@@ -402,6 +408,29 @@ describe("the picker cancelled (spec §6 S2)", () => {
   })
 })
 
+describe("workflow events (S2-METRICS, K5)", () => {
+  const events = () =>
+    vi.mocked(trackFlow).mock.calls.map(([e]) => [e.name, e.route ?? null])
+
+  it("records I'm not sure as its own event", async () => {
+    const user = await pick({ match: { place: PASS } }, [jpeg("u.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      within(dialog).getByRole("button", { name: /I'm not sure/ })
+    )
+    await waitFor(() =>
+      expect(events().map(([name]) => name)).toContain("label_uncertain")
+    )
+    expect(events().map(([name]) => name)).not.toContain("not_for_slot")
+  })
+
+  it("records photos started from Asked for under the request route", async () => {
+    await pick({ match: { place: PASS }, route: "request" }, [jpeg("r.jpg")])
+    await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    expect(events()).toContainEqual(["flow_started", "request"])
+  })
+})
+
 describe("I'm not sure (FA-4, AC03)", () => {
   it("sends the photo to the manager with the optional note, and no slot", async () => {
     const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
@@ -494,6 +523,27 @@ describe("choosing the slot (spec §5.3)", () => {
     expect(
       JSON.parse(window.localStorage.getItem("nabalens.match.recent-slots")!)
     ).toEqual({ venue: "venue-1", slots: ["dish:item-bhaji"] })
+  })
+
+  it("offers a slot matched earlier in this visit under Recent once it is Waiting (E5)", async () => {
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    let dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    await within(matchDialog()).findByRole("heading", { name: "1 slot filled" })
+    await waitFor(() =>
+      expect(
+        matchDialog().querySelector('[data-slot="match-summary"] li')
+      ).toHaveProperty("dataset.state", "waiting")
+    )
+    // Closed without Album reading the slot again: no reload.
+    await user.click(screen.getByRole("button", { name: "Close" }))
+    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    await user.upload(gallery(), [jpeg("b.jpg", 5)])
+    dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    const recent = await within(dialog).findByRole("list", { name: "Recent" })
+    expect(within(recent).getByText("Onion Bhaji")).toBeTruthy()
   })
 
   it("finds a dish by its other name and a slot already waiting", async () => {
@@ -607,6 +657,124 @@ describe("advice that never blocks (spec §5.5)", () => {
 })
 
 describe("a venue change before sending (AC11, spec §6 S2)", () => {
+  it("asks again for matched photos still waiting their turn, never reserving them at the new venue (V7)", async () => {
+    // The first two photos take their turn and hold it; the other two wait
+    // in the queue (maxParallelUploads is 2) with no reservation yet.
+    const holds: (() => void)[] = []
+    const venues: (string | undefined)[] = []
+    uploads.current = async (file, context) => {
+      started.push(file.name)
+      venues.push(context.venueId)
+      await new Promise<void>((resolve) => holds.push(resolve))
+      return { assetId: `asset-${file.name}` }
+    }
+    const user = userEvent.setup()
+    const view = render(<Host opts={{ match: { place: PASS } }} />)
+    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    await user.upload(
+      gallery(),
+      [1, 2, 3, 4].map((n) => jpeg(`q${n}.jpg`, n))
+    )
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 4" })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Photo 4 too" })
+    )
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    await waitFor(() => expect(started).toEqual(["q1.jpg", "q2.jpg"]))
+    // Each reservation names the venue the photo was matched for.
+    expect(venues).toEqual(["venue-1", "venue-1"])
+
+    match.loadMatchBoardAction.mockResolvedValue({
+      ok: true,
+      board: { ...BOARD, venue: { id: "venue-2", name: "The Crown" } },
+    })
+    view.rerender(
+      <Host
+        opts={{ match: { place: PASS } }}
+        venueId="venue-2"
+        venueName="The Crown"
+      />
+    )
+    expect(
+      await within(matchDialog()).findByText(
+        "You are now adding photos for The Crown. Choose the slot again for 2 photos."
+      )
+    ).toBeTruthy()
+    expect(
+      await within(matchDialog()).findByText("2 not matched yet")
+    ).toBeTruthy()
+
+    // The two in flight finish at the old venue; the two taken back are
+    // dropped by the queue, never reserved.
+    for (const release of holds) release()
+    await waitFor(() => expect(sentFor("asset-q1.jpg")).toHaveLength(1))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(started).toEqual(["q1.jpg", "q2.jpg"])
+  })
+
+  it("reads Sent, not Waiting, while a dish label is not on the photo (V8)", async () => {
+    // The label is only staged ("pending") and finalise reports none.
+    vi.mocked(fetch).mockImplementation((url, init) => {
+      if (init?.method === "POST") {
+        const sent = JSON.parse(String(init.body))
+        posted.push(sent)
+        return Promise.resolve({
+          json: async () => ({
+            ok: true,
+            assetId: sent.input.assetId,
+            state: "pending",
+          }),
+        } as Response)
+      }
+      return labelApi(String(url), init)
+    })
+    const user = await pick({ match: { place: PASS } }, [jpeg("s.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    await waitFor(() => expect(sentFor("asset-s.jpg")).toHaveLength(1))
+    const row = await waitFor(() => {
+      const li = matchDialog().querySelector<HTMLElement>(
+        '[data-slot="match-summary"] li'
+      )
+      expect(li?.dataset.state).toBe("sent")
+      return li!
+    })
+    expect(within(row).getByText("Sent")).toBeTruthy()
+    expect(
+      within(matchDialog()).getByRole("heading", { name: "No slots filled" })
+    ).toBeTruthy()
+  })
+
+  it("loads the new venue's menu, so a dish matched there keeps its label (V8)", async () => {
+    const user = userEvent.setup()
+    const view = render(<Host opts={{ match: { place: PASS } }} />)
+    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    await user.upload(gallery(), [jpeg("v8.jpg", 1)])
+    await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    const menuReads = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(
+          ([url, init]) =>
+            !init?.method &&
+            String(url).includes("upload-labels") &&
+            !String(url).includes("attention")
+        ).length
+    await waitFor(() => expect(menuReads()).toBe(1))
+    view.rerender(
+      <Host
+        opts={{ match: { place: PASS } }}
+        venueId="venue-2"
+        venueName="The Crown"
+      />
+    )
+    await waitFor(() => expect(menuReads()).toBe(2))
+  })
+
   it("reads the new venue's slots and says so", async () => {
     const user = userEvent.setup()
     const view = render(<Host opts={{ match: { place: PASS } }} />)

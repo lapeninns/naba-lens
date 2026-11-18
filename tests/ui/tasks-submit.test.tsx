@@ -276,9 +276,11 @@ describe("SubmitPhotosPanel", () => {
     expect(input.requestId).toMatch(/^[0-9a-f-]{36}$/)
     const status = await screen.findByRole("status")
     expect(status.textContent).toContain("Sent 2 photos for review.")
+    // FA-20 (E9): never "already in Explore" before review.
     expect(status.textContent).toContain(
-      "already in your portfolio and Explore"
+      "The team sees each one once your manager accepts it."
     )
+    expect(status.textContent).not.toMatch(/Explore|already in/)
     // Selection cleared and eligibility re-read.
     expect(tile("2 Nov 2026").getAttribute("aria-pressed")).toBe("false")
     await waitFor(() =>

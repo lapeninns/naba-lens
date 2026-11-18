@@ -18,7 +18,6 @@ import {
 } from "@/lib/menus/types"
 import { ensureMediaOriginalArchived } from "@/lib/server/archive"
 import { labelSaveMessage, tryLoadLabelSummaries } from "@/lib/server/labels"
-import { knowledgeRpc } from "@/lib/server/knowledge/rpc"
 import { touchMediaReservation } from "@/lib/server/lifecycle/cleanup"
 
 import { validationMessage } from "./errors"
@@ -369,34 +368,67 @@ const ACCESS_ENDED: Outcome<never> = {
     "You can no longer add photos at this venue, so this upload can't be finished.",
 }
 
+const CHECK_FAILED: Outcome<never> = {
+  ok: false,
+  status: 503,
+  message: "Could not check this file right now. Try again.",
+}
+
+const MANAGER_ENDED: Outcome<never> = {
+  ok: false,
+  status: 403,
+  message:
+    "Your venue manager access has ended, so this upload can't be finished.",
+}
+
 /**
- * A manager account finishes an upload only while it still manages the
- * upload's venue (B02-c), as the storage write trigger requires; null when
- * it may.
+ * The role the caller holds at `venueId` through an open membership (any of
+ * their venues, not only the active one); null when none; undefined when it
+ * could not be read.
  */
-async function managerUploadEnded(
+async function roleAtVenue(
   actor: MediaActor,
   venueId: string
+): Promise<string | null | undefined> {
+  const { data, error } = await actor.db.rpc("my_venue_memberships")
+  if (error) return undefined
+  const rows = (data ?? []) as { venue_id: string; role: string | null }[]
+  return rows.find((row) => row.venue_id === venueId)?.role ?? null
+}
+
+/**
+ * Whether the caller may still finish an upload reserved at `row.venue_id`
+ * (null when they may). K2, review R10: the same rule as the storage write
+ * trigger and complete_media_finalise (private.media_upload_venue_allowed,
+ * 20261118109200): keyed on the role held at the upload's venue, not on the
+ * active venue, so switching to another of one's venues never ends an upload
+ * in flight; ending the membership does (AC12). A manager-era reservation
+ * needs the manager role there; a staff-era one an open staff membership
+ * there (or, for a legacy account, working there now). The database checks
+ * again under the row lock.
+ */
+async function uploadAccessEnded(
+  actor: MediaActor,
+  row: Pick<AssetRow, "venue_id" | "uploader_role">
 ): Promise<Outcome<never> | null> {
-  const { data, error } = await knowledgeRpc(
-    actor.db,
-    "my_venue_capabilities",
-    { p_venue_id: null }
-  )
-  if (error)
-    return {
-      ok: false,
-      status: 503,
-      message: "Could not check this file right now. Try again.",
-    }
-  return data?.canUpload && data.venueId === venueId
-    ? null
-    : {
-        ok: false,
-        status: 403,
-        message:
-          "Your venue manager access has ended, so this upload can't be finished.",
-      }
+  if (actor.profile.role === "admin") return null
+  const managerEra =
+    row.uploader_role === "manager" ||
+    (row.uploader_role === null && actor.profile.role === "manager")
+  if (managerEra) {
+    const role = await roleAtVenue(actor, row.venue_id)
+    if (role === undefined) return CHECK_FAILED
+    return role === "manager"
+      ? null
+      : actor.profile.role === "manager"
+        ? MANAGER_ENDED
+        : ACCESS_ENDED
+  }
+  if (actor.profile.venueId === row.venue_id && actor.profile.role === "staff")
+    return null
+  const role = await roleAtVenue(actor, row.venue_id)
+  if (role === undefined) return CHECK_FAILED
+  return role === "staff" ? null : ACCESS_ENDED
 }
 
 /**
@@ -427,19 +459,11 @@ export async function finaliseAsset(
     return notFound
   }
   if (row.upload_state === "ready") return readyWithAttention(actor, row.id)
-  if (actor.profile.role === "manager") {
-    const ended = await managerUploadEnded(actor, row.venue_id)
-    if (ended) return ended
-  }
-  // Staff finish only at their current venue (spec §12.4, AC12): one moved
-  // to another venue can't add the old venue's reservation to its album.
-  // complete_media_finalise checks the same rule under the row lock.
-  if (
-    actor.profile.role === "staff" &&
-    (row.uploader_role === "manager" || actor.profile.venueId !== row.venue_id)
-  ) {
-    return ACCESS_ENDED
-  }
+  // Only while the caller still holds a role at the upload's venue (spec
+  // §12.4, AC12, R10); complete_media_finalise checks the same rule under
+  // the row lock.
+  const ended = await uploadAccessEnded(actor, row)
+  if (ended) return ended
 
   // Finalise begins: record upload activity for cleanup (lifecycle's
   // recordUploadActivity). Skipped for `processing`, which cleanup never

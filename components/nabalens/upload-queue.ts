@@ -112,6 +112,8 @@ export type UploadContext = {
   account?: string
   /** Stable ID of the selection the file was added in (spec §12.2). */
   batchId?: string
+  /** The venue the file is for, sent with the reservation (AC11). */
+  venueId?: string
 }
 
 /** Mirrors `media_assets.purpose`. */
@@ -180,6 +182,19 @@ export class SessionExpiredError extends Error {
   constructor(message = SIGNED_OUT_MESSAGE) {
     super(message)
     this.name = "SessionExpiredError"
+  }
+}
+
+/**
+ * Thrown by an uploader before it reserves anything: the file's owner took
+ * it back (Match asks again for a photo whose venue changed before its turn,
+ * AC11). The queue drops the item without a failure, as if it were never
+ * added.
+ */
+export class UploadWithdrawnError extends Error {
+  constructor() {
+    super("withdrawn")
+    this.name = "UploadWithdrawnError"
   }
 }
 
@@ -576,6 +591,15 @@ export class UploadQueue {
       })
     } catch (error) {
       if (!current()) return
+      if (error instanceof UploadWithdrawnError) {
+        this.controllers.delete(id)
+        this.items = this.items.filter((i) => i.id !== id)
+        this.resumeTokens.delete(id)
+        this.runIds.delete(id)
+        this.emit()
+        this.pump()
+        return
+      }
       if (controller.signal.aborted) {
         this.update(id, { status: "cancelled", error: null })
       } else if (error instanceof SessionExpiredError) {

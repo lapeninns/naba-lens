@@ -28,10 +28,8 @@ import { getCheck } from "@/lib/server/amenities"
 import { getOnboardingState } from "@/lib/auth/venues"
 import { getCoverageActor } from "@/lib/server/coverage"
 import { listMyRequests } from "@/lib/server/requests"
-import {
-  AskedFor,
-  askedForItems,
-} from "@/components/nabalens/requests/staff-requests"
+import { AskedFor } from "@/components/nabalens/requests/staff-requests"
+import { askedForItems } from "@/lib/requests/asked-for"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import {

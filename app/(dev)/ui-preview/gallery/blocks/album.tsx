@@ -15,10 +15,8 @@ import {
   type SendState,
 } from "@/components/nabalens/album/match/match-screen"
 import type { BoardState } from "@/components/nabalens/album/match/match-picker"
-import {
-  AskedFor,
-  askedForItems,
-} from "@/components/nabalens/requests/staff-requests"
+import { AskedFor } from "@/components/nabalens/requests/staff-requests"
+import { askedForItems } from "@/lib/requests/asked-for"
 import { Button } from "@/components/ui/button"
 import * as React from "react"
 import { buildAlbum, currentPlace, type AlbumInput } from "@/lib/album/model"

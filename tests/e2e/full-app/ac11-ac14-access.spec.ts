@@ -99,17 +99,16 @@ test("AC11 a venue change during Match leaves no old-venue label on any photo", 
   )
   await other.close()
 
-  // Back in Match: it should now say B and offer B's slots (soft: on the
-  // merged head Match keeps showing A; report D8).
+  // Back in Match: it now says B and offers B's slots (S3-E2E-1 E7, fixed
+  // by S3-R3: the other tab's switch reaches this one).
   await page.bringToFront()
-  await expect
-    .soft(match.locator('[data-slot="match-venue"]'))
-    .toHaveText(`For ${w.venueB.name}`, { timeout: 15_000 })
-  await expect
-    .soft(match)
-    .toContainText(`You are now adding photos for ${w.venueB.name}.`, {
-      timeout: 1_000,
-    })
+  await expect(match.locator('[data-slot="match-venue"]')).toHaveText(
+    `For ${w.venueB.name}`,
+    { timeout: 15_000 }
+  )
+  await expect(match).toContainText(
+    `You are now adding photos for ${w.venueB.name}.`
+  )
   await keep(page, info, "ac11-after-switch")
   // The person answers with what Match offers (A's Pie and Lager when Match
   // did not notice the switch, B's when it did).

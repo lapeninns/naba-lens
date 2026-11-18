@@ -112,6 +112,7 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
             checked.kind === "video" || file.size > resumableThresholdBytes,
           ...(uploadOptions.purpose ? { purpose: uploadOptions.purpose } : {}),
           ...(uploadOptions.batchId ? { batchId: uploadOptions.batchId } : {}),
+          ...(uploadOptions.venueId ? { venueId: uploadOptions.venueId } : {}),
         })
       } catch (error) {
         if (error instanceof ReservationGoneError) {

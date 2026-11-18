@@ -362,14 +362,14 @@ async function staffJourney(
   await sendSelected(page, 2)
   // FA-20: colleagues see a photo only once it is accepted, so the sent
   // notice must not say the photos are already shared or that review only
-  // decides whether they count (soft: the journey goes on).
+  // decides whether they count (S3-E2E-1 E9, fixed by S3-R3).
   await expect(page.getByText(/^Sent|sent/).first()).toBeVisible()
-  await expect
-    .soft(page.getByText(/already in your portfolio and Explore/))
-    .toHaveCount(0)
-  await expect
-    .soft(page.getByText(/Review only decides whether they count/))
-    .toHaveCount(0)
+  await expect(
+    page.getByText(/already in your portfolio and Explore/)
+  ).toHaveCount(0)
+  await expect(
+    page.getByText(/Review only decides whether they count/)
+  ).toHaveCount(0)
 
   await expiredLinkRecovery(page)
 

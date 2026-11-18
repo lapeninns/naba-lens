@@ -165,6 +165,7 @@ export function toQueueUploader(
         idempotencyKey,
         ...(context.purpose ? { purpose: context.purpose } : {}),
         ...(context.batchId ? { batchId: context.batchId } : {}),
+        ...(context.venueId ? { venueId: context.venueId } : {}),
         signal: context.signal,
         onProgress: (fraction) => {
           context.onProgress(fraction)

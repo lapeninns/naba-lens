@@ -26,7 +26,7 @@ import {
 } from "@/components/nabalens/shell/add-context"
 import type { Uploader } from "@/components/nabalens/upload-queue"
 
-import { CATALOGUE } from "./labels-fixtures"
+import { CATALOGUE, savedAnswer } from "./labels-fixtures"
 
 const PASS = "00000000-0000-4000-8000-00000000b002"
 const GARDEN = "00000000-0000-4000-8000-00000000b003"
@@ -121,7 +121,7 @@ function labelApi(url: string, init?: RequestInit) {
   if (method === "POST") {
     const sent = JSON.parse(String(init!.body))
     posted.push(sent)
-    body = { ok: true, assetId: sent.input.assetId, state: "pending" }
+    body = savedAnswer(sent)
   } else if (method === "DELETE") body = { ok: true }
   else if (url.includes("attention=1")) body = { ok: true, items: [] }
   else body = { ok: true, catalogue: CATALOGUE, focus: null }

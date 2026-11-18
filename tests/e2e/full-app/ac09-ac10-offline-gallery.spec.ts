@@ -37,7 +37,9 @@ test("AC09 offline: no false Sent; saved on this phone; sent once back online (p
   // The signal drops once Match has its slots (they come from the server).
   const { match } = await startMatch(page, [photo.path])
   await expect(
-    match.locator('[data-slot="match-picker"]').getByRole("button", { name: /^Salad\b/ })
+    match
+      .locator('[data-slot="match-picker"]')
+      .getByRole("button", { name: /^Salad\b/ })
   ).toBeVisible()
   await page.context().setOffline(true)
   await matchBySearch(match, "salad", "Salad")
@@ -46,8 +48,9 @@ test("AC09 offline: no false Sent; saved on this phone; sent once back online (p
   // Honest words for a photo still on the phone (spec §5.6).
   await expect(summary).toContainText("Saved on this phone")
   // Nothing reached the server, so the end must not claim a filled slot or
-  // Waiting (soft: on the merged head it does; report D7).
-  await expect.soft(summary).not.toContainText(/\b(Sent|Waiting|slots? filled)\b/)
+  // Waiting (S3-E2E-1 E6, fixed by S3-R3).
+  await expect(summary).toContainText("1 photo saved on this phone")
+  await expect(summary).not.toContainText(/\b(Sent|Waiting|slots? filled)\b/)
   await expect(summary).not.toContainText(/\bSent\b/)
   await keep(page, info, "ac09-offline-summary")
   expect(

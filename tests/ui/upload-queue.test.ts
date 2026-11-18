@@ -6,6 +6,7 @@ import {
   SIGNED_OUT_MESSAGE,
   summarize,
   UploadQueue,
+  UploadWithdrawnError,
   type UploadContext,
   type Uploader,
 } from "@/components/nabalens/upload-queue"
@@ -44,6 +45,23 @@ function statuses(queue: UploadQueue) {
 }
 
 describe("UploadQueue", () => {
+  it("drops a file its owner withdrew before its turn, and runs the next (V7)", async () => {
+    const { upload, calls } = controllableUploader()
+    const withdrawn = new Set<string>(["b.jpg"])
+    const queue = new UploadQueue((f, ctx) => {
+      if (withdrawn.has(f.name))
+        return Promise.reject(new UploadWithdrawnError())
+      return upload(f, ctx)
+    }, LIMITS)
+    queue.add([file("a.jpg"), file("b.jpg"), file("c.jpg")])
+    queue.start()
+    await flush()
+    // a runs; b was withdrawn (removed, no failure), so c takes its place.
+    expect(statuses(queue)).toEqual(["a.jpg:uploading", "c.jpg:uploading"])
+    expect(calls.map((c) => c.file.name)).toEqual(["a.jpg", "c.jpg"])
+    expect(summarize(queue.getSnapshot()).failed).toBe(0)
+  })
+
   it("keeps selected files until start and allows removing them", () => {
     const { upload, calls } = controllableUploader()
     const queue = new UploadQueue(upload, LIMITS)
