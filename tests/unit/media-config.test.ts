@@ -15,13 +15,14 @@ import {
 
 const MiB = 1024 * 1024
 
-describe("MEDIA_LIMITS (spec v0.2 §5)", () => {
+describe("MEDIA_LIMITS (Full App spec §12.1)", () => {
   it("matches the chosen product limits", () => {
     expect(MEDIA_LIMITS).toMatchObject({
-      maxBatchFiles: 10,
+      maxBatchFiles: 20,
       maxParallelUploads: 2,
-      maxPhotoBytes: 20 * MiB,
-      maxVideoBytes: 200 * MiB,
+      maxPhotoBytes: 25 * MiB,
+      maxVideoBytes: 250 * MiB,
+      maxVideoSeconds: 60,
       maxAvatarBytes: 4 * MiB,
       signedUrlExpirySeconds: 60,
       pageSize: 24,
@@ -34,8 +35,8 @@ describe("MEDIA_LIMITS (spec v0.2 §5)", () => {
   })
 
   it("picks the per-kind byte limit", () => {
-    expect(maxBytesFor("image")).toBe(20 * MiB)
-    expect(maxBytesFor("video")).toBe(200 * MiB)
+    expect(maxBytesFor("image")).toBe(25 * MiB)
+    expect(maxBytesFor("video")).toBe(250 * MiB)
   })
 
   it("formats the abandoned window as a Postgres interval", () => {

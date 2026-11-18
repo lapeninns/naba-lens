@@ -22,8 +22,8 @@ export const DEFAULT_CAPTURE_TIME_ZONE = "Europe/London"
 /** Seconds between 1904-01-01 (QuickTime epoch) and 1970-01-01. */
 const QUICKTIME_EPOCH_OFFSET = 2_082_844_800
 
-/** A plausible capture instant: not before 1990, not after tomorrow. */
-export function plausibleCaptureTime(
+/** A credible capture instant: not before 1990, not after tomorrow. */
+export function credibleCaptureTime(
   date: Date | null,
   now: number = Date.now()
 ): Date | null {
@@ -39,7 +39,7 @@ export function quickTimeCaptureTime(
   now: number = Date.now()
 ): Date | null {
   if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return null
-  return plausibleCaptureTime(
+  return credibleCaptureTime(
     new Date((seconds - QUICKTIME_EPOCH_OFFSET) * 1000),
     now
   )
@@ -57,22 +57,22 @@ export function imageCaptureTime(
     return null
   }
   if (!tiff) return null
-  let tags: ExifDates | null
+  let dates: ExifDates | null
   try {
-    tags = readExifDates(tiff)
+    dates = readExifDates(tiff)
   } catch {
     return null
   }
-  if (!tags) return null
-  const wall = tags.original ?? tags.digitized
-  const offset = tags.original ? tags.originalOffset : tags.digitizedOffset
+  if (!dates) return null
+  const wall = dates.original ?? dates.digitized
+  const offset = dates.original ? dates.originalOffset : dates.digitizedOffset
   if (!wall) return null
   const date = exifToDate(
     wall,
     offset,
     options.timeZone ?? DEFAULT_CAPTURE_TIME_ZONE
   )
-  return plausibleCaptureTime(date, options.now)
+  return credibleCaptureTime(date, options.now)
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +204,7 @@ export function readExifDates(tiff: Uint8Array): ExifDates | null {
     return Array.from({ length: count }, (_, i) => {
       const at = ifd + 2 + i * 12
       return {
-        tag: u16(at),
+        field: u16(at),
         type: u16(at + 2),
         count: u32(at + 4),
         at: at + 8,
@@ -220,16 +220,16 @@ export function readExifDates(tiff: Uint8Array): ExifDates | null {
 
   const ifd0 = entries(u32(4))
   const pointer = ifd0.find(
-    (e) => e.tag === TAG_EXIF_IFD && e.type === TYPE_LONG
+    (e) => e.field === TAG_EXIF_IFD && e.type === TYPE_LONG
   )
   if (!pointer) return null
   const result: ExifDates = {}
   for (const e of entries(u32(pointer.at))) {
-    if (e.tag === TAG_DATE_ORIGINAL) result.original = asciiValue(e)
-    else if (e.tag === TAG_DATE_DIGITIZED) result.digitized = asciiValue(e)
-    else if (e.tag === TAG_OFFSET_ORIGINAL)
+    if (e.field === TAG_DATE_ORIGINAL) result.original = asciiValue(e)
+    else if (e.field === TAG_DATE_DIGITIZED) result.digitized = asciiValue(e)
+    else if (e.field === TAG_OFFSET_ORIGINAL)
       result.originalOffset = asciiValue(e)
-    else if (e.tag === TAG_OFFSET_DIGITIZED)
+    else if (e.field === TAG_OFFSET_DIGITIZED)
       result.digitizedOffset = asciiValue(e)
   }
   return result.original || result.digitized ? result : null

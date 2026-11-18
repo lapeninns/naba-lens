@@ -17,6 +17,7 @@ vi.mock("@/lib/server/media/storage", () => ({
 }))
 vi.mock("@/lib/media", () => ({
   sniffMedia: () => ({ kind: "image", mime: "image/jpeg" }),
+  imageSize: async () => ({ width: 1, height: 1 }),
   validateMedia: async () => ({
     ok: true,
     kind: "image",
@@ -105,6 +106,11 @@ function actorFixture() {
         },
         update(value: Record<string, unknown>) {
           patch = value
+          return query
+        },
+        // media_renditions (S1-UPLOAD): recorded before ready.
+        upsert() {
+          events.push("renditions")
           return query
         },
         async maybeSingle() {

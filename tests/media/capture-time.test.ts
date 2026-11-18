@@ -9,7 +9,7 @@ import {
   exifToDate,
   findTiff,
   imageCaptureTime,
-  plausibleCaptureTime,
+  credibleCaptureTime,
   quickTimeCaptureTime,
   readExifDates,
 } from "../../lib/media/capture-time"
@@ -289,15 +289,15 @@ describe("quickTimeCaptureTime", () => {
     )
     expect(quickTimeCaptureTime(0, NOW)).toBeNull()
     expect(quickTimeCaptureTime(undefined, NOW)).toBeNull()
-    // 1904 itself (a camera with no clock) is not plausible.
+    // 1904 itself (a camera with no clock) is not credible.
     expect(quickTimeCaptureTime(1, NOW)).toBeNull()
   })
 })
 
-describe("plausibleCaptureTime", () => {
+describe("credibleCaptureTime", () => {
   it("allows up to a day ahead, for clock drift", () => {
-    expect(plausibleCaptureTime(new Date(NOW + 3600_000), NOW)).not.toBeNull()
-    expect(plausibleCaptureTime(new Date(NOW + 2 * 86400_000), NOW)).toBeNull()
-    expect(plausibleCaptureTime(new Date(Number.NaN), NOW)).toBeNull()
+    expect(credibleCaptureTime(new Date(NOW + 3600_000), NOW)).not.toBeNull()
+    expect(credibleCaptureTime(new Date(NOW + 2 * 86400_000), NOW)).toBeNull()
+    expect(credibleCaptureTime(new Date(Number.NaN), NOW)).toBeNull()
   })
 })
