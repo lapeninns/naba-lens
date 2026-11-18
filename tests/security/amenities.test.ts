@@ -266,7 +266,8 @@ describe("enable and add", () => {
         current_submission_id: null,
         revision: 1,
         is_core: true,
-        catalogue_version: 1,
+        // Catalogue version 2 (S2-INT, 20261118109300).
+        catalogue_version: 2,
       })
       const history = await events(manager, c.id)
       expect(history).toHaveLength(1)
@@ -586,7 +587,8 @@ describe("submitting findings", () => {
       subs.find((s: { id: string }) => s.id === first!.submission_id)
     ).toMatchObject({
       finding: "By the door",
-      template_version: 1,
+      // Catalogue version 2 (S2-INT) is the template version now.
+      template_version: 2,
       evidence_rule: "photo",
     })
     expect(await checkRow(manager, check)).toMatchObject({
@@ -596,7 +598,7 @@ describe("submitting findings", () => {
   })
 
   it("applies the evidence rules for photo, video, either and both", async () => {
-    // pool_table photo, step_free_entrance video, live_music either, accessible_toilet both
+    // pool_table photo, step_free_entrance video, live_music none, accessible_toilet both
     const [pool, entrance, music, toilet] = await ok(
       manager.client.rpc("amenity_add_checks", {
         p_venue_id: venue,
@@ -625,9 +627,15 @@ describe("submitting findings", () => {
     expect(err.details).toBe("video")
     await ok(submit(manager, entrance!, { assets: [await v()] }))
 
-    await fails(submit(manager, music!, { assets: [] }), "evidence_rule_unmet")
+    // live_music is fact-only since catalogue version 2 (S2-INT, FA-32):
+    // rule none, so a Yes needs no media; evidence sent is still kept.
+    await ok(submit(manager, music!, { assets: [] }))
     await ok(submit(manager, music!, { assets: [await v()] }))
-    await ok(submit(manager, music!, { assets: [await p()] }))
+    // The either rule itself (onsite_bar, private_room).
+    expect(
+      psql(`select concat_ws(',', private.amenity_rule_met('either', array['video']),
+        private.amenity_rule_met('either', array['photo']), private.amenity_rule_met('either', '{}'))`)
+    ).toBe("t,t,f")
 
     for (const assets of [[await p()], [await v()], [await p(), await p()]]) {
       err = await fails(
@@ -1936,13 +1944,15 @@ describe("guest Wi-Fi", () => {
         "invalid_wifi_metadata"
       )
     }
+    // Catalogue version 2 (S2-INT, FA-32): Wi-Fi needs no media, but a Yes
+    // still needs the redaction tick and the test notes.
     await fails(
-      submit(staffA, check, {
-        assets: [await photo(staffA.id)],
-        metadata: wifi(),
-        redaction: true,
-      }),
-      "evidence_rule_unmet"
+      submit(staffA, check, { assets: [], metadata: wifi() }),
+      "redaction_not_confirmed"
+    )
+    await fails(
+      submit(staffA, check, { assets: [], redaction: true }),
+      "invalid_wifi_metadata"
     )
     // A photo with No still needs the tick; notes are only for Wi-Fi.
     await fails(

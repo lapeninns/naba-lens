@@ -74,6 +74,8 @@ export function missingEvidenceText(
         : video
           ? "Add a photo as well to answer Yes."
           : "Add a photo and a video to answer Yes."
+    case "none":
+      return null
   }
 }
 

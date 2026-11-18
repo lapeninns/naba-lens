@@ -6,10 +6,10 @@ snooker,Games,Is there a snooker table?,photo,Show the table and playing space. 
 board_games,Games,Are board games available?,photo,Show the games guests can borrow and where to find them.,false
 arcade,Games,Are arcade games available?,photo,Show the machines and access area. Record any charge.,false
 sports_screen,Entertainment,Can guests watch live sport?,photo,Show the screens from guest seating. Record where and when fixtures are shown.,false
-live_music,Entertainment,Does the venue host live music?,either,Capture a real setup or approved performance clip. Record the date and usual programme if applicable.,false
-pub_quiz,Entertainment,Is there a pub quiz?,photo,Show the current venue sign or event setup. Record the schedule and date verified.,false
+live_music,Entertainment,Does the venue host live music?,none,Capture a real setup or approved performance clip. Record the date and usual programme if applicable.,false
+pub_quiz,Entertainment,Is there a pub quiz?,none,Show the current venue sign or event setup. Record the schedule and date verified.,false
 fireplace,Entertainment,Is there a fireplace in the guest area?,photo,Show it from guest seating. Record whether and when it is in use.,false
-guest_wifi,Connectivity,Is guest Wi-Fi available?,both,"Show guest instructions with credentials and join QR hidden. Film a successful connection and speed test. Record free or paid, test spot, date and speeds internally.",true
+guest_wifi,Connectivity,Is guest Wi-Fi available?,none,"Show guest instructions with credentials and join QR hidden. Film a successful connection and speed test. Record free or paid, test spot, date and speeds internally.",true
 charging,Connectivity,Can guests charge a device?,photo,Show the public sockets or charging point. Record the areas served.,false
 step_free_entrance,Accessibility,Is there a step-free entrance?,video,"Film the full approach through the entrance. Show surfaces, slopes, thresholds and doors.",true
 accessible_parking,Accessibility,Is designated accessible parking available?,both,"Show markings and signs, then film the route to the entrance.",false
@@ -21,8 +21,8 @@ onsite_parking,Arrival,Is there on-site guest parking?,photo,"Show the entrance,
 street_parking,Arrival,Is street parking available nearby?,photo,Show nearby spaces and restrictions. Record any charge or time limit.,false
 cycle_parking,Arrival,Is there somewhere to lock a bike?,photo,Show the rack and its location relative to the entrance.,false
 ev_charging,Arrival,Is EV charging available to guests?,photo,Show the charge point and parking bay. Record access and check current availability.,false
-dogs_inside,Pets,Are dogs welcome inside?,photo,Show the permitted area or policy sign. Have the duty lead confirm zones and conditions.,false
-dogs_outside,Pets,Are dogs welcome outside?,photo,Show the permitted outdoor area. Have the duty lead confirm zones and conditions.,false
+dogs_inside,Pets,Are dogs welcome inside?,none,Show the permitted area or policy sign. Have the duty lead confirm zones and conditions.,false
+dogs_outside,Pets,Are dogs welcome outside?,none,Show the permitted outdoor area. Have the duty lead confirm zones and conditions.,false
 dog_water,Pets,Are water bowls available for dogs?,photo,Show a bowl at the guest water point or where staff provide it.,false
 dog_treats,Pets,Are dog treats or a dog menu available?,photo,Show the actual offering and record any charge.,false
 outdoor_seating,Outdoor,Is there outdoor seating?,photo,Show the full guest seating area and where guests enter.,false
@@ -36,5 +36,5 @@ gender_neutral_toilet,Facilities,Is there a gender-neutral toilet?,photo,Show th
 onsite_bar,Facilities,Is there a bar guests can order from?,either,Show the bar as guests see it. A service clip can demonstrate ordering.,false
 private_room,Facilities,Is there a private room for hire?,either,Show the room and layout. Record booking conditions and available setup.,false
 takeaway_pickup,Service,Is there a takeaway collection point?,photo,Show the collection point and signs. Record how guests collect.,false
-curbside_pickup,Service,Can guests collect an order at their car?,video,Film a staff demonstration and record the exact collection point and process.,false
+curbside_pickup,Service,Can guests collect an order at their car?,none,Film a staff demonstration and record the exact collection point and process.,false
 swimming_pool,Lodging and leisure,Is there a swimming pool guests can use?,photo,Show the pool and guest access area. Record access rules and availability.,false

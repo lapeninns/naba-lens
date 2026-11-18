@@ -101,6 +101,43 @@ describe("amenityState", () => {
     )
     expect(amenityState(check({ progress: "needs_recheck" }))).toBe("retake")
   })
+  it("reads a complete Yes that is not currently confirmed as Check due (S2-INT, AC30)", () => {
+    const yes = { progress: "complete" as const, answer: "yes" as const }
+    expect(amenityState(check({ ...yes, verification: "confirmed" }))).toBe(
+      "accepted"
+    )
+    for (const verification of [
+      "check_due",
+      "unconfirmed",
+      "withdrawn",
+    ] as const)
+      expect(amenityState(check({ ...yes, verification }))).toBe("check-due")
+    // An answer the resolver withholds has no value; it is still a check due.
+    expect(
+      amenityState(
+        check({ progress: "complete", answer: null, verification: "check_due" })
+      )
+    ).toBe("check-due")
+    // No stays Not here; without a verification read nothing changes.
+    expect(
+      amenityState(
+        check({ progress: "complete", answer: "no", verification: "check_due" })
+      )
+    ).toBe("not-here")
+    expect(amenityState(check(yes))).toBe("accepted")
+  })
+  it("lets the coverage rule decide when it is present", () => {
+    expect(
+      amenityState(
+        check({
+          progress: "complete",
+          answer: "yes",
+          verification: "unconfirmed",
+          coverage: "covered",
+        })
+      )
+    ).toBe("accepted")
+  })
 })
 
 describe("buildAlbum", () => {

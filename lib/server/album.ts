@@ -17,6 +17,7 @@ import {
   type PlacementInput,
 } from "@/lib/album/model"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
+import { factVerificationState } from "@/lib/knowledge/facts"
 import {
   failure,
   NOT_PERMITTED,
@@ -434,6 +435,11 @@ async function allAmenities(
         : null,
     myLatestState: slot.myLatest?.state ?? null,
     thumbnailUrl: thumbs.amenity.get(slot.checkId) ?? null,
+    verification: factVerificationState(
+      slot.answerInUse.status,
+      slot.answerInUse.reason,
+      slot.answerInUse.detail
+    ),
   }))
 }
 

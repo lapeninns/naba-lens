@@ -179,6 +179,7 @@ const RULE_MESSAGES: Record<EvidenceRule, string> = {
   video: "Yes needs at least one video.",
   either: "Yes needs at least one photo or video.",
   both: "Yes needs at least one photo and one video.",
+  none: "Yes needs no photo or video.",
 }
 
 export function assetMessage(reason: AssetReason): string {

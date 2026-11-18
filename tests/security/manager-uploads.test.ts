@@ -196,7 +196,7 @@ describe("uploads (W3)", () => {
     expect(stray.error).not.toBeNull()
   })
 
-  it("leaves staff, staff with a grant and admins as they were", async () => {
+  it("leaves staff and staff with a grant as they were; an admin names the venue", async () => {
     for (const who of [w.staffA, w.staffManager]) {
       const r = await reserveAs(who)
       expect(r.venue_id).toBe(w.venue)
@@ -212,8 +212,10 @@ describe("uploads (W3)", () => {
         p_size_bytes: 4,
         p_client_upload_key: randomUUID(),
       },
-      "not_active_staff",
-      "42501"
+      // S2-INT (spec §3.3): an admin may upload to any active venue, but
+      // must name it; with none named nothing is reserved.
+      "venue_required",
+      "22023"
     )
   })
 
