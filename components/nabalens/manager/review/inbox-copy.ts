@@ -44,6 +44,9 @@ export const INBOX_COPY = {
   video: "Video",
   needsLabelTitle: (n: number) =>
     n === 1 ? "1 photo needs a label" : `${n} photos need a label`,
+  needsLabelTitleMore: (n: number) => `More than ${n} photos need a label`,
+  needsLabelMore:
+    "Only the oldest are listed. Label or set some aside to see the rest.",
   you: "You",
   possibleDuplicate: "Possible duplicate",
   belowPublic: "Small: reference use only",
@@ -112,7 +115,9 @@ export const INBOX_COPY = {
   askAnother: "Ask for another photo",
   fixLabel: "Fix label",
   fixLabelHelp:
-    "Choose the right menu item. The photo is accepted for it in the same step, the staff label is kept in the history, and the contributor is told.",
+    "Choose the right menu item, place or amenity. The photo is accepted for it in the same step and the old label stays in the history. For a menu item, the contributor is told.",
+  fixLabelReason: "Why is the label wrong?",
+  fixLabelReasonEmpty: "Say why the label is wrong.",
   markDuplicate: "Mark duplicate",
   notUsed: "Not used",
   restore: "Use again",

@@ -8,7 +8,7 @@ import "server-only"
 // (20261118110000_review_inbox.sql). Errors use the shared envelope
 // (lib/server/http/errors.ts).
 
-import { setMenuItemPhotoLevel } from "@/lib/server/album"
+import { getCoverageSlots, setMenuItemPhotoLevel } from "@/lib/server/album"
 import { apiError, fromDbError, type ApiError } from "@/lib/server/http/errors"
 import { redactError } from "@/lib/server/log/redact"
 import type { ManagerPhotoCtx } from "@/lib/server/menu-photos"
@@ -89,6 +89,48 @@ const WORDS: Record<
   invalid_decision: { code: "invalid_input", message: "Choose a decision." },
   invalid_level: { code: "invalid_input", message: "Choose a level." },
   invalid_media_type: { code: "invalid_input", message: "Reload the page." },
+  // S3-R13 Fix label (review_fix_label, assign_menu_item_photo).
+  fix_label_same_slot: {
+    code: "invalid_input",
+    message: "The photo is already matched to that. Choose another.",
+  },
+  area_photo_labelled: {
+    code: "conflict",
+    message: "This photo already has a place. Decide on that place first.",
+  },
+  area_wrong_venue: {
+    code: "invalid_input",
+    message: "Choose a place at this venue.",
+  },
+  area_unavailable: {
+    code: "conflict",
+    message: "That place is no longer in use. Choose another.",
+  },
+  asset_has_labels: {
+    code: "conflict",
+    message: "This photo is already matched. Reload the page.",
+  },
+  menu_item_relinked: {
+    code: "conflict",
+    message: "This label was already fixed. Withdraw that fix first.",
+  },
+  relink_requires_label: {
+    code: "conflict",
+    message: "This label has changed. Reload the page.",
+  },
+  menu_item_labelled: {
+    code: "conflict",
+    message: "The photo is already labelled with that menu item.",
+  },
+  menu_item_unavailable: {
+    code: "conflict",
+    message: "That menu item is not on the menu now. Choose another.",
+  },
+  evidence_not_eligible: {
+    code: "conflict",
+    message: "Only a ready photo, not a video, can be matched.",
+  },
+  invalid_input: { code: "invalid_input", message: "Reload the page." },
 }
 
 function latestOf(details: string | undefined): LatestDecision | undefined {
@@ -477,4 +519,106 @@ function outcomeOf(item: BatchItem, r: ReviewResult): BatchOutcome {
     error: r.message,
     ...(r.code === "stale_version" ? { conflict: true } : {}),
   }
+}
+
+// ---- Fix label to a place or an amenity (S3-R13 X8) --------------------------
+
+/** A place or amenity Fix label can move a photo to. */
+export type FixLabelSlot = {
+  kind: "area" | "amenity"
+  id: string
+  name: string
+  groupName: string
+}
+
+/** The venue's places and amenity checks, for the Fix label picker. */
+export async function listFixLabelSlots(
+  ctx: ManagerPhotoCtx
+): Promise<ReviewResult<{ slots: FixLabelSlot[] }>> {
+  const result = await getCoverageSlots(ctx.actor, ctx.venueId)
+  if (!result.ok) return fromCoverageFailure(result)
+  const slots = result.coverage.slots
+    .filter((s) => s.kind === "area" || s.kind === "amenity")
+    .map((s) => ({
+      kind: s.kind as FixLabelSlot["kind"],
+      id: s.slotId,
+      name: s.name,
+      groupName: s.groupName,
+    }))
+    .sort(
+      (a, b) =>
+        a.kind.localeCompare(b.kind) ||
+        a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+    )
+  return { ok: true, slots }
+}
+
+export type FixSlotInput = {
+  assetId: unknown
+  /** Where the photo is now: a dish label, a place label, an amenity check, or nothing. */
+  fromKind: unknown
+  fromId?: unknown
+  fromVariantId?: unknown
+  toKind: unknown
+  toId: unknown
+  toVariantId?: unknown
+  level?: unknown
+  reason?: unknown
+  /** The revision of the dish involved (the source, or a dish target). */
+  expectedRevision?: unknown
+}
+
+const FROM_KINDS = ["dish", "area", "amenity", "none"] as const
+const TO_KINDS = ["dish", "area", "amenity"] as const
+
+/**
+ * Fix label to a place or an amenity, or off one onto a dish: the database
+ * ends the photo's current slot with the decision functions and accepts it
+ * for the chosen one (20261118131000_fix_label_decided.sql). Dish to dish
+ * stays the menu decision's relink.
+ */
+export async function fixSlotLabel(
+  ctx: ManagerPhotoCtx,
+  input: FixSlotInput
+): Promise<ReviewResult<{ toKind: string }>> {
+  if (!isUuid(input.assetId)) return apiError("not_found")
+  const from = FROM_KINDS.find((k) => k === input.fromKind)
+  const to = TO_KINDS.find((k) => k === input.toKind)
+  if (!from || !to) return BAD("toKind", "Choose where the photo belongs.")
+  if (from !== "none" && !isUuid(input.fromId)) return apiError("not_found")
+  if (!isUuid(input.toId)) return BAD("toId", "Choose where the photo belongs.")
+  if (input.fromVariantId != null && !isUuid(input.fromVariantId))
+    return BAD("fromVariantId", "Reload the page.")
+  if (input.toVariantId != null && !isUuid(input.toVariantId))
+    return BAD("toVariantId", "Reload the page.")
+  const level = input.level ?? "public"
+  if (level !== "public" && level !== "reference")
+    return BAD("level", "Choose a level.")
+  const reason =
+    typeof input.reason === "string" ? input.reason.trim() || null : null
+  if (from !== "none" && !reason)
+    return BAD("reason", "Say why the label is wrong.")
+  if (reason && reason.length > 500)
+    return BAD("reason", "Shorten the reason to 500 characters.")
+  const expected = input.expectedRevision
+  if (
+    expected != null &&
+    (typeof expected !== "number" || !Number.isInteger(expected))
+  )
+    return BAD("expectedRevision", "Reload the page.")
+  const { data, error } = await ctx.actor.db.rpc("review_fix_label", {
+    p_asset_id: input.assetId,
+    p_from_kind: from,
+    p_from_id: (from === "none" ? null : input.fromId) as string,
+    p_from_variant_id: (input.fromVariantId ?? null) as string,
+    p_to_kind: to,
+    p_to_id: input.toId,
+    ...(input.toVariantId ? { p_to_variant_id: input.toVariantId } : {}),
+    p_level: level,
+    ...(reason ? { p_reason: reason } : {}),
+    ...(typeof expected === "number" ? { p_expected_revision: expected } : {}),
+  })
+  if (error) return reviewFailure(error, "fix label")
+  const toKind = (data as { toKind?: unknown } | null)?.toKind
+  return { ok: true, toKind: typeof toKind === "string" ? toKind : to }
 }

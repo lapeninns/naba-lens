@@ -30,6 +30,11 @@ export type DetailDish = {
   onMenu: boolean
   /** The staff label names this dish (not only a reviewer's match). */
   staffLabel: boolean
+  /**
+   * S3-R13: the staff label is already corrected by a live reviewer row (Fix
+   * label again only after that correction is withdrawn).
+   */
+  relinked: boolean
   /** The label waits for a decision the caller can make. */
   waiting: boolean
   photoId: string | null
@@ -178,6 +183,7 @@ function dish(d: unknown): DetailDish[] {
           : null,
       onMenu: d.onMenu === true,
       staffLabel: d.staffLabel === true,
+      relinked: d.relinked === true,
       waiting: d.waiting === true,
       photoId: str(d.photoId),
       state:

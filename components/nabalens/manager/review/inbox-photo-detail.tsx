@@ -8,6 +8,7 @@ import { decideMenuPhotoAction } from "@/app/manager/actions"
 import {
   decideAmenityPhotoAction,
   decidePlacePhotoAction,
+  fixSlotLabelAction,
   setAsidePhotoAction,
   setDishLevelAction,
   setSlotPrimaryAction,
@@ -42,7 +43,11 @@ import type { QueueCard } from "@/lib/server/menu-photos/types"
 import { dishName } from "@/lib/menus/dish-name"
 
 import { managerHrefs } from "../hrefs"
-import { ItemPickerDialog, type PickedItem } from "./item-picker-dialog"
+import {
+  ItemPickerDialog,
+  type PickedItem,
+  type PickedSlot,
+} from "./item-picker-dialog"
 import { dayOf, historyWords, INBOX_COPY, takenWords } from "./inbox-copy"
 
 const C = INBOX_COPY
@@ -87,10 +92,35 @@ type ReasonTarget =
   | { kind: "not_used_place"; place: DetailPlace }
   | { kind: "not_used_amenity"; amenity: DetailAmenity }
 
+// Fix label (spec §7 M2, AC15; S3-R13 X7, X8): from a dish label, decided
+// or not, from a place or amenity, or from no label, to a menu item, place
+// or amenity, in one picker.
 type FixTarget =
   | { kind: "relink"; dish: DetailDish }
   | { kind: "assign_unlabelled" }
   | { kind: "assign_stale"; dish: DetailDish }
+  | { kind: "place"; place: DetailPlace }
+  | { kind: "amenity"; amenity: DetailAmenity }
+
+/** Where the photo is now, as review_fix_label names it. */
+function fixSource(f: FixTarget) {
+  switch (f.kind) {
+    case "relink":
+    case "assign_stale":
+      return {
+        fromKind: "dish",
+        fromId: f.dish.itemId,
+        fromVariantId: f.dish.variantId,
+        expectedRevision: f.dish.itemRevision,
+      }
+    case "place":
+      return { fromKind: "area", fromId: f.place.labelId }
+    case "amenity":
+      return { fromKind: "amenity", fromId: f.amenity.checkId }
+    case "assign_unlabelled":
+      return { fromKind: "none" }
+  }
+}
 
 const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -183,7 +213,8 @@ function Compare({
  * possible duplicates, every slot it is for with what is already in the album
  * to compare, the history, and the decisions: Approve for public use, Keep as
  * reference, Ask for another photo (the spec's reasons), Fix label (accepts
- * for the right item in the same step), Select primary, Withdraw, Mark
+ * for the right menu item, place or amenity in the same step, whatever was
+ * decided on the old label), Select primary, Withdraw, Mark
  * duplicate, Not used and Use again. Every decision is made against the
  * version the screen shows; a newer decision by someone else is shown, never
  * overwritten.
@@ -524,6 +555,9 @@ export function InboxPhotoDetail({
             const key = `dish:${d.itemId}`
             const canDecide = !blocked && !setAside && d.onMenu
             const decided = d.state !== null
+            // X7: a staff label can be fixed whatever was decided on it,
+            // unless a live correction already stands.
+            const fixable = d.staffLabel && !d.relinked
             return (
               <li
                 key={`${d.itemId}:${d.variantId ?? ""}`}
@@ -559,7 +593,7 @@ export function InboxPhotoDetail({
                     .join(" · ")}
                 </p>
                 <Compare photos={d.publicPhotos} thumbs={images.thumbs} />
-                {canDecide && (d.waiting || decided) ? (
+                {canDecide && (d.waiting || decided || fixable) ? (
                   <div className="flex flex-wrap gap-2 @max-wide:*:flex-auto">
                     {d.waiting ||
                     d.state === "better_photo_requested" ||
@@ -581,7 +615,7 @@ export function InboxPhotoDetail({
                         {C.askAnother}
                       </Button>
                     ) : null}
-                    {d.waiting && d.staffLabel && d.state === null ? (
+                    {fixable ? (
                       <Button
                         type="button"
                         variant="secondary"
@@ -654,6 +688,7 @@ export function InboxPhotoDetail({
                 setReasonFor({ kind: "withdraw_place", place: p })
               }
               onPrimary={() => void slotPrimary("area", p.subjectId)}
+              onFix={() => setFix({ kind: "place", place: p })}
             />
           ))}
           {detail.amenities.map((a) => (
@@ -677,6 +712,7 @@ export function InboxPhotoDetail({
                 setReasonFor({ kind: "withdraw_amenity", amenity: a })
               }
               onPrimary={() => void slotPrimary("amenity", a.checkId)}
+              onFix={() => setFix({ kind: "amenity", amenity: a })}
             />
           ))}
         </ul>
@@ -919,18 +955,49 @@ export function InboxPhotoDetail({
         }}
         card={pickerCard(detail, images.main.thumbnail)}
         title={C.fixLabel}
-        reasonLabel="Why is the staff label wrong?"
-        reasonRequired={fix?.kind === "relink"}
-        emptyReason="Say why the staff label is wrong."
+        reasonLabel={
+          fix?.kind === "place" || fix?.kind === "amenity"
+            ? C.fixLabelReason
+            : "Why is the staff label wrong?"
+        }
+        reasonRequired={fix !== null && fix.kind !== "assign_unlabelled"}
+        emptyReason={
+          fix?.kind === "place" || fix?.kind === "amenity"
+            ? C.fixLabelReasonEmpty
+            : "Say why the staff label is wrong."
+        }
         excluded={
           fix?.kind === "relink"
             ? { itemId: fix.dish.itemId, variantId: fix.dish.variantId }
             : null
         }
+        excludedSlot={
+          fix?.kind === "place"
+            ? { kind: "area", id: fix.place.subjectId }
+            : fix?.kind === "amenity"
+              ? { kind: "amenity", id: fix.amenity.checkId }
+              : null
+        }
         venueId={venueId}
         onConfirm={async (target: PickedItem, reason: string) => {
           const f = fix
           if (!f) return { ok: false, error: C.reasonRequired }
+          // Off a place or an amenity onto a dish: one database step.
+          if (f.kind === "place" || f.kind === "amenity")
+            return asReason(
+              await run(`fix:${target.itemId}`, () =>
+                fixSlotLabelAction({
+                  ...v,
+                  assetId: detail.assetId,
+                  ...fixSource(f),
+                  toKind: "dish",
+                  toId: target.itemId,
+                  toVariantId: target.variantId,
+                  expectedRevision: target.itemRevision,
+                  reason,
+                })
+              )
+            )
           const corrects =
             f.kind === "assign_unlabelled"
               ? {}
@@ -948,6 +1015,22 @@ export function InboxPhotoDetail({
               ...(reason ? { reason } : {}),
               ...corrects,
             })
+          )
+        }}
+        onConfirmSlot={async (target: PickedSlot, reason: string) => {
+          const f = fix
+          if (!f) return { ok: false, error: C.reasonRequired }
+          return asReason(
+            await run(`fix:${target.id}`, () =>
+              fixSlotLabelAction({
+                ...v,
+                assetId: detail.assetId,
+                ...fixSource(f),
+                toKind: target.kind,
+                toId: target.id,
+                ...(reason ? { reason } : {}),
+              })
+            )
           )
         }}
       />
@@ -971,6 +1054,7 @@ function SlotRow({
   onNotUsed,
   onWithdraw,
   onPrimary,
+  onFix,
 }: {
   kindLabel: string
   title: string
@@ -990,6 +1074,8 @@ function SlotRow({
   onNotUsed: () => void
   onWithdraw: () => void
   onPrimary: () => void
+  /** Fix label: move the photo to the right slot (S3-R13 X8). */
+  onFix: () => void
 }) {
   const s = slot.state
   return (
@@ -1008,9 +1094,11 @@ function SlotRow({
       </div>
       <h3 className="text-item-title break-words text-ink">{title}</h3>
       <Compare photos={slot.publicPhotos} thumbs={thumbs} />
-      {canDecide && s !== "withdrawn" ? (
+      {canDecide ? (
         <div className="flex flex-wrap gap-2 @max-wide:*:flex-auto">
-          {levelButtons(keyBase, onLevel, { state: s, level: slot.level })}
+          {s !== "withdrawn"
+            ? levelButtons(keyBase, onLevel, { state: s, level: slot.level })
+            : null}
           {s === "pending" ? (
             <Button
               type="button"
@@ -1045,6 +1133,15 @@ function SlotRow({
               {C.notUsed}
             </Button>
           ) : null}
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={disabled}
+            data-review-action="fix-label"
+            onClick={onFix}
+          >
+            {C.fixLabel}
+          </Button>
           {s === "accepted" ? (
             <Button
               type="button"
