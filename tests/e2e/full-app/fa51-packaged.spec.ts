@@ -43,11 +43,14 @@ function counts(venueId: string, category: string | null): Counts {
 
 const ofN = ({ covered, total }: Counts) => `${covered} of ${total}`
 
-/** The staff album's "N in all". */
-async function inAll(page: Page): Promise<number> {
-  const line = page.getByText(/ in all$/).first()
+/** A place's "n empty of N": its empty slots and its total. */
+async function placeCount(
+  page: Page
+): Promise<{ empty: number; total: number }> {
+  const line = page.getByText(/^\d+ empty of \d+$/).first()
   await expect(line).toBeVisible()
-  return Number(/(\d+) in all/.exec((await line.textContent()) ?? "")![1])
+  const m = /(\d+) empty of (\d+)/.exec((await line.textContent()) ?? "")!
+  return { empty: Number(m[1]), total: Number(m[2]) }
 }
 
 test("FA-51: a packaged drink without Photo wanted reads Optional and leaves every count (AC39)", async ({
@@ -66,7 +69,7 @@ test("FA-51: a packaged drink without Photo wanted reads Optional and leaves eve
     `[data-slot="slot-tile"][aria-label^="Lager:"]`
   )
   await expect(lagerTile).toHaveAttribute("aria-label", "Lager: needed")
-  const allBefore = await inAll(staff)
+  const placeBefore = await placeCount(staff)
 
   // Manager, phone: Packaged on the item page, one confirm, no reason.
   const mgr = await as(browser, w.mgrA, PHONE)
@@ -98,7 +101,10 @@ test("FA-51: a packaged drink without Photo wanted reads Optional and leaves eve
   await expect(lagerTile).toHaveAttribute("aria-label", "Lager: optional")
   await expect(lagerTile).toContainText("Optional")
   await expect(lagerTile).toHaveAttribute("data-optional", "true")
-  expect(await inAll(staff)).toBe(allBefore - 1)
+  expect(await placeCount(staff)).toEqual({
+    empty: placeBefore.empty - 1,
+    total: placeBefore.total - 1,
+  })
   await expectNoSidewaysScroll(staff, "album at 390 px")
   await evidence(staff, "fa51-staff-album-390")
   await lagerTile.click()
@@ -170,7 +176,7 @@ test("FA-51: a packaged drink without Photo wanted reads Optional and leaves eve
 
   await staff.goto("/staff/album/unplaced")
   await expect(lagerTile).toHaveAttribute("aria-label", "Lager: needed")
-  expect(await inAll(staff)).toBe(allBefore)
+  expect(await placeCount(staff)).toEqual(placeBefore)
 })
 
 test("FA-51 layout: the admin's packaged list reads at 390 px", async ({
