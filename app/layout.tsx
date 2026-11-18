@@ -6,6 +6,7 @@ import {
 } from "next/font/google"
 
 import "./globals.css"
+import { CANVAS_SRGB } from "@/lib/pwa/canvas-colours"
 import { InstallPromptCapture } from "@/components/nabalens/me/install-app"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
@@ -54,8 +55,8 @@ export const metadata: Metadata = {
 // the bottom inset themselves.
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f1e7" },
-    { media: "(prefers-color-scheme: dark)", color: "#151714" },
+    { media: "(prefers-color-scheme: light)", color: CANVAS_SRGB.light },
+    { media: "(prefers-color-scheme: dark)", color: CANVAS_SRGB.dark },
   ],
   colorScheme: "light dark",
   viewportFit: "cover",

@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next"
 
+import { CANVAS_SRGB } from "@/lib/pwa/canvas-colours"
+
 /**
  * Web app manifest (FA-53; spec §15.3): Naba-Lens can be added to a home
  * screen and opens standalone at "/", which sends each person to their own
@@ -9,14 +11,10 @@ import type { MetadataRoute } from "next"
  * Static (no request-time API), so Next builds it once: it holds nothing about
  * the visitor and is served to signed-out browsers too (proxy.ts skips it).
  * Colours are Album's paper and green (app/globals.css; DESIGN.md §3.1). Icons
- * come from scripts/pwa/generate-icons.mjs.
+ * come from scripts/pwa/generate-icons.mjs. The light canvas is both the
+ * splash screen behind the icon and the browser chrome, as in app/layout.tsx.
  */
-const MANIFEST_COLOURS = {
-  /** `canvas`, light: the splash screen behind the icon. */
-  background: "#f6f1e7",
-  /** `canvas`, light: matches the browser chrome in app/layout.tsx. */
-  theme: "#f6f1e7",
-} as const
+const PAPER = CANVAS_SRGB.light
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -29,8 +27,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "any",
-    background_color: MANIFEST_COLOURS.background,
-    theme_color: MANIFEST_COLOURS.theme,
+    background_color: PAPER,
+    theme_color: PAPER,
     icons: [
       {
         src: "/icons/icon-192.png",
