@@ -145,6 +145,15 @@ const KNOWLEDGE: Record<string, Mapping> = {
     "freshness_basis_unavailable",
     "This rule counts from the day an answer was checked, but this question doesn't ask when it was checked. Choose a rule that doesn't need that date.",
   ],
+  // S1-FACTS: Still right needs a confirmed (or only overdue) answer.
+  knowledge_reconfirm_not_allowed: [
+    "state_conflict",
+    "This answer needs a decision first: confirm it, settle the dispute or ask for a new check.",
+  ],
+  area_photo_not_found: [
+    "not_found",
+    "This place has no approved photo to check. Reload the page.",
+  ],
   knowledge_source_not_found: ["not_found", "This source could not be found."],
   legacy_fact_not_found: [
     "not_found",
@@ -188,6 +197,7 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   change_reason_required: ["changeReason", "Say what has changed."],
   invalid_change_reason: ["changeReason", "Use up to 500 characters."],
   invalid_note: ["note", "Use up to 500 characters."],
+  invalid_reason: ["reason", "Use up to 500 characters."],
   invalid_decision: [
     "decision",
     "This action isn't available here. Reload the page.",

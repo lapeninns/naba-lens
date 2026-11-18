@@ -60,9 +60,11 @@ type GuestAnswer = {
 
 const anon = { client: anonClient() }
 const facts = async (who: TestIdentity | { client: unknown }, venue: string) =>
-  (await json<{ items: FactItem[] }>(who, "knowledge_fact_states", {
-    p_venue_id: venue,
-  })).items
+  (
+    await json<{ items: FactItem[] }>(who, "knowledge_fact_states", {
+      p_venue_id: venue,
+    })
+  ).items
 const fact = async (who: TestIdentity, venue: string, key: string) =>
   (await facts(who, venue)).find((i) => i.key === key)!
 const coverage = (who: TestIdentity, venue: string) =>
@@ -397,7 +399,12 @@ describe("facts: verification, reconfirmation and coverage", () => {
 
   it("the admin preview forecasts a verified_on rule", async () => {
     const preview = await json<{
-      items: { venueId: string; use: string; expired: number; answers: number }[]
+      items: {
+        venueId: string
+        use: string
+        expired: number
+        answers: number
+      }[]
     }>(w.admin, "knowledge_freshness_preview", {
       p_key: "guest_toilets",
       p_policy: { internal: "fact_internal", public: "fact_public" },
@@ -415,9 +422,7 @@ describe("space photos: check due, reconfirm, change, end date (AC30)", () => {
   let label: string
 
   const state = (labelId: string) =>
-    JSON.parse(
-      psql(`select private.area_photo_freshness('${labelId}')`)
-    ) as {
+    JSON.parse(psql(`select private.area_photo_freshness('${labelId}')`)) as {
       state: string
       cause: string | null
       verifiedOn: string | null
@@ -426,8 +431,11 @@ describe("space photos: check due, reconfirm, change, end date (AC30)", () => {
 
   /** An accepted photo of the place, its acceptance `days` ago. */
   async function accepted(days: number) {
-    const asset = (await insertAsset(service, { uploader: w.staffA.id, venue: w.venue })).id
-    const id = psql(`insert into public.media_area_labels (asset_id, venue_id, subject_id, subject_kind, subject_label, added_by)
+    const asset = (
+      await insertAsset(service, { uploader: w.staffA.id, venue: w.venue })
+    ).id
+    const id =
+      psql(`insert into public.media_area_labels (asset_id, venue_id, subject_id, subject_kind, subject_label, added_by)
       values ('${asset}', '${w.venue}', '${garden}', 'area', 'Garden', '${w.staffA.id}') returning id`)
     psql(`insert into public.area_photo_decisions (label_id, venue_id, asset_id, action, decided_by, decided_at)
       values ('${id}', '${w.venue}', '${asset}', 'accepted', '${w.admin.id}', now() - interval '${days} days')`)
@@ -437,7 +445,8 @@ describe("space photos: check due, reconfirm, change, end date (AC30)", () => {
   beforeAll(async () => {
     w = await world("facts-space")
     other = await world("facts-space-other")
-    garden = psql(`insert into public.knowledge_subjects (venue_id, kind, label, created_by)
+    garden =
+      psql(`insert into public.knowledge_subjects (venue_id, kind, label, created_by)
       values ('${w.venue}', 'area', 'Garden', '${w.admin.id}') returning id`)
     label = await accepted(100)
   })
@@ -482,21 +491,33 @@ describe("space photos: check due, reconfirm, change, end date (AC30)", () => {
       { p_venue_id: w.venue },
       "not_venue_manager"
     ).catch(async () => {
-      const { error: e } = await call(other.manager, "area_photo_freshness_list", {
-        p_venue_id: w.venue,
-      })
+      const { error: e } = await call(
+        other.manager,
+        "area_photo_freshness_list",
+        {
+          p_venue_id: w.venue,
+        }
+      )
       expect(e).not.toBeNull()
     })
-    const { error: staffList } = await call(w.staffA, "area_photo_freshness_list", {
-      p_venue_id: w.venue,
-    })
+    const { error: staffList } = await call(
+      w.staffA,
+      "area_photo_freshness_list",
+      {
+        p_venue_id: w.venue,
+      }
+    )
     expect(staffList).not.toBeNull()
   })
 
   it("Still right restores current without a new photo", async () => {
-    const out = await json<{ photos: number }>(w.manager, "area_photo_reconfirm", {
-      p_subject_id: garden,
-    })
+    const out = await json<{ photos: number }>(
+      w.manager,
+      "area_photo_reconfirm",
+      {
+        p_subject_id: garden,
+      }
+    )
     expect(out.photos).toBe(2)
     expect(state(label)).toMatchObject({
       state: "current",
@@ -580,7 +601,10 @@ describe("space photos: check due, reconfirm, change, end date (AC30)", () => {
   })
 
   it("no client role reads or writes the new tables directly", async () => {
-    for (const table of ["area_photo_checks", "knowledge_fact_checks"]) {
+    for (const table of [
+      "area_photo_checks",
+      "knowledge_fact_checks",
+    ] as const) {
       const { data } = await w.manager.client.from(table).select("id")
       expect(data ?? []).toEqual([])
       const { error } = await w.manager.client

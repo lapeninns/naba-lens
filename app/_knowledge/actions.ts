@@ -6,6 +6,7 @@ import type { ContributionsFeedPage } from "@/lib/knowledge/contract"
 import type { KnowledgeResult } from "@/lib/knowledge-client/contract"
 import { knowledgeServices as k } from "@/lib/knowledge-client/services"
 import { getAmenityActor } from "@/lib/server/amenities"
+import * as facts from "@/lib/server/knowledge/facts"
 import type { MediaActor } from "@/lib/server/media/types"
 import { workServices } from "@/lib/work-client/services"
 
@@ -183,4 +184,41 @@ export async function previewScheduleAction(input: unknown) {
 /** A manager's or an admin's change for one date on the schedule in use. */
 export async function addScheduleExceptionAction(input: unknown) {
   return write(k.addScheduleException, input)
+}
+
+// ---- Facts and freshness (Full App v1 S1-FACTS) ------------------------------------
+
+/** Every in-scope question with its verification; a venue manager or an admin. */
+export async function factStatesAction(input: unknown) {
+  return read(facts.getFactStates, input)
+}
+
+/** Spec §18.1 confirmed fact coverage; a venue manager or an admin. */
+export async function factCoverageAction(input: unknown) {
+  return read(facts.getFactCoverage, input)
+}
+
+/** "Still right" without a new finding or photo, and the next check. */
+export async function reconfirmFactAction(input: unknown) {
+  return write(facts.reconfirmFact, input)
+}
+
+/** Accepted space photos with their freshness; a venue manager or an admin. */
+export async function spacePhotoFreshnessAction(input: unknown) {
+  return read(facts.listSpacePhotoFreshness, input)
+}
+
+/** "Still right" for a place: its approved photos stay current. */
+export async function reconfirmSpaceAction(input: unknown) {
+  return write(facts.reconfirmSpace, input)
+}
+
+/** Anyone at the venue reports a change to a place; managers may mark it known. */
+export async function reportSpaceChangeAction(input: unknown) {
+  return write(facts.reportSpaceChange, input)
+}
+
+/** An end date for one approved space photo; a venue manager or an admin. */
+export async function setSpacePhotoEndDateAction(input: unknown) {
+  return write(facts.setSpacePhotoEndDate, input)
 }

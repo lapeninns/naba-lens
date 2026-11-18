@@ -83,4 +83,15 @@ export {
   reviewMapping,
 } from "./reconciliation"
 export { readKnowledgeAnswers, type KnowledgeReaderResult } from "./reader"
+export {
+  getFactCoverage,
+  getFactStates,
+  listSpacePhotoFreshness,
+  readGuestAnswers,
+  reconfirmFact,
+  reconfirmSpace,
+  reportSpaceChange,
+  setSpacePhotoEndDate,
+  type GuestAnswersResult,
+} from "./facts"
 export { knowledgeRpcFailure } from "./errors"
