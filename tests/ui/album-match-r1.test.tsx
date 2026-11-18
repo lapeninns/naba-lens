@@ -338,7 +338,7 @@ describe("should-fix 1: a failed send, then Add photos", () => {
     )
     expect(
       await screen.findByText(
-        "1 photo didn't send. Open Add photos to send it again.",
+        "1 photo didn't send. Choose Retry; it won't be sent twice.",
         undefined,
         { timeout: 8000 }
       )

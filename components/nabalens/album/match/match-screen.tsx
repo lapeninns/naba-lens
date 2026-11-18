@@ -13,12 +13,14 @@ import {
   WarningIcon,
 } from "@phosphor-icons/react"
 
+import { sendingWord } from "@/components/nabalens/album/slot-tile"
 import { Notice } from "@/components/nabalens/notice"
 import { useOnline } from "@/components/nabalens/offline-notice"
 import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { LinkButton } from "@/components/ui/link-button"
+import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { LABEL_LIMITS } from "@/lib/menus/types"
 import {
@@ -50,9 +52,11 @@ export type MatchOutcome =
  * has it and is still processing it. "waiting": processed and its slot saved
  * with it, so the manager can review it. "sent": processed, but its slot
  * was not saved with it (fixed from Me). "unfinished": the server had it and
- * could not finish it; Add photos tries again without sending it twice.
- * "refused": the queue would not take it (too large, say); it is still in
- * the gallery.
+ * could not finish it; Retry tries again without sending it twice.
+ * "unprocessable": the server refused to finish it for good (Processing
+ * failed, not retryable); it is still in the gallery, and choosing it again
+ * starts anew. "refused": the queue would not take it (too large, say); it
+ * is still in the gallery.
  */
 export type SendState =
   | "sending"
@@ -61,6 +65,7 @@ export type SendState =
   | "sent"
   | "failed"
   | "unfinished"
+  | "unprocessable"
   | "offline"
   | "refused"
 
@@ -97,6 +102,8 @@ export function MatchScreen({
   photos,
   outcomes,
   sendStates: sent,
+  progress,
+  onRetry,
   board,
   onRetryBoard,
   current,
@@ -116,6 +123,16 @@ export function MatchScreen({
   photos: readonly MatchPhoto[]
   outcomes: ReadonlyMap<string, MatchOutcome>
   sendStates: ReadonlyMap<string, SendState>
+  /**
+   * Each sending photo's transfer progress in whole percent (X6, spec §5.2
+   * step 5): "Sending 40%" on its row, with a bar.
+   */
+  progress?: ReadonlyMap<string, number>
+  /**
+   * Retry one photo that did not send or could not be finished, as the
+   * sheet's Retry does (same asset, never sent twice). Absent: no Retry.
+   */
+  onRetry?: (key: string) => void
   board: BoardState
   onRetryBoard: () => void
   current: string | null
@@ -124,7 +141,7 @@ export function MatchScreen({
   notice?: string | null
   /**
    * Slots this phone is already sending a photo to (an earlier Match): never
-   * suggested or found, so a slot is not sent twice.
+   * suggested as empty, but still found and offered, marked (X4).
    */
   busySlots?: ReadonlyMap<string, unknown>
   /** The venue these photos go to (spec §5.1). */
@@ -184,15 +201,22 @@ export function MatchScreen({
         : new Set<string>(),
     [photo, decided, photos, outcomes, size]
   )
+  // Slots this visit's photos went to, newest first: they lead Recent, so
+  // the next photo of the same dish is one tap (X4, spec §5.4).
+  const visit = React.useMemo(
+    () => [
+      ...new Set(
+        [...outcomes.values()]
+          .flatMap((o) => (o.kind === "slot" ? [o.slot.id] : []))
+          .reverse()
+      ),
+    ],
+    [outcomes]
+  )
+  // Marked, never hidden: another photo of the same slot is welcome (X4).
   const taken = React.useMemo(
-    () =>
-      new Set([
-        ...[...outcomes.values()].flatMap((o) =>
-          o.kind === "slot" ? [o.slot.id] : []
-        ),
-        ...(busySlots?.keys() ?? []),
-      ]),
-    [outcomes, busySlots]
+    () => new Set([...visit, ...(busySlots?.keys() ?? [])]),
+    [visit, busySlots]
   )
   const titleId = React.useId()
   const titleRef = React.useRef<HTMLHeadingElement>(null)
@@ -319,6 +343,8 @@ export function MatchScreen({
               photos={photos}
               outcomes={outcomes}
               sendStates={sendStates}
+              progress={progress}
+              onRetry={onRetry}
               venueName={venuesMixed ? null : venueName}
               duplicates={duplicates}
               onClose={onClose}
@@ -358,7 +384,9 @@ export function MatchScreen({
                   <Decided
                     outcome={decided}
                     state={sendStates.get(photo.key) ?? null}
+                    percent={progress?.get(photo.key)}
                     duplicate={duplicates?.has(photo.key) ?? false}
+                    onRetry={onRetry ? () => onRetry(photo.key) : undefined}
                   />
                 ) : (
                   <div className="grid gap-3">
@@ -370,6 +398,7 @@ export function MatchScreen({
                       current={current}
                       last={last}
                       taken={taken}
+                      visit={visit}
                       recent={recent}
                       onMatch={(slot) => decide({ kind: "slot", slot })}
                       onLater={() => decide({ kind: "later" })}
@@ -674,22 +703,74 @@ function Stage({ file, alt }: { file: File; alt: string }) {
   )
 }
 
-function stateWord(state: SendState | null) {
+function stateWord(state: SendState | null, percent?: number) {
   if (state === "waiting") return MATCH_COPY.waiting
   if (state === "checking") return MATCH_COPY.checking
   if (state === "sent") return MATCH_COPY.sentWord
-  if (state === "unfinished") return MATCH_COPY.unfinishedWord
+  if (state === "unfinished" || state === "unprocessable")
+    return MATCH_COPY.unfinishedWord
   if (state === "failed") return MATCH_COPY.notSent
   if (state === "refused") return MATCH_COPY.notAddedWord
   if (state === "offline") return MATCH_COPY.savedOnPhone
-  return MATCH_COPY.sending
+  // "Sending 40%" (DESIGN.md §4), in the slot tile's words.
+  return sendingWord(percent)
+}
+
+/** True when Retry can still finish the photo (X6). */
+function retryable(state: SendState | null) {
+  return state === "failed" || state === "unfinished"
+}
+
+/**
+ * A sending photo's progress (X6): a thin bar a screen reader reads as
+ * "Sending 40%", so the live summary never repeats each percent.
+ */
+function SendBar({ name, percent }: { name: string; percent: number }) {
+  return (
+    <Progress
+      size="sm"
+      value={percent}
+      max={100}
+      aria-label={name}
+      valueText={sendingWord(percent)}
+      className="w-full max-w-40"
+    />
+  )
+}
+
+/** Retry on a row (X6): the sheet's own Retry, never a second photo. */
+function RetryButton({
+  name,
+  onRetry,
+}: {
+  /** The slot's name, for "Retry Onion Bhaji"; null: just "Retry". */
+  name: string | null
+  onRetry: () => void
+}) {
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      className="min-h-12 shrink-0"
+      aria-label={name ? MATCH_COPY.retryOne(name) : undefined}
+      data-slot="match-retry"
+      onClick={onRetry}
+    >
+      {MATCH_COPY.retry}
+    </Button>
+  )
 }
 
 function StateIcon({ state }: { state: SendState | null }) {
   const cls = "size-5 shrink-0"
   if (state === "waiting")
     return <ArrowUpIcon aria-hidden weight="bold" className={cls} />
-  if (state === "failed" || state === "refused" || state === "unfinished")
+  if (
+    state === "failed" ||
+    state === "refused" ||
+    state === "unfinished" ||
+    state === "unprocessable"
+  )
     return <WarningIcon aria-hidden weight="bold" className={cls} />
   if (state === "offline")
     return <CloudArrowUpIcon aria-hidden className={cls} />
@@ -701,30 +782,56 @@ function StateIcon({ state }: { state: SendState | null }) {
 function Decided({
   outcome,
   state,
+  percent,
   duplicate,
+  onRetry,
 }: {
   outcome: MatchOutcome
   state: SendState | null
+  percent?: number
   duplicate: boolean
+  onRetry?: () => void
 }) {
+  const sending = state === null || state === "sending"
+  const name = outcome.kind === "slot" ? outcome.slot.name : null
   return (
-    <p className="flex items-center gap-2 text-body text-ink" role="status">
-      {outcome.kind === "slot" || state === "refused" ? (
-        <StateIcon state={state} />
+    <div className="grid gap-2" data-slot="match-decided">
+      <p className="flex items-center gap-2 text-body text-ink" role="status">
+        {outcome.kind === "slot" || state === "refused" ? (
+          <StateIcon state={state} />
+        ) : null}
+        <span>
+          {outcome.kind === "slot"
+            ? // The bar below carries the percent: a live status that
+              // repeated each one would talk over the person (§15.1).
+              `${outcome.slot.name}: ${stateWord(state)}`
+            : state === "refused"
+              ? MATCH_COPY.notAddedWord
+              : outcome.kind === "later"
+                ? MATCH_COPY.matchLater
+                : outcome.kind === "unsure"
+                  ? MATCH_COPY.unsureWord
+                  : MATCH_COPY.sharedKind(outcome.shared)}
+          {duplicate ? ` · ${MATCH_COPY.duplicateWord}` : null}
+        </span>
+      </p>
+      {name && sending && percent !== undefined ? (
+        <span className="flex items-center gap-2">
+          <SendBar name={name} percent={percent} />
+          <span
+            aria-hidden
+            className="font-mono text-mono font-semibold text-ink-muted tabular-nums"
+          >
+            {percent}%
+          </span>
+        </span>
       ) : null}
-      <span>
-        {outcome.kind === "slot"
-          ? `${outcome.slot.name}: ${stateWord(state)}`
-          : state === "refused"
-            ? MATCH_COPY.notAddedWord
-            : outcome.kind === "later"
-              ? MATCH_COPY.matchLater
-              : outcome.kind === "unsure"
-                ? MATCH_COPY.unsureWord
-                : MATCH_COPY.sharedKind(outcome.shared)}
-        {duplicate ? ` · ${MATCH_COPY.duplicateWord}` : null}
-      </span>
-    </p>
+      {onRetry && retryable(state) ? (
+        <div>
+          <RetryButton name={name} onRetry={onRetry} />
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -734,6 +841,8 @@ function Summary({
   photos,
   outcomes,
   sendStates,
+  progress,
+  onRetry,
   venueName,
   duplicates,
   onClose,
@@ -742,6 +851,8 @@ function Summary({
   photos: readonly MatchPhoto[]
   outcomes: ReadonlyMap<string, MatchOutcome>
   sendStates: ReadonlyMap<string, SendState>
+  progress?: ReadonlyMap<string, number>
+  onRetry?: (key: string) => void
   venueName: string | null
   duplicates?: ReadonlySet<string>
   onClose: () => void
@@ -774,6 +885,15 @@ function Summary({
   const refused = photos.filter(
     (p) => sendStates.get(p.key) === "refused"
   ).length
+  const unprocessable = photos.filter(
+    (p) => sendStates.get(p.key) === "unprocessable"
+  ).length
+  // Photos Retry can finish that have no row of their own (I'm not sure).
+  const retryRest = photos.filter(
+    (p) =>
+      outcomes.get(p.key)?.kind !== "slot" &&
+      retryable(sendStates.get(p.key) ?? null)
+  )
   // A photo whose slot was not saved with it ("sent") fills no slot, nor
   // does one still on the phone (§6.8, AC09) or one that did not send.
   // Slots, not photos: four photos of one dish fill one slot (§5.4).
@@ -783,6 +903,7 @@ function Summary({
     "offline",
     "failed",
     "unfinished",
+    "unprocessable",
   ]
   const filled = new Set(
     matched
@@ -844,6 +965,8 @@ function Summary({
           <ul className="grid gap-2">
             {matched.map(({ photo, slot }) => {
               const state = sendStates.get(photo.key) ?? null
+              const percent = progress?.get(photo.key)
+              const sending = state === null || state === "sending"
               return (
                 <li
                   key={photo.key}
@@ -864,19 +987,38 @@ function Summary({
                     </span>
                     <span
                       className={cn(
-                        "flex items-center gap-1 font-mono text-mono font-semibold",
-                        state === "failed" || state === "unfinished"
+                        "flex items-center gap-1 font-mono text-mono font-semibold tabular-nums",
+                        state === "failed" ||
+                          state === "unfinished" ||
+                          state === "unprocessable"
                           ? "text-warn-fg"
                           : "text-ink-muted"
                       )}
+                      data-slot="match-row-state"
                     >
                       <StateIcon state={state} />
-                      {stateWord(state)}
+                      {/* The bar below says the percent to a screen reader. */}
+                      <span
+                        aria-hidden={
+                          sending && percent !== undefined ? true : undefined
+                        }
+                      >
+                        {stateWord(state, percent)}
+                      </span>
                       {duplicates?.has(photo.key)
                         ? ` · ${MATCH_COPY.duplicateWord}`
                         : null}
                     </span>
+                    {sending && percent !== undefined ? (
+                      <SendBar name={slot.name} percent={percent} />
+                    ) : null}
                   </span>
+                  {onRetry && retryable(state) ? (
+                    <RetryButton
+                      name={slot.name}
+                      onRetry={() => onRetry(photo.key)}
+                    />
+                  ) : null}
                 </li>
               )
             })}
@@ -896,12 +1038,36 @@ function Summary({
       ) : null}
       {failed > 0 ? (
         <Notice tone="negative" role="alert">
-          {MATCH_COPY.failedLine(failed)}
+          {onRetry
+            ? MATCH_COPY.failedLine(failed)
+            : MATCH_COPY.failedAddLine(failed)}
         </Notice>
       ) : null}
       {unfinished > 0 ? (
         <Notice tone="negative" role="alert">
-          {MATCH_COPY.unfinishedLine(unfinished)}
+          {onRetry
+            ? MATCH_COPY.unfinishedLine(unfinished)
+            : MATCH_COPY.unfinishedAddLine(unfinished)}
+        </Notice>
+      ) : null}
+      {onRetry && retryRest.length > 0 ? (
+        <div>
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-12"
+            data-slot="match-retry-rest"
+            onClick={() => {
+              for (const photo of retryRest) onRetry(photo.key)
+            }}
+          >
+            {MATCH_COPY.retryRest(retryRest.length)}
+          </Button>
+        </div>
+      ) : null}
+      {unprocessable > 0 ? (
+        <Notice tone="negative" role="alert">
+          {MATCH_COPY.unprocessableLine(unprocessable)}
         </Notice>
       ) : null}
       {refused > 0 ? (

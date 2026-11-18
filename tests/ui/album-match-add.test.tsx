@@ -550,7 +550,7 @@ describe("choosing the slot (spec §5.3)", () => {
     const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
     const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
     const search = await within(dialog).findByRole("searchbox", {
-      name: "Search all empty slots",
+      name: "Search all slots",
     })
     await user.type(search, "pakoras")
     expect(
@@ -574,7 +574,7 @@ describe("a dish not on the menu (S1-MENUS)", () => {
     const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
     await user.type(
       await within(dialog).findByRole("searchbox", {
-        name: "Search all empty slots",
+        name: "Search all slots",
       }),
       "Pumpkin soup"
     )
@@ -605,7 +605,7 @@ describe("a dish not on the menu (S1-MENUS)", () => {
     const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
     await user.type(
       await within(dialog).findByRole("searchbox", {
-        name: "Search all empty slots",
+        name: "Search all slots",
       }),
       "Pumpkin soup"
     )
@@ -883,4 +883,216 @@ describe("a venue change before sending (AC11, spec §6 S2)", () => {
     )
     expect(await within(matchDialog()).findByText("For The Crown")).toBeTruthy()
   })
+})
+
+describe("S3-R12: a dish used once stays one tap away (X4, spec §5.4, AC05)", () => {
+  it("labels three photos of one dish with another between them, with no typing", async () => {
+    const user = userEvent.setup()
+    host({ match: { place: PASS } })
+    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    await user.upload(gallery(), [
+      jpeg("a.jpg", 1),
+      jpeg("g.jpg", 2),
+      jpeg("b.jpg", 3),
+      jpeg("c.jpg", 4),
+    ])
+    let dialog = await screen.findByRole("dialog", { name: "Photo 1 of 4" })
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    dialog = await screen.findByRole("dialog", { name: "Photo 2 of 4" })
+    await user.click(within(dialog).getByRole("button", { name: /The garden/ }))
+    // Photo 3: the dish matched on photo 1 is under Recent, marked, not gone.
+    dialog = await screen.findByRole("dialog", { name: "Photo 3 of 4" })
+    let recent = within(dialog).getByRole("list", { name: "Recent" })
+    const bhaji = within(recent).getByRole("button", { name: /Onion Bhaji/ })
+    expect(bhaji.textContent).toContain(
+      "Matched just now · another photo is welcome"
+    )
+    // A search finds it too, and never offers it as a new special.
+    const search = within(dialog).getByRole("searchbox", {
+      name: "Search all slots",
+    })
+    await user.type(search, "bhaji")
+    expect(
+      within(
+        within(dialog).getByRole("list", { name: "Search all slots" })
+      ).getByRole("button", { name: /Onion Bhaji/ })
+    ).toBeTruthy()
+    expect(within(dialog).queryByText(/Not on the menu\?/)).toBeNull()
+    await user.clear(search)
+    recent = within(dialog).getByRole("list", { name: "Recent" })
+    await user.click(
+      within(recent).getByRole("button", { name: /Onion Bhaji/ })
+    )
+    // Photo 4: one tap again.
+    dialog = await screen.findByRole("dialog", { name: "Photo 4 of 4" })
+    recent = within(dialog).getByRole("list", { name: "Recent" })
+    await user.click(
+      within(recent).getByRole("button", { name: /Onion Bhaji/ })
+    )
+    for (const asset of ["asset-a.jpg", "asset-b.jpg", "asset-c.jpg"])
+      await waitFor(() =>
+        expect(sentFor(asset)[0]?.input).toMatchObject({
+          items: [{ itemId: "item-bhaji", variantId: null }],
+        })
+      )
+    expect(
+      await within(matchDialog()).findByText("Onion Bhaji × 3")
+    ).toBeTruthy()
+  })
+})
+
+describe("S3-R12: a dish already in the album (X5, spec §5.3, §6)", () => {
+  it("is found by search and matched, and Not on the menu? is not offered", async () => {
+    match.loadMatchBoardAction.mockResolvedValue({
+      ok: true,
+      board: {
+        ...BOARD,
+        filled: [
+          {
+            // On the menu (the fixture's madras), already in the album.
+            id: "dish:item-madras-chicken",
+            name: "Lamb Rogan Josh",
+            group: "Mains",
+            place: PASS,
+            placeLabel: "Kitchen pass",
+            brief: null,
+            target: {
+              kind: "dish",
+              itemId: "item-madras-chicken",
+              name: "Lamb Rogan Josh",
+            },
+            filled: "accepted",
+          },
+        ],
+      } satisfies MatchBoard,
+    })
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    // Never suggested as an empty slot.
+    expect(
+      within(dialog).queryByRole("button", { name: /Lamb Rogan Josh/ })
+    ).toBeNull()
+    await user.type(
+      await within(dialog).findByRole("searchbox", {
+        name: "Search all slots",
+      }),
+      "rogan josh"
+    )
+    const rogan = within(dialog).getByRole("button", {
+      name: /Lamb Rogan Josh/,
+    })
+    expect(rogan.textContent).toContain(
+      "In the album · another photo is welcome"
+    )
+    expect(within(dialog).queryByText(/Not on the menu\?/)).toBeNull()
+    await user.click(rogan)
+    await waitFor(() =>
+      expect(sentFor("asset-a.jpg")[0]?.input).toMatchObject({
+        items: [{ itemId: "item-madras-chicken", variantId: null }],
+      })
+    )
+  })
+})
+
+describe("S3-R12: each photo's progress and Retry in Match (X6, spec §5.2, §5.4)", () => {
+  it("shows Sending with its percent on the row, as a bar a screen reader reads", async () => {
+    let release: () => void = () => {}
+    uploads.current = async (file, context) => {
+      started.push(file.name)
+      context.onProgress(0.4)
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      return { assetId: `asset-${file.name}` }
+    }
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    const bar = await within(matchDialog()).findByRole("progressbar", {
+      name: "Onion Bhaji",
+    })
+    expect(bar.getAttribute("aria-valuetext")).toBe("Sending 40%")
+    expect(
+      matchDialog().querySelector('[data-slot="match-row-state"]')?.textContent
+    ).toContain("Sending 40%")
+    release()
+    await waitFor(() =>
+      expect(
+        matchDialog().querySelector('[data-slot="match-summary"] li')
+      ).toHaveProperty("dataset.state", "waiting")
+    )
+    expect(within(matchDialog()).queryByRole("progressbar")).toBeNull()
+  })
+
+  it("offers Retry on a row that didn't send: the same photo is sent again, once", async () => {
+    let fail = true
+    uploads.current = async (file) => {
+      started.push(file.name)
+      await Promise.resolve()
+      if (fail) throw new Error("network down")
+      return { assetId: `asset-${file.name}` }
+    }
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    const retry = await within(matchDialog()).findByRole(
+      "button",
+      { name: "Retry Onion Bhaji" },
+      { timeout: 8000 }
+    )
+    expect(
+      within(matchDialog()).getByText(
+        "1 photo didn't send. Choose Retry; it won't be sent twice."
+      )
+    ).toBeTruthy()
+    fail = false
+    await user.click(retry)
+    await waitFor(() =>
+      expect(
+        matchDialog().querySelector('[data-slot="match-summary"] li')
+      ).toHaveProperty("dataset.state", "waiting")
+    )
+    // One retry of the one queue item: two attempts, one label send.
+    expect(started).toEqual(["a.jpg", "a.jpg"])
+    expect(sentFor("asset-a.jpg")).toHaveLength(1)
+    expect(within(matchDialog()).queryByText(/didn't send/)).toBeNull()
+  }, 20000)
+
+  it("says a photo the server could not finish for good is still in the gallery, with no Retry", async () => {
+    uploads.current = async (file) => {
+      started.push(file.name)
+      await Promise.resolve()
+      throw Object.assign(new Error("This file could not be processed."), {
+        error: {
+          code: "processing_failed",
+          message: "This file could not be processed.",
+          retryable: false,
+        },
+      })
+    }
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    expect(
+      await within(matchDialog()).findByText(
+        /couldn't be finished, and trying again won't help\. It is still in your gallery/,
+        undefined,
+        { timeout: 8000 }
+      )
+    ).toBeTruthy()
+    expect(
+      within(matchDialog()).queryByRole("button", { name: /^Retry/ })
+    ).toBeNull()
+    expect(
+      matchDialog().querySelector('[data-slot="match-row-state"]')?.textContent
+    ).toContain("Couldn't finish")
+  }, 20000)
 })
