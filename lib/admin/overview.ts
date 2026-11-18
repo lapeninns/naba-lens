@@ -5,7 +5,11 @@
 
 import { coverageWords } from "@/lib/knowledge/facts"
 
-import { effectiveOperatingStatus, parseSetup, type SetupChecklist } from "./venues"
+import {
+  effectiveOperatingStatus,
+  parseSetup,
+  type SetupChecklist,
+} from "./venues"
 
 export type OverviewCategory =
   "food" | "drinks" | "spaces" | "facilities" | "other"
