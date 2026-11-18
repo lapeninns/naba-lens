@@ -13,7 +13,10 @@ import {
   tagAssets,
   withdrawAsset,
 } from "@/lib/server/library/service"
-import { getMediaActor } from "@/lib/server/media/context"
+import {
+  actorFailureMessage,
+  getMediaActor,
+} from "@/lib/server/media/context"
 
 /*
  * Server Functions for the admin Library (S2-LIBRARY, spec §8 A4). Reachable
@@ -25,12 +28,16 @@ import { getMediaActor } from "@/lib/server/media/context"
 export type LibraryReply<T extends object = Record<never, never>> =
   ({ ok: true } & T) | { ok: false; error: string }
 
+/**
+ * The admin, or the failure in its own words (S3-R6, V6): signed out, the
+ * second sign-in step, an inactive account or a failed account check.
+ */
 async function admin() {
   const auth = await getMediaActor("admin")
-  return auth.ok ? auth.actor : null
+  return auth.ok
+    ? { ok: true as const, actor: auth.actor }
+    : { ok: false as const, error: actorFailureMessage(auth) }
 }
-
-const SIGNED_OUT = { ok: false as const, error: "Sign in again to continue." }
 
 function refresh(assetId?: unknown) {
   revalidatePath("/admin/library", "layout")
@@ -53,8 +60,9 @@ export async function withdrawAssetAction(input: {
   assetId: unknown
   reason: unknown
 }) {
-  const a = await admin()
-  if (!a) return SIGNED_OUT
+  const auth = await admin()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await withdrawAsset(a, input ?? {})
   if (result.ok) refresh(input?.assetId)
   return reply(result)
@@ -64,8 +72,9 @@ export async function restoreAssetAction(input: {
   assetId: unknown
   reason: unknown
 }) {
-  const a = await admin()
-  if (!a) return SIGNED_OUT
+  const auth = await admin()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await restoreAsset(a, input ?? {})
   if (result.ok) refresh(input?.assetId)
   return reply(result)
@@ -76,8 +85,9 @@ export async function correctVenueAction(input: {
   venueId: unknown
   reason: unknown
 }) {
-  const a = await admin()
-  if (!a) return SIGNED_OUT
+  const auth = await admin()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await correctAssetVenue(a, input ?? {})
   if (result.ok) refresh(input?.assetId)
   return reply(result)
@@ -88,8 +98,9 @@ export async function tagAssetsAction(input: {
   tagId: unknown
   add: unknown
 }) {
-  const a = await admin()
-  if (!a) return SIGNED_OUT
+  const auth = await admin()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await tagAssets(a, input ?? {})
   if (result.ok && Array.isArray(input?.assetIds))
     input.assetIds.forEach((id) => refresh(id))
@@ -102,8 +113,9 @@ export async function saveTagAction(input: {
   active?: unknown
   revision?: unknown
 }): Promise<LibraryReply<{ tagId: string }>> {
-  const a = await admin()
-  if (!a) return SIGNED_OUT
+  const auth = await admin()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await saveTag(a, input ?? {})
   if (!result.ok) return { ok: false, error: result.message }
   refresh()
@@ -117,8 +129,9 @@ export async function saveCollectionAction(input: {
   archived?: unknown
   revision?: unknown
 }): Promise<LibraryReply<{ collectionId: string }>> {
-  const a = await admin()
-  if (!a) return SIGNED_OUT
+  const auth = await admin()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await saveCollection(a, input ?? {})
   if (!result.ok) return { ok: false, error: result.message }
   refresh()
@@ -130,8 +143,9 @@ export async function setCollectionItemsAction(input: {
   assetIds: unknown
   add: unknown
 }) {
-  const a = await admin()
-  if (!a) return SIGNED_OUT
+  const auth = await admin()
+  if (!auth.ok) return auth
+  const a = auth.actor
   const result = await setCollectionItems(a, input ?? {})
   if (result.ok && Array.isArray(input?.assetIds))
     input.assetIds.forEach((id) => refresh(id))
@@ -150,8 +164,9 @@ export async function selectPrimaryAction(input: {
   photoId?: unknown
   itemRevision?: unknown
 }): Promise<LibraryReply> {
-  const a = await admin()
-  if (!a) return SIGNED_OUT
+  const auth = await admin()
+  if (!auth.ok) return auth
+  const a = auth.actor
   if (input?.kind === "dish") {
     const result = await setPrimaryItemPhoto(a, {
       requestId: `lib-${crypto.randomUUID()}`,

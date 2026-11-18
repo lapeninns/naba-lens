@@ -26,6 +26,28 @@ export const ROLE_NOT_ALLOWED = {
   message: "Not allowed.",
 } as const
 
+/** An admin (or an account with a factor) has not passed the second step. */
+export const MFA_REQUIRED = {
+  ok: false,
+  status: 403,
+  message: "Enter the code from your authenticator app to continue.",
+} as const
+
+/** Shown for a signed-out caller of a Server Function. */
+export const SIGN_IN_AGAIN = "Sign in again to continue."
+
+/**
+ * The words a Server Function shows for a failed `getMediaActor` (S3-R6,
+ * review V6). Only a signed-out caller is told to sign in again; the second
+ * sign-in step, an inactive account, a role the action doesn't admit and a
+ * failed account check (retry, 503) each keep their own message.
+ */
+export function actorFailureMessage(
+  failure: Extract<ActorResult, { ok: false }>
+): string {
+  return failure.status === 401 ? SIGN_IN_AGAIN : failure.message
+}
+
 /**
  * Roles admitted when a caller names none: staff and admins. Venue managers are
  * excluded by default, so a surface opens to them only by naming "manager".
@@ -60,13 +82,7 @@ export async function getMediaActor(
   if (state.status === "signed_out") {
     return { ok: false, status: 401, message: "Sign in to continue." }
   }
-  if (state.status === "mfa_required") {
-    return {
-      ok: false,
-      status: 403,
-      message: "Enter the code from your authenticator app to continue.",
-    }
-  }
+  if (state.status === "mfa_required") return MFA_REQUIRED
   if (state.status !== "active") {
     return { ok: false, status: 403, message: "Your account is not active." }
   }
