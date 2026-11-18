@@ -357,6 +357,7 @@ describe("stating a policy (A35, A37, A39)", () => {
   const problems = (who: string, venue: string, detail: object) =>
     JSON.parse(
       psql(`select set_config('request.jwt.claim.sub', '${who}', false);
+        select set_config('request.jwt.claims', '{"sub":"${who}","aal":"aal2"}', false);
         select private.knowledge_detail_venue_problems_for('${venue}', 'dogs_inside', 'policy', '[]'::jsonb,
           'yes', '${JSON.stringify(detail)}'::jsonb)`)
         .split("\n")

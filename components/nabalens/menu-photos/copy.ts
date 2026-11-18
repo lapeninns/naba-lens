@@ -52,7 +52,7 @@ export const OUR_MENU_COPY = {
 export const ITEM_REVIEW_COPY = {
   title: "Our menu",
   summary:
-    "Labelled photos waiting for a decision, oldest first. Accepting a photo for a dish counts it for Our menu; it's already shared in Photos either way.",
+    "Labelled photos waiting for a decision, oldest first. Accepting a photo for a dish counts it for Our menu and shares it with colleagues in Photos.",
   labellingNote:
     "Only photos labelled with a dish appear here. Unlabelled photos need labelling by whoever added them first; managers can't label a colleague's photo.",
   toReview: "To review",

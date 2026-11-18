@@ -19,6 +19,7 @@ import {
   staffTile,
   uploadSheet,
 } from "./helpers/ui"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 /**
  * The vertical slice (spec §9 M2 + M3) in a real browser against the local
@@ -51,6 +52,8 @@ async function signIn(
     `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`
   )
   await page.getByRole("button", { name: "Continue" }).click()
+  // FA-23: an admin passes the TOTP second step.
+  await passMfaIfAsked(page, identity.email)
   return page
 }
 

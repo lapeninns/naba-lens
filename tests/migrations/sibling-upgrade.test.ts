@@ -50,7 +50,7 @@ const asPilot = (sql: string) =>
   psql(
     env,
     `set role authenticated;
-     select set_config('request.jwt.claims', '{"sub":"${PILOT}","role":"authenticated"}', false) is null;
+     select set_config('request.jwt.claims', '{"sub":"${PILOT}","role":"authenticated","aal":"aal2"}', false) is null;
      ${sql}`
   )
     .split("\n")

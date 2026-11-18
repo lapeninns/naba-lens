@@ -520,7 +520,7 @@ export function StaffPortfolio({
             href="/staff/community"
             icon={<ImagesIcon />}
             title="Photos"
-            hint="Photos your colleagues have added, newest first"
+            hint="Accepted photos from colleagues at your venue, newest first"
           />
           <MeRow
             href="/staff/people"

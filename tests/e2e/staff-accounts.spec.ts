@@ -11,6 +11,7 @@ import { getLocalSupabaseEnv } from "../support/local-supabase"
 import { psql } from "./helpers/stack"
 import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
 import { provisionWorld, signedInPage } from "./helpers/world"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 const admin = serviceClient()
 // Server Functions and routes compile on first use under `next dev`.
@@ -27,6 +28,8 @@ async function signInAs(page: Page, email: string) {
     `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`
   )
   await page.getByRole("button", { name: "Continue" }).click()
+  // FA-23: an admin passes the TOTP second step.
+  await passMfaIfAsked(page, email)
 }
 
 /** The invitation link from the real email in the local Mailpit inbox. */

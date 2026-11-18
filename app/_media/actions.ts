@@ -47,7 +47,9 @@ export async function readDeleteEvidence(
 /**
  * Delete from the staff portfolio or the admin library. lifecycle's
  * removeMediaAsset re-authorises the caller (staff: own; admin: any), writes the
- * tombstone and removes the objects, retrying later if storage fails.
+ * tombstone and removes the objects, retrying later if storage fails. An
+ * accepted photo is kept (FA-21): staff ask for removal instead
+ * (requestMediaRemoval in app/_media/removal-actions.ts).
  */
 export async function deleteMedia(assetId: string): Promise<DeleteMediaResult> {
   if (typeof assetId !== "string") {
@@ -65,6 +67,12 @@ export async function deleteMedia(assetId: string): Promise<DeleteMediaResult> {
       }
     case 404:
       return { ok: false, error: "This file could not be found." }
+    case 409:
+      return {
+        ok: false,
+        error:
+          "This photo has been accepted, so it's kept. You can ask an admin to remove it.",
+      }
     default:
       return { ok: false, error: "Could not remove the file. Try again." }
   }

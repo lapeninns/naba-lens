@@ -16,9 +16,18 @@ which venues are live.
 - **My portfolio** (`/staff`): the existing own-upload workspace, including
   incomplete upload states, profile editing, labels and deletion.
 
+**Since Full App v1 (S1-PRIVACY, decision FA-20, spec §3.3)** a colleague's
+photo or video appears in Explore, on a person's page, in their count and on
+Album tiles only once a manager or admin has accepted it, and only to staff at
+the venue it was taken for. Waiting (unreviewed) media stays with its uploader,
+the venue's manager and admins. The rule is `private.media_visible_to_caller`
+(`supabase/migrations/20261118107000_privacy_colleague_media.sql`); the venue
+part is `private.can_view_venue_album`, the one place to switch to per-venue
+memberships.
+
 Community pages require active staff access. The safe colleague profile
-contains name, avatar, job title, department, current venue and ready-upload
-count. Account-management fields and email are not included. Community media
+contains name, avatar, job title, department, current venue and the count of
+their media the viewer may see. Account-management fields and email are not included. Community media
 must be ready, non-deleted and owned by active staff; deactivated staff disappear
 from the directory and peer media access. Admins retain their existing library
 and account-management access. Short-lived media URLs already issued may remain
@@ -29,11 +38,13 @@ label-editing or admin original-download actions. Colleagues never see original
 filenames; the viewer says "Photo by <name>" or "Video by <name>". Colleagues
 get photos only as re-encoded previews, which carry no embedded metadata.
 
-**Colleague video playback delivers the original file**, including any embedded
-metadata such as location or device. It is served inline with no filename, but
-a colleague can still save it, and saved copies cannot be recalled. The owner
-chose this over hiding colleagues' videos until a sanitised video version
-exists. Raw profile-row access remains own/admin-only. Media routes check authorization again before serving previews
+**Colleague video playback carries no location or device metadata** (FA-24):
+for MP4 and QuickTime, the `udta`, `meta` and XMP `uuid` boxes are renamed
+`free` and zeroed as the bytes stream (`lib/media/video-metadata.ts`), so the
+length and every Range stay the same. A video that cannot be read that way is
+not served to colleagues. WebM (browser recordings) carries no location and
+streams as is. The owner, the venue's managers and admins get the original.
+It is served inline with no filename; a colleague can still save it. Raw profile-row access remains own/admin-only. Media routes check authorization again before serving previews
 or video playback. This increment does not add comments, reactions, follows or
 direct messaging.
 

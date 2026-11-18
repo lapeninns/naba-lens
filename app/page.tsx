@@ -18,6 +18,8 @@ export default async function RootPage() {
     case "no_profile":
     case "inactive":
       redirect(ROUTES.blocked)
+    case "mfa_required":
+      redirect(ROUTES.mfa)
     case "active": {
       const remembered = (await cookies()).get(RETURN_TO_COOKIE)?.value
       redirect(returnPathFor(state.profile.role, remembered))

@@ -219,7 +219,7 @@ describe("asset search answer freshness (B05 follow-up, §11.2)", () => {
         where id in (select id from cap_rows);
       insert into public.amenity_submission_assets (submission_id, venue_id, asset_id, evidence_kind)
         select '${current}', '${w.venue}', r.id, 'photo' from cap_rows r;
-      select set_config('request.jwt.claims', '{"sub":"${w.admin.id}","role":"authenticated"}', true) is null;
+      select set_config('request.jwt.claims', '{"sub":"${w.admin.id}","role":"authenticated","aal":"aal2"}', true) is null;
       set local role authenticated;
       create temp table pages as
         select 1 as n, public.asset_search(

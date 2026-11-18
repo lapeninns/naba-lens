@@ -30,6 +30,7 @@ import {
   signIn as signInApi,
   type TestIdentity,
 } from "../support/identities"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 /**
  * Acceptance gaps in the real app (next dev + local Supabase):
@@ -64,6 +65,8 @@ async function signIn(
   )
   // Opening the link never uses it (mail scanners prefetch); Continue does.
   await page.getByRole("button", { name: "Continue" }).click()
+  // FA-23: an admin passes the TOTP second step.
+  await passMfaIfAsked(page, identity.email)
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/confirm"))
   return page
 }

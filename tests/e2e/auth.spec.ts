@@ -8,6 +8,7 @@ import {
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 /** Polls the local Mailpit inbox for the newest sign-in link sent to `email`. */
 async function latestSignInLink(email: string): Promise<string> {
@@ -115,6 +116,11 @@ test.describe("authentication and role routing", () => {
     })
     await requestLink(page, adminUser.email)
     await openLink(page, await latestSignInLink(adminUser.email), baseURL!)
+    // FA-23: an admin sets up the second step before the admin area opens.
+    await expect(page).toHaveURL(/\/auth\/mfa$/)
+    await page.goto("/admin")
+    await expect(page).toHaveURL(/\/auth\/mfa$/)
+    await passMfaIfAsked(page, adminUser.email)
     await expect(page).toHaveURL(/\/admin$/)
   })
 

@@ -1,7 +1,10 @@
 // Album AL-7 (docs/plans/album-a3-a5.md, A5): staff at a venue see the
 // current photo of its accepted or waiting area slots and its accepted
-// amenity slots (review never gates visibility). Since S1-COV an amenity slot
-// is accepted when a reviewer accepts its photo (FA-32). public.album_slot_photos
+// amenity slots. Since S1-COV an amenity slot is accepted when a reviewer
+// accepts its photo (FA-32). Since S1-PRIVACY (FA-20, spec §3.3) a waiting
+// photo, and amenity evidence no manager has confirmed, is drawn only for its
+// uploader, the venue's manager and admins; colleagues see accepted photos only
+// (20261118107000_privacy_colleague_media.sql). public.album_slot_photos
 // lists them; public.album_slot_asset is the gate before a thumbnail is
 // signed. Real signed-in identities through PostgREST; the service role and
 // psql only build fixtures.
@@ -158,8 +161,8 @@ beforeAll(async () => {
 })
 
 describe("album_slot_photos", () => {
-  it("lists the accepted and waiting area photos and the accepted amenity photo", async () => {
-    const read = await photos(v.w.staffB)
+  it("lists the accepted and waiting area photos and the accepted amenity photo to their uploader", async () => {
+    const read = await photos(v.w.staffA)
     expect(read.venueId).toBe(v.w.venue)
     const byAsset = new Map(read.items.map((i) => [i.assetId, i]))
     expect(byAsset.get(shown.areaAccepted!)).toEqual({
@@ -181,8 +184,16 @@ describe("album_slot_photos", () => {
     expect(read.items).toHaveLength(3)
   })
 
+  it("lists only the accepted photo to a colleague (FA-20)", async () => {
+    const read = await photos(v.w.staffB)
+    expect(read.venueId).toBe(v.w.venue)
+    expect(read.items).toEqual([
+      { kind: "area", slotId: v.places.bar, assetId: shown.areaAccepted },
+    ])
+  })
+
   it("is the same for the venue's manager and for an admin naming it", async () => {
-    const mine = await photos(v.w.staffB)
+    const mine = await photos(v.w.staffA)
     expect(await photos(v.w.manager)).toEqual(mine)
     expect(await photos(v.w.admin, v.w.venue)).toEqual(mine)
   })
@@ -199,14 +210,20 @@ describe("album_slot_photos", () => {
 })
 
 describe("album_slot_asset", () => {
-  it("lets every colleague at the venue, its manager and an admin open a shown photo", async () => {
+  it("lets the uploader, the venue's manager and an admin open a shown photo", async () => {
     for (const asset of Object.values(shown)) {
-      for (const who of [v.w.staffB, v.w.staffA, v.w.manager, v.w.admin]) {
+      for (const who of [v.w.staffA, v.w.manager, v.w.admin]) {
         const rows = await gate(who, asset)
         expect(rows).toHaveLength(1)
         expect(rows[0]).toMatchObject({ asset_id: asset, venue_id: v.w.venue })
       }
     }
+  })
+
+  it("lets a colleague open the accepted photo only (FA-20)", async () => {
+    expect(await gate(v.w.staffB, shown.areaAccepted!)).toHaveLength(1)
+    expect(await gate(v.w.staffB, shown.areaWaiting!)).toEqual([])
+    expect(await gate(v.w.staffB, shown.amenity!)).toEqual([])
   })
 
   it("returns nothing for a retake, a withdrawn or an unknown photo", async () => {
@@ -229,7 +246,7 @@ describe("album_slot_asset", () => {
       role: "staff",
       venueId: v.w.venue,
     })
-    expect(await gate(mover, shown.areaWaiting!)).toHaveLength(1)
+    expect(await gate(mover, shown.areaAccepted!)).toHaveLength(1)
     const elsewhere = await createVenue(service, "album-al7-elsewhere")
     await ok(
       service
@@ -237,7 +254,7 @@ describe("album_slot_asset", () => {
         .update({ venue_id: elsewhere.id })
         .eq("id", mover.id)
     )
-    expect(await gate(mover, shown.areaWaiting!)).toEqual([])
+    expect(await gate(mover, shown.areaAccepted!)).toEqual([])
   })
 
   it("returns nothing for a deleted photo, and anon cannot call it", async () => {
@@ -296,10 +313,12 @@ describe("an amenity whose service has ended", () => {
        where c.id = '${w.checks.guest_toilets}' limit 1`
     )
     await acceptAmenityPhoto(w.manager, w.checks.guest_toilets, asset)
+    // Read as the uploader: a colleague sees it only once a manager has
+    // confirmed it (FA-20), which a rule-adopted answer is not.
     const listed = async () =>
-      (await photos(w.staffB)).items.some((i) => i.assetId === asset)
+      (await photos(w.staffA)).items.some((i) => i.assetId === asset)
     expect(await listed()).toBe(true)
-    expect(await gate(w.staffB, asset)).toHaveLength(1)
+    expect(await gate(w.staffA, asset)).toHaveLength(1)
 
     // A stop from two days ago, attached as the B03 A40 suite does.
     const twoDaysAgo = new Date(
@@ -318,6 +337,6 @@ describe("an amenity whose service has ended", () => {
       )
     ).toBe("true")
     expect(await listed()).toBe(false)
-    expect(await gate(w.staffB, asset)).toEqual([])
+    expect(await gate(w.staffA, asset)).toEqual([])
   })
 })

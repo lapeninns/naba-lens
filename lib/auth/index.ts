@@ -9,6 +9,12 @@ import {
   type AuthState,
   type CurrentProfile,
 } from "@/lib/auth/profile"
+import {
+  assuranceLevel,
+  mfaRequirement,
+  readsFactors,
+  readVerifiedFactors,
+} from "@/lib/auth/mfa"
 import { homePathFor, ROUTES, type AppRole } from "@/lib/auth/routes"
 import { createClient } from "@/lib/supabase/server"
 
@@ -38,7 +44,22 @@ export const getAuthState = cache(async (): Promise<AuthState> => {
     id: claims.sub,
     email: typeof claims.email === "string" ? claims.email : null,
   }
-  return toAuthState(user, await loadProfile(supabase, user.id, user.email))
+  const state = toAuthState(
+    user,
+    await loadProfile(supabase, user.id, user.email)
+  )
+  if (state.status !== "active") return state
+  // FA-23: the second sign-in step. The level comes from the verified JWT;
+  // factors are read only where they can matter (admins, managers at aal1).
+  const aal = assuranceLevel(claims)
+  const factors =
+    aal === "aal1" && readsFactors(state.profile.role)
+      ? await readVerifiedFactors(supabase)
+      : null
+  const requirement = mfaRequirement(state.profile.role, aal, factors)
+  return requirement
+    ? { status: "mfa_required", profile: state.profile, requirement }
+    : state
 })
 
 /** The signed-in user's profile (active or not), or null without a session/profile. */
@@ -56,6 +77,8 @@ function redirectFor(state: AuthState, role: AppRole): never | CurrentProfile {
     case "no_profile":
     case "inactive":
       redirect(ROUTES.blocked)
+    case "mfa_required":
+      redirect(ROUTES.mfa)
     case "active":
       if (state.profile.role !== role) redirect(homePathFor(state.profile.role))
       return state.profile
@@ -90,7 +113,7 @@ export type Authorization =
   | {
       ok: false
       status: 401 | 403
-      reason: "unauthenticated" | "inactive" | "forbidden"
+      reason: "unauthenticated" | "inactive" | "forbidden" | "mfa_required"
     }
 
 /**
@@ -103,6 +126,9 @@ export async function authorize(role: AppRole): Promise<Authorization> {
   const state = await getAuthState()
   if (state.status === "signed_out") {
     return { ok: false, status: 401, reason: "unauthenticated" }
+  }
+  if (state.status === "mfa_required") {
+    return { ok: false, status: 403, reason: "mfa_required" }
   }
   if (state.status !== "active") {
     return { ok: false, status: 403, reason: "inactive" }

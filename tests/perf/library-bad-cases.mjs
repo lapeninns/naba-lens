@@ -29,7 +29,7 @@ const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
 const { dbUrl } = requireWorkstreamStack()
 const t = pickTargets(dbUrl)
 const q = (s) => `'${String(s).replace(/'/g, "''")}'`
-const claims = (id) => `{"sub":"${id}","role":"authenticated","aud":"authenticated"}`
+const claims = (id) => `{"sub":"${id}","role":"authenticated","aud":"authenticated","aal":"aal2"}`
 
 const page = (args) =>
   `select id from public.library_page(${Object.entries(args)

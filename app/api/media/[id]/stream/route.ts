@@ -10,9 +10,8 @@ import { fail } from "../../_respond"
  * videos keep playing past the 60 s signing window and the response carries the
  * validated type and nosniff headers. The owner and admins get an attachment
  * disposition with the original filename; a colleague gets `inline` with no
- * filename. Colleague playback still delivers the original file, including any
- * embedded metadata such as location: the owner chose to keep it rather than
- * hide colleagues' videos until a sanitised derivative exists.
+ * filename. Colleague playback carries no location or device metadata: those
+ * boxes are renamed as the bytes stream (FA-24, streamOriginal).
  */
 export async function GET(
   request: Request,

@@ -1,7 +1,15 @@
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import { STORAGE_BUCKETS } from "@/lib/config/storage"
 
-import { fetchMediaObject } from "./storage"
+import {
+  findMetadataBoxes,
+  isIsoBmffVideo,
+  rangeStart,
+  stripStream,
+  type MetadataPatch,
+} from "@/lib/media/video-metadata"
+
+import { fetchMediaObject, mediaRangeSource } from "./storage"
 import type { MediaActor, Outcome } from "./types"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -17,6 +25,11 @@ export type ReadableAsset = {
   sizeBytes: number
   /** Null for a colleague: original filenames stay with the owner and admins. */
   originalFilename: string | null
+  /**
+   * Read through a colleague or search gate, not as its owner or an admin:
+   * a stream then carries no location or device metadata (FA-24).
+   */
+  colleague: boolean
 }
 
 const notFound: Outcome<never> = {
@@ -84,6 +97,7 @@ export async function getReadableAsset(
         mimeType: data.validated_mime_type,
         sizeBytes: Number(data.size_bytes),
         originalFilename: data.original_filename,
+        colleague: false,
       },
     }
   }
@@ -126,6 +140,7 @@ async function getColleagueAsset(
       mimeType: row.validated_mime_type,
       sizeBytes: Number(row.size_bytes),
       originalFilename: null,
+      colleague: true,
     },
   }
 }
@@ -179,6 +194,7 @@ async function getSearchThumbnailAsset(
       mimeType: data.validated_mime_type,
       sizeBytes: Number(data.size_bytes),
       originalFilename: null,
+      colleague: true,
     },
   }
 }
@@ -261,20 +277,62 @@ export function attachmentDisposition(filename: string, mime: string): string {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`
 }
 
+/** Patch lists per asset version, so each Range request does not re-read. */
+const metadataBoxes = new Map<string, MetadataPatch[]>()
+const METADATA_CACHE_SIZE = 200
+
 /**
- * Streams an original byte-for-byte (download, or inline video playback through
- * Range requests). Headers come from the validated record, never from storage
+ * Where a colleague's copy of a video differs from the original: its
+ * metadata boxes (lib/media/video-metadata.ts), or null
+ * when it cannot be sent to a colleague. WebM from browsers carries no
+ * location, so it streams as is.
+ */
+async function colleagueVideoPatches(
+  actor: MediaActor,
+  asset: ReadableAsset
+): Promise<MetadataPatch[] | null> {
+  if (asset.mimeType === "video/webm") return []
+  if (!isIsoBmffVideo(asset.mimeType)) return null
+  const key = `${asset.id}:${asset.sizeBytes}`
+  const cached = metadataBoxes.get(key)
+  if (cached) return cached
+  let found: MetadataPatch[] | null
+  try {
+    found = await findMetadataBoxes(
+      mediaRangeSource(actor.storage, asset.originalPath, asset.sizeBytes)
+    )
+  } catch {
+    return null
+  }
+  if (found) {
+    if (metadataBoxes.size >= METADATA_CACHE_SIZE)
+      metadataBoxes.delete(metadataBoxes.keys().next().value!)
+    metadataBoxes.set(key, found)
+  }
+  return found
+}
+
+/**
+ * Streams an original (download, or inline video playback through Range
+ * requests). Headers come from the validated record, never from storage
  * metadata or the browser: validated Content-Type, nosniff and private,
- * no-store. The owner and admins get an attachment disposition with the
- * original filename; a colleague (no filename on the asset) gets a bare
- * `inline`, so playback never hands out the uploader's filename. The bytes are
- * still the original, including any embedded metadata such as location.
+ * no-store. The owner and admins get the original byte for byte with an
+ * attachment disposition and its filename; a colleague (no filename on the
+ * asset) gets a bare `inline`, and its location and device metadata boxes
+ * blanked on the way (renamed `free`, contents zeroed; FA-24): same length,
+ * so ranges still line up.
+ * A colleague's video that cannot be read that way is a 404.
  */
 export async function streamOriginal(
   actor: MediaActor,
   asset: ReadableAsset,
   range: string | null
 ): Promise<Response> {
+  const patches = asset.colleague
+    ? await colleagueVideoPatches(actor, asset)
+    : []
+  if (patches === null)
+    return new Response("Not found.", { status: 404, headers: PRIVATE_HEADERS })
   const upstream = await fetchMediaObject(
     actor.storage,
     asset.originalPath,
@@ -314,5 +372,15 @@ export async function streamOriginal(
     const value = upstream.headers.get(name)
     if (value) headers.set(name, value)
   }
-  return new Response(upstream.body, { status: upstream.status, headers })
+  const body =
+    upstream.body && patches.length
+      ? stripStream(
+          upstream.body,
+          upstream.status === 206
+            ? rangeStart(upstream.headers.get("content-range"))
+            : 0,
+          patches
+        )
+      : upstream.body
+  return new Response(body, { status: upstream.status, headers })
 }

@@ -225,6 +225,8 @@ describe("amenity evidence video stream", () => {
         mimeType: "video/mp4",
         sizeBytes: 1234,
         originalFilename: null,
+        // The sender, the venue's managers and admins get the original (FA-24).
+        colleague: false,
       },
       "bytes=0-"
     )

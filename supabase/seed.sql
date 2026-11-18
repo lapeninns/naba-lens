@@ -49,7 +49,7 @@ insert into public.profiles (id, display_name, job_title, role, venue_id, active
 -- in the app, so its account_role and manager_grant audit rows are real.
 -- assert_active_admin() reads auth.uid(), so act as the admin for this call.
 select set_config('request.jwt.claims',
-  '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}', false);
+  '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","aal":"aal2"}', false);
 select public.convert_account_to_manager(
   '00000000-0000-4000-8000-0000000000b4',
   '00000000-0000-4000-8000-00000000a001',

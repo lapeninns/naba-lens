@@ -1680,7 +1680,7 @@ try {
 ${role === "authenticated" ? "set local role authenticated;" : ""}
 set local statement_timeout = '120s';
 ${/^(chunk|cand|items)-/.test(name) ? fnSettings : ""}
-select set_config('request.jwt.claims', '{"sub":"${sub}","role":"authenticated","aud":"authenticated"}', true) \\gset
+select set_config('request.jwt.claims', '{"sub":"${sub}","role":"authenticated","aud":"authenticated","aal":"aal2"}', true) \\gset
 select set_config('request.jwt.claim.sub', '${sub}', true) \\gset
 explain (analyze, buffers, settings, verbose false) ${sql};
 rollback;

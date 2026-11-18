@@ -132,7 +132,7 @@ async function canManage(who: TestIdentity, venueId: string) {
 /** private.is_active_manager() for a user, through psql (postgres, local only). */
 function isActiveManager(userId: string) {
   return psql(
-    `select set_config('request.jwt.claims', '{"sub":"${userId}","role":"authenticated"}', false);
+    `select set_config('request.jwt.claims', '{"sub":"${userId}","role":"authenticated","aal":"aal2"}', false);
      select private.is_active_manager();`
   )
     .split("\n")

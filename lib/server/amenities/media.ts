@@ -56,6 +56,9 @@ export async function amenityVideo(
       mimeType: data.validated_mime_type,
       sizeBytes: Number(data.size_bytes),
       originalFilename: null,
+      // The sender, the venue's managers and admins: originals stay with
+      // them (FA-24), so the stream is not stripped.
+      colleague: false,
     },
   }
 }

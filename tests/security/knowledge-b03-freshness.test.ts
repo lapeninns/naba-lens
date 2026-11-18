@@ -578,7 +578,7 @@ describe("the registry's rules in force (check dates)", () => {
     const key = `test_${id}`
     const later = `test_${id}_l`
     const claims = (who: { id: string }) =>
-      `'${JSON.stringify({ sub: who.id, role: "authenticated" })}'`
+      `'${JSON.stringify({ sub: who.id, role: "authenticated", aal: "aal2" })}'`
     const refusal = (who: { id: string }, name: string) => `reset role;
 set local "request.jwt.claims" to ${claims(who)};
 set local role authenticated;
@@ -863,7 +863,7 @@ from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.ve
    */
   async function outcomes(label: string, steps: Step[]) {
     const w = await world(label)
-    const claims = `'${JSON.stringify({ sub: w.admin.id, role: "authenticated" })}'`
+    const claims = `'${JSON.stringify({ sub: w.admin.id, role: "authenticated", aal: "aal2" })}'`
     const block = ({ name, sql, asAdmin }: Step) => {
       const attempt = `do $$ begin
   ${sql};

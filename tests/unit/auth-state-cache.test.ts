@@ -32,7 +32,8 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: {
       getClaims: async () => ({
-        data: { claims: { sub: "u1", email: "a@nabalens.test" } },
+        // An admin who passed the second step (FA-23): no factor read.
+        data: { claims: { sub: "u1", email: "a@nabalens.test", aal: "aal2" } },
         error: null,
       }),
     },
