@@ -1,6 +1,6 @@
 # Album: Naba-Lens design system
 
-Version 1.3 · 17 Nov 2026 · Status: adopted on 17 Nov 2026 (decisions D8 and D9 in [decisions.md](decisions.md)). Batches A0 to A5 are built on `design/inn-identity` (§12): Album is the staff Home, adding is gallery first with Match, Review and admin Albums are Album screens. Other screens keep their layout in Album colours and type and stay cited to [common-room.md](common-room.md) until a later batch.
+Version 1.4 · 18 Nov 2026 · Status: adopted on 17 Nov 2026 (decisions D8 and D9 in [decisions.md](decisions.md)). Batches A0 to A5 are built on `design/inn-identity` (§12): Album is the staff Home, adding is gallery first with Match, Review and admin Albums are Album screens. Other screens keep their layout in Album colours and type and stay cited to [common-room.md](common-room.md) until a later batch.
 
 Applies to every Naba-Lens surface: the staff app (phone first), the venue manager screens (phone, tablet, desktop) and the admin desktop app.
 
@@ -121,17 +121,19 @@ Fraunces is used only at 17px caps or 21px and up, where a serif stays legible o
 
 A slot's state is shown by its frame, an icon and a word. Colour is never the only signal, and no two states share a frame.
 
-| State                   | Frame                                    | Icon and word                             | Counts as filled          |
-| ----------------------- | ---------------------------------------- | ----------------------------------------- | ------------------------- |
-| **Needed**              | 2px dashed `edge`, `surface` fill        | + Add                                     | No                        |
-| **Sending**             | The photo, no ring                       | Sending 40% (mono) · Saved on this phone  | Shown in the waiting part |
-| **Waiting for review**  | The photo, 3 to 4px `ring-waiting` inset | ↑ Waiting                                 | Shown in the waiting part |
-| **Needs another photo** | The photo, 3 to 4px `ring-retake` inset  | ↩ Retake, with the reviewer's reason      | No                        |
-| **Accepted**            | The photo, no ring                       | ✓ In the album, filled `ok-fg` square tag | Yes                       |
-| **Check due**           | The photo, 4px `ok-waiting` ring inset   | ⟲ Needs checking                          | Shown in the waiting part |
-| **Not here**            | 2px dotted edge, `hatch` hatching        | Not here, with the reason                 | Leaves the total          |
+| State                   | Frame                                    | Icon and word                                                         | Counts as filled          |
+| ----------------------- | ---------------------------------------- | --------------------------------------------------------------------- | ------------------------- |
+| **Needed**              | 2px dashed `edge`, `surface` fill        | + Add                                                                 | No                        |
+| **Sending**             | The photo, no ring                       | Sending 40% (mono) · Saved on this phone · Checking · Couldn't finish | Shown in the waiting part |
+| **Waiting for review**  | The photo, 3 to 4px `ring-waiting` inset | ↑ Waiting                                                             | Shown in the waiting part |
+| **Needs another photo** | The photo, 3 to 4px `ring-retake` inset  | ↩ Retake, with the reviewer's reason                                  | No                        |
+| **Accepted**            | The photo, no ring                       | ✓ In the album, filled `ok-fg` square tag                             | Yes                       |
+| **Check due**           | The photo, 4px `ok-waiting` ring inset   | ⟲ Needs checking                                                      | Shown in the waiting part |
+| **Not here**            | 2px dotted edge, `hatch` hatching        | Not here, with the reason                                             | Leaves the total          |
 
 **Reserved forms.** The dashed empty frame belongs to Needed alone. The filled green square tag with a tick belongs to Accepted alone. The double-bordered stamp belongs to a full section alone. No other element may use them.
+
+**Receipt words** (Full App v1, S1-UPLOAD and S2-STAFF; departures.md A-2). A photo on its way reads Saved on this phone (not yet sent), Sending (its bytes are on their way), Checking (the server has it and is preparing it), then Waiting once its slot is saved with it. Sent means it was prepared but no slot was saved with it; Couldn't finish means preparing it failed; Not sent means the transfer stopped. The words are `RECEIPT_WORDS` in `lib/upload/states.ts`. After review, a person's own photo reads In the album, Kept for reference, Retake (with the reviewer's reason), Label corrected or Not used (FA-7); the chips are `outcome_*` in `components/nabalens/status-chip.tsx`.
 
 **Counts.** The album count is the number of empty slots ("41 slots still empty"). Its bar has three parts: Accepted (`ok-fg`), Waiting and Sending (`ok-waiting`), empty (`surface-2`), with the numbers written under it in mono ("65 in · 7 waiting · 113 in all"). Not here slots are not in the total. Check due (FA-11, Full App v1) is a filled slot whose routine or change-triggered check is due: a manager confirms it, so it sits in the waiting part and is not counted as filled. Every state comes from one coverage rule (`public.coverage_slots`).
 
@@ -300,6 +302,7 @@ Still to remove in batch A5, once no screen uses them: `info-*`, `stamp-fg`, `se
 
 ### Changelog
 
+- **1.4** (18 Nov 2026, Full App v1 S2-STAFF): §4 gains the receipt words (Checking, Sent, Couldn't finish) and the staff outcome words. A place screen filters by category and by Needed, Waiting, In the album, Needs updating and All (`?show=`, `?cat=`); filled dish and place tiles open a slot page (`/staff/album/slot/[kind]/[slotId]`) with Report a change. Me opens with My uploads and adds Help and account.
 - **1.3** (17 Nov 2026): batches A3 to A5 built (docs/plans/album-a3-a5.md, tasks AL-1 to AL-8, release reviews and repair R-1 to R-4):
   - A3: Match on add (§6.1) with an outbox that feeds the upload queue, Match later (`/staff/album/match-later`), the three-tab shell, Your month on Me, the remembered place.
   - A4: one-line briefs per section and dish (`20261117130000_album_briefs.sql`), Review one photo at a time with reason chips (§6.5), admin Albums (`/admin/albums`, `20261117140000_album_admin.sql`, new `ok-half` token), slot photos staff can see (`20261117150000_album_slot_photos.sql`, `/api/album/[assetId]/thumb`).

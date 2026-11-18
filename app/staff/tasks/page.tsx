@@ -25,6 +25,7 @@ import { rememberedAlbumPlace } from "@/lib/server/album-place"
 import { MatchLaterRow } from "@/components/nabalens/album/match/match-later"
 import { listMatchLater } from "@/app/staff/_shell/match-later"
 import { getCheck } from "@/lib/server/amenities"
+import { getOnboardingState } from "@/lib/auth/venues"
 import { getCoverageActor } from "@/lib/server/coverage"
 import type { MediaActor } from "@/lib/server/media/types"
 
@@ -143,6 +144,7 @@ export default async function AlbumHomePage({
     otherJobs,
     ownMedia,
     jar,
+    onboarding,
   ] = await Promise.all([
     searchParams,
     staffShellStatus(actor, profile),
@@ -157,15 +159,20 @@ export default async function AlbumHomePage({
     // Once dismissed, Start here never shows, so skip the read.
     dismissedAt ? true : hasOwnMedia(actor),
     cookies(),
+    // Spec §3.2: Start here stays until the contribution notice is read.
+    getOnboardingState(actor.db).catch(() => null),
   ])
   const blockedReason = uploadBlockReason(profile)
   // The legacy cookie still counts as dismissed; dismissal lives in the
   // database (setWelcomeDismissedAction on the welcome).
-  const showWelcome = showWelcomeEntry({
-    dismissedAt,
-    legacyCookie: jar.has(FIRST_RUN_COOKIE),
-    hasOwnMedia: ownMedia,
-  })
+  const showWelcome =
+    showWelcomeEntry({
+      dismissedAt,
+      legacyCookie: jar.has(FIRST_RUN_COOKIE),
+      hasOwnMedia: ownMedia,
+    }) ||
+    // A read that failed never brings Start here back on its own.
+    (onboarding !== null && !onboarding.noticeAcknowledgedAt)
   const place = first(params.place) ?? remembered ?? null
   const sent =
     typeof findingSent === "string"

@@ -11,6 +11,8 @@
 //   waiting    Waiting for review
 //   reviewed   Reviewed: every slot decided, or a shared photo with no slot
 
+import { RECEIPT_WORDS } from "@/lib/upload/states"
+
 export type UploadOutcome =
   | "awaiting_review"
   | "public"
@@ -402,4 +404,24 @@ export function isoToLondonLocal(iso: string | null): string {
   }).formatToParts(date)
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ""
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`
+}
+
+/**
+ * The server's side of an unfinished upload in the receipt words (S1-UPLOAD,
+ * lib/upload/states.ts; DESIGN.md §4): Sending, Checking or Couldn't finish.
+ * Null once it is ready (its slots then say what happened).
+ */
+export function receiptWord(
+  item: Pick<MyUpload, "uploadState">
+): string | null {
+  switch (item.uploadState) {
+    case "uploading":
+      return RECEIPT_WORDS.uploading
+    case "processing":
+      return RECEIPT_WORDS.uploaded_processing
+    case "failed":
+      return RECEIPT_WORDS.processing_failed
+    default:
+      return null
+  }
 }

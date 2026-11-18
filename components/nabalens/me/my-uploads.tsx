@@ -59,6 +59,7 @@ import {
   londonLocalToIso,
   OUTCOME_CHIP,
   OUTCOME_WORDS,
+  receiptWord,
   slotPageHref,
   UPLOAD_SECTIONS,
   uploadActions,
@@ -489,6 +490,14 @@ function UploadRow({
         <p className="text-item-title [overflow-wrap:anywhere] text-ink">
           {title}
         </p>
+        {receiptWord(item) ? (
+          <StatusChip
+            state={item.uploadState === "failed" ? "failed" : "processing"}
+            className="w-fit"
+          >
+            {receiptWord(item)}
+          </StatusChip>
+        ) : null}
         {item.slots.length > 0 ? (
           <ul className="flex flex-wrap gap-1.5">
             {item.slots.map((s) => (
