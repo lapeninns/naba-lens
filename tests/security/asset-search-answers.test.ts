@@ -121,20 +121,20 @@ describe("asset search answer freshness (B05 follow-up, §11.2)", () => {
         }
         expect((await searchAll(w.admin, filters)).sort()).toEqual(expected)
       }
-    // No freshness policy is seeded yet (OD-15), so every answer is unrated.
+    // S1-FACTS seeds the 90-day rules, so a new answer is current.
     expect(
-      await searchAll(w.admin, { venue: w.venue, answerFreshness: "unrated" })
+      await searchAll(w.admin, { venue: w.venue, answerFreshness: "current" })
     ).toContain(answered)
-    const unrated = await searchAll(w.admin, {
+    const current = await searchAll(w.admin, {
       venue: w.venue,
-      answerFreshness: "unrated",
+      answerFreshness: "current",
     })
-    expect(unrated).not.toContain(plain)
+    expect(current).not.toContain(plain)
   })
 
   it("lets a venue manager use it without a venue and keeps other venues out", async () => {
     for (const who of [w.manager, w.staffManager]) {
-      const found = await searchAll(who, { answerFreshness: "unrated" })
+      const found = await searchAll(who, { answerFreshness: "current" })
       expect(found).toContain(answered)
       expect(found).not.toContain(otherAnswered)
       expect(found).not.toContain(plain)
@@ -145,14 +145,14 @@ describe("asset search answer freshness (B05 follow-up, §11.2)", () => {
     expect(
       await searchAll(w.admin, {
         venue: w.venue,
-        answerFreshness: "unrated",
+        answerFreshness: "current",
         check: w.checks.guest_toilets,
       })
     ).toEqual([answered])
     expect(
       await searchAll(w.admin, {
         venue: w.venue,
-        answerFreshness: "unrated",
+        answerFreshness: "current",
         mediaType: "video",
       })
     ).not.toContain(answered)
@@ -229,7 +229,7 @@ describe("asset search answer freshness (B05 follow-up, §11.2)", () => {
           ((select p from pages where n = 1) -> 'resumeAfter' ->> 'uploadedAt')::timestamptz,
           ((select p from pages where n = 1) -> 'resumeAfter' ->> 'id')::uuid, 48);
       insert into pages select 3, public.asset_search(
-          '{"venue":"${w.venue}","answerFreshness":"unrated"}'::jsonb, null, null, 48);
+          '{"venue":"${w.venue}","answerFreshness":"current"}'::jsonb, null, null, 48);
       reset role;
       select json_build_object(
         'first', (select p from pages where n = 1),
@@ -268,12 +268,15 @@ describe("asset search answer freshness (B05 follow-up, §11.2)", () => {
         question: psql(
           `select question from public.amenity_catalogue where key = 'guest_toilets'`
         ),
+        // S1-FACTS: the 90-day rules, counted from verification.
         freshness: ["internal", "public"].map((use) => ({
           use,
-          state: "unrated",
-          nextCheckDue: null,
-          basis: null,
-          basisDate: null,
+          state: "current",
+          nextCheckDue: expect.any(String),
+          basis: "verified_on",
+          basisDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          policyId: `fact_${use}`,
+          policyVersion: 1,
         })),
       },
     ])

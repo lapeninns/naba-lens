@@ -409,3 +409,29 @@ export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 /** SQL literal for a uuid array. */
 export const uuids = (ids: string[]) =>
   ids.length ? `array['${ids.join("','")}']::uuid[]` : "'{}'::uuid[]"
+
+/**
+ * S1-FACTS (AC25): guest Wi-Fi needs a venue manager's confirmation, so a
+ * staff Yes waits. Confirms a waiting finding as the venue's manager and
+ * returns the decision; a finding already in use is left as it is.
+ */
+export async function confirmWaiting(
+  w: World,
+  key: string,
+  sent: { contributionId: string; outcome: string },
+  who: TestIdentity = w.manager
+) {
+  if (sent.outcome !== "awaiting_confirmation") return null
+  return json<{ submissionId: string; slotRevision: number }>(
+    who,
+    "knowledge_decide",
+    {
+      p_target_type: "contribution",
+      p_target_id: sent.contributionId,
+      p_decision: "confirm",
+      p_slot_revision: slotRevision(w.venue, key),
+      p_idempotency_key: randomUUID(),
+      p_note: null,
+    }
+  )
+}

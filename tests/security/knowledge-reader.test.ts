@@ -5,6 +5,7 @@ import { createVenue } from "../support/identities"
 import { psql } from "./coverage-fixtures"
 import {
   call,
+  confirmWaiting,
   json,
   refused,
   service,
@@ -29,9 +30,14 @@ describe("knowledge_reader_answers_v1 (T6)", () => {
       finding: "TEST car park",
       limitations: "TEST gravel",
     })
-    await yes(w.staffA, w, "guest_wifi", {
-      finding: "TEST password is hunter2",
-    })
+    // S1-FACTS (AC25): a manager confirms guest Wi-Fi.
+    await confirmWaiting(
+      w,
+      "guest_wifi",
+      await yes(w.staffA, w, "guest_wifi", {
+        finding: "TEST password is hunter2",
+      })
+    )
     await submit(w.staffB, w, "guest_toilets", { answer: "unknown" })
     const { data, error } = await read(w.venue, [
       "guest_wifi",

@@ -76,15 +76,15 @@ describe("per-use freshness (§7.2, §7.3)", () => {
     })
   })
 
-  it("leaves every key unrated with no policy row and none named", async () => {
+  it("rates every key by the S1-FACTS rules: version 1 names none, the version in force names the 90-day rules", async () => {
     expect(
       psql(
-        `select count(*) from public.knowledge_freshness_policies where left(id, 5) <> 'test_'`
+        `select string_agg(id, ',' order by id) from public.knowledge_freshness_policies where left(id, 5) <> 'test_'`
       )
-    ).toBe("0")
+    ).toBe("fact_internal,fact_public,space_photo")
     expect(
       psql(`select count(*) from public.knowledge_question_versions
-        where freshness <> '{"internal": null, "public": null}'::jsonb`)
+        where version = 1 and freshness <> '{"internal": null, "public": null}'::jsonb`)
     ).toBe("0")
     const w = await world("kn-b03-fresh-parity")
     await yes(w.staffA, w, "guest_toilets")
@@ -100,8 +100,8 @@ describe("per-use freshness (§7.2, §7.3)", () => {
     })
     expect(row).toMatchObject({
       status: "available",
-      freshness_state: "unrated",
-      next_check_due: null,
+      freshness_state: "current",
+      next_check_due: expect.any(String),
     })
     const check = await json<{ freshness: { state: string }[] }>(
       w.staffA,
@@ -110,7 +110,7 @@ describe("per-use freshness (§7.2, §7.3)", () => {
         p_check_id: w.checks.guest_toilets,
       }
     )
-    expect(check.freshness.map((f) => f.state)).toEqual(["unrated", "unrated"])
+    expect(check.freshness.map((f) => f.state)).toEqual(["current", "current"])
   })
 })
 
@@ -155,12 +155,13 @@ describe("freshness as it read at a time (B08 M1)", () => {
       p_check_id: w.checks.guest_toilets,
       p_at: new Date().toISOString(),
     })
-    expect(viaManager.answerInUse.registryVersion).toBe(1)
+    // S1-FACTS: version 2 names the 90-day rules.
+    expect(viaManager.answerInUse.registryVersion).toBe(2)
     expect(
       viaManager.answerInUse.freshness.map((f) => [f.use, f.state])
     ).toEqual([
-      ["internal", "unrated"],
-      ["public", "unrated"],
+      ["internal", "current"],
+      ["public", "current"],
     ])
     const viaDefiner = JSON.parse(
       psql(
@@ -182,7 +183,7 @@ describe("freshness as it read at a time (B08 M1)", () => {
     expect(
       psql(`select private.knowledge_schema_change_due('guest_toilets', now())
         = (select greatest(v.created_at, coalesce(v.effective_from, v.created_at))
-           from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.version = 1)`)
+           from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.version = (select max(x.version) from public.knowledge_question_versions x where x.key = 'guest_toilets' and greatest(x.created_at, coalesce(x.effective_from, x.created_at)) <= now()))`)
     ).toBe("t")
     expect(
       psql(
@@ -221,7 +222,7 @@ create temp table l1_before_tasks on commit drop as select count(*)::int as task
 create temp table l1_after on commit drop as select private.knowledge_open_rechecks(now() + interval '20 days') as opened;
 select jsonb_build_object(
   'dueBeforeIsV1', (select due_now = (select greatest(v.created_at, coalesce(v.effective_from, v.created_at))
-     from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.version = 1) from l1_before),
+     from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.version = (select max(x.version) from public.knowledge_question_versions x where x.key = 'guest_toilets' and greatest(x.created_at, coalesce(x.effective_from, x.created_at)) <= now())) from l1_before),
   'tasksBefore', (select tasks from l1_before_tasks),
   'dueAfterIsV2', private.knowledge_schema_change_due('guest_toilets', now() + interval '20 days') = now() + interval '10 days',
   'tasksAfter', (select count(*) from public.knowledge_recheck_tasks t where t.check_id = '${check}' and t.cause = 'schema_changed'),
@@ -264,7 +265,7 @@ describe("recheck tasks (§7.4, A11, A24)", () => {
     const sent = await yes(w.staffA, w, "guest_toilets")
     psql(`insert into public.knowledge_contribution_details
         (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
-      select x.id, x.venue_id, 1, 'facility', 1,
+      select x.id, x.venue_id, (select max(v.version) from public.knowledge_question_versions v where v.key = x.question_key), 'facility', 1,
         jsonb_build_object('availability', jsonb_build_object('state', 'temporarily_unavailable',
           'until', to_char((now() at time zone 'Europe/London')::date - 2, 'YYYY-MM-DD'))),
         encode(sha256(x.id::text::bytea), 'hex')

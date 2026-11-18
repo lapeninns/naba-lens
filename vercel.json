@@ -14,6 +14,7 @@
       "path": "/api/internal/coverage/monthly-preparation",
       "schedule": "7 * * * *"
     },
-    { "path": "/api/internal/menus/activate-due", "schedule": "*/15 * * * *" }
+    { "path": "/api/internal/menus/activate-due", "schedule": "*/15 * * * *" },
+    { "path": "/api/internal/knowledge-rechecks", "schedule": "37 * * * *" }
   ]
 }

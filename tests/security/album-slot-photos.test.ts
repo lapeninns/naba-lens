@@ -309,7 +309,7 @@ describe("an amenity whose service has ended", () => {
       .slice(0, 10)
     psql(`insert into public.knowledge_contribution_details
         (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
-      select x.id, x.venue_id, 1, 'service', 1, '{"lastDayOffered": "${twoDaysAgo}"}'::jsonb,
+      select x.id, x.venue_id, (select max(v.version) from public.knowledge_question_versions v where v.key = x.question_key), 'service', 1, '{"lastDayOffered": "${twoDaysAgo}"}'::jsonb,
         encode(sha256(x.id::text::bytea), 'hex')
       from public.knowledge_contributions x where x.id = '${sent.contributionId}'`)
     expect(

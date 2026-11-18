@@ -10,6 +10,7 @@ import { anonClient, createIdentity, createVenue } from "../support/identities"
 import { insertAsset, ok, psql } from "./coverage-fixtures"
 import {
   call,
+  confirmWaiting,
   count,
   json,
   photo,
@@ -145,8 +146,10 @@ describe("who may contribute (T1)", () => {
     expect(slot(fresh.venue, "onsite_parking").source_basis).toBe(
       "venue_manager"
     )
+    // S1-FACTS (AC25): Wi-Fi needs confirmation; an admin may confirm their own.
     const viaAdmin = await submit(fresh.admin, fresh, "guest_wifi", {
       answer: "no",
+      confirmOwn: true,
     })
     expect(viaAdmin.outcome).toBe("current")
     expect(slot(fresh.venue, "guest_wifi").source_basis).toBe("admin")
@@ -192,10 +195,12 @@ describe("evidence and conditions (T2)", () => {
       "redaction_not_confirmed"
     )
     const r = await yes(v.staffA, v, "guest_wifi")
-    expect(r.outcome).toBe("current")
+    // S1-FACTS (AC25): the Yes waits for a manager, who confirms it.
+    expect(r.outcome).toBe("awaiting_confirmation")
+    const confirmed = await confirmWaiting(v, "guest_wifi", r)
     expect(
       psql(
-        `select redaction_confirmed from public.amenity_submissions where id = '${r.submissionId}'`
+        `select redaction_confirmed from public.amenity_submissions where id = '${confirmed!.submissionId}'`
       )
     ).toBe("t")
     expect(slot(v.venue, "guest_wifi")).toMatchObject({
@@ -236,8 +241,10 @@ describe("evidence and conditions (T2)", () => {
       p_enabled: true,
       p_reason: "TEST",
     })
+    // S1-FACTS (AC25): unconfirmed under Wi-Fi rule 2 until a manager confirms.
     expect(slot(v.venue, "guest_wifi")).toMatchObject({
-      status: "available",
+      status: "unavailable",
+      reason: "not_confirmed",
       redaction_proof: "not_recorded",
       contribution_kind: "submission",
       source_basis: "venue_manager",

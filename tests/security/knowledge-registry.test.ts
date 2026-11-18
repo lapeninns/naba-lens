@@ -33,7 +33,7 @@ describe("version 1 restates today (no behaviour change)", () => {
       q(`select json_build_object(
         'catalogue', (select count(*) from public.amenity_catalogue),
         'questions', (select count(*) from public.knowledge_questions),
-        'versions', (select count(*) from public.knowledge_question_versions),
+        'versions', (select count(*) from public.knowledge_question_versions where version = 1),
         'mismatched', (select count(*) from public.amenity_catalogue c
           left join public.knowledge_question_versions v on v.key = c.key and v.version = 1
           where v.key is null or v.catalogue_version <> c.catalogue_version
@@ -153,7 +153,8 @@ describe("tables", () => {
       psql(
         `select count(*) from public.knowledge_question_versions where key = 'darts' and lifecycle = 'supported'`
       )
-    ).toBe("1")
+      // Version 1 and the S1-FACTS check-date version.
+    ).toBe("2")
   })
 })
 
@@ -166,8 +167,9 @@ describe("reads", () => {
       })
       expect(question).toMatchObject({
         key: "step_free_entrance",
-        version: 1,
-        latestVersion: 1,
+        // S1-FACTS version 2 names the 90-day check-date rules.
+        version: 2,
+        latestVersion: 2,
         ruleVersion: 1,
         confirmation: "venue_manager",
         selfConfirmationAllowed: true,
@@ -188,7 +190,7 @@ describe("reads", () => {
     await refused(
       w.staffA,
       "knowledge_question",
-      { p_key: "darts", p_version: 2 },
+      { p_key: "darts", p_version: 3 },
       "knowledge_question_not_found",
       "P0002"
     )

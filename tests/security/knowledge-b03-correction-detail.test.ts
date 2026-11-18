@@ -14,7 +14,7 @@ it("clears optional detail from the current answer and keeps it in history befor
   // Attach an optional facility detail without changing the shared registry.
   psql(`insert into public.knowledge_contribution_details
     (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
-    values ('${sent.contributionId}', '${w.venue}', 1, 'facility', 1,
+    values ('${sent.contributionId}', '${w.venue}', (select max(v.version) from public.knowledge_question_versions v join public.knowledge_contributions c on c.question_key = v.key where c.id = '${sent.contributionId}'), 'facility', 1,
       '${JSON.stringify(original)}'::jsonb, repeat('a', 64))`)
   const check = () =>
     json(w.manager, "knowledge_check", { p_check_id: w.checks[key] })
