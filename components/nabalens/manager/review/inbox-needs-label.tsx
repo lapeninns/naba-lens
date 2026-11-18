@@ -10,9 +10,19 @@ import { CardFlags, DetailsLink } from "./inbox-flags"
  * decides dish and place photos, so the photos that still need a slot (I'm
  * not sure, food or drink with no dish, no slot for 7 days) are listed under
  * it, each opening its review detail, where the manager labels it. The same
- * flags as a list card (inbox-flags.tsx); nothing when none wait.
+ * flags as a list card (inbox-flags.tsx); nothing when none wait. Shown
+ * whatever the menu state (S3-R8 W2): Overview counts these photos at a
+ * venue with no ready menu too, and Not used and the place and facility
+ * routes on the detail need no menu.
  */
-export function NeedsLabelList({ cards }: { cards: readonly QueueCard[] }) {
+export function NeedsLabelList({
+  cards,
+  note,
+}: {
+  cards: readonly QueueCard[]
+  /** A line under the heading (the menu is not ready yet, S3-R8 W2). */
+  note?: string
+}) {
   const waiting = cards.filter((c) => c.kind === "unlabelled")
   if (waiting.length === 0) return null
   return (
@@ -24,6 +34,7 @@ export function NeedsLabelList({ cards }: { cards: readonly QueueCard[] }) {
       <h2 id="review-needs-label" className="text-heading-sm text-ink">
         {INBOX_COPY.needsLabelTitle(waiting.length)}
       </h2>
+      {note ? <p className="text-body text-ink-muted">{note}</p> : null}
       <ul className="grid gap-3">
         {waiting.map((card) => {
           const who = card.isSelf ? INBOX_COPY.you : card.contributor.name
