@@ -1,13 +1,15 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { ImagesIcon, MapPinSimpleIcon } from "@phosphor-icons/react"
 
 import { Notice } from "@/components/nabalens/notice"
 import { useOnline } from "@/components/nabalens/offline-notice"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { slotPageHref } from "@/lib/staff/my-uploads"
 
 import { MATCH_COPY as C } from "./copy"
 import { MatchPicker } from "./match-picker"
@@ -92,6 +94,13 @@ export function MatchTray({
       ? lockedSlot.slot.name
       : C.trayReceipt
     : C.trayTitle
+  const target = lockedSlot?.kind === "slot" ? lockedSlot.slot.target : null
+  const slotHref = target
+    ? slotPageHref({
+        kind: target.kind,
+        slotId: target.kind === "dish" ? target.itemId : target.subjectId,
+      })
+    : null
   const taken = new Set([
     ...(busySlots?.keys() ?? []),
     ...[...assignments.values()].flatMap(({ outcome }) =>
@@ -278,6 +287,18 @@ export function MatchTray({
                 >
                   Add more photos
                 </Button>
+              ) : null}
+              {slotHref ? (
+                <Link
+                  href={slotHref}
+                  className={cn(
+                    buttonVariants({ variant: "quiet" }),
+                    "min-h-12"
+                  )}
+                  onClick={onClose}
+                >
+                  View slot
+                </Link>
               ) : null}
               <Button
                 type="button"

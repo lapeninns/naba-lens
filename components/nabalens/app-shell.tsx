@@ -6,6 +6,7 @@ import {
   ExportIcon,
   ForkKnifeIcon,
   GearSixIcon,
+  HouseIcon,
   ImagesIcon,
   ImagesSquareIcon,
   SignOutIcon,
@@ -15,6 +16,11 @@ import {
 } from "@phosphor-icons/react/dist/ssr"
 
 import { Button } from "@/components/ui/button"
+import {
+  ALBUM_UPLOAD_TRAY,
+  STAFF_PHOTO_ROUTES,
+} from "@/lib/config/album-upload-tray"
+import type { MonthlyProgress } from "@/lib/server/coverage/types"
 import { cn } from "@/lib/utils"
 
 import { OfflineShell } from "./offline-notice"
@@ -35,7 +41,7 @@ type AdminSection =
   | "settings"
   | "more"
 type StaffSection =
-  "tasks" | "menu" | "portfolio" | "community" | "people" | "manage"
+  "home" | "tasks" | "menu" | "portfolio" | "community" | "people" | "manage"
 
 type AppShellProps = {
   children: React.ReactNode
@@ -48,6 +54,8 @@ type AppShellProps = {
   | {
       variant: "staff"
       active?: StaffSection
+      venueName?: string
+      monthly?: MonthlyProgress | null
       /**
        * Shows *Manage* for an effective venue manager. Display only: every
        * manager page, action and RPC re-checks the grant.
@@ -189,6 +197,11 @@ const ALBUM: NavItem<StaffSection> = {
   href: "/staff/tasks",
   icon: ImagesSquareIcon,
 }
+const PHONE_TABS: ReadonlyArray<NavItem<StaffSection>> = [
+  { id: "home", label: "Home", href: STAFF_PHOTO_ROUTES.home, icon: HouseIcon },
+  { ...ALBUM, href: STAFF_PHOTO_ROUTES.album },
+  { ...ME, href: STAFF_PHOTO_ROUTES.me },
+]
 const MANAGE: NavItem<StaffSection> = {
   id: "manage",
   label: "Manage",
@@ -211,6 +224,7 @@ export function AppShell(props: AppShellProps) {
   const { children, userName, onLogout, className } = props
   const staff = props.variant === "staff" ? props : null
   const admin = props.variant === "admin" ? props : null
+  const photoNav = staff !== null && ALBUM_UPLOAD_TRAY
   // The Album tab counts the retakes Album shows (DESIGN.md §5a), never
   // the empty slots, and only while another section is open.
   const retakes = (id: string) =>
@@ -228,8 +242,7 @@ export function AppShell(props: AppShellProps) {
       : [
           // Album's places (DESIGN.md §5 Tab bar), and Manage. Our menu,
           // Photos and People are reached from Me.
-          ALBUM,
-          ME,
+          ...(photoNav ? PHONE_TABS : [ALBUM, ME]),
           ...(staff?.canManage ? [MANAGE] : []),
         ].map((item) => ({
           item,
@@ -240,6 +253,19 @@ export function AppShell(props: AppShellProps) {
     ? (ADMIN_ACTIVE_ALIAS[admin.active] ?? admin.active)
     : (staff?.active ?? "portfolio")
   const navLabel = admin ? "Admin" : "Staff"
+  const phoneSection = photoNav
+    ? PHONE_TABS.find((item) => item.id === active)
+    : undefined
+  const month = staff?.monthly
+  const goal =
+    month?.status === "set" && month.targetCount && month.targetCount > 0
+      ? {
+          label: month.period.label.split(" ")[0],
+          count: month.completionProgress?.total ?? month.accepted,
+          target: month.targetCount,
+          unit: month.completionProgress ? "completed" : "accepted",
+        }
+      : null
   // Pages render this shell themselves, so each navigation and refresh
   // renders it again: the server's time now is when this content was read.
   // Rendered in the browser (an error boundary), it has no such time.
@@ -275,11 +301,25 @@ export function AppShell(props: AppShellProps) {
         Skip to content
       </a>
       {/* Common Room top bar: white, a hairline under it. */}
-      <header className="relative z-local bg-surface shadow-[0_1px_0_var(--line)]">
+      <header
+        className={cn(
+          "z-local bg-surface shadow-[0_1px_0_var(--line)]",
+          photoNav ? "sticky top-0" : "relative"
+        )}
+      >
         <div className="mx-auto flex min-h-15 w-full max-w-page items-center gap-3 px-3 md:px-6 lg:gap-6">
           <Link
-            href={admin ? "/admin/overview" : "/staff/tasks"}
-            className="inline-flex flex-none items-baseline gap-2 rounded-control font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap text-ink focus-ring outline-none max-md:py-2.5"
+            href={
+              admin
+                ? "/admin/overview"
+                : photoNav
+                  ? STAFF_PHOTO_ROUTES.home
+                  : ALBUM.href
+            }
+            className={cn(
+              "inline-flex flex-none items-baseline gap-2 rounded-control font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap text-ink focus-ring outline-none max-md:py-2.5",
+              phoneSection && "max-md:hidden"
+            )}
           >
             Naba-Lens
             {admin ? " " : null}
@@ -289,6 +329,28 @@ export function AppShell(props: AppShellProps) {
               </span>
             ) : null}
           </Link>
+          {phoneSection ? (
+            <div className="grid min-w-0 flex-1 gap-0.5 py-2 md:hidden">
+              <span className="text-meta text-ink-muted">
+                {staff?.venueName || month?.venue.name || "Naba-Lens"}
+              </span>
+              <div className="flex flex-wrap items-center gap-x-3">
+                <span className="type-section-title">{phoneSection.label}</span>
+                {goal ? (
+                  <Link
+                    href="/staff/tasks/month"
+                    aria-label={`${goal.label} goal, ${goal.count} of ${goal.target} ${goal.unit}`}
+                    className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-round border border-line bg-surface-2 px-3 text-meta font-bold focus-ring"
+                  >
+                    {goal.label.slice(0, 3)}
+                    <span className="tabular-nums">
+                      {goal.count}/{goal.target}
+                    </span>
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           <nav
             aria-label={navLabel}
             data-slot="app-nav"
@@ -339,8 +401,13 @@ export function AppShell(props: AppShellProps) {
               )
             })}
           </nav>
-          <div className="ml-auto flex min-w-0 items-center gap-2">
-            {staff ? (
+          <div
+            className={cn(
+              "ml-auto flex min-w-0 items-center gap-2",
+              phoneSection && "max-md:hidden"
+            )}
+          >
+            {staff && !photoNav ? (
               <div className="hidden md:block">
                 <AlbumAddTrigger kind="bar" />
               </div>
@@ -403,7 +470,7 @@ export function AppShell(props: AppShellProps) {
                 }
               />
             ))
-          : [ALBUM, null, ME].map((item) =>
+          : (photoNav ? PHONE_TABS : [ALBUM, null, ME]).map((item) =>
               item ? (
                 <TabLink
                   key={item.id}

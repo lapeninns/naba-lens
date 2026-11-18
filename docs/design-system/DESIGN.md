@@ -239,6 +239,17 @@ Local trial of the two routes. Enable it in development with
   Both routes show a receipt with one row per file and Retry on recoverable
   failures. Count files already sent for review separately from those still
   sending. Match later continues to keep unassigned photos.
+- **MT-4**. Preview sign-in lands on **Home** (`/staff/home`), with Add
+  photos, recovery, Match later, your month and your recent activity.
+  The bottom bar links to Home, Album and Me. Each tab has a real URL
+  and the current tab is labelled as the current page.
+- **MT-5**. **Album** (`/staff/album`) opens on searchable, grouped slot
+  rows. The known-slot receipt links to the slot's own page, which shows
+  the brief and the staff member's submissions for that slot.
+- **MT-6**. **Me** (`/staff/me`) starts with your month and your own
+  submissions, followed by your profile and account. The three main
+  screens show the venue and current section in the mobile header and,
+  when set, the month's goal summary links to its details.
 
 In the tray, assignments are drafts until Send. The existing upload queue
 sends the files and their matches together. Each slot-first pick already has

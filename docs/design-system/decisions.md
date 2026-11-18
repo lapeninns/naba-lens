@@ -52,9 +52,9 @@ These were settled in the Common Room spec before it came into the repo. They bi
 
 ## Batch Match phone preview
 
-- **D13**. Should staff Home become a separate gallery hub with the month
-  in the header, as in the two-route reference? The phone trial starts from
-  Album as Home so both upload routes can be compared first.
+- **D13**. The phone trial uses a separate gallery-first Home, a slot-first
+  Album and a personal Me, with monthly progress in the header when a goal
+  is set. Trial decision for DESIGN.md §6.1a, pending confirmation on phones.
 - **D14**. Should gallery picks transfer into a private draft before staff
   commit their matches? The phone trial sends on confirmation and uses the
   existing Match later destination. Early transfer needs a decision about

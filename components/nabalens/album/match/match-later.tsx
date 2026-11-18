@@ -21,6 +21,10 @@ import {
 import { Notice } from "@/components/nabalens/notice"
 import { Photo } from "@/components/ui/photo"
 import type { ContentType, SaveLabelsInput } from "@/lib/menus/types"
+import {
+  ALBUM_UPLOAD_TRAY,
+  STAFF_PHOTO_ROUTES,
+} from "@/lib/config/album-upload-tray"
 import { cn } from "@/lib/utils"
 
 import { MATCH_LATER_COPY } from "./copy"
@@ -269,11 +273,11 @@ export function MatchLaterScreen({
     <div className="grid gap-4 pb-4" data-slot="match-later">
       <div>
         <Link
-          href={ALBUM_HREF}
+          href={ALBUM_UPLOAD_TRAY ? STAFF_PHOTO_ROUTES.home : ALBUM_HREF}
           className="inline-flex min-h-12 items-center gap-1 font-bold text-ink focus-ring"
         >
           <ArrowLeftIcon aria-hidden className="size-5" />
-          {MATCH_LATER_COPY.back}
+          {ALBUM_UPLOAD_TRAY ? "Home" : MATCH_LATER_COPY.back}
         </Link>
       </div>
       <header className="grid gap-1">

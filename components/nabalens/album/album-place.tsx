@@ -30,6 +30,10 @@ import {
   type CoverageCategory,
 } from "@/lib/album/model"
 import { rememberAlbumShow } from "@/lib/album/remembered-place"
+import {
+  ALBUM_UPLOAD_TRAY,
+  STAFF_PHOTO_ROUTES,
+} from "@/lib/config/album-upload-tray"
 import { REPORT_COPY } from "@/lib/staff/slot-reports"
 
 /*
@@ -117,7 +121,7 @@ export function AlbumPlaceScreen({
     <div className="grid gap-5 pb-4" data-slot="album-place">
       <div>
         <Link
-          href={`/staff/tasks?place=${placeKey}`}
+          href={`${ALBUM_UPLOAD_TRAY ? STAFF_PHOTO_ROUTES.album : "/staff/tasks"}?place=${placeKey}`}
           className="inline-flex min-h-12 items-center gap-1 font-bold text-ink focus-ring"
         >
           <ArrowLeftIcon aria-hidden className="size-5" />

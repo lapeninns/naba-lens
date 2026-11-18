@@ -20,6 +20,7 @@ import {
 } from "@/components/nabalens/tasks/first-run-state"
 import { currentPlace } from "@/lib/album/model"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import { ALBUM_UPLOAD_TRAY } from "@/lib/config/album-upload-tray"
 import { loadAlbum } from "@/lib/server/album"
 import { rememberedAlbumPlace } from "@/lib/server/album-place"
 import { MatchLaterRow } from "@/components/nabalens/album/match/match-later"
@@ -36,6 +37,7 @@ import {
   myAlbumRetakes,
   myOtherJobsCount,
   myWorkingList,
+  ownMonth,
   staffShellStatus,
 } from "../_shell/shell-status"
 import { ADD_BLOCKED } from "../add-blocked"
@@ -149,6 +151,7 @@ export default async function AlbumHomePage({
     jar,
     onboarding,
     requests,
+    monthly,
   ] = await Promise.all([
     searchParams,
     staffShellStatus(actor, profile),
@@ -168,6 +171,7 @@ export default async function AlbumHomePage({
     // S2-REQ: a manager's open requests, shown as their slots. A failed read
     // leaves the section out rather than failing Home.
     listMyRequests(actor).catch(() => null),
+    ALBUM_UPLOAD_TRAY ? ownMonth(actor) : null,
   ])
   const blockedReason = uploadBlockReason(profile)
   // The legacy cookie still counts as dismissed; dismissal lives in the
@@ -205,6 +209,8 @@ export default async function AlbumHomePage({
       active="tasks"
       {...shell}
       userName={profile.displayName}
+      venueName={profile.venue?.name}
+      monthly={monthly}
     >
       <OfflineNotice className="mb-3" />
       <div id={ALBUM_TOP_ID} tabIndex={-1} className="grid gap-3 outline-none">

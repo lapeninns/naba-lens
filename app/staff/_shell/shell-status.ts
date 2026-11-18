@@ -15,7 +15,7 @@ import {
   getMyTasks,
   listMyRetakeNotes,
 } from "@/lib/server/coverage"
-import type { RetakeNote } from "@/lib/server/coverage/types"
+import type { MonthlyProgress, RetakeNote } from "@/lib/server/coverage/types"
 import { avatarUrl } from "@/lib/server/media/library"
 import { unreadCount } from "@/lib/server/notifications"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -48,6 +48,18 @@ const tasksOf = cache(async (actor: MediaActor) => getMyTasks(actor))
 
 /** My coverage tasks, read once per request however many parts need them. */
 export const myTasks = (actor: MediaActor) => tasksOf(sharedActor(actor))
+
+/** The signed-in staff member's goal, shared by their three photo routes. */
+export async function ownMonth(
+  actor: MediaActor
+): Promise<MonthlyProgress | null> {
+  try {
+    const result = await myTasks(actor)
+    return result.ok ? result.tasks.monthly : null
+  } catch {
+    return null
+  }
+}
 
 const amenityTasksOf = cache(
   async (actor: MediaActor): Promise<MyAmenityTask[] | null> => {

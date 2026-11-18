@@ -1521,7 +1521,15 @@ export function AddHost({
         // stopped, or its labels need attention) is shown first, as today's
         // Add does; photos only sending never hold back the next pick. A
         // slot's own tile still opens its gallery, as any picker source does.
-        if (opts.match && !blocked && role === "staff" && needing > 0) {
+        // The phone preview gives recovery its own Home row so Add photos
+        // always starts a new gallery pick (DESIGN.md §6.1a).
+        if (
+          !ALBUM_UPLOAD_TRAY &&
+          opts.match &&
+          !blocked &&
+          role === "staff" &&
+          needing > 0
+        ) {
           sheetOwner.current = null
           pickerOwner.current = null
           setUploadOpen(true)

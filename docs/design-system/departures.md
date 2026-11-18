@@ -130,3 +130,7 @@ selection and one Send action for a whole batch. A known slot takes multiple
 photos and uses the same receipt. This lets staff match several angles at
 once and confirm different destinations together. Compare both routes on
 the test phones before adopting the interaction. Owner Aman Kumar Shrestha.
+
+**A-MT2**. The local trial uses Home, Album and Me tabs (DESIGN.md §6.1a).
+Home owns gallery-first capture and recovery. Album starts with slot search
+and Me starts with personal progress and submissions. Owner Aman Kumar Shrestha.

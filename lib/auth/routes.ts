@@ -1,4 +1,8 @@
 import type { Database } from "@/lib/db/types"
+import {
+  ALBUM_UPLOAD_TRAY,
+  STAFF_PHOTO_ROUTES,
+} from "@/lib/config/album-upload-tray"
 import { getSiteUrl } from "@/lib/supabase/env"
 
 export type AppRole = Database["public"]["Enums"]["app_role"]
@@ -30,7 +34,7 @@ export const ROUTES = {
 export function homePathFor(role: AppRole): string {
   switch (role) {
     case "staff":
-      return ROUTES.staffLanding
+      return ALBUM_UPLOAD_TRAY ? STAFF_PHOTO_ROUTES.home : ROUTES.staffLanding
     case "manager":
       return ROUTES.managerHome
     case "admin":

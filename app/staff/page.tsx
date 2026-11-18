@@ -39,11 +39,7 @@ import {
   listMyMenuPhotoDecisions,
   listMyRetakeNotes,
 } from "@/lib/server/coverage"
-import type {
-  MonthlyProgress,
-  MyMenuPhotoState,
-  RetakeNote,
-} from "@/lib/server/coverage/types"
+import type { MyMenuPhotoState, RetakeNote } from "@/lib/server/coverage/types"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listOwnMedia, listOwnMediaByIds } from "@/lib/server/media/library"
 import type { MediaActor, MediaItemView } from "@/lib/server/media/types"
@@ -56,9 +52,9 @@ import { workServices } from "@/lib/work-client/services"
 
 import {
   myOtherJobsCount,
-  myTasks,
   myUnreadNotices,
   myWorkingList,
+  ownMonth,
   staffShellStatus,
 } from "./_shell/shell-status"
 import { getMyAreaLabels } from "@/lib/server/area-photos"
@@ -129,20 +125,6 @@ async function retakeNotes(actor: MediaActor): Promise<RetakeNote[]> {
     return result.ok ? result.notes : []
   } catch {
     return []
-  }
-}
-
-/**
- * The person's own month (Album shell, proposal §7.6: moved off Home to Me).
- * Null when unread: the card says there is no target rather than leaving Me
- * broken.
- */
-async function ownMonth(actor: MediaActor): Promise<MonthlyProgress | null> {
-  try {
-    const result = await myTasks(actor)
-    return result.ok ? result.tasks.monthly : null
-  } catch {
-    return null
   }
 }
 
@@ -289,6 +271,8 @@ export default async function StaffPage({
       active="portfolio"
       {...shell}
       userName={profile.displayName}
+      venueName={profile.venue?.name}
+      monthly={month}
     >
       <StaffPortfolio
         profile={{

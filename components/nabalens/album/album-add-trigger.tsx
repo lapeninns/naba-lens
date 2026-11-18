@@ -28,7 +28,7 @@ export const ALBUM_ADD_LABEL = "Add photos"
  * Add photos in the Album shell: the middle tab on phones, a button in the
  * AppBar from md. Outside the staff layout (previews, tests) it links to Me.
  */
-export function AlbumAddTrigger({ kind }: { kind: "tab" | "bar" }) {
+export function AlbumAddTrigger({ kind }: { kind: "tab" | "bar" | "home" }) {
   const add = useAddContext()
   const openAdd = add?.openAdd ?? null
   const busy = add?.busy
@@ -62,7 +62,12 @@ export function AlbumAddTrigger({ kind }: { kind: "tab" | "bar" }) {
   const className =
     kind === "tab"
       ? cn(TAB_ITEM, "text-ink-muted hover:bg-surface-2 hover:text-ink")
-      : cn(buttonVariants({ variant: "secondary" }), "lg:whitespace-nowrap")
+      : kind === "home"
+        ? cn(
+            buttonVariants({ variant: "primary", size: "lg" }),
+            "min-h-14 w-full"
+          )
+        : cn(buttonVariants({ variant: "secondary" }), "lg:whitespace-nowrap")
   return openAdd ? (
     <button
       type="button"

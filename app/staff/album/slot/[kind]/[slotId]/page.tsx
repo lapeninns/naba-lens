@@ -10,6 +10,10 @@ import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { findSlot } from "@/lib/album/model"
+import {
+  ALBUM_UPLOAD_TRAY,
+  STAFF_PHOTO_ROUTES,
+} from "@/lib/config/album-upload-tray"
 import { loadAlbum } from "@/lib/server/album"
 import { getCoverageActor } from "@/lib/server/coverage"
 import { getMySlotUploads } from "@/lib/server/staff"
@@ -71,13 +75,18 @@ export default async function AlbumSlotPage({
       active="tasks"
       {...shell}
       userName={profile.displayName}
+      venueName={profile.venue?.name}
     >
       <OfflineNotice className="mb-3" />
       {album.ok && found ? (
         <AlbumSlotScreen
           venueName={profile.venue?.name ?? ""}
-          placeLabel={found.place.label}
-          placeHref={`/staff/album/${found.place.subjectId ?? "unplaced"}`}
+          placeLabel={ALBUM_UPLOAD_TRAY ? "Album" : found.place.label}
+          placeHref={
+            ALBUM_UPLOAD_TRAY
+              ? STAFF_PHOTO_ROUTES.album
+              : `/staff/album/${found.place.subjectId ?? "unplaced"}`
+          }
           slot={found.slot}
           retake={
             retakeOf
