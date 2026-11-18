@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 
+import { AmenityReviewSection } from "@/app/manager/review/_shared/amenity-section"
 import { AreaReviewSection } from "@/app/manager/review/_shared/area-section"
 import {
   ReviewBody,
@@ -17,7 +18,8 @@ export const metadata: Metadata = {
 /**
  * The admin Review page for one venue: the manager workspace's Review screen
  * (relink, old-menu labels and unlabelled photos included), with every action
- * naming the venue. No review badge provider here.
+ * naming the venue, then place and facility photos (the waiting count on
+ * Overview links here). No review badge provider here.
  */
 export default async function AdminMenuPhotosPage({
   params,
@@ -44,6 +46,8 @@ export default async function AdminMenuPhotosPage({
         search={await searchParams}
       />
       <AreaReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
+      {/* S3-R11 (V18): the facility photos Overview counts as waiting. */}
+      <AmenityReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
     </ManageFrame>
   )
 }

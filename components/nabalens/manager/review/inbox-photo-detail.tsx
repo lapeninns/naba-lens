@@ -41,6 +41,7 @@ import {
 import type { QueueCard } from "@/lib/server/menu-photos/types"
 import { dishName } from "@/lib/menus/dish-name"
 
+import { managerHrefs } from "../hrefs"
 import { ItemPickerDialog, type PickedItem } from "./item-picker-dialog"
 import { dayOf, historyWords, INBOX_COPY, takenWords } from "./inbox-copy"
 
@@ -744,7 +745,11 @@ export function InboxPhotoDetail({
             {detail.group.map((g) => (
               <li key={g.assetId}>
                 <Link
-                  href={`/manager/review/photo/${encodeURIComponent(g.assetId)}`}
+                  href={
+                    venueId
+                      ? managerHrefs.adminPhoto(venueId, g.assetId)
+                      : managerHrefs.photo(g.assetId)
+                  }
                   aria-label={`${C.details} ${dayOf(g.uploadedAt ?? detail.uploadedAt)}`}
                   className="block rounded-control focus-ring outline-none"
                 >

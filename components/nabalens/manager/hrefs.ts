@@ -110,6 +110,9 @@ export const managerHrefs = {
   /** S2-REVIEW: one photo's review detail. */
   photo: (assetId: string) =>
     `/manager/review/photo/${encodeURIComponent(assetId)}`,
+  /** S3-R11 (review V18): one photo's review detail for an admin. */
+  adminPhoto: (venueId: string, assetId: string) =>
+    `/admin/coverage/${encodeURIComponent(venueId)}/menu-photos/photo/${encodeURIComponent(assetId)}`,
   adminContributor: (venueId: string, id: string) =>
     `/admin/coverage/${encodeURIComponent(venueId)}/menu-photos/contributors/${encodeURIComponent(id)}`,
 } as const
