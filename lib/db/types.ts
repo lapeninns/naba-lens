@@ -5607,6 +5607,61 @@ export type Database = {
           },
         ]
       }
+      menu_month_checks: {
+        Row: {
+          confirmed_at: string
+          confirmed_by: string
+          confirmer_role: string
+          id: number
+          menu_version_id: string
+          month: string
+          note: string | null
+          venue_id: string
+        }
+        Insert: {
+          confirmed_at?: string
+          confirmed_by: string
+          confirmer_role: string
+          id?: never
+          menu_version_id: string
+          month: string
+          note?: string | null
+          venue_id: string
+        }
+        Update: {
+          confirmed_at?: string
+          confirmed_by?: string
+          confirmer_role?: string
+          id?: never
+          menu_version_id?: string
+          month?: string
+          note?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_month_checks_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_month_checks_menu_version_id_fkey"
+            columns: ["menu_version_id"]
+            isOneToOne: false
+            referencedRelation: "menu_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_month_checks_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_sections: {
         Row: {
           id: string
@@ -7098,6 +7153,74 @@ export type Database = {
           },
         ]
       }
+      venue_reviewer_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          end_kind: string | null
+          ended_at: string | null
+          ended_by: string | null
+          id: string
+          profile_id: string
+          reason: string | null
+          role: string
+          venue_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          end_kind?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          profile_id: string
+          reason?: string | null
+          role: string
+          venue_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          end_kind?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          profile_id?: string
+          reason?: string | null
+          role?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_reviewer_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_reviewer_assignments_ended_by_fkey"
+            columns: ["ended_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_reviewer_assignments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_reviewer_assignments_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_scope: {
         Row: {
           applicable: boolean
@@ -7876,6 +7999,10 @@ export type Database = {
           plan_id: string
           reconciliation_required: boolean
         }[]
+      }
+      confirm_menu_month: {
+        Args: { p_note?: string; p_venue_id?: string }
+        Returns: Json
       }
       contribution_group: { Args: { p_group_id: string }; Returns: Json }
       contribution_group_add: {
@@ -8971,6 +9098,7 @@ export type Database = {
           waiting: number
         }[]
       }
+      manager_venue_summary: { Args: { p_venue_id?: string }; Returns: Json }
       manager_workspace_scope: {
         Args: never
         Returns: {
@@ -9895,6 +10023,15 @@ export type Database = {
           target_count: number
         }[]
       }
+      set_venue_reviewer: {
+        Args: {
+          p_profile_id: string
+          p_reason?: string
+          p_role: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
       set_welcome_dismissed: {
         Args: { p_dismissed: boolean }
         Returns: {
@@ -10038,6 +10175,15 @@ export type Database = {
           target_count: number
         }[]
       }
+      venue_history: {
+        Args: {
+          p_before?: Json
+          p_limit?: number
+          p_source?: string
+          p_venue_id?: string
+        }
+        Returns: Json
+      }
       venue_manager_grant_list: {
         Args: { p_include_revoked?: boolean; p_venue_id?: string }
         Returns: {
@@ -10059,6 +10205,7 @@ export type Database = {
           venue_name: string
         }[]
       }
+      venue_review_assignments: { Args: { p_venue_id?: string }; Returns: Json }
       venue_scope_read: { Args: { p_venue_id?: string }; Returns: Json }
       venue_scope_set: {
         Args: {

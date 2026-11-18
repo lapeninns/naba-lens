@@ -22,6 +22,7 @@ import {
   world,
   type World,
 } from "./knowledge-fixtures"
+import { setApplicability } from "./amenity-applicability"
 
 const contribution = (id: string) => ({ type: "contribution" as const, id })
 const submission = (id: string) => ({ type: "submission" as const, id })
@@ -385,9 +386,9 @@ describe("eligibility changes (T8)", () => {
 
     await submit(w.staffA, w, "guest_toilets", { answer: "no" })
     const check = w.checks.guest_toilets!
-    // Core checks are archived by an admin (AC29, S2-FIX R12).
     await ok(
-      w.admin.client.rpc("amenity_archive_check", {
+      // S2-MGR: core questions are archived by an admin, with a reason.
+      setApplicability(w.admin.client, "archive", {
         p_check_id: check,
         p_revision: count(
           `select revision from public.venue_amenity_checks where id = '${check}'`
@@ -406,9 +407,9 @@ describe("eligibility changes (T8)", () => {
       confirmOwn: true,
     })
     const check = w.checks.step_free_entrance!
-    // Core checks are archived by an admin (AC29, S2-FIX R12).
     await ok(
-      w.admin.client.rpc("amenity_archive_check", {
+      // S2-MGR: core questions are archived by an admin, with a reason.
+      setApplicability(w.admin.client, "archive", {
         p_check_id: check,
         p_revision: count(
           `select revision from public.venue_amenity_checks where id = '${check}'`

@@ -54,6 +54,11 @@ Built to [DESIGN.md](DESIGN.md) §5. Each batch adds its rows.
 | UnfinishedRow                       | `components/nabalens/album/unfinished-row.tsx`       | Feature | Album Home: unfinished photos (spec §6 S1)                              | 1              | adopted (same row shape as HomeRow; a button, since it opens Add)       |
 
 SuggestSpecialRow (`components/nabalens/album/match/suggest-special.tsx`, S2-ADD) is part of the Match picker: under a search that found nothing, it suggests the searched name to the manager as a local special.
+| OverviewActions, BacklogPanel, CategoryCoverage, VenueAtAGlance | `components/nabalens/manager/overview/overview-panels.tsx` | Feature | Manager Overview (spec §7 M1), HomeRow and Progress (§5) | 1 | adopted (S2-MGR) |
+| MenuMonthCheckControl | `components/nabalens/manager/venue/menu-month-check.tsx` | Feature | Monthly "Still right" for the active menu (spec §9.3) | 2 | adopted (S2-MGR) |
+| ReviewersForm | `components/nabalens/manager/venue/reviewers-form.tsx` | Feature | Main and backup reviewer (spec §7 M5), FormField and OptionSelect | 1 | adopted (S2-MGR) |
+| StillRightList | `components/nabalens/manager/venue/still-right-list.tsx` | Feature | Facts and space photos to confirm as still right (spec §7 M5, §9.3) | 1 | adopted (S2-MGR) |
+| VenueHistoryList, VenueHistoryPager | `components/nabalens/manager/venue/venue-history-list.tsx`, `venue-history-pager.tsx` | Feature | Venue history (spec §7 M5) | 2 | adopted (S2-MGR) |
 
 AlbumAddTrigger is Add photos in the staff shell (tab and AppBar). Since A5 it is the only staff Add trigger; `ALBUM_ADD_OPTIONS` in the same file (the gallery for many photos, then Match) is what every Album Add photos opens.
 

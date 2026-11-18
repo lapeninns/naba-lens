@@ -117,6 +117,9 @@ const NOT_PERMITTED_MESSAGES: Record<string, string> = {
   not_active_admin: "Only an active admin can do this.",
   not_venue_manager:
     "Only this venue's manager or an admin can do this. Reload the page.",
+  // S2-MGR: archiving or restoring a core question is for admins.
+  core_check_admin_only:
+    "Only an admin can mark a core question as not here, or restore it.",
   amenity_not_permitted:
     "Only the assigned person, the venue's manager or an admin can do this. Reload the page.",
 }
@@ -124,6 +127,7 @@ const NOT_PERMITTED_MESSAGES: Record<string, string> = {
 const NOT_FOUND_MESSAGES: Record<string, string> = {
   venue_not_found: "This venue could not be found.",
   amenity_check_not_found: NOT_FOUND.message,
+  check_not_found: NOT_FOUND.message,
   amenity_key_not_found:
     "A catalogue entry could not be found. Reload the page.",
 }
@@ -141,6 +145,7 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   invalid_answer: ["answer", "Choose Yes, No or Not applicable."],
   reason_required: ["reason", "Enter a reason."],
   invalid_reason: ["reason", "Use up to 500 characters."],
+  reason_too_long: ["reason", "Use up to 500 characters."],
   invalid_finding: ["finding", "Use up to 2000 characters."],
   invalid_limitations: ["limitations", "Use up to 2000 characters."],
   invalid_notes: ["notes", "Use up to 2000 characters."],

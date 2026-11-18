@@ -41,7 +41,8 @@ function links(el: HTMLElement) {
 }
 
 describe("ManagerShell", () => {
-  it("shows Overview, Review, Menu and Amenities at desktop and phone widths", () => {
+  // S2-MGR: spec §7 navigation.
+  it("shows Overview, Review, Album, Requests and Venue at desktop and phone widths", () => {
     shell()
     const found = navs()
     expect(found.map((n) => n.dataset.slot).sort()).toEqual([
@@ -52,8 +53,9 @@ describe("ManagerShell", () => {
       expect(links(el)).toEqual([
         ["Overview", "/manager"],
         ["Review", "/manager/review"],
-        ["Menu", "/manager/menu"],
-        ["Amenities", "/manager/amenities"],
+        ["Album", "/manager/menu"],
+        ["Requests", "/manager/requests"],
+        ["Venue", "/manager/venue"],
       ])
     }
   })
@@ -98,10 +100,18 @@ describe("ManagerShell", () => {
     ["/manager", "Overview"],
     ["/manager/review", "Review"],
     ["/manager/review/contributors/abc", "Review"],
-    ["/manager/menu", "Menu"],
-    ["/manager/menu/abc", "Menu"],
-    ["/manager/amenities", "Amenities"],
-    ["/manager/amenities/abc/capture", "Amenities"],
+    ["/manager/menu", "Album"],
+    ["/manager/menu/abc", "Album"],
+    ["/manager/amenities", "Album"],
+    ["/manager/amenities/abc/capture", "Album"],
+    ["/manager/album", "Album"],
+    ["/manager/requests", "Requests"],
+    ["/manager/venue", "Venue"],
+    ["/manager/venue/history", "Venue"],
+    ["/manager/team", "Venue"],
+    ["/manager/exports", "Venue"],
+    ["/manager/menu/versions", "Venue"],
+    ["/manager/menu/specials", "Venue"],
   ])("marks %s as %s with aria-current", (pathname, label) => {
     nav.pathname = pathname
     shell()

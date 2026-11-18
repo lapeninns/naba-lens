@@ -185,10 +185,17 @@ describe("AmenitiesOverview: lists", () => {
     await user.click(
       within(archived).getByRole("button", { name: UI_TEXT.restore })
     )
+    // S2-MGR (AC29): the reason first, in a dialog.
+    const dialog = await screen.findByRole("dialog")
+    await user.type(within(dialog).getByLabelText(/Reason/), "TEST back")
+    await user.click(
+      within(dialog).getByRole("button", { name: UI_TEXT.restore })
+    )
     expect(h.restore).toHaveBeenCalledWith({
       idempotencyKey: expect.any(String),
       checkId: ARCHIVED.id,
       revision: ARCHIVED.revision,
+      reason: "TEST back",
     })
   })
 
@@ -204,6 +211,11 @@ describe("AmenitiesOverview: lists", () => {
       />
     )
     await user.click(screen.getByRole("button", { name: UI_TEXT.restore }))
+    const dialog = await screen.findByRole("dialog")
+    await user.type(within(dialog).getByLabelText(/Reason/), "TEST back")
+    await user.click(
+      within(dialog).getByRole("button", { name: UI_TEXT.restore })
+    )
     expect(
       await screen.findByText(/Someone else changed this check/)
     ).toBeTruthy()

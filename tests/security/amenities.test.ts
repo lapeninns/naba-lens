@@ -29,6 +29,7 @@ import {
   psql,
   requestKey,
 } from "./coverage-fixtures"
+import { setApplicability } from "./amenity-applicability"
 
 const service = serviceClient()
 
@@ -350,14 +351,14 @@ describe("enable and add", () => {
     const id = await addCheck(manager, venue, "board_games")
     await ok(assign(manager, id, staffA.id))
     const archived = await ok(
-      manager.client.rpc("amenity_archive_check", {
+      setApplicability(manager.client, "archive", {
         p_check_id: id,
         p_revision: await revisionOf(id),
       })
     )
     expect(archived).toBe(3)
     await fails(
-      manager.client.rpc("amenity_archive_check", {
+      setApplicability(manager.client, "archive", {
         p_check_id: id,
         p_revision: archived,
       }),
@@ -391,13 +392,13 @@ describe("enable and add", () => {
     })
 
     await ok(
-      manager.client.rpc("amenity_archive_check", {
+      setApplicability(manager.client, "archive", {
         p_check_id: id,
         p_revision: 4,
       })
     )
     await fails(
-      manager.client.rpc("amenity_restore_check", {
+      setApplicability(manager.client, "restore", {
         p_check_id: id,
         p_revision: 4,
       }),
@@ -405,7 +406,7 @@ describe("enable and add", () => {
     )
     expect(
       await ok(
-        manager.client.rpc("amenity_restore_check", {
+        setApplicability(manager.client, "restore", {
           p_check_id: id,
           p_revision: 5,
         })
@@ -1270,11 +1271,12 @@ describe("access", () => {
     )
     // Cross-venue writes.
     await fails(
-      otherManager.client.rpc("amenity_archive_check", {
+      setApplicability(otherManager.client, "archive", {
         p_check_id: here,
         p_revision: 2,
       }),
-      "amenity_check_not_found"
+      // S2-MGR: the reason-recording path checks the venue first.
+      "not_venue_manager"
     )
     const crossVenue = await fails(
       submit(otherManager, there, { assets: [herePhoto] }),
@@ -1492,13 +1494,13 @@ describe("manager accounts", () => {
     expect((await checkRow(acct, bar!)).progress).toBe("needs_recheck")
     await ok(submit(acct, room!, { assets: [staffEra] }))
     await ok(
-      acct.client.rpc("amenity_archive_check", {
+      setApplicability(acct.client, "archive", {
         p_check_id: room!,
         p_revision: await revisionOf(room!),
       })
     )
     await ok(
-      acct.client.rpc("amenity_restore_check", {
+      setApplicability(acct.client, "restore", {
         p_check_id: room!,
         p_revision: await revisionOf(room!),
       })
@@ -1770,7 +1772,7 @@ describe("inactive venue", () => {
     await ok(assign(admin, open!, sleepyStaff.id))
     await ok(submit(admin, answered!, { answer: "no", reason: "None" }))
     await ok(
-      admin.client.rpc("amenity_archive_check", {
+      setApplicability(admin.client, "archive", {
         p_check_id: archived!,
         p_revision: await revisionOf(archived!),
       })
@@ -1805,12 +1807,12 @@ describe("inactive venue", () => {
           p_keys: ["pool_table"],
         }),
       () =>
-        admin.client.rpc("amenity_archive_check", {
+        setApplicability(admin.client, "archive", {
           p_check_id: open!,
           p_revision: revisions[0]!,
         }),
       () =>
-        admin.client.rpc("amenity_restore_check", {
+        setApplicability(admin.client, "restore", {
           p_check_id: archived!,
           p_revision: revisions[2]!,
         }),

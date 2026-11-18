@@ -1,6 +1,13 @@
+import { HomeRow } from "@/components/nabalens/album/home-rows"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { OverviewBody } from "@/components/nabalens/manager/overview/overview-body"
+import {
+  BacklogPanel,
+  CategoryCoverage,
+  OverviewActions,
+  VenueAtAGlance,
+} from "@/components/nabalens/manager/overview/overview-panels"
 import { TeamCompletionTargets } from "@/components/nabalens/manager/overview/team-completion-targets"
 import { TriageCard } from "@/components/nabalens/manager/overview/triage-card"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
@@ -16,7 +23,19 @@ import { managerTriageSurface } from "@/lib/config/manager-triage"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getAmenityActor } from "@/lib/server/amenities"
 import { getManagerCompletionRoster } from "@/lib/server/coverage/venue"
+import {
+  backlogSplit,
+  categoryRows,
+  overviewActions,
+  type OverviewInput,
+} from "@/lib/manager/overview"
+import { getCoverageSlots } from "@/lib/server/album"
+import { getPublicationOverview } from "@/lib/server/exports/service"
+import { getFactCoverage } from "@/lib/server/knowledge/facts"
+import { getManagerVenueSummary } from "@/lib/server/manager/venue"
+import { getMediaActor } from "@/lib/server/media/context"
 import type { TriageRow } from "@/lib/work-client/contract"
+import { ExportIcon } from "@phosphor-icons/react/dist/ssr"
 import { workServices } from "@/lib/work-client/services"
 
 import { managerNeedsLabels } from "./entry"
@@ -58,6 +77,33 @@ async function readTriage(): Promise<TriageRow[] | null> {
   }
 }
 
+/**
+ * S2-MGR (spec §7 M1): the reads behind the actions and panels. Each read
+ * fails on its own: a failed one is null and its panel says it couldn't
+ * count, never zero.
+ */
+async function readVenueState(venueId: string) {
+  const auth = await getMediaActor("manager")
+  if (!auth.ok) return null
+  const actor = auth.actor
+  const settle = async <T,>(p: Promise<T>): Promise<T | null> =>
+    p.catch(() => null)
+  const [coverage, facts, publication, summary] = await Promise.all([
+    settle(getCoverageSlots(actor)),
+    settle(getFactCoverage(actor, { venueId })),
+    settle(getPublicationOverview(actor, venueId)),
+    settle(getManagerVenueSummary(actor)),
+  ])
+  return {
+    coverage: coverage?.ok ? coverage.coverage : null,
+    facts: facts?.ok ? facts.coverage : null,
+    publicationIssues: publication?.ok
+      ? publication.overview.outstanding.length
+      : null,
+    summary: summary?.ok ? summary.summary : null,
+  }
+}
+
 export default async function ManagerOverviewPage() {
   const workspace = await getManagerWorkspace()
   // After a grant ends mid-session the layout is not re-rendered on client
@@ -74,10 +120,11 @@ export default async function ManagerOverviewPage() {
       return <VenueAccessUnavailable reason="no_grant" refreshShell />
     failedRead(read.code, "the overview", ROUTES.managerHome)
   }
-  const [team, triage, needsLabels] = await Promise.all([
+  const [team, triage, needsLabels, venueState] = await Promise.all([
     getManagerCompletionRoster(read.ctx),
     readTriage(),
     managerNeedsLabels(workspace.venue.id),
+    readVenueState(workspace.venue.id),
   ])
   const confirmCount = triage ? null : await countToConfirm()
   if (!team.ok && isRefusal(team.code)) {
@@ -86,6 +133,23 @@ export default async function ManagerOverviewPage() {
   // The layout's time stops describing a page once it is navigated to, so
   // each page says when it was rendered itself.
   const now = new Date().toISOString()
+  const input: OverviewInput = {
+    now,
+    pendingPhotos: read.overview.pendingPhotos,
+    oldestPendingAt: read.overview.oldestPendingAt,
+    unlabelledPhotos: venueState?.summary?.unlabelledPhotos ?? null,
+    coverage: venueState?.coverage ?? null,
+    facts: venueState?.facts ?? null,
+    publicationIssues: venueState?.publicationIssues ?? null,
+    menuCheckDue: venueState?.summary?.menuCheck?.due ?? null,
+  }
+  const actions = overviewActions(input, {
+    review: managerHrefs.review(),
+    unlabelled: managerHrefs.review({ status: "unlabelled" }),
+    venue: managerHrefs.venue,
+    requests: managerHrefs.requests,
+    exports: managerHrefs.exports,
+  })
   return (
     <>
       <OfflineNotice className={OFFLINE_BANNER_CLASS} loadedAt={now} />
@@ -94,6 +158,37 @@ export default async function ManagerOverviewPage() {
         now={now}
         confirmCount={confirmCount}
         needsLabels={needsLabels}
+        actions={
+          <OverviewActions
+            actions={actions}
+            pendingPhotos={read.overview.pendingPhotos}
+            reviewHref={managerHrefs.review()}
+          />
+        }
+        panels={
+          <>
+            <BacklogPanel split={backlogSplit(input)} />
+            <CategoryCoverage
+              rows={
+                venueState?.coverage || venueState?.facts
+                  ? categoryRows(venueState.coverage, venueState.facts)
+                  : null
+              }
+            />
+            <VenueAtAGlance
+              summary={venueState?.summary ?? null}
+              venueHref={managerHrefs.venue}
+              reviewersHref={`${managerHrefs.venue}#reviewers`}
+            />
+            <HomeRow
+              href={managerHrefs.exports}
+              slot="exports-row"
+              icon={<ExportIcon aria-hidden />}
+              title={MANAGER_COPY.overview.exportsTitle}
+              line={MANAGER_COPY.overview.exportsLine}
+            />
+          </>
+        }
         triage={
           triage ? (
             <TriageCard

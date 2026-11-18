@@ -343,8 +343,6 @@ describe("keyed check writes (R10)", () => {
     ["assignCheck", "amenity_assign_check", { assigneeId: USER }],
     ["setCheckNotes", "amenity_set_check_notes", { notes: "TEST" }],
     ["reopenCheck", "amenity_reopen_check", { preset: "wrong_area" }],
-    ["archiveCheck", "amenity_archive_check", {}],
-    ["restoreCheck", "amenity_restore_check", {}],
   ] as const
 
   it.each(writes)(
@@ -381,6 +379,52 @@ describe("keyed check writes (R10)", () => {
     }
   )
 
+  // S2-MGR: archive and restore go through the reason-recording wrapper,
+  // always keyed (a key is made when the caller sends none).
+  it.each([
+    ["archiveCheck", false],
+    ["restoreCheck", true],
+  ] as const)(
+    "%s sends a reason and a key to amenity_check_set_applicability",
+    async (service, applicable) => {
+      const { actor, rpc } = actorWith({
+        amenity_check_set_applicability: () => ({
+          data: { revision: 5, replayed: true },
+        }),
+      })
+      const input = { checkId: CHECK, revision: 4, reason: " TEST gone " }
+      expect(await amenities[service](actor, input)).toEqual({
+        ok: true,
+        revision: 5,
+      })
+      expect(
+        await amenities[service](actor, { ...input, idempotencyKey: KEY })
+      ).toEqual({ ok: true, revision: 5, replayed: true })
+      const sent = calls(rpc, "amenity_check_set_applicability")
+      expect(sent[0]).toMatchObject({
+        p_check_id: CHECK,
+        p_applicable: applicable,
+        p_reason: "TEST gone",
+        p_revision: 4,
+        p_idempotency_key: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      })
+      expect(sent[1]).toMatchObject({ p_idempotency_key: KEY })
+      expect(
+        await amenities[service](actor, { ...input, reason: "  " })
+      ).toMatchObject({
+        code: "invalid_input",
+        fieldErrors: { reason: expect.any(String) },
+      })
+      expect(
+        await amenities[service](actor, { ...input, idempotencyKey: "nope" })
+      ).toMatchObject({
+        code: "invalid_input",
+        fieldErrors: { idempotencyKey: expect.any(String) },
+      })
+      expect(calls(rpc, "amenity_check_set_applicability")).toHaveLength(2)
+    }
+  )
+
   it("adds checks with a key and returns the same ids on a replay", async () => {
     const { actor, rpc } = actorWith({
       amenity_add_checks: (args) =>
@@ -404,7 +448,7 @@ describe("keyed check writes (R10)", () => {
 
   it("maps a reused key and a genuine conflict", async () => {
     const { actor } = actorWith({
-      amenity_archive_check: (args) => ({
+      amenity_check_set_applicability: (args) => ({
         error:
           args.p_revision === 1
             ? {
@@ -419,6 +463,7 @@ describe("keyed check writes (R10)", () => {
       await amenities.archiveCheck(actor, {
         checkId: CHECK,
         revision: 1,
+        reason: "TEST",
         idempotencyKey: KEY,
       })
     ).toMatchObject({ code: "revision_conflict", currentRevision: 3 })
@@ -426,6 +471,7 @@ describe("keyed check writes (R10)", () => {
       await amenities.archiveCheck(actor, {
         checkId: CHECK,
         revision: 2,
+        reason: "TEST",
         idempotencyKey: KEY,
       })
     ).toMatchObject({ code: "state_conflict", status: 409 })
