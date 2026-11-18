@@ -10,13 +10,11 @@ import {
   saveCollection,
   saveTag,
   setCollectionItems,
+  suspendAsset,
   tagAssets,
   withdrawAsset,
 } from "@/lib/server/library/service"
-import {
-  actorFailureMessage,
-  getMediaActor,
-} from "@/lib/server/media/context"
+import { actorFailureMessage, getMediaActor } from "@/lib/server/media/context"
 
 /*
  * Server Functions for the admin Library (S2-LIBRARY, spec §8 A4). Reachable
@@ -76,6 +74,18 @@ export async function restoreAssetAction(input: {
   if (!auth.ok) return auth
   const a = auth.actor
   const result = await restoreAsset(a, input ?? {})
+  if (result.ok) refresh(input?.assetId)
+  return reply(result)
+}
+
+/** K11 (M3-suspend): withdraws the photo and every approval it holds. */
+export async function suspendAssetAction(input: {
+  assetId: unknown
+  reason: unknown
+}) {
+  const auth = await admin()
+  if (!auth.ok) return auth
+  const result = await suspendAsset(auth.actor, input ?? {})
   if (result.ok) refresh(input?.assetId)
   return reply(result)
 }

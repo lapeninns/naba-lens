@@ -117,6 +117,7 @@ const ACTION_WORDS: Record<string, string> = {
   membership_added: "Added someone to a venue",
   membership_ended: "Ended someone's place at a venue",
   media_removed: "Removed a photo or video",
+  library_asset_suspended: "Suspended a photo from use",
   settings_changed: "Changed settings",
   accepted: "Accepted a photo",
   better_photo_requested: "Asked for another photo",

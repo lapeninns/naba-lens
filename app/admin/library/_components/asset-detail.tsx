@@ -7,6 +7,7 @@ import {
   ArrowCounterClockwiseIcon,
   DownloadSimpleIcon,
   MapPinIcon,
+  ProhibitIcon,
   StarIcon,
   TrashIcon,
   XCircleIcon,
@@ -40,6 +41,7 @@ import {
   restoreAssetAction,
   selectPrimaryAction,
   setCollectionItemsAction,
+  suspendAssetAction,
   tagAssetsAction,
   withdrawAssetAction,
 } from "../actions"
@@ -505,7 +507,7 @@ function AssetActions({
   const router = useRouter()
   const a = detail.asset
   const [dialog, setDialog] = React.useState<
-    "withdraw" | "restore" | "venue" | null
+    "withdraw" | "restore" | "suspend" | "venue" | null
   >(null)
   const [venueId, setVenueId] = React.useState<string | null>(null)
   const [message, setMessage] = React.useState<string | null>(null)
@@ -535,7 +537,8 @@ function AssetActions({
           <DownloadSimpleIcon aria-hidden />
           Download original
         </a>
-        {detail.withdrawal && detail.corrections.length > 0 ? null : detail.withdrawal ? (
+        {detail.withdrawal &&
+        detail.corrections.length > 0 ? null : detail.withdrawal ? (
           <Button variant="secondary" onClick={() => setDialog("restore")}>
             <ArrowCounterClockwiseIcon aria-hidden />
             Restore
@@ -546,6 +549,14 @@ function AssetActions({
             Withdraw from use
           </Button>
         )}
+        <Button
+          variant="secondary"
+          onClick={() => setDialog("suspend")}
+          data-testid="asset-suspend"
+        >
+          <ProhibitIcon aria-hidden />
+          Suspend from use
+        </Button>
         <Button variant="secondary" onClick={() => setDialog("venue")}>
           <MapPinIcon aria-hidden />
           Correct venue
@@ -612,6 +623,24 @@ function AssetActions({
           const r = await restoreAssetAction({ assetId: a.id, reason })
           if (!r.ok) return { ok: false, error: r.error }
           done("Restored.")
+          return { ok: true }
+        }}
+      />
+      <ReasonDialog
+        open={dialog === "suspend"}
+        onOpenChange={(o) => setDialog(o ? "suspend" : null)}
+        title="Suspend this photo from use?"
+        description="For a photo that no longer shows the venue as it is. Every approval it holds is withdrawn, so each dish, place or facility it filled needs another photo, and it can't be exported or made a main photo. It stays in the library with its history; using it again needs a new review."
+        label="Why"
+        confirmLabel="Suspend from use"
+        pendingLabel="Suspending…"
+        destructive
+        onConfirm={async (reason) => {
+          const r = await suspendAssetAction({ assetId: a.id, reason })
+          if (!r.ok) return { ok: false, error: r.error }
+          done(
+            "Suspended from use. Each dish, place or facility it filled now needs another photo."
+          )
           return { ok: true }
         }}
       />
