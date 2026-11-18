@@ -5,7 +5,7 @@ import {
   londonToday,
 } from "@/app/admin/publishing/_components/copy"
 import { PackageList } from "@/app/admin/publishing/_components/package-list"
-import { PublicationPanels } from "@/app/admin/publishing/_components/publication-panels"
+import { PublicationPanels } from "@/app/admin/publishing/_components/panels"
 import { workspaceManagerContext } from "@/app/staff/manage/_shared/context"
 import { Notice } from "@/components/nabalens/notice"
 import {
