@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { MediaItem } from "@/components/nabalens/types"
 import { AddProvider } from "@/components/nabalens/shell/add-context"
-import { EMPTY_LABEL_SUMMARY } from "@/lib/menus/types"
+import { EMPTY_LABEL_SUMMARY, LABEL_LIMITS } from "@/lib/menus/types"
 
 vi.mock("server-only", () => ({}))
 // Me with the Album badge (the retakes Album shows), tested in staff-shell-status.
@@ -689,8 +689,12 @@ describe("Me: Needs labels and milestones", () => {
     ).toBeNull()
     // At most one label batch at a time.
     expect(
-      photosNeedingLabels(Array.from({ length: 14 }, (_, i) => item(`x${i}`)))
-    ).toHaveLength(10)
+      photosNeedingLabels(
+        Array.from({ length: LABEL_LIMITS.maxBatchAssets + 4 }, (_, i) =>
+          item(`x${i}`)
+        )
+      )
+    ).toHaveLength(LABEL_LIMITS.maxBatchAssets)
   })
 })
 
