@@ -591,7 +591,14 @@ describe("group overview (A1)", () => {
       role: "staff",
       venueId: v,
     })
+    // Added today: still with its person under Match later (FA-4), so not
+    // unlabelled yet. The other one has waited 8 days with no label (S3-R1 K1).
     await insertAsset(service, { uploader: s.id, venue: v })
+    await insertAsset(service, {
+      uploader: s.id,
+      venue: v,
+      createdAt: new Date(Date.now() - 8 * 86_400_000).toISOString(),
+    })
     await insertAsset(service, { uploader: s.id, venue: v, ready: false })
     const today = new Date().toISOString().slice(0, 10)
     const read = await okAs<{ rows: Obj[] }>(

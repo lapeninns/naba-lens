@@ -23,7 +23,8 @@ export type LabelHelpRequest = {
 export type LabelHelpItem = {
   assetId: string
   /** "not_sure": the person asked; "unmatched": left in Match later 7 days. */
-  reason: "not_sure" | "unmatched"
+  /** The one unlabelled rule's reason (S3-R1 K1). */
+  reason: "not_sure" | "no_dish" | "unmatched"
   note: string | null
   uploaderId: string
   uploaderName: string
@@ -137,7 +138,10 @@ export function parseLabelHelpQueue(data: unknown): LabelHelpQueue | null {
     return [
       {
         assetId,
-        reason: item.reason === "not_sure" ? "not_sure" : "unmatched",
+        reason:
+          item.reason === "not_sure" || item.reason === "no_dish"
+            ? item.reason
+            : "unmatched",
         note: str(item.note),
         uploaderId,
         uploaderName: str(item.uploaderName) ?? "",
