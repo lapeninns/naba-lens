@@ -3,13 +3,9 @@ import Link from "next/link"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { buttonVariants } from "@/components/ui/button"
 import { Photo } from "@/components/ui/photo"
-import {
-  REVIEW_WORDS,
-  USAGE_WORDS,
-  type AssetDetail,
-} from "@/lib/library/model"
+import { REVIEW_CHIP, usageWord, type AssetDetail } from "@/lib/library/model"
 
-import { formatBytes, formatWhen, reviewTone } from "./format"
+import { formatBytes, formatWhen } from "./format"
 
 /*
  * Compare suspected duplicates side by side (spec §8 A4, §12.4; AC21;
@@ -44,11 +40,7 @@ export function CompareView({ a, b }: { a: AssetDetail; b: AssetDetail }) {
               />
             )}
             <div className="flex flex-wrap gap-2">
-              {d.review ? (
-                <StatusChip tone={reviewTone(d.review)}>
-                  {REVIEW_WORDS[d.review]}
-                </StatusChip>
-              ) : null}
+              {d.review ? <StatusChip state={REVIEW_CHIP[d.review]} /> : null}
               {d.withdrawal ? (
                 <StatusChip tone="closed">Withdrawn from use</StatusChip>
               ) : null}
@@ -82,7 +74,7 @@ export function CompareView({ a, b }: { a: AssetDetail; b: AssetDetail }) {
                   : d.slots
                       .map(
                         (s) =>
-                          `${s.name} (${USAGE_WORDS[s.state] ?? s.state}${s.isPrimary ? ", main photo" : ""})`
+                          `${s.name} (${usageWord(s.state)}${s.isPrimary ? ", main photo" : ""})`
                       )
                       .join("; ")}
               </dd>

@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils"
 
 import {
+  CHIP_STATES,
   StatusChip as SystemChip,
   type ChipStateKey,
   type ChipTone,
@@ -19,22 +20,29 @@ const CHIP_TONE: Record<Tone, ChipTone> = {
   muted: "closed",
 }
 
-/** Words that have a fixed state key get its icon as well as its tone. */
-const WORD_STATE: Record<string, ChipStateKey> = {
-  "Needs setup": "needs_setup",
-  "Target met": "target_met",
-  Complete: "complete",
-  "Needs another photo": "needs_another_photo",
-  Overdue: "overdue",
-  // Common Room: each fixed word is drawn in its own shape (common-room.md §3)
-  Accepted: "accepted",
-  Submitted: "submitted",
-  Closed: "closed",
-  "Not applicable": "not_applicable",
-  Retired: "retired",
-  "Needs reassignment": "needs_reassignment",
-  "Self-review": "self_review",
-}
+/**
+ * Words that have a fixed state key get its icon as well as its tone. Read
+ * from the chips' own words (status-chip.tsx), never typed again (S3-R14).
+ * Common Room: each fixed word is drawn in its own shape (common-room.md §3).
+ */
+const FIXED_STATES = [
+  "needs_setup",
+  "target_met",
+  "complete",
+  "needs_another_photo",
+  "overdue",
+  "accepted",
+  "submitted",
+  "closed",
+  "not_applicable",
+  "retired",
+  "needs_reassignment",
+  "self_review",
+] as const satisfies readonly ChipStateKey[]
+
+const WORD_STATE: Record<string, ChipStateKey> = Object.fromEntries(
+  FIXED_STATES.map((key) => [CHIP_STATES[key].word, key])
+)
 
 /** Status chip. The text carries the meaning; shape and colour only repeat it. */
 export function StatusChip({

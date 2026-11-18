@@ -29,9 +29,10 @@ import {
   HISTORY_WORDS,
   orientationOf,
   ORIENTATION_WORDS,
+  REVIEW_CHIP,
   REVIEW_WORDS,
   SLOT_KIND_WORDS,
-  USAGE_WORDS,
+  USAGE_CHIP,
   type AssetDetail,
   type AssetSlot,
 } from "@/lib/library/model"
@@ -45,7 +46,7 @@ import {
   tagAssetsAction,
   withdrawAssetAction,
 } from "../actions"
-import { formatBytes, formatWhen, reviewTone, usageTone } from "./format"
+import { formatBytes, formatWhen } from "./format"
 
 /*
  * Asset detail (spec §8 A4, §11; S2-LIBRARY): original provenance, renditions,
@@ -94,9 +95,7 @@ export function AssetDetailView({
         <div className="grid min-w-0 gap-3">
           <div className="flex flex-wrap gap-2" data-testid="asset-state">
             {detail.review ? (
-              <StatusChip tone={reviewTone(detail.review)}>
-                {REVIEW_WORDS[detail.review]}
-              </StatusChip>
+              <StatusChip state={REVIEW_CHIP[detail.review]} />
             ) : null}
             {detail.withdrawal ? (
               <StatusChip tone="closed">Withdrawn from use</StatusChip>
@@ -467,9 +466,7 @@ function SlotRow({ detail, slot }: { detail: AssetDetail; slot: AssetSlot }) {
           {slot.variantName ? ` · ${slot.variantName}` : ""}
         </span>
         <span className="flex flex-wrap gap-2">
-          <StatusChip tone={usageTone(slot.state)}>
-            {USAGE_WORDS[slot.state] ?? slot.state.replace(/_/g, " ")}
-          </StatusChip>
+          <StatusChip state={USAGE_CHIP[slot.state] ?? slot.state} />
           {slot.isPrimary ? (
             <StatusChip tone="positive">Main photo</StatusChip>
           ) : null}

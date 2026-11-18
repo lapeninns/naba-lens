@@ -105,18 +105,13 @@ type StaffPortfolioProps = {
 }
 
 /**
- * The milestones of an own photo, as section headings (the guide's words,
- * docs/usage-staff.md). A tile's state word is its chip's (MILESTONE_STATE):
- * status words live only in status-chip.tsx.
+ * The milestones of an own photo (docs/usage-staff.md). A tile's state word
+ * is its chip's (MILESTONE_STATE): status words live only in status-chip.tsx.
  */
-export const MILESTONES = {
-  saved: "Saved to your portfolio",
-  label: "Ready to label",
-  accepted: "Accepted for menu use",
-  better: "Needs another photo",
-} as const
+export type Milestone = "saved" | "label" | "accepted" | "better"
 
-export type Milestone = keyof typeof MILESTONES
+/** The heading of Me's section of photos accepted for menu use. */
+const ACCEPTED_HEADING = "Accepted for menu use"
 
 /**
  * Where one own photo stands: accepted for menu use (a live decision
@@ -610,7 +605,7 @@ export function StaffPortfolio({
             id="accepted-heading"
             className="px-1 type-section-title text-ink"
           >
-            {MILESTONES.accepted}
+            {ACCEPTED_HEADING}
           </h2>
           <ul aria-label="Photos accepted for menu use" className={TILE_GRID}>
             {acceptedItems.map((item) => (

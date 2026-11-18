@@ -1,6 +1,3 @@
-import type { ChipTone } from "@/components/nabalens/status-chip"
-import type { ReviewState } from "@/lib/library/model"
-
 /** "18 Nov 2026, 14:05" in the venue's timezone (spec §11). */
 export function formatWhen(iso: string | null, timeZone = "Europe/London") {
   if (!iso) return "unknown"
@@ -24,25 +21,4 @@ export function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-export function reviewTone(state: ReviewState): ChipTone {
-  return state === "public"
-    ? "positive"
-    : state === "unreviewed"
-      ? "pending"
-      : "closed"
-}
-
-export function usageTone(state: string): ChipTone {
-  switch (state) {
-    case "public":
-      return "positive"
-    case "awaiting_review":
-      return "pending"
-    case "retake_requested":
-      return "attention"
-    default:
-      return "closed"
-  }
 }
