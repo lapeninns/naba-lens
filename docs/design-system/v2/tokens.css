@@ -1,0 +1,83 @@
+/* Naba-Lens — generated from tokens.json */
+:root, [data-theme="light"] {
+  --paper: #f6f3ec;
+  --surface: #ffffff;
+  --surface-sunken: #ebe6da;
+  --surface-hover: #f1ede3;
+  --line: #d9d2c3;
+  --line-strong: #857d6d;
+  --ink: #1c211d;
+  --ink-muted: #565c54;
+  --bottle: #1f4d3a;
+  --bottle-strong: #163a2b;
+  --bottle-soft: #dcebe2;
+  --on-bottle: #ffffff;
+  --brass: #b87c12;
+  --brass-ink: #6e4605;
+  --brass-soft: #f7e8c6;
+  --sky: #1b5584;
+  --sky-soft: #dceaf5;
+  --signal: #b0331a;
+  --on-signal: #ffffff;
+  --signal-soft: #fbe4da;
+  --focus: #1c211d;
+  --scrim: rgba(18,22,19,0.64);
+  --on-photo: #ffffff;
+  --shadow-raised: 0 1px 2px rgba(18,22,19,0.08), 0 8px 24px rgba(18,22,19,0.12);
+}
+[data-theme="dark"] {
+  --paper: #121613;
+  --surface: #1b201c;
+  --surface-sunken: #262c27;
+  --surface-hover: #232924;
+  --line: #333a34;
+  --line-strong: #7f877b;
+  --ink: #eef0ea;
+  --ink-muted: #a9b0a6;
+  --bottle: #7fcba4;
+  --bottle-strong: #9ad9b7;
+  --bottle-soft: #1c3a2c;
+  --on-bottle: #0e1f17;
+  --brass: #e0a640;
+  --brass-ink: #f0c67a;
+  --brass-soft: #3d2c0c;
+  --sky: #8cc2ec;
+  --sky-soft: #16324a;
+  --signal: #f08a6b;
+  --on-signal: #2a0d05;
+  --signal-soft: #47190d;
+  --focus: #eef0ea;
+  --scrim: rgba(8,10,9,0.72);
+  --shadow-raised: 0 1px 2px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.5);
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-full: 999px;
+  --target-staff: 48px;
+  --target-compact: 40px;
+  --thumb-row: 56px;
+  --tile-min: 152px;
+  --bp-tablet: 768px;
+  --bp-desktop: 1100px;
+  --content-max: 1200px;
+  --rail-width: 240px;
+  --sheet-max: 480px;
+  --font-display: Fraunces, Georgia, "Times New Roman", serif;
+  --font-sans: Figtree, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.display { font-family: var(--font-display); font-size: 32px; line-height: 36px; font-weight: 600; letter-spacing: -0.01em; }
+.title { font-family: var(--font-display); font-size: 22px; line-height: 28px; font-weight: 600; }
+.figure { font-family: var(--font-display); font-size: 28px; line-height: 32px; font-weight: 600; }
+.heading { font-family: var(--font-sans); font-size: 17px; line-height: 24px; font-weight: 600; }
+.body { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 400; }
+.label { font-family: var(--font-sans); font-size: 15px; line-height: 20px; font-weight: 600; }
+.caption { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 500; }
