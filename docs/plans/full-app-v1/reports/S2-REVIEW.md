@@ -56,7 +56,7 @@ Hand-off items:
 
 - **New table:** `review_dispositions`, append-only.
 - **New private functions:** `asset_set_aside`, `review_conflict_detail`.
-- **Private functions redefined:** `menu_photo_pending_tuples`, `menu_photo_unlabelled_eligible` and `menu_photo_stale_label`. Each keeps its body and adds "not set aside".
+- **Private functions redefined:** `menu_photo_pending_tuples` and `menu_photo_stale_label`. Each keeps its body and adds "not set aside". `menu_photo_unlabelled_eligible` is deliberately unchanged: it also gates who may open an unlabelled photo and is pinned by `tests/security/asset-search.test.ts`, so the queue and the detail add the set-aside rule themselves.
 - **Columns added:** `previous_decision_id` on `area_photo_decisions` and `amenity_photo_decisions`, filled by insert triggers.
 - **New public functions:** `review_decide_area_photo`, `review_decide_amenity_photo`, `review_set_aside` and `review_photo_detail`.
 - **Queue redefined:** `manager_menu_photo_queue` is dropped and recreated with four new optional parameters and six new columns. Existing named-argument callers are unchanged.
