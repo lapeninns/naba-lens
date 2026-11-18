@@ -1,9 +1,9 @@
 import { EvidenceThumb } from "@/components/nabalens/coverage/evidence-image"
 import type { QueueCard } from "@/lib/server/menu-photos/types"
 
-import { managerHrefs } from "../hrefs"
 import { INBOX_COPY } from "./inbox-copy"
 import { CardFlags, DetailsLink } from "./inbox-flags"
+import { photoHref, type ReviewScope } from "./links"
 
 /**
  * Needs label on Review in a thumb (FA-4, S3-R1 K1 and E4): the thumb stage
@@ -13,15 +13,22 @@ import { CardFlags, DetailsLink } from "./inbox-flags"
  * flags as a list card (inbox-flags.tsx); nothing when none wait. Shown
  * whatever the menu state (S3-R8 W2): Overview counts these photos at a
  * venue with no ready menu too, and Not used and the place and facility
- * routes on the detail need no menu.
+ * routes on the detail need no menu. The cards are every waiting photo, not
+ * one queue page (S3-R13 X2), and each links to the detail of the scope's
+ * workspace, the admin photo route for an admin (S3-R13 X1).
  */
 export function NeedsLabelList({
   cards,
   note,
+  scope = { kind: "manager" },
+  more = false,
 }: {
   cards: readonly QueueCard[]
   /** A line under the heading (the menu is not ready yet, S3-R8 W2). */
   note?: string
+  scope?: ReviewScope
+  /** More photos wait than were read: say so under the list. */
+  more?: boolean
 }) {
   const waiting = cards.filter((c) => c.kind === "unlabelled")
   if (waiting.length === 0) return null
@@ -32,7 +39,9 @@ export function NeedsLabelList({
       data-review-needs-label
     >
       <h2 id="review-needs-label" className="text-heading-sm text-ink">
-        {INBOX_COPY.needsLabelTitle(waiting.length)}
+        {more
+          ? INBOX_COPY.needsLabelTitleMore(waiting.length)
+          : INBOX_COPY.needsLabelTitle(waiting.length)}
       </h2>
       {note ? <p className="text-body text-ink-muted">{note}</p> : null}
       <ul className="grid gap-3">
@@ -51,7 +60,7 @@ export function NeedsLabelList({
                 <p className="text-label break-words text-ink">{who}</p>
                 <CardFlags card={card} />
                 <DetailsLink
-                  href={managerHrefs.photo(card.asset.assetId)}
+                  href={photoHref(scope, card.asset.assetId)}
                   who={who}
                 />
               </div>
@@ -59,6 +68,9 @@ export function NeedsLabelList({
           )
         })}
       </ul>
+      {more ? (
+        <p className="text-meta text-ink-muted">{INBOX_COPY.needsLabelMore}</p>
+      ) : null}
     </section>
   )
 }

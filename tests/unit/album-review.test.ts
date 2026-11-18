@@ -487,11 +487,13 @@ describe("AlbumReviewBody (server read)", () => {
       overview({ menuState: "no_menu" })
     )
     const waiting = card({ kind: "unlabelled", key: id(0x13), item: null })
-    photos.listReviewQueue.mockResolvedValue({
-      ok: true,
-      items: [card(), waiting],
-      nextCursor: "c",
-    })
+    // S3-R13 X2: the Needs label list is its own read, every page of it.
+    photos.listReviewQueue.mockImplementation(
+      async (_ctx: unknown, args: { status?: string }) =>
+        args.status === "unlabelled"
+          ? { ok: true, items: [waiting], nextCursor: null }
+          : { ok: true, items: [card(), waiting], nextCursor: "c" }
+    )
     const p = await props()
     // No dish photos to decide, and no unread dish pages to count.
     expect(p.menuCards).toEqual([])

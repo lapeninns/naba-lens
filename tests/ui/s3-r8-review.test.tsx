@@ -216,23 +216,27 @@ describe("W2: the list view while the menu is not ready", () => {
     ).toBeTruthy()
   })
 
-  it("an admin has no photo detail to send them to: the menu state alone", async () => {
+  // S3-R13 X1 (was: the menu state alone). The admin photo route exists
+  // (S3-R11), so an admin gets the list too, linking to it.
+  it("an admin gets the list too, linking to the admin photo route", async () => {
     notReady([unlabelled()])
     reads.listReviewQueue.mockClear()
+    const venue = "00000000-0000-4000-8000-0000000000b1"
     const el = await resolve(
       await ReviewBody({
         ctx,
-        scope: {
-          kind: "admin",
-          venueId: "00000000-0000-4000-8000-0000000000b1",
-        },
+        scope: { kind: "admin", venueId: venue },
         search: {},
       })
     )
     render(el)
     expect(screen.getByText(REVIEW_COPY.noMenuTitle)).toBeTruthy()
-    expect(screen.queryByRole("region", { name: /need/ })).toBeNull()
-    // Only the page's own queue read, not the Needs label one.
-    expect(reads.listReviewQueue).toHaveBeenCalledTimes(1)
+    const list = screen.getByRole("region", { name: "1 photo needs a label" })
+    const link = within(list).getByRole("link")
+    expect(link.getAttribute("href")).toMatch(
+      new RegExp(`^/admin/coverage/${venue}/menu-photos/photo/`)
+    )
+    // The page's own queue read, then the Needs label one.
+    expect(reads.listReviewQueue).toHaveBeenCalledTimes(2)
   })
 })
