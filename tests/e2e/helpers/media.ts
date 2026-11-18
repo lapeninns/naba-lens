@@ -1,6 +1,12 @@
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import {
+  copyFileSync,
+  mkdtempSync,
+  readFileSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -23,8 +29,18 @@ function source(path: string): SourceFile {
   }
 }
 
+// Match shows a batch in capture order (File.lastModified, DESIGN.md §6.1).
+// Each synthetic photo is "taken" one second after the one before, in call
+// order, so `Promise.all([a, b, c].map(syntheticJpeg))` gives a batch Match
+// shows as a, b, c. Without this the files' mtimes followed whichever encode
+// finished first, and specs that assumed pick order matched the wrong
+// photos (S3-E2E-1 E3).
+const CAPTURE_BASE = Math.floor(Date.now() / 1000) - 3600
+let captureSeq = 0
+
 /** A distinct JPEG each call, so every upload has its own hash. */
 export async function syntheticJpeg(name: string): Promise<SourceFile> {
+  const takenAt = CAPTURE_BASE + (captureSeq += 1)
   const hue = Math.floor(Math.random() * 200)
   const bytes = await sharp({
     create: {
@@ -45,6 +61,7 @@ export async function syntheticJpeg(name: string): Promise<SourceFile> {
     .toBuffer()
   const path = join(dir, name)
   writeFileSync(path, bytes)
+  utimesSync(path, takenAt, takenAt)
   return source(path)
 }
 

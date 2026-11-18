@@ -42,10 +42,10 @@ for (const size of ["phone", "narrow", "desktop"] as const) {
     )
     const page = await signedInPage(browser, w.staffA1, SIZES[size])
     await openAlbum(page)
-    const { match } = await startMatch(
-      page,
-      files.map((f) => f.path)
-    )
+    // Picked newest first: Match shows the batch in capture order (soup-1
+    // first), and each label must follow the photo on screen, never its
+    // place in the pick (S3-E2E-1 E3).
+    const { match } = await startMatch(page, files.map((f) => f.path).reverse())
     await expect(match.locator('[data-slot="match-open-count"]')).toHaveText(
       "5 not matched yet"
     )
