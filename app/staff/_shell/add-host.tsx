@@ -46,7 +46,9 @@ import { useGalleryPicker } from "@/components/nabalens/album/match/gallery-pick
 import { MATCH_COPY } from "@/components/nabalens/album/match/copy"
 import {
   readLastPlace,
+  readRecentSlots,
   writeLastPlace,
+  writeRecentSlot,
 } from "@/components/nabalens/album/match/last-place"
 import type { BoardState } from "@/components/nabalens/album/match/match-picker"
 import {
@@ -126,7 +128,7 @@ import {
   saveUploadLabels,
   type UploadLabelContext,
 } from "./upload-label-api"
-import { loadMatchBoardAction } from "./match-actions"
+import { loadMatchBoardAction, requestLabelHelpAction } from "./match-actions"
 
 /** What one Add call brings for the files it picks. */
 type PickOwner = {
@@ -146,6 +148,13 @@ type PickOwner = {
   area?: string | null
   /** Match's Not for a slot: what the photos show, saved as their labels. */
   contentTypes?: ContentType[] | null
+  /** Match's optional note (spec §5.1), saved as the photos' label note. */
+  note?: string | null
+  /**
+   * Match's I'm not sure (FA-4): sent to the manager as Needs label as soon
+   * as the server has reserved the photo.
+   */
+  help?: boolean
   /** Match hears how each of these files gets on: Waiting once ready. */
   onSent?: ((file: File, state: SendState) => void) | null
   /**
@@ -202,6 +211,7 @@ export function AddHost({
   captchaSiteKey,
   entry = null,
   venueName = null,
+  venueId = null,
   role = "staff",
   children,
 }: {
@@ -215,6 +225,12 @@ export function AddHost({
   entry?: Promise<EntryMenu | null> | null
   /** The person's venue, for the Add sheet's context lines with the entry on. */
   venueName?: string | null
+  /**
+   * The person's active venue. When it changes while Match is open, every
+   * choice not yet handed to the queue is undone and asked again for the new
+   * venue (spec §6 S2, AC11).
+   */
+  venueId?: string | null
   role?: "staff" | "manager"
   children: React.ReactNode
 }) {
@@ -649,6 +665,14 @@ export function AddHost({
   const [board, setBoard] = React.useState<BoardState>({ state: "loading" })
   const [boardTry, setBoardTry] = React.useState(0)
   const [lastPlace, setLastPlace] = React.useState<string | null>(null)
+  const [recent, setRecent] = React.useState<readonly string[]>([])
+  // Photos the server found were sent before (S1-UPLOAD duplicate link).
+  const [duplicates, setDuplicates] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  // The venue Match's run belongs to, and a line when it changed (AC11).
+  const runVenue = React.useRef<string | null>(null)
+  const [venueNotice, setVenueNotice] = React.useState<string | null>(null)
   const matchKeys = React.useRef(new WeakMap<File, string>())
   // Each matched photo's slot, and the slots whose photo this phone is
   // sending or has sent (DESIGN.md §4, §6.8): Album's tiles show them as
@@ -724,7 +748,10 @@ export function AddHost({
       return next
     })
   }, [])
-  /** An area that could not be saved: the photo waits under Match later. */
+  /**
+   * An area or an I'm not sure that could not be saved: the photo waits under
+   * Match later.
+   */
   const areaUnsaved = React.useCallback(
     (file: File) => {
       const key = matchKeys.current.get(file)
@@ -735,20 +762,26 @@ export function AddHost({
     [setSent]
   )
 
-  // Match's area labels by asset: tried when reserved, once more when ready,
-  // then the photo waits under Match later.
+  // Match's area labels and I'm not sure requests by asset: tried when
+  // reserved, once more when ready, then the photo waits under Match later.
   const areaTries = React.useRef(
     new Map<string, "sending" | "failed" | "saved" | "gave-up">()
   )
   const areaReady = React.useRef(new Set<string>())
   const saveArea = React.useCallback(
-    async (file: File, assetId: string, area: string) => {
+    async (file: File, assetId: string, owner: PickOwner) => {
+      const area = owner.area ?? null
+      if (!area && !owner.help) return
       const tries = areaTries.current
       for (;;) {
         const before = tries.get(assetId)
         if (before && before !== "failed") return
         tries.set(assetId, "sending")
-        const saved = await setAreaLabelAction(assetId, area).then(
+        const saved = await (
+          area
+            ? setAreaLabelAction(assetId, area)
+            : requestLabelHelpAction(assetId)
+        ).then(
           (result) => result.ok,
           () => false
         )
@@ -787,7 +820,7 @@ export function AddHost({
     const batch = outbox.slice(0, room)
     const waitsForMenu = batch.some((file) => {
       const owner = fileOwners.current.get(file)
-      return !!owner?.preset || !!owner?.contentTypes?.length
+      return !!owner?.preset || !!owner?.contentTypes?.length || !!owner?.note
     })
     if (waitsForMenu && !menuKnown) return
     // Hands the files to the queue (an external store) in one array.
@@ -822,8 +855,15 @@ export function AddHost({
   )
 
   /** Matched photos go to the queue at once, with the sheet left closed. */
-  const sendMatched = (files: File[], outcome: MatchOutcome) => {
+  const sendMatched = (
+    files: File[],
+    outcome: MatchOutcome,
+    note: string | null = null
+  ) => {
     const slot = outcome.kind === "slot" ? outcome.slot.target : null
+    const unsure = outcome.kind === "unsure"
+    // Match later carries no note: it is matched (and noted) later.
+    const kept = outcome.kind === "later" ? null : note
     const owner: PickOwner = {
       onReady: null,
       onPicked: null,
@@ -842,8 +882,10 @@ export function AddHost({
       set: null,
       area: slot?.kind === "area" ? slot.subjectId : null,
       contentTypes: outcome.kind === "shared" ? [outcome.shared] : null,
-      onSent: slot ? setSent : null,
-      noLabels: outcome.kind === "later",
+      note: kept,
+      help: unsure,
+      onSent: slot || unsure ? setSent : null,
+      noLabels: outcome.kind === "later" || (unsure && !kept),
     }
     claim(files, owner)
     const slotId = outcome.kind === "slot" ? outcome.slot.id : null
@@ -880,8 +922,12 @@ export function AddHost({
       decided ? new Map(photos.map((p) => [p.key, decided])) : new Map()
     )
     setSendStates(new Map())
+    setDuplicates(new Set())
     setBoard({ state: "loading" })
     setLastPlace(readLastPlace())
+    setRecent(readRecentSlots(venueId))
+    runVenue.current = venueId
+    setVenueNotice(null)
     setMatchRun({
       photos,
       current,
@@ -902,7 +948,11 @@ export function AddHost({
       )
   }
 
-  const decideMatch = (key: string, outcome: MatchOutcome) => {
+  const decideMatch = (
+    key: string,
+    outcome: MatchOutcome,
+    note: string | null = null
+  ) => {
     const photo = matchRun?.photos.find((p) => p.key === key)
     if (!photo || outcomes.has(key)) return
     setOutcomes((current) => new Map(current).set(key, outcome))
@@ -910,9 +960,53 @@ export function AddHost({
       const place = placeKey(outcome.slot.place)
       writeLastPlace(place)
       setLastPlace(place)
+      writeRecentSlot(venueId, outcome.slot.id)
     }
-    sendMatched([photo.file], outcome)
+    sendMatched([photo.file], outcome, note)
   }
+
+  // AC11, spec §6 S2: the active venue changed while Match is open (another
+  // tab, or a venue switch). Choices still waiting for the queue are undone
+  // and asked again against the new venue's slots; photos already handed to
+  // the queue were reserved for the old venue, where the server now refuses
+  // them (upload_access_ended), so they read Not sent and stay in the gallery.
+  const revalidateVenue = () => {
+    if (matchRun && runVenue.current && venueId !== runVenue.current) {
+      runVenue.current = venueId
+      const waitingFiles = new Set(outbox)
+      const undone = matchRun.photos.filter((p) => waitingFiles.has(p.file))
+      setOutbox((current) =>
+        current.filter((file) => !matchKeys.current.has(file))
+      )
+      if (undone.length > 0) {
+        const keys = new Set(undone.map((p) => p.key))
+        setOutcomes(
+          (current) => new Map([...current].filter(([key]) => !keys.has(key)))
+        )
+        setSendStates(
+          (current) => new Map([...current].filter(([key]) => !keys.has(key)))
+        )
+        for (const photo of undone) {
+          fileOwners.current.delete(photo.file)
+          claimedFiles.current.delete(photo.file)
+          const slot = fileSlots.current.get(photo.file)
+          fileSlots.current.delete(photo.file)
+          if (slot) settleSlot(slot)
+        }
+      }
+      setRecent(readRecentSlots(venueId))
+      setBoard({ state: "loading" })
+      setBoardTry((n) => n + 1)
+      setVenueNotice(MATCH_COPY.venueChanged(venueName ?? "", undone.length))
+    }
+  }
+  const revalidateRef = React.useRef(revalidateVenue)
+  React.useLayoutEffect(() => {
+    revalidateRef.current = revalidateVenue
+  })
+  React.useEffect(() => {
+    revalidateRef.current()
+  }, [venueId])
 
   /** Closing Match keeps every photo: the rest go under Match later. */
   const closeMatch = () => {
@@ -1018,10 +1112,12 @@ export function AddHost({
   const reservedForSet = React.useCallback(
     (file: File, assetId: string) => {
       labelJournal.reserved(assetId, file)
-      // Match: an area slot's photo gets its venue-area label (G-9) as soon
-      // as the server has reserved it; a failure is tried again when ready.
-      const area = fileOwners.current.get(file)?.area
-      if (area) void saveArea(file, assetId, area)
+      // Match: an area slot's photo gets its venue-area label (G-9), and an
+      // I'm not sure photo goes to the manager (FA-4), as soon as the server
+      // has reserved it; a failure is tried again when ready.
+      const matchOwner = fileOwners.current.get(file)
+      if (matchOwner?.area || matchOwner?.help)
+        void saveArea(file, assetId, matchOwner)
       const swap = replacements.current.get(file)
       if (swap) {
         replacements.current.delete(file)
@@ -1082,7 +1178,12 @@ export function AddHost({
   // screen selects it), then every subscriber. False: the screen that picked
   // it is gone, so the sheet keeps it listed as not added there.
   const handleReady = React.useCallback(
-    (ids: string[], files: File[], receipts?: UploadReceipt[]) => {
+    (
+      ids: string[],
+      files: File[],
+      receipts?: UploadReceipt[],
+      duplicate?: boolean[]
+    ) => {
       let kept = true
       ids.forEach((id, i) => {
         const owner = fileOwners.current.get(files[i])
@@ -1091,11 +1192,15 @@ export function AddHost({
         // A photo the server failed, retried and finished, counts again.
         if (owner?.set) photoSets.finished(owner.set, id)
         if (owner?.onReady?.([id]) === false) kept = false
-        if (owner?.area) {
+        if (owner?.area || owner?.help) {
           areaReady.current.add(id)
           if (areaTries.current.get(id) === "failed")
-            void saveArea(files[i], id, owner.area)
+            void saveArea(files[i], id, owner)
         }
+        // Sent before (same bytes at this venue): it counts once (AC21).
+        const key = matchKeys.current.get(files[i])
+        if (duplicate?.[i] && key)
+          setDuplicates((current) => new Set(current).add(key))
         // Never Waiting without a review entry (spec §5.6): a photo whose
         // slot could not be saved with it reads Sent.
         owner?.onSent?.(
@@ -1364,7 +1469,9 @@ export function AddHost({
         const preset = owner?.preset ?? null
         // Match's Not for a slot: what the photo shows.
         const types = owner?.contentTypes ?? []
-        if (!preset && types.length === 0) return null
+        // Match's optional note (spec §5.1).
+        const note = owner?.note ?? null
+        if (!preset && types.length === 0 && !note) return null
         if (labelContext && !labelContext.ok) return "unavailable"
         if (!catalogue) return undefined
         if (preset && !onMenu(catalogue, preset)) return null
@@ -1376,7 +1483,7 @@ export function AddHost({
             catalogueVersionId:
               catalogue.status === "active" ? catalogue.versionId : null,
             contentTypes: types,
-            note: null,
+            note,
             items: preset
               ? [{ itemId: preset.itemId, variantId: preset.variantId }]
               : [],
@@ -1595,8 +1702,18 @@ export function AddHost({
                 onRetryBoard={retryBoard}
                 current={matchRun?.current ?? null}
                 last={lastPlace}
-                notice={matchRun?.notice ?? null}
+                notice={
+                  [venueNotice, matchRun?.notice ?? null]
+                    .filter(Boolean)
+                    .join(" ") || null
+                }
                 busySlots={slotSends}
+                venueName={
+                  (board.state === "ready" ? board.board.venue?.name : null) ??
+                  venueName
+                }
+                recent={recent}
+                duplicates={duplicates}
                 onDecide={decideMatch}
                 onClose={closeMatch}
               />

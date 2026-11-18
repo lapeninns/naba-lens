@@ -2,6 +2,7 @@ import "server-only"
 
 import type { MatchLaterPhoto } from "@/components/nabalens/album/match/match-later"
 import { getMyAreaLabels } from "@/lib/server/area-photos"
+import { myLabelHelp } from "@/lib/server/label-help"
 import { listOwnMedia } from "@/lib/server/media/library"
 import type { MediaActor, MediaItemView } from "@/lib/server/media/types"
 
@@ -44,16 +45,22 @@ async function toPhotos(
   actor: MediaActor,
   items: MediaItemView[]
 ): Promise<MatchLaterPhoto[]> {
-  // A photo labelled with a venue area is matched (G-9).
+  // A photo labelled with a venue area is matched (G-9); one sent to the
+  // manager as "I'm not sure" (FA-4) is theirs to label now.
   const ids = items.slice(0, 100).map((item) => item.id)
   let areaLabelled = new Set<string>()
+  let withManager = new Set<string>()
   if (ids.length > 0) {
-    const labels = await getMyAreaLabels(actor, ids).catch(() => null)
+    const [labels, help] = await Promise.all([
+      getMyAreaLabels(actor, ids).catch(() => null),
+      myLabelHelp(actor, ids).catch(() => null),
+    ])
     if (labels?.ok)
       areaLabelled = new Set(labels.labels.map((label) => label.assetId))
+    if (help?.ok) withManager = help.assetIds
   }
   return items
-    .filter((item) => !areaLabelled.has(item.id))
+    .filter((item) => !areaLabelled.has(item.id) && !withManager.has(item.id))
     .map((item) => ({
       id: item.id,
       thumbnailUrl: item.previewUrl ?? item.thumbnailUrl,
