@@ -18,6 +18,7 @@ import {
 import { loadAlbum } from "@/lib/server/album"
 import { rememberedAlbumShow } from "@/lib/server/album-place"
 import { getCoverageActor } from "@/lib/server/coverage"
+import { reportSlotChangeAction } from "@/app/staff/_me/actions"
 import { staffShellStatus } from "@/app/staff/_shell/shell-status"
 
 export const metadata: Metadata = { title: "Album" }
@@ -81,6 +82,7 @@ export default async function AlbumPlacePage({
             place={place}
             canAdd={uploadBlockReason(profile) === null}
             filter={filter}
+            sendReport={reportSlotChangeAction}
           />
         </>
       ) : (

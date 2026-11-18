@@ -68,6 +68,8 @@ export const REPORT_COPY = {
   photoIntro:
     "Your manager checks it and corrects it if it's wrong. The photo stays as it is until then.",
   reasonLabel: "What has changed?",
+  slotLabel: "Which slot?",
+  chooseSlot: "Choose a slot",
   photoReasonLabel: "What is wrong?",
   noteLabel: "Anything to add",
   noteRequired: "Say what has changed.",

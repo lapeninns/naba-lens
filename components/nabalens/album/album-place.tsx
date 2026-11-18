@@ -1,10 +1,19 @@
 "use client"
 
-import { useId } from "react"
+import { useId, useState } from "react"
 import Link from "next/link"
-import { ArrowLeftIcon, ImagesIcon } from "@phosphor-icons/react"
+import {
+  ArrowLeftIcon,
+  ImagesIcon,
+  MegaphoneSimpleIcon,
+} from "@phosphor-icons/react"
 
 import { AlbumSlotTile } from "@/components/nabalens/album/album-home"
+import {
+  ReportChangeDialog,
+  type ReportSender,
+} from "@/components/nabalens/album/report-change-dialog"
+import { Notice } from "@/components/nabalens/notice"
 import {
   useAdd,
   type OpenAddOptions,
@@ -21,6 +30,7 @@ import {
   type CoverageCategory,
 } from "@/lib/album/model"
 import { rememberAlbumShow } from "@/lib/album/remembered-place"
+import { REPORT_COPY } from "@/lib/staff/slot-reports"
 
 /*
  * One place in the album (DESIGN.md §6.2): every slot there, by section, each
@@ -64,12 +74,15 @@ export function AlbumPlaceScreen({
   place,
   canAdd,
   filter = DEFAULT_PLACE_FILTER,
+  sendReport,
   headingLevel = 1,
 }: {
   venueName: string
   place: AlbumPlace
   canAdd: boolean
   filter?: PlaceFilter
+  /** Report a change on one of this place's slots (spec §6 S3). */
+  sendReport?: ReportSender
   /** The screen's title level; 1 on a page, deeper when embedded (the dev gallery). */
   headingLevel?: 1 | 2 | 3 | 4
 }) {
@@ -85,6 +98,20 @@ export function AlbumPlaceScreen({
   const placeKey = place.subjectId ?? "unplaced"
   const categories = placeCategories(place)
   const shown = filterPlace(place, filter)
+  const [reporting, setReporting] = useState(false)
+  const [sent, setSent] = useState<string | null>(null)
+  const choices = place.groups.flatMap((g) =>
+    g.slots.map((slot) => ({
+      kind: slot.target.kind,
+      subjectId:
+        slot.target.kind === "dish"
+          ? slot.target.itemId
+          : slot.target.kind === "area"
+            ? slot.target.subjectId
+            : slot.target.checkId,
+      name: slot.name,
+    }))
+  )
   return (
     <div className="grid gap-5 pb-4" data-slot="album-place">
       <div>
@@ -201,6 +228,35 @@ export function AlbumPlaceScreen({
           </section>
         )
       })}
+
+      {sent ? (
+        <Notice tone="positive" role="status">
+          {sent}
+        </Notice>
+      ) : null}
+      {sendReport && choices.length > 0 ? (
+        <div>
+          <Button
+            variant="secondary"
+            className="min-h-13"
+            onClick={() => setReporting(true)}
+          >
+            <MegaphoneSimpleIcon data-icon="inline-start" aria-hidden />
+            {REPORT_COPY.slotTitle}
+          </Button>
+          <ReportChangeDialog
+            open={reporting}
+            onOpenChange={setReporting}
+            choices={choices}
+            send={sendReport}
+            onSent={(created, subject) =>
+              setSent(
+                `${subject.name}: ${created ? REPORT_COPY.sent : REPORT_COPY.alreadySent}`
+              )
+            }
+          />
+        </div>
+      ) : null}
 
       {place.empty > 0 ? (
         <div className="sticky bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+0.5rem)] z-dock md:static">
