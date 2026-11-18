@@ -126,8 +126,9 @@ for (const size of ["desktop", "phone"] as const) {
     await page.keyboard.press("Enter")
     await expect(match).toBeHidden()
 
-    // Feedback: the manager asks for another photo of photo 1, with a reason.
-    const first = await assetNamed(files[0]!.name)
+    // Feedback: the manager asks for another photo of photo 2 (the newer of
+    // the two Soup photos), with a reason.
+    const first = await assetNamed(files[1]!.name)
     await expect
       .poll(() => uploadStateOf(first), { timeout: 60_000 })
       .toBe("ready")
@@ -150,6 +151,10 @@ for (const size of ["desktop", "phone"] as const) {
 
     // On Me, the row reads the reason, and Retake opens the same slot.
     await page.goto("/staff")
+    // A retake asked for is under Needs attention (lib/staff/my-uploads.ts).
+    await expect(
+      page.getByRole("button", { name: /^Needs attention/ })
+    ).toHaveAttribute("aria-pressed", "true")
     const rows = page.locator('[data-slot="my-upload-row"]')
     const row = rows.filter({ hasText: reason })
     await expect(row).toBeVisible()
