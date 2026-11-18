@@ -108,6 +108,10 @@ doesn't change any website, and it doesn't mean a dish is served today.
 4. **Activate for labelling** now, or **Schedule activation** for a date.
    Activation stays blocked until you tick each proposed retirement. The
    previous active version is retired, and existing labels are kept.
+5. **Packaged items** on the venue's menus page lists its drinks: turn on
+   **Packaged (bottled or canned)** and, if its photo is still wanted,
+   **Photo wanted**. A packaged item without Photo wanted only leaves the
+   coverage counts; imports never change it (FA-51).
 5. **Retire** removes a venue's active menu; **Archive** stops one item being
    used for new labels. **Nothing with labels is ever deleted**.
 6. **Change requests** from managers: **Accept**, **Ask for clarification** or
