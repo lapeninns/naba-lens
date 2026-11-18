@@ -262,8 +262,12 @@ security definer
 set search_path = ''
 as $$
 begin
-  if tg_table_name = 'menu_item_photos' and not (new.is_primary and not old.is_primary) then
-    return new;
+  -- (Nested: PL/pgSQL resolves every field in one expression, and
+  -- slot_primary_choices has no is_primary.)
+  if tg_table_name = 'menu_item_photos' then
+    if not (new.is_primary and not old.is_primary) then
+      return new;
+    end if;
   end if;
   if exists (select 1 from public.media_asset_withdrawals w where w.asset_id = new.asset_id) then
     raise exception 'asset_withdrawn' using errcode = 'P0001',
@@ -443,7 +447,7 @@ begin
   values (p_asset_id, v_asset.venue_id, v_uid, v_reason);
   insert into public.media_asset_withdrawal_events (asset_id, venue_id, action, reason, actor_id)
   values (p_asset_id, v_asset.venue_id, 'withdrawn', v_reason, v_uid);
-  perform private.record_activity(v_asset.venue_id, 'library.asset_withdrawn', 'media_asset',
+  perform private.record_activity(v_asset.venue_id, 'library_asset_withdrawn', 'media_asset',
     p_asset_id::text, null, null, v_reason, null, null);
   return jsonb_build_object('assetId', p_asset_id, 'withdrawn', true, 'changed', true);
 end;
@@ -473,7 +477,7 @@ begin
   end if;
   insert into public.media_asset_withdrawal_events (asset_id, venue_id, action, reason, actor_id)
   values (p_asset_id, v_asset.venue_id, 'restored', v_reason, v_uid);
-  perform private.record_activity(v_asset.venue_id, 'library.asset_restored', 'media_asset',
+  perform private.record_activity(v_asset.venue_id, 'library_asset_restored', 'media_asset',
     p_asset_id::text, null, null, v_reason, null, null);
   return jsonb_build_object('assetId', p_asset_id, 'withdrawn', false, 'changed', true);
 end;
@@ -528,7 +532,7 @@ begin
     values (p_asset_id, v_asset.venue_id, 'withdrawn', left('Venue corrected: ' || v_reason, 500), v_uid);
   end if;
 
-  perform private.record_activity(v_asset.venue_id, 'library.venue_corrected', 'media_asset',
+  perform private.record_activity(v_asset.venue_id, 'library_venue_corrected', 'media_asset',
     p_asset_id::text, null, null, v_reason,
     jsonb_build_object('venueId', coalesce(v_current, v_asset.venue_id)),
     jsonb_build_object('venueId', p_venue_id));
