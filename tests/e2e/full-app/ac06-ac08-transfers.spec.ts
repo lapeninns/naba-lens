@@ -117,7 +117,8 @@ for (const size of ["phone", "desktop"] as const) {
     let block = true
     await page.route(SIGNED_PUT, async (route) => {
       // The reserved asset of the second photo: its storage path is in the URL.
-      const droppedId = psql(`select coalesce((select id::text from public.media_assets
+      const droppedId =
+        psql(`select coalesce((select id::text from public.media_assets
         where original_filename = ${sql(dropped.name)} limit 1), '')`)
       if (block && droppedId && route.request().url().includes(droppedId)) {
         failed += 1
