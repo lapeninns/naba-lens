@@ -169,10 +169,9 @@ describe("New request form (M4-required-fields)", () => {
   })
 
   it("sends a slot request and opens it", async () => {
-    const create = vi.fn(async (_input: unknown) => ({
-      ok: true as const,
-      id: "new-id",
-    }))
+    const create = vi.fn<(input: unknown) => Promise<{ ok: true; id: string }>>(
+      async () => ({ ok: true, id: "new-id" })
+    )
     render(
       <RequestForm
         mode="slot"
@@ -501,6 +500,24 @@ describe("Asked for on Album Home (AC01, FA-5)", () => {
       within(section).getByRole("button", { name: "Add photos for this" })
     )
     expect(openAdd).toHaveBeenLastCalledWith({ match: { place: null } })
+  })
+
+  it("shows the manager's example photo beside the brief", () => {
+    render(
+      <AskedFor
+        items={[
+          {
+            request: staffRequest({ referenceAssetId: GARDEN }),
+            slot: pieSlot,
+          },
+        ]}
+        today="2026-11-18"
+        canAdd
+      />
+    )
+    expect(screen.getByText("Example from the album")).toBeTruthy()
+    const img = document.querySelector(`img[src="/api/media/${GARDEN}/thumb"]`)
+    expect(img).not.toBeNull()
   })
 
   it("renders nothing when nothing is asked for", () => {

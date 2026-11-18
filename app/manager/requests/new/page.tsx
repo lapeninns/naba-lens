@@ -133,6 +133,7 @@ export default async function NewRequestPage({
         name: s.name,
         categoryLabel: CATEGORY.get(s.category) ?? s.category,
         state: s.state,
+        primaryAssetId: s.primaryAssetId,
       }))
   }
 

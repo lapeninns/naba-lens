@@ -8,6 +8,7 @@ import {
   type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { Button } from "@/components/ui/button"
+import { Photo } from "@/components/ui/photo"
 import type { AlbumSlot } from "@/lib/album/model"
 import {
   staffDateWords,
@@ -29,6 +30,7 @@ export const ASKED_FOR_COPY = {
   title: "Asked for",
   count: (n: number) => (n === 1 ? "1 slot" : `${n} slots`),
   forYou: "For you",
+  example: "Example from the album",
   addPhotos: "Add photos for this",
   more: (n: number) => `${n} more in the album`,
 } as const
@@ -119,6 +121,19 @@ export function AskedFor({
               <p className="text-body [overflow-wrap:anywhere] text-ink">
                 {request.brief}
               </p>
+              {request.referenceAssetId ? (
+                <figure className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-2">
+                  <Photo
+                    src={`/api/media/${encodeURIComponent(request.referenceAssetId)}/thumb`}
+                    alt=""
+                    ratio="1/1"
+                    radius="square"
+                  />
+                  <figcaption className="text-meta text-ink-muted">
+                    {ASKED_FOR_COPY.example}
+                  </figcaption>
+                </figure>
+              ) : null}
               {request.forMe || when || extras.length > 0 ? (
                 <p className="text-meta [overflow-wrap:anywhere] text-ink-muted">
                   {[

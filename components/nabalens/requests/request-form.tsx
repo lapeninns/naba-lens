@@ -54,6 +54,8 @@ export type SlotOption = {
   name: string
   categoryLabel: string
   state: string
+  /** The slot's current album photo, offered as the example (M4 reference image). */
+  primaryAssetId?: string | null
 }
 
 export type FactOption = {
@@ -148,6 +150,7 @@ export function RequestForm({
   const [wantsVideo, setVideo] = React.useState(false)
   const [captureWindow, setWindow] = React.useState("")
   const [shotListId, setShotList] = React.useState<string | null>(null)
+  const [useExample, setUseExample] = React.useState(false)
   const [errors, setErrors] = React.useState<DraftErrors>({})
   const [failure, setFailure] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
@@ -193,6 +196,10 @@ export function RequestForm({
         slotKind: mode === "slot" ? draft.slotKind : null,
         slotId: mode === "slot" ? draft.slotId : null,
         factCheckId: mode === "fact" ? factCheckId : null,
+        referenceAssetId:
+          mode === "slot" && useExample
+            ? (chosen?.primaryAssetId ?? null)
+            : null,
         subject: mode === "new" ? subject : null,
         brief: brief.trim() || null,
         intendedUse: intendedUse || null,
@@ -443,6 +450,17 @@ export function RequestForm({
                     emptyLabel="None"
                   />
                 </FormField>
+              ) : null}
+              {mode === "slot" && chosen?.primaryAssetId ? (
+                <OptionRow
+                  type="checkbox"
+                  size="sm"
+                  className="sm:col-span-2"
+                  label="Show the current album photo as an example"
+                  hint="Staff see it beside your brief."
+                  checked={useExample}
+                  onCheckedChange={(v) => setUseExample(v === true)}
+                />
               ) : null}
               <OptionRow
                 type="checkbox"
