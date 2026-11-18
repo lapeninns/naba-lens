@@ -332,6 +332,7 @@ as $$
 declare
   v_venue uuid;
   v_latest bigint;
+  v_row record;
 begin
   if auth.uid() is null or not private.is_active_user() then
     raise exception 'not_active_user' using errcode = '42501';
@@ -346,10 +347,14 @@ begin
     raise exception 'review_conflict' using errcode = '40001',
       detail = private.review_conflict_detail('area', v_latest);
   end if;
-  return query
-  select r.label_id, r.state, r.review_level, r.changed,
-    (select d.id from public.area_photo_decisions d where d.label_id = p_label_id order by d.id desc limit 1)
+  -- The decision's own id is read in a second statement: the first one's
+  -- snapshot does not see the row the call inserts.
+  select r.label_id, r.state, r.review_level, r.changed
+  into v_row
   from public.decide_area_photo_level(p_label_id, p_action, p_level, p_reason) r;
+  return query
+  select v_row.label_id, v_row.state, v_row.review_level, v_row.changed,
+    (select d.id from public.area_photo_decisions d where d.label_id = p_label_id order by d.id desc limit 1);
 end;
 $$;
 
@@ -372,6 +377,7 @@ as $$
 declare
   v_venue uuid;
   v_latest bigint;
+  v_row record;
 begin
   if auth.uid() is null or not private.is_active_user() then
     raise exception 'not_active_user' using errcode = '42501';
@@ -386,11 +392,13 @@ begin
     raise exception 'review_conflict' using errcode = '40001',
       detail = private.review_conflict_detail('amenity', v_latest);
   end if;
-  return query
-  select r.check_id, r.asset_id, r.state, r.review_level, r.changed,
-    (select d.id from public.amenity_photo_decisions d
-     where d.check_id = p_check_id and d.asset_id = p_asset_id order by d.id desc limit 1)
+  select r.check_id, r.asset_id, r.state, r.review_level, r.changed
+  into v_row
   from public.decide_amenity_photo(p_check_id, p_asset_id, p_action, p_level, p_reason) r;
+  return query
+  select v_row.check_id, v_row.asset_id, v_row.state, v_row.review_level, v_row.changed,
+    (select d.id from public.amenity_photo_decisions d
+     where d.check_id = p_check_id and d.asset_id = p_asset_id order by d.id desc limit 1);
 end;
 $$;
 
