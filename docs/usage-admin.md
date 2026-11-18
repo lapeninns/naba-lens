@@ -29,9 +29,10 @@ Inside the app, use **Log out**.
 
 ## Where things are
 
-On a computer the top bar shows **Overview**, **Venues**, **Menus**,
-**Library**, **Publishing**, **People** and **Settings**. On a phone or
-tablet the tab bar shows **Overview**, **Venues**, **Library** and **More**.
+On a wide computer screen a menu down the left side shows **Overview**,
+**Venues**, **Menus**, **Library**, **Publishing**, **People** and
+**Settings**; on a smaller computer the top bar shows the same seven. On a
+phone or tablet the tab bar shows **Overview**, **Venues**, **Library** and **More**.
 **More** (`/admin/more`, headed **All sections**) lists all seven by their
 full names, **Menus & catalog** and **Settings & activity** among them, each
 with a line on what it holds.

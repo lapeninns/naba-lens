@@ -28,7 +28,8 @@ Sign in at `/login` with the emailed link or the 6-digit code, as staff do
 **Overview** (`/manager`).
 
 The five tabs are **Overview**, **Review**, **Album**, **Requests** and
-**Venue**: in the top bar on a computer, at the bottom on a phone. **Review**
+**Venue**: in a menu down the left side on a wide screen, in a row under the
+top bar on a tablet or smaller computer, and at the bottom on a phone. **Review**
 shows a number while photos wait. When adding photos is on for your venue,
 **Add photos** sits in the header and works as it does for staff; your own
 photos are listed under **My uploads** (`/manager/uploads`).
