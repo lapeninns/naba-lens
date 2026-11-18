@@ -50,6 +50,7 @@ describe("SlotReportsList", () => {
     render(
       <SlotReportsList
         label="Reported changes"
+        empty="Nothing reported."
         reports={REPORTS}
         onDecide={vi.fn()}
       />
@@ -82,6 +83,7 @@ describe("SlotReportsList", () => {
     render(
       <SlotReportsList
         label="Reported changes"
+        empty="Nothing reported."
         reports={REPORTS}
         onDecide={onDecide}
       />
@@ -115,11 +117,43 @@ describe("SlotReportsList", () => {
     )
   })
 
+  it("keeps a decided row when the page refreshes without it, and says when nothing was reported", () => {
+    const { rerender } = render(
+      <SlotReportsList
+        label="Reported changes"
+        empty="Nothing reported."
+        reports={REPORTS}
+        onDecide={vi.fn()}
+      />
+    )
+    rerender(
+      <SlotReportsList
+        label="Reported changes"
+        empty="Nothing reported."
+        reports={[]}
+        onDecide={vi.fn()}
+      />
+    )
+    expect(screen.getAllByRole("listitem")).toHaveLength(2)
+    cleanup()
+    render(
+      <SlotReportsList
+        label="Reported changes"
+        empty="Nothing reported."
+        reports={[]}
+        onDecide={vi.fn()}
+      />
+    )
+    expect(screen.getByText("Nothing reported.")).toBeTruthy()
+    expect(screen.queryByRole("list")).toBeNull()
+  })
+
   it("keeps the buttons and says what went wrong", async () => {
     const user = userEvent.setup()
     render(
       <SlotReportsList
         label="Reported changes"
+        empty="Nothing reported."
         reports={[REPORTS[0]!]}
         onDecide={async () => ({
           ok: false,

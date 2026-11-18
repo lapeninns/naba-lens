@@ -58,10 +58,13 @@ export default async function ManagerVenueReportsPage() {
         <p role="status" className="text-body text-ink-muted">
           {copy.failed}
         </p>
-      ) : reports.length === 0 ? (
-        <p className="text-body text-ink-muted">{copy.empty}</p>
       ) : (
-        <SlotReportsList label={copy.listLabel} reports={reports} />
+        // Rendered empty too, so a decision's refresh keeps the list's state.
+        <SlotReportsList
+          label={copy.listLabel}
+          empty={copy.empty}
+          reports={reports}
+        />
       )}
     </div>
   )

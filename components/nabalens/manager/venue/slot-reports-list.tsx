@@ -98,10 +98,10 @@ function Row({ report, onDecide }: { report: SlotReport; onDecide: Decide }) {
         </p>
         <Link
           href={reportSubjectHref(report)}
+          aria-label={`${SLOT_REPORTS_COPY.open(kind)}: ${report.subjectName}`}
           className="inline-flex min-h-12 items-center justify-self-start rounded-control text-body font-bold text-accent-text underline underline-offset-4 focus-ring"
         >
           {SLOT_REPORTS_COPY.open(kind)}
-          <span className="sr-only">: {report.subjectName}</span>
         </Link>
       </div>
       {done ? (
@@ -160,15 +160,22 @@ function Row({ report, onDecide }: { report: SlotReport; onDecide: Decide }) {
 export function SlotReportsList({
   reports,
   label,
+  empty,
   onDecide = decideSlotReportAction,
 }: {
   reports: SlotReport[]
   /** Accessible name of the list. */
   label: string
+  /** Shown when there was nothing to decide on arrival. */
+  empty: string
   onDecide?: Decide
 }) {
-  // Held once, so a decided row keeps its outcome after a refresh.
+  // Held from the first render: a decision refreshes the page, whose list no
+  // longer has the decided report, and its row must keep saying what
+  // happened. The page drops it on the next visit.
   const [rows] = useState(reports)
+  if (rows.length === 0)
+    return <p className="text-body text-ink-muted">{empty}</p>
   return (
     <ul aria-label={label} className="grid gap-2">
       {rows.map((report) => (
