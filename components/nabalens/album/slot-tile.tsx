@@ -62,7 +62,11 @@ const STATE_WORDS: Record<SlotState, string> = {
   "not-here": "not here",
 }
 
-function sendingWord(progress: number | undefined, offline: boolean) {
+/**
+ * The Sending word (DESIGN.md §4: "Sending 40%", Saved on this phone without
+ * a signal), shared with Match's rows (X6) so the words live here once.
+ */
+export function sendingWord(progress: number | undefined, offline = false) {
   if (offline) return "Saved on this phone"
   if (progress === undefined) return "Sending"
   return `Sending ${Math.round(Math.min(100, Math.max(0, progress)))}%`

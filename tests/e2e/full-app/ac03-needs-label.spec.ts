@@ -38,11 +38,11 @@ for (const size of ["phone", "desktop"] as const) {
     const { match } = await startMatch(page, [photo.path])
     // Search finds nothing for it.
     await match
-      .getByRole("searchbox", { name: "Search all empty slots" })
+      .getByRole("searchbox", { name: "Search all slots" })
       .fill("lamb shank")
     await expect(
       match.locator('[data-slot="match-search-empty"]')
-    ).toContainText('No empty slot matches "lamb shank".')
+    ).toContainText('No slot matches "lamb shank".')
     // The note is optional and collapsed; this person adds one.
     await match.getByRole("button", { name: "Add a note" }).click()
     await match

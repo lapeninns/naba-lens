@@ -50,9 +50,7 @@ for (const size of ["phone", "desktop"] as const) {
     )
     // Search tolerates case and part of a word, and shows only this venue's
     // slots: venue B also has a Soup, which must not be offered.
-    await match
-      .getByRole("searchbox", { name: "Search all empty slots" })
-      .fill("SOU")
+    await match.getByRole("searchbox", { name: "Search all slots" }).fill("SOU")
     const found = match
       .locator('[data-slot="match-picker"]')
       .getByRole("button", { name: /^Soup\b/ })

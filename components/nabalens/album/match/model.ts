@@ -6,6 +6,12 @@
  * Only dish and area slots are matched. An amenity slot is filled by
  * answering its question first (§6.3), so Match never offers one; a search
  * that names one says so instead.
+ *
+ * S3-R12 (X4, X5): a slot is never hidden because it already has a photo.
+ * Suggestions are empty slots only, but a slot matched earlier in this visit,
+ * one still sending, one waiting for review and one already in the album
+ * (or needing its check) are all found by search and offered under Recent,
+ * marked so: another photo of the same dish is welcome (spec §5.4, §6 S1).
  */
 
 import type { AlbumPlace, AlbumSlot, AlbumView } from "@/lib/album/model"
@@ -38,6 +44,12 @@ export type MatchSlot = {
    * it is not an empty slot (spec §6 S1). Only in `MatchBoard.waiting`.
    */
   waiting?: boolean
+  /**
+   * The slot already has an accepted photo ("accepted") or one whose check
+   * is due ("check-due"): a better or newer photo is welcome (spec §6), so
+   * search finds it. Only in `MatchBoard.filled`.
+   */
+  filled?: "accepted" | "check-due"
 }
 
 /** Everything Match needs to offer slots, read once when it opens. */
@@ -50,6 +62,11 @@ export type MatchBoard = {
    * found by search and kept as recent choices, never suggested as empty.
    */
   waiting?: MatchSlot[]
+  /**
+   * Dish and area slots already in the album, or due their check (spec §5.3,
+   * §6, X5): found by search and kept as recent choices, never suggested.
+   */
+  filled?: MatchSlot[]
   /** The venue these slots belong to (spec §5.1, AC11), when known. */
   venue?: { id: string; name: string } | null
 }
@@ -59,6 +76,7 @@ export const placeKey = (place: string | null) => place ?? "unplaced"
 
 const EMPTY = new Set(["needed", "retake"])
 const WAITING = new Set(["waiting", "sending"])
+const FILLED = new Set(["accepted", "check-due"])
 
 function toMatchSlot(
   place: AlbumPlace,
@@ -66,7 +84,10 @@ function toMatchSlot(
   aliases: ReadonlyMap<string, readonly string[]> | undefined
 ): MatchSlot | null {
   const waiting = WAITING.has(slot.state)
-  if (!EMPTY.has(slot.state) && !waiting) return null
+  const filled = FILLED.has(slot.state)
+    ? (slot.state as "accepted" | "check-due")
+    : null
+  if (!EMPTY.has(slot.state) && !waiting && !filled) return null
   const base = {
     id: slot.id,
     name: slot.name,
@@ -75,6 +96,7 @@ function toMatchSlot(
     placeLabel: place.label,
     brief: slot.brief,
     ...(waiting ? { waiting: true } : {}),
+    ...(filled ? { filled } : {}),
   }
   if (slot.target.kind === "dish") {
     const names = aliases?.get(slot.target.itemId)
@@ -102,8 +124,8 @@ function toMatchSlot(
 
 /**
  * The album's empty dish and area slots, place by place as Album orders them,
- * and (apart) the ones with a photo already waiting. `aliases` are the menu's
- * other names by dish item id.
+ * and (apart) the ones with a photo already waiting and the ones already in
+ * the album. `aliases` are the menu's other names by dish item id.
  */
 export function matchBoardOf(
   album: AlbumView,
@@ -118,6 +140,7 @@ export function matchBoardOf(
   const places = [...album.places, ...(album.unplaced ? [album.unplaced] : [])]
   const slots: MatchSlot[] = []
   const waiting: MatchSlot[] = []
+  const filled: MatchSlot[] = []
   const amenities: string[] = []
   for (const place of places)
     for (const group of place.groups)
@@ -128,38 +151,59 @@ export function matchBoardOf(
         }
         const match = toMatchSlot(place, slot, aliases)
         if (match?.waiting) waiting.push(match)
+        else if (match?.filled) filled.push(match)
         else if (match) slots.push(match)
       }
-  return { slots, amenities, waiting, venue }
+  return { slots, amenities, waiting, filled, venue }
 }
 
-/** Every slot Match can fill: the empty ones, then the waiting ones. */
+/**
+ * Every slot Match can take a photo for: the empty ones, then the waiting
+ * ones, then the ones already in the album.
+ */
 export function allSlots(board: MatchBoard): MatchSlot[] {
-  return [...board.slots, ...(board.waiting ?? [])]
+  return [...board.slots, ...(board.waiting ?? []), ...(board.filled ?? [])]
 }
 
 /** How many recent slots Match offers above the suggestions. */
 export const RECENT_LIMIT = 3
 
 /**
- * The slots the person matched most recently on this phone (spec §5.3
- * "recent subjects"), newest first, that are still on the board and not
- * taken in this visit. Offered as choices, never applied (§5.4).
+ * The slots the person matched most recently (spec §5.3 "recent subjects"),
+ * newest first, that are still on the board: the caller puts this visit's
+ * own choices before the phone's older ones, so the second and third photo
+ * of a dish take one tap (§5.4, X4). Offered as choices, never applied.
  */
 export function recentSlots(
   board: MatchBoard,
   recent: readonly string[],
-  taken: ReadonlySet<string>,
   limit = RECENT_LIMIT
 ): MatchSlot[] {
   const byId = new Map(allSlots(board).map((slot) => [slot.id, slot]))
   const picked: MatchSlot[] = []
   for (const id of recent) {
     const slot = byId.get(id)
-    if (slot && !taken.has(id) && !picked.includes(slot)) picked.push(slot)
+    if (slot && !picked.includes(slot)) picked.push(slot)
     if (picked.length >= limit) break
   }
   return picked
+}
+
+/**
+ * How a slot Match offers is marked (X4, X5): "taken" when a photo of this
+ * visit (or one still sending) went to it, "waiting" with a photo already
+ * waiting for review, "accepted" or "check-due" when it is already in the
+ * album; null for an empty slot. Each still welcomes another photo.
+ */
+export type SlotMark = "taken" | "waiting" | "accepted" | "check-due"
+
+export function slotMark(
+  slot: MatchSlot,
+  taken: ReadonlySet<string>
+): SlotMark | null {
+  if (taken.has(slot.id)) return "taken"
+  if (slot.waiting) return "waiting"
+  return slot.filled ?? null
 }
 
 /** How many suggestions Match shows before the search. */
@@ -262,9 +306,11 @@ function wordScore(word: string, text: string, words: readonly string[]) {
 }
 
 /**
- * Every empty slot whose name, other names, section or place has every word
- * of `query` (spelling slips and plurals forgiven), names first; then the
- * slots with a photo already waiting. An empty query finds nothing.
+ * Every slot whose name, other names, section or place has every word of
+ * `query` (spelling slips and plurals forgiven), names first: the empty
+ * ones, then those with a photo already on its way or waiting (`taken` in
+ * this visit, or waiting for review), then those already in the album. None
+ * is left out for having a photo (X4, X5). An empty query finds nothing.
  */
 export function searchSlots(
   board: MatchBoard,
@@ -276,7 +322,6 @@ export function searchSlots(
     .filter(Boolean)
   if (words.length === 0) return []
   const scored = allSlots(board).flatMap((slot) => {
-    if (taken.has(slot.id)) return []
     const names = [slot.name, ...(slot.aliases ?? [])].map(fold)
     const text = fold(`${names.join(" ")} ${slot.group} ${slot.placeLabel}`)
     const textWords = text.split(/[^\p{L}\p{N}]+/u).filter(Boolean)
@@ -288,7 +333,8 @@ export function searchSlots(
     }
     const own = fold(slot.name)
     const byName = words.every((word) => own.includes(word)) ? 0 : 1
-    return [{ slot, rank: [slot.waiting ? 1 : 0, score > 0 ? 1 : 0, byName] }]
+    const band = slot.filled ? 2 : slot.waiting || taken.has(slot.id) ? 1 : 0
+    return [{ slot, rank: [band, score > 0 ? 1 : 0, byName] }]
   })
   return scored
     .sort(

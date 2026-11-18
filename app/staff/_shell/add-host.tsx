@@ -23,6 +23,7 @@ import type {
   ReplaceState,
   SetReplace,
   UploadBusy,
+  UploadControl,
 } from "@/components/nabalens/upload-dialog"
 import {
   sameLabelChoice,
@@ -688,6 +689,16 @@ export function AddHost({
   const [sendStates, setSendStates] = React.useState<
     ReadonlyMap<string, SendState>
   >(() => new Map())
+  // Each matched photo's transfer progress in whole percent while it sends
+  // (X6, spec §5.2 step 5), and the hidden queue's Retry for Match's rows.
+  const [sendProgress, setSendProgress] = React.useState<
+    ReadonlyMap<string, number>
+  >(() => new Map())
+  const uploadControl = React.useRef<UploadControl | null>(null)
+  const sendStatesNow = React.useRef(sendStates)
+  React.useEffect(() => {
+    sendStatesNow.current = sendStates
+  }, [sendStates])
   const [board, setBoard] = React.useState<BoardState>({ state: "loading" })
   const [boardTry, setBoardTry] = React.useState(0)
   const [lastPlace, setLastPlace] = React.useState<string | null>(null)
@@ -803,6 +814,30 @@ export function AddHost({
       return next
     })
   }, [])
+  /**
+   * A matched photo's bytes on their way (X6): its percent for Match, and,
+   * after a Retry from the sheet, Sending again in place of the failure.
+   */
+  const progressed = React.useCallback(
+    (file: File, percent: number) => {
+      const key = matchKeys.current.get(file)
+      if (!key || !fileOwners.current.get(file)?.onSent) return
+      setSendProgress((current) =>
+        current.get(key) === percent
+          ? current
+          : new Map(current).set(key, percent)
+      )
+      const was = sendStatesNow.current.get(key)
+      if (was === "failed" || was === "unfinished") setSent(file, "sending")
+    },
+    [setSent]
+  )
+  /** Retry on one of Match's rows (X6): the sheet's own Retry, same asset. */
+  const retryMatched = (key: string) => {
+    const photo = matchRun?.photos.find((p) => p.key === key)
+    if (!photo) return
+    if (uploadControl.current?.retry(photo.file)) setSent(photo.file, "sending")
+  }
   /**
    * An area or an I'm not sure that could not be saved: the photo waits under
    * Match later.
@@ -1010,6 +1045,7 @@ export function AddHost({
       decided ? new Map(photos.map((p) => [p.key, decided])) : new Map()
     )
     setSendStates(new Map())
+    setSendProgress(new Map())
     setDuplicates(new Set())
     setBoard({ state: "loading" })
     setLastPlace(readLastPlace())
@@ -1835,7 +1871,9 @@ export function AddHost({
                 onProcessing={(file) =>
                   fileOwners.current.get(file)?.onSent?.(file, "checking")
                 }
-                onUnfinished={(file, reason, stage) => {
+                onProgress={progressed}
+                controlRef={uploadControl}
+                onUnfinished={(file, reason, stage, retryable) => {
                   if (reason === "failed")
                     trackFlow({
                       name: "transfer_failed",
@@ -1845,12 +1883,16 @@ export function AddHost({
                   // Removed or cancelled: its asset needs no label clear (M5).
                   if (reason !== "failed") labelJournal.forgetFile(file)
                   fileOwners.current.get(file)?.onUnfinished?.(reason, file)
-                  fileOwners.current
-                    .get(file)
-                    ?.onSent?.(
-                      file,
-                      stage === "processing" ? "unfinished" : "failed"
-                    )
+                  fileOwners.current.get(file)?.onSent?.(
+                    file,
+                    // The server refused to finish it for good: Retry
+                    // cannot help; choosing it again starts anew (§5.6).
+                    retryable === false
+                      ? "unprocessable"
+                      : stage === "processing"
+                        ? "unfinished"
+                        : "failed"
+                  )
                 }}
                 onReserved={reservedForSet}
                 setOf={groupsOn ? setOf : undefined}
@@ -1884,6 +1926,8 @@ export function AddHost({
                 photos={matchRun?.photos ?? []}
                 outcomes={outcomes}
                 sendStates={sendStates}
+                progress={sendProgress}
+                onRetry={retryMatched}
                 board={board}
                 onRetryBoard={retryBoard}
                 current={matchRun?.current ?? null}

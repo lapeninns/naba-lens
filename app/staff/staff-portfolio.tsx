@@ -14,7 +14,6 @@ import {
   PencilSimpleIcon,
   SignOutIcon,
   TagIcon,
-  UploadSimpleIcon,
   UsersIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
@@ -34,6 +33,10 @@ import {
 } from "@/components/nabalens"
 import type { MediaItem } from "@/components/nabalens/types"
 import { formatBytes } from "@/components/nabalens/format"
+import {
+  ALBUM_ADD_LABEL,
+  ALBUM_ADD_OPTIONS,
+} from "@/components/nabalens/album/album-add-trigger"
 import { HOME_ROWS_COPY } from "@/components/nabalens/album/home-rows"
 import { GUIDE_PATH } from "@/components/nabalens/guide"
 import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
@@ -434,11 +437,19 @@ export function StaffPortfolio({
   const acceptedItems = menuPhotoItems.filter(
     (item) => photoMilestone(item, acceptedIds) === "accepted"
   )
+  // S3-R12 (S4-DOCS): Me's Add photos is the tab bar's: the phone's
+  // gallery first, then Match (DESIGN.md §6.1, D9). Match takes photos only;
+  // video goes where a requirement asks for it (departures.md A-D2).
   const uploadButton = (variant: "primary" | "secondary" = "primary") =>
     uploadBlocked || !openAdd ? null : (
-      <Button variant={variant} onClick={() => openAdd({ dialog: true })}>
-        <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-        Add photos or videos
+      <Button
+        variant={variant}
+        data-slot="me-add"
+        // Synchronously, inside the click: the host clicks its hidden input.
+        onClick={() => openAdd(ALBUM_ADD_OPTIONS)}
+      >
+        <ImagesIcon data-icon="inline-start" aria-hidden />
+        {ALBUM_ADD_LABEL}
       </Button>
     )
 

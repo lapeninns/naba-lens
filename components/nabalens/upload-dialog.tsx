@@ -117,6 +117,18 @@ type UploadDialogProps = {
    */
   onProcessing?: (file: File) => void
   /**
+   * Called while a file's bytes are on their way, with its transfer
+   * progress in whole percent (0 to 100), each time that number changes
+   * (spec §5.2 step 5, §5.4: per-file progress; Match shows it, X6).
+   */
+  onProgress?: (file: File, percent: number) => void
+  /**
+   * Set to this queue's controls while the dialog is mounted, so an owner
+   * that keeps the dialog closed (Match) can offer Retry on its own rows
+   * (spec §5.4, X6). Null when unmounted.
+   */
+  controlRef?: React.RefObject<UploadControl | null>
+  /**
    * Optional labels in the sheet ("What's in these photos?"): sent by asset
    * ID as soon as each file is reserved, and on the photo once it is ready.
    */
@@ -195,7 +207,12 @@ type UploadDialogProps = {
      * the original and could not finish it (spec §5.6 Processing failed),
      * "transfer" when the bytes did not all arrive.
      */
-    stage?: "transfer" | "processing"
+    stage?: "transfer" | "processing",
+    /**
+     * For a failed file, whether Retry can still finish it (false: the
+     * server refused it for good, so only choosing it again starts anew).
+     */
+    retryable?: boolean
   ) => void
   /** Called once per file when the server has reserved it, with its asset ID. */
   onReserved?: (file: File, assetId: string) => void
@@ -231,6 +248,16 @@ type UploadDialogProps = {
    * uploads that didn't finish in an earlier tab, and the probe line).
    */
   idle?: React.ReactNode
+}
+
+/** What an owner may do with a file in this queue from outside it (X6). */
+export type UploadControl = {
+  /**
+   * Retry the file's failed (or cancelled) transfer or finalise, as the
+   * row's Retry does: the same asset, never sent twice. False when the file
+   * has nothing Retry can finish.
+   */
+  retry: (file: File) => boolean
 }
 
 /** Where a replacement asked for from a row stands. */
@@ -805,6 +832,8 @@ export function UploadDialog({
   onUploaded,
   onReady,
   onProcessing,
+  onProgress,
+  controlRef,
   labels: labelsConfig,
   startOnPick = false,
   keepRunningWhenClosed = false,
@@ -1064,6 +1093,44 @@ export function UploadDialog({
     }
   }, [items, onProcessing])
 
+  // Each file's transfer progress, in whole percent, when it changes (X6).
+  const percents = React.useRef(new Map<string, number>())
+  React.useEffect(() => {
+    if (!onProgress) return
+    for (const item of items) {
+      if (item.status !== "uploading") {
+        percents.current.delete(item.id)
+        continue
+      }
+      const percent = Math.round(Math.min(1, Math.max(0, item.progress)) * 100)
+      if (percents.current.get(item.id) === percent) continue
+      percents.current.set(item.id, percent)
+      onProgress(item.file, percent)
+    }
+  }, [items, onProgress])
+
+  // Retry from outside the sheet (Match's rows, X6): the row's own Retry.
+  React.useImperativeHandle(
+    controlRef,
+    () => ({
+      retry: (file: File) => {
+        const item = [...items]
+          .reverse()
+          .find(
+            (i) =>
+              i.file === file &&
+              ((i.status === "failed" && i.retryable !== false) ||
+                i.status === "cancelled")
+          )
+        if (!item) return false
+        trackFlow({ name: "transfer_retried", count: 1 })
+        queue.retry(item.id)
+        return true
+      },
+    }),
+    [items, queue]
+  )
+
   // Each file that ends without becoming ready, once, and why.
   const ended = React.useRef(new Set<string>())
   const unfinished = React.useCallback(
@@ -1071,7 +1138,12 @@ export function UploadDialog({
       if (item.status === "done" || ended.current.has(item.id)) return
       ended.current.add(item.id)
       if (reason === "failed" && item.failedStage)
-        onUnfinished?.(item.file, reason, item.failedStage)
+        onUnfinished?.(
+          item.file,
+          reason,
+          item.failedStage,
+          item.retryable !== false
+        )
       else onUnfinished?.(item.file, reason)
     },
     [onUnfinished]

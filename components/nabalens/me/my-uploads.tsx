@@ -802,7 +802,9 @@ function ChangeSlotDialog({
           }}
           current={null}
           last={null}
-          taken={new Set(item.slots.map((s) => `${s.kind}:${s.slotId}`))}
+          taken={new Set()}
+          // Its own slot is never offered: choosing it changes nothing.
+          exclude={new Set(item.slots.map((s) => `${s.kind}:${s.slotId}`))}
           busy={busy}
           headingLevel={3}
           onMatch={(slot) => void choose(slot.target)}

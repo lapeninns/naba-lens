@@ -54,7 +54,7 @@ const BOARD: MatchBoard = {
 
 const { refresh, match, area } = vi.hoisted(() => ({
   refresh: vi.fn(),
-  match: { loadMatchBoardAction: vi.fn() },
+  match: { loadMatchBoardAction: vi.fn(), requestLabelHelpAction: vi.fn() },
   area: { setAreaLabelAction: vi.fn(), loadAreaLabelsAction: vi.fn() },
 }))
 vi.mock("next/navigation", () => ({
@@ -101,6 +101,7 @@ beforeEach(() => {
   posted = []
   postAnswer = null
   match.loadMatchBoardAction.mockResolvedValue({ ok: true, board: BOARD })
+  match.requestLabelHelpAction.mockResolvedValue({ ok: true })
   area.setAreaLabelAction.mockImplementation(
     async (_asset: string, subjectId: string) => ({ ok: true, subjectId })
   )
@@ -151,15 +152,28 @@ describe("MatchLaterScreen", () => {
     })
     expect(await screen.findByText("1 photo to match")).toBeTruthy()
     expect(refresh).toHaveBeenCalled()
-    // The filled slot is not offered for the next photo.
-    expect(screen.queryByRole("button", { name: /Onion Bhaji/ })).toBeNull()
+    // S3-R12 (X4): the slot stays one tap away for the next photo of the
+    // same dish, under Recent and marked, never as an empty suggestion.
+    const recent = screen.getByRole("list", { name: "Recent" })
+    const again = within(recent).getByRole("button", { name: /Onion Bhaji/ })
+    expect(again.textContent).toContain(
+      "Matched just now · another photo is welcome"
+    )
+    expect(
+      screen.queryByRole("list", { name: "Suggested" })
+        ? within(screen.getByRole("list", { name: "Suggested" })).queryByRole(
+            "button",
+            { name: /Onion Bhaji/ }
+          )
+        : null
+    ).toBeNull()
   })
 
   it("matches an area with its venue-area label", async () => {
     const user = userEvent.setup()
     render(<MatchLaterScreen photos={[PHOTOS[1]]} />)
     await user.type(
-      await screen.findByRole("searchbox", { name: "Search all empty slots" }),
+      await screen.findByRole("searchbox", { name: "Search all slots" }),
       "garden"
     )
     await user.click(screen.getByRole("button", { name: /The garden/ }))
@@ -221,5 +235,36 @@ describe("MatchLaterScreen", () => {
     expect(
       screen.getByText("Every photo you added is matched to a slot.")
     ).toBeTruthy()
+  })
+})
+
+describe("S3-R12: I'm not sure on Match later (spec §5.3, AC03)", () => {
+  it("sends the photo to the manager, and it leaves the list", async () => {
+    const user = userEvent.setup()
+    render(<MatchLaterScreen photos={PHOTOS} />)
+    await user.click(
+      await screen.findByRole("button", { name: /I'm not sure/ })
+    )
+    await waitFor(() =>
+      expect(match.requestLabelHelpAction).toHaveBeenCalledWith(A1)
+    )
+    expect(await screen.findByText("1 photo to match")).toBeTruthy()
+    expect(posted).toEqual([])
+  })
+
+  it("keeps the photo and says why when the manager could not be told", async () => {
+    match.requestLabelHelpAction.mockResolvedValue({
+      ok: false,
+      message: "No signal. Try again.",
+    })
+    const user = userEvent.setup()
+    render(<MatchLaterScreen photos={PHOTOS} />)
+    await user.click(
+      await screen.findByRole("button", { name: /I'm not sure/ })
+    )
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "No signal. Try again."
+    )
+    expect(screen.getByText("2 photos to match")).toBeTruthy()
   })
 })

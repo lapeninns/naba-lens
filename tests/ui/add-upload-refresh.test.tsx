@@ -227,7 +227,7 @@ describe("global Add gallery refresh", () => {
     expect(refresh).toHaveBeenCalledTimes(2)
   })
 
-  it("refreshes Me after global Add, and Me's upload uses the same queue", async () => {
+  it("refreshes Me after global Add, and Me's Add photos opens the gallery for Match", async () => {
     const user = userEvent.setup()
     const fetch = vi.fn().mockImplementation(
       async () =>
@@ -250,7 +250,8 @@ describe("global Add gallery refresh", () => {
       )
     )
     expect(fetch).not.toHaveBeenCalled()
-    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    // The AppBar's Add photos (the shell's trigger, first in the page).
+    await user.click(screen.getAllByRole("button", { name: "Add photos" })[0])
     await user.click(screen.getByRole("button", { name: "Complete upload" }))
     await waitFor(() =>
       expect(
@@ -265,16 +266,23 @@ describe("global Add gallery refresh", () => {
       })
     )
 
-    // Me's own upload opens the same global queue (no second dialog).
-    await user.click(
-      screen.getByRole("button", { name: "Add photos or videos" })
-    )
+    // S3-R12 (S4-DOCS): Me's Add photos is the tab bar's: the gallery
+    // straight away (then Match), never the older upload sheet.
+    const gallery = document.querySelector<HTMLInputElement>(
+      'input[data-photo-source="library"]'
+    )!
+    const click = vi.spyOn(gallery, "click")
+    const me = document.querySelector<HTMLButtonElement>(
+      '[data-slot="me-add"]'
+    )!
+    expect(me.textContent).toBe("Add photos")
     expect(
-      screen.getAllByRole("button", { name: "Complete upload" })
-    ).toHaveLength(1)
-    await user.click(screen.getByRole("button", { name: "Complete upload" }))
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
-    expect(refresh).toHaveBeenCalledTimes(2)
+      screen.queryByRole("button", { name: "Add photos or videos" })
+    ).toBeNull()
+    await user.click(me)
+    expect(click).toHaveBeenCalledTimes(1)
+    expect(gallery.multiple).toBe(true)
+    expect(gallery.hasAttribute("capture")).toBe(false)
   })
 
   it("M2: Me's Fix labels and Discard labels reach the Add sheet's rows", async () => {

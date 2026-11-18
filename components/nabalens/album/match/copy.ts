@@ -11,10 +11,11 @@ export const MATCH_COPY = {
   photoOf: (n: number, total: number) => `Photo ${n} of ${total}`,
   question: "Which empty slot is this?",
   suggested: "Suggested",
-  searchLabel: "Search all empty slots",
+  /** X5: search finds every slot, a filled one marked so. */
+  searchLabel: "Search all slots",
   searchCount: (n: number) =>
-    n === 0 ? "" : n === 1 ? "1 empty slot" : `${n} empty slots`,
-  searchNone: (query: string) => `No empty slot matches "${query}".`,
+    n === 0 ? "" : n === 1 ? "1 slot" : `${n} slots`,
+  searchNone: (query: string) => `No slot matches "${query}".`,
   amenityNote:
     "Amenities are not matched here: open the amenity in the album and answer its question first.",
   noSuggestions:
@@ -41,6 +42,11 @@ export const MATCH_COPY = {
   recent: "Recent",
   /** A slot with a photo already waiting (spec §6 S1). */
   waitingMeta: "Waiting · another photo is welcome",
+  /** X4: a slot a photo of this visit went to, or one still sending. */
+  takenMeta: "Matched just now · another photo is welcome",
+  /** X5: a slot already in the album (spec §6: another photo welcome). */
+  acceptedMeta: "In the album · another photo is welcome",
+  checkDueMeta: "Needs checking · another photo is welcome",
   // "Use for the next N photos" (spec §5.4, FA-3).
   groupLabel: "Same slot for the next photos too?",
   groupPhoto: (n: number) => `Photo ${n} too`,
@@ -143,14 +149,34 @@ export const MATCH_COPY = {
     n === 1
       ? "1 photo is shared with the team with no slot."
       : `${n} photos are shared with the team with no slot.`,
+  // X6: Retry sits on each row (the same photo, never sent twice).
+  retry: "Retry",
+  retryOne: (name: string) => `Retry ${name}`,
+  retryRest: (n: number) =>
+    n === 1
+      ? "Retry the photo for your manager"
+      : `Retry the ${n} photos for your manager`,
   failedLine: (n: number) =>
+    n === 1
+      ? "1 photo didn't send. Choose Retry; it won't be sent twice."
+      : `${n} photos didn't send. Choose Retry; they won't be sent twice.`,
+  unfinishedLine: (n: number) =>
+    n === 1
+      ? "1 photo arrived but couldn't be finished. Choose Retry; it won't be sent twice."
+      : `${n} photos arrived but couldn't be finished. Choose Retry; they won't be sent twice.`,
+  failedAddLine: (n: number) =>
     n === 1
       ? "1 photo didn't send. Open Add photos to send it again."
       : `${n} photos didn't send. Open Add photos to send them again.`,
-  unfinishedLine: (n: number) =>
+  unfinishedAddLine: (n: number) =>
     n === 1
       ? "1 photo arrived but couldn't be finished. Open Add photos and choose Retry; it won't be sent twice."
       : `${n} photos arrived but couldn't be finished. Open Add photos and choose Retry; they won't be sent twice.`,
+  /** The server refused to finish it for good (§5.6 Processing failed). */
+  unprocessableLine: (n: number) =>
+    n === 1
+      ? "1 photo arrived but couldn't be finished, and trying again won't help. It is still in your gallery: add it again."
+      : `${n} photos arrived but couldn't be finished, and trying again won't help. They are still in your gallery: add them again.`,
   refusedLine: (n: number) =>
     n === 1
       ? "1 photo could not be added. It is still in your gallery."
