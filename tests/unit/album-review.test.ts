@@ -51,6 +51,7 @@ import {
   type ReviewContext,
 } from "@/components/nabalens/album/review/model"
 import { reviewHref } from "@/components/nabalens/manager/review/links"
+import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
 import type { AreaPhotoCard } from "@/lib/server/area-photos"
 import type { QueueCard } from "@/lib/server/menu-photos/types"
 
@@ -220,6 +221,14 @@ describe("stage photos from the queues", () => {
     expect(decidable(stale)).toBe(false)
     expect(fromMenuCard(card({ item: null, kind: "unlabelled" }))).toBeNull()
     expect(reviewLine([mine, stale])).toEqual([])
+  })
+
+  it("a single-reviewer venue's manager gets their own dish photos on the stage (K6, S3-R8 W3)", () => {
+    const mine = fromMenuCard(card({ isSelf: true, selfReviewAllowed: true }))!
+    expect(mine.own).toBe(false)
+    expect(decidable(mine)).toBe(true)
+    expect((mine.subject as MenuSubject).accept).toBe("accept")
+    expect(reviewLine([mine]).map((p) => p.key)).toEqual([mine.key])
   })
 
   it("the line is longest waiting first across both queues, each photo once", () => {
@@ -471,6 +480,31 @@ describe("AlbumReviewBody (server read)", () => {
     const p = await props()
     expect(p.menuCards).toEqual([])
     expect(p.total).toBe(1)
+  })
+
+  it("lists Needs label photos whatever the menu state (S3-R8 W2)", async () => {
+    photos.getManagerOverview.mockResolvedValue(
+      overview({ menuState: "no_menu" })
+    )
+    const waiting = card({ kind: "unlabelled", key: id(0x13), item: null })
+    photos.listReviewQueue.mockResolvedValue({
+      ok: true,
+      items: [card(), waiting],
+      nextCursor: "c",
+    })
+    const p = await props()
+    // No dish photos to decide, and no unread dish pages to count.
+    expect(p.menuCards).toEqual([])
+    expect(p.menuCursor).toBeNull()
+    expect(p.waitingElsewhere).toBe(1)
+    // One area photo and the Needs label photo.
+    expect(p.total).toBe(2)
+    const filter = p.filter as { props: { children: unknown[] } }
+    const list = (filter.props.children as Array<{ props?: unknown }>)[1] as {
+      props: { cards: unknown[]; note?: string }
+    }
+    expect(list.props.cards).toEqual([waiting])
+    expect(list.props.note).toBe(REVIEW_COPY.needsLabelMenuNotReady)
   })
 
   it("a refused read goes to Overview, as the list does", async () => {

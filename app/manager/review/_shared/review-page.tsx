@@ -3,6 +3,7 @@ import "server-only"
 import { notFound } from "next/navigation"
 
 import { ContributorHeader } from "@/components/nabalens/manager/review/contributor-header"
+import { NeedsLabelList } from "@/components/nabalens/manager/review/inbox-needs-label"
 import {
   narrowingOf,
   reviewHref,
@@ -99,6 +100,45 @@ function MenuNotReady({ empty }: { empty: boolean }) {
   )
 }
 
+/**
+ * The menu-pending state, with the photos that still need a label under it
+ * (S3-R8 W2, K1, E4): Overview counts them whatever the menu state, so the
+ * list it links to shows them too. Each opens its detail, where Not used and
+ * the place and facility routes need no menu; choosing a dish waits for the
+ * menu. The manager's detail page only: an admin has none, so an admin sees
+ * the menu-pending state alone.
+ */
+async function MenuNotReadyBody({
+  ctx,
+  scope,
+  view,
+  empty,
+  path,
+}: {
+  ctx: ManagerPhotoCtx
+  scope: ReviewScope
+  view: ReviewView
+  empty: boolean
+  path: string
+}) {
+  if (scope.kind !== "manager") return <MenuNotReady empty={empty} />
+  const waiting = await listReviewQueue(ctx, {
+    status: "unlabelled",
+    contributorId: view.contributorId ?? undefined,
+    ...narrowingOf(view),
+  })
+  if (!waiting.ok) failed(waiting, scope, path)
+  return (
+    <div className="grid gap-6">
+      <MenuNotReady empty={empty} />
+      <NeedsLabelList
+        cards={waiting.items}
+        note={REVIEW_COPY.needsLabelMenuNotReady}
+      />
+    </div>
+  )
+}
+
 /** Filters and list of the Review screen for `search`. */
 export async function ReviewBody({
   ctx,
@@ -124,7 +164,15 @@ export async function ReviewBody({
   ])
   if (!overview.ok) failed(overview, scope, path)
   if (overview.overview.menuState !== "ready")
-    return <MenuNotReady empty={overview.overview.menuState === "empty"} />
+    return (
+      <MenuNotReadyBody
+        ctx={ctx}
+        scope={scope}
+        view={view}
+        empty={overview.overview.menuState === "empty"}
+        path={path}
+      />
+    )
   if (!contributors.ok) failed(contributors, scope, path)
   if (!queue.ok) failed(queue, scope, path)
   return (
@@ -204,7 +252,13 @@ export async function ContributorBody({
     return (
       <div className="grid gap-6">
         {header}
-        <MenuNotReady empty={overview.overview.menuState === "empty"} />
+        <MenuNotReadyBody
+          ctx={ctx}
+          scope={scope}
+          view={view}
+          empty={overview.overview.menuState === "empty"}
+          path={path}
+        />
       </div>
     )
   }

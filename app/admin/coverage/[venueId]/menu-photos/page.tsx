@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 
 import { AreaReviewSection } from "@/app/manager/review/_shared/area-section"
+import { showsPhotoOnlySections } from "@/app/manager/review/_shared/mode"
 import {
   ReviewBody,
   type ReviewSearch,
@@ -30,6 +31,7 @@ export default async function AdminMenuPhotosPage({
   const ctx = await adminVenueContext(venueId)
   const scope = await getManagerPhotoCtx(ctx.venueId)
   if (!scope.ok) throw new Error(`Could not open Review: ${scope.code}`)
+  const search = await searchParams
   return (
     <ManageFrame
       ctx={ctx}
@@ -41,9 +43,11 @@ export default async function AdminMenuPhotosPage({
       <ReviewBody
         ctx={scope.ctx}
         scope={{ kind: "admin", venueId: ctx.venueId }}
-        search={await searchParams}
+        search={search}
       />
-      <AreaReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
+      {showsPhotoOnlySections(search) ? (
+        <AreaReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
+      ) : null}
     </ManageFrame>
   )
 }

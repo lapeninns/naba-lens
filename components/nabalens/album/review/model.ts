@@ -7,7 +7,10 @@
  * including that nobody reviews their own photo.
  */
 
-import { availableActions } from "@/components/nabalens/manager/review/card-model"
+import {
+  availableActions,
+  ownPhotoBlocked,
+} from "@/components/nabalens/manager/review/card-model"
 import type { DecisionPayload } from "@/components/nabalens/manager/review/use-decision"
 import { dishName } from "@/lib/menus/dish-name"
 import type { AreaPhotoCard } from "@/lib/server/area-photos"
@@ -110,7 +113,9 @@ export function fromMenuCard(
     addedAt: card.labelledAt ?? card.uploadedAt,
     place: context.sectionPlace.get(item.sectionId) ?? null,
     imageUrl: card.asset.previewUrl ?? card.asset.thumbnailUrl,
-    own: card.isSelf,
+    // The manager's own photo, unless their venue is single-reviewer (K6,
+    // S3-R8 W3): the list's rule, so both views offer the same photos.
+    own: ownPhotoBlocked(card, "manager"),
     subject: {
       kind: "dish",
       assetId: card.asset.assetId,

@@ -1,7 +1,10 @@
 import { AlbumReviewBody } from "@/app/manager/review/_shared/album-review"
 import { AmenityReviewSection } from "@/app/manager/review/_shared/amenity-section"
 import { AreaReviewSection } from "@/app/manager/review/_shared/area-section"
-import { reviewModeOf } from "@/app/manager/review/_shared/mode"
+import {
+  reviewModeOf,
+  showsPhotoOnlySections,
+} from "@/app/manager/review/_shared/mode"
 import {
   ReviewBody,
   type ReviewSearch,
@@ -141,8 +144,12 @@ export default async function ManagerReviewPage({
             scope={{ kind: "manager" }}
             search={search}
           />
-          <AreaReviewSection ctx={scope.ctx} />
-          <AmenityReviewSection ctx={scope.ctx} />
+          {showsPhotoOnlySections(search) ? (
+            <>
+              <AreaReviewSection ctx={scope.ctx} />
+              <AmenityReviewSection ctx={scope.ctx} />
+            </>
+          ) : null}
         </>
       ) : (
         <TriageBody ctx={scope.ctx} kind={kind} />

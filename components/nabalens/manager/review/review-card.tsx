@@ -241,6 +241,8 @@ export function ReviewCard({
         ) : null}
         {ownPhotoBlocked(card, scope.kind) ? (
           <Notice tone="plain">{REVIEW_COPY.ownPhoto}</Notice>
+        ) : card.kind === "unlabelled" && card.mediaType === "video" ? (
+          <p className="text-body text-ink-muted">{REVIEW_COPY.videoNoDish}</p>
         ) : (
           actions
         )}
