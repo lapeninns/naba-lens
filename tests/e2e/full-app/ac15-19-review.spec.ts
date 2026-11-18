@@ -89,6 +89,47 @@ for (const [size, options] of SIZES) {
   })
 }
 
+test("AC15 (S3-R13 X7): a label accepted on the wrong dish is fixed later, without a re-upload", async ({
+  browser,
+}) => {
+  const w = await provisionManagerWorld()
+  // The photo shows the pie; the staff member labelled it Soup and the
+  // manager accepted it before noticing.
+  const asset = await labelledPhoto(w.staffA1, w.venueA, [w.itemsA.soup])
+  const before = assetsBy(w.staffA1.id)
+
+  const mgr = await as(browser, w.mgrA, DESKTOP)
+  await mgr.goto(detail(asset))
+  await action(mgr, "approve").first().click()
+  await expect(mgr.getByText("Saved.")).toBeVisible()
+  expect(photoRow(asset)).toBe(`${w.itemsA.soup}:accepted:staff_label`)
+
+  // Fix label is still there on the decided label.
+  await action(mgr, "fix-label").first().click()
+  const dialog = mgr.getByRole("dialog", { name: "Fix label" })
+  await dialog.getByRole("searchbox", { name: "Search the menu" }).fill("Pie")
+  await dialog.getByRole("radio", { name: /^Pie/ }).check()
+  await dialog
+    .getByRole("textbox", { name: "Why is the staff label wrong?" })
+    .fill("It is the pie, not the soup")
+  await dialog.getByRole("button", { name: "Accept for Pie" }).click()
+  await expect(mgr.getByText("Saved.")).toBeVisible()
+
+  // The wrong acceptance is withdrawn, the photo is accepted on the right
+  // dish as a correction of the label, and the history keeps both.
+  const rows = photoRow(asset).split(",").sort()
+  expect(rows).toEqual(
+    [
+      `${w.itemsA.pie}:accepted:reviewer:${w.itemsA.soup}`,
+      `${w.itemsA.soup}:withdrawn:staff_label`,
+    ].sort()
+  )
+  await expect(
+    mgr.locator("[data-review-history] li").filter({ hasText: "Soup" }).first()
+  ).toBeVisible()
+  expect(assetsBy(w.staffA1.id)).toBe(before)
+})
+
 test("AC16: Keep as reference stores the photo but the dish's public-photo slot stays open", async ({
   browser,
 }) => {
