@@ -1,7 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { FolderSimpleIcon, MagnifyingGlassIcon } from "@phosphor-icons/react"
+import {
+  FolderSimpleIcon,
+  MagnifyingGlassIcon,
+  StackIcon,
+  TrashIcon,
+} from "@phosphor-icons/react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -23,11 +28,19 @@ import {
 import { PageHeader } from "@/components/nabalens/page-header"
 import { SEARCH_COPY } from "@/components/nabalens/search/search-copy"
 import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  NO_EXTRA_FILTERS,
+  type LibraryExtraFilters,
+} from "@/lib/library/model"
 import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from "@/lib/menus/types"
 
 import { loadLibraryPage, type LibraryPageResult } from "./library-actions"
 import { filtersToSearch, type LibrarySearchParams } from "./library-search"
 import { LIBRARY_COPY } from "./library-copy"
+import {
+  LibraryMoreFilters,
+  type LibraryExtraOptions,
+} from "./library-more-filters"
 import { LibraryErrorBoundary, LibraryGridSkeleton } from "./library-states"
 
 type AdminLibraryProps = {
@@ -36,6 +49,9 @@ type AdminLibraryProps = {
   /** The selected venue's menu choices; null without a venue. */
   menuOptions: LibraryMenuOptions | null
   filters: Required<LibraryFilterValue>
+  /** The A4 filters (S2-LIBRARY): use, review, dates taken, collections… */
+  extra: LibraryExtraFilters
+  extraOptions: LibraryExtraOptions
   /** The first page, streamed after the header and filters. */
   initialPage: Promise<LibraryPageResult>
 }
@@ -48,6 +64,8 @@ export function AdminLibrary({
   staff,
   menuOptions,
   filters,
+  extra,
+  extraOptions,
   initialPage,
 }: AdminLibraryProps) {
   const router = useRouter()
@@ -56,12 +74,17 @@ export function AdminLibrary({
   // Filters being navigated to: a second change made before the first
   // navigation returns must build on it, not on the stale server props.
   const [shown, setShown] = React.useOptimistic(filters)
-  const search = filtersToSearch(filters)
+  const [shownExtra, setShownExtra] = React.useOptimistic(extra)
+  const search = filtersToSearch(filters, extra)
 
-  function navigate(next: Required<LibraryFilterValue>) {
-    const qs = filtersToSearch(next)
+  function navigate(
+    next: Required<LibraryFilterValue>,
+    nextExtra: LibraryExtraFilters = shownExtra
+  ) {
+    const qs = filtersToSearch(next, nextExtra)
     startTransition(() => {
       setShown(next)
+      setShownExtra(nextExtra)
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     })
   }
@@ -78,13 +101,29 @@ export function AdminLibrary({
         title={LIBRARY_COPY.title}
         summary={<p>{LIBRARY_COPY.summary}</p>}
         actions={
-          <Link
-            href="/admin/search"
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            <MagnifyingGlassIcon aria-hidden />
-            {SEARCH_COPY.entry}
-          </Link>
+          <>
+            <Link
+              href="/admin/library/collections"
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              <StackIcon aria-hidden />
+              Collections
+            </Link>
+            <Link
+              href="/admin/library/removals"
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              <TrashIcon aria-hidden />
+              Removal requests
+            </Link>
+            <Link
+              href="/admin/search"
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              <MagnifyingGlassIcon aria-hidden />
+              {SEARCH_COPY.entry}
+            </Link>
+          </>
         }
         className="pb-0 md:pb-0"
       />
@@ -93,12 +132,17 @@ export function AdminLibrary({
         staff={staff}
         menuOptions={menuOptions}
         value={shown}
-        onChange={navigate}
+        onChange={(next) => navigate(next)}
+      />
+      <LibraryMoreFilters
+        value={shownExtra}
+        options={extraOptions}
+        onChange={(nextExtra) => navigate(shown, nextExtra)}
       />
       <LibraryFolders
         filters={shown}
         menuOptions={menuOptions}
-        onChange={navigate}
+        onChange={(next) => navigate(next)}
       />
       {/* While new filters load, the results on screen are on their way out:
           inert, so Load more (or a tile) can't act on a list about to be
@@ -138,7 +182,9 @@ export function AdminLibrary({
                       <Button
                         type="button"
                         variant="secondary"
-                        onClick={() => navigate(EMPTY_LIBRARY_FILTERS)}
+                        onClick={() =>
+                          navigate(EMPTY_LIBRARY_FILTERS, NO_EXTRA_FILTERS)
+                        }
                       >
                         Clear filters
                       </Button>
@@ -277,6 +323,7 @@ function LibraryResults({
       refreshIntervalMs={REFRESH_MS}
       getDownloadHref={(item) => `/api/media/${item.id}/download`}
       getPortfolioHref={(item) => `/admin/staff/${item.contributorId}`}
+      getDetailHref={(item) => `/admin/library/${item.id}`}
       empty={empty}
     />
   )
