@@ -959,7 +959,10 @@ test("staff: long name and paused venue", async ({
   const paused = await signIn(browser, fx.pausedVenue.email, baseURL!)
   await expect(paused).toHaveURL(STAFF_LANDING)
   await openPortfolio(paused)
-  await expect(paused.getByText("uploads are paused")).toBeVisible()
+  // The paused-venue words since R-2 (as gaps.spec.ts checks them).
+  await expect(
+    paused.getByRole("status").filter({ hasText: /isn't taking photos/ })
+  ).toBeVisible()
   // Neither of Me's Add buttons (R15-1) is offered at a paused venue.
   await expect(paused.getByRole("button", { name: "Add a video" })).toHaveCount(
     0
