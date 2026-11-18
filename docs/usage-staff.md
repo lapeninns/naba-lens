@@ -313,6 +313,10 @@ started; one accepted after its month ended is marked **Accepted late**.
 - **Your managers**: who to ask about a photo, a slot or your account.
 - **If you can't add photos**: photo access on your phone, file types and
   sizes.
+- **Add to home screen** (FA-53): open Naba-Lens from your home screen like
+  an app. The button shows only when your browser offers it. On iPhone or
+  iPad, in Safari, tap **Share**, then **Add to Home Screen**, then **Add**.
+  The browser works the same.
 
 **Edit profile** changes **Display name** and **Profile photo** (up to 4 MB),
 then **Save changes**. Your admin controls job title, team, venue and access.

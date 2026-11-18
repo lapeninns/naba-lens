@@ -10,6 +10,7 @@ import {
   UserCircleIcon,
 } from "@phosphor-icons/react"
 
+import { InstallApp } from "@/components/nabalens/me/install-app"
 import { Notice } from "@/components/nabalens/notice"
 import { CountBadge } from "@/components/nabalens/status-chip"
 import {
@@ -172,6 +173,8 @@ export function MeAccount({
           </li>
         </ul>
       </nav>
+
+      <InstallApp headingLevel={(headingLevel + 1) as 3 | 4 | 5} />
 
       <div
         className="grid gap-2 rounded-card bg-surface p-4 shadow-card"

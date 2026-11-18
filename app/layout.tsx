@@ -6,6 +6,7 @@ import {
 } from "next/font/google"
 
 import "./globals.css"
+import { InstallPromptCapture } from "@/components/nabalens/me/install-app"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 
@@ -37,16 +38,24 @@ export const metadata: Metadata = {
   title: { default: "Naba-Lens", template: "%s · Naba-Lens" },
   description:
     "Staff photos and videos of each venue's dishes, drinks and spaces, in one place.",
+  // Added to a home screen (FA-53; spec §15.3): app/manifest.ts, and
+  // app/apple-icon.png for iOS, which also reads these.
+  applicationName: "Naba-Lens",
+  appleWebApp: {
+    capable: true,
+    title: "Naba-Lens",
+    statusBarStyle: "default",
+  },
 }
 
-// Browser chrome matches the grey canvas in each theme (the canvas token in
-// sRGB). `cover` hands the notch and home indicator areas to the page:
+// Browser chrome matches the paper canvas in each theme (Album's `canvas`
+// token in sRGB, DESIGN.md §3.1; app/manifest.ts uses the light one). `cover` hands the notch and home indicator areas to the page:
 // app/globals.css pads the body at the sides, and bottom bars and sheets add
 // the bottom inset themselves.
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#eef0f3" },
-    { media: "(prefers-color-scheme: dark)", color: "#131415" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f1e7" },
+    { media: "(prefers-color-scheme: dark)", color: "#151714" },
   ],
   colorScheme: "light dark",
   viewportFit: "cover",
@@ -70,6 +79,7 @@ export default function RootLayout({
       )}
     >
       <body>
+        <InstallPromptCapture />
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
