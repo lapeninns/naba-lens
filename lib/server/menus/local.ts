@@ -765,3 +765,94 @@ export async function setAmenityApplicability(
         : null
   ).then((r) => (r.ok ? { ok: true, ...r.value } : r))
 }
+
+// ---------------------------------------------------------------------------
+// Packaged items (FA-51; spec §4.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * One menu item or local offering and its designation. A packaged item
+ * without `photoWanted` is optional: listed and takes photos, but not in any
+ * coverage count (private.coverage_slot_rows, 20261118133000).
+ */
+export type PackagingItem = {
+  itemId: string
+  name: string
+  /** The menu section's name; null for a special. */
+  sectionName: string | null
+  kind: "food" | "drinks"
+  source: "menu" | "special"
+  packaged: boolean
+  photoWanted: boolean
+}
+
+function toPackaging(v: unknown): PackagingItem | null {
+  if (!isObject(v) || !isUuid(v.itemId) || !str(v.name)) return null
+  return {
+    itemId: v.itemId as string,
+    name: str(v.name)!,
+    sectionName: str(v.sectionName),
+    kind: v.kind === "drinks" ? "drinks" : "food",
+    source: v.source === "special" ? "special" : "menu",
+    packaged: v.packaged === true,
+    photoWanted: v.packaged === true && v.photoWanted === true,
+  }
+}
+
+/**
+ * The venue's active menu items and current specials with their packaged
+ * designation. Managers of the venue and admins.
+ */
+export async function getPackaging(
+  actor: MediaActor,
+  venueId?: string
+): Promise<Outcome<{ items: PackagingItem[] }>> {
+  if (venueId !== undefined && !isUuid(venueId))
+    return notFound("This venue could not be found.")
+  const result = await call(
+    actor,
+    "menu_item_packaging",
+    venueId ? { p_venue_id: venueId } : {},
+    (data) => items(data)?.map(toPackaging)
+  )
+  if (!result.ok) return result
+  return {
+    ok: true,
+    items: result.value.filter((i): i is PackagingItem => i !== null),
+  }
+}
+
+/** Marks an item packaged (and optionally Photo wanted), or not. No reason. */
+export async function setItemPackaging(
+  actor: MediaActor,
+  input: unknown
+): Promise<
+  Outcome<{ changed: boolean; packaged: boolean; photoWanted: boolean }>
+> {
+  if (!isObject(input) || !isUuid(input.itemId))
+    return notFound("This menu item could not be found.")
+  if (
+    typeof input.packaged !== "boolean" ||
+    typeof input.photoWanted !== "boolean"
+  )
+    return invalid("This request is invalid.")
+  if (input.photoWanted && !input.packaged)
+    return invalid("Mark it packaged before asking for its photo.")
+  return call(
+    actor,
+    "menu_item_packaging_set",
+    {
+      p_item_id: input.itemId,
+      p_packaged: input.packaged,
+      p_photo_wanted: input.photoWanted,
+    },
+    (data) =>
+      isObject(data)
+        ? {
+            changed: data.changed === true,
+            packaged: data.packaged === true,
+            photoWanted: data.photoWanted === true,
+          }
+        : null
+  ).then((r) => (r.ok ? { ok: true, ...r.value } : r))
+}
