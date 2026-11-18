@@ -42,6 +42,7 @@ export {
   getPersonVenuePrivileges,
   grantAdminRole,
   inviteStaffToVenue,
+  listActiveAdmins,
   listVenueTeam,
   membershipError,
   reassignOpenWork,

@@ -512,3 +512,27 @@ export async function revokeAdminRole(
   if (error) return membershipError(error)
   return { ok: true }
 }
+
+/** Active admins, for the admin role section of the staff directory. */
+export async function listActiveAdmins(
+  ctx: AccountsContext
+): Promise<AccountResult<{ admins: { id: string; displayName: string }[] }>> {
+  const refused = await activeCaller(ctx)
+  if (refused) return refused
+  // Admins read every profile through RLS (profiles_select_admin); anyone
+  // else reads only their own row, so a non-admin never sees this list.
+  const { data, error } = await ctx.caller
+    .from("profiles")
+    .select("id, display_name")
+    .eq("role", "admin")
+    .eq("active", true)
+    .order("display_name", { ascending: true })
+  if (error) return dbFailed()
+  return {
+    ok: true,
+    admins: (data ?? []).map((a) => ({
+      id: a.id,
+      displayName: a.display_name,
+    })),
+  }
+}
