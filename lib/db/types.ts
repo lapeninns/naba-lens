@@ -4279,6 +4279,200 @@ export type Database = {
           },
         ]
       }
+      media_request_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          detail: Json
+          id: number
+          kind: string
+          reason: string | null
+          request_id: string | null
+          shot_list_id: string | null
+          venue_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind: string
+          reason?: string | null
+          request_id?: string | null
+          shot_list_id?: string | null
+          venue_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind?: string
+          reason?: string | null
+          request_id?: string | null
+          shot_list_id?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_request_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_request_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_requests: {
+        Row: {
+          assignee_id: string | null
+          blocked_reason: string | null
+          brief: string
+          capture_window: string | null
+          closed_at: string | null
+          closed_by: string | null
+          closed_reason: string | null
+          closed_state: string | null
+          created_at: string
+          created_by: string
+          due_on: string | null
+          fact_check_id: string | null
+          id: string
+          intended_use: string
+          orientation: string | null
+          photo_count: number
+          priority: string
+          reference_asset_id: string | null
+          request_type: string
+          revision: number
+          shot_list_id: string | null
+          slot_id: string | null
+          slot_kind: string | null
+          subject: string
+          team: string
+          updated_at: string
+          venue_id: string
+          wants_video: boolean
+        }
+        Insert: {
+          assignee_id?: string | null
+          blocked_reason?: string | null
+          brief: string
+          capture_window?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          closed_reason?: string | null
+          closed_state?: string | null
+          created_at?: string
+          created_by: string
+          due_on?: string | null
+          fact_check_id?: string | null
+          id?: string
+          intended_use: string
+          orientation?: string | null
+          photo_count?: number
+          priority?: string
+          reference_asset_id?: string | null
+          request_type: string
+          revision?: number
+          shot_list_id?: string | null
+          slot_id?: string | null
+          slot_kind?: string | null
+          subject: string
+          team?: string
+          updated_at?: string
+          venue_id: string
+          wants_video?: boolean
+        }
+        Update: {
+          assignee_id?: string | null
+          blocked_reason?: string | null
+          brief?: string
+          capture_window?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          closed_reason?: string | null
+          closed_state?: string | null
+          created_at?: string
+          created_by?: string
+          due_on?: string | null
+          fact_check_id?: string | null
+          id?: string
+          intended_use?: string
+          orientation?: string | null
+          photo_count?: number
+          priority?: string
+          reference_asset_id?: string | null
+          request_type?: string
+          revision?: number
+          shot_list_id?: string | null
+          slot_id?: string | null
+          slot_kind?: string | null
+          subject?: string
+          team?: string
+          updated_at?: string
+          venue_id?: string
+          wants_video?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_requests_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_requests_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_requests_fact_fkey"
+            columns: ["fact_check_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "venue_amenity_checks"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "media_requests_reference_asset_id_fkey"
+            columns: ["reference_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_requests_shot_list_fkey"
+            columns: ["shot_list_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "shot_lists"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "media_requests_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_use_destinations: {
         Row: {
           active: boolean
@@ -6450,6 +6644,76 @@ export type Database = {
             columns: ["submission_item_id"]
             isOneToOne: true
             referencedRelation: "coverage_submission_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shot_lists: {
+        Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          due_on: string | null
+          id: string
+          name: string
+          note: string | null
+          purpose: string
+          revision: number
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by: string
+          due_on?: string | null
+          id?: string
+          name: string
+          note?: string | null
+          purpose: string
+          revision?: number
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string
+          due_on?: string | null
+          id?: string
+          name?: string
+          note?: string | null
+          purpose?: string
+          revision?: number
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shot_lists_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shot_lists_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shot_lists_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
             referencedColumns: ["id"]
           },
         ]
@@ -8858,6 +9122,51 @@ export type Database = {
         Args: { p_state?: string; p_venue_id?: string }
         Returns: Json
       }
+      media_request_close: {
+        Args: {
+          p_reason?: string
+          p_request_id: string
+          p_revision: number
+          p_state: string
+        }
+        Returns: Json
+      }
+      media_request_create: {
+        Args: {
+          p_assignee_id?: string
+          p_brief?: string
+          p_capture_window?: string
+          p_due_on?: string
+          p_fact_check_id?: string
+          p_intended_use?: string
+          p_orientation?: string
+          p_photo_count?: number
+          p_priority?: string
+          p_reference_asset_id?: string
+          p_shot_list_id?: string
+          p_slot_id?: string
+          p_slot_kind?: string
+          p_subject?: string
+          p_team?: string
+          p_type: string
+          p_venue_id?: string
+          p_wants_video?: boolean
+        }
+        Returns: Json
+      }
+      media_request_detail: { Args: { p_request_id: string }; Returns: Json }
+      media_request_edit: {
+        Args: { p_patch: Json; p_request_id: string; p_revision: number }
+        Returns: Json
+      }
+      media_request_set_blocked: {
+        Args: { p_reason?: string; p_request_id: string; p_revision: number }
+        Returns: Json
+      }
+      media_requests: {
+        Args: { p_include_closed?: boolean; p_venue_id?: string }
+        Returns: Json
+      }
       media_use_grant_create: {
         Args: {
           p_asset_id: string
@@ -9135,6 +9444,7 @@ export type Database = {
           needs_labels: number
         }[]
       }
+      my_media_requests: { Args: { p_venue_id?: string }; Returns: Json }
       my_menu_waiting_items: {
         Args: { p_item_ids: string[]; p_venue_id: string }
         Returns: {
@@ -9704,6 +10014,20 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      shot_list_cancel: {
+        Args: { p_reason: string; p_revision: number; p_shot_list_id: string }
+        Returns: Json
+      }
+      shot_list_create: {
+        Args: {
+          p_due_on?: string
+          p_name: string
+          p_note?: string
+          p_purpose: string
+          p_venue_id?: string
+        }
+        Returns: Json
       }
       skip_work_profile: {
         Args: never

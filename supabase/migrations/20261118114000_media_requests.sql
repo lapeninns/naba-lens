@@ -709,8 +709,8 @@ $$;
 -- brief: no slot, a typed subject. A fact confirmation: the amenity check;
 -- the person named (default the caller) must be a manager or admin there.
 create function public.media_request_create(
-  p_venue_id uuid,
   p_type text,
+  p_venue_id uuid default null,
   p_brief text default null,
   p_intended_use text default null,
   p_slot_kind text default null,
@@ -1025,7 +1025,7 @@ end;
 $$;
 
 -- Blocks an open request with a reason (Blocked), or unblocks it with null.
-create function public.media_request_set_blocked(p_request_id uuid, p_revision integer, p_reason text)
+create function public.media_request_set_blocked(p_request_id uuid, p_revision integer, p_reason text default null)
 returns jsonb
 language plpgsql
 volatile
@@ -1094,7 +1094,7 @@ $$;
 -- Creates a shot list for a menu launch, a quiet period or a campaign. It
 -- may carry a real due date (FA-5).
 create function public.shot_list_create(
-  p_venue_id uuid, p_name text, p_purpose text, p_due_on date default null, p_note text default null
+  p_name text, p_purpose text, p_venue_id uuid default null, p_due_on date default null, p_note text default null
 )
 returns jsonb
 language plpgsql
@@ -1205,21 +1205,21 @@ revoke all on function private.media_request_for_write(uuid, integer) from publi
 revoke all on function public.media_requests(uuid, boolean) from public, anon, service_role;
 revoke all on function public.media_request_detail(uuid) from public, anon, service_role;
 revoke all on function public.my_media_requests(uuid) from public, anon, service_role;
-revoke all on function public.media_request_create(uuid, text, text, text, text, uuid, uuid, text, text, integer,
+revoke all on function public.media_request_create(text, uuid, text, text, text, uuid, uuid, text, text, integer,
   text, uuid, date, uuid, text, boolean, text, uuid) from public, anon, service_role;
 revoke all on function public.media_request_edit(uuid, integer, jsonb) from public, anon, service_role;
 revoke all on function public.media_request_set_blocked(uuid, integer, text) from public, anon, service_role;
 revoke all on function public.media_request_close(uuid, integer, text, text) from public, anon, service_role;
-revoke all on function public.shot_list_create(uuid, text, text, date, text) from public, anon, service_role;
+revoke all on function public.shot_list_create(text, text, uuid, date, text) from public, anon, service_role;
 revoke all on function public.shot_list_cancel(uuid, integer, text) from public, anon, service_role;
 
 grant execute on function public.media_requests(uuid, boolean) to authenticated;
 grant execute on function public.media_request_detail(uuid) to authenticated;
 grant execute on function public.my_media_requests(uuid) to authenticated;
-grant execute on function public.media_request_create(uuid, text, text, text, text, uuid, uuid, text, text, integer,
+grant execute on function public.media_request_create(text, uuid, text, text, text, uuid, uuid, text, text, integer,
   text, uuid, date, uuid, text, boolean, text, uuid) to authenticated;
 grant execute on function public.media_request_edit(uuid, integer, jsonb) to authenticated;
 grant execute on function public.media_request_set_blocked(uuid, integer, text) to authenticated;
 grant execute on function public.media_request_close(uuid, integer, text, text) to authenticated;
-grant execute on function public.shot_list_create(uuid, text, text, date, text) to authenticated;
+grant execute on function public.shot_list_create(text, text, uuid, date, text) to authenticated;
 grant execute on function public.shot_list_cancel(uuid, integer, text) to authenticated;
