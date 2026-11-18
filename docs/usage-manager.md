@@ -87,7 +87,9 @@ headed "_n_ photos
 need a label", each with why: **Sent as I'm not sure**, **Marked food or
 drink, no dish chosen**, or **No slot chosen for 7 days**. Open one and use
 **Fix label** to choose its slot. In the list, the **Unlabelled photos**
-status gathers them too.
+status gathers them too. An imported photo labelled with a facility waits in
+that facility's photos while it is on your working list, and in Needs label
+(**Imported, no slot matched**) while it is not.
 
 ### The list
 
