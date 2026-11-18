@@ -10,8 +10,11 @@ import { SlotTile, type SlotState } from "@/components/nabalens/album/slot-tile"
 import type { MatchBoard } from "@/components/nabalens/album/match/model"
 import {
   MatchScreen,
+  type MatchOutcome,
   type MatchPhoto,
+  type SendState,
 } from "@/components/nabalens/album/match/match-screen"
+import type { BoardState } from "@/components/nabalens/album/match/match-picker"
 import { Button } from "@/components/ui/button"
 import * as React from "react"
 import { buildAlbum, currentPlace, type AlbumInput } from "@/lib/album/model"
@@ -292,13 +295,31 @@ const MATCH_BOARD: MatchBoard = {
     },
   ],
   amenities: ["Can guests play darts?"],
+  // S2-ADD: a slot with a photo already waiting, found by search ("chips").
+  waiting: [
+    {
+      id: "dish:d",
+      name: "Chunky chips",
+      group: "Sides",
+      place: PASS,
+      placeLabel: "Kitchen pass",
+      brief: null,
+      target: { kind: "dish", itemId: "d", name: "Chunky chips" },
+      aliases: ["fries"],
+      waiting: true,
+    },
+  ],
+  venue: { id: "v", name: "The Bell" },
 }
 
+/** Which Match the gallery opens (S2-ADD states). */
+type MatchVariant = "live" | "loading" | "error" | "end"
+
 export function MatchSpecimen() {
-  const [open, setOpen] = React.useState(false)
+  const [variant, setVariant] = React.useState<MatchVariant | null>(null)
   const photos = React.useMemo<MatchPhoto[]>(
     () =>
-      Array.from({ length: 20 }, (_, i) => ({
+      Array.from({ length: 10 }, (_, i) => ({
         key: `p${i}`,
         file: new File([new Uint8Array(8)], `photo-${i}.jpg`, {
           type: "image/jpeg",
@@ -306,23 +327,82 @@ export function MatchSpecimen() {
       })),
     []
   )
+  // Live: choices are kept here, so groups, I'm not sure and the end work.
+  const [outcomes, setOutcomes] = React.useState<
+    ReadonlyMap<string, MatchOutcome>
+  >(new Map())
+  const [states, setStates] = React.useState<ReadonlyMap<string, SendState>>(
+    new Map()
+  )
+  const ended = React.useMemo(() => {
+    const [guinness, pudding] = [MATCH_BOARD.slots[0], MATCH_BOARD.slots[2]]
+    const end = new Map<string, MatchOutcome>()
+    const sent = new Map<string, SendState>()
+    photos.forEach((p, i) => {
+      end.set(
+        p.key,
+        i < 4
+          ? { kind: "slot", slot: guinness }
+          : i < 7
+            ? { kind: "slot", slot: pudding }
+            : i < 9
+              ? { kind: "unsure" }
+              : { kind: "later" }
+      )
+      if (i < 7) sent.set(p.key, i === 6 ? "checking" : "waiting")
+    })
+    return { end, sent }
+  }, [photos])
+  const board: BoardState =
+    variant === "loading"
+      ? { state: "loading" }
+      : variant === "error"
+        ? { state: "error", message: "No signal." }
+        : { state: "ready", board: MATCH_BOARD }
+  const open = (next: MatchVariant) => {
+    setOutcomes(new Map())
+    setStates(new Map())
+    setVariant(next)
+  }
   return (
     <div className="grid gap-3">
       <h3 className="type-heading-sm text-ink">Match (§6.1)</h3>
-      <div>
-        <Button onClick={() => setOpen(true)}>Open Match with 20 photos</Button>
+      <p className="text-meta text-ink-muted">
+        Ten photos at The Bell: same slot for the next photos, I&apos;m not
+        sure, a note, recent and waiting slots (search &quot;fries&quot;), and
+        the end with slot chips.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => open("live")}>Open Match with 10 photos</Button>
+        <Button variant="secondary" onClick={() => open("loading")}>
+          Loading
+        </Button>
+        <Button variant="secondary" onClick={() => open("error")}>
+          Could not load
+        </Button>
+        <Button variant="secondary" onClick={() => open("end")}>
+          The end
+        </Button>
       </div>
       <MatchScreen
-        open={open}
+        open={variant !== null}
         photos={photos}
-        outcomes={new Map()}
-        sendStates={new Map()}
-        board={{ state: "ready", board: MATCH_BOARD }}
-        onRetryBoard={() => {}}
+        outcomes={variant === "end" ? ended.end : outcomes}
+        sendStates={variant === "end" ? ended.sent : states}
+        board={board}
+        onRetryBoard={() => setVariant("live")}
         current={BAR}
         last={null}
-        onDecide={() => {}}
-        onClose={() => setOpen(false)}
+        venueName="The Bell"
+        recent={["dish:c"]}
+        duplicates={variant === "end" ? new Set(["p1"]) : undefined}
+        onDecide={(key, outcome) => {
+          setOutcomes((current) => new Map(current).set(key, outcome))
+          if (outcome.kind === "slot")
+            setStates((current) => new Map(current).set(key, "sending"))
+        }}
+        onSuggestSpecial={async () => ({ ok: true })}
+        onClose={() => setVariant(null)}
       />
     </div>
   )

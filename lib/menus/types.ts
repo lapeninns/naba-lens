@@ -45,8 +45,11 @@ export const LABEL_LIMITS = {
   maxContentTypes: 4,
   maxNoteLength: 280,
   maxMissingItemLength: 120,
-  /** Assets one label-editor batch may hold (same as an upload batch). */
-  maxBatchAssets: 10,
+  /**
+   * Assets one label-editor batch may hold: the same as an upload batch
+   * (spec §5.4: 20 per selection; MEDIA_LIMITS.maxBatchFiles).
+   */
+  maxBatchAssets: 20,
 } as const
 
 /** Mirrors the database checks in save_menu_draft. */

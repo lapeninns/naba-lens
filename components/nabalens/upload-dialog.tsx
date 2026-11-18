@@ -102,7 +102,12 @@ type UploadDialogProps = {
      * when its labels were saved with it, "label_not_saved" when they could
      * not be, "ready" when finalise had none.
      */
-    receipts?: UploadReceipt[]
+    receipts?: UploadReceipt[],
+    /**
+     * Per file, true when finalise found the same bytes were sent before at
+     * this venue (S1-UPLOAD duplicate link): it counts once (AC21).
+     */
+    duplicates?: boolean[]
   ) => boolean | void
   /**
    * Called once per file attempt when its bytes have arrived and the server
@@ -1024,7 +1029,12 @@ export function UploadDialog({
     const gone = fresh.filter(
       (item) =>
         item.assetId &&
-        onReady([item.assetId], [item.file], [uploadReceipt(item)]) === false
+        onReady(
+          [item.assetId],
+          [item.file],
+          [uploadReceipt(item)],
+          [item.duplicate === true]
+        ) === false
     )
     if (gone.length === 0) return
     // The screen that picked them closed: keep them listed until seen.

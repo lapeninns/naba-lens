@@ -24,6 +24,54 @@ export const MATCH_COPY = {
   tryAgain: "Try again",
   matchLater: "Match later",
   notForSlot: "Not for a slot",
+  /** FA-4, spec §5.3: the manager chooses the slot. */
+  notSure: "I'm not sure",
+  notSureHint: "Your manager will choose the slot.",
+  /** The venue these photos go to (spec §5.1, AC11). */
+  venueLine: (venue: string) => `For ${venue}`,
+  /** Spec §5.4: how many photos still have no answer. */
+  openCount: (n: number) =>
+    n === 1 ? "1 not matched yet" : `${n} not matched yet`,
+  venueChanged: (venue: string, n: number) =>
+    n === 0
+      ? `You are now adding photos for ${venue}. The slots below are ${venue}'s.`
+      : n === 1
+        ? `You are now adding photos for ${venue}. Choose the slot again for 1 photo.`
+        : `You are now adding photos for ${venue}. Choose the slot again for ${n} photos.`,
+  recent: "Recent",
+  /** A slot with a photo already waiting (spec §6 S1). */
+  waitingMeta: "Waiting · another photo is welcome",
+  // "Use for the next N photos" (spec §5.4, FA-3).
+  groupLabel: "Same slot for the next photos too?",
+  groupPhoto: (n: number) => `Photo ${n} too`,
+  groupAll: (n: number) => `All ${n} left`,
+  groupJustThis: "Just this one",
+  groupNone: "Tap the last photo of the same thing to group them.",
+  groupHint: (n: number) =>
+    n <= 1
+      ? ""
+      : n === 2
+        ? "This photo and the next one get the same answer."
+        : `This photo and the next ${n - 1} get the same answer.`,
+  // The optional note (spec §5.1).
+  noteToggle: "Add a note",
+  noteLabel: "Note for your manager (optional)",
+  noteHint: "A few words, if it helps. Nobody has to write one.",
+  noteSaved: (n: number) => (n === 1 ? "1 note added" : `${n} notes added`),
+  // Advisory checks (spec §5.5): never a reason not to send.
+  qualityDark: "This photo looks dark. You can still send it.",
+  qualityBlurry: "This photo looks blurred. You can still send it.",
+  qualitySmall:
+    "This photo is small (under 1600 pixels). Fine to send; it may be kept for reference.",
+  duplicateWord: "Sent before: it won't count twice",
+  // A dish not on the menu (S1-MENUS): suggest it as a local special.
+  specialQuestion: (name: string) =>
+    `Not on the menu? Suggest "${name}" to your manager as a special:`,
+  specialKind: (kind: "food" | "drinks") =>
+    kind === "food" ? "It's food" : "It's a drink",
+  specialDone: (name: string) =>
+    `"${name}" is suggested to your manager. For this photo, choose I'm not sure.`,
+  specialFailed: "It could not be suggested.",
   sharedQuestion: "What does it show?",
   sharedHint: "It is shared with the team with no slot.",
   sharedKind: (kind: SharedKind) => CONTENT_TYPE_LABELS[kind],
@@ -72,6 +120,17 @@ export const MATCH_COPY = {
   filled: (n: number) => (n === 1 ? "1 slot filled" : `${n} slots filled`),
   noneFilled: "No slots filled",
   next: "Each one shows as Waiting in the album until your manager has looked at it.",
+  /** The end's heading line (spec §6 S2): venue and how many photos. */
+  summaryVenue: (venue: string, n: number) =>
+    n === 1 ? `1 photo for ${venue}` : `${n} photos for ${venue}`,
+  summaryPhotos: (n: number) => (n === 1 ? "1 photo" : `${n} photos`),
+  /** One slot's chip on the end: name and how many photos went to it. */
+  slotChip: (name: string, n: number) => (n === 1 ? name : `${name} × ${n}`),
+  unsureLine: (n: number) =>
+    n === 1
+      ? "1 photo is with your manager, who will choose its slot."
+      : `${n} photos are with your manager, who will choose their slots.`,
+  unsureWord: "With your manager",
   laterLine: (n: number) =>
     n === 1
       ? "1 photo is under Match later on Album."

@@ -51,6 +51,9 @@ Built to [DESIGN.md](DESIGN.md) §5. Each batch adds its rows.
 | NoticesInbox                        | `components/nabalens/me/notices-inbox.tsx`           | Feature | Notices inbox (spec §17; FA-10)                                         | 1              | adopted (S2-STAFF)                                                      |
 | ContributionNoticeCard              | `components/nabalens/me/contribution-notice.tsx`     | Feature | First sign-in notice (spec §3.2)                                        | 1              | adopted (S2-STAFF)                                                      |
 | CantAddHelp                         | `components/nabalens/guide/cant-add-help.tsx`        | Feature | If you can't add photos (spec §6 S5, §15.3)                             | 1              | adopted (S2-STAFF)                                                      |
+| UnfinishedRow                       | `components/nabalens/album/unfinished-row.tsx`       | Feature | Album Home: unfinished photos (spec §6 S1)                              | 1              | adopted (same row shape as HomeRow; a button, since it opens Add)       |
+
+SuggestSpecialRow (`components/nabalens/album/match/suggest-special.tsx`, S2-ADD) is part of the Match picker: under a search that found nothing, it suggests the searched name to the manager as a local special.
 
 AlbumAddTrigger is Add photos in the staff shell (tab and AppBar). Since A5 it is the only staff Add trigger; `ALBUM_ADD_OPTIONS` in the same file (the gallery for many photos, then Match) is what every Album Add photos opens.
 

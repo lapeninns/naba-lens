@@ -311,7 +311,8 @@ describe("Saving sheet: uploads start on pick", () => {
     expect(onReady).toHaveBeenLastCalledWith(
       ["asset-dish.jpg"],
       [expect.objectContaining({ name: "dish.jpg" })],
-      ["ready"]
+      ["ready"],
+      [false]
     )
     // The video is still uploading.
     expect(row("slow.mp4").textContent).toContain("Saving…")
@@ -320,7 +321,8 @@ describe("Saving sheet: uploads start on pick", () => {
     expect(onReady).toHaveBeenLastCalledWith(
       ["asset-slow.mp4"],
       [expect.objectContaining({ name: "slow.mp4" })],
-      ["ready"]
+      ["ready"],
+      [false]
     )
     expect(screen.getByRole("heading", { name: "Saving 2 files" })).toBeTruthy()
   })

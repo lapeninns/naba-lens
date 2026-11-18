@@ -3950,6 +3950,49 @@ export type Database = {
           },
         ]
       }
+      media_label_help_requests: {
+        Row: {
+          asset_id: string
+          requested_at: string
+          requested_by: string
+          venue_id: string
+        }
+        Insert: {
+          asset_id: string
+          requested_at?: string
+          requested_by: string
+          venue_id: string
+        }
+        Update: {
+          asset_id?: string
+          requested_at?: string
+          requested_by?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_label_help_requests_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "media_label_help_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_label_help_requests_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_label_items: {
         Row: {
           added_at: string
@@ -8601,6 +8644,10 @@ export type Database = {
         Returns: Json
       }
       knowledge_working_list: { Args: never; Returns: Json }
+      label_help_queue: {
+        Args: { p_limit?: number; p_venue_id?: string }
+        Returns: Json
+      }
       library_assets: {
         Args: {
           p_category?: string
@@ -9243,6 +9290,7 @@ export type Database = {
         Args: { p_cursor: string; p_limit: number }
         Returns: Json
       }
+      my_label_help: { Args: { p_asset_ids: string[] }; Returns: string[] }
       my_label_work: {
         Args: never
         Returns: {
@@ -9508,6 +9556,7 @@ export type Database = {
           reassigned: Json
         }[]
       }
+      request_label_help: { Args: { p_asset_id: string }; Returns: Json }
       request_media_removal: {
         Args: { p_asset_id: string; p_reason: string }
         Returns: Json

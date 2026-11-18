@@ -62,6 +62,7 @@ export default async function StaffLayout({
         captchaSiteKey={captcha.siteKey}
         entry={entry}
         venueName={profile.venue?.name ?? null}
+        venueId={profile.venueId ?? null}
       >
         {children}
       </AddHost>

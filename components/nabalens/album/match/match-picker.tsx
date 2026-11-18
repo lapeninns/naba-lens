@@ -1,7 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { ArrowLeftIcon, PlusIcon } from "@phosphor-icons/react"
+import {
+  ArrowLeftIcon,
+  ArrowUpIcon,
+  PlusIcon,
+  QuestionIcon,
+} from "@phosphor-icons/react"
 
 import { Notice } from "@/components/nabalens/notice"
 import { Button } from "@/components/ui/button"
@@ -9,8 +14,10 @@ import { SearchField } from "@/components/ui/search-field"
 import { cn } from "@/lib/utils"
 
 import { MATCH_COPY } from "./copy"
+import { SuggestSpecialRow, type SuggestSpecial } from "./suggest-special"
 import {
   SHARED_KINDS,
+  recentSlots,
   searchNamesAmenity,
   searchSlots,
   suggestSlots,
@@ -30,7 +37,10 @@ export type BoardState =
  * this?", the suggested empty slots as dashed buttons, a search over every
  * empty slot, and two secondary buttons, Match later and Not for a slot.
  * Not for a slot then asks what the photo shows, so it is labelled and never
- * waits under Match later (departures.md A-1).
+ * waits under Match later (departures.md A-1). I'm not sure (FA-4, spec
+ * §5.3) hands the photo to the manager, who chooses its slot. The person's
+ * recent slots come first (spec §5.3), offered, never applied; a slot with a
+ * photo already waiting is found by search and marked so (spec §6 S1).
  *
  * The photo itself, and what happens after a choice, belong to the screen
  * around it (Match after picking, or Match later).
@@ -43,9 +53,12 @@ export function MatchPicker({
   taken,
   busy = false,
   headingLevel = 2,
+  recent = [],
   onMatch,
   onLater,
   onShared,
+  onUnsure,
+  onSuggestSpecial,
 }: {
   board: BoardState
   onRetryBoard: () => void
@@ -59,9 +72,15 @@ export function MatchPicker({
   busy?: boolean
   headingLevel?: 2 | 3
   onMatch: (slot: MatchSlot) => void
+  /** Slot ids the person matched most recently on this phone, newest first. */
+  recent?: readonly string[]
   /** Leave out to hide Match later (the Match later screen itself). */
   onLater?: () => void
   onShared: (kind: SharedKind) => void
+  /** Leave out to hide I'm not sure. */
+  onUnsure?: () => void
+  /** A search that found nothing offers to suggest a special (staff). */
+  onSuggestSpecial?: SuggestSpecial
 }) {
   const [query, setQuery] = React.useState("")
   const [asking, setAsking] = React.useState(false)
@@ -113,7 +132,13 @@ export function MatchPicker({
     )
 
   const ready = board.state === "ready" ? board.board : null
-  const suggested = ready ? suggestSlots(ready, { current, last, taken }) : []
+  const recents = ready ? recentSlots(ready, recent, taken) : []
+  const recentIds = new Set(recents.map((slot) => slot.id))
+  const suggested = ready
+    ? suggestSlots(ready, { current, last, taken }).filter(
+        (slot) => !recentIds.has(slot.id)
+      )
+    : []
   const found = ready ? searchSlots(ready, query, taken) : []
   const searching = query.trim().length > 0
   const amenity = ready && searching && searchNamesAmenity(ready, query)
@@ -152,17 +177,28 @@ export function MatchPicker({
         </Notice>
       ) : null}
 
+      {ready && !searching && recents.length > 0 ? (
+        <SlotChoices
+          label={MATCH_COPY.recent}
+          heading
+          slots={recents}
+          busy={busy}
+          onChoose={choose}
+        />
+      ) : null}
+
       {ready && !searching ? (
         suggested.length > 0 ? (
           <SlotChoices
             label={MATCH_COPY.suggested}
+            heading={recents.length > 0}
             slots={suggested}
             busy={busy}
             onChoose={choose}
           />
-        ) : (
+        ) : recents.length === 0 ? (
           <p className="text-body text-ink-muted">{MATCH_COPY.noSuggestions}</p>
-        )
+        ) : null
       ) : null}
 
       {ready ? (
@@ -193,6 +229,13 @@ export function MatchPicker({
                 {MATCH_COPY.amenityNote}
               </p>
             ) : null}
+            {onSuggestSpecial && !amenity && query.trim().length >= 3 ? (
+              <SuggestSpecialRow
+                key={query.trim()}
+                name={query.trim().slice(0, 120)}
+                onSuggest={onSuggestSpecial}
+              />
+            ) : null}
           </div>
         )
       ) : null}
@@ -221,53 +264,109 @@ export function MatchPicker({
         >
           {MATCH_COPY.notForSlot}
         </Button>
+        {onUnsure ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="col-span-2 min-h-13 flex-col gap-0 py-1.5"
+            disabled={busy}
+            data-slot="match-unsure"
+            onClick={() => {
+              setQuery("")
+              onUnsure()
+            }}
+          >
+            <span className="flex items-center gap-2">
+              <QuestionIcon aria-hidden weight="bold" className="size-5" />
+              {MATCH_COPY.notSure}
+            </span>
+            <span className="text-meta font-normal text-ink-muted">
+              {MATCH_COPY.notSureHint}
+            </span>
+          </Button>
+        ) : null}
       </div>
     </section>
   )
 }
 
-/** Empty slots as dashed buttons (the Needed frame, §4), name then place. */
+/**
+ * Slots as buttons, name then place: an empty one in the dashed Needed frame
+ * (§4), one with a photo already waiting in a plain edge with ↑ (the dashed
+ * frame belongs to Needed alone).
+ */
 function SlotChoices({
   label,
+  heading = false,
   slots,
   busy,
   onChoose,
 }: {
   label: string
+  /** Show the label as a small heading above the list. */
+  heading?: boolean
   slots: MatchSlot[]
   busy: boolean
   onChoose: (slot: MatchSlot) => void
 }) {
+  const id = React.useId()
   return (
-    <ul aria-label={label} className="grid gap-2 sm:grid-cols-2">
-      {slots.map((slot) => (
-        <li key={slot.id}>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onChoose(slot)}
-            data-slot="match-slot"
-            className="flex min-h-15 w-full items-center gap-3 rounded-card slot-needed bg-surface px-3 py-2 text-start text-ink focus-ring disabled:opacity-60"
-          >
-            <PlusIcon
-              aria-hidden
-              weight="bold"
-              className="size-6 shrink-0 text-accent-text"
-            />
-            <span className="grid min-w-0">
-              <span className="text-label [overflow-wrap:anywhere]">
-                {slot.name}
+    <div className="grid gap-2">
+      {heading ? (
+        <p id={id} className="text-meta font-semibold text-ink-muted">
+          {label}
+        </p>
+      ) : null}
+      <ul
+        aria-label={heading ? undefined : label}
+        aria-labelledby={heading ? id : undefined}
+        className="grid gap-2 sm:grid-cols-2"
+      >
+        {slots.map((slot) => (
+          <li key={slot.id}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onChoose(slot)}
+              data-slot="match-slot"
+              data-waiting={slot.waiting ? "" : undefined}
+              className={cn(
+                "flex min-h-15 w-full items-center gap-3 rounded-card bg-surface px-3 py-2 text-start text-ink focus-ring disabled:opacity-60",
+                slot.waiting ? "edge" : "slot-needed"
+              )}
+            >
+              {slot.waiting ? (
+                <ArrowUpIcon
+                  aria-hidden
+                  weight="bold"
+                  className="size-6 shrink-0 text-ink-muted"
+                />
+              ) : (
+                <PlusIcon
+                  aria-hidden
+                  weight="bold"
+                  className="size-6 shrink-0 text-accent-text"
+                />
+              )}
+              <span className="grid min-w-0">
+                <span className="text-label [overflow-wrap:anywhere]">
+                  {slot.name}
+                </span>
+                <span className="text-meta text-ink-muted">
+                  {slot.placeLabel} · {slot.group}
+                </span>
+                {slot.waiting ? (
+                  <span className="text-meta text-ink-muted">
+                    {MATCH_COPY.waitingMeta}
+                  </span>
+                ) : slot.brief ? (
+                  <span className="text-meta text-ink-muted">{slot.brief}</span>
+                ) : null}
               </span>
-              <span className="text-meta text-ink-muted">
-                {slot.placeLabel} · {slot.group}
-              </span>
-              {slot.brief ? (
-                <span className="text-meta text-ink-muted">{slot.brief}</span>
-              ) : null}
-            </span>
-          </button>
-        </li>
-      ))}
-    </ul>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
