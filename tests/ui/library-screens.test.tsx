@@ -424,7 +424,13 @@ describe("A4 filters", () => {
     const { container } = render(
       <LibraryMoreFilters
         value={{ ...NO_EXTRA_FILTERS, withdrawn: "withdrawn" }}
-        options={{ tags: [], collections: [], requests: [], destinations: [] }}
+        options={{
+          tags: [],
+          collections: [],
+          requests: [],
+          destinations: [],
+          imports: [],
+        }}
         onChange={onChange}
       />
     )
@@ -438,6 +444,29 @@ describe("A4 filters", () => {
       withdrawn: "withdrawn",
       capturedFrom: "2026-06-01",
     })
+    fireEvent.click(screen.getByRole("button", { name: "Clear these filters" }))
+    expect(onChange).toHaveBeenLastCalledWith(NO_EXTRA_FILTERS)
+  })
+
+  it("filters by a legacy import batch (S5-IMPORT, FA-54)", () => {
+    const onChange = vi.fn()
+    const batch = "11111111-1111-4111-8111-111111111111"
+    render(
+      <LibraryMoreFilters
+        value={{ ...NO_EXTRA_FILTERS, importId: batch }}
+        options={{
+          tags: [],
+          collections: [],
+          requests: [],
+          destinations: [],
+          imports: [{ id: batch, name: "2019 shared drive · 4 imported" }],
+        }}
+        onChange={onChange}
+      />
+    )
+    expect(screen.getByText("1 on")).toBeTruthy()
+    expect(screen.getByText("Imported")).toBeTruthy()
+    expect(screen.getByText("2019 shared drive · 4 imported")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Clear these filters" }))
     expect(onChange).toHaveBeenLastCalledWith(NO_EXTRA_FILTERS)
   })

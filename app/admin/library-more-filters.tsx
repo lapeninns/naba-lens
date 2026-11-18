@@ -25,6 +25,8 @@ export type LibraryExtraOptions = {
   collections: Option[]
   requests: Option[]
   destinations: Option[]
+  /** Legacy import batches (S5-IMPORT, FA-54), newest first. */
+  imports: Option[]
 }
 
 const USE_OPTIONS: Option[] = (["withdrawn", "all"] as const).map((id) => ({
@@ -53,6 +55,7 @@ export function countExtraFilters(value: LibraryExtraFilters): number {
       value.collectionId,
       value.destinationId,
       value.tagId,
+      value.importId,
     ].filter(Boolean).length
   )
 }
@@ -60,7 +63,8 @@ export function countExtraFilters(value: LibraryExtraFilters): number {
 /**
  * The Library's A4 filters (spec §8 A4; S2-LIBRARY): use (in use or
  * withdrawn), review state, capture dates, orientation, request, collection,
- * publication destination and tag. Folded under "Use, review and
+ * publication destination, tag and legacy import batch ("Imported",
+ * S5-IMPORT, FA-54). Folded under "Use, review and
  * collections" until one is on. Every change navigates (the URL is the
  * filter), like the filters above it.
  */
@@ -171,6 +175,17 @@ export function LibraryMoreFilters({
               value={value.destinationId}
               emptyLabel="Any destination"
               onValueChange={(destinationId) => set({ destinationId })}
+            />
+          )}
+        </FormField>
+        <FormField label="Imported" optional>
+          {(c) => (
+            <OptionSelect
+              id={c.id}
+              options={options.imports}
+              value={value.importId}
+              emptyLabel="Any import"
+              onValueChange={(importId) => set({ importId })}
             />
           )}
         </FormField>

@@ -41,6 +41,8 @@ export type LibraryExtraFilters = {
   collectionId: string | null
   destinationId: string | null
   tagId: string | null
+  /** S5-IMPORT (FA-54): the assets one legacy import batch created. */
+  importId: string | null
 }
 
 export const NO_EXTRA_FILTERS: LibraryExtraFilters = {
@@ -53,6 +55,7 @@ export const NO_EXTRA_FILTERS: LibraryExtraFilters = {
   collectionId: null,
   destinationId: null,
   tagId: null,
+  importId: null,
 }
 
 /** URL params of the A4 filters, in canonical order. */
@@ -66,6 +69,7 @@ export const EXTRA_PARAMS = [
   "collection",
   "destination",
   "tag",
+  "import",
 ] as const
 export type ExtraParam = (typeof EXTRA_PARAMS)[number]
 export type ExtraSearchParams = Partial<Record<ExtraParam, string>>
@@ -111,6 +115,7 @@ export function parseExtraFilters(
     collectionId: uuid(input.collection),
     destinationId: uuid(input.destination),
     tagId: uuid(input.tag),
+    importId: uuid(input.import),
   }
 }
 
@@ -128,6 +133,7 @@ export function extraFiltersToParams(
   if (f.collectionId) out.collection = f.collectionId
   if (f.destinationId) out.destination = f.destinationId
   if (f.tagId) out.tag = f.tagId
+  if (f.importId) out.import = f.importId
   return out
 }
 
@@ -312,9 +318,18 @@ export type FilterListOption = {
   venueName: string | null
 }
 
+/** One legacy import batch (S5-IMPORT, FA-54) and how many assets it created. */
+export type ImportBatchOption = {
+  id: string
+  name: string
+  createdAt: string | null
+  imported: number
+}
+
 export type LibraryFilterLists = {
   requests: FilterListOption[]
   destinations: FilterListOption[]
+  imports: ImportBatchOption[]
 }
 
 export function parseFilterLists(data: unknown): LibraryFilterLists | null {
@@ -334,6 +349,18 @@ export function parseFilterLists(data: unknown): LibraryFilterLists | null {
   return {
     requests: list(data.requests),
     destinations: list(data.destinations),
+    imports: arr(data.imports).flatMap((o) =>
+      isObj(o) && isUuid(o.id) && str(o.name)
+        ? [
+            {
+              id: o.id,
+              name: o.name as string,
+              createdAt: str(o.createdAt),
+              imported: typeof o.imported === "number" ? o.imported : 0,
+            },
+          ]
+        : []
+    ),
   }
 }
 
