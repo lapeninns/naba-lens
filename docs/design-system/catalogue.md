@@ -41,6 +41,9 @@ Built to [DESIGN.md](DESIGN.md) §5. Each batch adds its rows.
 | YourMonthCard                       | `components/nabalens/album/your-month-card.tsx`      | Feature | Your month on Me (proposal §7.6)                | 1              | adopted                                                                 |
 | ThumbReview, ReasonPicker           | `components/nabalens/album/review/thumb-review.tsx`  | Feature | Review (§6.5), Review bar and Reason chips (§5) | 1              | adopted                                                                 |
 | AdminAlbumsView                     | `app/admin/albums/albums-view.tsx`                   | Feature | Admin albums (§6.6)                             | 1              | adopted                                                                 |
+| SettingsFormView                    | `app/admin/settings/settings-form.tsx`               | Feature | Settings (spec §8 A7), Field and Notice (§5)    | 1              | adopted (S1-OPS)                                                        |
+| ExceptionsPanel, OperationsPanel    | `app/admin/settings/ops-panel.tsx`                   | Feature | Settings: exceptions and monitoring (spec §16)  | 1              | adopted (S1-OPS; uses CoverageSection, Tally, Table)                    |
+| ActivityList                        | `app/admin/activity/activity-list.tsx`               | Feature | Activity (spec §8 A7)                           | 1              | adopted (S1-OPS)                                                        |
 
 AlbumAddTrigger is Add photos in the staff shell (tab and AppBar). Since A5 it is the only staff Add trigger; `ALBUM_ADD_OPTIONS` in the same file (the gallery for many photos, then Match) is what every Album Add photos opens.
 

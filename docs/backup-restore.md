@@ -123,8 +123,8 @@ pnpm exec tsx scripts/db/verify-restore.ts --workdir "$T" --manifest /tmp/nl-fix
 | `roles.sql`                                    | `supabase db dump --role-only`                                                                                                                                  |
 | `schema.sql`                                   | `supabase db dump` (app schemas `public`, `private`; Supabase-managed schemas are excluded)                                                                     |
 | `storage-policies.sql`                         | `CREATE POLICY` statements for `storage.*`, generated from `pg_policies`                                                                                        |
-| `managed-triggers.sql`                        | App-owned triggers on managed `auth`/`storage` tables, including definitions and enabled states; their `public`/`private` functions are in `schema.sql`           |
-| `app-acls.json`                               | Normalized schema, table, column, sequence, function, type and default ACLs, with role/object names instead of cluster-specific OIDs                               |
+| `managed-triggers.sql`                         | App-owned triggers on managed `auth`/`storage` tables, including definitions and enabled states; their `public`/`private` functions are in `schema.sql`         |
+| `app-acls.json`                                | Normalized schema, table, column, sequence, function, type and default ACLs, with role/object names instead of cluster-specific OIDs                            |
 | `migrations-schema.sql`, `migrations-data.sql` | `supabase db dump [--data-only] --schema supabase_migrations`, the applied migration history                                                                    |
 | `data.sql`                                     | `supabase db dump --data-only --use-copy -x storage.objects`: app data, `auth.*` (users, identities, sessions), `storage.buckets`, `private.maintenance_leases` |
 | `migrations.txt`                               | applied versions, compared after the restore                                                                                                                    |
@@ -265,6 +265,52 @@ It does **not** prove:
 - **Signed URLs and downloaded copies** made before a restore are not affected by it.
 - **The default stack.** The drill never backs up or restores the shared `nabalens` stack
   (554xx).
+
+## 3. Hosted restore rehearsal (AC38 procedure)
+
+Spec §16 and AC38: after a restore, referenced originals and approved versions
+match the restored records. The local drill above proves the method; this is the
+procedure for the hosted rehearsal, which needs the owner's approval because it
+creates a separate hosted project. **Status: not yet run.** Never restore over
+production.
+
+1. **Approve and prepare.** The owner approves a temporary project (same region
+   and plan tier as production) and a window. Confirm the plan's backup
+   retention and whether PITR is enabled; record both.
+2. **Database.** Restore the latest daily backup (or a PITR point) of
+   production into the temporary project from the Supabase dashboard, or load a
+   `backup-local.sh`-style logical dump made with a matching CLI.
+3. **Files.** Copy the original files into the temporary project's private
+   buckets from the independent copy (the R2 original archive,
+   `docs/media-archive.md`), not from production storage, so the rehearsal proves
+   the second copy.
+4. **Configure.** Set the temporary project's auth settings, redirect URLs and
+   keys as `README.md` lists. Never copy production secrets into a shared place.
+5. **Verify records against bytes.** Run
+   `scripts/db/verify-restore.ts` and `storage-objects.ts verify` against the
+   temporary project. Every `media_assets` row that is ready and not removed, and
+   every accepted decision's asset (menu photos, area photos, checklist items),
+   must have its original at `original_path` with the recorded `size_bytes`.
+   Missing or different bytes fail the rehearsal.
+6. **Sign in and look.** Sign in as a test admin and a test staff account on
+   the temporary project and open Albums and Library: accepted photos show.
+7. **Record it.** Record the outcome so Settings › Operations shows the last
+   rehearsal (service role, in the temporary or production project's SQL editor
+   with owner approval):
+
+   ```sql
+   select public.ops_record_job_run(
+     'restore_rehearsal', 'succeeded', null, null,
+     '{"assets": 0, "matched": 0}'::jsonb);   -- or 'failed', '<error_code>'
+   ```
+
+   Add a dated entry under Results below with counts, timings and anything
+   that did not match.
+
+8. **Remove** the temporary project once the evidence is recorded.
+
+Repeat at least every six months and after any change to storage, the archive
+or the backup plan.
 
 ## Results
 
