@@ -485,6 +485,35 @@ export type Database = {
           },
         ]
       }
+      contribution_notice_acknowledgements: {
+        Row: {
+          acknowledged_at: string
+          id: string
+          notice_version: string
+          profile_id: string
+        }
+        Insert: {
+          acknowledged_at?: string
+          id?: string
+          notice_version: string
+          profile_id: string
+        }
+        Update: {
+          acknowledged_at?: string
+          id?: string
+          notice_version?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contribution_notice_acknowledgements_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coverage_amenity_templates: {
         Row: {
           active: boolean
@@ -5213,6 +5242,80 @@ export type Database = {
           },
         ]
       }
+      venue_memberships: {
+        Row: {
+          end_kind: string | null
+          end_reason: string | null
+          ended_at: string | null
+          ended_by: string | null
+          grant_reason: string | null
+          granted_at: string
+          granted_by: string | null
+          id: string
+          profile_id: string
+          role: string
+          source: string
+          venue_id: string
+        }
+        Insert: {
+          end_kind?: string | null
+          end_reason?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          grant_reason?: string | null
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          profile_id: string
+          role: string
+          source: string
+          venue_id: string
+        }
+        Update: {
+          end_kind?: string | null
+          end_reason?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          grant_reason?: string | null
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          profile_id?: string
+          role?: string
+          source?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_memberships_ended_by_fkey"
+            columns: ["ended_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_memberships_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_memberships_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_memberships_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venues: {
         Row: {
           active: boolean
@@ -5255,6 +5358,10 @@ export type Database = {
       }
     }
     Functions: {
+      acknowledge_contribution_notice: {
+        Args: { p_version: string }
+        Returns: string
+      }
       acquire_maintenance_lease: {
         Args: { p_holder: string; p_name: string; p_ttl: string }
         Returns: boolean
@@ -5262,6 +5369,23 @@ export type Database = {
       activate_menu_version: {
         Args: { p_expected_revision: number; p_version_id: string }
         Returns: undefined
+      }
+      admin_grant_admin: {
+        Args: { p_profile_id: string; p_reason: string }
+        Returns: undefined
+      }
+      admin_revoke_admin: {
+        Args: { p_profile_id: string; p_reason: string; p_venue_id: string }
+        Returns: undefined
+      }
+      admin_set_venue_membership: {
+        Args: {
+          p_profile_id: string
+          p_reason?: string
+          p_role: string
+          p_venue_id: string
+        }
+        Returns: string
       }
       album_admin_counts: { Args: { p_venue_id: string }; Returns: Json }
       album_area_states: { Args: { p_venue_id?: string }; Returns: Json }
@@ -6524,6 +6648,19 @@ export type Database = {
           venue_id: string
         }[]
       }
+      manager_invite_staff: {
+        Args: {
+          p_display_name: string
+          p_job_title?: string
+          p_user_id: string
+          p_venue_id: string
+        }
+        Returns: {
+          membership_id: string
+          outcome: string
+          profile_id: string
+        }[]
+      }
       manager_menu_photo_contributor: {
         Args: { p_contributor_id: string; p_venue_id: string }
         Returns: {
@@ -6966,6 +7103,16 @@ export type Database = {
           width: number
         }[]
       }
+      my_onboarding_state: {
+        Args: { p_notice_version: string }
+        Returns: {
+          notice_acknowledged_at: string
+          role: string
+          venue_count: number
+          venue_id: string
+          venue_name: string
+        }[]
+      }
       my_rechecks: { Args: never; Returns: Json }
       my_retake_notes: {
         Args: never
@@ -6990,6 +7137,31 @@ export type Database = {
         }[]
       }
       my_venue_capabilities: { Args: { p_venue_id?: string }; Returns: Json }
+      my_venue_memberships: {
+        Args: never
+        Returns: {
+          is_active_venue: boolean
+          role: string
+          venue_id: string
+          venue_name: string
+        }[]
+      }
+      person_venue_privileges: {
+        Args: { p_profile_id: string }
+        Returns: {
+          can_export: boolean
+          can_grant_roles: boolean
+          can_invite_staff: boolean
+          can_review: boolean
+          can_upload: boolean
+          effective_role: string
+          is_active_venue: boolean
+          membership_id: string
+          membership_role: string
+          venue_id: string
+          venue_name: string
+        }[]
+      }
       prepare_coverage_month: {
         Args: { p_venue_id?: string }
         Returns: {
@@ -7069,6 +7241,15 @@ export type Database = {
           upload_state: Database["public"]["Enums"]["upload_state"]
         }[]
       }
+      reassign_open_work: {
+        Args: {
+          p_from_profile_id: string
+          p_reason: string
+          p_to_profile_id: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
       reconcile_menu_requirement: {
         Args: {
           p_item_ids: string[]
@@ -7085,6 +7266,19 @@ export type Database = {
       release_maintenance_lease: {
         Args: { p_holder: string; p_name: string }
         Returns: undefined
+      }
+      remove_venue_member: {
+        Args: {
+          p_profile_id: string
+          p_reason: string
+          p_replacement_id?: string
+          p_venue_id: string
+        }
+        Returns: {
+          active_venue_id: string
+          outcome: string
+          reassigned: Json
+        }[]
       }
       reserve_media_asset: {
         Args: {
@@ -7395,6 +7589,13 @@ export type Database = {
           state: string
         }[]
       }
+      switch_active_venue: {
+        Args: { p_venue_id: string }
+        Returns: {
+          role: string
+          venue_id: string
+        }[]
+      }
       take_over_stale_media_claim: {
         Args: { p_asset_id: string; p_stale_after: string }
         Returns: boolean
@@ -7478,6 +7679,21 @@ export type Database = {
           staff_venue_id: string
           venue_id: string
           venue_name: string
+        }[]
+      }
+      venue_team: {
+        Args: { p_venue_id: string }
+        Returns: {
+          display_name: string
+          effective_role: string
+          granted_at: string
+          granted_by_name: string
+          is_active_venue: boolean
+          job_title: string
+          membership_id: string
+          membership_role: string
+          profile_id: string
+          source: string
         }[]
       }
       withdraw_menu_item_photo: {
