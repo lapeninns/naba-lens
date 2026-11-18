@@ -3859,6 +3859,8 @@ export type Database = {
           added_at: string
           added_by: string
           asset_id: string
+          fixed_by: string | null
+          fixes_label_id: string | null
           id: string
           removed_at: string | null
           removed_by: string | null
@@ -3871,6 +3873,8 @@ export type Database = {
           added_at?: string
           added_by: string
           asset_id: string
+          fixed_by?: string | null
+          fixes_label_id?: string | null
           id?: string
           removed_at?: string | null
           removed_by?: string | null
@@ -3883,6 +3887,8 @@ export type Database = {
           added_at?: string
           added_by?: string
           asset_id?: string
+          fixed_by?: string | null
+          fixes_label_id?: string | null
           id?: string
           removed_at?: string | null
           removed_by?: string | null
@@ -3905,6 +3911,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "media_assets"
             referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "media_area_labels_fixed_by_fkey"
+            columns: ["fixed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_area_labels_fixes_label_id_fkey"
+            columns: ["fixes_label_id"]
+            isOneToOne: false
+            referencedRelation: "media_area_labels"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "media_area_labels_removed_by_fkey"
@@ -10905,6 +10925,21 @@ export type Database = {
           review_level: string
           state: string
         }[]
+      }
+      review_fix_label: {
+        Args: {
+          p_asset_id: string
+          p_expected_revision?: number
+          p_from_id: string
+          p_from_kind: string
+          p_from_variant_id: string
+          p_level?: string
+          p_reason?: string
+          p_to_id: string
+          p_to_kind: string
+          p_to_variant_id?: string
+        }
+        Returns: Json
       }
       review_menu_item_photo: {
         Args: {
