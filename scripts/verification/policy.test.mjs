@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { transition } from "./policy.mjs"
+import { localGatePassed, transition } from "./policy.mjs"
 const context = { head: "a".repeat(40), tree: "b".repeat(40), clean: true }
 const initial = () => ({
   version: 1,
@@ -25,6 +25,27 @@ function freeze() {
     context
   )
 }
+test("release status requires both Chromium shards and the other required jobs", () => {
+  const statusCheckRollup = [
+    "fixtures-common",
+    "fixtures-chromium-1",
+    "fixtures-chromium-2",
+    "fixtures-firefox",
+    "fixtures-webkit",
+    "smoke-production-contract",
+    "result",
+  ].map((job) => ({ context: "local-ci/" + job, state: "SUCCESS" }))
+  assert.equal(localGatePassed({ statusCheckRollup }), true)
+  for (const check of statusCheckRollup) {
+    assert.equal(
+      localGatePassed({
+        statusCheckRollup: statusCheckRollup.filter((other) => other !== check),
+      }),
+      false,
+      check.context
+    )
+  }
+})
 test("cannot qualify while implementation or review is unfinished", () => {
   assert.throws(() => transition(initial(), { type: "integrate" }, context))
   assert.throws(() => transition(initial(), { type: "qualify" }, context))

@@ -233,6 +233,79 @@ describe("Y5: amenity-staged imports always reach a review queue", () => {
   })
 })
 
+describe("legacy import resumes only with the original bytes", () => {
+  it.each([true, false])(
+    "checks a leftover original (reserved: %s)",
+    async (reserved) => {
+      const filename = reserved
+        ? "changed-reserved.jpg"
+        : "changed-unreserved.jpg"
+      const manifest = `file,venue\n${filename},${slug}`
+      const batch = (await ok(
+        service.rpc("legacy_import_begin", {
+          p_admin: w.admin.id,
+          p_manifest_sha256: sha(new TextEncoder().encode(manifest)),
+          p_label: "TEST changed source",
+        })
+      )) as string
+      const jpeg = await syntheticJpeg(320, 240)
+      const original = Buffer.concat([jpeg, Buffer.from([0])])
+      const changed = Buffer.concat([jpeg, Buffer.from([1])])
+      const assetId = importAssetId(batch, 2)
+      const keys = mediaObjectKeys(w.admin.id, assetId, "jpg")
+      const stored = await service.storage
+        .from(STORAGE_BUCKETS.media)
+        .upload(keys.original, original, {
+          contentType: "image/jpeg",
+          upsert: false,
+        })
+      expect(stored.error).toBeNull()
+      if (reserved) {
+        await ok(
+          service.rpc("legacy_import_reserve", {
+            p_batch_id: batch,
+            p_asset_id: assetId,
+            p_uploader: w.admin.id,
+            p_venue_id: w.venue,
+            p_media_type: "image",
+            p_extension: "jpg",
+            p_original_filename: filename,
+            p_size_bytes: original.byteLength,
+          })
+        )
+      }
+
+      await writeFile(join(folder, filename), changed)
+      const refused = await run(manifest)
+      expect(refused.counts, JSON.stringify(refused.rows)).toMatchObject({
+        failed: 1,
+        imported: 0,
+      })
+      expect(refused.rows[0]?.detail).toMatch(
+        /differs from the stored original/
+      )
+      expect(
+        psql(
+          `select count(*) from public.media_import_items where batch_id = '${batch}'`
+        )
+      ).toBe("0")
+
+      await writeFile(join(folder, filename), original)
+      const resumed = await run(manifest)
+      expect(resumed.counts, JSON.stringify(resumed.rows)).toMatchObject({
+        failed: 0,
+        imported: 1,
+      })
+      expect(resumed.rows[0]?.assetId).toBe(assetId)
+      expect(
+        psql(
+          `select content_sha256 from public.media_assets where id = '${assetId}'`
+        )
+      ).toBe(sha(original))
+    }
+  )
+})
+
 describe("Y6: a failed line is retried after cleanup tombstoned it", () => {
   let batch: string
   let manifest: string

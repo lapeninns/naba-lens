@@ -612,6 +612,33 @@ async function importOne(input: {
   const { service, row, file, validated } = input
   const bucket = service.storage.from(STORAGE_BUCKETS.media)
 
+  async function verifyStoredOriginal(path: string): Promise<string | null> {
+    try {
+      const { data, error } = await bucket
+        .download(path, {}, { cache: "no-store" })
+        .asStream()
+      if (error || !data) return "could not read the stored original; run again"
+      const hash = createHash("sha256")
+      const reader = data.getReader()
+      try {
+        for (
+          let part = await reader.read();
+          !part.done;
+          part = await reader.read()
+        ) {
+          hash.update(part.value)
+        }
+      } finally {
+        reader.releaseLock()
+      }
+      return hash.digest("hex") === file.hash
+        ? null
+        : "source file differs from the stored original; restore it or use a new manifest"
+    } catch {
+      return "could not read the stored original; run again"
+    }
+  }
+
   // 0. The line's reservation: the first attempt whose row is not
   //    tombstoned. A row cleanup tombstoned (a failed line left for more than
   //    24 hours) is closed for good: its objects are gone or going, and the
@@ -622,7 +649,7 @@ async function importOne(input: {
   )
   const rows = await service
     .from("media_assets")
-    .select("id, deleted_at")
+    .select("id, deleted_at, original_path")
     .in("id", attempts)
   if (rows.error) return { ok: false, message: "could not read the asset" }
   const tombstoned = new Set(
@@ -634,12 +661,16 @@ async function importOne(input: {
       ok: false,
       message: `${MAX_IMPORT_ATTEMPTS} earlier attempts expired; import it under a new manifest`,
     }
-  let keys = mediaObjectKeys(input.uploaderId, assetId, file.ext)
+  const uploadKeys = mediaObjectKeys(input.uploaderId, assetId, file.ext)
+  const existing = rows.data?.find((r) => r.id === assetId)
+  const originalPath = existing?.original_path ?? uploadKeys.original
 
   // 1. The original, before the reservation: the storage write guard checks
-  //    only keys that a reservation owns. A rerun finds it already stored.
-  if (!rows.data?.some((r) => r.id === assetId)) {
-    const stored = await bucket.upload(keys.original, file.bytes, {
+  //    only keys that a reservation owns. On retry, hash a leftover object
+  //    before using the source file for metadata, renditions and the archive.
+  let needsVerification = Boolean(existing)
+  if (!existing) {
+    const stored = await bucket.upload(originalPath, file.bytes, {
       contentType: validated.mime,
       upsert: false,
     })
@@ -648,6 +679,11 @@ async function importOne(input: {
         ok: false,
         message: `could not store the original (${stored.error.message})`,
       }
+    needsVerification = Boolean(stored.error)
+  }
+  if (needsVerification) {
+    const problem = await verifyStoredOriginal(originalPath)
+    if (problem) return { ok: false, message: problem }
   }
 
   // 2. The asset row ('uploading', legacy_import).
@@ -669,11 +705,18 @@ async function importOne(input: {
 
   // A rerun keeps the holder the first run chose (the row's own key), even
   // if the contributor's account changed in between.
-  const holder = reserved.data[0].original_path.split("/")[0]
-  if (holder && holder !== input.uploaderId)
-    keys = mediaObjectKeys(holder, assetId, file.ext)
+  const reservation = reserved.data[0]
+  if (reservation.original_path !== originalPath) {
+    const problem = await verifyStoredOriginal(reservation.original_path)
+    if (problem) return { ok: false, message: problem }
+  }
+  const holder = reservation.original_path.split("/")[0]!
+  const keys = {
+    ...mediaObjectKeys(holder, assetId, file.ext),
+    original: reservation.original_path,
+  }
 
-  if (reserved.data[0].upload_state !== "ready") {
+  if (reservation.upload_state !== "ready") {
     // 3. Archive receipt, derivatives and renditions, as finalise does.
     try {
       await ensureMediaOriginalArchived(service, assetId, {

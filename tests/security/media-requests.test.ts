@@ -487,12 +487,13 @@ describe("states and completion (M4-states)", () => {
     expect((await find(v.w.manager, repl.id)).state).toBe("completed")
   })
 
-  it("completes an optional angle on a place with any acceptance after it", async () => {
+  it("keeps a two-photo optional angle open until two distinct approvals", async () => {
     const made = await createOk(v.w.manager, {
       p_type: "optional_angle",
       p_slot_kind: "area",
       p_slot_id: v.bar,
       p_brief: "From the door",
+      p_photo_count: 2,
     })
     const p = await areaPhoto(v.w.staffA, v.bar)
     expect((await find(v.w.manager, made.id)).state).toBe("submitted")
@@ -505,8 +506,86 @@ describe("states and completion (M4-states)", () => {
         })
       ).error
     ).toBeNull()
+    expect((await find(v.w.manager, made.id)).state).toBe("open")
+    await ok(
+      call(v.w.manager, "decide_area_photo_level", {
+        p_label_id: p.label,
+        p_action: "accepted",
+        p_level: "public",
+      })
+    )
+    expect((await find(v.w.manager, made.id)).state).toBe("open")
+    const second = await areaPhoto(v.w.staffB, v.bar)
+    await ok(
+      call(v.w.manager, "decide_area_photo_level", {
+        p_label_id: second.label,
+        p_action: "accepted",
+        p_level: "reference",
+      })
+    )
     expect((await find(v.w.manager, made.id)).state).toBe("completed")
   })
+
+  it("does not count an approval from before a multi-photo campaign request", async () => {
+    const campaign = await venue("request-campaign-count")
+    const fish = campaign.items["mains--fish"]!.itemId
+    const { manager, staffA, staffB } = campaign.w
+    const earlier = await dishPhoto(campaign, staffA, fish)
+    await ok(setLevel(manager, earlier, fish, "public"))
+    const made = await createOk(manager, {
+      p_type: "campaign",
+      p_slot_kind: "dish",
+      p_slot_id: fish,
+      p_brief: "Two angles for the campaign",
+      p_photo_count: 2,
+    })
+
+    const first = await dishPhoto(campaign, staffA, fish)
+    await ok(setLevel(manager, first, fish, "public"))
+    expect((await find(manager, made.id)).state).toBe("open")
+    const second = await dishPhoto(campaign, staffB, fish)
+    await ok(setLevel(manager, second, fish, "reference"))
+    expect((await find(manager, made.id)).state).toBe("completed")
+  })
+
+  it.each(["missing_photo", "replacement"] as const)(
+    "requires two public approvals for a two-photo %s request",
+    async (type) => {
+      const { manager, staffA, staffB, admin } = v.w
+      const subject = psql(
+        `insert into public.knowledge_subjects (venue_id, kind, label, created_by)
+         values ('${v.w.venue}', 'area', 'TEST ${type}', '${admin.id}') returning id`
+      )
+      const approve = (label: string, level: "public" | "reference") =>
+        ok(
+          call(manager, "decide_area_photo_level", {
+            p_label_id: label,
+            p_action: "accepted",
+            p_level: level,
+          })
+        )
+
+      if (type === "replacement") {
+        const earlier = await areaPhoto(staffA, subject)
+        await approve(earlier.label, "public")
+      }
+      const made = await createOk(manager, {
+        p_type: type,
+        p_slot_kind: "area",
+        p_slot_id: subject,
+        p_brief: "Two photos for the album",
+        p_photo_count: 2,
+      })
+      const first = await areaPhoto(staffA, subject)
+      await approve(first.label, "public")
+      expect((await find(manager, made.id)).state).toBe("open")
+      const second = await areaPhoto(staffB, subject)
+      await approve(second.label, "reference")
+      expect((await find(manager, made.id)).state).toBe("open")
+      await approve(second.label, "public")
+      expect((await find(manager, made.id)).state).toBe("completed")
+    }
+  )
 
   it("blocks with a reason, refuses a stale write, and unblocks", async () => {
     const made = await createOk(v.w.manager, {

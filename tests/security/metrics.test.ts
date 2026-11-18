@@ -18,6 +18,7 @@ import {
   admin as knowledgeAdmin,
   call,
   json,
+  londonToday,
   service,
   world,
   type World,
@@ -414,6 +415,84 @@ describe("useful contributions (§18.1, AC21)", () => {
     )
     expect(anon.error).not.toBeNull()
   })
+
+  it.each(["reported", "expired"] as const)(
+    "credits a replacement when the earlier space photo %s",
+    async (reason) => {
+      const subject = psql(
+        `insert into public.knowledge_subjects (venue_id, kind, label, created_by)
+         values ('${v.w.venue}', 'area', 'TEST ${reason}', '${v.w.admin.id}') returning id`
+      )
+      async function approveArea(who: TestIdentity) {
+        const asset = await readyPhoto(who)
+        const [label] = (await ok(
+          who.client.rpc("set_media_area_label", {
+            p_asset_id: asset.id,
+            p_subject_id: subject,
+          })
+        ))!
+        await ok(
+          call(v.w.manager, "decide_area_photo_level", {
+            p_label_id: label!.label_id,
+            p_action: "accepted",
+            p_level: "public",
+          })
+        )
+        return label!.label_id
+      }
+
+      const earlier = await approveArea(v.w.staffA)
+      if (reason === "reported") {
+        await ok(
+          call(v.w.manager, "area_photo_report_change", {
+            p_subject_id: subject,
+            p_reason: "TEST renovated",
+            p_replacement: true,
+          })
+        )
+      } else {
+        // Fixture an expiry that passed at local midnight.
+        psql(`set session_replication_role = replica;
+          update public.area_photo_decisions set decided_at = now() - interval '3 days'
+          where label_id = '${earlier}';
+          insert into public.area_photo_checks
+            (label_id, venue_id, subject_id, kind, valid_until, created_at, decided_by, decider_basis)
+          values ('${earlier}', '${v.w.venue}', '${subject}', 'end_date_set',
+            '${londonToday()}'::date - 1, now() - interval '2 days', '${v.w.manager.id}', 'venue_manager');`)
+      }
+      const venueBefore = (await metrics(v.w.manager)).contributions
+      const staffBefore = await json<Counts>(
+        v.w.staffB,
+        "my_contribution_metrics",
+        {}
+      )
+      await approveArea(v.w.staffB)
+      if (reason === "reported") {
+        // A later reconfirmation cannot change whether the replacement was useful.
+        await ok(
+          call(v.w.manager, "area_photo_reconfirm", {
+            p_subject_id: subject,
+            p_checked_on: londonToday(),
+            p_note: "TEST still right",
+          })
+        )
+      }
+      const venueAfter = (await metrics(v.w.manager)).contributions
+      const staffAfter = await json<Counts>(
+        v.w.staffB,
+        "my_contribution_metrics",
+        {}
+      )
+      for (const [before, after] of [
+        [venueBefore, venueAfter],
+        [staffBefore, staffAfter],
+      ] as const) {
+        expect(after.replacement - before.replacement).toBe(1)
+        expect(after.useful - before.useful).toBe(1)
+        expect(after.extra - before.extra).toBe(0)
+      }
+    }
+  )
 })
 
 describe("label correction by route, needs label and review delay", () => {

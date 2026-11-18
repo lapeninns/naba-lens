@@ -100,8 +100,8 @@ begin
 end;
 $$;
 
--- Every public acceptance of a photo on a slot at the venue, with when it
--- stopped being current and whether it was useful (see the header).
+-- Every public acceptance of a photo on a slot at the venue, with the end of
+-- its public decision interval and whether it was useful (see the header).
 create function private.metrics_acceptances(p_venue_id uuid)
 returns table (
   slot_kind text,
@@ -160,26 +160,28 @@ as $$
   raw as (
     select 'dish'::text as kind, s.slot_id, s.asset_id, s.started_at, s.carried,
       (select min(x.created_at) from ev_tx x
-        where x.photo_id = s.photo_id and x.id > s.event_id and not x.pub) as ended_at
+        where x.photo_id = s.photo_id and x.id > s.event_id and not x.pub) as ended_at,
+      null::uuid as area_label_id
     from dish_starts s
     union all
     select 'area', l.subject_id, d.asset_id, d.decided_at, false,
       least(
         (select min(n.decided_at) from public.area_photo_decisions n
           where n.label_id = d.label_id and n.id > d.id),
-        l.removed_at)
+        l.removed_at), l.id
     from public.area_photo_decisions d
     join public.media_area_labels l on l.id = d.label_id
     where d.venue_id = p_venue_id and d.action = 'accepted' and d.review_level = 'public'
     union all
     select 'amenity', d.check_id, d.asset_id, d.decided_at, d.origin = 'carried',
       (select min(n.decided_at) from public.amenity_photo_decisions n
-        where n.check_id = d.check_id and n.asset_id = d.asset_id and n.id > d.id)
+        where n.check_id = d.check_id and n.asset_id = d.asset_id and n.id > d.id),
+      null::uuid
     from public.amenity_photo_decisions d
     where d.venue_id = p_venue_id and d.action = 'accepted' and d.review_level = 'public'
   ),
   acc as (
-    select r.kind, r.slot_id, r.asset_id, a.uploader_id, r.started_at, r.carried,
+    select r.kind, r.slot_id, r.asset_id, a.uploader_id, r.started_at, r.carried, r.area_label_id,
       least(r.ended_at, a.deleted_at) as ended_at,
       a.duplicate_of_asset_id is not null as duplicate
     from raw r
@@ -208,6 +210,11 @@ as $$
           and b.asset_id <> r.asset_id
           and b.started_at <= r.started_at
           and (b.ended_at is null or b.ended_at > r.started_at)
+          -- Within a public decision interval, a space photo can become
+          -- stale, expire or be reconfirmed. Use the state at the new
+          -- acceptance so later checks do not rewrite its credit.
+          and (b.area_label_id is null
+            or private.area_photo_freshness(b.area_label_id, r.started_at) ->> 'state' = 'current')
       ) then 'extra'
       else 'replacement'
     end

@@ -31,10 +31,11 @@ set lock_timeout = '5s';
 --   Completion private.media_requests_settle(venue) closes open requests
 --              whose rule is met, called by every read and write here:
 --                missing_photo   the slot is covered (public level)
---                replacement     a public acceptance on the slot after the
---                                request was made
+--                                and, if more than one photo was requested,
+--                                that many new public acceptances
+--                replacement     the requested number of new public acceptances
 --                optional_angle, campaign on a slot
---                                any acceptance on the slot after the request
+--                                the requested number of new acceptances at either level
 --                fact_confirmation
 --                                the fact reads Confirmed and a manager
 --                                decision or reconfirmation was recorded after
@@ -202,11 +203,11 @@ begin
 end;
 $$;
 
--- The earliest acceptance on a slot at or after p_since (null if none):
--- public level only when p_public_only. A later decision on the same photo
--- (withdrawn, not used) takes it back.
-create function private.media_request_accepted_since(
-  p_venue_id uuid, p_kind text, p_slot_id uuid, p_since timestamptz, p_public_only boolean
+-- When the requested number of distinct photos were accepted at or after
+-- p_since (null while short). A later withdrawal or rejection removes a photo.
+create function private.media_request_fulfilled_at(
+  p_venue_id uuid, p_kind text, p_slot_id uuid, p_since timestamptz,
+  p_public_only boolean, p_photo_count integer
 )
 returns timestamptz
 language sql
@@ -215,7 +216,7 @@ security definer
 set search_path = ''
 as $$
   select min(x.at) from (
-    select p.decided_at as at
+    select p.asset_id, p.decided_at as at
     from public.menu_item_photos p
     join public.media_assets a on a.id = p.asset_id
     where p_kind = 'dish' and p.venue_id = p_venue_id and p.item_id = p_slot_id
@@ -223,24 +224,31 @@ as $$
       and (not p_public_only or p.review_level = 'public')
       and a.deleted_at is null
     union all
-    select d.decided_at
+    select l.asset_id, d.decided_at
     from public.media_area_labels l
     join public.area_photo_decisions d on d.label_id = l.id
+    join public.media_assets a on a.id = l.asset_id
     where p_kind = 'area' and l.venue_id = p_venue_id and l.subject_id = p_slot_id
       and l.removed_at is null
+      and a.deleted_at is null
       and d.action = 'accepted' and d.decided_at >= p_since
       and (not p_public_only or d.review_level = 'public')
       and not exists (select 1 from public.area_photo_decisions n where n.label_id = d.label_id and n.id > d.id)
     union all
-    select d.decided_at
+    select d.asset_id, d.decided_at
     from public.amenity_photo_decisions d
+    join public.media_assets a on a.id = d.asset_id
     where p_kind = 'amenity' and d.venue_id = p_venue_id and d.check_id = p_slot_id
       and d.action = 'accepted' and d.decided_at >= p_since
+      and a.deleted_at is null
       and (not p_public_only or d.review_level = 'public')
       and not exists (
         select 1 from public.amenity_photo_decisions n
         where n.check_id = d.check_id and n.asset_id = d.asset_id and n.id > d.id)
-  ) x;
+  ) x
+  group by x.asset_id
+  order by min(x.at)
+  offset (p_photo_count - 1) limit 1;
 $$;
 
 -- The team that usually photographs a category (M4 defaults): kitchen for
@@ -358,14 +366,14 @@ begin
       elsif r.slot_state in ('not_here', 'inactive') then
         v_state := 'cancelled';
         v_reason := 'No longer needed';
-      elsif r.request_type = 'missing_photo' then
-        if r.slot_state in ('covered', 'check_due') then
-          v_state := 'completed';
-          v_at := coalesce(r.slot_covered_since, now());
-        end if;
+      elsif r.request_type = 'missing_photo' and r.slot_state not in ('covered', 'check_due') then
+        continue;
+      elsif r.request_type = 'missing_photo' and r.photo_count = 1 then
+        v_state := 'completed';
+        v_at := coalesce(r.slot_covered_since, now());
       else
-        v_at := private.media_request_accepted_since(p_venue_id, r.slot_kind, r.slot_id, r.created_at,
-          r.request_type = 'replacement');
+        v_at := private.media_request_fulfilled_at(p_venue_id, r.slot_kind, r.slot_id, r.created_at,
+          r.request_type in ('missing_photo', 'replacement'), r.photo_count);
         if v_at is not null then
           v_state := 'completed';
         end if;
@@ -1190,7 +1198,7 @@ $$;
 -- ---------------------------------------------------------------------------
 
 revoke all on function private.media_request_manager_venue(uuid) from public, anon, authenticated;
-revoke all on function private.media_request_accepted_since(uuid, text, uuid, timestamptz, boolean) from public, anon, authenticated;
+revoke all on function private.media_request_fulfilled_at(uuid, text, uuid, timestamptz, boolean, integer) from public, anon, authenticated;
 revoke all on function private.media_request_default_team(text) from public, anon, authenticated;
 revoke all on function private.media_request_event(uuid, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
 revoke all on function private.media_request_notify(public.media_requests) from public, anon, authenticated;
