@@ -31,7 +31,7 @@ set lock_timeout = '5s';
 --   Reads    public.coverage_slots(venue): the rows and per-category counts,
 --            for staff and managers at the venue and admins naming one.
 --            public.asset_usages(venue, asset): every photo usage with its
---            review state in the spec's words (§10), managers and admins.
+--            review state (§10), managers and admins.
 --            album_admin_counts, album_area_states, album_slot_photo_rows and
 --            menu_item_photo_summary are re-created on the rule, so staff
 --            Album, admin albums and Our menu count the same way.
@@ -58,7 +58,7 @@ as $$
 $$;
 
 -- Whether a covered slot's routine check is due (a freshness policy).
--- p_covered_since is when its current photo was approved, when known.
+-- p_covered_since is when its current photo was accepted, when known.
 create function private.coverage_check_due(p_kind text, p_slot_id uuid, p_covered_since timestamptz)
 returns boolean
 language sql
@@ -196,7 +196,9 @@ as $$
       else 'missing'
     end,
     private.coverage_temporarily_unavailable('amenity', m.id),
-    case when m.has_public then private.slot_effective_primary('amenity', m.id) end,
+    -- Not here and inactive slots show no photo.
+    case when m.has_public and m.required and not m.not_here
+      then private.slot_effective_primary('amenity', m.id) end,
     m.pending, m.covered_since
   from amenity m;
 $$;
@@ -279,8 +281,9 @@ end;
 $$;
 
 -- Usage review states (spec §10) for every photo at the venue, or one asset:
--- awaiting_review, reference_approved, public_approved, retake_requested,
--- not_used, withdrawn. The venue's manager or an admin.
+-- awaiting_review, reference (kept as reference), public (accepted for public
+-- use), retake_requested, not_used, withdrawn. The venue's manager or an
+-- admin.
 create function public.asset_usages(p_venue_id uuid default null, p_asset_id uuid default null)
 returns jsonb
 language plpgsql
@@ -301,7 +304,7 @@ begin
     from (
       select p.asset_id, 'dish'::text as kind, p.item_id as slot_id,
         case p.state
-          when 'accepted' then p.review_level || '_approved'
+          when 'accepted' then p.review_level
           when 'better_photo_requested' then 'retake_requested'
           when 'needs_recheck' then 'awaiting_review'
           else 'withdrawn'
@@ -325,7 +328,7 @@ begin
           when 'pending' then 'awaiting_review'
           when 'accepted' then coalesce((
             select x.review_level from public.area_photo_decisions x
-            where x.label_id = r.label_id order by x.id desc limit 1), 'public') || '_approved'
+            where x.label_id = r.label_id order by x.id desc limit 1), 'public')
           when 'needs_another_photo' then 'retake_requested'
           else r.state
         end,
@@ -336,7 +339,7 @@ begin
       select r.asset_id, 'amenity', r.check_id,
         case r.state
           when 'pending' then 'awaiting_review'
-          when 'accepted' then r.review_level || '_approved'
+          when 'accepted' then r.review_level
           when 'needs_another_photo' then 'retake_requested'
           else r.state
         end,
@@ -504,9 +507,9 @@ as $$
 $$;
 
 -- Signature and columns as in 20261106130000. covered_items now counts items
--- the rule calls covered (a recheck makes an item check_due, not covered),
--- and needs_recheck_items counts check_due items; candidate counts stay
--- scoped to the caller as before.
+-- the rule calls covered (a recheck makes an item check_due, not covered).
+-- needs_recheck_items and the candidate counts stay scoped to what the caller
+-- can act on, as before.
 create or replace function public.menu_item_photo_summary(p_venue_id uuid default null)
 returns table (
   venue_id uuid,
@@ -547,7 +550,7 @@ begin
   select v_venue, v_name, 'ready'::text, r.menu_version_id, r.section_id, r.section_name, r.section_kind,
     r.section_position, count(*)::integer,
     (count(*) filter (where cov.state = 'covered'))::integer,
-    (count(*) filter (where cov.state = 'check_due'))::integer,
+    (count(*) filter (where r.needs_recheck_count > 0))::integer,
     case when v_reviewer then sum(r.candidate_count)::integer end,
     case when v_reviewer then min(r.oldest_candidate_at) end
   from private.menu_item_photo_rows(v_venue, v_reviewer, private.is_active_admin()) r

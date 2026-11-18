@@ -319,6 +319,96 @@ export type Database = {
           },
         ]
       }
+      amenity_photo_decisions: {
+        Row: {
+          action: string
+          asset_id: string
+          check_id: string
+          decided_at: string
+          decided_by: string
+          id: number
+          origin: string
+          reason: string | null
+          review_level: string
+          venue_id: string
+        }
+        Insert: {
+          action: string
+          asset_id: string
+          check_id: string
+          decided_at?: string
+          decided_by: string
+          id?: never
+          origin?: string
+          reason?: string | null
+          review_level?: string
+          venue_id: string
+        }
+        Update: {
+          action?: string
+          asset_id?: string
+          check_id?: string
+          decided_at?: string
+          decided_by?: string
+          id?: never
+          origin?: string
+          reason?: string | null
+          review_level?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amenity_photo_decisions_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "amenity_photo_decisions_check_fkey"
+            columns: ["check_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "venue_amenity_checks"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "amenity_photo_decisions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      amenity_photo_requirements: {
+        Row: {
+          question_key: string
+          reason: string
+          requirement: string
+          updated_at: string
+        }
+        Insert: {
+          question_key: string
+          reason: string
+          requirement: string
+          updated_at?: string
+        }
+        Update: {
+          question_key?: string
+          reason?: string
+          requirement?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amenity_photo_requirements_question_key_fkey"
+            columns: ["question_key"]
+            isOneToOne: true
+            referencedRelation: "amenity_catalogue"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       amenity_submission_assets: {
         Row: {
           asset_id: string
@@ -446,6 +536,7 @@ export type Database = {
           id: number
           label_id: string
           reason: string | null
+          review_level: string
           venue_id: string
         }
         Insert: {
@@ -456,6 +547,7 @@ export type Database = {
           id?: never
           label_id: string
           reason?: string | null
+          review_level?: string
           venue_id: string
         }
         Update: {
@@ -466,6 +558,7 @@ export type Database = {
           id?: never
           label_id?: string
           reason?: string | null
+          review_level?: string
           venue_id?: string
         }
         Relationships: [
@@ -4213,6 +4306,7 @@ export type Database = {
           menu_version_id: string
           reason: string | null
           recheck_kind: string | null
+          review_level: string
           revision: number
           section_kind: string
           section_name: string
@@ -4242,6 +4336,7 @@ export type Database = {
           menu_version_id: string
           reason?: string | null
           recheck_kind?: string | null
+          review_level?: string
           revision?: number
           section_kind: string
           section_name: string
@@ -4271,6 +4366,7 @@ export type Database = {
           menu_version_id?: string
           reason?: string | null
           recheck_kind?: string | null
+          review_level?: string
           revision?: number
           section_kind?: string
           section_name?: string
@@ -4848,6 +4944,67 @@ export type Database = {
           },
         ]
       }
+      slot_primary_choices: {
+        Row: {
+          asset_id: string
+          chosen_at: string
+          chosen_by: string
+          id: number
+          previous_asset_id: string | null
+          reason: string | null
+          slot_id: string
+          slot_kind: string
+          use: string
+          venue_id: string
+        }
+        Insert: {
+          asset_id: string
+          chosen_at?: string
+          chosen_by: string
+          id?: never
+          previous_asset_id?: string | null
+          reason?: string | null
+          slot_id: string
+          slot_kind: string
+          use?: string
+          venue_id: string
+        }
+        Update: {
+          asset_id?: string
+          chosen_at?: string
+          chosen_by?: string
+          id?: never
+          previous_asset_id?: string | null
+          reason?: string | null
+          slot_id?: string
+          slot_kind?: string
+          use?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slot_primary_choices_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "slot_primary_choices_chosen_by_fkey"
+            columns: ["chosen_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slot_primary_choices_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_work_profiles: {
         Row: {
           completed_at: string | null
@@ -5218,22 +5375,31 @@ export type Database = {
           active: boolean
           created_at: string
           id: string
+          locality: string | null
           name: string
+          operating_status: string
           slug: string
+          timezone: string
         }
         Insert: {
           active?: boolean
           created_at?: string
           id?: string
+          locality?: string | null
           name: string
+          operating_status?: string
           slug: string
+          timezone?: string
         }
         Update: {
           active?: boolean
           created_at?: string
           id?: string
+          locality?: string | null
           name?: string
+          operating_status?: string
           slug?: string
+          timezone?: string
         }
         Relationships: []
       }
@@ -5497,6 +5663,27 @@ export type Database = {
           venue_id: string
         }[]
       }
+      amenity_photo_queue: {
+        Args: { p_limit?: number; p_status?: string; p_venue_id?: string }
+        Returns: {
+          asset_id: string
+          can_decide: boolean
+          category: string
+          check_id: string
+          decided_at: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          photo_required: boolean
+          question: string
+          question_key: string
+          reason: string
+          review_level: string
+          state: string
+          uploaded_at: string
+          uploader_id: string
+          uploader_name: string
+        }[]
+      }
       amenity_reopen_check:
         | {
             Args: {
@@ -5628,6 +5815,10 @@ export type Database = {
       }
       asset_search_answers: { Args: { p_asset_ids: string[] }; Returns: Json }
       asset_search_can_open: { Args: { p_asset_id: string }; Returns: boolean }
+      asset_usages: {
+        Args: { p_asset_id?: string; p_venue_id?: string }
+        Returns: Json
+      }
       asset_use_status: { Args: { p_asset_id: string }; Returns: Json }
       assign_menu_item_photo: {
         Args: {
@@ -5980,6 +6171,7 @@ export type Database = {
           venue_id: string
         }[]
       }
+      coverage_slots: { Args: { p_venue_id?: string }; Returns: Json }
       coverage_staff_progress: {
         Args: {
           p_period_month?: string
@@ -6060,11 +6252,41 @@ export type Database = {
         }
         Returns: string
       }
+      decide_amenity_photo: {
+        Args: {
+          p_action: string
+          p_asset_id: string
+          p_check_id: string
+          p_level?: string
+          p_reason?: string
+        }
+        Returns: {
+          asset_id: string
+          changed: boolean
+          check_id: string
+          review_level: string
+          state: string
+        }[]
+      }
       decide_area_photo: {
         Args: { p_action: string; p_label_id: string; p_reason?: string }
         Returns: {
           changed: boolean
           label_id: string
+          state: string
+        }[]
+      }
+      decide_area_photo_level: {
+        Args: {
+          p_action: string
+          p_label_id: string
+          p_level?: string
+          p_reason?: string
+        }
+        Returns: {
+          changed: boolean
+          label_id: string
+          review_level: string
           state: string
         }[]
       }
@@ -7279,6 +7501,26 @@ export type Database = {
           venue_id: string
         }[]
       }
+      set_menu_item_photo_level: {
+        Args: {
+          p_asset_id: string
+          p_client_request_key?: string
+          p_expected_revision: number
+          p_item_id: string
+          p_level: string
+          p_reason?: string
+          p_variant_id: string
+        }
+        Returns: {
+          is_primary: boolean
+          item_id: string
+          item_revision: number
+          photo_id: string
+          replayed: boolean
+          review_level: string
+          state: string
+        }[]
+      }
       set_menu_item_primary_photo: {
         Args: {
           p_client_request_key?: string
@@ -7312,6 +7554,15 @@ export type Database = {
           replayed: boolean
           set_aside_at: string
         }[]
+      }
+      set_slot_primary_photo: {
+        Args: {
+          p_asset_id: string
+          p_reason?: string
+          p_slot_id: string
+          p_slot_kind: string
+        }
+        Returns: Json
       }
       set_venue_default_target: {
         Args: {

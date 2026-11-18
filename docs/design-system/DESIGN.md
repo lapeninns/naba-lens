@@ -128,11 +128,12 @@ A slot's state is shown by its frame, an icon and a word. Colour is never the on
 | **Waiting for review**  | The photo, 3 to 4px `ring-waiting` inset | ↑ Waiting                                 | Shown in the waiting part |
 | **Needs another photo** | The photo, 3 to 4px `ring-retake` inset  | ↩ Retake, with the reviewer's reason      | No                        |
 | **Accepted**            | The photo, no ring                       | ✓ In the album, filled `ok-fg` square tag | Yes                       |
+| **Check due**           | The photo, 4px `ok-waiting` ring inset   | ⟲ Needs checking                          | Shown in the waiting part |
 | **Not here**            | 2px dotted edge, `hatch` hatching        | Not here, with the reason                 | Leaves the total          |
 
 **Reserved forms.** The dashed empty frame belongs to Needed alone. The filled green square tag with a tick belongs to Accepted alone. The double-bordered stamp belongs to a full section alone. No other element may use them.
 
-**Counts.** The album count is the number of empty slots ("41 slots still empty"). Its bar has three parts: Accepted (`ok-fg`), Waiting and Sending (`ok-waiting`), empty (`surface-2`), with the numbers written under it in mono ("65 in · 7 waiting · 113 in all"). Not here slots are not in the total.
+**Counts.** The album count is the number of empty slots ("41 slots still empty"). Its bar has three parts: Accepted (`ok-fg`), Waiting and Sending (`ok-waiting`), empty (`surface-2`), with the numbers written under it in mono ("65 in · 7 waiting · 113 in all"). Not here slots are not in the total. Check due (FA-11, Full App v1) is a filled slot whose routine or change-triggered check is due: a manager confirms it, so it sits in the waiting part and is not counted as filled. Every state comes from one coverage rule (`public.coverage_slots`).
 
 ## 5. Components
 

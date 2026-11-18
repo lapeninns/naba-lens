@@ -2,6 +2,7 @@ import {
   ArrowUUpLeftIcon,
   ArrowUpIcon,
   CheckIcon,
+  ClockCounterClockwiseIcon,
   CloudArrowUpIcon,
   PlusIcon,
 } from "@phosphor-icons/react/dist/ssr"
@@ -23,6 +24,8 @@ import { cn } from "@/lib/utils"
  *   waiting   the photo, ring-waiting inset, ↑ Waiting
  *   retake    the photo, ring-retake inset, ↩ Retake
  *   accepted  the photo, green square mark, ✓ In the album
+ *   check-due the photo, ok-waiting ring, ⟲ Needs checking (FA-11: a manager
+ *             confirms it is still right; not counted as filled)
  *   not-here  dotted edge over hatching, Not here
  *
  * The whole tile is one target: a link when `href` is given, else a button
@@ -55,6 +58,7 @@ const STATE_WORDS: Record<SlotState, string> = {
   waiting: "waiting for review",
   retake: "needs another photo",
   accepted: "in the album",
+  "check-due": "needs checking",
   "not-here": "not here",
 }
 
@@ -91,6 +95,17 @@ function StateMark({
         <span className="inline-flex max-w-full items-center gap-0.5 rounded-round bg-warn-bg px-1.5 text-caption leading-tight font-bold text-warn-fg">
           <ArrowUUpLeftIcon aria-hidden weight="bold" className="size-4" />
           Retake
+        </span>
+      )
+    case "check-due":
+      return (
+        <span className="inline-flex max-w-full items-center gap-0.5 rounded-round bg-surface px-1.5 text-caption leading-tight font-bold text-ink">
+          <ClockCounterClockwiseIcon
+            aria-hidden
+            weight="bold"
+            className="size-4"
+          />
+          Needs checking
         </span>
       )
     case "accepted":
@@ -154,7 +169,8 @@ function SlotTile({
         className={cn(
           "pointer-events-none absolute inset-0 rounded-card",
           state === "waiting" && "slot-ring-waiting",
-          state === "retake" && "slot-ring-retake"
+          state === "retake" && "slot-ring-retake",
+          state === "check-due" && "slot-ring-check"
         )}
       />
       <span className="relative flex h-full min-h-0 flex-col justify-between gap-1 p-1.5">

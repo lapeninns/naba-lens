@@ -513,7 +513,8 @@
  * Slot frames (DESIGN.md §4). Each state has its own frame, and the frame
  * never carries the meaning alone: the tile also shows an icon and a word.
  * Needed: a 2px dashed edge. Waiting and Retake: a 4px ring inside the
- * photo. Not here: a dotted edge over hatching (with bg-hatch).
+ * photo. Check due: a 4px ok-waiting ring. Not here:
+ * a dotted edge over hatching (with bg-hatch).
  */
 @utility slot-needed {
   @apply border-2 border-dashed border-edge-strong;
@@ -526,6 +527,11 @@
 }
 @utility slot-ring-retake {
   @apply inset-ring-4 inset-ring-ring-retake;
+}
+/* Check due (FA-11): a 4px ring in the accepted family (ok-waiting), so it
+   reads as "was in, needs checking" and matches no other frame. */
+@utility slot-ring-check {
+  @apply inset-ring-4 inset-ring-ok-waiting;
 }
 
 /* Needs setup / Not here: the hatched fill. */

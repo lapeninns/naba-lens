@@ -37,6 +37,12 @@ const CASES: Array<{
     word: /In the album/,
   },
   {
+    // FA-11: a seventh state with its own frame and word.
+    state: "check-due",
+    name: "Guinness, pint: needs checking",
+    word: /Needs checking/,
+  },
+  {
     state: "not-here",
     name: "Guinness, pint: not here",
     word: /Not here/,
@@ -86,6 +92,9 @@ describe("SlotTile", () => {
     rerender(<SlotTile name="X" state="retake" photoSrc="/p.jpg" />)
     expect(container.innerHTML).toContain("slot-ring-retake")
     expect(container.innerHTML).not.toContain("slot-ring-waiting")
+    rerender(<SlotTile name="X" state="check-due" photoSrc="/p.jpg" />)
+    expect(container.innerHTML).toContain("slot-ring-check")
+    expect(container.innerHTML).not.toContain("slot-ring-retake")
   })
 
   it("says a photo is held on the phone when offline", () => {

@@ -12,12 +12,111 @@
  *
  * A slot whose group has no place yet goes in `unplaced`, which Album shows
  * as "Not placed yet" so nothing is hidden while a manager sets places up.
+ *
+ * Coverage (Full App v1, S1-COV; spec §10, FA-11, FA-30): the database
+ * gives every slot one requirement state (public.coverage_slots, read by
+ * lib/server/album.ts). When a slot carries it, its state follows that rule,
+ * with the viewer's own sending and retake notes laid over it; without it
+ * (the read failed) the older per-source rules below still apply.
  */
 
 import { dayLabel } from "@/lib/server/coverage/time"
 
 export type SlotState =
-  "needed" | "sending" | "waiting" | "retake" | "accepted" | "not-here"
+  | "needed"
+  | "sending"
+  | "waiting"
+  | "retake"
+  | "accepted"
+  | "check-due"
+  | "not-here"
+
+/**
+ * A slot's requirement coverage state (spec §10), as
+ * private.coverage_slot_rows gives it (20261118100200_coverage_slots.sql):
+ *   covered             a current public-level photo
+ *   check_due           covered, but a check is due; not counted as covered
+ *   pending             a photo is waiting for review
+ *   replacement_needed  a reviewer asked for another photo
+ *   missing             none of the above
+ *   not_here            confirmed No or Not applicable (leaves the total)
+ *   inactive            no active photo requirement (leaves the total)
+ */
+export type CoverageState =
+  | "covered"
+  | "check_due"
+  | "pending"
+  | "replacement_needed"
+  | "missing"
+  | "not_here"
+  | "inactive"
+
+export const COVERAGE_STATES: ReadonlyArray<CoverageState> = [
+  "covered",
+  "check_due",
+  "pending",
+  "replacement_needed",
+  "missing",
+  "not_here",
+  "inactive",
+]
+
+/** The spec's five staff-facing categories (§4.1, FA-6), in order. */
+export type CoverageCategory =
+  "food" | "drinks" | "spaces" | "facilities" | "other"
+
+export const COVERAGE_CATEGORIES: ReadonlyArray<{
+  key: CoverageCategory
+  label: string
+}> = [
+  { key: "food", label: "Food" },
+  { key: "drinks", label: "Drinks" },
+  { key: "spaces", label: "Spaces" },
+  { key: "facilities", label: "Facilities" },
+  { key: "other", label: "Other" },
+]
+
+export type CoverageSlotKind = "dish" | "amenity" | "area"
+
+/** One slot's row from public.coverage_slots. */
+export type CoverageSlot = {
+  kind: CoverageSlotKind
+  slotId: string
+  name: string
+  /** Menu section id, amenity catalogue category, or the place's own id. */
+  groupKey: string
+  groupName: string
+  category: CoverageCategory
+  /** An active mandatory photo requirement (counted in the total). */
+  counted: boolean
+  state: CoverageState
+  /** Temporarily unavailable (a dish sold out): still in the total. */
+  unavailable: boolean
+  /** The effective primary photo of a covered or check-due slot. */
+  primaryAssetId: string | null
+  /** Photos waiting for review. */
+  pendingCount: number
+}
+
+/** n of N by category (§18.1): covered is the numerator, total the denominator. */
+export type CoverageCounts = {
+  total: number
+  covered: number
+  checkDue: number
+  pending: number
+  replacementNeeded: number
+  missing: number
+  notHere: number
+  inactive: number
+  unavailable: number
+}
+
+export type CoverageView = {
+  venueId: string
+  slots: CoverageSlot[]
+  categories: Array<{ category: CoverageCategory } & CoverageCounts>
+  totals: CoverageCounts
+}
 
 export type AlbumSlotTarget =
   | { kind: "dish"; itemId: string; itemName: string }
@@ -63,7 +162,7 @@ export type AlbumPlace = {
 export type AlbumCounts = {
   /** Accepted. */
   filled: number
-  /** Waiting for review or sending. */
+  /** Waiting for review, sending, or Check due (FA-11). */
   waiting: number
   /** Needed or retake. */
   empty: number
@@ -91,6 +190,8 @@ export type DishInput = {
   myWaiting: number
   reviewState: "waiting" | "being_checked" | null
   neededBy: { date: string; passed: boolean } | null
+  /** The coverage rule's state, when the coverage read succeeded. */
+  coverage?: CoverageState
 }
 
 export type AmenityInput = {
@@ -106,12 +207,14 @@ export type AmenityInput = {
   myLatestState: string | null
   /** The accepted slot's current photo (AL-7), when it has one. */
   thumbnailUrl?: string | null
+  /** The coverage rule's state, when the coverage read succeeded. */
+  coverage?: CoverageState
 }
 
 export type AreaInput = {
   subjectId: string
   label: string
-  state: "needed" | "waiting" | "retake" | "accepted"
+  state: "needed" | "waiting" | "retake" | "accepted" | "check-due"
   /** The accepted or waiting slot's current photo (AL-7), when it has one. */
   thumbnailUrl?: string | null
 }
@@ -193,8 +296,43 @@ export function slotBrief(
 
 // ---- state rules -------------------------------------------------------------
 
+/**
+ * A slot state from the coverage rule. Missing and Replacement needed read
+ * as Retake only for someone asked to retake it (their own note), else
+ * Needed; Inactive has no slot (null).
+ */
+export function coverageSlotState(
+  state: CoverageState,
+  myRetake = false
+): SlotState | null {
+  switch (state) {
+    case "covered":
+      return "accepted"
+    case "check_due":
+      return "check-due"
+    case "pending":
+      return "waiting"
+    case "not_here":
+      return "not-here"
+    case "inactive":
+      return null
+    default:
+      return myRetake ? "retake" : "needed"
+  }
+}
+
 /** A dish's slot state, as the viewer sees it. */
 export function dishState(dish: DishInput, myRetake: boolean): SlotState {
+  if (dish.coverage) {
+    const state = coverageSlotState(dish.coverage, myRetake)
+    // The viewer's own photo on its way, or waiting, shows as Waiting.
+    if (
+      (state === "needed" || state === "retake") &&
+      (dish.myWaiting > 0 || dish.reviewState !== null)
+    )
+      return "waiting"
+    return state ?? "needed"
+  }
   if (dish.covered && !dish.needsRecheck) return "accepted"
   if (dish.myWaiting > 0 || dish.reviewState !== null) return "waiting"
   if (myRetake) return "retake"
@@ -203,8 +341,23 @@ export function dishState(dish: DishInput, myRetake: boolean): SlotState {
 
 const WAITING_FINDINGS = new Set(["submitted", "awaiting_confirmation"])
 
-/** An amenity slot's state. No and Not applicable leave the album as Not here. */
-export function amenityState(check: AmenityInput): SlotState {
+/**
+ * An amenity slot's state. No and Not applicable leave the album as Not
+ * here. With the coverage rule, the photo has its own review (FA-32): a
+ * confirmed Yes is not a filled slot until a photo is accepted; null for a
+ * question that needs no photo (it has no slot).
+ */
+export function amenityState(check: AmenityInput): SlotState | null {
+  if (check.coverage) {
+    const state = coverageSlotState(check.coverage)
+    if (state === "needed") {
+      // The viewer's own finding, sent back or waiting.
+      if (check.myLatestState === "needs_attention") return "retake"
+      if (check.myLatestState && WAITING_FINDINGS.has(check.myLatestState))
+        return "waiting"
+    }
+    return state
+  }
   if (check.progress === "complete")
     return check.answer === "no" || check.answer === "not_applicable"
       ? "not-here"
@@ -217,8 +370,9 @@ export function amenityState(check: AmenityInput): SlotState {
 }
 
 const isEmpty = (state: SlotState) => state === "needed" || state === "retake"
+/** Waiting on someone else: a review, a send, or a manager's check (FA-11). */
 const isWaiting = (state: SlotState) =>
-  state === "waiting" || state === "sending"
+  state === "waiting" || state === "sending" || state === "check-due"
 
 /** Needed slots first (with a needed-by date first of all), then retakes, waiting, accepted, not here. */
 const ORDER: Record<SlotState, number> = {
@@ -226,8 +380,9 @@ const ORDER: Record<SlotState, number> = {
   needed: 1,
   sending: 2,
   waiting: 3,
-  accepted: 4,
-  "not-here": 5,
+  "check-due": 4,
+  accepted: 5,
+  "not-here": 6,
 }
 
 function sortSlots(a: AlbumSlot, b: AlbumSlot) {
@@ -281,6 +436,7 @@ export function buildAlbum(input: AlbumInput): AlbumView {
 
   for (const check of input.amenities) {
     const state = amenityState(check)
+    if (!state) continue
     slots.push({
       place: placeOf.get(`amenity_category:${check.category}`) ?? null,
       slot: {
@@ -288,9 +444,12 @@ export function buildAlbum(input: AlbumInput): AlbumView {
         name: check.question,
         group: check.category,
         state,
-        // AL-7: an accepted slot shows its photo to everyone at the venue.
+        // AL-7: an accepted (or check-due) slot shows its photo to everyone
+        // at the venue.
         thumbnailUrl:
-          state === "accepted" ? (check.thumbnailUrl ?? null) : null,
+          state === "accepted" || state === "check-due"
+            ? (check.thumbnailUrl ?? null)
+            : null,
         neededBy: null,
         brief: slotBrief({ kind: "amenity", key: check.key ?? null }, briefs),
         target: { kind: "amenity", checkId: check.checkId },
@@ -309,7 +468,9 @@ export function buildAlbum(input: AlbumInput): AlbumView {
         state: area.state,
         // AL-7: review never gates visibility; a retake shows no photo.
         thumbnailUrl:
-          area.state === "accepted" || area.state === "waiting"
+          area.state === "accepted" ||
+          area.state === "waiting" ||
+          area.state === "check-due"
             ? (area.thumbnailUrl ?? null)
             : null,
         neededBy: null,
@@ -401,4 +562,114 @@ export function currentPlace(
     ? all.find((p) => (p.subjectId ?? "unplaced") === preferred)
     : undefined
   return asked ?? all.find((p) => p.empty > 0) ?? all[0] ?? null
+}
+
+// ---- coverage read ------------------------------------------------------------
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const isCoverageState = (v: unknown): v is CoverageState =>
+  COVERAGE_STATES.includes(v as CoverageState)
+const isCategory = (v: unknown): v is CoverageCategory =>
+  COVERAGE_CATEGORIES.some((c) => c.key === v)
+const whole = (v: unknown) =>
+  typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : 0
+
+function parseCounts(raw: unknown): CoverageCounts {
+  const r = (raw ?? {}) as Record<string, unknown>
+  return {
+    total: whole(r.total),
+    covered: whole(r.covered),
+    checkDue: whole(r.checkDue),
+    pending: whole(r.pending),
+    replacementNeeded: whole(r.replacementNeeded),
+    missing: whole(r.missing),
+    notHere: whole(r.notHere),
+    inactive: whole(r.inactive),
+    unavailable: whole(r.unavailable),
+  }
+}
+
+/**
+ * Parses public.coverage_slots (or album_admin_counts' slots, categories and
+ * totals). Rows that are not well formed are left out; null when the shape
+ * is not a coverage read at all.
+ */
+export function parseCoverage(data: unknown): CoverageView | null {
+  const root = data as Record<string, unknown> | null
+  if (!root || !Array.isArray(root.slots)) return null
+  const slots = (root.slots as Array<Record<string, unknown>>).flatMap(
+    (row): CoverageSlot[] => {
+      const kind = row.kind
+      if (kind !== "dish" && kind !== "amenity" && kind !== "area") return []
+      if (typeof row.slotId !== "string" || !UUID.test(row.slotId)) return []
+      if (!isCoverageState(row.state) || !isCategory(row.category)) return []
+      const name = typeof row.name === "string" ? row.name : null
+      if (!name) return []
+      return [
+        {
+          kind,
+          slotId: row.slotId,
+          name,
+          groupKey: typeof row.groupKey === "string" ? row.groupKey : "",
+          groupName: typeof row.groupName === "string" ? row.groupName : "",
+          category: row.category,
+          counted: row.state !== "not_here" && row.state !== "inactive",
+          state: row.state,
+          unavailable: row.unavailable === true,
+          primaryAssetId:
+            typeof row.primaryAssetId === "string" &&
+            UUID.test(row.primaryAssetId)
+              ? row.primaryAssetId
+              : null,
+          pendingCount: whole(row.pendingCount),
+        },
+      ]
+    }
+  )
+  const categories = COVERAGE_CATEGORIES.map(({ key }) => {
+    const found = Array.isArray(root.categories)
+      ? (root.categories as Array<Record<string, unknown>>).find(
+          (c) => c.category === key
+        )
+      : undefined
+    return { category: key, ...parseCounts(found) }
+  })
+  return {
+    venueId: typeof root.venueId === "string" ? root.venueId : "",
+    slots,
+    categories,
+    totals: parseCounts(root.totals),
+  }
+}
+
+/**
+ * Counts recomputed from slots (AC39): the same numbers the database gives,
+ * so a displayed figure can be audited against its rows.
+ */
+export function countCoverage(
+  slots: ReadonlyArray<CoverageSlot>
+): CoverageCounts {
+  const counted = slots.filter((s) => s.counted)
+  const n = (state: CoverageState) =>
+    slots.filter((s) => s.state === state).length
+  return {
+    total: counted.length,
+    covered: n("covered"),
+    checkDue: n("check_due"),
+    pending: n("pending"),
+    replacementNeeded: n("replacement_needed"),
+    missing: n("missing"),
+    notHere: n("not_here"),
+    inactive: n("inactive"),
+    unavailable: counted.filter((s) => s.unavailable).length,
+  }
+}
+
+/** A slot's coverage state by its album id ("dish:<id>" and so on). */
+export function coverageByAlbumId(
+  view: CoverageView | null
+): Map<string, CoverageState> {
+  return new Map(
+    (view?.slots ?? []).map((s) => [`${s.kind}:${s.slotId}`, s.state])
+  )
 }
