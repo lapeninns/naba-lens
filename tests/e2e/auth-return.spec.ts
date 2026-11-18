@@ -16,7 +16,7 @@ import { openEmailLink } from "./helpers/email-link"
 import { passMfaIfAsked } from "./helpers/mfa"
 import { mailboxIds, waitForSignInEmail } from "./helpers/mailpit"
 import { convertToManager } from "./helpers/manager-world"
-import { STAFF_LANDING } from "./helpers/ui"
+import { ADMIN_LANDING, STAFF_LANDING } from "./helpers/ui"
 
 /**
  * AUTH-1 and AUTH-2 in the built app: a signed-out person who opens a deep
@@ -166,6 +166,8 @@ test.describe("deep links survive sign-in (AUTH-1)", () => {
     await expect(page).toHaveURL(loginFor(deepLink))
     const { link } = await requestSignIn(page, admin.email)
     await openEmailLink(page, link)
+    // FA-23: the second step comes first, and the deep link survives it (E2).
+    await passMfaIfAsked(page, admin.email)
     await expect(page).toHaveURL(new RegExp(`${escapeRegExp(deepLink)}$`))
     await context.close()
   })
@@ -305,7 +307,9 @@ test.describe("an ended session mid-task (AUTH-2, charter C-2)", () => {
       // FA-23: an admin passes the second step first.
       await page.waitForURL((url) => url.pathname !== "/login")
       await passMfaIfAsked(page, person.email)
-      await expect(page).toHaveURL(who === "staff" ? STAFF_LANDING : /\/admin$/)
+      await expect(page).toHaveURL(
+        who === "staff" ? STAFF_LANDING : ADMIN_LANDING
+      )
 
       await context.clearCookies()
       const refused: string[] = []

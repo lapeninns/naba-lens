@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { chooseOption, escape, libraryList } from "./helpers/ui"
+import { ADMIN_LANDING, chooseOption, escape, libraryList } from "./helpers/ui"
 import { provisionWorld, seedReadyAssets, signedInPage } from "./helpers/world"
 
 /**
@@ -22,7 +22,8 @@ test("venue + staff + type filters combine across pages, then clear", async ({
   await seedReadyAssets(w.staffC.id, w.venue2.id, 5, "image", `c2-photo-${t}`)
 
   const admin = await signedInPage(browser, w.adminB)
-  await expect(admin).toHaveURL(/\/admin$/)
+  await expect(admin).toHaveURL(ADMIN_LANDING)
+  await admin.goto("/admin")
   const library = libraryList(admin)
   const tiles = library.getByRole("button")
 

@@ -19,6 +19,7 @@ import {
 import { syntheticJpeg } from "./helpers/media"
 import { psql, requireIsolatedStack } from "./helpers/stack"
 import {
+  ADMIN_LANDING,
   escape,
   openPortfolio,
   STAFF_LANDING,
@@ -213,7 +214,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     }
     const admin = await signedInPage(browser, w.admin, view(info))
     await admin.goto("/manager")
-    await expect(admin).toHaveURL(/\/admin$/)
+    await expect(admin).toHaveURL(ADMIN_LANDING)
     note("roles", "manager (link, code), staff, admin")
   })
 

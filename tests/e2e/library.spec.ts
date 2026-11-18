@@ -10,7 +10,7 @@ import {
 } from "../library/e2e"
 import { secondsBefore, seedAsset, setupIdentity } from "../library/seed"
 import { createVenue, serviceClient } from "../support/identities"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { ADMIN_LANDING, openPortfolio, STAFF_LANDING } from "./helpers/ui"
 
 /**
  * The library track's browser checks (spec §3 admin library and portfolio, §7
@@ -132,7 +132,7 @@ test.describe("admin library", () => {
 
     const page = await signInAs(browser, admin, adminUser, baseURL!)
     const checkOptimiser = forbidImageOptimiser(page)
-    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page).toHaveURL(ADMIN_LANDING)
 
     // URL -> filters: a shared link opens with the same filters applied.
     await page.goto(`/admin?venue=${venueA.id}&type=image`)

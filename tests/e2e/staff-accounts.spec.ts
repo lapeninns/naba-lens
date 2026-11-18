@@ -9,7 +9,7 @@ import {
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 import { psql } from "./helpers/stack"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { ADMIN_LANDING, openPortfolio, STAFF_LANDING } from "./helpers/ui"
 import { provisionWorld, signedInPage } from "./helpers/world"
 import { passMfaIfAsked } from "./helpers/mfa"
 
@@ -66,7 +66,7 @@ test.describe("admin staff management", () => {
     })
     const adminPage = await (await browser.newContext()).newPage()
     await signInAs(adminPage, adminUser.email)
-    await expect(adminPage).toHaveURL(/\/admin$/)
+    await expect(adminPage).toHaveURL(ADMIN_LANDING)
 
     // Invite through the dialog.
     await adminPage.goto("/admin/staff")
