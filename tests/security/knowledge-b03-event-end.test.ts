@@ -26,7 +26,7 @@ describe("B03 event-end freshness", () => {
     const revision = slotRevision(w.venue, "guest_toilets")
     const assetId = await photo(w.manager.id, w.venue)
     const claims = (id: string) =>
-      JSON.stringify({ sub: id, role: "authenticated" })
+      JSON.stringify({ sub: id, role: "authenticated", aal: "aal2" })
     const submitArgs = `'${checkId}', ${revision}, gen_random_uuid(), 'finding', 'yes',
       null, null, null, null, null, null, null, array['${assetId}'::uuid], null, null, false`
     // Keep the registry and policy fixtures in a rolled-back transaction.

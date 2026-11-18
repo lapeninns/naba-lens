@@ -21,6 +21,7 @@ export default async function BlockedPage() {
   const state = await getAuthState()
   if (state.status === "signed_out") redirect(ROUTES.login)
   if (state.status === "active") redirect(homePathFor(state.profile.role))
+  if (state.status === "mfa_required") redirect(ROUTES.mfa)
 
   return (
     <SignInPage>

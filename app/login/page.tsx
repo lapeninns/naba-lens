@@ -29,6 +29,7 @@ export default async function LoginPage({
     redirect(returnPathFor(state.profile.role, returnTo))
   if (state.status === "inactive" || state.status === "no_profile")
     redirect(ROUTES.blocked)
+  if (state.status === "mfa_required") redirect(ROUTES.mfa)
 
   const captcha = getLoginCaptchaConfig()
 

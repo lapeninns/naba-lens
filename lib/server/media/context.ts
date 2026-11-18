@@ -60,6 +60,13 @@ export async function getMediaActor(
   if (state.status === "signed_out") {
     return { ok: false, status: 401, message: "Sign in to continue." }
   }
+  if (state.status === "mfa_required") {
+    return {
+      ok: false,
+      status: 403,
+      message: "Enter the code from your authenticator app to continue.",
+    }
+  }
   if (state.status !== "active") {
     return { ok: false, status: 403, message: "Your account is not active." }
   }

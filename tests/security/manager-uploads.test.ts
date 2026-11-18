@@ -39,6 +39,7 @@ import {
   section,
   type CatalogueRow,
 } from "./menus-fixtures"
+import { acceptAsset } from "./privacy-fixtures"
 
 type Reserved = {
   id: string
@@ -765,6 +766,8 @@ describe("visibility", () => {
     const v = await world("mgr-upload-convert")
     const mine = await readyUpload(v.manager)
     const colleague = await readyUpload(v.staffB)
+    // FA-20: a colleague's photo reads once accepted.
+    acceptAsset(colleague, v.admin.id)
     await ok(
       v.admin.client.rpc("convert_manager_to_staff", {
         p_profile_id: v.manager.id,

@@ -61,6 +61,7 @@ function candidates(
     ? JSON.stringify({
         sub: person,
         role: "authenticated",
+        aal: "aal2",
         aud: "authenticated",
       })
     : JSON.stringify({ role: "authenticated", aud: "authenticated" })
@@ -91,6 +92,7 @@ function statePage(
     ? JSON.stringify({
         sub: person,
         role: "authenticated",
+        aal: "aal2",
         aud: "authenticated",
       })
     : JSON.stringify({ role: "authenticated", aud: "authenticated" })

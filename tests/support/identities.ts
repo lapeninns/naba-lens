@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "../../lib/db/types"
 import { getLocalSupabaseEnv } from "./local-supabase"
+import { elevateToAal2 } from "./totp"
 
 export type Db = SupabaseClient<Database>
 
@@ -112,11 +113,22 @@ export async function signIn(admin: Db, email: string): Promise<Db> {
   if (linkError) throw linkError
 
   const client = anonClient()
-  const { error } = await client.auth.verifyOtp({
+  const { data: session, error } = await client.auth.verifyOtp({
     type: "email",
     token_hash: link.properties.hashed_token,
   })
   if (error) throw error
+  // FA-23: an admin acts as an admin only on an aal2 session, so test admins
+  // pass a TOTP second factor like a real one (tests/support/totp.ts).
+  const userId = session.user?.id
+  if (userId) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle()
+    if (profile?.role === "admin") await elevateToAal2(client)
+  }
   return client
 }
 

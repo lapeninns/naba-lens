@@ -987,7 +987,7 @@ rollback;
 
 /** Switches the transaction to a signed-in caller (role authenticated). */
 const as = (who: Identity) => `reset role;
-set local "request.jwt.claims" to ${lit({ sub: who.id, role: "authenticated" })};
+set local "request.jwt.claims" to ${lit({ sub: who.id, role: "authenticated", aal: "aal2" })};
 set local role authenticated;`
 
 /** Stores the slot revision in a40.rev, as the owner. */

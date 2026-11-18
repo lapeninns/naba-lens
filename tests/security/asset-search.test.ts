@@ -153,7 +153,7 @@ async function evidence(
 /** As the signed-in user, inside one transaction (psql as the owner). */
 function asUser(user: string, sql: string): string {
   const out = psql(`begin;
-    select set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated"}', true) is null;
+    select set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated","aal":"aal2"}', true) is null;
     ${sql};
     commit;`)
   return out.split("\n").at(-1)!.trim()
@@ -1066,7 +1066,7 @@ function compareBodies(user: string, cases: Case[], setup = ""): Diff {
     ${referenceDefinition()};
     ${HARNESS}
     ${setup}
-    select set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated"}', true) is null;
+    select set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated","aal":"aal2"}', true) is null;
     set local role authenticated;
     select json_build_object(
         'pages', coalesce(sum(w.pages), 0), 'rows', coalesce(sum(w.rows), 0),
@@ -2187,7 +2187,7 @@ ${fn.slice(at + CHUNK_MARK.length)};`
           return v_out;
         end $f$;
         grant execute on function pg_temp.reads(jsonb, integer, integer) to authenticated;
-        select set_config('request.jwt.claims', '{"sub":"${c.manager.id}","role":"authenticated"}', true) is null;
+        select set_config('request.jwt.claims', '{"sub":"${c.manager.id}","role":"authenticated","aal":"aal2"}', true) is null;
         set local role authenticated;
         select pg_temp.reads('${JSON.stringify(filters)}', ${limit}, ${pages});
         rollback;`)
@@ -2298,7 +2298,7 @@ ${fn.slice(at + CHUNK_MARK.length)};`
     const check = (who: Who, venue: string, setup = "") => {
       const out = psql(`begin;
         ${setup}
-        select set_config('request.jwt.claims', '{"sub":"${who.id}","role":"authenticated"}', true) is null;
+        select set_config('request.jwt.claims', '{"sub":"${who.id}","role":"authenticated","aal":"aal2"}', true) is null;
         select json_build_object(
           'violations', count(*) filter (where x.admitted and not x.p),
           'admitted', coalesce(json_agg(x.id) filter (where x.admitted), '[]'),

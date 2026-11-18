@@ -3424,6 +3424,125 @@ export type Database = {
           },
         ]
       }
+      media_removal_events: {
+        Row: {
+          action: string
+          actor_id: string
+          asset_id: string
+          created_at: string
+          id: number
+          impact: Json | null
+          reason: string | null
+          request_id: string | null
+          venue_id: string
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          asset_id: string
+          created_at?: string
+          id?: never
+          impact?: Json | null
+          reason?: string | null
+          request_id?: string | null
+          venue_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          asset_id?: string
+          created_at?: string
+          id?: never
+          impact?: Json | null
+          reason?: string | null
+          request_id?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_removal_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_removal_events_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "media_removal_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_removal_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_removal_requests: {
+        Row: {
+          asset_id: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_reason: string | null
+          id: string
+          reason: string
+          requested_by: string
+          state: string
+          venue_id: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          id?: string
+          reason: string
+          requested_by: string
+          state?: string
+          venue_id: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          id?: string
+          reason?: string
+          requested_by?: string
+          state?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_removal_requests_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "media_removal_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_removal_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_use_destinations: {
         Row: {
           active: boolean
@@ -5263,6 +5382,10 @@ export type Database = {
         Args: { p_expected_revision: number; p_version_id: string }
         Returns: undefined
       }
+      admin_delete_media_asset: {
+        Args: { p_asset_id: string; p_impact_token: string; p_reason: string }
+        Returns: Json
+      }
       album_admin_counts: { Args: { p_venue_id: string }; Returns: Json }
       album_area_states: { Args: { p_venue_id?: string }; Returns: Json }
       album_brief_set: {
@@ -5667,6 +5790,10 @@ export type Database = {
           state: string
         }[]
       }
+      cancel_media_removal_request: {
+        Args: { p_request_id: string }
+        Returns: Json
+      }
       claim_archive_monitor_alert: { Args: never; Returns: Json }
       clear_menu_item_needed_by: {
         Args: { p_item_id: string; p_venue_id?: string }
@@ -6067,6 +6194,10 @@ export type Database = {
           label_id: string
           state: string
         }[]
+      }
+      decline_media_removal_request: {
+        Args: { p_reason: string; p_request_id: string }
+        Returns: Json
       }
       delete_media_asset: { Args: { p_asset_id: string }; Returns: undefined }
       discard_menu_coverage_plan: {
@@ -6754,6 +6885,11 @@ export type Database = {
           variant_name: string
         }[]
       }
+      media_removal_impact: { Args: { p_asset_id: string }; Returns: Json }
+      media_removal_requests: {
+        Args: { p_state?: string; p_venue_id?: string }
+        Returns: Json
+      }
       media_use_grant_create: {
         Args: {
           p_asset_id: string
@@ -6946,6 +7082,7 @@ export type Database = {
           waiting: number
         }[]
       }
+      my_mfa_status: { Args: never; Returns: Json }
       my_month_photos: {
         Args: { p_limit?: number; p_period_month?: string }
         Returns: {
@@ -7085,6 +7222,10 @@ export type Database = {
       release_maintenance_lease: {
         Args: { p_holder: string; p_name: string }
         Returns: undefined
+      }
+      request_media_removal: {
+        Args: { p_asset_id: string; p_reason: string }
+        Returns: Json
       }
       reserve_media_asset: {
         Args: {

@@ -16,6 +16,8 @@ export const ROUTES = {
   managerAccount: "/manager/account",
   adminHome: "/admin",
   blocked: "/auth/blocked",
+  /** Second sign-in step: set up or enter an authenticator code (FA-23). */
+  mfa: "/auth/mfa",
 } as const
 
 /**
