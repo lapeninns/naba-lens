@@ -102,6 +102,33 @@ describe("InstallApp", () => {
     ).toBeNull()
   })
 
+  it("offers again only when the browser fires a new event after a dismissal", async () => {
+    render(<InstallApp />)
+    fireInstallPrompt("dismissed")
+    await userEvent.click(
+      screen.getByRole("button", { name: INSTALL_COPY.button })
+    )
+    expect(
+      screen.queryByRole("button", { name: INSTALL_COPY.button })
+    ).toBeNull()
+    fireInstallPrompt()
+    expect(
+      screen.getByRole("button", { name: INSTALL_COPY.button })
+    ).toBeTruthy()
+  })
+
+  it("never offers again once installed, even if an event arrives", async () => {
+    render(<InstallApp />)
+    fireInstallPrompt("accepted")
+    await userEvent.click(
+      screen.getByRole("button", { name: INSTALL_COPY.button })
+    )
+    fireInstallPrompt()
+    expect(
+      screen.queryByRole("heading", { name: INSTALL_COPY.title })
+    ).toBeNull()
+  })
+
   it("hides the button once the app is installed another way", () => {
     render(<InstallApp />)
     fireInstallPrompt()

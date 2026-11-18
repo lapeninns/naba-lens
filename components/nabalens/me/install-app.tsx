@@ -12,8 +12,9 @@ import { Button } from "@/components/ui/button"
  *
  *   - Chrome, Edge and other browsers that fire `beforeinstallprompt`: an
  *     **Add to home screen** button that opens the browser's own prompt. It
- *     shows only while the browser offers installation, and goes once the
- *     app is installed or the prompt is answered either way.
+ *     shows only while the browser offers installation. Answering the prompt
+ *     either way spends it, so the button goes; it comes back only if the
+ *     browser offers again. Once installed it never comes back.
  *   - iPhone and iPad (no such event): three short steps for Safari's Share
  *     menu, on iOS only.
  *   - Anything else, or already opened from the home screen: nothing.
@@ -44,8 +45,8 @@ export interface BeforeInstallPromptEvent extends Event {
 export type InstallOffer = "prompt" | "ios" | "none"
 
 let deferred: BeforeInstallPromptEvent | null = null
-/** Installed, or the prompt was answered, in this page's life. */
-let finished = false
+/** Installed in this page's life (accepted, or `appinstalled`). */
+let installed = false
 const subscribers = new Set<() => void>()
 
 function notify() {
@@ -59,15 +60,10 @@ function onBeforeInstallPrompt(event: Event) {
   notify()
 }
 
-/** Installed, or the prompt was answered: the offer goes for this page. */
-function finish() {
-  deferred = null
-  finished = true
-  notify()
-}
-
 function onInstalled() {
-  finish()
+  deferred = null
+  installed = true
+  notify()
 }
 
 /**
@@ -79,11 +75,13 @@ async function promptInstall() {
   if (!event) return
   try {
     await event.prompt()
-    await event.userChoice
+    const { outcome } = await event.userChoice
+    if (outcome === "accepted") installed = true
   } catch {
     // Already used or refused by the browser: nothing more to offer.
   } finally {
-    finish()
+    if (deferred === event) deferred = null
+    notify()
   }
 }
 
@@ -102,7 +100,7 @@ listenForInstallPrompt()
 /** Test seam: forget the kept event. */
 export function resetInstallPromptForTests() {
   deferred = null
-  finished = false
+  installed = false
   notify()
 }
 
@@ -126,7 +124,7 @@ export function isIos(nav: {
 }
 
 function currentOffer(): InstallOffer {
-  if (finished || isStandalone()) return "none"
+  if (installed || isStandalone()) return "none"
   if (deferred) return "prompt"
   if (isIos(window.navigator)) return "ios"
   return "none"
