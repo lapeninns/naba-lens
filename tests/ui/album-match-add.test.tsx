@@ -26,7 +26,7 @@ import {
 } from "@/components/nabalens/shell/add-context"
 import type { Uploader } from "@/components/nabalens/upload-queue"
 
-import { CATALOGUE } from "./labels-fixtures"
+import { CATALOGUE, savedAnswer } from "./labels-fixtures"
 
 const PASS = "00000000-0000-4000-8000-00000000b002"
 const GARDEN = "00000000-0000-4000-8000-00000000b003"
@@ -161,7 +161,7 @@ function labelApi(url: string, init?: RequestInit) {
   if (method === "POST") {
     const sent = JSON.parse(String(init!.body))
     posted.push(sent)
-    body = { ok: true, assetId: sent.input.assetId, state: "pending" }
+    body = savedAnswer(sent)
   } else if (method === "DELETE") body = { ok: true }
   else if (url.includes("attention=1")) body = { ok: true, items: [] }
   else body = { ok: true, catalogue: CATALOGUE, focus: null }
@@ -525,6 +525,27 @@ describe("choosing the slot (spec §5.3)", () => {
     ).toEqual({ venue: "venue-1", slots: ["dish:item-bhaji"] })
   })
 
+  it("offers a slot matched earlier in this visit under Recent once it is Waiting (E5)", async () => {
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    let dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    await within(matchDialog()).findByRole("heading", { name: "1 slot filled" })
+    await waitFor(() =>
+      expect(
+        matchDialog().querySelector('[data-slot="match-summary"] li')
+      ).toHaveProperty("dataset.state", "waiting")
+    )
+    // Closed without Album reading the slot again: no reload.
+    await user.click(screen.getByRole("button", { name: "Close" }))
+    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    await user.upload(gallery(), [jpeg("b.jpg", 5)])
+    dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    const recent = await within(dialog).findByRole("list", { name: "Recent" })
+    expect(within(recent).getByText("Onion Bhaji")).toBeTruthy()
+  })
+
   it("finds a dish by its other name and a slot already waiting", async () => {
     const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
     const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
@@ -691,6 +712,41 @@ describe("a venue change before sending (AC11, spec §6 S2)", () => {
     await waitFor(() => expect(sentFor("asset-q1.jpg")).toHaveLength(1))
     await new Promise((r) => setTimeout(r, 20))
     expect(started).toEqual(["q1.jpg", "q2.jpg"])
+  })
+
+  it("reads Sent, not Waiting, while a dish label is not on the photo (V8)", async () => {
+    // The label is only staged ("pending") and finalise reports none.
+    vi.mocked(fetch).mockImplementation((url, init) => {
+      if (init?.method === "POST") {
+        const sent = JSON.parse(String(init.body))
+        posted.push(sent)
+        return Promise.resolve({
+          json: async () => ({
+            ok: true,
+            assetId: sent.input.assetId,
+            state: "pending",
+          }),
+        } as Response)
+      }
+      return labelApi(String(url), init)
+    })
+    const user = await pick({ match: { place: PASS } }, [jpeg("s.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    await waitFor(() => expect(sentFor("asset-s.jpg")).toHaveLength(1))
+    const row = await waitFor(() => {
+      const li = matchDialog().querySelector<HTMLElement>(
+        '[data-slot="match-summary"] li'
+      )
+      expect(li?.dataset.state).toBe("sent")
+      return li!
+    })
+    expect(within(row).getByText("Sent")).toBeTruthy()
+    expect(
+      within(matchDialog()).getByRole("heading", { name: "No slots filled" })
+    ).toBeTruthy()
   })
 
   it("loads the new venue's menu, so a dish matched there keeps its label (V8)", async () => {

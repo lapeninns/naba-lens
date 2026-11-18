@@ -713,6 +713,15 @@ export function AddHost({
   const [slotSends, setSlotSends] = React.useState<
     ReadonlyMap<string, SlotSend>
   >(() => new Map())
+  // Match holds back only slots whose photo is still on its way: a Waiting
+  // slot welcomes another photo (spec §6 S1) and is offered under Recent and
+  // Waiting in the same visit (S3-E2E-1 E5), whether or not Album has shown
+  // its tile since.
+  const sendingSlots = React.useMemo(
+    () =>
+      new Map([...slotSends].filter(([, send]) => send.state === "sending")),
+    [slotSends]
+  )
   const matchSeq = React.useRef(0)
   // S2-METRICS (spec §18.3): the current Match run's route and batch, and
   // how each matched file was started, for workflow events (ids and counts
@@ -1637,7 +1646,9 @@ export function AddHost({
         const result = await saveUploadLabels(venueId, input)
         if (result.ok) {
           labelJournal.confirmed(input)
-          if (input.items.length > 0) {
+          // "saved": on the photo now. "pending" is staged for finalise,
+          // whose own receipt says whether it took (sent_for_review).
+          if (result.state === "saved" && input.items.length > 0) {
             labelSaved.current.add(input.assetId)
             const file = awaitingLabel.current.get(input.assetId)
             if (file) {
@@ -1859,7 +1870,7 @@ export function AddHost({
                     .filter(Boolean)
                     .join(" ") || null
                 }
-                busySlots={slotSends}
+                busySlots={sendingSlots}
                 venueName={
                   (board.state === "ready" ? board.board.venue?.name : null) ??
                   venueName
