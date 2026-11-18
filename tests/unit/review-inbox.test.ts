@@ -16,6 +16,7 @@ import {
   parsePhotoDetail,
   RevisionChain,
 } from "@/lib/review/inbox"
+import { notificationWords, parseInbox } from "@/lib/ops/notifications"
 import type { QueueCard } from "@/lib/server/menu-photos/types"
 
 const A = "00000000-0000-4000-8000-000000000001"
@@ -233,5 +234,28 @@ describe("inbox words", () => {
     )
     expect(historyWords("duplicate", null)).toBe("Marked duplicate")
     expect(historyWords("something_new", null)).toBe("something new")
+  })
+})
+
+describe("Label corrected notice (FA-7)", () => {
+  it("is read from the inbox and says which dish it now counts for", () => {
+    const inbox = parseInbox({
+      items: [
+        {
+          id: 1,
+          kind: "label_corrected",
+          state: "unread",
+          createdAt: "2026-11-12T10:00:00Z",
+          subjectType: "menu_item",
+          payload: { itemName: "Pie", fromItemName: "Soup" },
+        },
+      ],
+      unread: 1,
+    })!
+    expect(inbox.items).toHaveLength(1)
+    expect(notificationWords(inbox.items[0]!)).toEqual({
+      title: "Label corrected: Pie",
+      detail: "You labelled it Soup. Nothing to do.",
+    })
   })
 })
