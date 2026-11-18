@@ -41,7 +41,9 @@
 
 create table public.venue_memberships (
   id uuid primary key default gen_random_uuid(),
-  profile_id uuid not null references public.profiles (id) on delete restrict,
+  -- Cascades only with the profile itself: a profile without other history
+  -- (an invitation made by mistake) stays deletable, as before.
+  profile_id uuid not null references public.profiles (id) on delete cascade,
   venue_id uuid not null references public.venues (id) on delete restrict,
   role text not null check (role in ('staff', 'manager')),
   -- How the row was opened: backfill (this migration), profile (invite,
@@ -113,9 +115,26 @@ create trigger venue_memberships_insert_guard
 create trigger venue_memberships_guard
   before update on public.venue_memberships
   for each row execute function private.venue_memberships_guard();
+-- Rows are never deleted on their own; they go only when their profile is
+-- deleted (the cascade runs after the profile row is gone).
+create function private.profile_history_delete_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from public.profiles p where p.id = old.profile_id) then
+    raise exception 'append_only' using errcode = '42501',
+      detail = format('%s rows are kept as history.', tg_table_name);
+  end if;
+  return old;
+end;
+$$;
+
 create trigger venue_memberships_no_delete
   before delete on public.venue_memberships
-  for each row execute function private.append_only_guard();
+  for each row execute function private.profile_history_delete_guard();
 create trigger venue_memberships_no_truncate
   before truncate on public.venue_memberships
   for each statement execute function private.append_only_guard();
@@ -533,6 +552,7 @@ create trigger venue_manager_grants_sync_memberships
 -- ---------------------------------------------------------------------------
 
 revoke all on function
+  private.profile_history_delete_guard(),
   private.venue_memberships_insert_guard(),
   private.venue_memberships_guard(),
   private.venue_switch_active(),
@@ -544,6 +564,7 @@ revoke all on function
 from public, anon;
 
 grant execute on function
+  private.profile_history_delete_guard(),
   private.venue_memberships_insert_guard(),
   private.venue_memberships_guard(),
   private.venue_switch_active(),

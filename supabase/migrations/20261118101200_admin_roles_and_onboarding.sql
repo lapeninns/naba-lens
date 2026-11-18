@@ -129,7 +129,7 @@ $$;
 
 create table public.contribution_notice_acknowledgements (
   id uuid primary key default gen_random_uuid(),
-  profile_id uuid not null references public.profiles (id) on delete restrict,
+  profile_id uuid not null references public.profiles (id) on delete cascade,
   notice_version text not null check (notice_version ~ '^[a-z0-9][a-z0-9.-]{0,31}$'),
   acknowledged_at timestamptz not null default now(),
   unique (profile_id, notice_version)
@@ -139,8 +139,11 @@ comment on table public.contribution_notice_acknowledgements is
   'Which version of the contribution-use notice each person accepted at first sign-in (spec §3.2). Append-only.';
 
 create trigger contribution_notice_acknowledgements_append_only
-  before update or delete on public.contribution_notice_acknowledgements
+  before update on public.contribution_notice_acknowledgements
   for each row execute function private.append_only_guard();
+create trigger contribution_notice_acknowledgements_no_delete
+  before delete on public.contribution_notice_acknowledgements
+  for each row execute function private.profile_history_delete_guard();
 create trigger contribution_notice_acknowledgements_no_truncate
   before truncate on public.contribution_notice_acknowledgements
   for each statement execute function private.append_only_guard();
