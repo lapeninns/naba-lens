@@ -10,6 +10,7 @@ import {
 } from "@/components/nabalens/tasks/copy"
 import { Progress } from "@/components/ui/progress"
 import type { MonthlyProgress } from "@/components/nabalens/tasks/types"
+import { ALBUM_UPLOAD_TRAY } from "@/lib/config/album-upload-tray"
 
 // Moved from tasks/monthly-progress-card.tsx (deleted in A5) for Me (AL-2).
 
@@ -44,7 +45,13 @@ export function TargetSetup({ monthly }: { monthly: MonthlyProgress }) {
  * The target line ("{n} of {target} completed/accepted"), its bar and what is
  * left. Shared with Home's This month card, so both say the same.
  */
-export function TargetProgress({ monthly }: { monthly: MonthlyProgress }) {
+export function TargetProgress({
+  monthly,
+  compact = false,
+}: {
+  monthly: MonthlyProgress
+  compact?: boolean
+}) {
   const target = monthly.targetCount
   const completion = monthly.completionProgress
   const count = completion?.total ?? monthly.accepted
@@ -55,7 +62,15 @@ export function TargetProgress({ monthly }: { monthly: MonthlyProgress }) {
   return (
     <div className="grid gap-3">
       <p className="flex flex-wrap items-baseline gap-x-2">
-        <span className="type-figure text-ink">{count}</span>
+        <span
+          className={
+            compact
+              ? "type-title text-ink tabular-nums"
+              : "type-figure text-ink tabular-nums"
+          }
+        >
+          {count}
+        </span>
         <span className="text-heading text-ink-muted">
           {" "}
           {hasTarget ? `of ${target} ${unit}` : unit}
@@ -82,7 +97,7 @@ export function TargetProgress({ monthly }: { monthly: MonthlyProgress }) {
           </div>
         </div>
       ) : null}
-      {remaining ? (
+      {remaining && !compact ? (
         <p className="text-body text-ink">
           {completion
             ? plural(remaining, "more completion", "more completions")
@@ -125,11 +140,13 @@ export function YourMonthCard({
   monthly,
   monthHref = "/staff/tasks/month",
   replacements = null,
+  compact = false,
 }: {
   monthly: MonthlyProgress | null
   monthHref?: string
   /** This month's slots filled and outdated photos replaced, when read. */
   replacements?: { covered: number; replaced: number } | null
+  compact?: boolean
 }) {
   const needsSetup = monthly?.status === "needs_setup"
   return (
@@ -150,14 +167,16 @@ export function YourMonthCard({
           <StatusChip state="target_met" />
         ) : null}
       </CardHead>
-      <p className="text-meta text-ink-muted">{COPY.private}</p>
+      <p className="text-meta text-ink-muted">
+        {ALBUM_UPLOAD_TRAY && monthly ? monthly.period.label : COPY.private}
+      </p>
 
       {!monthly ? (
         <p className="text-body text-ink-muted">{COPY.noTarget}</p>
       ) : needsSetup ? (
         <TargetSetup monthly={monthly} />
       ) : (
-        <TargetProgress monthly={monthly} />
+        <TargetProgress monthly={monthly} compact={compact} />
       )}
 
       {replacements ? (
@@ -166,7 +185,13 @@ export function YourMonthCard({
         </p>
       ) : null}
 
-      <p className="max-w-reading text-meta text-ink-muted">{COPY.counts}</p>
+      <p className="max-w-reading text-meta text-ink-muted">
+        {compact && monthly?.status === "set" && !monthly.completionProgress
+          ? "Photos count once accepted. Check your month for the full rules."
+          : ALBUM_UPLOAD_TRAY && monthly?.completionProgress
+            ? "Menu photos you label count once accepted for the menu. Valid findings for your assigned amenity checks also count."
+            : COPY.counts}
+      </p>
 
       <Link href={monthHref} className={LINK}>
         {COPY.seeMonth}

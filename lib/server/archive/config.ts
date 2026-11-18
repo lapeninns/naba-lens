@@ -1,5 +1,7 @@
 import "server-only"
 
+import { isIPv4 } from "node:net"
+
 export type ArchiveConfig = {
   sourceUrl: string
   sourceProjectRef: string
@@ -30,8 +32,18 @@ export function readArchiveConfig(
   } catch {
     throw new Error("archive_source_not_configured")
   }
+  // The phone launcher opts in with the same private IPv4 address it binds
+  // Next to. A hosted environment still goes through project validation.
+  const phoneDev =
+    env.NODE_ENV === "development" &&
+    mode === "disabled" &&
+    parsed.hostname === env.NABALENS_PHONE_HOST &&
+    parsed.protocol === "http:" &&
+    isIPv4(parsed.hostname) &&
+    /^(?:10\.|172\.(?:1[6-9]|2\d|3[01])\.|192\.168\.)/.test(parsed.hostname)
   const local =
-    ["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname) &&
+    (["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname) ||
+      phoneDev) &&
     ["http:", "https:"].includes(parsed.protocol) &&
     !parsed.username &&
     !parsed.password &&

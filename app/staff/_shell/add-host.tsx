@@ -54,6 +54,7 @@ import {
   writeRecentSlot,
 } from "@/components/nabalens/album/match/last-place"
 import type { BoardState } from "@/components/nabalens/album/match/match-picker"
+import { MatchTray } from "@/components/nabalens/album/match/match-tray"
 import {
   MatchScreen,
   type MatchOutcome,
@@ -103,6 +104,7 @@ import {
   resumableEntries,
 } from "@/components/nabalens/shell/capture-resume"
 import { MEDIA_LIMITS } from "@/lib/config/media"
+import { ALBUM_UPLOAD_TRAY } from "@/lib/config/album-upload-tray"
 import {
   annotateCapture,
   captureAnnotation,
@@ -114,6 +116,7 @@ import type { UploadReceipt } from "@/lib/upload/states"
 import { localUploadKeyStore } from "@/lib/upload/upload-keys"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
+import { newClientId } from "@/lib/client-id"
 import type { CaptureRoute } from "@/lib/metrics/events"
 import { registerFlowSender, trackFlow } from "@/lib/metrics/track"
 import { recordFlowEventsAction } from "@/app/_metrics/actions"
@@ -188,7 +191,10 @@ type MatchRun = {
   photos: MatchPhoto[]
   current: string | null
   notice: string | null
+  lockedSlot?: MatchOutcome
 }
+
+const PhotoMatchScreen = ALBUM_UPLOAD_TRAY ? MatchTray : MatchScreen
 
 /** The catalogue item for a preset, when this menu still offers it. */
 function onMenu(catalogue: LabelCatalogue, preset: AddLabelPreset) {
@@ -847,7 +853,7 @@ export function AddHost({
       const key = matchKeys.current.get(file)
       if (!key) return
       setOutcomes((current) => new Map(current).set(key, { kind: "later" }))
-      setSent(file, null)
+      setSent(file, ALBUM_UPLOAD_TRAY ? "sent" : null)
     },
     [setSent]
   )
@@ -881,6 +887,8 @@ export function AddHost({
         )
         if (saved) {
           tries.set(assetId, "saved")
+          if (ALBUM_UPLOAD_TRAY && areaReady.current.has(assetId))
+            owner.onSent?.(file, "waiting")
           return
         }
         if (before === "failed") {
@@ -984,7 +992,7 @@ export function AddHost({
       contentTypes: outcome.kind === "shared" ? [outcome.shared] : null,
       note: kept,
       help: unsure,
-      onSent: slot || unsure ? setSent : null,
+      onSent: ALBUM_UPLOAD_TRAY || slot || unsure ? setSent : null,
       noLabels: outcome.kind === "later" || (unsure && !kept),
       venueId: runVenue.current ?? venueId,
     }
@@ -1012,13 +1020,7 @@ export function AddHost({
     const run = (matchSeq.current += 1)
     // A photo the queue would never take is said now and left in the
     // gallery; Match holds only photos it can send.
-    const refused = files.flatMap((file) => {
-      const why = matchRefusal(file)
-      return why ? [why] : []
-    })
-    const usable = files.filter((file) => !refused.some((r) => r.file === file))
-    const kept = usable.slice(0, MATCH_MAX)
-    const extra = usable.length - kept.length
+    const { kept, notice } = prepareMatchPick(files, MATCH_MAX)
     const photos = byCaptureTime(
       kept.map((file, i) => ({ key: `m${run}-${i}`, file }))
     )
@@ -1026,7 +1028,7 @@ export function AddHost({
     // S2-METRICS (K5): a manager's Asked for is its own route.
     matchFlow.current = {
       route: fromRequest ? "request" : decided ? "slot" : "gallery",
-      batchId: crypto.randomUUID(),
+      batchId: newClientId(),
     }
     trackFlow({
       name: "flow_started",
@@ -1056,15 +1058,8 @@ export function AddHost({
     setMatchRun({
       photos,
       current,
-      notice:
-        [
-          extra > 0 ? MATCH_COPY.tooMany(MATCH_MAX, extra) : null,
-          refused.length > 0
-            ? MATCH_COPY.notAdded(refused.map((r) => r.reason))
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" ") || null,
+      lockedSlot: decided ?? undefined,
+      notice,
     })
     if (decided && photos.length > 0)
       sendMatched(
@@ -1121,6 +1116,8 @@ export function AddHost({
     if (matchRun && runVenue.current && venueId !== runVenue.current) {
       const old = runVenue.current
       runVenue.current = venueId
+      if (ALBUM_UPLOAD_TRAY && matchRun.lockedSlot)
+        setMatchRun({ ...matchRun, lockedSlot: undefined })
       const waitingFiles = new Set(outbox)
       const undone = matchRun.photos.filter(
         (p) =>
@@ -1194,6 +1191,7 @@ export function AddHost({
   // What the gallery's next pick is for: today's Add, Match, or one slot.
   const pickMode = React.useRef<
     | { kind: "add" }
+    | { kind: "append" }
     | { kind: "match"; place: string | null; request: boolean }
     | { kind: "slot"; slot: MatchTarget; request: boolean }
   >({ kind: "add" })
@@ -1213,13 +1211,45 @@ export function AddHost({
       }
       if (mode.kind === "slot") {
         startMatch(
-          files.slice(0, 1),
+          ALBUM_UPLOAD_TRAY ? files : files.slice(0, 1),
           null,
           { kind: "slot", slot: slotOf(mode.slot) },
           mode.request
         )
         return
       }
+      if (mode.kind === "append" && matchRun) {
+        const room = MATCH_MAX - matchRun.photos.length
+        const { kept, notice } = prepareMatchPick(files, room)
+        const photos = byCaptureTime(
+          kept.map((file, i) => ({
+            key: `m${matchSeq.current}-${matchRun.photos.length + i}`,
+            file,
+          }))
+        )
+        for (const photo of photos) matchKeys.current.set(photo.file, photo.key)
+        setMatchRun({
+          ...matchRun,
+          photos: [...matchRun.photos, ...photos],
+          notice,
+        })
+        const locked = matchRun.lockedSlot
+        if (locked && photos.length > 0) {
+          setOutcomes(
+            (current) =>
+              new Map([
+                ...current,
+                ...photos.map((photo) => [photo.key, locked] as const),
+              ])
+          )
+          sendMatched(
+            photos.map((photo) => photo.file),
+            locked
+          )
+        }
+        return
+      }
+      if (mode.kind === "append") return
       claim(files, owner)
       queueFiles(files)
     },
@@ -1387,7 +1417,13 @@ export function AddHost({
         if (labelPending && receipt !== "label_not_saved")
           awaitingLabel.current.set(id, files[i])
         const sendState: SendState =
-          receipt === "label_not_saved" || labelPending ? "sent" : "waiting"
+          ALBUM_UPLOAD_TRAY &&
+          (owner?.area || owner?.help) &&
+          areaTries.current.get(id) !== "saved"
+            ? "checking"
+            : receipt === "label_not_saved" || labelPending
+              ? "sent"
+              : "waiting"
         owner?.onSent?.(files[i], sendState)
         trackFlow({
           name: "submitted",
@@ -1485,7 +1521,15 @@ export function AddHost({
         // stopped, or its labels need attention) is shown first, as today's
         // Add does; photos only sending never hold back the next pick. A
         // slot's own tile still opens its gallery, as any picker source does.
-        if (opts.match && !blocked && role === "staff" && needing > 0) {
+        // The phone preview gives recovery its own Home row so Add photos
+        // always starts a new gallery pick (DESIGN.md §6.1a).
+        if (
+          !ALBUM_UPLOAD_TRAY &&
+          opts.match &&
+          !blocked &&
+          role === "staff" &&
+          needing > 0
+        ) {
           sheetOwner.current = null
           pickerOwner.current = null
           setUploadOpen(true)
@@ -1499,7 +1543,10 @@ export function AddHost({
           pickMode.current = opts.slot
             ? { kind: "slot", slot: opts.slot, request }
             : { kind: "match", place: opts.match?.place ?? null, request }
-          openPicker({ multiple: !opts.slot, imagesOnly: true })
+          openPicker({
+            multiple: ALBUM_UPLOAD_TRAY || !opts.slot,
+            imagesOnly: true,
+          })
           return
         }
         const slotPreset: AddLabelPreset | null =
@@ -1921,8 +1968,24 @@ export function AddHost({
                   groupsOn && addingToSet ? ENTRY_COPY.addMoreToSet : undefined
                 }
               />
-              <MatchScreen
+              <PhotoMatchScreen
+                key={
+                  ALBUM_UPLOAD_TRAY
+                    ? `${matchSeq.current}:${venueId}`
+                    : undefined
+                }
                 open={matchRun !== null}
+                lockedSlot={matchRun?.lockedSlot}
+                onAddMore={
+                  ALBUM_UPLOAD_TRAY &&
+                  matchRun &&
+                  matchRun.photos.length < MATCH_MAX
+                    ? () => {
+                        pickMode.current = { kind: "append" }
+                        openPicker({ imagesOnly: true })
+                      }
+                    : undefined
+                }
                 photos={matchRun?.photos ?? []}
                 outcomes={outcomes}
                 sendStates={sendStates}
@@ -1952,8 +2015,18 @@ export function AddHost({
                 onClose={closeMatch}
               />
               <OutboxGuard
-                count={outbox.length}
-                onLeave={() => setOutbox([])}
+                count={
+                  outbox.length +
+                  (ALBUM_UPLOAD_TRAY && matchRun
+                    ? matchRun.photos.filter(
+                        (photo) => !outcomes.has(photo.key)
+                      ).length
+                    : 0)
+                }
+                onLeave={() => {
+                  setOutbox([])
+                  if (ALBUM_UPLOAD_TRAY) setMatchRun(null)
+                }}
               />
               <p role="status" className="sr-only">
                 {attentionSaid}
@@ -1988,6 +2061,27 @@ function matchRefusal(file: File): RejectedFile | null {
   return guessMediaKind(file) === "image"
     ? null
     : { name: file.name, reason: MATCH_COPY.photosOnly, file }
+}
+
+function prepareMatchPick(files: File[], limit: number) {
+  const refused: string[] = []
+  const eligible = files.filter((file) => {
+    const rejected = matchRefusal(file)
+    if (rejected) refused.push(rejected.reason)
+    return !rejected
+  })
+  const kept = eligible.slice(0, limit)
+  const extra = eligible.length - kept.length
+  return {
+    kept,
+    notice:
+      [
+        extra > 0 ? MATCH_COPY.tooMany(MATCH_MAX, extra) : null,
+        refused.length > 0 ? MATCH_COPY.notAdded(refused) : null,
+      ]
+        .filter(Boolean)
+        .join(" ") || null,
+  }
 }
 
 /** A slot's tile target as Match's slot (DESIGN.md §5 Slot tile). */

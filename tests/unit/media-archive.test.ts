@@ -209,6 +209,30 @@ describe("archive deployment boundary", () => {
       readArchiveConfig({ ...hosted, NABALENS_ENVIRONMENT: "unknown" })
     ).toThrow("environment_not_configured")
   })
+  it("allows archival to be disabled only for the configured local phone server", () => {
+    const phone = {
+      NODE_ENV: "development",
+      NEXT_PUBLIC_SUPABASE_URL: "http://192.168.1.128:61521",
+      NABALENS_PHONE_HOST: "192.168.1.128",
+      MEDIA_ARCHIVE_MODE: "disabled",
+    }
+    expect(readArchiveConfig(phone)).toBeNull()
+    for (const overrides of [
+      { NODE_ENV: "production" },
+      { VERCEL_ENV: "preview" },
+      { NABALENS_PHONE_HOST: "192.168.1.129" },
+      { NABALENS_ENVIRONMENT: "staging" },
+      { MEDIA_ARCHIVE_MODE: undefined },
+      {
+        NEXT_PUBLIC_SUPABASE_URL: "http://8.8.8.8:61521",
+        NABALENS_PHONE_HOST: "8.8.8.8",
+      },
+    ]) {
+      expect(() => readArchiveConfig({ ...phone, ...overrides })).toThrow(
+        "environment_not_configured"
+      )
+    }
+  })
   it("allows explicitly disabled staging even on its Vercel production target", () => {
     expect(
       readArchiveConfig({

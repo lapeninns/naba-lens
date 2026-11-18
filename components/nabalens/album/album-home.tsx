@@ -19,14 +19,19 @@ import {
 import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import { VenueBar } from "@/components/nabalens/venue-bar"
 import { Button } from "@/components/ui/button"
+import { PillGroup } from "@/components/ui/filter-pill"
+import { SearchField } from "@/components/ui/search-field"
 import {
   slotHref,
   type AlbumCounts,
   type AlbumPlace,
   type AlbumSlot,
   type AlbumView,
+  COVERAGE_CATEGORIES,
+  type CoverageCategory,
 } from "@/lib/album/model"
 import { rememberAlbumPlace } from "@/lib/album/remembered-place"
+import { ALBUM_UPLOAD_TRAY } from "@/lib/config/album-upload-tray"
 import { cn } from "@/lib/utils"
 
 import { UnfinishedRow } from "./unfinished-row"
@@ -132,32 +137,54 @@ export function AlbumHome({
 
   return (
     <div className="grid gap-5 pb-4" data-slot="album-home">
-      {/* v2 S1 Home: VenueBar on top, full bleed on a phone, a card beside
-          the wider column (D10). */}
-      <VenueBar
-        name={ALBUM_COPY.albumOf(venueName)}
-        className="-mx-page-gutter md:mx-0 md:rounded-card md:border md:border-line"
-      />
+      {ALBUM_UPLOAD_TRAY ? (
+        <div className="grid gap-3">
+          <Title className="type-page-title text-ink">Find a slot</Title>
+          <p className="text-body text-ink-muted">
+            Choose a dish, drink or space to add photos for it.
+          </p>
+          {blocked ? <Notice tone="attention">{blocked}</Notice> : null}
+          {allPlaces.length > 0 ? (
+            <AlbumSearch places={allPlaces} add={add} />
+          ) : null}
+        </div>
+      ) : null}
+      {!ALBUM_UPLOAD_TRAY ? (
+        <VenueBar
+          name={ALBUM_COPY.albumOf(venueName)}
+          className="-mx-page-gutter md:mx-0 md:rounded-card md:border md:border-line"
+        />
+      ) : null}
       <section aria-labelledby="album-count" className="grid gap-2.5">
-        <Title
-          id="album-count"
-          className="flex flex-wrap items-baseline gap-x-2"
-        >
-          {album.counts.empty > 0 ? (
-            <>
-              <span className="type-count text-ink tabular-nums">
-                {album.counts.empty}
+        {ALBUM_UPLOAD_TRAY ? (
+          <Section id="album-count" className="text-heading">
+            {album.counts.empty > 0
+              ? `${album.counts.empty} ${ALBUM_COPY.stillEmpty(album.counts.empty)}`
+              : album.counts.total
+                ? ALBUM_COPY.allFull
+                : ALBUM_COPY.empty}
+          </Section>
+        ) : (
+          <Title
+            id="album-count"
+            className="flex flex-wrap items-baseline gap-x-2"
+          >
+            {album.counts.empty > 0 ? (
+              <>
+                <span className="type-count text-ink tabular-nums">
+                  {album.counts.empty}
+                </span>
+                <span className="text-heading text-ink">
+                  {ALBUM_COPY.stillEmpty(album.counts.empty)}
+                </span>
+              </>
+            ) : (
+              <span className="type-display text-ink">
+                {album.counts.total ? ALBUM_COPY.allFull : ALBUM_COPY.empty}
               </span>
-              <span className="text-heading text-ink">
-                {ALBUM_COPY.stillEmpty(album.counts.empty)}
-              </span>
-            </>
-          ) : (
-            <span className="type-display text-ink">
-              {album.counts.total ? ALBUM_COPY.allFull : ALBUM_COPY.empty}
-            </span>
-          )}
-        </Title>
+            )}
+          </Title>
+        )}
         {album.counts.total > 0 ? (
           <>
             <div
@@ -200,9 +227,11 @@ export function AlbumHome({
       ) : null}
 
       {/* Photos that stopped or failed, under the retake row (spec §6 S1). */}
-      {canAdd ? <UnfinishedRow /> : null}
+      {!ALBUM_UPLOAD_TRAY && canAdd ? <UnfinishedRow /> : null}
 
-      {blocked ? <Notice tone="attention">{blocked}</Notice> : null}
+      {!ALBUM_UPLOAD_TRAY && blocked ? (
+        <Notice tone="attention">{blocked}</Notice>
+      ) : null}
 
       {askedFor}
 
@@ -280,28 +309,30 @@ export function AlbumHome({
         </section>
       ) : null}
 
-      {matchLater}
+      {!ALBUM_UPLOAD_TRAY ? matchLater : null}
 
       {otherJobs}
 
-      <div className="sticky bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+0.5rem)] z-dock md:static">
-        <Button
-          variant="primary"
-          size="lg"
-          className="min-h-14 w-full"
-          disabled={!canAdd}
-          onClick={() =>
-            add({
-              match: {
-                place: current ? (current.subjectId ?? "unplaced") : null,
-              },
-            })
-          }
-        >
-          <ImagesIcon data-icon="inline-start" aria-hidden />
-          {ALBUM_COPY.addMain}
-        </Button>
-      </div>
+      {!ALBUM_UPLOAD_TRAY ? (
+        <div className="sticky bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+0.5rem)] z-dock md:static">
+          <Button
+            variant="primary"
+            size="lg"
+            className="min-h-14 w-full"
+            disabled={!canAdd}
+            onClick={() =>
+              add({
+                match: {
+                  place: current ? (current.subjectId ?? "unplaced") : null,
+                },
+              })
+            }
+          >
+            <ImagesIcon data-icon="inline-start" aria-hidden />
+            {ALBUM_COPY.addMain}
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -353,9 +384,11 @@ function RetakeRow({
 export function AlbumSlotTile({
   slot,
   add,
+  layout,
 }: {
   slot: AlbumSlot
   add: (opts: OpenAddOptions) => void
+  layout?: "tile" | "row"
 }) {
   const fillable = slot.state === "needed" || slot.state === "retake"
   const addContext = useAddContext()
@@ -371,6 +404,7 @@ export function AlbumSlotTile({
   if (fillable && send)
     return (
       <SlotTile
+        layout={layout}
         name={slot.name}
         state={send.state}
         photoSrc={sentSrc ?? undefined}
@@ -384,6 +418,7 @@ export function AlbumSlotTile({
   if (slot.target.kind === "amenity" || !fillable || slot.optional)
     return (
       <SlotTile
+        layout={layout}
         name={slot.name}
         state={slot.state}
         photoSrc={slot.thumbnailUrl ?? undefined}
@@ -394,6 +429,7 @@ export function AlbumSlotTile({
   const target = slot.target
   return (
     <SlotTile
+      layout={layout}
       name={slot.name}
       state={slot.state}
       onSelect={() =>
@@ -405,5 +441,133 @@ export function AlbumSlotTile({
         })
       }
     />
+  )
+}
+
+/** Venue-wide search uses the same slot action as a place (DESIGN.md §6.1a). */
+const SLOTS_PER_PAGE = 18
+
+function AlbumSearch({
+  places,
+  add,
+}: {
+  places: AlbumPlace[]
+  add: (opts: OpenAddOptions) => void
+}) {
+  const [query, setQuery] = React.useState("")
+  const [category, setCategory] = React.useState<CoverageCategory | null>(null)
+  const [visibleCount, setVisibleCount] = React.useState(SLOTS_PER_PAGE)
+  const term = query.toLocaleLowerCase("en-GB").trim()
+  const groups = places.flatMap((place) =>
+    place.groups.map((group) => ({
+      ...group,
+      place: place.label,
+      placeId: place.subjectId,
+    }))
+  )
+  const matches = groups
+    .map((group) => ({
+      ...group,
+      slots: group.slots.filter(
+        (slot) =>
+          (category === null || slot.category === category) &&
+          slot.name.toLocaleLowerCase("en-GB").includes(term)
+      ),
+    }))
+    .filter((group) => group.slots.length > 0)
+  const count = matches.reduce((sum, group) => sum + group.slots.length, 0)
+  const visible: typeof matches = []
+  let remaining = visibleCount
+  for (const group of matches) {
+    if (remaining === 0) break
+    const slots = group.slots.slice(0, remaining)
+    visible.push({ ...group, slots })
+    remaining -= slots.length
+  }
+  const categories = new Set(
+    groups.flatMap((group) => group.slots.map((slot) => slot.category))
+  )
+
+  return (
+    <section
+      data-slot="album-search"
+      aria-label="Browse album"
+      className="grid min-w-0 gap-2 rounded-card border border-line bg-surface p-3"
+    >
+      <SearchField
+        label="Search album"
+        placeholder="Find a dish, drink or space"
+        value={query}
+        onValueChange={(value) => {
+          setQuery(value)
+          setVisibleCount(SLOTS_PER_PAGE)
+        }}
+        resultCount={`${count} ${count === 1 ? "slot" : "slots"}`}
+      />
+      <div className="grid gap-3">
+        <PillGroup label="Album category">
+          <Button
+            type="button"
+            variant={category === null ? "primary" : "secondary"}
+            className="min-h-12"
+            aria-pressed={category === null}
+            onClick={() => {
+              setCategory(null)
+              setVisibleCount(SLOTS_PER_PAGE)
+            }}
+          >
+            All
+          </Button>
+          {COVERAGE_CATEGORIES.filter(({ key }) => categories.has(key)).map(
+            ({ key, label }) => (
+              <Button
+                key={key}
+                type="button"
+                variant={category === key ? "primary" : "secondary"}
+                className="min-h-12"
+                aria-pressed={category === key}
+                onClick={() => {
+                  setCategory(key)
+                  setVisibleCount(SLOTS_PER_PAGE)
+                }}
+              >
+                {label}
+              </Button>
+            )
+          )}
+        </PillGroup>
+        {count === 0 ? (
+          <p className="text-body text-ink-muted">
+            No slots match. Try another name or category.
+          </p>
+        ) : null}
+        {visible.map((group) => (
+          <div key={`${group.placeId}:${group.name}`} className="grid gap-1.5">
+            <h3 className="text-meta font-bold text-ink-muted">
+              {group.place} · {group.name}
+            </h3>
+            <ul className="grid gap-1.5">
+              {group.slots.map((slot) => (
+                <li key={slot.id}>
+                  <AlbumSlotTile slot={slot} add={add} layout="row" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {count > visibleCount ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-12"
+            onClick={() =>
+              setVisibleCount((previous) => previous + SLOTS_PER_PAGE)
+            }
+          >
+            Show more slots
+          </Button>
+        ) : null}
+      </div>
+    </section>
   )
 }

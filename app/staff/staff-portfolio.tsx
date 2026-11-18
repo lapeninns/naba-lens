@@ -39,6 +39,7 @@ import {
   ALBUM_ADD_OPTIONS,
 } from "@/components/nabalens/album/album-add-trigger"
 import { HOME_ROWS_COPY } from "@/components/nabalens/album/home-rows"
+import { UnfinishedRow } from "@/components/nabalens/album/unfinished-row"
 import { GUIDE_PATH } from "@/components/nabalens/guide"
 import {
   CountBadge,
@@ -46,6 +47,7 @@ import {
   type ChipStateKey,
 } from "@/components/nabalens/status-chip"
 import { isMenuUse } from "@/lib/staff/my-uploads"
+import { ALBUM_UPLOAD_TRAY } from "@/lib/config/album-upload-tray"
 import { ThemeSetting } from "@/components/nabalens/theme-setting"
 import {
   useAdd,
@@ -481,55 +483,66 @@ export function StaffPortfolio({
       </Button>
     )
 
-  return (
-    // Common Room Me: a feed of white cards on the grey canvas.
-    <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
-      <ProfileHeader
-        displayName={profile.displayName}
-        avatarUrl={profile.avatarUrl}
-        jobTitle={profile.jobTitle}
-        department={profile.department}
-        venueName={profile.venueName}
-        workRole={profile.workRole}
-        actions={
-          // Grey first, blue last, in DOM order: stacked on phones Upload is
-          // at the bottom, nearest the thumb; from md blue is on the right.
-          <>
-            {/* From md, Log out is in the AppBar; on phones it lives on Me. */}
-            {/* A plain POST, not a Server Action: it still signs out after the
+  const profileCard = (
+    <ProfileHeader
+      headingLevel={ALBUM_UPLOAD_TRAY ? "h2" : "h1"}
+      displayName={profile.displayName}
+      avatarUrl={profile.avatarUrl}
+      jobTitle={profile.jobTitle}
+      department={profile.department}
+      venueName={profile.venueName}
+      workRole={profile.workRole}
+      actions={
+        // Grey first, blue last, in DOM order: stacked on phones Upload is
+        // at the bottom, nearest the thumb; from md blue is on the right.
+        <>
+          {/* From md, Log out is in the AppBar; on phones it lives on Me. */}
+          {/* A plain POST, not a Server Action: it still signs out after the
                 session has ended, when the proxy refuses an action. */}
-            <form
-              action="/auth/logout"
-              method="post"
-              className="md:hidden"
-              data-logout
-            >
-              <Button type="submit" variant="quiet">
-                <SignOutIcon data-icon="inline-start" aria-hidden />
-                Log out
-              </Button>
-            </form>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setProfileSaved(false)
-                setEditOpen(true)
-              }}
-            >
-              <PencilSimpleIcon data-icon="inline-start" aria-hidden />
-              Edit profile
+          <form
+            action="/auth/logout"
+            method="post"
+            className="md:hidden"
+            data-logout
+          >
+            <Button type="submit" variant="quiet">
+              <SignOutIcon data-icon="inline-start" aria-hidden />
+              Log out
             </Button>
-            {videoButton}
-            {uploadButton()}
-          </>
-        }
-      />
+          </form>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setProfileSaved(false)
+              setEditOpen(true)
+            }}
+          >
+            <PencilSimpleIcon data-icon="inline-start" aria-hidden />
+            Edit profile
+          </Button>
+          {videoButton}
+          {!ALBUM_UPLOAD_TRAY ? uploadButton() : null}
+        </>
+      }
+    />
+  )
+
+  return (
+    <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
+      {!ALBUM_UPLOAD_TRAY ? profileCard : null}
+      {ALBUM_UPLOAD_TRAY ? (
+        <>
+          <h1 className="sr-only">Me</h1>
+          {month}
+          <UnfinishedRow />
+        </>
+      ) : null}
+      {myUploads}
+      {!ALBUM_UPLOAD_TRAY ? month : null}
+      {ALBUM_UPLOAD_TRAY ? profileCard : null}
       {profileSaved ? (
         <Notice tone="positive">{PROFILE_SAVE_COPY.saved}</Notice>
       ) : null}
-      {/* FA-1: My uploads is Me's first section (spec §6 S4). */}
-      {myUploads}
-      {month}
       {manage ? (
         <ManageRow
           venueName={manage.venueName}

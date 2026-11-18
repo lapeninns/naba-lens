@@ -29,6 +29,7 @@ export default async function MatchLaterPage() {
       active="tasks"
       {...shell}
       userName={profile.displayName}
+      venueName={profile.venue?.name}
     >
       <OfflineNotice className="mb-3" />
       {photos ? (

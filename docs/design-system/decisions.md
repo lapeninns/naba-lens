@@ -50,3 +50,13 @@ These were settled in the Common Room spec before it came into the repo. They bi
 | No toasts. Feedback is written on the page.                                         | `common-room.md` §5     | A message that disappears cannot be re-read.                                                  |
 | Lists grow with "Load more". No page numbers, no infinite scroll.                   | Shipped behaviour       | One consistent pattern across every list.                                                     |
 | The stepper's minus and plus carry no visible word.                                 | `common-room.md` §4     | They are drawn signs beside a labelled field, each with an `aria-label`.                      |
+
+## Batch Match phone preview
+
+- **D13**. The phone trial uses a separate gallery-first Home, a slot-first
+  Album and a personal Me, with monthly progress in the header when a goal
+  is set. Trial decision for DESIGN.md §6.1a, pending confirmation on phones.
+- **D14**. Should gallery picks transfer into a private draft before staff
+  commit their matches? The phone trial sends on confirmation and uses the
+  existing Match later destination. Early transfer needs a decision about
+  draft retention and recovery.

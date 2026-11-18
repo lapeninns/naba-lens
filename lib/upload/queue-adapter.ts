@@ -2,6 +2,8 @@
 // (components/nabalens/upload-queue.ts). The types are copied into ./types so
 // lib/ never imports from components/.
 
+import { newClientId } from "../client-id"
+
 import {
   bindCapture,
   captureAnnotation,
@@ -65,7 +67,7 @@ export class QueueUploadError extends Error {
 export function toQueueUploader(
   upload: UploadFn,
   {
-    newKey = () => crypto.randomUUID(),
+    newKey = newClientId,
     keys,
     account: signedIn,
     capture,

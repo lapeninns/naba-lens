@@ -8,6 +8,24 @@ import type { SharedKind } from "./model"
  */
 export const MATCH_COPY = {
   title: "Match your photos",
+  trayTitle: "Where do these go?",
+  trayChoose: "Choose slot",
+  trayAsk: "Ask my manager",
+  trayAskAbout: (name: string) => `Ask my manager about “${name}”`,
+  trayUnmatched: "Not matched yet",
+  trayReceipt: "Your photos",
+  traySelect: "Select photos to match",
+  traySelected: (n: number) => `${n} selected`,
+  traySend: (n: number, unmatched: number) =>
+    unmatched > 0
+      ? `Send ${n} · ${unmatched} to Match later`
+      : n === 1
+        ? "Send 1 photo"
+        : `Send ${n} photos`,
+  trayForReview: (n: number) =>
+    n === 1 ? "1 photo sent for review" : `${n} photos sent for review`,
+  traySending: (n: number) =>
+    n === 1 ? "Sending 1 photo" : `Sending ${n} photos`,
   photoOf: (n: number, total: number) => `Photo ${n} of ${total}`,
   question: "Which empty slot is this?",
   suggested: "Suggested",

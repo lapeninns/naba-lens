@@ -70,6 +70,7 @@ export function MatchPicker({
   onShared,
   onUnsure,
   onSuggestSpecial,
+  traySearchRef,
 }: {
   board: BoardState
   onRetryBoard: () => void
@@ -97,9 +98,11 @@ export function MatchPicker({
   onLater?: () => void
   onShared: (kind: SharedKind) => void
   /** Leave out to hide I'm not sure. */
-  onUnsure?: () => void
+  onUnsure?: (note?: string) => void
   /** A search that found nothing offers to suggest a special (staff). */
   onSuggestSpecial?: SuggestSpecial
+  /** Tray sheet puts search above the choices and focuses it on open. */
+  traySearchRef?: React.Ref<HTMLInputElement>
 }) {
   const [query, setQuery] = React.useState("")
   const [asking, setAsking] = React.useState(false)
@@ -172,6 +175,21 @@ export function MatchPicker({
     setQuery("")
     onMatch(slot)
   }
+  const search = (
+    <SearchField
+      ref={traySearchRef}
+      label={MATCH_COPY.searchLabel}
+      placeholder={traySearchRef ? "Search menu items or places" : undefined}
+      value={query}
+      onValueChange={setQuery}
+      resultCount={searching ? MATCH_COPY.searchCount(found.length) : ""}
+      autoComplete="off"
+    />
+  )
+  const askAbout =
+    traySearchRef && ready && searching && found.length === 0
+      ? query.trim().slice(0, 120)
+      : ""
 
   return (
     <section
@@ -179,9 +197,14 @@ export function MatchPicker({
       className="grid gap-3"
       data-slot="match-picker"
     >
-      <Heading id={questionId} className="type-section-title text-ink">
-        {MATCH_COPY.question}
+      <Heading
+        id={questionId}
+        className={traySearchRef ? "sr-only" : "type-section-title text-ink"}
+      >
+        {traySearchRef ? MATCH_COPY.trayChoose : MATCH_COPY.question}
       </Heading>
+
+      {traySearchRef ? search : null}
 
       {board.state === "loading" ? (
         <p role="status" className="text-body text-ink-muted">
@@ -228,15 +251,7 @@ export function MatchPicker({
         ) : null
       ) : null}
 
-      {ready ? (
-        <SearchField
-          label={MATCH_COPY.searchLabel}
-          value={query}
-          onValueChange={setQuery}
-          resultCount={searching ? MATCH_COPY.searchCount(found.length) : ""}
-          autoComplete="off"
-        />
-      ) : null}
+      {ready && !traySearchRef ? search : null}
 
       {ready && searching ? (
         found.length > 0 ? (
@@ -301,12 +316,16 @@ export function MatchPicker({
             data-slot="match-unsure"
             onClick={() => {
               setQuery("")
-              onUnsure()
+              onUnsure(askAbout || undefined)
             }}
           >
             <span className="flex items-center gap-2">
               <QuestionIcon aria-hidden weight="bold" className="size-5" />
-              {MATCH_COPY.notSure}
+              {askAbout
+                ? MATCH_COPY.trayAskAbout(askAbout)
+                : traySearchRef
+                  ? MATCH_COPY.trayAsk
+                  : MATCH_COPY.notSure}
             </span>
             <span className="text-meta font-normal text-ink-muted">
               {MATCH_COPY.notSureHint}

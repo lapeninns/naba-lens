@@ -97,27 +97,7 @@ export const ALBUM_HREF = "/staff/tasks"
  * never stops the send (§5.5); the end names the venue, the photo count,
  * each slot with its count and how many wait for the manager (§6 S2).
  */
-export function MatchScreen({
-  open,
-  photos,
-  outcomes,
-  sendStates: sent,
-  progress,
-  onRetry,
-  board,
-  onRetryBoard,
-  current,
-  last,
-  notice = null,
-  busySlots,
-  venueName = null,
-  venuesMixed = false,
-  recent,
-  duplicates,
-  onSuggestSpecial,
-  onDecide,
-  onClose,
-}: {
+export type MatchScreenProps = {
   open: boolean
   /** In capture order. */
   photos: readonly MatchPhoto[]
@@ -163,7 +143,29 @@ export function MatchScreen({
    */
   onDecide: (key: string, outcome: MatchOutcome, note?: string | null) => void
   onClose: () => void
-}) {
+}
+
+export function MatchScreen({
+  open,
+  photos,
+  outcomes,
+  sendStates: sent,
+  progress,
+  onRetry,
+  board,
+  onRetryBoard,
+  current,
+  last,
+  notice = null,
+  busySlots,
+  venueName = null,
+  venuesMixed = false,
+  recent,
+  duplicates,
+  onSuggestSpecial,
+  onDecide,
+  onClose,
+}: MatchScreenProps) {
   const [shown, setShown] = React.useState<string | null>(null)
   // "Use your choice for N photos" (§5.4): 1 unless the person asks for more.
   const [groupSize, setGroupSize] = React.useState(1)
@@ -499,7 +501,7 @@ function GroupControl({
                   on && "ring-3 ring-accent ring-offset-2 ring-offset-surface"
                 )}
               >
-                <Thumb file={photo.file} />
+                <MatchThumb file={photo.file} />
                 {on ? (
                   <span
                     aria-hidden
@@ -654,7 +656,7 @@ function Strip({
                   "ring-2 ring-accent ring-offset-2 ring-offset-surface"
               )}
             >
-              <Thumb file={photo.file} />
+              <MatchThumb file={photo.file} />
               {grouped ? (
                 <span
                   aria-hidden
@@ -674,7 +676,7 @@ function Strip({
   )
 }
 
-function Thumb({ file }: { file: File }) {
+export function MatchThumb({ file }: { file: File }) {
   const src = useObjectUrl(file)
   return src ? (
     // A local object URL: next/image cannot optimise it.
@@ -703,7 +705,7 @@ function Stage({ file, alt }: { file: File; alt: string }) {
   )
 }
 
-function stateWord(state: SendState | null, percent?: number) {
+export function stateWord(state: SendState | null, percent?: number) {
   if (state === "waiting") return MATCH_COPY.waiting
   if (state === "checking") return MATCH_COPY.checking
   if (state === "sent") return MATCH_COPY.sentWord
@@ -717,7 +719,7 @@ function stateWord(state: SendState | null, percent?: number) {
 }
 
 /** True when Retry can still finish the photo (X6). */
-function retryable(state: SendState | null) {
+export function retryable(state: SendState | null) {
   return state === "failed" || state === "unfinished"
 }
 
@@ -979,7 +981,7 @@ function Summary({
                       state === "waiting" && "slot-ring-waiting"
                     )}
                   >
-                    <Thumb file={photo.file} />
+                    <MatchThumb file={photo.file} />
                   </span>
                   <span className="grid min-w-0 flex-1">
                     <span className="text-label [overflow-wrap:anywhere]">
