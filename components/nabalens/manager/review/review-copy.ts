@@ -128,6 +128,9 @@ export const REVIEW_COPY = {
   moreOfItem: (n: number, item: string) =>
     `+${plural(n, "more photo")} of ${item}`,
   ownPhoto: "This is your photo. Another reviewer decides on it.",
+  /** A Needs label video (S3-R8 W1): dishes take photos only. */
+  videoNoDish:
+    "A video can't be a dish photo. Open its details to mark it Not used.",
   variantRemovedNote: "This option is no longer on the menu",
   settled: "Decided. Change the filter to see it in its new list.",
 
@@ -231,6 +234,12 @@ export const REVIEW_COPY = {
     "An admin activates the menu. Staff can keep adding photos to their portfolios meanwhile.",
   emptyMenuTitle: "Your active menu has no items to photograph",
   emptyMenuBody: "Ask an admin to check the menu.",
+  /**
+   * Needs label while the menu is not ready (S3-R8 W2): a dish needs a ready
+   * menu; Not used works now.
+   */
+  needsLabelMenuNotReady:
+    "Choosing a dish waits for the menu. You can still open each one and mark it Not used.",
 
   // Contributor view
   contributorTitle: "Contributor",

@@ -80,7 +80,7 @@ export function ownPhotoBlocked(
 
 /**
  * The decisions a card offers, in display order (§4.5 table). A manager's own
- * photos and decided cards that left the view offer none.
+ * photos, decided cards that left the view and Needs label videos offer none.
  */
 export function availableActions(
   card: ListCard,
@@ -88,7 +88,10 @@ export function availableActions(
 ): CardAction[] {
   if (card.settled || ownPhotoBlocked(card, scopeKind)) return []
   if (card.kind === "stale") return ["assign_stale"]
-  if (card.kind === "unlabelled") return ["assign_unlabelled"]
+  if (card.kind === "unlabelled")
+    // A video can't fill a dish (assign_menu_item_photo takes images only,
+    // S3-R8 W1): its details offer Not used instead.
+    return card.mediaType === "video" ? [] : ["assign_unlabelled"]
   if (!card.item) return []
   const labelled = staffLabelled(card)
   const variantGone = card.recheckKind === "variant_removed"
