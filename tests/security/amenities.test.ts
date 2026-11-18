@@ -634,7 +634,7 @@ describe("submitting findings", () => {
     expect(
       psql(`select concat_ws(',', private.amenity_rule_met('either', array['video']),
         private.amenity_rule_met('either', array['photo']), private.amenity_rule_met('either', '{}'))`)
-    ).toBe("true,true,false")
+    ).toBe("t,t,f")
 
     for (const assets of [[await p()], [await v()], [await p(), await p()]]) {
       err = await fails(

@@ -19,8 +19,9 @@ set lock_timeout = '5s';
 --              person who manages A and is staff at B manages A
 --              only while A is their active venue, and nothing at B (AC14).
 --   Upload     private.media_upload_venue_allowed(uploader, role, venue):
---                staff    an active person with an open membership at the
---                         (active) venue
+--                staff    an active person with an open staff membership at
+--                         the (active) venue (or, for a legacy staff account
+--                         holding a grant, working there now)
 --                manager  an active person who manages the venue
 --                         (venue_role_of = manager)
 --              Neither depends on the active venue, so switching to another
@@ -57,23 +58,30 @@ set lock_timeout = '5s';
 
 create or replace function private.effective_manager_venue_id(p_user uuid)
 returns uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  -- private.venue_role_of's manager rule, written out so it stays cheap in
-  -- RLS policies and per-venue loops.
-  select p.venue_id
-  from public.profiles p
-  join public.venues v on v.id = p.venue_id and v.active
-  where p.id = p_user and p.active and p.role in ('staff', 'manager')
-    and exists (
-      select 1 from public.venue_manager_grants g
-      where g.staff_id = p.id and g.venue_id = p.venue_id and g.revoked_at is null)
+-- private.venue_role_of's manager rule, written out so it stays cheap in RLS
+-- policies and per-row loops: the open grant first (indexed; most callers
+-- have none), then the manager membership. plpgsql keeps the plan for the
+-- session; a SQL function here would be planned again on every call.
+declare
+  v_venue uuid;
+begin
+  select g.venue_id into v_venue
+  from public.venue_manager_grants g
+  join public.profiles p
+    on p.id = g.staff_id and p.active and p.role in ('staff', 'manager') and p.venue_id = g.venue_id
+  join public.venues v on v.id = g.venue_id and v.active
+  where g.staff_id = p_user and g.revoked_at is null
     and exists (
       select 1 from public.venue_memberships m
-      where m.profile_id = p.id and m.venue_id = p.venue_id and m.ended_at is null and m.role = 'manager');
+      where m.profile_id = g.staff_id and m.venue_id = g.venue_id and m.ended_at is null and m.role = 'manager')
+  limit 1;
+  return v_venue;
+end;
 $$;
 
 
@@ -105,11 +113,19 @@ as $$
         -- not end an upload in flight; ending the membership does (AC12).
         or (p_uploader_role = 'manager'
           and private.venue_role_of(p.id, p_venue) = 'manager')
+        -- A staff-era reservation: an open staff membership there, or (a
+        -- legacy staff account holding a grant) a staff profile working
+        -- there now with any open membership. A person since made a manager
+        -- there cannot finish it (manager-denials).
         or (p_uploader_role is distinct from 'manager' and p_uploader_role is distinct from 'admin'
-          and p.role in ('staff', 'manager')
-          and exists (
-            select 1 from public.venue_memberships m
-            where m.profile_id = p.id and m.venue_id = p_venue and m.ended_at is null))
+          and (
+            exists (
+              select 1 from public.venue_memberships m
+              where m.profile_id = p.id and m.venue_id = p_venue and m.ended_at is null
+                and m.role = 'staff')
+            or (p.role = 'staff' and p.venue_id = p_venue and exists (
+              select 1 from public.venue_memberships m
+              where m.profile_id = p.id and m.venue_id = p_venue and m.ended_at is null))))
       )
   );
 $$;

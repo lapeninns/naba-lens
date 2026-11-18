@@ -184,10 +184,17 @@ describe("album_slot_photos", () => {
     expect(read.items).toHaveLength(3)
   })
 
-  it("lists only the accepted photo to a colleague (FA-20)", async () => {
+  it("lists only the accepted photos to a colleague (FA-20)", async () => {
     const read = await photos(v.w.staffB)
     expect(read.venueId).toBe(v.w.venue)
+    // S2-INT (review R2): an amenity photo accepted in its own review counts
+    // as accepted, so colleagues see it too.
     expect(read.items).toEqual([
+      {
+        kind: "amenity",
+        slotId: v.w.checks.onsite_parking,
+        assetId: shown.amenity,
+      },
       { kind: "area", slotId: v.places.bar, assetId: shown.areaAccepted },
     ])
   })
@@ -220,10 +227,11 @@ describe("album_slot_asset", () => {
     }
   })
 
-  it("lets a colleague open the accepted photo only (FA-20)", async () => {
+  it("lets a colleague open the accepted photos only (FA-20)", async () => {
     expect(await gate(v.w.staffB, shown.areaAccepted!)).toHaveLength(1)
     expect(await gate(v.w.staffB, shown.areaWaiting!)).toEqual([])
-    expect(await gate(v.w.staffB, shown.amenity!)).toEqual([])
+    // S2-INT (review R2): accepted in its own amenity review.
+    expect(await gate(v.w.staffB, shown.amenity!)).toHaveLength(1)
   })
 
   it("returns nothing for a retake, a withdrawn or an unknown photo", async () => {
