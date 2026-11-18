@@ -86,7 +86,7 @@ export function MfaCard({
         alt="QR code for your authenticator app"
         width={176}
         height={176}
-        className="size-44 justify-self-center rounded-control bg-white p-2"
+        className="size-44 justify-self-center rounded-control bg-surface p-2"
       />
       <p className="grid gap-1 text-meta text-ink-muted">
         Setup key

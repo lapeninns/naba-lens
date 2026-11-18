@@ -385,7 +385,11 @@ export function sessionAs(
   body: string
 ): Promise<{ code: number; out: string; err: string }> {
   const url = process.env.NABALENS_TEST_DB_URL!
-  const claims = JSON.stringify({ sub: userId, role: "authenticated", aal: "aal2" })
+  const claims = JSON.stringify({
+    sub: userId,
+    role: "authenticated",
+    aal: "aal2",
+  })
   const sql = `begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '${claims}', true);

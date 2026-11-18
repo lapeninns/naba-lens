@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/browser"
 import {
   readDeviceMode,
   shouldWipeOnSignIn,
+  subscribeDeviceMode,
   wipePrivateDeviceData,
   writeDeviceMode,
   type DeviceMode,
@@ -48,20 +49,21 @@ export function LoginCardHost({
 }: LoginCardHostProps) {
   const supabase = React.useMemo(() => createClient(), [])
   const { signedOut } = props
-  // Read after hydration: the server cannot know the device's choice.
-  const [mode, setMode] = React.useState<DeviceMode | null>(null)
+  // The device's choice; null on the server, which cannot know it.
+  const mode = React.useSyncExternalStore<DeviceMode | null>(
+    subscribeDeviceMode,
+    () => readDeviceMode(),
+    () => null
+  )
   React.useEffect(() => {
     const current = readDeviceMode()
-    setMode(current)
     if (!shouldWipeOnSignIn(current, !!signedOut)) return
     // J-1: upload resume keys and the capture journal (with any photo bytes)
     // go too; on a shared device also the tab's working copies.
     void wipePrivateDeviceData(current)
   }, [signedOut])
   const chooseMode = React.useCallback((shared: boolean) => {
-    const next: DeviceMode = shared ? "shared" : "personal"
-    writeDeviceMode(next)
-    setMode(next)
+    writeDeviceMode(shared ? "shared" : "personal")
   }, [])
   const verify = React.useCallback(
     async (rawEmail: string, code: string) => {

@@ -356,8 +356,9 @@ describe("proxy: signed in", () => {
 
 // Server Actions post to the page that called them, so only actions reachable
 // from a public page can run signed out. Every module the public routes import
-// (directly or not) is walked here: the login page's action is the only one,
-// and it posts to /login, which the proxy passes through above.
+// (directly or not) is walked here: the login page's action, which posts to
+// /login, and the second sign-in step's (/auth/mfa, FA-23), which re-reads the
+// account on every call and does nothing for a signed-out caller.
 describe("public pages reach only public Server Actions", () => {
   const root = resolve(__dirname, "../..")
   const entries: string[] = []
@@ -396,7 +397,7 @@ describe("public pages reach only public Server Actions", () => {
     return null
   }
 
-  it("finds app/login/actions.ts and nothing else", () => {
+  it("finds app/login/actions.ts and app/auth/mfa/actions.ts, nothing else", () => {
     const seen = new Set<string>()
     const actions = new Set<string>()
     const queue = [...entries]
@@ -419,6 +420,9 @@ describe("public pages reach only public Server Actions", () => {
       }
     }
     expect(seen.size).toBeGreaterThan(50)
-    expect([...actions]).toEqual(["app/login/actions.ts"])
+    expect([...actions].sort()).toEqual([
+      "app/auth/mfa/actions.ts",
+      "app/login/actions.ts",
+    ])
   })
 })

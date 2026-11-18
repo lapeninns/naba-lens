@@ -60,12 +60,28 @@ export function readDeviceMode(storage = local()): DeviceMode {
   }
 }
 
+const listeners = new Set<() => void>()
+
 export function writeDeviceMode(mode: DeviceMode, storage = local()): void {
   try {
     if (mode === "shared") storage?.setItem(DEVICE_MODE_KEY, "shared")
     else storage?.removeItem(DEVICE_MODE_KEY)
   } catch {
     // Storage blocked: the default (personal) applies.
+  }
+  for (const listener of listeners) listener()
+}
+
+/** For useSyncExternalStore: this tab's writes and other tabs' changes. */
+export function subscribeDeviceMode(listener: () => void): () => void {
+  listeners.add(listener)
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === DEVICE_MODE_KEY || event.key === null) listener()
+  }
+  window.addEventListener("storage", onStorage)
+  return () => {
+    listeners.delete(listener)
+    window.removeEventListener("storage", onStorage)
   }
 }
 

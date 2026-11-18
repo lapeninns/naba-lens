@@ -32,7 +32,7 @@ const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
 const { dbUrl } = requireWorkstreamStack()
 const t = pickTargets(dbUrl)
 const q = (s) => `'${String(s).replace(/'/g, "''")}'`
-const claims = `{"sub":"${t.admin.id}","role":"authenticated","aud":"authenticated"}`
+const claims = `{"sub":"${t.admin.id}","role":"authenticated","aud":"authenticated","aal":"aal2"}`
 
 const oldSql = (args) => {
   const names = Object.keys(args)

@@ -223,7 +223,7 @@ select 'V|' || json_build_object(
       and a.deleted_at is null and a.upload_state = 'ready' and a.use_baseline = 'legacy_unknown'
       and not ${settled}))::text;
 ${HARNESS}
-select set_config('request.jwt.claims', '{"sub":"${manager}","role":"authenticated","aud":"authenticated"}', true) is null;
+select set_config('request.jwt.claims', '{"sub":"${manager}","role":"authenticated","aud":"authenticated","aal":"aal2"}', true) is null;
 set local role authenticated;
 select 'R|' || pg_temp.scale_run(${N})::text;
 rollback;

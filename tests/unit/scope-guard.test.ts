@@ -69,6 +69,8 @@ const ALLOWED_PAGES = new Set([
   "/admin/staff",
   "/admin/staff/[id]",
   "/auth/blocked",
+  // FA-23: the second sign-in step.
+  "/auth/mfa",
   // Unmatched URLs in each area: notFound() only, so the area's own not-found
   // page (with its navigation) answers instead of the root one.
   "/staff/[...missing]",

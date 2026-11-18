@@ -25,7 +25,7 @@ const N = Number(arg("n", 20))
 const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
 const { dbUrl } = requireWorkstreamStack()
 const t = pickTargets(dbUrl)
-const claims = `{"sub":"${t.admin.id}","role":"authenticated","aud":"authenticated"}`
+const claims = `{"sub":"${t.admin.id}","role":"authenticated","aud":"authenticated","aal":"aal2"}`
 
 const cases = []
 for (const text of ["tikka", "chicken", "sunday", "zzzqq"]) {

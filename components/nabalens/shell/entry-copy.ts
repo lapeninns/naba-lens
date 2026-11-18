@@ -12,8 +12,9 @@ export const ENTRY_COPY = {
    * colleagues). The exact words are to be checked with WS3 and the owner
    * before release; change them here only.
    */
+  // FA-20: colleagues see it once a manager has accepted it.
   photosAudience:
-    "Saved to your portfolio and shared in Photos with colleagues.",
+    "Saved to your portfolio. Colleagues at your venue see it in Photos once it's accepted.",
   dishAudience: "A manager decides whether it's used for the menu.",
   findingAudience: "Your manager sees this.",
   evidenceAudience: "Kept out of Photos. Used as evidence for venue questions.",

@@ -138,7 +138,7 @@ for (const [name, personId, sql] of S) {
   const script = `begin;
 set local role authenticated;
 set local statement_timeout = '${TIMEOUT}';
-select set_config('request.jwt.claims', '{"sub":"${personId}","role":"authenticated","aud":"authenticated"}', true) \\gset
+select set_config('request.jwt.claims', '{"sub":"${personId}","role":"authenticated","aud":"authenticated","aal":"aal2"}', true) \\gset
 select set_config('request.jwt.claim.sub', '${personId}', true) \\gset
 explain (analyze, buffers, settings, verbose false) ${sql};
 rollback;
