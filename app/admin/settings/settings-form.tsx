@@ -49,7 +49,11 @@ export function SettingsFormView({ settings }: { settings: OpsSettings }) {
     saveSettingsAction,
     { status: "idle" }
   )
-  const start = settingsForm(settings)
+  // After a refused save React resets the form; show what was sent again.
+  const start =
+    state.status === "error" && state.values
+      ? state.values
+      : settingsForm(settings)
   const errors = state.status === "error" ? (state.fieldErrors ?? {}) : {}
 
   return (
@@ -195,7 +199,12 @@ export function SettingsFormView({ settings }: { settings: OpsSettings }) {
         description="Kept in Activity with the old and new values."
         error={errors.reason}
       >
-        <Textarea name="reason" rows={2} maxLength={500} />
+        <Textarea
+          name="reason"
+          rows={2}
+          maxLength={500}
+          defaultValue={start.reason}
+        />
       </FormField>
 
       {state.status === "error" ? (

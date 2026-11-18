@@ -18,6 +18,8 @@ export type SaveSettingsState =
       message: string
       fieldErrors?: Partial<Record<SettingsField, string>>
       stale?: boolean
+      /** What was sent, so the form shows it again after React resets it. */
+      values?: SettingsForm
     }
 
 const text = (form: FormData, key: string) => {
@@ -61,7 +63,7 @@ export async function saveSettingsAction(
     reason: text(formData, "reason"),
   }
   const result = await saveOpsSettings(auth.actor, form, current.settings)
-  if (!result.ok) return { status: "error", ...result }
+  if (!result.ok) return { status: "error", ...result, values: form }
   if (result.changed) revalidatePath("/admin/settings")
   return {
     status: "saved",
