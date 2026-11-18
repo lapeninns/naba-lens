@@ -236,7 +236,10 @@ function OverviewTable({
                   data-testid="overview-row"
                   data-venue={row.venueId}
                 >
-                  <TableHead scope="row" className="align-top text-ink md:min-w-48">
+                  <TableHead
+                    scope="row"
+                    className="align-top text-ink md:min-w-48"
+                  >
                     <span className="grid gap-1">
                       <Link
                         href={href.venue}
