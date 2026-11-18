@@ -175,6 +175,10 @@ export type DiffChange = DiffItemRef & {
     variants?: string[]
     meta?: SourceMeta
   }
+  /** The section kind (food, drinks, other) changed. */
+  kindChanged?: boolean
+  /** Options of the current menu this item no longer offers. */
+  variantsRemoved?: string[]
 }
 
 export type UncertainMatch = DiffItemRef & {
