@@ -12,17 +12,15 @@ import {
   signIn,
   type TestIdentity,
 } from "../support/identities"
-import {
-  fails,
-  insertAsset,
-  makeManager,
-  ok,
-  psql,
-} from "./coverage-fixtures"
+import { fails, insertAsset, makeManager, ok, psql } from "./coverage-fixtures"
 
 type Obj = Record<string, unknown>
 type Reviewer = { profileId: string; eligible: boolean; revision: number }
 type Setup = { items: { key: string; done: boolean }[]; done: number }
+
+/** ok() for functions that return jsonb: the caller names the shape. */
+const okAs = async <T>(call: PromiseLike<unknown>): Promise<T> =>
+  (await ok(call as never)) as T
 
 const service = serviceClient()
 let venueA: string
@@ -174,7 +172,7 @@ describe("who may call", () => {
 describe("venues", () => {
   it("creates a venue with a timezone and records it", async () => {
     const name = `TEST Created ${crypto.randomUUID().slice(0, 6)}`
-    const created = await ok<Obj>(
+    const created = await okAs<Obj>(
       admin.client.rpc("admin_venue_save", {
         p_venue_id: null as unknown as string,
         p_name: name,
@@ -224,7 +222,7 @@ describe("venues", () => {
       "venue_name_taken",
       "23505"
     )
-    const saved = await ok<Obj>(
+    const saved = await okAs<Obj>(
       admin.client.rpc("admin_venue_save", {
         p_venue_id: venueA,
         p_name: before.name,
@@ -256,7 +254,7 @@ describe("venues", () => {
       after: { timezone: "Europe/Dublin", locality: "Ely" },
     })
     // Same values again change nothing.
-    const again = await ok<Obj>(
+    const again = await okAs<Obj>(
       admin.client.rpc("admin_venue_save", {
         p_venue_id: venueA,
         p_name: before.name,
@@ -277,7 +275,7 @@ describe("venues", () => {
       venueId: v,
     })
     const asset = await insertAsset(service, { uploader: s.id, venue: v })
-    const impact = await ok<Obj>(
+    const impact = await okAs<Obj>(
       admin.client.rpc("admin_venue_archive_impact", { p_venue_id: v })
     )
     expect(impact).toMatchObject({ members: 1, onlyVenue: 1, photos: 1 })
@@ -313,11 +311,11 @@ describe("venues", () => {
     expect(kept).toHaveLength(1)
     expect(await activity(v, "venue_archived")).toHaveLength(1)
     // Not listed unless asked for.
-    const list = await ok<{ items: Obj[] }>(
+    const list = await okAs<{ items: Obj[] }>(
       admin.client.rpc("admin_venues_list", {})
     )
     expect(list.items.some((i) => i.id === v)).toBe(false)
-    const all = await ok<{ items: Obj[] }>(
+    const all = await okAs<{ items: Obj[] }>(
       admin.client.rpc("admin_venues_list", { p_include_archived: true })
     )
     expect(all.items.some((i) => i.id === v)).toBe(true)
@@ -348,7 +346,7 @@ describe("venues", () => {
 
 describe("reviewers and setup", () => {
   it("names a main and backup who review there, and the checklist follows", async () => {
-    const detail = await ok<{ candidates: { profileId: string }[] }>(
+    const detail = await okAs<{ candidates: { profileId: string }[] }>(
       admin.client.rpc("admin_venue_detail", { p_venue_id: venueA })
     )
     const ids = detail.candidates.map((c) => c.profileId)
@@ -376,7 +374,7 @@ describe("reviewers and setup", () => {
     await fails(set(admin.id, "main", 0), "reviewer_conflict", "40001")
     await ok(set(admin.id, "backup", 0))
 
-    const after = await ok<{
+    const after = await okAs<{
       reviewers: { main: Reviewer; backup: Reviewer }
       setup: Setup
     }>(admin.client.rpc("admin_venue_detail", { p_venue_id: venueA }))
@@ -391,7 +389,7 @@ describe("reviewers and setup", () => {
 
     // Clearing the backup reopens the item.
     await ok(set(null, "backup", 1))
-    const cleared = await ok<{ setup: Setup }>(
+    const cleared = await okAs<{ setup: Setup }>(
       admin.client.rpc("admin_venue_detail", { p_venue_id: venueA })
     )
     expect(cleared.setup.items.find((i) => i.key === "reviewers")?.done).toBe(
@@ -404,7 +402,7 @@ describe("reviewers and setup", () => {
 describe("templates (AC23)", () => {
   it("copies the catalogue's core questions as unanswered checks", async () => {
     const v = (await createVenue(service, "admin-venues-tpl")).id
-    const preview = await ok<{ questions: { key: string }[] }>(
+    const preview = await okAs<{ questions: { key: string }[] }>(
       admin.client.rpc("admin_venue_template_preview", { p_venue_id: v })
     )
     expect(preview.questions.length).toBeGreaterThan(0)
@@ -416,7 +414,7 @@ describe("templates (AC23)", () => {
       }),
       "reason_required"
     )
-    const result = await ok<{ questions: number; places: number }>(
+    const result = await okAs<{ questions: number; places: number }>(
       admin.client.rpc("admin_venue_apply_template", {
         p_venue_id: v,
         p_source_venue_id: null as unknown as string,
@@ -431,7 +429,7 @@ describe("templates (AC23)", () => {
     expect(checks).toHaveLength(preview.questions.length)
     expect(checks!.every((c) => c.answer === "to_check")).toBe(true)
     // Applying again adds nothing.
-    const again = await ok<{ questions: number }>(
+    const again = await okAs<{ questions: number }>(
       admin.client.rpc("admin_venue_apply_template", {
         p_venue_id: v,
         p_source_venue_id: null as unknown as string,
@@ -470,7 +468,7 @@ describe("templates (AC23)", () => {
       }),
       "template_source_invalid"
     )
-    const preview = await ok<{ places: { label: string }[] }>(
+    const preview = await okAs<{ places: { label: string }[] }>(
       admin.client.rpc("admin_venue_template_preview", {
         p_venue_id: target,
         p_source_venue_id: source,
@@ -509,7 +507,7 @@ describe("templates (AC23)", () => {
 
 describe("scope impact (AC29)", () => {
   it("previews a change without making it", async () => {
-    const impact = await ok<Obj>(
+    const impact = await okAs<Obj>(
       admin.client.rpc("venue_scope_impact", {
         p_venue_id: venueB,
         p_key: "accommodation",
@@ -556,7 +554,7 @@ describe("MFA reset", () => {
       }),
       "reason_required"
     )
-    const result = await ok<{ factors: number }>(
+    const result = await okAs<{ factors: number }>(
       admin.client.rpc("admin_reset_mfa_authorise", {
         p_profile_id: otherAdmin.id,
         p_reason: "TEST lost phone",
@@ -583,7 +581,7 @@ describe("group overview (A1)", () => {
     await insertAsset(service, { uploader: s.id, venue: v })
     await insertAsset(service, { uploader: s.id, venue: v, ready: false })
     const today = new Date().toISOString().slice(0, 10)
-    const read = await ok<{ rows: Obj[] }>(
+    const read = await okAs<{ rows: Obj[] }>(
       admin.client.rpc("admin_group_overview", {
         p_venue_ids: [v],
         p_from: today,
@@ -614,12 +612,12 @@ describe("group overview (A1)", () => {
     expect(row.setup.items.find((i) => i.key === "staff")?.done).toBe(true)
 
     // AC39: the categories are the one slot rule's own counts.
-    const slots = await ok<{ categories: Obj[] }>(
+    const slots = await okAs<{ categories: Obj[] }>(
       admin.client.rpc("coverage_slots", { p_venue_id: v })
     )
     expect(row.categories).toEqual(slots.categories)
 
-    const next = await ok<{ rows: Obj[] }>(
+    const next = await okAs<{ rows: Obj[] }>(
       admin.client.rpc("admin_group_overview", {
         p_venue_ids: [v],
         p_menu: "next",

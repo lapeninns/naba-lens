@@ -210,6 +210,33 @@ export const CHIP_STATES = {
     icon: LockSimpleIcon,
     shape: "closed",
   },
+  // A venue's setup checklist item (S2-ADMIN, spec §8 A2): needs_setup or
+  // this.
+  setup_in_place: {
+    word: "In place",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "met",
+  },
+  // A venue's operating status (S2-ADMIN, spec §8 A2; FA-33)
+  venue_open: {
+    word: "Open",
+    tone: "neutral",
+    icon: CheckIcon,
+    shape: "neutralSquare",
+  },
+  venue_temporarily_closed: {
+    word: "Temporarily closed",
+    tone: "attention",
+    icon: ClockIcon,
+    shape: "overdue",
+  },
+  venue_archived: {
+    word: "Closed and archived",
+    tone: "closed",
+    icon: LockSimpleIcon,
+    shape: "closed",
+  },
   // An amenity fact (service names present / absent / unknown)
   present: {
     word: "Present",
