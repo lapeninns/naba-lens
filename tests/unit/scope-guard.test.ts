@@ -560,6 +560,8 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
         "app/api/exports/",
         "lib/server/exports/",
         "supabase/migrations/20261118105",
+        // S2-FIX R23: export_candidates / export_package_detail rebodied.
+        "supabase/migrations/20261118108500_publication_states_once.sql",
         "lib/db/types.ts",
       ],
       reason:

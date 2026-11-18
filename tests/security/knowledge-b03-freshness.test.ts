@@ -452,7 +452,8 @@ describe("the venue's open rechecks (A41)", () => {
     const revision = psql(
       `select revision from public.venue_amenity_checks where id = '${v.checks.guest_wifi}'`
     )
-    await json(v.manager, "amenity_archive_check", {
+    // Core checks are archived by an admin (AC29, S2-FIX R12).
+    await json(v.admin, "amenity_archive_check", {
       p_check_id: v.checks.guest_wifi,
       p_revision: Number(revision),
       p_idempotency_key: randomUUID(),

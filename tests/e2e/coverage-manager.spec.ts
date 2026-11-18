@@ -413,12 +413,16 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
       })
     )
     await ok(
-      adminDb.rpc("activate_menu_version", {
+      adminDb.rpc("activate_menu_version_confirmed", {
         p_version_id: draft as string,
         p_expected_revision: Number(
           psql(
             `select revision from public.menu_versions where id = '${draft}'::uuid`
           )
+        ),
+        // AC28: confirm exactly the items this activation retires.
+        p_retirements: Number(
+          psql(`select private.menu_retired_count('${draft}'::uuid)`)
         ),
       })
     )

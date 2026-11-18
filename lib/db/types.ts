@@ -5722,6 +5722,7 @@ export type Database = {
           revision: number
           scheduled_by: string | null
           scheduled_for: string | null
+          scheduled_retired_items: string[] | null
           scheduled_retirements: number | null
           scheduled_revision: number | null
           source_captured_at: string | null
@@ -5749,6 +5750,7 @@ export type Database = {
           revision?: number
           scheduled_by?: string | null
           scheduled_for?: string | null
+          scheduled_retired_items?: string[] | null
           scheduled_retirements?: number | null
           scheduled_revision?: number | null
           source_captured_at?: string | null
@@ -5776,6 +5778,7 @@ export type Database = {
           revision?: number
           scheduled_by?: string | null
           scheduled_for?: string | null
+          scheduled_retired_items?: string[] | null
           scheduled_retirements?: number | null
           scheduled_revision?: number | null
           source_captured_at?: string | null
@@ -8895,6 +8898,10 @@ export type Database = {
       }
       menu_activate_due: { Args: { p_venue_id: string }; Returns: number }
       menu_activate_due_all: { Args: never; Returns: number }
+      menu_change_request_clarify: {
+        Args: { p_reply: string; p_request_id: string; p_revision: number }
+        Returns: Json
+      }
       menu_change_request_create: {
         Args: {
           p_detail: string
