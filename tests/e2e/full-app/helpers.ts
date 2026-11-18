@@ -7,12 +7,15 @@ import {
   type Page,
 } from "@playwright/test"
 
+import { randomUUID } from "node:crypto"
+
 import sharp from "sharp"
 
 import { signIn } from "../../support/identities"
 import { horizontalOverflow } from "../helpers/overflow"
+import { labelAsUploader } from "../helpers/manager-world"
 import { provisioner } from "../helpers/stack"
-import { signedInPage, type Person } from "../helpers/world"
+import { signedInPage, type Person, type Venue } from "../helpers/world"
 
 /**
  * Shared pieces for the Full App v1 acceptance journeys (Sprint 3, S3-E2E-2).
@@ -95,27 +98,74 @@ export async function closeAll(browser: Browser) {
 export const sql = (v: string) => `'${v.replace(/'/g, "''")}'`
 
 /**
- * Stores real JPEG bytes as a seeded photo's original (`seedImages` stores
- * only the thumb and preview), so an export can render it. Fixture setup by
- * the service role, as the upload worker would have written it.
+ * One ready photo by `who` at `venue`, labelled as `itemIds` by its uploader,
+ * with real JPEG bytes as its original plus thumb and preview, so an export
+ * can render it (`seedImages` stores no original). Storage is written before
+ * the asset is marked ready, as the upload pipeline does: a ready asset's
+ * reservation is closed. Fixture setup by the service role.
  */
-export async function storeOriginal(
-  uploaderId: string,
-  assetId: string,
+export async function exportablePhoto(
+  who: Person,
+  venue: Pick<Venue, "id">,
+  itemIds: string[],
   colour = "#7a9a4b"
-) {
-  const bytes = await sharp({
-    create: { width: 320, height: 240, channels: 3, background: colour },
+): Promise<string> {
+  const service = provisioner()
+  const id = randomUUID()
+  const prefix = `${who.id}/${id}`
+  const insert = await service.from("media_assets").insert({
+    id,
+    uploader_id: who.id,
+    venue_id: venue.id,
+    media_type: "image",
+    original_path: `${prefix}/original.jpg`,
+    original_filename: `DEV-FIXTURE-export-${id.slice(0, 6)}.jpg`,
   })
-    .jpeg()
-    .toBuffer()
-  const { error } = await provisioner()
-    .storage.from("media")
-    .upload(`${uploaderId}/${assetId}/original.jpg`, bytes, {
-      contentType: "image/jpeg",
-      upsert: true,
+  if (insert.error) throw insert.error
+  const image = sharp({
+    create: { width: 1600, height: 1200, channels: 3, background: colour },
+  })
+  const files: [string, Buffer, string][] = [
+    ["original.jpg", await image.clone().jpeg().toBuffer(), "image/jpeg"],
+    [
+      "thumb.webp",
+      await image.clone().resize(320).webp().toBuffer(),
+      "image/webp",
+    ],
+    [
+      "preview.webp",
+      await image.clone().resize(1024).webp().toBuffer(),
+      "image/webp",
+    ],
+  ]
+  for (const [name, bytes, contentType] of files) {
+    const up = await service.storage
+      .from("media")
+      .upload(`${prefix}/${name}`, bytes, { contentType })
+    if (up.error) throw up.error
+  }
+  const processing = await service
+    .from("media_assets")
+    .update({
+      upload_state: "processing",
+      thumbnail_path: `${prefix}/thumb.webp`,
+      preview_path: `${prefix}/preview.webp`,
     })
-  if (error) throw error
+    .eq("id", id)
+  if (processing.error) throw processing.error
+  const ready = await service
+    .from("media_assets")
+    .update({
+      upload_state: "ready",
+      validated_mime_type: "image/jpeg",
+      size_bytes: files[0]![1].length,
+      width: 1600,
+      height: 1200,
+    })
+    .eq("id", id)
+  if (ready.error) throw ready.error
+  await labelAsUploader(who, venue.id, id, itemIds)
+  return id
 }
 
 /**

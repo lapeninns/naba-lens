@@ -17,8 +17,11 @@ test.setTimeout(240_000)
 test.afterEach(({ browser }) => closeAll(browser))
 
 async function press(page: Page, target: Locator, key = "Enter") {
-  await target.focus()
-  await expect(target).toBeFocused()
+  // The page may still move focus once while it settles after loading.
+  await expect(async () => {
+    await target.focus()
+    await expect(target).toBeFocused({ timeout: 500 })
+  }).toPass({ timeout: 10_000 })
   await page.keyboard.press(key)
 }
 

@@ -96,7 +96,7 @@ test("AC21: an exact duplicate does not inflate coverage or contribution counts,
   await evidence(mgr, "ac21-marked-duplicate")
   expect(
     psql(`select action || ':' || duplicate_of_asset_id from public.review_dispositions
-      where asset_id = ${sql(copy)}::uuid order by created_at desc limit 1`)
+      where asset_id = ${sql(copy)}::uuid order by id desc limit 1`)
   ).toBe(`duplicate:${original}`)
   expect(slot()).toBe("covered:0")
   expect(covered()).toBe(coveredBefore)

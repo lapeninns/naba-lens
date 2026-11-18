@@ -55,7 +55,7 @@ test("AC20 (deferred, FA-42): no in-app editing of an approved photo; the approv
   await expect(admin.getByTestId("asset-detail")).toBeVisible()
   await expect(admin.getByRole("button", { name: EDIT })).toHaveCount(0)
   await expect(
-    admin.getByRole("button", { name: "Download original" })
+    admin.getByRole("link", { name: "Download original" })
   ).toBeVisible()
   await evidence(admin, "ac20-admin-detail")
 

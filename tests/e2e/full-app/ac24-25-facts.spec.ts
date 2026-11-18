@@ -11,6 +11,8 @@ import {
   submitAndComplete,
 } from "../helpers/amenities-world"
 import { psql, requireIsolatedStack } from "../helpers/stack"
+import { signIn } from "../../support/identities"
+import { provisioner } from "../helpers/stack"
 import { OTHER_JOBS_PATH, otherJobsCheck } from "../helpers/ui"
 import { as, closeAll, DESKTOP, evidence, PHONE, sql } from "./helpers"
 
@@ -26,6 +28,25 @@ test.describe.configure({ mode: "serial" })
 test.beforeAll(() => requireIsolatedStack())
 test.setTimeout(240_000)
 test.afterEach(({ browser }) => closeAll(browser))
+
+/**
+ * Puts a check on the venue's working list as the admin, the step the admin
+ * venue template takes (S2-ADMIN, venue_apply_template): only checks on the
+ * working list count in coverage (private.knowledge_in_scope).
+ */
+async function onWorkingList(
+  w: Awaited<ReturnType<typeof provisionAmenitiesWorld>>,
+  key: string
+) {
+  const admin = await signIn(provisioner(), w.admin.email)
+  const { error } = await admin.rpc("knowledge_set_working_list", {
+    p_venue_id: w.venueA.id,
+    p_keys: [key],
+    p_enabled: true,
+    p_reason: "DEV FIXTURE: on this venue's working list",
+  })
+  if (error) throw new Error(`working list: ${error.message}`)
+}
 
 const fact = (venueId: string, key: string) =>
   psql(`select coalesce(current_answer, '') || '|' || coalesce(verification, '')
@@ -55,7 +76,9 @@ test("AC24: a confirmed No for the pool table resolves the fact and leaves no ta
 
   // The fact is resolved; nothing asks for a photo of a table.
   expect(fact(w.venueA.id, "pool_table")).toMatch(/^no\|/)
-  expect(slot(w.venueA.id, id)).toBe("not_here:false")
+  // No required photo slot for it (pool_table has no knowledge rule, so it
+  // is not on any working list and has no slot at all: see the FA-32 test).
+  expect(slot(w.venueA.id, id)).not.toMatch(/:true$/)
   await staff.goto(OTHER_JOBS_PATH)
   await expect(otherJobsCheck(staff, question("pool_table")).card).toHaveCount(
     0
@@ -76,6 +99,7 @@ test("AC25: a router photo leaves guest Wi-Fi unconfirmed until the manager veri
 }) => {
   const w = await provisionAmenitiesWorld()
   const id = await readyCheck(w, w.venueA, "guest_wifi", w.staffA)
+  await onWorkingList(w, "guest_wifi")
   const router = await seedPhoto(w.staffA, w.venueA, `router-${w.tag}`)
 
   const staff = await as(browser, w.staffA, PHONE)
@@ -112,4 +136,32 @@ test("AC25: a router photo leaves guest Wi-Fi unconfirmed until the manager veri
   await expect
     .poll(() => fact(w.venueA.id, "guest_wifi"))
     .toMatch(/\|confirmed$/)
+})
+
+test("FA-32 (AC24 context): a pool table Yes asks for a reviewed photo in coverage", async ({
+  browser,
+}) => {
+  // FA-32: "a confirmed Yes still needs a reviewed photo where the catalogue
+  // asks for one". pool_table's catalogue evidence rule is `photo`.
+  const w = await provisionAmenitiesWorld()
+  const id = await readyCheck(w, w.venueA, "pool_table", w.staffA)
+  const photo = await seedPhoto(w.staffA, w.venueA, `pool-${w.tag}`)
+  const staff = await as(browser, w.staffA, PHONE)
+  await staff.goto(staffCaptureHref(id))
+  const form = captureForm(staff)
+  await form.answer("yes")
+  await form.attach(photo)
+  await form.submit.click()
+  await expect
+    .poll(() =>
+      psql(`select count(*) from public.amenity_submissions
+        where check_id = ${sql(id)}::uuid`)
+    )
+    .toBe("1")
+  expect(fact(w.venueA.id, "pool_table")).toMatch(/^yes\|/)
+  // The photo requirement is a counted Facilities slot.
+  expect(
+    slot(w.venueA.id, id),
+    "pool_table is missing from private.coverage_slot_rows"
+  ).toMatch(/^(pending|covered|missing):true$/)
 })

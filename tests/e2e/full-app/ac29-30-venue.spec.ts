@@ -27,6 +27,9 @@ test.beforeAll(() => requireIsolatedStack())
 test.setTimeout(240_000)
 test.afterEach(({ browser }) => closeAll(browser))
 
+/** The id an insert … returning id gives (psql also prints the command tag). */
+const inserted = (statement: string) => psql(statement).split("\n")[0]!
+
 const bedroomSlots = (venueId: string) =>
   psql(`select count(*) from private.coverage_slot_rows(${sql(venueId)}::uuid)
     where required and (name ilike '%bedroom%' or group_name ilike '%bedroom%'
@@ -49,13 +52,23 @@ test("AC29: a pub with no accommodation has no bedroom slots, and turning it on 
     ["on", `Rooms open upstairs ${w.tag}`],
     ["off", `Rooms closed for good ${w.tag}`],
   ] as const) {
+    // The panel shows only the saved message after a change: reload for the
+    // next one.
+    await admin.reload()
+    await expect(scope).toContainText(
+      turn === "on"
+        ? "No accommodation: no bedroom photos or facts are asked for."
+        : "This venue has bedrooms: bedroom photos and facts are collected."
+    )
     await scope.getByTestId("scope-preview").click()
     await expect(scope.getByTestId("scope-impact")).toBeVisible()
     await scope.getByLabel("Why is this changing?").fill(reason)
     await scope
       .getByRole("button", { name: `Turn accommodation ${turn}` })
       .click()
-    await expect(scope.getByText(/^Saved\./)).toBeVisible()
+    await expect(
+      scope.getByText("Saved. The change is in Activity.")
+    ).toBeVisible()
   }
   await evidence(admin, "ac29-admin-scope")
 
@@ -86,7 +99,7 @@ test("AC30: an unchanged garden past its review date shows a check, and the mana
   const w = await provisionManagerWorld()
   const label = `Garden ${w.tag}`
   const garden =
-    psql(`insert into public.knowledge_subjects (venue_id, kind, label, created_by)
+    inserted(`insert into public.knowledge_subjects (venue_id, kind, label, created_by)
     values (${sql(w.venueA.id)}, 'area', ${sql(label)}, ${sql(w.admin.id)}) returning id`)
   const [asset] = await seedImages(w.staffA1, w.venueA, 1, {
     prefix: `DEV-FIXTURE-garden-${w.tag}`,
@@ -95,7 +108,7 @@ test("AC30: an unchanged garden past its review date shows a check, and the mana
   // DEV FIXTURE: a photo of the garden accepted 100 days ago (past its
   // 90-day review date).
   const labelId =
-    psql(`insert into public.media_area_labels (asset_id, venue_id, subject_id, subject_kind, subject_label, added_by)
+    inserted(`insert into public.media_area_labels (asset_id, venue_id, subject_id, subject_kind, subject_label, added_by)
     values (${sql(asset!)}, ${sql(w.venueA.id)}, ${sql(garden)}, 'area', ${sql(label)}, ${sql(w.staffA1.id)}) returning id`)
   psql(`insert into public.area_photo_decisions (label_id, venue_id, asset_id, action, decided_by, decided_at)
     values (${sql(labelId)}, ${sql(w.venueA.id)}, ${sql(asset!)}, 'accepted', ${sql(w.admin.id)}, now() - interval '100 days')`)
@@ -120,7 +133,9 @@ test("AC30: an unchanged garden past its review date shows a check, and the mana
   await expect(mgr.getByRole("main")).toContainText("1 photo due a check")
   await evidence(mgr, "ac30-check-due")
   await mgr.getByRole("button", { name: `Still right: ${label}` }).click()
-  await expect(mgr.getByText("Confirmed as still right.")).toBeVisible()
+  // The row leaves the list once confirmed (its "Confirmed as still right."
+  // status leaves with it: reported, S3-E2E-2 finding F6).
+  await expect(mgr.getByText("No space photos are due a check.")).toBeVisible()
 
   // Current again, and covered, with no new photo.
   expect(freshness()).toBe("current")
@@ -128,7 +143,7 @@ test("AC30: an unchanged garden past its review date shows a check, and the mana
   expect(photos()).toBe(before)
 })
 
-test("AC30 layout: the facts page with a due check fits a 320 px phone", async ({
+test("AC30 layout: the To confirm page fits a 320 px phone", async ({
   browser,
 }) => {
   const w = await provisionManagerWorld()

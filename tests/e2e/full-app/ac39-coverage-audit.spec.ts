@@ -67,7 +67,10 @@ test("AC39: the coverage numbers on metrics, Overview and admin Overview reprodu
   await expect(coverage.locator('tr[data-category="drinks"]')).toContainText(
     ofN(drinks)
   )
-  await expect(coverage.getByRole("heading").first()).toContainText(ofN(all))
+  // The count beside the "Photo coverage" title.
+  await expect(
+    coverage.locator(":scope > div").first().locator("span").first()
+  ).toContainText(ofN(all))
 
   // How this is counted: the slots, by state, give the same numbers.
   const how = report.locator("section#how-counted")

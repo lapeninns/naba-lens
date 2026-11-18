@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
-import { labelledPhoto, provisionManagerWorld } from "../helpers/manager-world"
+import { provisionManagerWorld } from "../helpers/manager-world"
 import { psql, requireIsolatedStack } from "../helpers/stack"
 import {
   acceptAsManager,
@@ -12,7 +12,7 @@ import {
   PHONE,
   SIZES,
   sql,
-  storeOriginal,
+  exportablePhoto,
 } from "./helpers"
 
 /**
@@ -40,20 +40,34 @@ async function acceptedDish(
   item: "soup" | "pie" | "lager",
   colour: string
 ) {
-  const asset = await labelledPhoto(w.staffA1, w.venueA, [w.itemsA[item]], {
-    colour,
-    prefix: `DEV-FIXTURE-export-${item}`,
-  })
-  await storeOriginal(w.staffA1.id, asset, colour)
+  const asset = await exportablePhoto(
+    w.staffA1,
+    w.venueA,
+    [w.itemsA[item]],
+    colour
+  )
   await acceptAsManager(w.mgrA, asset, w.itemsA[item])
   return asset
 }
 
-/** Builds a package on /…/exports/new from the subjects named, returns its id. */
-async function makePackage(page: Page, base: string, subjects: string[]) {
-  await page.goto(base)
-  await page.getByRole("link", { name: "Make an export package" }).click()
-  await expect(page).toHaveURL(new RegExp(`${base}/new`))
+/**
+ * Builds a package on /…/new from the subjects named, returns its id. A
+ * manager opens the builder from Exports; an admin's builder starts with a
+ * venue chosen (`?venue=`, the Venue pill's link).
+ */
+async function makePackage(
+  page: Page,
+  base: string,
+  subjects: string[],
+  venueId?: string
+) {
+  if (venueId) {
+    await page.goto(`${base}/new?venue=${venueId}`)
+  } else {
+    await page.goto(base)
+    await page.getByRole("link", { name: "Make an export package" }).click()
+    await expect(page).toHaveURL(new RegExp(`${base}/new`))
+  }
   for (const subject of subjects) {
     await page
       .getByRole("listitem")
@@ -80,11 +94,7 @@ for (const [size, options] of SIZES) {
 
     const mgr = await as(browser, w.mgrA, options)
     await mgr.goto("/manager")
-    await mgr
-      .locator('[data-slot="exports-row"]')
-      .getByRole("link")
-      .first()
-      .click()
+    await mgr.locator('a[data-slot="exports-row"]').click()
     await expect(mgr).toHaveURL(/\/manager\/exports$/)
     const pkg = await makePackage(mgr, "/manager/exports", ["Soup"])
 
@@ -159,7 +169,7 @@ test("AC32: a photo withdrawn after packaging blocks the download until the pack
   // A stale link refuses too, and writes no download.
   await mgr.goto(`/api/exports/${pkg}/download?from=manager`)
   await expect(mgr).toHaveURL(/download=invalidated/)
-  await expect(mgr.getByRole("alert")).toContainText(
+  await expect(mgr.locator('[role="alert"][data-slot="notice"]')).toContainText(
     "This package can't be downloaded"
   )
   await expect(chip(mgr, "package_invalidated").first()).toBeVisible()
@@ -204,15 +214,26 @@ test("AC33 (deferred, FA-40): a published photo that is withdrawn stops being ex
 
   const admin = await as(browser, w.admin, DESKTOP)
   await admin.goto("/admin/publishing")
-  await admin.getByText("Add a destination").click()
-  await admin.getByLabel("Name").fill(destination)
-  await admin.getByRole("button", { name: "Add destination" }).click()
+  const add = admin
+    .locator("details")
+    .filter({ has: admin.getByText("Add a destination", { exact: true }) })
+  await add.getByText("Add a destination", { exact: true }).click()
+  await add.getByLabel("Name").fill(destination)
+  await add.getByRole("button", { name: "Add destination" }).click()
   await expect(admin.getByText(destination).first()).toBeVisible()
 
-  const pkg = await makePackage(admin, "/admin/publishing", ["Soup"])
+  const pkg = await makePackage(
+    admin,
+    "/admin/publishing",
+    ["Soup"],
+    w.venueA.id
+  )
   await admin.getByText("Record where it's published").click()
   await admin.getByRole("combobox", { name: "Where" }).click()
   await admin.getByRole("option", { name: destination }).click()
+  await admin
+    .getByLabel(/^Page address/)
+    .fill(`https://example.test/menu-${w.tag}`)
   await admin.getByRole("button", { name: "Record as Published" }).click()
   await expect(admin.getByText("Recorded as Published.")).toBeVisible()
   await admin.reload()

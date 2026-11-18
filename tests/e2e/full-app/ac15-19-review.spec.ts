@@ -242,6 +242,31 @@ test("AC15-AC19 layout: the photo detail and its dialogs fit a 320 px phone", as
   await mgr.goto(detail(asset))
   await expect(action(mgr, "approve").first()).toBeVisible()
   await expectNoSidewaysScroll(mgr, "photo detail at 320 px")
+  // Each tab label in the workspace bar reads on one line (no "Overvie / w").
+  const wrapped = await mgr
+    .getByRole("navigation", { name: "Venue workspace" })
+    .getByRole("link")
+    .filter({ visible: true })
+    .evaluateAll((links) =>
+      links.flatMap((link) => {
+        // Every visible text run of the label, measured on its own.
+        const walker = document.createTreeWalker(link, NodeFilter.SHOW_TEXT)
+        const broken: string[] = []
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          const text = n.textContent?.trim() ?? ""
+          if (!text) continue
+          const range = document.createRange()
+          range.selectNodeContents(n)
+          const rects = Array.from(range.getClientRects()).filter(
+            (r) => r.width > 1 && r.height > 1
+          )
+          if (new Set(rects.map((r) => Math.round(r.top))).size > 1)
+            broken.push(text)
+        }
+        return broken
+      })
+    )
+  expect.soft(wrapped, "tab labels broken across lines at 320 px").toEqual([])
   await action(mgr, "ask-another").first().click()
   await expect(mgr.getByRole("dialog")).toBeVisible()
   await expectNoSidewaysScroll(mgr, "ask-another dialog at 320 px")
