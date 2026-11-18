@@ -29,6 +29,9 @@ export const MATCH_COPY = {
   notSureHint: "Your manager will choose the slot.",
   /** The venue these photos go to (spec §5.1, AC11). */
   venueLine: (venue: string) => `For ${venue}`,
+  /** Spec §5.4: how many photos still have no answer. */
+  openCount: (n: number) =>
+    n === 1 ? "1 not matched yet" : `${n} not matched yet`,
   venueChanged: (venue: string, n: number) =>
     n === 0
       ? `You are now adding photos for ${venue}. The slots below are ${venue}'s.`

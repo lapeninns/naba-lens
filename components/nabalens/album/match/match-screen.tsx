@@ -262,6 +262,16 @@ export function MatchScreen({
                 {MATCH_COPY.venueLine(venueName)}
               </p>
             ) : null}
+            {!done && photos.length > 1 ? (
+              <p
+                className="font-mono text-mono font-semibold text-ink-muted tabular-nums"
+                data-slot="match-open-count"
+              >
+                {MATCH_COPY.openCount(
+                  photos.filter((p) => !outcomes.has(p.key)).length
+                )}
+              </p>
+            ) : null}
           </div>
           <Button
             type="button"

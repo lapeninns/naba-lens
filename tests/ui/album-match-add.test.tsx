@@ -312,6 +312,7 @@ describe("measured journeys", () => {
     )
     await user.upload(gallery(), files)
     let dialog = await screen.findByRole("dialog", { name: "Photo 1 of 10" })
+    expect(within(dialog).getByText("10 not matched yet")).toBeTruthy()
     // Nothing is grouped until the person says so (§5.4).
     expect(within(dialog).getByText(/Tap the last photo/)).toBeTruthy()
     await tap.click(within(dialog).getByRole("button", { name: "Photo 4 too" }))
@@ -324,6 +325,7 @@ describe("measured journeys", () => {
       await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
     )
     dialog = await screen.findByRole("dialog", { name: "Photo 5 of 10" })
+    expect(within(dialog).getByText("6 not matched yet")).toBeTruthy()
     await tap.click(within(dialog).getByRole("button", { name: "Photo 7 too" }))
     await tap.click(
       await within(dialog).findByRole("button", { name: /Chicken Tikka/ })
@@ -378,6 +380,24 @@ describe("measured journeys", () => {
     )
     expect(
       await screen.findByRole("dialog", { name: "Photo 2 of 3" })
+    ).toBeTruthy()
+  })
+})
+
+describe("the picker cancelled (spec §6 S2)", () => {
+  it("changes nothing, and the next pick opens Match as usual", async () => {
+    const user = userEvent.setup()
+    host({ match: { place: PASS } })
+    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    // The phone's picker closed with nothing chosen.
+    gallery().dispatchEvent(new Event("cancel"))
+    await user.upload(gallery(), [])
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(started).toEqual([])
+    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    await user.upload(gallery(), [jpeg("a.jpg")])
+    expect(
+      await screen.findByRole("dialog", { name: "Photo 1 of 1" })
     ).toBeTruthy()
   })
 })
