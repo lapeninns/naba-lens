@@ -82,6 +82,13 @@ export type QueueItem = {
   batchId?: string
   /** The server found it is an exact copy of an earlier file (§12.4). */
   duplicate?: true
+  /**
+   * Where a failed file stopped (spec §5.6, §10): "transfer" (the bytes did
+   * not all arrive: Retry sends them) or "processing" (the server had the
+   * file and could not finish it: Retry asks it again, without resending
+   * the bytes unless the server removed them). See lib/upload/states.ts.
+   */
+  failedStage?: "transfer" | "processing"
 }
 
 export type UploadContext = {
@@ -469,6 +476,7 @@ export class UploadQueue {
       stopped: false,
       retryable: undefined,
       processingAt: undefined,
+      failedStage: undefined,
     })
     this.pump()
   }
@@ -587,8 +595,15 @@ export class UploadQueue {
         this.setPause()
         this.update(id, { status: "queued", progress: 0, error: null })
       } else {
+        const code = errorDetail(error)?.code
+        const atProcessing =
+          this.items.find((i) => i.id === id)?.status === "processing" ||
+          code === "processing_failed" ||
+          code === "finalise_failed" ||
+          code === "finalise_refused"
         this.update(id, {
           status: "failed",
+          failedStage: atProcessing ? "processing" : "transfer",
           error: errorMessage(error),
           ...(isRetryable(error) ? {} : { retryable: false }),
           ...(errorDetail(error)?.code === "finalise_refused"

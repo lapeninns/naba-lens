@@ -40,7 +40,13 @@ export const MATCH_COPY = {
   laterWord: "under Match later",
   sharedWord: "shared, no slot",
   sending: "Sending",
+  /** Uploaded, the server still processing it (spec §5.6). */
+  checking: "Checking",
   waiting: "Waiting",
+  /** Processed, but its slot was not saved with it. */
+  sentWord: "Sent",
+  /** The server had it and could not finish it (Processing failed). */
+  unfinishedWord: "Couldn't finish",
   notSent: "Not sent",
   savedOnPhone: "Saved on this phone",
   notAddedWord: "Not added",
@@ -78,6 +84,10 @@ export const MATCH_COPY = {
     n === 1
       ? "1 photo didn't send. Open Add photos to send it again."
       : `${n} photos didn't send. Open Add photos to send them again.`,
+  unfinishedLine: (n: number) =>
+    n === 1
+      ? "1 photo arrived but couldn't be finished. Open Add photos and choose Retry; it won't be sent twice."
+      : `${n} photos arrived but couldn't be finished. Open Add photos and choose Retry; they won't be sent twice.`,
   refusedLine: (n: number) =>
     n === 1
       ? "1 photo could not be added. It is still in your gallery."

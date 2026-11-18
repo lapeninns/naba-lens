@@ -40,6 +40,7 @@ import type {
 } from "@/lib/knowledge/contract"
 import { guardBeforeUnload } from "@/lib/upload/before-unload"
 import { forgetCapture } from "@/lib/upload/capture-session"
+import { uploadReceipt, type UploadReceipt } from "@/lib/upload/states"
 import { unconfirmedMessage } from "@/lib/upload/uploader"
 import { cn } from "@/lib/utils"
 
@@ -93,7 +94,21 @@ type UploadDialogProps = {
    * false when the screen that picked it is gone: the file stays listed as
    * saved but not added there, until the person has seen it.
    */
-  onReady?: (assetIds: string[], files: File[]) => boolean | void
+  onReady?: (
+    assetIds: string[],
+    files: File[],
+    /**
+     * Each file's honest receipt (lib/upload/states.ts): "sent_for_review"
+     * when its labels were saved with it, "label_not_saved" when they could
+     * not be, "ready" when finalise had none.
+     */
+    receipts?: UploadReceipt[]
+  ) => boolean | void
+  /**
+   * Called once per file attempt when its bytes have arrived and the server
+   * is processing it ("Checking", spec §5.6 Uploaded — processing).
+   */
+  onProcessing?: (file: File) => void
   /**
    * Optional labels in the sheet ("What's in these photos?"): sent by asset
    * ID as soon as each file is reserved, and on the photo once it is ready.
@@ -165,7 +180,16 @@ type UploadDialogProps = {
    * Called once per file that ends without becoming ready, and why: it
    * failed, was cancelled, or was removed (or cleared) from the queue.
    */
-  onUnfinished?: (file: File, reason: UploadUnfinishedReason) => void
+  onUnfinished?: (
+    file: File,
+    reason: UploadUnfinishedReason,
+    /**
+     * For a failed file, where it stopped: "processing" when the server had
+     * the original and could not finish it (spec §5.6 Processing failed),
+     * "transfer" when the bytes did not all arrive.
+     */
+    stage?: "transfer" | "processing"
+  ) => void
   /** Called once per file when the server has reserved it, with its asset ID. */
   onReserved?: (file: File, assetId: string) => void
   /**
@@ -769,6 +793,7 @@ export function UploadDialog({
   limits,
   onUploaded,
   onReady,
+  onProcessing,
   labels: labelsConfig,
   startOnPick = false,
   keepRunningWhenClosed = false,
@@ -997,7 +1022,9 @@ export function UploadDialog({
     onUploaded?.(fresh.length)
     if (!onReady) return
     const gone = fresh.filter(
-      (item) => item.assetId && onReady([item.assetId], [item.file]) === false
+      (item) =>
+        item.assetId &&
+        onReady([item.assetId], [item.file], [uploadReceipt(item)]) === false
     )
     if (gone.length === 0) return
     // The screen that picked them closed: keep them listed until seen.
@@ -1009,13 +1036,27 @@ export function UploadDialog({
     })
   }, [signedOut, items, onUploaded, onReady])
 
+  // Each attempt that reaches the server's processing, once ("Checking").
+  const checking = React.useRef(new Set<string>())
+  React.useEffect(() => {
+    for (const item of items) {
+      if (item.status === "processing") {
+        if (checking.current.has(item.id)) continue
+        checking.current.add(item.id)
+        onProcessing?.(item.file)
+      } else if (item.status !== "done") checking.current.delete(item.id)
+    }
+  }, [items, onProcessing])
+
   // Each file that ends without becoming ready, once, and why.
   const ended = React.useRef(new Set<string>())
   const unfinished = React.useCallback(
     (item: QueueItem, reason: UploadUnfinishedReason) => {
       if (item.status === "done" || ended.current.has(item.id)) return
       ended.current.add(item.id)
-      onUnfinished?.(item.file, reason)
+      if (reason === "failed" && item.failedStage)
+        onUnfinished?.(item.file, reason, item.failedStage)
+      else onUnfinished?.(item.file, reason)
     },
     [onUnfinished]
   )
