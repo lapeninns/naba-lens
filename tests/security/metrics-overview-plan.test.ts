@@ -68,6 +68,9 @@ describe("metrics_overview reads each venue once", () => {
     expect(calls.metrics_venue_json).toBe(active)
   })
 
+  // Reads every active venue twice. After the full suite the shared stack
+  // holds hundreds of test venues (551 on 18 Nov 2026: 8.5 s for one
+  // metrics_overview, about 15 ms a venue), so the default 30 s is too short.
   it("lists the same numbers as each venue's own metrics", async () => {
     const admin = await knowledgeAdmin()
     const claims = JSON.stringify({
@@ -90,7 +93,7 @@ describe("metrics_overview reads each venue once", () => {
         .filter((l) => l === "t" || l === "f")
         .at(-1)
     ).toBe("t")
-  })
+  }, 180_000)
 })
 
 describe("media_duplicate_suppressed asks about the original only", () => {
