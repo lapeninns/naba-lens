@@ -8,6 +8,7 @@ import {
 import { EvidenceThumb } from "@/components/nabalens/coverage/evidence-image"
 import { NeededByChip } from "@/components/nabalens/menu-photos/needed-by-chip"
 import { StatusChip, type ChipTone } from "@/components/nabalens/status-chip"
+import { OPTIONAL_SLOT_WORD } from "@/lib/album/model"
 
 import type {
   ManagerMenuItem,
@@ -24,9 +25,15 @@ const HEADLINE: Record<MenuItemStatus, { word: string; tone: ChipTone }> = {
     tone: "pending",
   },
   needs_photo: { word: MANAGER_COPY.menu.status.needs_photo, tone: "neutral" },
+  // FA-51: a packaged item without Photo wanted is never a gap (S5-R1). The
+  // word is Album's Optional (DESIGN.md §4), in a closed square.
+  optional: { word: OPTIONAL_SLOT_WORD, tone: "closed" },
 }
 
-/** The item's headline chip: Has a photo, Awaiting review or Still needs a photo. */
+/**
+ * The item's headline chip: Has a photo, Awaiting review, Still needs a
+ * photo or Optional.
+ */
 export function MenuStatusChip({ status }: { status: MenuItemStatus }) {
   const { word, tone } = HEADLINE[status] ?? HEADLINE.needs_photo
   return (

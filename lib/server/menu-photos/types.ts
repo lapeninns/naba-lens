@@ -7,11 +7,18 @@ import type { CoverageFailure, NeededBy } from "@/lib/server/coverage/types"
 
 export type ManagerMenuState = "no_menu" | "empty" | "ready"
 
-/** An item's headline: the same for every caller (manager or admin). */
-export type MenuItemStatus = "covered" | "awaiting_review" | "needs_photo"
+/**
+ * An item's headline: the same for every caller (manager or admin).
+ * `optional` (FA-51, S5-R1): a packaged item without Photo wanted, with no
+ * accepted photo and nothing waiting. It is never a filter: every status
+ * filter leaves optional items out, as the Overview's counts do.
+ */
+export type MenuItemStatus =
+  "covered" | "awaiting_review" | "needs_photo" | "optional"
 
 /** Menu list filter: a headline, or "Needs a recheck" / "New photo waiting". */
-export type MenuStatusFilter = MenuItemStatus | "recheck" | "replacement"
+export type MenuStatusFilter =
+  Exclude<MenuItemStatus, "optional"> | "recheck" | "replacement"
 
 export type ContributorStatus = "here" | "moved" | "left" | "manager"
 
