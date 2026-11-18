@@ -19,7 +19,7 @@ import { activateDueMenus } from "@/lib/server/menus"
 import { loadMenuItemsPageAction } from "../actions"
 import { failedRead, loadManagerOverview } from "../load-overview"
 
-export const metadata = { title: "Menu" }
+export const metadata = { title: "Album" }
 
 const MORE_LINK =
   "rounded-square font-bold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"

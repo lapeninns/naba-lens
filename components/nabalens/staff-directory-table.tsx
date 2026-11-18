@@ -226,7 +226,7 @@ export function StaffDirectoryTable({
   return (
     <div className={cn("min-w-0", className)}>
       <ul
-        aria-label="Staff"
+        aria-label="People"
         className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card md:hidden"
       >
         {staff.map((member) => (
@@ -258,7 +258,7 @@ export function StaffDirectoryTable({
       </ul>
 
       <div className="hidden overflow-hidden rounded-card bg-surface px-2 shadow-card md:block">
-        <Table aria-label="Staff">
+        <Table aria-label="People">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead scope="col" className="pl-4">

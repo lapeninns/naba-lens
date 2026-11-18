@@ -71,7 +71,7 @@ test.describe("admin staff management", () => {
     // Invite through the dialog.
     await adminPage.goto("/admin/staff")
     await expect(
-      adminPage.getByRole("heading", { name: "Staff", level: 1 })
+      adminPage.getByRole("heading", { name: "People", level: 1 })
     ).toBeVisible()
     const email = testEmail("e2e-invitee")
     const name = `TEST Invitee ${email.slice(10, 18)}`
@@ -223,7 +223,7 @@ test.describe("admin staff management", () => {
     })
     await page.goto("/admin/staff")
     const row = page
-      .getByRole("list", { name: "Staff" })
+      .getByRole("list", { name: "People" })
       .getByRole("listitem")
       .filter({ hasText: name })
     const link = row.getByRole("link", { name })

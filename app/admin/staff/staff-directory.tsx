@@ -199,7 +199,7 @@ export function StaffDirectory({
       <PageHeader
         venueScope
         scope="All venues"
-        title="Staff"
+        title="People"
         summary={STAFF_SUMMARY}
         actions={
           <Button variant="primary" onClick={() => setInviting(true)}>

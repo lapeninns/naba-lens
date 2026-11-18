@@ -36,9 +36,7 @@ tablet the tab bar shows **Overview**, **Venues**, **Library** and **More**.
 full names, **Menus & catalog** and **Settings & activity** among them, each
 with a line on what it holds.
 
-Two section pages carry older headings: **Library** opens the page headed
-**Content** (`/admin`), and **People** opens the page headed **Staff**
-(`/admin/staff`).
+Each section page is headed as the nav names it.
 
 ## Overview
 
@@ -124,7 +122,7 @@ which items kept their photo and which need a new decision.
 
 ## Library
 
-The Library (`/admin`, headed **Content**) holds every ready photo and video
+The Library (`/admin`) holds every ready photo and video
 across the group, newest first. Filter by **Venue**, **Staff member** and
 **Media**, or open **More filters** for menu item and **Category** (choose a
 venue first), **Content type**, **Labelled** or **Needs labels**, dates, and
@@ -199,7 +197,7 @@ venue under Exports, but can't record Published.
 
 ## People
 
-**People** (`/admin/staff`, headed **Staff**) lists everyone.
+**People** (`/admin/staff`) lists everyone.
 
 - **Invite staff**: **Name**, **Email**, **Venue** and team (**Front of
   house**, **Back of house** or **Unassigned**), then **Send invitation**.

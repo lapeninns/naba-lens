@@ -217,7 +217,7 @@ for (const width of WIDTHS) {
     // The Library section's page is still titled Content.
     await nav.getByRole("link", { name: "Library", exact: true }).click()
     await expect(
-      page.getByRole("heading", { level: 1, name: "Content" })
+      page.getByRole("heading", { level: 1, name: "Library" })
     ).toBeVisible()
     if (wide) {
       await nav.getByRole("link", { name: "Menus", exact: true }).click()
