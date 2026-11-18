@@ -114,6 +114,8 @@ const ACTION_WORDS: Record<string, string> = {
   account_reactivated: "Reactivated an account",
   account_role_changed: "Changed an account's role",
   account_venue_changed: "Moved an account to another venue",
+  membership_added: "Added someone to a venue",
+  membership_ended: "Ended someone's place at a venue",
   media_removed: "Removed a photo or video",
   settings_changed: "Changed settings",
   accepted: "Accepted a photo",

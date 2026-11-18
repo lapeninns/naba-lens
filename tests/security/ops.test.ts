@@ -276,7 +276,10 @@ describe("admin_activity", () => {
     const page = await ok(
       activity(v.admin, { p_venue_id: v.venue, p_source: "activity" })
     )
-    const mine = page.items.filter((i) => i.objectId === person.id)
+    // Membership rows for the same account are logged too (S2-FIX R26).
+    const mine = page.items.filter(
+      (i) => i.objectId === person.id && i.action.startsWith("account_")
+    )
     expect(mine.map((i) => i.action)).toEqual([
       "account_reactivated",
       "account_deactivated",

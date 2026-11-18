@@ -169,6 +169,10 @@ describe("activity", () => {
     })
     expect(revisionText(page!.items[0])).toBe("rev 1 → 2")
     expect(actionWords("settings_changed")).toBe("Changed settings")
+    expect(actionWords("membership_added")).toBe("Added someone to a venue")
+    expect(actionWords("membership_ended")).toBe(
+      "Ended someone's place at a venue"
+    )
     expect(actionWords("check_reopened")).toBe("Check reopened")
   })
 })
