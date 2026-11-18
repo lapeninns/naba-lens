@@ -178,14 +178,26 @@ async function readCandidates(
       .eq("status", "active"),
   ])
   if (places.error || checks.error) throw new Error("Could not read places.")
+  // Only questions on the venue's working list have an amenity queue
+  // (private.knowledge_in_scope); an off-list check is neither offered nor
+  // counted towards an ambiguous match (S5-R3, review Y5).
+  const working = await service
+    .from("knowledge_working_list")
+    .select("question_key")
+    .eq("venue_id", venueId)
+    .is("disabled_at", null)
+  if (working.error) throw new Error("Could not read the working list.")
+  const inScope = new Set((working.data ?? []).map((w) => w.question_key))
   for (const p of places.data ?? [])
     candidates.push({ kind: "place", id: p.id, names: [p.label] })
-  for (const c of checks.data ?? [])
+  for (const c of checks.data ?? []) {
+    if (!inScope.has(c.template_key)) continue
     candidates.push({
       kind: "amenity",
       id: c.id,
       names: [amenityWords(c.template_key)],
     })
+  }
   return candidates
 }
 
