@@ -67,6 +67,8 @@ for (const size of ["phone", "desktop"] as const) {
     // The manager's main Review queue shows it as Needs label, with the note.
     const manager = await signedInPage(browser, w.mgrA, SIZES[size])
     await manager.goto("/manager/review")
+    await expect(manager.getByRole("heading", { level: 1 })).toBeVisible()
+    await keep(manager, info, `ac03-${size}-manager-review`)
     const link = manager.locator(`a[href*="${id}"]`).first()
     await expect(link).toBeVisible({ timeout: 30_000 })
     const card = manager
