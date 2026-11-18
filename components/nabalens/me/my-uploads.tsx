@@ -111,13 +111,14 @@ export type MyUploadsActions = {
 }
 
 export const MY_UPLOADS_COPY = {
-  title: "My uploads",
+  // Album's words (DESIGN.md §7: never "upload"): the spec's My uploads.
+  title: "Your photos",
   sections: "Show",
   noUploads:
     "Nothing sent yet. Photos you add from your gallery appear here with what happened to them.",
   readFailed:
-    "Your uploads couldn't be loaded. Check your connection and reload the page. Photos you sent are safe.",
-  loadMore: "Show older uploads",
+    "Your photos couldn't be loaded. Check your connection and reload the page. Photos you sent are safe.",
+  loadMore: "Show older photos",
   noSlot: "No slot yet",
   noSlotHint: "Match it to a slot from Album, under Match later.",
   shared: (kinds: string[]) =>
@@ -197,7 +198,7 @@ export function MyUploads({
   /** Own photos with an open correction request. */
   correctionsAsked?: string[]
   actions: MyUploadsActions
-  headingLevel?: 2 | 3
+  headingLevel?: 2 | 3 | 4
 }) {
   const router = useRouter()
   const sessionEnded = useSessionEndedCatch()

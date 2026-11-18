@@ -202,8 +202,9 @@ describe("Album place (DESIGN.md §6.2)", () => {
       .getByRole("heading", { name: "Drinks" })
       .closest("section")!
     expect(within(drinks).getByText("1 of 2")).toBeTruthy()
+    // A filled slot opens its slot page (DESIGN.md §5; S2-STAFF).
     expect(
-      within(drinks).getByRole("group", { name: "Aperol spritz: in the album" })
+      within(drinks).getByRole("link", { name: "Aperol spritz: in the album" })
     ).toBeTruthy()
   })
 

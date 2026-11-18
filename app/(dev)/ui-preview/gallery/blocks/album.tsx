@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button"
 import * as React from "react"
 import { buildAlbum, currentPlace, type AlbumInput } from "@/lib/album/model"
 
-import { StaffMeSpecimens } from "./staff-me"
+import { StaffMeSpecimens } from "../staff-me-specimens"
 
 /*
  * Gallery block for the Album components (DESIGN.md §5). A1: the slot tile.

@@ -83,7 +83,7 @@ export function AlbumSlotScreen({
   /** Why adding is paused (no or inactive venue), or null. */
   blocked: string | null
   sendReport: ReportSender
-  headingLevel?: 1 | 2
+  headingLevel?: 1 | 2 | 3 | 4
 }) {
   const openAdd = useAdd()
   const [reporting, setReporting] = React.useState(false)

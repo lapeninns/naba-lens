@@ -134,6 +134,7 @@ export function StaffMeSpecimens({
           canAdd
           blocked={null}
           sendReport={async () => ({ ok: true, created: true })}
+          headingLevel={4}
         />
       </Frame>
       <Frame title="My uploads (spec §6 S4)">
@@ -155,7 +156,7 @@ export function StaffMeSpecimens({
             requestRemoval: ok,
             report: async () => ({ ok: true, created: true }),
           }}
-          headingLevel={3}
+          headingLevel={4}
         />
       </Frame>
       <Frame title="My uploads, empty and unread">
@@ -164,13 +165,13 @@ export function StaffMeSpecimens({
             initial={{ items: [], next: null }}
             currentVenueId={V}
             actions={{} as never}
-            headingLevel={3}
+            headingLevel={4}
           />
           <MyUploads
             initial={null}
             currentVenueId={V}
             actions={{} as never}
-            headingLevel={3}
+            headingLevel={4}
           />
         </div>
       </Frame>
@@ -201,7 +202,7 @@ export function StaffMeSpecimens({
           ]}
           unread={2}
           helpHref="#"
-          headingLevel={3}
+          headingLevel={4}
         />
       </Frame>
       <Frame title="Notices (spec §17)">

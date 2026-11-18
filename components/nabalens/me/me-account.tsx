@@ -79,7 +79,7 @@ export function MeAccount({
   /** Unread notices; null when the count couldn't be read. */
   unread: number | null
   helpHref: string
-  headingLevel?: 2 | 3
+  headingLevel?: 2 | 3 | 4
 }) {
   const Heading = `h${headingLevel}` as "h2"
   const Sub = `h${headingLevel + 1}` as "h3"
