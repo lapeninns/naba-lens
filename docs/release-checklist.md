@@ -122,7 +122,7 @@ or production launch. Advance only when all are evidenced:
       manager; set targets; staff land on **My tasks**, send photos to an
       assigned task and as monthly photos; the manager accepts one and asks for
       another with a reason; staff send a replacement. Counts follow the credit
-      rules in the [staff guide](usage-staff.md#what-counts-toward-your-monthly-target),
+      rules in the [staff guide](usage-staff.md#your-month),
       and oversight shows participation, coverage and the self-review
       separately.
 - [ ] v0.4 denials: staff cannot review or set targets; a manager cannot reach
