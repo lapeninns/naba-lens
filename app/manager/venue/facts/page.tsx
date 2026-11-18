@@ -79,11 +79,10 @@ export default async function ManagerVenueFactsPage() {
           <p role="status" className="text-body text-ink-muted">
             {copy.factsFailed}
           </p>
-        ) : facts.length === 0 ? (
-          <p className="text-body text-ink-muted">{copy.factsEmpty}</p>
         ) : (
           <StillRightList
             label={copy.factsTitle}
+            empty={copy.factsEmpty}
             items={facts}
             onConfirm={reconfirmFactAction}
           />
@@ -97,11 +96,10 @@ export default async function ManagerVenueFactsPage() {
           <p role="status" className="text-body text-ink-muted">
             {copy.spacesFailed}
           </p>
-        ) : places.length === 0 ? (
-          <p className="text-body text-ink-muted">{copy.spacesEmpty}</p>
         ) : (
           <StillRightList
             label={copy.spacesTitle}
+            empty={copy.spacesEmpty}
             items={places}
             onConfirm={reconfirmSpaceAction}
           />
