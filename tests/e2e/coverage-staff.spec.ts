@@ -360,15 +360,21 @@ async function staffJourney(
   )
   await uploadForTask(page, [first!, second!])
   await sendSelected(page, 2)
-  await expect(
-    page.getByText("They're already in your portfolio and Explore.", {
-      exact: false,
-    })
-  ).toBeVisible()
+  // FA-20: colleagues see a photo only once it is accepted, so the sent
+  // notice must not say the photos are already shared or that review only
+  // decides whether they count (soft: the journey goes on).
+  await expect(page.getByText(/^Sent|sent/).first()).toBeVisible()
+  await expect
+    .soft(page.getByText(/already in your portfolio and Explore/))
+    .toHaveCount(0)
+  await expect
+    .soft(page.getByText(/Review only decides whether they count/))
+    .toHaveCount(0)
 
   await expiredLinkRecovery(page)
 
-  // AC-13: shared before review, in My portfolio and a colleague's Explore.
+  // In My portfolio at once; a colleague sees nothing before review (FA-20,
+  // spec §3.3 row 3; this reverses Goals v0.5's AC-13).
   let sent = items(setup.requirementId)
   expect(sent.map((i) => [i.name, i.state])).toEqual([
     [first!.name, "submitted"],
@@ -379,23 +385,27 @@ async function staffJourney(
     await expect(await staffTile(portfolioList(page), file.name)).toBeVisible()
   }
   const colleague = await signedInPage(browser, w.staffB)
+  const byA = colleague.getByRole("button", {
+    name: new RegExp(`^Photo by ${escape(w.staffA.name)}, `),
+  })
   await colleague.goto("/staff/community")
-  // Colleagues see the photos by author, never their file names (R-02).
-  await expect(
-    colleague.getByRole("button", {
-      name: new RegExp(`^Photo by ${escape(w.staffA.name)}, `),
-    })
-  ).toHaveCount(2)
-  const explore = await colleague.content()
-  for (const file of [first!, second!]) {
-    expect(explore).not.toContain(file.name)
-  }
-  await colleague.context().close()
+  await expect(colleague.locator("main")).toBeVisible()
+  await expect(byA).toHaveCount(0)
 
   // Manager: accept one, ask for another photo with a reason.
   const reason = `WS5: the shelf is out of focus (${w.tag})`
   await review(setup.manager, sent[0]!, "accepted")
   await review(setup.manager, sent[1]!, "needs_another_photo", reason)
+
+  // The accepted photo now shows to the colleague, by author, never by its
+  // file name (R-02); the one sent back does not.
+  await colleague.reload()
+  await expect(byA).toHaveCount(1)
+  const explore = await colleague.content()
+  for (const file of [first!, second!]) {
+    expect(explore).not.toContain(file.name)
+  }
+  await colleague.context().close()
 
   await openPortfolio(page)
   await expect(monthProgress(1)).toBeVisible()
