@@ -8,7 +8,6 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
-
 ## Workstream delivery and verification
 
 - Begin with a finite batch of task IDs and acceptance criteria. Preserve the
@@ -42,17 +41,26 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## UI changes
 
-- The design system is Common Room. Read `docs/design-system/DESIGN.md` before
-  changing any screen, component or token. Code comments cite it by section
-  number ("DESIGN.md §4"); keep those numbers stable.
-- Values live in `app/globals.css`. State words, icons and shapes live in
-  `components/nabalens/status-chip.tsx`. Do not restate either elsewhere.
+- The design system is Album (adopted 17 Nov 2026, decision D8). Read
+  `docs/design-system/DESIGN.md` before changing any screen, component or
+  token. Code comments cite it by section number ("DESIGN.md §4"); keep those
+  numbers stable.
+- Album is gallery first: never add an in-app camera. Photos are matched to a
+  slot as they are added (D9), never labelled after sending.
+- Until batch A5, screens not yet moved to Album still ship Common Room. Its
+  frozen spec is `docs/design-system/common-room.md`, and comments on that code
+  cite it ("common-room.md §4"). Do not extend Common Room; move the screen to
+  Album instead.
+- Values live in `app/globals.css` (Album values from batch A1). State words,
+  icons and shapes live in one component per system: today
+  `components/nabalens/status-chip.tsx`, and Album's slot tile from A1. Do not
+  restate them elsewhere.
 - Check `docs/design-system/catalogue.md` before building a component. Extend
   the listed one; a second implementation of a listed pattern is a defect.
 - A deliberate exception to the spec goes in `docs/design-system/departures.md`
   with a reason and an owner. An open question goes in `decisions.md`.
-- The claude.ai Design System artifact from PR #14 and the folder
-  `research/naba-lens-common-room-2026-11-07` are superseded. Do not copy tokens
-  or rules from them.
-- `/ui-preview` (dev only) is the living reference. `docs/design-system/strategy.md`
-  holds the audit and the roadmap batches (task IDs `DS-xxx`).
+- The claude.ai Design System artifact from PR #14, the folder
+  `research/naba-lens-common-room-2026-11-07` and the Inn proposal are
+  superseded. Do not copy tokens or rules from them.
+- `/ui-preview` (dev only) is the living reference. Album batches are A0 to A5
+  (`DESIGN.md` §12); `docs/design-system/strategy.md` is the Common Room audit.

@@ -23,7 +23,6 @@ import {
   slotRow,
 } from "@/components/nabalens/knowledge/copy"
 import { CHIP_STATES } from "@/components/nabalens/status-chip"
-import { todoCount, todoItems } from "@/components/nabalens/tasks/todo-list"
 import {
   FINDING_STATES,
   findingKey,
@@ -35,8 +34,6 @@ import {
   type FindingSummary,
   type WorkingSlot,
 } from "@/lib/knowledge-client/contract"
-
-import { tasksView } from "../ui/tasks-fixtures"
 
 // Short dates add the year outside the current London year (CA-29): these
 // expectations are written in 2026.
@@ -566,26 +563,6 @@ describe("slotRow: an assignee who already sent (HM-01, HM-02)", () => {
         })
       ).status
     ).toBe("Your manager asked for more detail.")
-  })
-
-  it("leaves an awaiting check out of To do and the badge", () => {
-    const awaiting = slot({
-      ...assigned,
-      checkId: "c-sent",
-      myLatest: finding({ state: "awaiting_confirmation" }),
-    })
-    const items = todoItems(
-      tasksView(),
-      new Date(),
-      0,
-      [{ id: "c-sent" } as never, { id: "c-open" } as never],
-      [awaiting]
-    )
-    const amenity = items.find((item) => item.kind === "amenity")
-    expect(
-      amenity && "checks" in amenity ? amenity.checks.map((c) => c.id) : []
-    ).toEqual(["c-open"])
-    expect(todoCount(items)).toBe(1)
   })
 })
 

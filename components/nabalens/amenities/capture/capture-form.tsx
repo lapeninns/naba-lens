@@ -2313,6 +2313,8 @@ export function CaptureForm({
               // Submit is the screen's only primary (CA-23).
               libraryVariant="secondary"
               disabled={locked}
+              // Gallery first: no in-app camera (DESIGN.md §2, §9).
+              cameraHidden
               onChoose={choose}
             />
             <p className={MUTED}>

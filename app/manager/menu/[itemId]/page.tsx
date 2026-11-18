@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation"
 
+import { setAlbumBriefAction } from "@/app/manager/album/actions"
+import { DishBrief } from "@/components/nabalens/album/dish-brief"
 import { ItemDetail } from "@/components/nabalens/manager/menu/item-detail"
 import { NeededByControl } from "@/components/nabalens/manager/menu/needed-by-control"
 import { ItemWaiting } from "@/components/nabalens/manager/menu/item-waiting"
@@ -11,6 +13,7 @@ import {
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
 import { requireManagerVenue } from "@/lib/auth/manager"
+import { getDishBriefs } from "@/lib/server/album"
 import { isUuid } from "@/lib/server/coverage/validate"
 import {
   getManagerItem,
@@ -62,6 +65,11 @@ export default async function ManagerMenuItemPage({
   const { detail } = read
   if (!detail) notFound()
 
+  // Album AL-4: the dish's brief and its section's (DESIGN.md §5 Brief).
+  const briefs = await getDishBriefs(scope.ctx.actor, scope.ctx.venueId, {
+    itemId: detail.item.itemId,
+    sectionId: detail.item.section.id,
+  })
   const now = new Date().toISOString()
   return (
     <>
@@ -77,17 +85,31 @@ export default async function ManagerMenuItemPage({
         }
         loadEvents={loadItemEventsAction}
         neededBy={
-          <NeededByControl
-            item={{
-              itemId: detail.item.itemId,
-              name: detail.item.name,
-              covered: detail.item.status === "covered",
-              neededBy: detail.item.neededBy ?? null,
-            }}
-            {...neededByBounds()}
-            setAction={setMenuItemNeededByAction}
-            clearAction={clearMenuItemNeededByAction}
-          />
+          <>
+            <NeededByControl
+              item={{
+                itemId: detail.item.itemId,
+                name: detail.item.name,
+                covered: detail.item.status === "covered",
+                neededBy: detail.item.neededBy ?? null,
+              }}
+              {...neededByBounds()}
+              setAction={setMenuItemNeededByAction}
+              clearAction={clearMenuItemNeededByAction}
+            />
+            {briefs ? (
+              <DishBrief
+                itemId={detail.item.itemId}
+                name={detail.item.name}
+                brief={briefs.own}
+                section={{
+                  name: detail.item.section.name,
+                  brief: briefs.section,
+                }}
+                setAction={setAlbumBriefAction}
+              />
+            ) : null}
+          </>
         }
         waiting={
           detail.waiting.items.length > 0 ? (

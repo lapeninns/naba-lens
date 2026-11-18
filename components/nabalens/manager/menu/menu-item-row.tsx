@@ -33,7 +33,7 @@ export function MenuStatusChip({ status }: { status: MenuItemStatus }) {
     <StatusChip tone={tone}>
       {status === "covered" ? (
         // An ok outline square with a photo icon: never the filled tick
-        // square, which is Accepted's alone (DESIGN.md §3).
+        // square, which is Accepted's alone (common-room.md §3).
         <ImageIcon aria-hidden className="size-4" />
       ) : null}
       {word}

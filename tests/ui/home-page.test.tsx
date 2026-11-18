@@ -1,41 +1,62 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react"
+// Staff Home is Album (DESIGN.md §5a, batch A5): the venue's album count,
+// the retake row, the places and their empty slots, one gallery-first main
+// button. Nothing of the old Home (To do, Our menu, Your month) remains, and
+// no layout switch chooses it. Start here (a new starter) and Other jobs
+// (assigned tasks, checks, venue questions) keep a row each (R-2, revb B2).
+import { cleanup, render, screen, within } from "@testing-library/react"
 import type * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { tasksView } from "./tasks-fixtures"
+import { buildAlbum, type AlbumInput } from "@/lib/album/model"
 
 vi.mock("server-only", () => ({}))
-// The B01 Home and badge; the B02 layout is tested in home-b02.test.tsx.
-vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/staff/tasks",
   redirect: vi.fn(),
   notFound: vi.fn(),
 }))
-const jar = vi.hoisted(() => ({
-  has: vi.fn<(name: string) => boolean>(() => false),
-}))
-vi.mock("next/headers", () => ({ cookies: async () => jar }))
 vi.mock("@/components/nabalens/app-shell", () => ({
-  AppShell: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
+  AppShell: ({
+    children,
+    todoCount,
+    todoUnknown,
+  }: {
+    children: React.ReactNode
+    todoCount?: number
+    todoUnknown?: boolean
+  }) => (
+    <div
+      data-testid="shell"
+      data-todo={todoCount ?? ""}
+      data-unknown={todoUnknown ? "1" : ""}
+    >
+      {children}
+    </div>
   ),
 }))
 
-const media = vi.hoisted(() => ({ rows: [] as { id: string }[], fail: false }))
-function db() {
-  const query = {
-    select: () => query,
-    eq: () => query,
-    limit: async () =>
-      media.fail
-        ? { data: null, error: { message: "boom" } }
-        : { data: media.rows, error: null },
-  }
-  return { from: () => query }
+const media = vi.hoisted(() => ({
+  own: [{ id: "a1" }] as { id: string }[],
+  error: null as null | { message: string },
+}))
+const ACTOR = {
+  profile: { id: "me", venueId: "v1" },
+  db: {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          limit: async () => ({ data: media.own, error: media.error }),
+        }),
+      }),
+    }),
+  },
 }
-const ACTOR = { profile: { id: "me" }, db: db() }
+const jar = vi.hoisted(() => ({ legacy: false }))
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ has: () => jar.legacy }),
+}))
 
 const auth = vi.hoisted(() => ({
   profile: {
@@ -43,141 +64,412 @@ const auth = vi.hoisted(() => ({
     displayName: "TEST Sam",
     avatarPath: null,
     department: "foh",
-    venueId: "v1",
-    venue: { id: "v1", name: "TEST Inn", active: true },
-    work: null as null | Record<string, unknown>,
+    venueId: "v1" as string | null,
+    venue: { id: "v1", name: "TEST Inn", active: true } as null | {
+      id: string
+      name: string
+      active: boolean
+    },
+    work: null as null | { welcomeDismissedAt: string | null },
   },
+  blocked: null as null | "not_staff" | "no_venue" | "venue_inactive",
 }))
 vi.mock("@/lib/auth", () => ({
   requireActiveStaff: vi.fn(async () => auth.profile),
-  uploadBlockReason: () => null,
+  uploadBlockReason: () => auth.blocked,
 }))
 const coverage = vi.hoisted(() => ({
   getCoverageActor: vi.fn(),
-  getMyTasks: vi.fn(),
+  getCoverageScope: vi.fn(),
   getManagerReviewCount: vi.fn(),
+  listMyRetakeNotes: vi.fn(),
+  // Never read by Album Home: the old Home's tasks and Our menu.
+  getMyTasks: vi.fn(),
   getOurMenu: vi.fn(),
 }))
 vi.mock("@/lib/server/coverage", () => coverage)
-vi.mock("@/lib/server/community", () => ({
-  listCommunityMedia: vi.fn(async () => ({ ok: true, items: [] })),
-}))
-vi.mock("@/lib/server/media/context", () => ({
-  getMediaActor: vi.fn(async () => ({ ok: true, actor: ACTOR })),
-}))
 vi.mock("@/lib/server/media/library", () => ({ avatarUrl: () => null }))
+const album = vi.hoisted(() => ({ loadAlbum: vi.fn() }))
+vi.mock("@/lib/server/album", () => album)
+const amenities = vi.hoisted(() => ({
+  getCheck: vi.fn(),
+  getMyAmenityTasks: vi.fn(),
+}))
+vi.mock("@/lib/server/amenities", () => amenities)
+const knowledge = vi.hoisted(() => ({ fail: false }))
+vi.mock("@/lib/knowledge-client/services", () => ({
+  knowledgeServices: {
+    getWorkingList: async () =>
+      knowledge.fail
+        ? { ok: false, code: "unavailable" }
+        : { ok: true, view: null },
+    listMyRechecks: async () => ({ ok: true, tasks: [] }),
+  },
+}))
+vi.mock("@/app/staff/_shell/match-later", () => ({
+  listMatchLater: async () => [],
+}))
 
-import TasksPage from "@/app/staff/tasks/page"
+const job = (kind: string, satisfied = false) => ({
+  canSubmit: true,
+  requirement: { kind, progress: { satisfied } },
+})
 
-function setup({
-  work = null,
-  cookie = false,
-  rows = [],
-  menu,
-}: {
-  work?: Record<string, unknown> | null
-  cookie?: boolean
-  rows?: { id: string }[]
-  menu?: unknown
-} = {}) {
-  auth.profile.work = work
-  jar.has.mockImplementation(() => cookie)
-  media.rows = rows
-  media.fail = false
-  coverage.getCoverageActor.mockResolvedValue({ ok: true, actor: ACTOR })
-  coverage.getMyTasks.mockResolvedValue({ ok: true, tasks: tasksView() })
-  coverage.getOurMenu.mockImplementation(async () => {
-    if (menu instanceof Error) throw menu
-    return (
-      menu ?? {
-        ok: true,
-        menu: {
-          menuState: "ready",
-          totals: { eligible: 40, covered: 12, gaps: 28, needsRecheck: 0 },
-        },
-      }
-    )
-  })
+import AlbumHomePage from "@/app/staff/tasks/page"
+
+const BAR = "00000000-0000-4000-8000-00000000b001"
+const PASS = "00000000-0000-4000-8000-00000000b002"
+const DRINKS = "00000000-0000-4000-8000-00000000c001"
+const DESSERTS = "00000000-0000-4000-8000-00000000c002"
+const GUINNESS = "00000000-0000-4000-8000-0000000d0001"
+
+const dish = (
+  n: number,
+  name: string,
+  sectionId: string,
+  sectionName: string,
+  covered = false
+) => ({
+  itemId: `00000000-0000-4000-8000-0000000d000${n}`,
+  name,
+  sectionId,
+  sectionName,
+  covered,
+  needsRecheck: false,
+  thumbnailUrl: covered ? "/thumb.jpg" : null,
+  myWaiting: 0,
+  reviewState: null,
+  neededBy: null,
+})
+
+const INPUT: AlbumInput = {
+  places: [
+    { subjectId: BAR, label: "The bar" },
+    { subjectId: PASS, label: "Kitchen pass" },
+  ],
+  placements: [
+    { source: "menu_section", key: "drinks", subjectId: BAR },
+    { source: "menu_section", key: "desserts", subjectId: PASS },
+  ],
+  sections: [
+    { sectionId: DRINKS, slug: "drinks" },
+    { sectionId: DESSERTS, slug: "desserts" },
+  ],
+  dishes: [
+    dish(1, "Guinness, pint", DRINKS, "Drinks"),
+    dish(2, "Aperol spritz", DRINKS, "Drinks", true),
+    dish(3, "Sticky toffee pudding", DESSERTS, "Desserts"),
+    dish(4, "Eton mess", DESSERTS, "Desserts"),
+  ],
+  amenities: [],
+  areas: [],
+  myRetakeItemIds: new Set(),
 }
 
-const home = async () =>
-  render(await TasksPage({ searchParams: Promise.resolve({}) }))
+function retakeNote(overrides: Record<string, unknown> = {}) {
+  return {
+    kind: "menu",
+    noteId: "n1",
+    status: "open",
+    canRetake: true,
+    reason: "Too dark",
+    dish: { itemId: GUINNESS, itemName: "Guinness, pint" },
+    ...overrides,
+  }
+}
+
+function setup({
+  notes = [] as unknown[] | null,
+  albumResult = undefined as unknown,
+} = {}) {
+  auth.blocked = null
+  auth.profile.work = null
+  media.own = [{ id: "a1" }]
+  media.error = null
+  jar.legacy = false
+  coverage.getMyTasks.mockResolvedValue({
+    ok: true,
+    tasks: { assignments: [] },
+  })
+  amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
+  coverage.getCoverageActor.mockResolvedValue({ ok: true, actor: ACTOR })
+  coverage.getCoverageScope.mockResolvedValue({
+    ok: true,
+    scope: { canManageVenue: false },
+  })
+  coverage.listMyRetakeNotes.mockResolvedValue(
+    notes === null
+      ? { ok: false, code: "unavailable", status: 503, message: "x" }
+      : { ok: true, notes }
+  )
+  album.loadAlbum.mockResolvedValue(
+    albumResult ?? { ok: true, album: buildAlbum(INPUT), placements: {} }
+  )
+}
+
+const home = async (params: Record<string, string> = {}) =>
+  render(await AlbumHomePage({ searchParams: Promise.resolve(params) }))
+
+const shell = () => screen.getByTestId("shell")
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
 })
 
-describe("Home: Start here", () => {
-  it("is offered to someone with no photos who has not dismissed it", async () => {
+describe("Album is Home", () => {
+  it("opens on what is missing: the venue's album, its count and the empty slots where the person is", async () => {
     setup()
     await home()
+    expect(screen.getByText("TEST Inn album")).toBeTruthy()
+    const count = screen.getByRole("heading", { level: 1 })
+    expect(count.textContent).toContain("3")
+    expect(count.textContent).toContain("slots still empty")
+    expect(screen.getByText("1 in · 0 waiting · 4 in all")).toBeTruthy()
+    // The place with the most empty slots, when none was chosen.
+    const empty = screen.getByRole("heading", { name: /^Empty at / })
+    expect(empty.textContent).toBe("Empty at Kitchen pass")
     expect(
-      screen.getByRole("link", { name: "Start here" }).getAttribute("href")
-    ).toBe("/staff/tasks/welcome")
+      screen.getByRole("button", { name: /Add photos from your gallery/ })
+    ).toBeTruthy()
   })
 
-  it("is hidden once dismissed in the database", async () => {
-    setup({
-      work: {
-        roleKey: null,
-        roleTitle: null,
-        workAreas: [],
-        welcomeDismissedAt: "2026-11-06T10:00:00Z",
-      },
-    })
-    await home()
-    expect(screen.queryByRole("link", { name: "Start here" })).toBeNull()
+  it("opens the place named by ?place", async () => {
+    setup()
+    await home({ place: BAR })
+    expect(
+      screen.getByRole("heading", { name: "Empty at The bar" })
+    ).toBeTruthy()
   })
 
-  it("treats the legacy cookie as dismissed", async () => {
-    setup({ cookie: true })
+  it("shows nothing of the old Home and reads none of its menu data", async () => {
+    setup()
     await home()
-    expect(screen.queryByRole("link", { name: "Start here" })).toBeNull()
+    for (const name of [/To do/, /Our menu/, /Your photos for/, /^Home$/]) {
+      expect(screen.queryByRole("heading", { name })).toBeNull()
+    }
+    // Someone with photos and no other jobs gets neither row.
+    expect(screen.queryByRole("link", { name: /Start here/ })).toBeNull()
+    expect(screen.queryByRole("link", { name: /Other jobs/ })).toBeNull()
+    expect(coverage.getOurMenu).not.toHaveBeenCalled()
   })
 
-  it("is hidden for anyone with a photo of their own", async () => {
-    setup({ rows: [{ id: "a1" }] })
-    await home()
-    expect(screen.queryByRole("link", { name: "Start here" })).toBeNull()
+  it("is titled Album", async () => {
+    const { metadata } = await import("@/app/staff/tasks/page")
+    expect(metadata.title).toBe("Album")
   })
 })
 
-describe("Home: contribute and Our menu", () => {
-  it("asks the role's question and shows menu items with an accepted photo", async () => {
+describe("Album: retakes and the tab badge", () => {
+  it("shows the retake row for open notes on dishes I can retake, and counts them on the badge", async () => {
     setup({
-      work: {
-        roleKey: "curry_chef",
-        roleTitle: null,
-        workAreas: [],
-        welcomeDismissedAt: null,
-      },
-      rows: [{ id: "a1" }],
+      notes: [
+        retakeNote(),
+        // Not shown: set aside, a dish off the menu, a coverage note.
+        retakeNote({ noteId: "n2", status: "set_aside" }),
+        retakeNote({ noteId: "n3", canRetake: false }),
+        retakeNote({ noteId: "n4", kind: "coverage", dish: null }),
+      ],
     })
     await home()
+    expect(screen.getByText(/1 retake/)).toBeTruthy()
+    expect(screen.getByText(/Too dark/)).toBeTruthy()
+    expect(shell().dataset.todo).toBe("1")
+    expect(shell().dataset.unknown).toBe("")
+  })
+
+  it("shows no badge and no retake row when there is nothing to retake", async () => {
+    setup()
+    await home()
+    expect(screen.queryByText(/\d retakes?/)).toBeNull()
+    expect(shell().dataset.todo).toBe("0")
+  })
+
+  it("marks the badge unknown, never zero, when the notes can't be read", async () => {
+    setup({ notes: null })
+    await home()
+    expect(shell().dataset.todo).toBe("")
+    expect(shell().dataset.unknown).toBe("1")
+    // The album itself still shows.
+    expect(screen.getByText("TEST Inn album")).toBeTruthy()
+  })
+})
+
+describe("Album: when it can't be shown", () => {
+  it("says what failed beside the page when the album read fails", async () => {
+    setup({
+      albumResult: {
+        ok: false,
+        code: "unavailable",
+        status: 503,
+        message: "The album can't be shown right now. Try again.",
+      },
+    })
+    await home()
+    expect(screen.getByRole("alert").textContent).toContain(
+      "The album can't be shown right now."
+    )
+  })
+
+  it("explains a missing venue instead of an error", async () => {
+    setup({
+      albumResult: {
+        ok: false,
+        code: "unavailable",
+        status: 503,
+        message: "x",
+      },
+    })
+    auth.blocked = "no_venue"
+    await home()
+    expect(screen.queryByRole("alert")).toBeNull()
     expect(
-      screen.getByRole("heading", { name: "What did you cook today?" })
-    ).toBeTruthy()
-    expect(
-      screen.getByText((_, el) =>
-        el?.tagName === "P"
-          ? el.textContent === "12 of 40 menu items have an accepted photo"
-          : false
+      screen.getByText(
+        "You can't add photos until an admin assigns your venue."
       )
-    ).toBeTruthy()
-    // A separate card from the monthly photo target.
-    expect(screen.getByRole("heading", { name: "Our menu" })).toBeTruthy()
-    expect(
-      screen.getByRole("heading", { name: "Your photos for November 2026" })
     ).toBeTruthy()
   })
 
-  it("never breaks when the menu read throws", async () => {
-    setup({ menu: new Error("network") })
+  it("keeps the album but says why adding is paused", async () => {
+    setup()
+    auth.blocked = "venue_inactive"
     await home()
+    expect(screen.getByText("TEST Inn album")).toBeTruthy()
     expect(
-      screen.getByText("Menu photos can't be shown right now. Try again later.")
+      screen.getByText(/Your venue isn't taking photos right now/)
     ).toBeTruthy()
-    expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy()
+  })
+})
+
+describe("Album: Finding sent (§6.7)", () => {
+  const sentCheck = (overrides: Record<string, unknown> = {}) => ({
+    ok: true,
+    detail: {
+      check: {
+        id: "c1",
+        progress: "complete",
+        answeredBy: { id: "me", displayName: "TEST Sam" },
+        entry: { question: "Is there step-free access?" },
+        ...overrides,
+      },
+    },
+  })
+
+  it("names the check once the database shows it complete and answered by me", async () => {
+    setup()
+    amenities.getCheck.mockResolvedValue(sentCheck())
+    await home({ finding_sent: "c1" })
+    expect(amenities.getCheck).toHaveBeenCalledWith(ACTOR, { checkId: "c1" })
+    const notice = screen
+      .getByText("Finding sent")
+      .closest<HTMLElement>('[role="status"]')!
+    expect(notice.textContent).toContain("Is there step-free access?")
+    // Dismiss hands focus to the top of the album, which can take it.
+    const top = document.getElementById("album-top")!
+    expect(top.tabIndex).toBe(-1)
+    within(notice).getByRole("button", { name: "Dismiss" }).click()
+    expect(document.activeElement).toBe(top)
+  })
+
+  it("says only Sent, never complete, when the working list can't be read (HM-16)", async () => {
+    setup()
+    amenities.getCheck.mockResolvedValue(sentCheck())
+    knowledge.fail = true
+    try {
+      await home({ finding_sent: "c1" })
+    } finally {
+      knowledge.fail = false
+    }
+    const notice = screen
+      .getByText("Sent")
+      .closest<HTMLElement>('[role="status"]')!
+    expect(notice.textContent).toContain("Is there step-free access?")
+    expect(notice.textContent).not.toContain("complete")
+  })
+
+  it.each([
+    ["answered by someone else", { answeredBy: { id: "x", displayName: "X" } }],
+    ["reopened since", { progress: "needs_recheck" }],
+  ])("says nothing when the check was %s", async (_, overrides) => {
+    setup()
+    amenities.getCheck.mockResolvedValue(sentCheck(overrides))
+    await home({ finding_sent: "c1" })
+    expect(screen.queryByText("Finding sent")).toBeNull()
+  })
+
+  it("never reads a check without the parameter, and survives a failed read", async () => {
+    setup()
+    await home()
+    expect(amenities.getCheck).not.toHaveBeenCalled()
+    amenities.getCheck.mockRejectedValue(new Error("down"))
+    cleanup()
+    await home({ finding_sent: "c1" })
+    expect(screen.getByText("TEST Inn album")).toBeTruthy()
+    expect(screen.queryByText("Finding sent")).toBeNull()
+  })
+})
+
+describe("Album: Other jobs stay reachable (revb B2)", () => {
+  const rowOf = () =>
+    screen.queryByRole("link", { name: /Other jobs/ }) as HTMLAnchorElement
+
+  it("links to Other jobs under the Match later row when jobs wait on me", async () => {
+    setup()
+    coverage.getMyTasks.mockResolvedValue({
+      ok: true,
+      tasks: {
+        assignments: [
+          job("service"),
+          // Menu sections and met jobs are never counted.
+          job("menu_section"),
+          job("venue", true),
+        ],
+      },
+    })
+    amenities.getMyAmenityTasks.mockResolvedValue({
+      ok: true,
+      tasks: [{ id: "c1" }],
+    })
+    await home()
+    const row = rowOf()
+    expect(row.getAttribute("href")).toBe("/staff/tasks/other")
+    expect(row.textContent).toContain("2 jobs")
+    // Below the empty slots, above the main button (§5a step 5).
+    const main = screen.getByRole("button", {
+      name: /Add photos from your gallery/,
+    })
+    expect(
+      row.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it("keeps the row, without a number, when the jobs can't be counted", async () => {
+    setup()
+    amenities.getMyAmenityTasks.mockResolvedValue({ ok: false })
+    await home()
+    expect(rowOf().textContent).toContain("We couldn't count them")
+  })
+})
+
+describe("Album: Start here for a new starter (revb nit)", () => {
+  const startHere = () => screen.queryByRole("link", { name: /Start here/ })
+
+  it("offers the welcome until the person has a photo", async () => {
+    setup()
+    media.own = []
+    await home()
+    expect(startHere()?.getAttribute("href")).toBe("/staff/tasks/welcome")
+  })
+
+  it.each([
+    ["dismissed it", () => (auth.profile.work = { welcomeDismissedAt: "x" })],
+    ["has the old cookie", () => (jar.legacy = true)],
+    ["can't be checked", () => (media.error = { message: "down" })],
+  ])("stays away once the person %s", async (_, arrange) => {
+    setup()
+    media.own = []
+    arrange()
+    await home()
+    expect(startHere()).toBeNull()
   })
 })

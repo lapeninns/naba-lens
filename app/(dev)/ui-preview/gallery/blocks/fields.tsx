@@ -28,7 +28,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 
 /*
- * Gallery block for the field family (DESIGN.md §4 Field): Input, Textarea,
+ * Gallery block for the field family (common-room.md §4 Field): Input, Textarea,
  * Select, SearchField and the FormField that labels them, in every size and
  * state, with fake data only. Hover cannot be forced, so it is not shown;
  * focus is described in a note.

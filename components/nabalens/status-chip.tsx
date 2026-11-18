@@ -32,7 +32,7 @@ export type ChipTone =
   "neutral" | "positive" | "attention" | "negative" | "pending" | "closed"
 
 /**
- * Common Room state shapes (DESIGN.md §3). pill = round, square = 4px,
+ * Common Room state shapes (common-room.md §3). pill = round, square = 4px,
  * stamp = 2px with a double border. Reserved: the filled ok square
  * (`accepted`) is Accepted's alone; the round info outline (`ready`) is
  * Ready's alone; the stamp (`complete`) is Complete's alone; the dashed

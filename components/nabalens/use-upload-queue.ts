@@ -82,6 +82,8 @@ export function useUploadQueue({
       (files: Iterable<File>) => queue.add(files),
       [queue]
     ),
+    /** Files waiting or in flight now, read straight from the queue. */
+    pending: React.useCallback(() => queue.pending(), [queue]),
     remove: React.useCallback((id: string) => queue.remove(id), [queue]),
     start: React.useCallback(() => queue.start(), [queue]),
     cancel: React.useCallback((id: string) => queue.cancel(id), [queue]),

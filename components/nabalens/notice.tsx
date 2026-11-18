@@ -11,7 +11,7 @@ export type NoticeTone =
   "plain" | "info" | "attention" | "negative" | "positive"
 
 /*
- * Common Room notice (DESIGN.md §4): a 12px card. Plain is a white card;
+ * Common Room notice (common-room.md §4): a 12px card. Plain is a white card;
  * the tones are a tint with a 4px bar of the tone on the left. Attention and
  * negative are both the warn tone; the icon and role tell them apart.
  */

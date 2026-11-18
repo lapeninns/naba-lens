@@ -125,11 +125,29 @@ type UploadDialogProps = {
   imagesOnly?: boolean
   /**
    * Files already picked elsewhere (the Add sheet or Add's own picker). Each
-   * new array is queued once while the dialog is open.
+   * new array is queued once while the dialog is open, or at once with
+   * `queueWhileClosed`.
    */
   initialFiles?: File[]
+  /**
+   * Queue `initialFiles` even while the dialog is closed (Add's Match, which
+   * sends each photo as it is matched and keeps this sheet out of the way).
+   */
+  queueWhileClosed?: boolean
   /** Called when files are picked, here or as `initialFiles` (not on cancel). */
   onPick?: (files: File[]) => void
+  /**
+   * What the queue did with each pick: the files it refused (each with its
+   * reason) and how many more it has room for now. Return the refused files
+   * the owner keeps (Match's outbox gives a full queue's files again later,
+   * and tells Match of the rest); the sheet doesn't list those as not added.
+   */
+  onQueued?: (outcome: QueuedOutcome) => readonly File[] | void
+  /**
+   * How many more files the queue can take before it is full
+   * (`maxBatchFiles` waiting or in flight), whenever that changes.
+   */
+  onRoomChange?: (room: number) => void
   /**
    * Why these files are uploaded. "amenity" keeps them out of the
    * organisation community (amenity evidence). Default "general".
@@ -336,6 +354,13 @@ export function setNotices(
 
 /** Why a queued file never became ready. */
 export type UploadUnfinishedReason = "failed" | "cancelled" | "removed"
+
+/** What one pick did in the queue (see `onQueued`). */
+export type QueuedOutcome = {
+  rejected: readonly RejectedFile[]
+  /** Files the queue can still take before it is full. */
+  room: number
+}
 
 export type UploadBusy = {
   active: number
@@ -751,7 +776,10 @@ export function UploadDialog({
   allowCamera = true,
   imagesOnly = false,
   initialFiles,
+  queueWhileClosed = false,
   onPick,
+  onQueued,
+  onRoomChange,
   purpose = "general",
   purposeOf,
   onHoldsChange,
@@ -864,6 +892,7 @@ export function UploadDialog({
   }, [open, unseen])
 
   const { active, failed, stopped } = summary
+  const room = Math.max(0, limits.maxBatchFiles - summary.selected - active)
   const busyLabels = items.filter(
     (item) => item.status === "done" && viewOf(item).kind === "saving"
   ).length
@@ -877,6 +906,11 @@ export function UploadDialog({
       ...(needsPerson ? { attention: needsPerson } : {}),
     })
   }, [active, failed, stopped, busyLabels, needsPerson, onBusyChange])
+  // Declared before the pick effect below, so a pick's own report (onQueued)
+  // always comes after this render's.
+  React.useEffect(() => {
+    onRoomChange?.(room)
+  }, [room, onRoomChange])
   const signedOut = pause === "signed-out"
   // A label save refused because the session ended, even with every upload
   // finished (so the queue itself is not paused).
@@ -1283,7 +1317,7 @@ export function UploadDialog({
 
   const queuedInitial = React.useRef<File[] | null>(null)
   React.useEffect(() => {
-    if (!open || !initialFiles?.length) return
+    if ((!open && !queueWhileClosed) || !initialFiles?.length) return
     if (queuedInitial.current === initialFiles) return
     queuedInitial.current = initialFiles
     addFiles(initialFiles, null)
@@ -1304,6 +1338,7 @@ export function UploadDialog({
           if (kind === "image") return true
           notPhotos.push({
             name: file.name,
+            file,
             reason:
               kind === "video"
                 ? "Only photos can be added here. Upload videos from your portfolio."
@@ -1313,7 +1348,13 @@ export function UploadDialog({
         })
       : files
     const result = queue.add(accepted)
-    setRejected([...notPhotos, ...result.rejected])
+    const refused = [...notPhotos, ...result.rejected]
+    const kept =
+      onQueued?.({
+        rejected: refused,
+        room: Math.max(0, limits.maxBatchFiles - queue.pending()),
+      }) ?? []
+    setRejected(refused.filter((r) => !r.file || !kept.includes(r.file)))
     setCloseBlocked(false)
     if (startOnPick && result.added > 0) queue.start()
     // Allow picking the same file again after removing it.
@@ -1460,7 +1501,7 @@ export function UploadDialog({
               ? sheetTitle(items)
               : imagesOnly
                 ? "Upload photos"
-                : "Upload photos or videos"}
+                : "Add photos or videos"}
           </DialogTitle>
           <DialogDescription id={limitsId}>
             {imagesOnly ? (

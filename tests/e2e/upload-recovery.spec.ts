@@ -27,11 +27,7 @@ import {
   openUploadDialog,
   row,
 } from "../fixtures/uploads/support"
-import {
-  addJustPhotos,
-  intentDialog,
-  visibleBadgeText,
-} from "./helpers/add-entry"
+import { intentDialog, visibleBadgeText } from "./helpers/add-entry"
 import { firefoxLaunchOptions } from "./helpers/firefox"
 import { mailboxIds, SUBJECTS, waitForLink } from "./helpers/mailpit"
 import {
@@ -477,7 +473,7 @@ test.describe("upload recovery in the real UI", () => {
     const files = dialog.getByRole("list", { name: "Files" })
     await expect(files).toHaveCount(0)
     await expect(dialog.getByRole("status")).toHaveCount(0)
-    await expect(dialog).toHaveAccessibleName("Upload photos or videos")
+    await expect(dialog).toHaveAccessibleName("Add photos or videos")
 
     const sent = actions.bodies.slice(before)
     expect(sent.filter((b) => b.includes('"assetId"'))).toHaveLength(0)
@@ -1169,13 +1165,15 @@ test.describe("leaving while uploads run", () => {
       held.push(route)
     })
 
-    // Idle Add asks what is being added; Just photos opens the upload dialog.
-    await addJustPhotos(
-      page,
-      page.getByRole("banner").getByRole("button", { name: "Add photos" })
-    )
+    // Me's Add opens the upload dialog (Album's Add photos opens Match).
+    if (new URL(page.url()).pathname !== "/staff") await page.goto("/staff")
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: "Add photos or videos" })
+      .first()
+      .click()
     const queue = uploadSheet(page)
-    await expect(queue).toHaveAccessibleName("Upload photos or videos")
+    await expect(queue).toHaveAccessibleName("Add photos or videos")
     // They start uploading as soon as they are picked.
     await queue
       .getByLabel("Choose photos or videos")
@@ -1208,12 +1206,23 @@ test.describe("leaving while uploads run", () => {
     await expect(page).toHaveURL(/\/staff$/)
     expect(held).toHaveLength(2)
 
-    // Add shows the same queue, still running (its name carries the count).
+    // Album's Add photos carries the count, but photos only sending never
+    // hold back the next pick: it opens the gallery, not the queue (R-1 SF1;
+    // a failed file opens the queue, the phone test below). Me's own Add
+    // shows the same queue, still running.
     const addPhotos = page
       .getByRole("banner")
       .getByRole("button", { name: /^Add photos\b/ })
     await expect(addPhotos).toHaveAccessibleName("Add photos, 2 in progress")
+    const gallery = page.waitForEvent("filechooser")
     await addPhotos.click()
+    await gallery
+    await expect(queue).toBeHidden()
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: "Add photos or videos" })
+      .first()
+      .click()
     await expect(queue).toHaveAccessibleName("Saving 2 photos")
     await expect(intentDialog(page)).toBeHidden()
     await expect(queue.getByRole("status").last()).toHaveText(
@@ -1271,19 +1280,18 @@ test.describe("leaving while uploads run", () => {
     })
 
     const tabbar = page.locator('[data-slot="tabbar"]')
-    const sheet = page.getByRole("dialog", { name: "Add photos" })
+    const sheet = page.getByRole("dialog", { name: "Add photos", exact: true })
     const queue = uploadSheet(page)
-    // Idle Add asks what is being added; Just photos opens the Add sheet.
-    await addJustPhotos(
-      page,
-      tabbar.getByRole("button", { name: "Add", exact: true })
-    )
-    await expect(sheet).toBeVisible()
-    await expect(sheet).toContainText(
-      "Photos start saving as soon as you pick them."
-    )
+    // Me's Add opens the upload sheet (Album's Add photos opens Match).
+    if (new URL(page.url()).pathname !== "/staff") await page.goto("/staff")
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: "Add photos or videos" })
+      .first()
+      .click()
+    await expect(queue).toHaveAccessibleName("Add photos or videos")
     const chooser = page.waitForEvent("filechooser")
-    await sheet.getByRole("button", { name: /Choose from your photos/ }).click()
+    await queue.getByRole("button", { name: /Choose from your photos/ }).click()
     // The picked files start uploading at once, in the queue sheet.
     await (await chooser).setFiles(["photo.jpg", "photo.png"].map(file))
     await expect(queue).toHaveAccessibleName("Saving 2 photos")
@@ -1291,8 +1299,8 @@ test.describe("leaving while uploads run", () => {
 
     await page.keyboard.press("Escape")
     await expect(queue).toBeHidden()
-    const add = tabbar.getByRole("button", { name: /^Add\b/ })
-    await expect(add).toHaveAccessibleName("Add, 2 in progress")
+    const add = tabbar.getByRole("button", { name: /^Add photos\b/ })
+    await expect(add).toHaveAccessibleName("Add photos, 2 in progress")
     // The badge's own words are assistive-only; on screen it shows the digit.
     const badge = add.locator('[data-slot="add-busy"] [data-slot="count"]')
     await expect(badge).toBeVisible()
@@ -1301,11 +1309,15 @@ test.describe("leaving while uploads run", () => {
     // One transfer drops while the queue is hidden.
     failing = true
     await held.shift()!.abort("connectionreset")
-    await expect(add).toHaveAccessibleName("Add, 1 in progress, 1 failed", {
-      timeout: 90_000,
-    })
+    await expect(add).toHaveAccessibleName(
+      "Add photos, 1 in progress, 1 failed",
+      {
+        timeout: 90_000,
+      }
+    )
 
-    // Busy, Add goes straight to the queue: neither entry dialog opens.
+    // Busy, Add photos goes straight to the queue: no picker, no Match and
+    // no entry dialog (revb should-fix 1, R-1).
     await add.click()
     await expect(queue).toBeVisible()
     await expect(sheet).toBeHidden()

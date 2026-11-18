@@ -44,7 +44,7 @@ export * from "./menus"
 // v0.3 media labels (packet G)
 export * from "./labels"
 
-// Common Room building blocks (DESIGN.md v0.3); also importable from
+// Common Room building blocks (common-room.md v0.3); also importable from
 // "@/components/nabalens/common-room".
 export * from "./common-room"
 export { Notice, type NoticeTone } from "./notice"

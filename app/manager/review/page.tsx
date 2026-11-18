@@ -1,4 +1,6 @@
+import { AlbumReviewBody } from "@/app/manager/review/_shared/album-review"
 import { AreaReviewSection } from "@/app/manager/review/_shared/area-section"
+import { reviewModeOf } from "@/app/manager/review/_shared/mode"
 import {
   ReviewBody,
   type ReviewSearch,
@@ -35,9 +37,11 @@ import { failedRead } from "../load-overview"
 export const metadata = { title: "Review" }
 
 /**
- * Review: photos staff labelled with a menu item at the manager's venue,
- * filtered by status, section, contributor and item (`?status=&section=
- * &contributor=&item=`). Decisions update the list in place.
+ * Review: photos staff labelled with a menu item or a venue area at the
+ * manager's venue. The bare page is Review in a thumb (DESIGN.md §6.5): one
+ * waiting photo at a time, Accept or Ask again. Any filter (`?status=
+ * &section=&contributor=&item=`) or `?view=list` opens the full list, where
+ * decisions update the list in place.
  */
 /** To confirm rows in the server's order (R4); null when unreadable. */
 async function toConfirmRows() {
@@ -100,6 +104,21 @@ export default async function ManagerReviewPage({
   // Switched off, the page is today's photo queue exactly.
   const triage = managerTriageSurface() === "b02"
   const kind = triage ? reviewKindOf(search.kind) : "photos"
+  const filter = triage ? <ReviewKindFilter active={kind} /> : null
+  if (kind === "photos" && reviewModeOf(search) === "thumb")
+    return (
+      <div className="grid gap-6">
+        <OfflineNotice
+          className={OFFLINE_BANNER_CLASS}
+          loadedAt={new Date().toISOString()}
+        />
+        <AlbumReviewBody
+          ctx={scope.ctx}
+          venueName={venue.name}
+          filter={filter}
+        />
+      </div>
+    )
   return (
     <div className="grid gap-6">
       <OfflineNotice
@@ -113,7 +132,7 @@ export default async function ManagerReviewPage({
         summary={<p>{REVIEW_COPY.summary}</p>}
         className="pb-0 md:pb-0"
       />
-      {triage ? <ReviewKindFilter active={kind} /> : null}
+      {filter}
       {kind === "photos" ? (
         <>
           <ReviewBody

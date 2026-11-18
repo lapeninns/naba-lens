@@ -260,9 +260,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
         main(mgr).getByRole("link", { name, exact: true })
       ).toBeVisible()
     await expect(
-      main(mgr)
-        .getByRole("button", { name: "Take a photo of this dish" })
-        .first()
+      main(mgr).getByRole("button", { name: "Add photos of this dish" }).first()
     ).toBeVisible()
 
     for (const path of [
@@ -340,21 +338,30 @@ test.describe("venue manager workspace (Phase 2)", () => {
     ).toBeVisible()
     await evidence(mgr, "overview-before")
 
+    // Review opens one photo at a time (DESIGN.md §6.5): its large preview
+    // loads through the private preview route. The per-item decisions below
+    // are on the full list it links to.
+    const preview = mgr.waitForResponse(
+      (r) =>
+        /\/api\/menu-photos\/[0-9a-f-]{36}\/preview/.test(r.url()) &&
+        [first, second].some((id) => r.url().includes(id)) &&
+        r.request().method() === "GET"
+    )
     await navLink(mgr, /^Review/).click()
     await expect(mgr).toHaveURL(/\/manager\/review$/)
+    await expect(main(mgr).getByRole("region", { name: "Soup" })).toBeVisible()
+    expect([200, 302]).toContain((await preview).status())
+    await main(mgr)
+      .getByRole("link", { name: "See every photo as a list" })
+      .click()
+    await expect(mgr).toHaveURL(/\/manager\/review\?view=list$/)
     const one = card(mgr, "Labelled: Soup", w.staffA1)
     await expect(one).toBeVisible()
 
-    // The large preview loads through the private preview route.
-    const preview = mgr.waitForResponse(
-      (r) =>
-        r.url().includes(`/api/menu-photos/${first}/preview`) &&
-        r.request().method() === "GET"
-    )
+    // The list's large preview opens and its image loads.
     await one
       .getByRole("button", { name: `Open the photo by ${w.staffA1.name}` })
       .click()
-    expect([200, 302]).toContain((await preview).status())
     const dialog = mgr.getByRole("dialog")
     await expect
       .poll(() =>
@@ -451,7 +458,8 @@ test.describe("venue manager workspace (Phase 2)", () => {
       colour: "#7a4bc9",
     })
     const mgr = await signedInPage(browser, w.mgrA, view(info))
-    await mgr.goto("/manager/review")
+    // The full list (Review itself shows one photo at a time, DESIGN.md §6.5).
+    await mgr.goto("/manager/review?view=list")
 
     // Relink: the staff label is wrong; a reason is required.
     await card(mgr, "Labelled: Salad", w.staffA1)
@@ -553,7 +561,8 @@ test.describe("venue manager workspace (Phase 2)", () => {
       colour: "#3d9c5a",
     })
     const mgr = await signedInPage(browser, w.mgrA, view(info))
-    await mgr.goto("/manager/review")
+    // The full list (Review itself shows one photo at a time, DESIGN.md §6.5).
+    await mgr.goto("/manager/review?view=list")
     await statusFilter(mgr, "Unlabelled photos")
     await expect(mgr).toHaveURL(/status=unlabelled/)
     const list = mgr.getByRole("list", { name: "Photos to review" })

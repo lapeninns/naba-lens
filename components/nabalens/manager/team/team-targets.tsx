@@ -82,7 +82,7 @@ function useSave() {
  * The /manager team screen (G-6): the venue default photo target, then each
  * person's number this month. People are listed Needs setup first, then by
  * surname, never by progress (no rankings, v0.4). Changing a number someone
- * already has asks for a reason (DESIGN.md §5 Reasons).
+ * already has asks for a reason (common-room.md §5 Reasons).
  */
 export function TeamTargets({
   view,

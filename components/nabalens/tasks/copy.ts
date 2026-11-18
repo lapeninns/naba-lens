@@ -3,6 +3,7 @@ import type {
   CompletionProgress,
   CoverageErrorCode,
   CoverageFailure,
+  CoverageScope,
   PeriodKey,
   RequirementKind,
   SubmissionState,
@@ -42,13 +43,13 @@ const INELIGIBLE_COPY: Partial<Record<AssetIneligibleReason, string>> = {
   evidence_removed: "This photo was deleted or is no longer available.",
   not_image: "Videos don't count toward photo tasks.",
   // The venue it was uploaded for: where it was taken isn't known.
-  wrong_venue: "Uploaded for a different venue.",
-  uploader_inactive: "This photo's uploader is no longer active.",
+  wrong_venue: "Added for a different venue.",
+  uploader_inactive: "The person who added this photo is no longer active.",
   already_submitted: "Already sent for this task.",
   declined_here: "Needs another photo here. Send a different one.",
   counted_elsewhere: "Already counting toward another task.",
   outside_period:
-    "Uploaded before this month, so it can't count toward this month.",
+    "Added before this month, so it can't count toward this month.",
 }
 
 export function ineligibleCopy(reason: string | null | undefined): string {
@@ -78,7 +79,7 @@ const FAILURE_COPY: Record<CoverageErrorCode, FailureCopy> = {
   },
   wrong_venue: {
     message:
-      "These photos were uploaded for a different venue, so they can't count here.",
+      "These photos were added for a different venue, so they can't count here.",
     action: null,
   },
   not_found: {
@@ -207,7 +208,7 @@ export function completionBreakdown({
 }
 
 // ---------------------------------------------------------------------------
-// Goal-led Home and its parts (goals-not-tasks G-1 to G-4, moved here by G-5).
+// Staff work words (goals-not-tasks G-1 to G-4, moved here by G-5).
 // Food and drink work is a shared goal: these never say task, due or overdue.
 
 /** Home's read failures: each says what couldn't be checked, never "none". */
@@ -219,32 +220,7 @@ export const HOME_READ_FAILED = {
   rechecks: "We couldn't check your rechecks.",
 } as const
 
-/** Our menu on goal-led Home (v0.5 §1). */
-export const HOME_OUR_MENU_COPY = {
-  title: "Our menu",
-  subtitle: (venue: string | null) =>
-    `The whole team's goal${venue ? ` at ${venue}` : ""}: an accepted photo of every dish and drink`,
-  count: (covered: number, total: number) =>
-    `${covered} of ${total} have an accepted photo`,
-  recheck: (n: number) =>
-    n === 1
-      ? "1 dish is being checked after a menu change."
-      : `${n} dishes are being checked after a menu change.`,
-  stillNeeded: "Still needed",
-  stillNeededHint:
-    "Anyone can take these. A dish leaves the list once a photo of it is accepted.",
-  listFailed: "The dishes still needed can't be shown right now.",
-  seeAll: (n: number) => `See all ${n}`,
-  complete: "Every dish and drink on the menu has an accepted photo.",
-  completeHint: "New photos still count toward your month.",
-  empty: "The active menu has no dishes or drinks yet.",
-  needsSetup:
-    "Your venue's menu appears here once an admin assigns your venue.",
-  unavailable: "Menu photos can't be shown right now. Try again later.",
-  browse: "Browse our menu",
-} as const
-
-/** Your month on goal-led Home (v0.5 §1; decision 13). */
+/** Your month (v0.5 §1; decision 13). */
 export const HOME_MONTH_COPY = {
   title: "Your month",
   /** Decision 5 as amended by G-9 (decision 24): what earns month credit. */
@@ -279,24 +255,13 @@ export const SECTION_SEND_COPY = {
   empty: "You haven't sent photos for this section yet.",
 } as const
 
-/** Decision 19: the person's own photo work, as compact rows on Home. */
-export const OWN_WORK_COPY = {
-  labels: (n: number) => `${plural(n, "photo needs", "photos need")} a label`,
-  labelAttention: (n: number) =>
-    `${plural(n, "label save needs", "label saves need")} attention`,
-  labelAction: "Label these",
-  failed: (n: number) =>
-    `${plural(n, "photo didn't", "photos didn't")} finish saving on this phone`,
-  failedAction: "See them",
-} as const
-
 /** The retake note block (G-3; decisions 4, 12 and 14). */
 export const RETAKE_COPY = {
   heading: "Needs another photo",
-  reshoot: "Reshoot",
-  choose: "Choose from photos",
+  /** Opens the phone's photos for this slot (DESIGN.md §4, §7). */
+  retake: "Retake",
   later: "Later",
-  again: "Take another",
+  again: "Add another",
   sent: "New photo sent · waiting for review",
   setAside: "Set aside for later. It stays here until a new photo is accepted.",
   monthPhoto: "Photo for your month",
@@ -307,6 +272,15 @@ export const RETAKE_COPY = {
   laterFailed: "We couldn't set this aside. Try again.",
   laterDone: "Set aside for later. It stays on Me.",
   meIntro:
-    "A reviewer would like another photo. Take a new one and it goes to them for review.",
+    "A reviewer would like another photo. Add a new one from your gallery and it goes to them for review.",
   listLabel: "Photos that need another photo",
 } as const
+
+/** Why sending is paused for this person, or null when they can send. */
+export function submitBlockedCopy(scope: CoverageScope): string | null {
+  if (scope.canSubmit) return null
+  if (!scope.venue) {
+    return "You can't send photos until an admin assigns your venue."
+  }
+  return "Sending photos is paused because your venue isn't taking photos right now. Ask an admin to check your venue."
+}

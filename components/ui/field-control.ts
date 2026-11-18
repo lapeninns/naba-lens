@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority"
 
 /*
- * The one field recipe (DESIGN.md §4 Field, §2 sizes), shared by Input,
+ * The one field recipe (common-room.md §4 Field, §2 sizes), shared by Input,
  * Textarea, the Select trigger and SearchField so they cannot drift apart:
  * grey fill, a 1px strong edge, 8px radius, 18px text.
  *

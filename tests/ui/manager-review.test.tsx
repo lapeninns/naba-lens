@@ -898,9 +898,12 @@ describe("ReviewScreen", () => {
     const user = userEvent.setup()
     renderScreen([card()], { showMine: true })
     await user.click(screen.getByRole("button", { name: "Needs a recheck" }))
-    expect(nav.replace).toHaveBeenCalledWith("/manager/review?status=recheck", {
-      scroll: false,
-    })
+    expect(nav.replace).toHaveBeenCalledWith(
+      "/manager/review?status=recheck&view=list",
+      {
+        scroll: false,
+      }
+    )
     expect(screen.getByRole("button", { name: "Your photos" })).toBeTruthy()
   })
 
@@ -914,7 +917,8 @@ describe("ReviewScreen", () => {
     await user.click(
       screen.getByRole("button", { name: REVIEW_COPY.removeItemFilter("Soup") })
     )
-    expect(nav.replace).toHaveBeenCalledWith("/manager/review", {
+    // Clearing the last filter keeps the full list, not Review in a thumb.
+    expect(nav.replace).toHaveBeenCalledWith("/manager/review?view=list", {
       scroll: false,
     })
   })

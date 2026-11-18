@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 import { CHIP_STATES } from "../status-chip"
 
 /**
- * The large Complete stamp on a checklist item header (DESIGN.md §3): ink,
+ * The large Complete stamp on a checklist item header (common-room.md §3): ink,
  * 2px radius, a 5px double border, Figtree 21/800 caps. The stamp shape is
  * Complete's alone; the word is the state's own (CSS sets the caps).
  */

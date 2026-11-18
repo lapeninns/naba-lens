@@ -197,7 +197,7 @@ describe("shared Add queue: upload purpose per Add call", () => {
     )
     await user.click(screen.getByRole("button", { name: "Add photos" }))
     const dialog = await screen.findByRole("dialog", {
-      name: "Upload photos or videos",
+      name: "Add photos or videos",
     })
     const input = dialog.querySelector<HTMLInputElement>('input[type="file"]')!
     await user.upload(input, [jpeg("menu.jpg")])

@@ -7,7 +7,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
 
 /*
- * Common Room buttons (DESIGN.md §4). One enabled primary per screen: solid
+ * Common Room buttons (common-room.md §4). One enabled primary per screen: solid
  * blue, white text, and always asked for by name. A bare Button is the grey
  * secondary. Everything else is quiet (no fill), danger or a link. A disabled
  * button keeps its label, goes grey and stays readable (say why beside it).
@@ -33,7 +33,7 @@ const TOGGLE: Partial<Record<string, string>> = {
   secondary: `${PRESSED} aria-pressed:disabled:bg-surface-2 aria-pressed:aria-disabled:bg-surface-2`,
   quiet: `${PRESSED} aria-pressed:disabled:bg-transparent aria-pressed:aria-disabled:bg-transparent`,
 }
-// Danger (DESIGN.md §4, components.md "Button"): no fill, warn words and a
+// Danger (common-room.md §4, components.md "Button"): no fill, warn words and a
 // 1.5px warn edge; the warn tint comes on hover and press. The safe choice
 // beside it is the filled grey button, so it stays the heavier of the two.
 // The spec's second, solid danger has no name in the six variants and is
@@ -46,7 +46,7 @@ const LINK = `h-auto min-h-0 border-0 bg-transparent px-0 font-bold text-ink und
 const ROW_LINK = `h-auto min-h-11 border-0 bg-transparent px-0 font-bold text-ink underline decoration-[1.5px] underline-offset-4 hover:decoration-[3px] ${DISABLED_TEXT}`
 
 /*
- * Sizes (DESIGN.md §2): sm 44px (the target floor, for actions inside
+ * Sizes (common-room.md §2): sm 44px (the target floor, for actions inside
  * notices, rows and tables), md 52px, lg 60px. The same words mean the same
  * heights on every control. `icon` is a 44px square and `icon-lg` a 48px one;
  * both need an aria-label. Labels wrap rather than push a 320px page sideways.
@@ -143,7 +143,7 @@ function isTrue(value: boolean | "true" | "false" | undefined) {
 }
 
 /*
- * `aria-disabled` is the preferred way to switch a button off (DESIGN.md §4,
+ * `aria-disabled` is the preferred way to switch a button off (common-room.md §4,
  * §7): it stays in the focus order so the reason beside it can be reached.
  * Either `aria-disabled` or `loading` blocks the click here, so a caller
  * does not have to guard its own handler. Other keys still reach the page:

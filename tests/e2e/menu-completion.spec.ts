@@ -121,15 +121,15 @@ test.describe("Our menu: menu items with an accepted photo", () => {
     await expect(staff.getByRole("region", { name: "Starters" })).toBeVisible()
     await expect(staff.getByRole("region", { name: "Mains" })).toBeVisible()
     await expect(dishes(staff)).toHaveText(["Soup", "Salad", "Pie"])
-    // Each dish offers "Take a photo of this dish" (camera) first and
-    // "Choose from photos" to uploaders.
+    // Each dish offers "Add photos of this dish" (the phone's photos) to
+    // uploaders; there is no in-app camera (DESIGN.md §2, §9).
     const soupRow = staff.getByRole("article", { name: "Soup" })
     await expect(
-      soupRow.getByRole("button", { name: "Take a photo of this dish" })
+      soupRow.getByRole("button", { name: "Add photos of this dish" })
     ).toBeVisible()
     await expect(
-      soupRow.getByRole("button", { name: "Choose from photos" })
-    ).toBeVisible()
+      soupRow.getByRole("button", { name: /Take a photo|camera/ })
+    ).toHaveCount(0)
 
     await staff.getByRole("link", { name: "Still needs a photo" }).click()
     await expect(staff).toHaveURL(/\/staff\/menu\?filter=gaps$/)

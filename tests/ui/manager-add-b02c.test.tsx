@@ -145,7 +145,7 @@ describe("the workspace's Add follows R8", () => {
     expect(screen.getByTestId("probe").textContent).toBe("none")
     expect(within(nav()).queryByRole("button", { name: "Add" })).toBeNull()
     expect(
-      screen.queryByRole("button", { name: OUR_MENU_COPY.takePhoto })
+      screen.queryByRole("button", { name: OUR_MENU_COPY.addPhotos })
     ).toBeNull()
     // The bar is today's four tabs, and no picker is on the page.
     expect(within(nav()).getAllByRole("link")).toHaveLength(4)
@@ -159,10 +159,7 @@ describe("the workspace's Add follows R8", () => {
     expect(items).toEqual(["Overview", "Review", "Add", "Menu", "Amenities"])
     expect(add.tagName).toBe("BUTTON")
     expect(
-      screen.getByRole("button", { name: OUR_MENU_COPY.takePhoto })
-    ).toBeTruthy()
-    expect(
-      screen.getByRole("button", { name: OUR_MENU_COPY.choosePhoto })
+      screen.getByRole("button", { name: OUR_MENU_COPY.addPhotos })
     ).toBeTruthy()
   })
 
@@ -170,7 +167,7 @@ describe("the workspace's Add follows R8", () => {
     workspace(Promise.resolve(menu(["photos"])))
     await within(nav()).findByRole("button", { name: "Add" })
     expect(
-      screen.queryByRole("button", { name: OUR_MENU_COPY.takePhoto })
+      screen.queryByRole("button", { name: OUR_MENU_COPY.addPhotos })
     ).toBeNull()
   })
 
@@ -193,11 +190,12 @@ describe("a Menu row's dish buttons", () => {
         <ManagerDishButtons item={DISH} describedBy="dish-name" />
       </AddProvider>
     )
-    const take = screen.getByRole("button", { name: OUR_MENU_COPY.takePhoto })
+    const take = screen.getByRole("button", { name: OUR_MENU_COPY.addPhotos })
     expect(take.getAttribute("aria-describedby")).toBe("dish-name")
     fireEvent.click(take)
+    // Gallery first (DESIGN.md §2, §9): the phone's photos, not the camera.
     expect(openAdd).toHaveBeenCalledWith({
-      source: "camera",
+      source: "library",
       imagesOnly: true,
       preset: {
         itemId: "i1",

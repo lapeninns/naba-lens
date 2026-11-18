@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  checkFile,
   SessionExpiredError,
   SIGNED_OUT_MESSAGE,
   summarize,
@@ -155,6 +156,23 @@ describe("UploadQueue", () => {
     expect(result.rejected[1].reason).toMatch(/up to 20 MB/)
     expect(result.rejected[3].reason).toMatch(/up to 2 files/)
     expect(queue.getSnapshot().map((i) => i.kind)).toEqual(["image", "video"])
+  })
+
+  it("gives each refused file back, and says which were refused only for a full queue (R-1 B1)", () => {
+    const { upload } = controllableUploader()
+    const queue = new UploadQueue(upload, { ...LIMITS, maxBatchFiles: 1 })
+    const big = file("huge.jpg", LIMITS.maxPhotoBytes + 1)
+    const a = file("a.jpg")
+    const b = file("b.jpg")
+    const result = queue.add([big, a, b])
+    expect(result.rejected).toEqual([
+      expect.objectContaining({ file: big }),
+      expect.objectContaining({ file: b, full: true }),
+    ])
+    expect(result.rejected[0].full).toBeUndefined()
+    expect(queue.pending()).toBe(1)
+    expect(checkFile(big, LIMITS)?.reason).toMatch(/up to 20 MB/)
+    expect(checkFile(b, LIMITS)).toBeNull()
   })
 
   it("does not count finished files against the batch limit", async () => {

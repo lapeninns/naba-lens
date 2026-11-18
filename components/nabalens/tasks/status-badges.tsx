@@ -26,7 +26,7 @@ const WORD_STATE: Record<string, ChipStateKey> = {
   Complete: "complete",
   "Needs another photo": "needs_another_photo",
   Overdue: "overdue",
-  // Common Room: each fixed word is drawn in its own shape (DESIGN.md §3)
+  // Common Room: each fixed word is drawn in its own shape (common-room.md §3)
   Accepted: "accepted",
   Submitted: "submitted",
   Closed: "closed",

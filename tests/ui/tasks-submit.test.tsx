@@ -108,7 +108,7 @@ const tile = (date: string) =>
     "button",
     {
       // Fixture uploads are at 10:00 London time.
-      name: `Photo uploaded ${date}, 10:00`,
+      name: `Photo added ${date}, 10:00`,
     }
   )
 
@@ -521,7 +521,7 @@ describe("SubmitPhotosPanel", () => {
     const { user } = setup({ photos: [processing, A] })
     const t = within(
       screen.getByRole("list", { name: "Your photos" })
-    ).getByRole("button", { name: "Photo uploaded 2 Nov 2026, 12:00" })
+    ).getByRole("button", { name: "Photo added 2 Nov 2026, 12:00" })
     expect(t.getAttribute("aria-disabled")).toBe("true")
     expect(
       screen.getByText("Still processing. It can't count until it's ready.")
@@ -530,7 +530,7 @@ describe("SubmitPhotosPanel", () => {
     expect(t.getAttribute("aria-pressed")).toBe("false")
     expect(
       screen.getByText(
-        /photos still processing or that failed to upload don't count/
+        /photos still processing or that failed to send don't count/
       )
     ).toBeTruthy()
   })
@@ -610,7 +610,7 @@ describe("SubmitPhotosPanel", () => {
     })
     expect(
       screen.getByText(
-        "Uploaded before this month, so it can't count toward this month."
+        "Added before this month, so it can't count toward this month."
       )
     ).toBeTruthy()
   })
@@ -758,7 +758,7 @@ describe("SubmitPhotosPanel", () => {
     expect(await screen.findByText("1 new photo selected.")).toBeTruthy()
     const uploaded = within(
       screen.getByRole("list", { name: "Your photos" })
-    ).getByRole("button", { name: "Photo uploaded 2 Nov 2026, 15:00" })
+    ).getByRole("button", { name: "Photo added 2 Nov 2026, 15:00" })
     expect(uploaded.getAttribute("aria-pressed")).toBe("true")
     expect(tile("2 Nov 2026").getAttribute("aria-pressed")).toBe("false")
     expect(screen.getByRole("button", { name: "Send 1 photo" })).toBeTruthy()

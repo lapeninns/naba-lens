@@ -21,7 +21,7 @@ type ProgressSegmentsProps = {
 }
 
 /**
- * Progress as one rounded segment per photo (DESIGN.md §4): green accepted,
+ * Progress as one rounded segment per photo (common-room.md §4): green accepted,
  * striped submitted, grey still needed, always paired with the words. Blue
  * never marks progress. Above 12 photos the segments merge into a bar.
  */

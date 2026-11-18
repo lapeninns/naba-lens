@@ -175,14 +175,14 @@ describe("global Add gallery refresh", () => {
         )
       )
       const selected = screen.getByRole("button", {
-        name: "Photo uploaded 2 Nov 2026, 10:00",
+        name: "Photo added 2 Nov 2026, 10:00",
       })
       await user.click(selected)
       await user.click(screen.getByRole("button", { name: "Add photos" }))
       await user.click(screen.getByRole("button", { name: "Complete upload" }))
       expect(
         await screen.findByRole("button", {
-          name: "Photo uploaded 2 Nov 2026, 15:00",
+          name: "Photo added 2 Nov 2026, 15:00",
         })
       ).toBeTruthy()
       expect(selected.getAttribute("aria-pressed")).toBe("true")
@@ -267,7 +267,7 @@ describe("global Add gallery refresh", () => {
 
     // Me's own upload opens the same global queue (no second dialog).
     await user.click(
-      screen.getByRole("button", { name: "Upload photos or videos" })
+      screen.getByRole("button", { name: "Add photos or videos" })
     )
     expect(
       screen.getAllByRole("button", { name: "Complete upload" })

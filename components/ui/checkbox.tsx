@@ -4,7 +4,7 @@ import { CheckIcon, MinusIcon } from "@phosphor-icons/react/dist/ssr"
 import { cn } from "@/lib/utils"
 
 /*
- * Checkbox (DESIGN.md §4 "checkbox", §2 "Blue is rationed"): a 24px box in a
+ * Checkbox (common-room.md §4 "checkbox", §2 "Blue is rationed"): a 24px box in a
  * 44px target. Empty it has a strong edge; ticked it fills with `select`, the
  * colour kept for a choice the person made, and shows a tick. The tick or the
  * dash carries the state, so it never rests on colour alone.
@@ -51,7 +51,7 @@ type CheckboxProps = Omit<
 }
 
 /*
- * `aria-disabled` is the preferred way to switch it off (DESIGN.md §4, §7):
+ * `aria-disabled` is the preferred way to switch it off (common-room.md §4, §7):
  * the box stays in the focus order, so the reason beside it can be reached,
  * and it does not change when pressed. `disabled` takes it out of the focus
  * order and out of the form, as a native checkbox would.

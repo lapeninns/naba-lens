@@ -4,7 +4,7 @@ import { Radio, RadioGroup } from "@/components/ui/radio-group"
 import { SelectableTile } from "@/components/ui/selectable-tile"
 
 /*
- * Gallery block for the choice controls (DESIGN.md §4): Checkbox, RadioGroup,
+ * Gallery block for the choice controls (common-room.md §4): Checkbox, RadioGroup,
  * OptionRow and SelectableTile in every size and state, with fake data only.
  * Hover cannot be forced, so it is not shown; focus is described in a note.
  */

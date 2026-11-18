@@ -174,7 +174,7 @@ describe("UploadDialog imagesOnly", () => {
       />
     )
     expect(
-      screen.getByRole("heading", { name: "Upload photos or videos" })
+      screen.getByRole("heading", { name: "Add photos or videos" })
     ).toBeTruthy()
     expect(
       screen.getByLabelText<HTMLInputElement>("Choose photos or videos").accept

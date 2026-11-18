@@ -129,7 +129,7 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     ).toBeVisible()
 
     await staffPage
-      .getByRole("button", { name: "Upload photos or videos" })
+      .getByRole("button", { name: "Add photos or videos" })
       .first()
       .click()
     const dialog = uploadSheet(staffPage)

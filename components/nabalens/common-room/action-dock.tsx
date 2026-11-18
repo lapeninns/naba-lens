@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils"
 
 /**
- * The pinned action area that holds a screen's one primary (DESIGN.md §4
+ * The pinned action area that holds a screen's one primary (common-room.md §4
  * `.dock`): white, a hairline above, 12px gutter. Only use it where the
  * product already pins its action. On phones it sticks above the TabBar
  * (or to the bottom with `overTabBar={false}` on screens without one); from

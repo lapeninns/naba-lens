@@ -35,6 +35,7 @@ import {
   keptLabels,
   labelItems,
   labelsOn,
+  meAddButton,
   modalsOpened,
   phone,
   pickFiles,
@@ -215,7 +216,7 @@ test("a2 leaving or logging out warns while labels are not on the server yet; th
   await expect.poll(() => labelsOn(id), { timeout: 30_000 }).toBe("Onion Bhaji")
 
   // Nothing is left unsaved, so log out goes straight through.
-  await expect(addTab(page)).toHaveAccessibleName("Add")
+  await expect(addTab(page)).toHaveAccessibleName("Add photos")
   await page.getByRole("button", { name: "Log out", exact: true }).click()
   await page.waitForURL(/\/login/)
   await expect(page.getByRole("alertdialog")).toHaveCount(0)
@@ -386,11 +387,12 @@ for (const width of [360, 412]) {
 
     const input = await pickFiles(
       page,
-      dish.getByRole("button", { name: "Take a photo of this dish" }),
+      dish.getByRole("button", { name: "Add photos of this dish" }),
       [photo.path],
       taps
     )
-    expect(input.capture).toBe("environment")
+    // Gallery first (DESIGN.md §2, §9): the photo library, not the camera.
+    expect(input.capture).toBeNull()
     const sheet = savingSheet(page, "Saving 1 photo")
     await expect(sheet).toBeVisible()
     // The dish is already applied, as a chip staff could remove.
@@ -409,7 +411,7 @@ for (const width of [360, 412]) {
       .toBe("Onion Bhaji")
   })
 
-  test(`d2 @${width}: Choose from photos on a dish opens the photo library, photos only`, async ({
+  test(`d2 @${width}: Add photos of this dish opens the photo library, photos only`, async ({
     browser,
   }) => {
     test.setTimeout(180_000)
@@ -422,7 +424,7 @@ for (const width of [360, 412]) {
     // The OS picker is the only feedback the tap gives: it must open.
     const input = await pickFiles(
       page,
-      dish.getByRole("button", { name: "Choose from photos" }),
+      dish.getByRole("button", { name: "Add photos of this dish" }),
       [photo.path]
     )
     expect(input.capture).toBeNull()
@@ -448,8 +450,9 @@ for (const width of [360, 412]) {
     test.setTimeout(180_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
-    await page.goto("/staff/tasks")
-    await expect(addTab(page)).toBeVisible()
+    // The label journeys start from Me's Add (the Album tab opens Match).
+    await page.goto("/staff")
+    await expect(meAddButton(page)).toBeVisible()
     await resetModals(page)
     const taps = new TapCounter()
     const photo = await syntheticJpeg(`${unique(`e1-${width}`)}.jpg`)
@@ -479,8 +482,9 @@ for (const width of [360, 412]) {
     test.setTimeout(240_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
-    await page.goto("/staff/tasks")
-    await expect(addTab(page)).toBeVisible()
+    // The label journeys start from Me's Add (the Album tab opens Match).
+    await page.goto("/staff")
+    await expect(meAddButton(page)).toBeVisible()
     await resetModals(page)
     const taps = new TapCounter()
     const photos = await Promise.all(
@@ -544,10 +548,10 @@ test("f photo batched with a slow video is labelled and selectable on the task s
   // The audit's 25-second video: its transfer waits until the photo checks
   // are done, so "before the video finishes" never depends on timing.
   const transfer = await gate(page, isTusTransfer)
-  await page.goto(`/staff/tasks/${taskId}`)
-  await expect(
-    page.getByRole("heading", { level: 1, name: title })
-  ).toBeVisible()
+  // Photos and videos are added from Me (the task screen and Album's Add
+  // photos take photos only); the task is then reached in the app, with no
+  // page load, through Me's Other jobs row while the video still uploads.
+  await page.goto("/staff")
   const photo = await syntheticJpeg(`${unique("f")}.jpg`)
   const video = supportedMp4(`${unique("f")}.mp4`)
 
@@ -564,9 +568,19 @@ test("f photo batched with a slow video is labelled and selectable on the task s
 
   await doneButton(sheet).click()
   await expect(sheet).toBeHidden()
+  await page
+    .getByRole("navigation", { name: "Your work" })
+    .getByRole("link", { name: /^Other jobs/ })
+    .click()
+  await expect(page).toHaveURL(/\/staff\/tasks\/other$/)
+  await page.getByRole("link", { name: title, exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`/staff/tasks/${taskId}$`))
+  await expect(
+    page.getByRole("heading", { level: 1, name: title })
+  ).toBeVisible()
   const tile = page
     .getByRole("list", { name: "Your photos" })
-    .getByRole("button", { name: /^Photo uploaded/ })
+    .getByRole("button", { name: /^Photo added/ })
   await expect(tile).toHaveCount(1, { timeout: 30_000 })
   await expect(tile).not.toHaveAttribute("aria-disabled", "true")
   await tile.click()

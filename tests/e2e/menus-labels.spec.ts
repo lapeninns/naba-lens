@@ -212,7 +212,7 @@ const tileLabels = (list: Locator) =>
  */
 async function pickInSheet(page: Page, files: SourceFile[]) {
   await page
-    .getByRole("button", { name: "Upload photos or videos" })
+    .getByRole("button", { name: "Add photos or videos" })
     .first()
     .click()
   const sheet = uploadSheet(page)
