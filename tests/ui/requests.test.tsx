@@ -27,10 +27,8 @@ import {
   NewShotListForm,
   ShotListCards,
 } from "@/components/nabalens/requests/shot-lists"
-import {
-  AskedFor,
-  askedForItems,
-} from "@/components/nabalens/requests/staff-requests"
+import { AskedFor } from "@/components/nabalens/requests/staff-requests"
+import { askedForItems } from "@/lib/requests/asked-for"
 import { AddProvider } from "@/components/nabalens/shell/add-context"
 import type { AlbumSlot } from "@/lib/album/model"
 import {

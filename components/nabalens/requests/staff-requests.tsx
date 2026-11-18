@@ -9,12 +9,8 @@ import {
 } from "@/components/nabalens/shell/add-context"
 import { Button } from "@/components/ui/button"
 import { Photo } from "@/components/ui/photo"
-import type { AlbumSlot } from "@/lib/album/model"
-import {
-  staffDateWords,
-  staffRequestExtras,
-  type StaffRequest,
-} from "@/lib/requests/model"
+import type { AskedForItem } from "@/lib/requests/asked-for"
+import { staffDateWords, staffRequestExtras } from "@/lib/requests/model"
 
 /*
  * "Asked for" on Album Home (spec §7 M4, AC01; FA-5): a manager's open
@@ -37,25 +33,6 @@ export const ASKED_FOR_COPY = {
 
 /** Shown at most, the person's own first (the read orders them). */
 const MAX = 6
-
-export type AskedForItem = {
-  request: StaffRequest
-  /** The album's own slot, when the request is on one the album shows. */
-  slot: AlbumSlot | null
-}
-
-/** Pairs each request with the album slot it points at. */
-export function askedForItems(
-  requests: StaffRequest[],
-  slots: ReadonlyMap<string, AlbumSlot>
-): AskedForItem[] {
-  return requests.flatMap((request): AskedForItem[] => {
-    if (!request.slot) return [{ request, slot: null }]
-    const slot = slots.get(`${request.slot.kind}:${request.slot.slotId}`)
-    // A slot the album no longer shows (Not here, retired) is left out.
-    return slot ? [{ request, slot }] : []
-  })
-}
 
 export function AskedFor({
   items,
