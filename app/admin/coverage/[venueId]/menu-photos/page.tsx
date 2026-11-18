@@ -48,11 +48,11 @@ export default async function AdminMenuPhotosPage({
         search={search}
       />
       {showsPhotoOnlySections(search) ? (
-        <>
-          <AreaReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
-          {/* S3-R11 (V18): the facility photos Overview counts as waiting. */}
-          <AmenityReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
-        </>
+        <AreaReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
+      ) : null}
+      {/* S3-R11 (V18): the facility photos Overview counts as waiting. */}
+      {showsPhotoOnlySections(search) ? (
+        <AmenityReviewSection ctx={scope.ctx} venueId={ctx.venueId} />
       ) : null}
     </ManageFrame>
   )
