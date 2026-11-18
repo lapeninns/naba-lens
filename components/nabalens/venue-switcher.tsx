@@ -18,6 +18,42 @@ export type VenueSwitcherVenue = {
 
 const ROLE_WORD = { staff: "Staff", manager: "Manager", admin: "Admin" }
 
+// The person's other tabs hear a venue change at once (AC11, S3-E2E-1 E7):
+// an open Match there re-reads the venue instead of matching photos to the
+// old venue's slots until its next navigation.
+const VENUE_CHANNEL = "nabalens-active-venue"
+
+function venueChannel(): BroadcastChannel | null {
+  return typeof BroadcastChannel === "undefined"
+    ? null
+    : new BroadcastChannel(VENUE_CHANNEL)
+}
+
+/** Tells this browser's other tabs that the active venue changed. */
+export function announceVenueChange(venueId: string) {
+  const channel = venueChannel()
+  if (!channel) return
+  channel.postMessage({ venueId })
+  channel.close()
+}
+
+/** Calls `onChange` when another tab of this browser changes venue. */
+export function useVenueChanges(onChange: (venueId: string) => void) {
+  const latest = React.useRef(onChange)
+  React.useLayoutEffect(() => {
+    latest.current = onChange
+  })
+  React.useEffect(() => {
+    const channel = venueChannel()
+    if (!channel) return
+    channel.onmessage = (event: MessageEvent<unknown>) => {
+      const data = event.data as { venueId?: unknown } | null
+      if (typeof data?.venueId === "string") latest.current(data.venueId)
+    }
+    return () => channel.close()
+  }, [])
+}
+
 /**
  * The active venue and, for a person with more than one venue, a way to work
  * at another (spec §3.1, FA-22). It lists only the person's own venues, and
@@ -66,6 +102,7 @@ export function VenueSwitcher({
         )
         return
       }
+      announceVenueChange(choice)
       router.push(result.home ?? "/")
       router.refresh()
     } catch (cause) {

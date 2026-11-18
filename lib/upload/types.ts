@@ -46,6 +46,13 @@ export type ReserveInput = {
    * stored by the first reservation for this key. Omitted: none.
    */
   batchId?: string
+  /**
+   * The venue the person matched this file for (AC11). Sent with the
+   * reservation, so a file whose turn comes after a venue switch is refused
+   * (wrong_venue) instead of landing at the new venue. Omitted: the active
+   * venue.
+   */
+  venueId?: string
 }
 
 export type ReserveResult = {
@@ -128,6 +135,8 @@ export type UploadOptions = {
   purpose?: UploadPurpose
   /** The selection's stable batch ID, sent with the reservation. */
   batchId?: string
+  /** The venue the file is for, sent with the reservation (AC11). */
+  venueId?: string
 }
 
 export type UploadResult = {
@@ -178,6 +187,8 @@ export type UploadContext = {
   account?: string
   /** Stable ID of the selection the file was added in (spec §12.2). */
   batchId?: string
+  /** The venue the file is for, sent with the reservation (AC11). */
+  venueId?: string
 }
 
 /** Injected upload function. Resolve when the asset is ready; reject on failure. */

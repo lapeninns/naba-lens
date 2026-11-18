@@ -104,6 +104,7 @@ export function MatchScreen({
   notice = null,
   busySlots,
   venueName = null,
+  venuesMixed = false,
   recent,
   duplicates,
   onSuggestSpecial,
@@ -128,6 +129,11 @@ export function MatchScreen({
   busySlots?: ReadonlyMap<string, unknown>
   /** The venue these photos go to (spec §5.1). */
   venueName?: string | null
+  /**
+   * Some of this run's photos went to an earlier venue (the venue changed
+   * mid-run, AC11): the end counts them without naming one venue.
+   */
+  venuesMixed?: boolean
   /** Slot ids matched most recently on this phone, newest first. */
   recent?: readonly string[]
   /** Photo keys the server found were sent before (same bytes, same venue). */
@@ -313,7 +319,7 @@ export function MatchScreen({
               photos={photos}
               outcomes={outcomes}
               sendStates={sendStates}
-              venueName={venueName}
+              venueName={venuesMixed ? null : venueName}
               duplicates={duplicates}
               onClose={onClose}
             />

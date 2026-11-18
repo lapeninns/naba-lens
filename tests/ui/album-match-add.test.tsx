@@ -607,6 +607,89 @@ describe("advice that never blocks (spec §5.5)", () => {
 })
 
 describe("a venue change before sending (AC11, spec §6 S2)", () => {
+  it("asks again for matched photos still waiting their turn, never reserving them at the new venue (V7)", async () => {
+    // The first two photos take their turn and hold it; the other two wait
+    // in the queue (maxParallelUploads is 2) with no reservation yet.
+    const holds: (() => void)[] = []
+    const venues: (string | undefined)[] = []
+    uploads.current = async (file, context) => {
+      started.push(file.name)
+      venues.push(context.venueId)
+      await new Promise<void>((resolve) => holds.push(resolve))
+      return { assetId: `asset-${file.name}` }
+    }
+    const user = userEvent.setup()
+    const view = render(<Host opts={{ match: { place: PASS } }} />)
+    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    await user.upload(
+      gallery(),
+      [1, 2, 3, 4].map((n) => jpeg(`q${n}.jpg`, n))
+    )
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 4" })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Photo 4 too" })
+    )
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    await waitFor(() => expect(started).toEqual(["q1.jpg", "q2.jpg"]))
+    // Each reservation names the venue the photo was matched for.
+    expect(venues).toEqual(["venue-1", "venue-1"])
+
+    match.loadMatchBoardAction.mockResolvedValue({
+      ok: true,
+      board: { ...BOARD, venue: { id: "venue-2", name: "The Crown" } },
+    })
+    view.rerender(
+      <Host
+        opts={{ match: { place: PASS } }}
+        venueId="venue-2"
+        venueName="The Crown"
+      />
+    )
+    expect(
+      await within(matchDialog()).findByText(
+        "You are now adding photos for The Crown. Choose the slot again for 2 photos."
+      )
+    ).toBeTruthy()
+    expect(
+      await within(matchDialog()).findByText("2 not matched yet")
+    ).toBeTruthy()
+
+    // The two in flight finish at the old venue; the two taken back are
+    // dropped by the queue, never reserved.
+    for (const release of holds) release()
+    await waitFor(() => expect(sentFor("asset-q1.jpg")).toHaveLength(1))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(started).toEqual(["q1.jpg", "q2.jpg"])
+  })
+
+  it("loads the new venue's menu, so a dish matched there keeps its label (V8)", async () => {
+    const user = userEvent.setup()
+    const view = render(<Host opts={{ match: { place: PASS } }} />)
+    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    await user.upload(gallery(), [jpeg("v8.jpg", 1)])
+    await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    const menuReads = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(
+          ([url, init]) =>
+            !init?.method &&
+            String(url).includes("upload-labels") &&
+            !String(url).includes("attention")
+        ).length
+    await waitFor(() => expect(menuReads()).toBe(1))
+    view.rerender(
+      <Host
+        opts={{ match: { place: PASS } }}
+        venueId="venue-2"
+        venueName="The Crown"
+      />
+    )
+    await waitFor(() => expect(menuReads()).toBe(2))
+  })
+
   it("reads the new venue's slots and says so", async () => {
     const user = userEvent.setup()
     const view = render(<Host opts={{ match: { place: PASS } }} />)

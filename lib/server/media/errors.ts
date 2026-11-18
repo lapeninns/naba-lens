@@ -25,6 +25,17 @@ export function rpcFailure(error: DbError): Outcome<never> {
         "This unfinished upload was started somewhere else. Retry to upload the file again.",
     }
   }
+  if (message.includes("wrong_venue")) {
+    // reserve_media_asset: the file was matched for a venue that is no
+    // longer the active one (AC11). 409, retryable once the person is back
+    // at that venue; never reserved at the new one.
+    return {
+      ok: false,
+      status: 409,
+      message:
+        "This photo was matched for another venue. Switch back to that venue to send it, or match it again.",
+    }
+  }
   if (message.includes("not_active_staff")) {
     return {
       ok: false,
