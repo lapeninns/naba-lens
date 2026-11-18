@@ -7,7 +7,7 @@ import {
   parseReviewers,
   parseVenueHistory,
   parseVenueSummary,
-  REVIEWER_ROLES,
+  MANAGER_REVIEWER_ROLES,
   type ManagerVenueSummary,
   type MenuMonthCheck,
   type ReviewerRole,
@@ -35,7 +35,7 @@ const DB_FIELDS: Record<string, { field: string; message: string }> = {
   note_too_long: { field: "note", message: "Use up to 500 characters." },
   invalid_reviewer_role: {
     field: "role",
-    message: "Choose main or backup reviewer.",
+    message: "Choose the backup reviewer.",
   },
 }
 
@@ -44,6 +44,12 @@ function failure(error: { message?: string; code?: string }): ApiError {
     return apiError("invalid_input", {
       field: "profileId",
       message: "Choose someone who is a manager at this venue.",
+    })
+  if (error.message === "main_reviewer_admin_only")
+    return apiError("forbidden", {
+      field: "role",
+      message:
+        "An admin names the main reviewer. You can choose the backup reviewer.",
     })
   if (error.message === "no_active_menu")
     return apiError("conflict", {
@@ -95,7 +101,11 @@ export async function getVenueReviewers(
   return reviewers ? { ok: true, reviewers } : shapeError()
 }
 
-/** Nominate (or clear, with no person) the venue's main or backup reviewer. */
+/**
+ * Nominate (or clear, with no person) the venue's backup reviewer. The main
+ * reviewer is set on the admin venue screen (spec §8 A2), so "main" is
+ * refused here before the database, which refuses it too.
+ */
 export async function setVenueReviewer(
   actor: MediaActor,
   input: unknown
@@ -103,10 +113,16 @@ export async function setVenueReviewer(
   if (input === null || typeof input !== "object")
     return apiError("invalid_input")
   const i = input as Record<string, unknown>
-  if (!REVIEWER_ROLES.includes(i.role as ReviewerRole))
+  if (i.role === "main")
+    return apiError("forbidden", {
+      field: "role",
+      message:
+        "An admin names the main reviewer. You can choose the backup reviewer.",
+    })
+  if (!MANAGER_REVIEWER_ROLES.includes(i.role as ReviewerRole))
     return apiError("invalid_input", {
       field: "role",
-      message: "Choose main or backup reviewer.",
+      message: "Choose the backup reviewer.",
     })
   if (!isUuid(i.venueId))
     return apiError("not_found", { message: "This venue could not be found." })

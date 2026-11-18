@@ -8,31 +8,29 @@ import { OptionSelect } from "@/components/nabalens/option-select"
 import { Button } from "@/components/ui/button"
 import { FormField } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  REVIEWER_ROLE_LABEL,
-  REVIEWER_ROLES,
-  type ReviewerRole,
-  type VenueReviewers,
-} from "@/lib/manager/venue"
+import { REVIEWER_ROLE_LABEL, type VenueReviewers } from "@/lib/manager/venue"
 
 /*
- * S2-MGR: Review assignments on the Venue hub (spec §7 M5, M1, §20). The
- * manager nominates a main and a backup reviewer from people who already
- * hold manager permission at the venue (the database refuses anyone else),
- * or leaves a role empty. When a reviewer leaves the venue the backup takes
- * over automatically; that change shows in History.
+ * S2-MGR, S3-R5: Review assignments on the Venue hub (spec §7 M5, M1, §20).
+ * The admin names the main reviewer (§8 A2); here it is read-only. The
+ * manager nominates the backup reviewer from people who already hold manager
+ * permission at the venue (the database refuses anyone else, and refuses a
+ * manager's change to the main role), or leaves it empty. When a reviewer
+ * leaves the venue the backup takes over automatically; that change shows in
+ * History.
  */
 
 export const REVIEWERS_COPY = {
   intro:
-    "Choose who reviews photos here, and who covers when they are away. Only managers at this venue can be chosen.",
+    "An admin names the main reviewer. You choose who covers when they are away. Only managers at this venue can be chosen.",
+  mainNone: "Not named yet. Ask an admin to name the main reviewer.",
   nobody: "Nobody",
   noCandidates:
     "Nobody else here holds manager permission yet. Ask an admin to make someone a manager at this venue.",
-  reason: "Reason (optional)",
-  save: "Save reviewers",
+  reason: "Reason",
+  save: "Save backup reviewer",
   saving: "Saving",
-  saved: "Reviewers saved.",
+  saved: "Backup reviewer saved.",
   failed: "That didn't save. Try again.",
   handover:
     "If the main reviewer stops managing this venue, the backup takes over.",
@@ -54,57 +52,42 @@ export function ReviewersForm({
 }) {
   const router = useRouter()
   const [view, setView] = useState(reviewers)
-  const [choice, setChoice] = useState<Record<ReviewerRole, string | null>>({
-    main: reviewers.main?.profileId ?? null,
-    backup: reviewers.backup?.profileId ?? null,
-  })
+  const [backup, setBackup] = useState<string | null>(
+    reviewers.backup?.profileId ?? null
+  )
   const [reason, setReason] = useState("")
   const [status, setStatus] = useState<
     { kind: "saved" } | { kind: "error"; message: string } | null
   >(null)
   const [pending, start] = useTransition()
 
-  const options = view.candidates.map((c) => ({
-    id: c.profileId,
-    name: c.name,
-  }))
-  const same =
-    choice.main === choice.backup && choice.main !== null
-      ? "Choose two different people."
-      : null
+  // The main reviewer cannot also be the backup (the database refuses a
+  // manager's move of the main reviewer).
+  const options = view.candidates
+    .filter((c) => c.profileId !== view.main?.profileId)
+    .map((c) => ({ id: c.profileId, name: c.name }))
 
   function save() {
     start(async () => {
       setStatus(null)
-      let latest = view
-      // Backup first when someone moves from backup to main, so the person
-      // never holds both roles; the database moves them either way.
-      const order: ReviewerRole[] =
-        choice.main && choice.main === view.backup?.profileId
-          ? ["main", "backup"]
-          : ["backup", "main"]
-      for (const role of order) {
-        const current = latest[role]?.profileId ?? null
-        if (current === choice[role]) continue
-        const result = await onSet({
-          role,
-          profileId: choice[role],
-          reason: reason.trim() || undefined,
-        })
-        if (!result.ok) {
-          setStatus({
-            kind: "error",
-            message: result.message || REVIEWERS_COPY.failed,
-          })
-          return
-        }
-        latest = result.reviewers
+      if ((view.backup?.profileId ?? null) === backup) {
+        setStatus({ kind: "saved" })
+        return
       }
-      setView(latest)
-      setChoice({
-        main: latest.main?.profileId ?? null,
-        backup: latest.backup?.profileId ?? null,
+      const result = await onSet({
+        role: "backup",
+        profileId: backup,
+        reason: reason.trim() || undefined,
       })
+      if (!result.ok) {
+        setStatus({
+          kind: "error",
+          message: result.message || REVIEWERS_COPY.failed,
+        })
+        return
+      }
+      setView(result.reviewers)
+      setBackup(result.reviewers.backup?.profileId ?? null)
       setReason("")
       setStatus({ kind: "saved" })
       router.refresh()
@@ -117,35 +100,35 @@ export function ReviewersForm({
       className="grid gap-4"
       onSubmit={(event) => {
         event.preventDefault()
-        if (!same) save()
+        save()
       }}
     >
       <p className="text-body text-ink-muted">{REVIEWERS_COPY.intro}</p>
+      <dl className="grid gap-1">
+        <dt className="text-label text-ink">{REVIEWER_ROLE_LABEL.main}</dt>
+        <dd
+          data-reviewer="main"
+          className="text-body [overflow-wrap:anywhere] text-ink"
+        >
+          {view.main?.name ?? (
+            <span className="text-ink-muted">{REVIEWERS_COPY.mainNone}</span>
+          )}
+        </dd>
+      </dl>
       {options.length === 0 ? (
         <p role="status" className="text-body text-ink">
           {REVIEWERS_COPY.noCandidates}
         </p>
       ) : null}
-      <div className="grid gap-4 md:grid-cols-2">
-        {REVIEWER_ROLES.map((role) => (
-          <FormField
-            key={role}
-            label={REVIEWER_ROLE_LABEL[role]}
-            optional
-            error={role === "backup" ? same : undefined}
-          >
-            <OptionSelect
-              options={options}
-              value={choice[role]}
-              emptyLabel={REVIEWERS_COPY.nobody}
-              onValueChange={(value) =>
-                setChoice((prev) => ({ ...prev, [role]: value }))
-              }
-              disabled={pending}
-            />
-          </FormField>
-        ))}
-      </div>
+      <FormField label={REVIEWER_ROLE_LABEL.backup} optional>
+        <OptionSelect
+          options={options}
+          value={backup}
+          emptyLabel={REVIEWERS_COPY.nobody}
+          onValueChange={setBackup}
+          disabled={pending}
+        />
+      </FormField>
       <FormField label={REVIEWERS_COPY.reason} optional>
         <Input
           value={reason}
@@ -161,7 +144,7 @@ export function ReviewersForm({
         className="justify-self-start max-md:w-full"
         loading={pending}
         loadingLabel={REVIEWERS_COPY.saving}
-        disabled={options.length === 0}
+        disabled={options.length === 0 && !view.backup}
       >
         {REVIEWERS_COPY.save}
       </Button>

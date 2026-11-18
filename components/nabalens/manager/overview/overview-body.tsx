@@ -379,8 +379,14 @@ export function OverviewBody({
           />
         ) : (
           <EmptyState
-            title={copy.quietTitle}
-            description={<p>{copy.quietBody(eligible - covered)}</p>}
+            title={
+              actions ? copy.gapsTitle(eligible - covered) : copy.quietTitle
+            }
+            description={
+              <p>
+                {actions ? copy.gapsBody : copy.quietBody(eligible - covered)}
+              </p>
+            }
             action={
               <Link
                 href={managerHrefs.menu({ status: "needs_photo" })}

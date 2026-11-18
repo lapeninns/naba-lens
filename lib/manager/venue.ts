@@ -6,6 +6,12 @@
 
 export type ReviewerRole = "main" | "backup"
 export const REVIEWER_ROLES: ReadonlyArray<ReviewerRole> = ["main", "backup"]
+/**
+ * The roles a manager may set (spec §7 M5: nominate a backup reviewer). The
+ * main reviewer is the admin's (§8 A2); the database refuses a manager's
+ * change to it (main_reviewer_admin_only, S3-R5).
+ */
+export const MANAGER_REVIEWER_ROLES: ReadonlyArray<ReviewerRole> = ["backup"]
 
 export const REVIEWER_ROLE_LABEL: Record<ReviewerRole, string> = {
   main: "Main reviewer",
@@ -205,6 +211,10 @@ const ACTION_WORDS: Record<string, string> = {
   place_cleared: "Album place cleared",
   brief_set: "Brief written",
   brief_cleared: "Brief cleared",
+  // S3-R5 (K3): staff reports of a changed slot or photo detail.
+  slot_change_reported: "Change reported by staff",
+  slot_change_resolved: "Reported change dealt with",
+  slot_change_dismissed: "Reported change dismissed",
 }
 
 export function historyActionWords(action: string): string {

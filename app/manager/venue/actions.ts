@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { getManagerWorkspace } from "@/lib/auth/manager"
+import { parseReportDecision } from "@/lib/manager/slot-reports"
 import { apiError } from "@/lib/server/http/errors"
 import {
   confirmMenuMonth,
@@ -10,6 +11,7 @@ import {
   setVenueReviewer,
 } from "@/lib/server/manager/venue"
 import { getMediaActor } from "@/lib/server/media/context"
+import { decideSlotReport } from "@/lib/server/staff"
 
 // Server Functions of the manager Overview and Venue hub (S2-MGR; spec §7
 // M1, M5, §9.3). Every input is `unknown` (public POST endpoints). The venue
@@ -68,4 +70,32 @@ export async function venueHistoryAction(input: unknown) {
     before: i.before,
     venueId: s.venueId,
   })
+}
+
+/**
+ * S3-R5 (K3): `{ reportId, action: "resolved" | "dismissed", note? }`. The
+ * database checks the report is at a venue the caller manages (S2-STAFF's
+ * decide_slot_change_report); a report never changes anything by itself.
+ */
+export async function decideSlotReportAction(input: unknown) {
+  const s = await scope()
+  if (!s.ok) return s
+  const decision = parseReportDecision(input)
+  if (!decision)
+    return apiError("invalid_input", {
+      message: "Check the note: up to 500 characters.",
+    })
+  const result = await decideSlotReport(s.actor, decision)
+  if (!result.ok && result.field === "report")
+    return {
+      ...result,
+      // report_closed or report_not_found: the staff wording speaks to the
+      // reporter ("Your manager has already dealt with this").
+      message: "Someone has already dealt with this report. Reload the page.",
+    }
+  if (result.ok) {
+    revalidatePath("/manager/venue")
+    revalidatePath("/manager/venue/reports")
+  }
+  return result
 }

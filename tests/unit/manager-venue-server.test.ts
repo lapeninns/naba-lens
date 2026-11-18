@@ -52,14 +52,14 @@ describe("venue reviewers", () => {
     expect(
       await setVenueReviewer(actor, {
         venueId: VENUE,
-        role: "main",
+        role: "backup",
         profileId: PERSON,
         reason: "  Covers weekends ",
       })
     ).toMatchObject({ ok: true })
     expect(rpc).toHaveBeenLastCalledWith("set_venue_reviewer", {
       p_venue_id: VENUE,
-      p_role: "main",
+      p_role: "backup",
       p_profile_id: PERSON,
       p_reason: "Covers weekends",
     })
@@ -76,11 +76,11 @@ describe("venue reviewers", () => {
     for (const bad of [
       null,
       { venueId: VENUE, role: "deputy", profileId: PERSON },
-      { venueId: "x", role: "main", profileId: PERSON },
-      { venueId: VENUE, role: "main", profileId: "x" },
+      { venueId: "x", role: "backup", profileId: PERSON },
+      { venueId: VENUE, role: "backup", profileId: "x" },
       {
         venueId: VENUE,
-        role: "main",
+        role: "backup",
         profileId: PERSON,
         reason: "x".repeat(501),
       },
@@ -89,16 +89,36 @@ describe("venue reviewers", () => {
     expect(rpc).toHaveBeenCalledTimes(2)
   })
 
+  // S3-R5 (V1): the main reviewer is the admin's (spec §8 A2).
+  it("refuses the main role before the database", async () => {
+    const { actor, rpc } = actorWith(() => ({ data: REVIEWERS }))
+    for (const profileId of [PERSON, null])
+      expect(
+        await setVenueReviewer(actor, {
+          venueId: VENUE,
+          role: "main",
+          profileId,
+        })
+      ).toMatchObject({ ok: false, code: "forbidden", field: "role" })
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
   it("maps the database's refusals", async () => {
     const refuse = (message: string, code = "42501") =>
       actorWith(() => ({ error: { message, code } })).actor
-    const input = { venueId: VENUE, role: "main", profileId: PERSON }
+    const input = { venueId: VENUE, role: "backup", profileId: PERSON }
     expect(
       await setVenueReviewer(refuse("reviewer_not_eligible"), input)
     ).toMatchObject({ code: "invalid_input", field: "profileId" })
     expect(
       await setVenueReviewer(refuse("not_venue_manager"), input)
     ).toMatchObject({ code: "forbidden", status: 403 })
+    expect(
+      await setVenueReviewer(refuse("main_reviewer_admin_only"), input)
+    ).toMatchObject({
+      code: "forbidden",
+      message: expect.stringMatching(/An admin names the main reviewer/),
+    })
     expect(
       await setVenueReviewer(refuse("boom", "XX000"), input)
     ).toMatchObject({ code: "unavailable", retryable: true })

@@ -124,6 +124,11 @@ export function ManagerNav({
             aria-current={current ? "page" : undefined}
             className={cn(
               TAB_ITEM,
+              // Five tabs share the phone bar: the label scales with the
+              // viewport (13px at 320, the full 17px from about 416px) so a
+              // whole word, bold when active, fits its fifth of the bar and
+              // never breaks mid-word (S3-R5, D3; departure A-R5-1).
+              "px-0 [font-size:min(1.0625rem,calc((100vw_-_0.5rem)/24))]!",
               "text-ink-muted hover:bg-surface-2 hover:text-ink",
               // Active tab: accent-text, 800, a 3px bar along the top.
               current &&

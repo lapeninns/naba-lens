@@ -212,6 +212,9 @@ const ALLOWED_PAGES = new Set([
   "/manager/venue",
   "/manager/venue/facts",
   "/manager/venue/history",
+  // Full App v1 S3-R5 (K3): staff reports of a changed slot or photo detail,
+  // which the manager deals with or dismisses (spec §6 S3, S4, §7 M5).
+  "/manager/venue/reports",
   // S2-REQ: requests and shot lists (spec §7 M4).
   "/manager/requests",
   "/manager/requests/new",

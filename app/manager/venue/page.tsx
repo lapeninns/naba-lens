@@ -3,6 +3,7 @@ import {
   CalendarCheckIcon,
   ClockCounterClockwiseIcon,
   ExportIcon,
+  FlagIcon,
   ForkKnifeIcon,
   ListChecksIcon,
   MapPinIcon,
@@ -39,6 +40,7 @@ import {
 } from "@/lib/server/manager/venue"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listSpecials, listVenueMenuVersions } from "@/lib/server/menus/local"
+import { listVenueSlotReports } from "@/lib/server/staff"
 
 export const metadata = { title: "Venue" }
 
@@ -106,6 +108,7 @@ export default async function ManagerVenuePage() {
     factStates,
     reviewers,
     history,
+    reports,
   ] = await Promise.all([
     settle(listVenueMenuVersions(actor, { venueId })),
     settle(getManagerVenueSummary(actor)),
@@ -115,6 +118,7 @@ export default async function ManagerVenuePage() {
     settle(getFactStates(actor, { venueId })),
     settle(getVenueReviewers(actor)),
     settle(getVenueHistory(actor, { limit: 5 })),
+    settle(listVenueSlotReports(actor, { venueId, state: "open" })),
   ])
 
   // A refusal on the reads that every manager can make means the grant ended.
@@ -258,6 +262,17 @@ export default async function ManagerVenuePage() {
               icon={<SealCheckIcon aria-hidden />}
               title={copy.toConfirmLink}
               line={copy.toConfirmLine(toConfirm)}
+            />
+          </li>
+          <li>
+            <HomeRow
+              href={managerHrefs.venueReports}
+              slot="venue-link"
+              icon={<FlagIcon aria-hidden />}
+              title={copy.reportsLink}
+              line={copy.reportsLine(
+                reports?.ok ? reports.reports.length : null
+              )}
             />
           </li>
           <li>

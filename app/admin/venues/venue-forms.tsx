@@ -211,7 +211,6 @@ export function ReviewerForm({
           {listed.map((c) => (
             <option key={c.profileId} value={c.profileId}>
               {c.name}
-              {c.role === "admin" ? " (admin)" : ""}
             </option>
           ))}
         </select>

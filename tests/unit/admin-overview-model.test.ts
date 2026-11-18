@@ -25,6 +25,7 @@ import {
   setupDetail,
   setupHref,
   validateVenueForm,
+  VENUE_ERRORS,
 } from "@/lib/admin/venues"
 
 const V1 = "11111111-1111-4111-8111-111111111111"
@@ -265,11 +266,17 @@ describe("venues model", () => {
       candidates: [
         { profileId: V2, name: "Sam", role: "manager" },
         { profileId: V1, name: "Staff", role: "staff" },
+        // K8 (S3-R5): admins are never named reviewers.
+        { profileId: V1, name: "Alex", role: "admin" },
       ],
     })!
     expect(detail.candidates).toEqual([
       { profileId: V2, name: "Sam", role: "manager" },
     ])
+    // K8 (S3-R5): the refusal names the manager-only rule.
+    expect(VENUE_ERRORS.reviewer_not_eligible?.message).toBe(
+      "Only this venue's managers can be named. Make them a manager here first."
+    )
     expect(setupBlocked(v)).toBe(true)
     expect(setupBlocked({ ...v, active: false })).toBe(false)
   })
