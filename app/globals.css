@@ -100,8 +100,7 @@
   --focus: oklch(0.952 0.008 121.6); /* #eef0ea, ink */
   --scrim: oklch(0.142 0.004 165.2 / 0.72); /* rgba(8,10,9,0.72) */
   --on-photo: oklch(1 0 0);
-  --shadow-raised:
-    0 1px 2px oklch(0 0 0 / 0.5), 0 8px 24px oklch(0 0 0 / 0.5);
+  --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.5), 0 8px 24px oklch(0 0 0 / 0.5);
   color-scheme: dark;
 }
 
@@ -487,10 +486,10 @@
   @apply font-display text-title;
 }
 @utility type-figure {
-  @apply font-display text-figure tabular-nums lining-nums;
+  @apply font-display text-figure lining-nums tabular-nums;
 }
 @utility type-count {
-  @apply font-display text-count tabular-nums lining-nums;
+  @apply font-display text-count lining-nums tabular-nums;
 }
 @utility type-page-title {
   @apply font-display text-page-title;
