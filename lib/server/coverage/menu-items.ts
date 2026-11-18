@@ -293,6 +293,7 @@ function itemView(row: ItemRow, canReview: boolean): OurMenuItem {
         : null,
     itemRevision: row.item_revision,
     neededBy: neededByView(row.needed_by, row.needed_by_passed),
+    optional: row.optional === true,
     review:
       canReview && row.candidate_count !== null
         ? {

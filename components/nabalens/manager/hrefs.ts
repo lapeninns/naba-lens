@@ -14,7 +14,7 @@ import type {
 export type ReviewStatusFilter = QueueStatus
 
 /** An eligible menu item's photo status (`/manager/menu?status=`). */
-export type MenuPhotoStatus = MenuItemStatus
+export type MenuPhotoStatus = Exclude<MenuItemStatus, "optional">
 
 export type ReviewQuery = {
   status?: ReviewStatusFilter

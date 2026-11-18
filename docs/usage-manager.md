@@ -161,7 +161,9 @@ alternatives** (**Set as menu photo**), rechecks, photos waiting and
 - **Packaged**: turn on **Packaged (bottled or canned)** for a bottled or
   canned drink, and **Photo wanted** if you still want its photo. Each asks
   once (no reason needed). A packaged item without Photo wanted stays listed
-  and takes photos, but no longer counts in coverage (FA-51).
+  and takes photos, but no longer counts in coverage (FA-51). On Overview and
+  in Menu it leaves every count and filter, never shows a needed-by date, and
+  reads **Optional** in the full list.
 
 ### Album places and briefs
 

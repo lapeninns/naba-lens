@@ -21,6 +21,12 @@ import {
  * and must match metrics, How this is counted, the manager Overview and the
  * admin Overview. An admin then marks it Photo wanted on the venue's menus
  * page and it counts again.
+ *
+ * S5-R1 (review Y1, Y2): the older menu-photo screens follow the same rule.
+ * The manager Overview's "Menu photos" heading and its "with no ready photo"
+ * tally match the rule's dish rows; the manager Menu "Still needs a photo"
+ * filter and staff Our menu "Still needs a photo" leave the lager out, and
+ * their full lists show it as Optional.
  */
 
 test.describe.configure({ mode: "serial" })
@@ -42,6 +48,27 @@ function counts(venueId: string, category: string | null): Counts {
 }
 
 const ofN = ({ covered, total }: Counts) => `${covered} of ${total}`
+
+const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`
+
+/** The rule's dish rows: covered, counted and empty (nothing waiting). */
+function dishCounts(venueId: string) {
+  const [covered, total, empty] = psql(`select
+      count(*) filter (where state = 'covered'),
+      count(*) filter (where state <> 'inactive'),
+      count(*) filter (where state in ('missing', 'replacement_needed'))
+    from private.coverage_slot_rows(${sql(venueId)}::uuid)
+    where slot_kind = 'dish'`)
+    .split("|")
+    .map(Number)
+  return { covered: covered!, total: total!, empty: empty! }
+}
+
+/** A dish's row on a menu list, found by its exact name. */
+const dishRow = (page: Page, name: string) =>
+  page
+    .locator("article")
+    .filter({ has: page.getByRole("heading", { name, exact: true }) })
 
 /** A place's "n empty of N": its empty slots and its total. */
 async function placeCount(
@@ -116,6 +143,16 @@ test("FA-51: a packaged drink without Photo wanted reads Optional and leaves eve
   ).toBeVisible()
   await evidence(staff, "fa51-staff-slot-390")
 
+  // Staff, phone: Our menu lists the lager as Optional, never as a gap (Y2).
+  await staff.goto("/staff/menu")
+  await expect(dishRow(staff, "Lager")).toContainText("Optional")
+  await expect(dishRow(staff, "Lager")).not.toContainText("Still needs a photo")
+  await expectNoSidewaysScroll(staff, "our menu at 390 px")
+  await evidence(staff, "fa51-staff-our-menu-390")
+  await staff.goto("/staff/menu?filter=gaps")
+  await expect(dishRow(staff, "Salad")).toBeVisible()
+  await expect(dishRow(staff, "Lager")).toHaveCount(0)
+
   // Manager, desktop: metrics and How this is counted say the same.
   const desk = await as(browser, w.mgrA, DESKTOP)
   await desk.goto("/manager/metrics")
@@ -143,6 +180,27 @@ test("FA-51: a packaged drink without Photo wanted reads Optional and leaves eve
   await expect(overview.locator('li[data-category="food"]')).toContainText(
     ofN(food)
   )
+  // Y1: the Overview's own Menu photos heading and tally read the rule too.
+  const dishes = dishCounts(w.venueA.id)
+  await expect(
+    desk.getByRole("heading", {
+      name: `Menu photos · ${dishes.covered} of ${items(dishes.total)} covered`,
+    })
+  ).toBeVisible()
+  await expect(
+    desk.getByText(`${items(dishes.empty)} with no ready photo`)
+  ).toBeVisible()
+  await evidence(desk, "fa51-manager-overview-1280")
+
+  // Y2: Menu's "Still needs a photo" leaves it out; the full list says Optional.
+  await desk.goto("/manager/menu?status=needs_photo")
+  await expect(dishRow(desk, "Salad")).toBeVisible()
+  await expect(dishRow(desk, "Lager")).toHaveCount(0)
+  await desk.goto("/manager/menu")
+  await expect(dishRow(desk, "Lager")).toContainText("Optional")
+  await expect(dishRow(desk, "Lager")).not.toContainText("Still needs a photo")
+  await expectNoSidewaysScroll(desk, "manager menu at 1280 px")
+  await evidence(desk, "fa51-manager-menu-1280")
   const admin = await as(browser, w.admin, DESKTOP)
   await admin.goto(`/admin/overview?venue=${w.venueA.id}`)
   const row = admin.locator(

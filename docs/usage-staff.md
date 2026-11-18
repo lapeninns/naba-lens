@@ -115,7 +115,8 @@ slot to open its page.
 
 A slot marked **Optional** (a bottled or canned drink nobody needs a photo
 of) is not counted: a photo is welcome, but it never shows as empty. Tap it to
-open its page and add one.
+open its page and add one. On **Our menu** it reads **Optional** and is never
+under **Still needs a photo**.
 
 You see a colleague's photo only once a manager has accepted it. Until then
 the slot just says how many photos are waiting ("1 waiting").
