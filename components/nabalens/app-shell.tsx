@@ -448,7 +448,11 @@ export function AppShell(props: AppShellProps) {
   )
 }
 
-function TabLink({
+/**
+ * One TabBar tab (v2 `nl-tab`). Exported for the dev preview, which shows
+ * the bar outside a page frame; screens get it through AppShell.
+ */
+export function TabLink({
   item,
   href,
   current,

@@ -103,7 +103,11 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
   {
     title: "Surfaces",
     swatches: [
-      { name: "canvas", fill: "bg-canvas", role: "v2 paper: behind everything" },
+      {
+        name: "canvas",
+        fill: "bg-canvas",
+        role: "v2 paper: behind everything",
+      },
       { name: "surface", fill: "bg-surface", role: "Cards, bars, sheets" },
       {
         name: "surface-2",
@@ -194,7 +198,11 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
         role: "Information: text and bar",
       },
       { name: "info-bg", fill: "bg-info-bg", role: "Its tint" },
-      { name: "brass", fill: "bg-brass", role: "v2 brass: a mark beside a word" },
+      {
+        name: "brass",
+        fill: "bg-brass",
+        role: "v2 brass: a mark beside a word",
+      },
       { name: "signal", fill: "bg-signal", role: "v2 problem tone, danger" },
       { name: "on-signal", fill: "bg-on-signal", role: "Text on signal" },
       { name: "signal-soft", fill: "bg-signal-soft", role: "Problem notice" },
