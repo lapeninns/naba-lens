@@ -245,7 +245,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_stale uuid[] := '{}';
+  v_stale uuid[] := '{}'::uuid[];
   v_exported timestamptz;
 begin
   if p.invalidated_at is null and p_with_stale then
@@ -484,7 +484,7 @@ begin
 
   select p.* into v_pkg from public.export_packages p where p.id = p_package_id for update;
   v_stale := array(
-    select distinct x from unnest(coalesce(v_pkg.invalidated_assets, '{}') || private.export_package_stale(v_pkg.id)) x);
+    select distinct x from unnest(coalesce(v_pkg.invalidated_assets, '{}'::uuid[]) || private.export_package_stale(v_pkg.id)) x);
   select jsonb_agg(jsonb_build_object(
       'assetId', i.asset_id, 'subjectKind', i.subject_kind, 'subjectId', i.subject_id,
       'altText', i.alt_text, 'caption', i.caption) order by i.position)

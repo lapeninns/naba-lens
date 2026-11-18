@@ -511,11 +511,11 @@ declare
   v_alt text;
   v_caption text;
   v_stem text;
-  v_stems text[] := '{}';
-  v_seen text[] := '{}';
+  v_stems text[] := '{}'::text[];
+  v_seen text[] := '{}'::text[];
   v_key text;
   v_restrictions text[];
-  v_venues uuid[] := '{}';
+  v_venues uuid[] := '{}'::uuid[];
   v_rows jsonb := '[]'::jsonb;
 begin
   -- Validate every item first, so the package row is written with its venue.
@@ -559,7 +559,7 @@ begin
     end if;
     v_stems := v_stems || v_stem;
 
-    v_restrictions := '{}';
+    v_restrictions := '{}'::text[];
     if p_mode = 'internal' or v_cand.approval_level = 'internal' then
       v_restrictions := v_restrictions || 'internal_only'::text;
     end if;
