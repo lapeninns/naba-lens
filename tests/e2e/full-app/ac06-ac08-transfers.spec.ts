@@ -117,7 +117,8 @@ for (const size of ["phone", "desktop"] as const) {
     let block = true
     await page.route(SIGNED_PUT, async (route) => {
       // The reserved asset of the second photo: its storage path is in the URL.
-      const droppedId = psql(`select coalesce((select id::text from public.media_assets
+      const droppedId =
+        psql(`select coalesce((select id::text from public.media_assets
         where original_filename = ${sql(dropped.name)} limit 1), '')`)
       if (block && droppedId && route.request().url().includes(droppedId)) {
         failed += 1
@@ -132,7 +133,7 @@ for (const size of ["phone", "desktop"] as const) {
     await expect(matchSummary(page)).toBeVisible()
     await expect(
       page.getByRole("alert").filter({ hasText: "didn't send" })
-    ).toHaveText("1 photo didn't send. Open Add photos to send it again.", {
+    ).toHaveText("1 photo didn't send. Choose Retry; it won't be sent twice.", {
       // The queue first retries on its own, backing off.
       timeout: 120_000,
     })
