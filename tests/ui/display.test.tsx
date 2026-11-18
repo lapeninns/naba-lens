@@ -110,7 +110,7 @@ describe("Progress, segments", () => {
     expect(label.className).not.toContain("sr-only")
   })
 
-  it("tells the three kinds apart by more than colour", () => {
+  it("draws v2's coverage colours and keeps a forced-colours border on each kind", () => {
     const { container } = render(
       <Progress
         mode="segments"
@@ -123,11 +123,12 @@ describe("Progress, segments", () => {
     const [accepted, submitted, needed] = container.querySelectorAll(
       '[data-slot="progress-segment"]'
     )
+    // v2 CoverageMeter: covered bottle, awaiting review sky, the rest the
+    // sunken track. The words (label, key) carry the meaning.
     expect(accepted.className).toContain("bg-ok-fg")
-    expect(submitted.className).toContain("bg-stripe")
-    expect(needed.className).toContain("edge-strong")
-    // Blue never marks progress.
-    expect(container.innerHTML).not.toMatch(/bg-(accent|select|info)/)
+    expect(submitted.className).toContain("bg-info-fg")
+    expect(needed.className).toContain("bg-surface-2")
+    expect(container.innerHTML).not.toMatch(/bg-(accent|select)\b/)
     // Forced colours: each kind keeps a border.
     for (const segment of [accepted, submitted, needed]) {
       expect(segment.className).toContain("forced-colors:border")
@@ -245,7 +246,7 @@ describe("Progress, segments", () => {
 })
 
 describe("Progress, bar", () => {
-  it("is an ink bar by default (the spec's plain bar), named by aria-label", () => {
+  it("is a sky bar by default (v2's upload bar), named by aria-label", () => {
     const { container } = render(
       <Progress value={60} aria-label="Uploading" className="mt-1.5" />
     )
@@ -254,8 +255,8 @@ describe("Progress, bar", () => {
     const fill = container.querySelector<HTMLElement>(
       '[data-slot="progress-indicator"]'
     )!
-    // Ink unless the root says ok; never green by default.
-    expect(fill.className.split(" ")).toContain("bg-ink")
+    // Sky (progress) unless the root says ok; never green by default.
+    expect(fill.className.split(" ")).toContain("bg-info-fg")
     expect(fill.className.split(" ")).not.toContain("bg-ok-fg")
     expect(fill.className).toContain("group-data-[tone=ok]/progress:bg-ok-fg")
   })

@@ -198,7 +198,9 @@ describe("Me's gallery: reading the delete warning (HM-04)", () => {
     // Only venue and question: no names from the item or the file.
     expect(dialog.textContent).not.toContain("TEST Staff")
     expect(dialog.textContent).not.toContain("01.jpg")
-    fireEvent.click(within(dialog).getByRole("button", { name: "Delete anyway" }))
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Delete anyway" })
+    )
     await act(async () => {})
     expect(media.deleteMedia).toHaveBeenCalledWith(ID)
   })
@@ -211,7 +213,9 @@ describe("Me's gallery: reading the delete warning (HM-04)", () => {
           answer = resolve
         })
     )
-    const button = within(dialog).getByRole("button", { name: "Checking\u2026" })
+    const button = within(dialog).getByRole("button", {
+      name: "Checking\u2026",
+    })
     expect(button.getAttribute("aria-busy")).toBe("true")
     button.focus()
     fireEvent.click(button)
@@ -235,7 +239,9 @@ describe("Me's gallery: reading the delete warning (HM-04)", () => {
 
   it("says it couldn't check when the read failed", async () => {
     const dialog = open(async () => ({ status: "failed" }))
-    expect(await within(dialog).findByText(DELETE_IMPACT_UNCHECKED)).toBeTruthy()
+    expect(
+      await within(dialog).findByText(DELETE_IMPACT_UNCHECKED)
+    ).toBeTruthy()
     expect(within(dialog).getByRole("button", { name: "Delete" })).toBeTruthy()
   })
 
@@ -243,7 +249,9 @@ describe("Me's gallery: reading the delete warning (HM-04)", () => {
     const dialog = open(async () => {
       throw new TypeError("Failed to fetch")
     })
-    expect(await within(dialog).findByText(DELETE_IMPACT_UNCHECKED)).toBeTruthy()
+    expect(
+      await within(dialog).findByText(DELETE_IMPACT_UNCHECKED)
+    ).toBeTruthy()
     expect(within(dialog).getByRole("button", { name: "Delete" })).toBeTruthy()
   })
 
@@ -252,7 +260,9 @@ describe("Me's gallery: reading the delete warning (HM-04)", () => {
       status: "ok",
       impact: { status: "unknown" },
     }))
-    expect(await within(dialog).findByText(DELETE_IMPACT_UNCHECKED)).toBeTruthy()
+    expect(
+      await within(dialog).findByText(DELETE_IMPACT_UNCHECKED)
+    ).toBeTruthy()
   })
 
   it("keeps today's dialog for an empty list", async () => {
@@ -265,7 +275,9 @@ describe("Me's gallery: reading the delete warning (HM-04)", () => {
   it("stops waiting for a read that never answers", async () => {
     vi.useFakeTimers()
     const dialog = open(() => new Promise(() => {}))
-    expect(within(dialog).getByRole("button", { name: "Checking\u2026" })).toBeTruthy()
+    expect(
+      within(dialog).getByRole("button", { name: "Checking\u2026" })
+    ).toBeTruthy()
     await act(async () => {
       vi.advanceTimersByTime(10_000)
     })
