@@ -117,6 +117,15 @@ export function notificationWords(n: AppNotification): {
           : "Nothing to do.",
       }
     case "assigned":
+      // S2-REQ: a request that names the person (spec §7 M4).
+      if (n.subjectType === "media_request")
+        return {
+          title:
+            p.requestType === "fact_confirmation"
+              ? `Confirm: ${text(p.subject) ?? "a venue fact"}`
+              : `Asked for: ${text(p.subject) ?? "a photo"}`,
+          detail: text(p.brief),
+        }
       return {
         title: "A check was given to you",
         detail: text(p.question)?.replaceAll("_", " ") ?? null,

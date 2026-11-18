@@ -59,6 +59,11 @@ SuggestSpecialRow (`components/nabalens/album/match/suggest-special.tsx`, S2-ADD
 | ReviewersForm | `components/nabalens/manager/venue/reviewers-form.tsx` | Feature | Main and backup reviewer (spec §7 M5), FormField and OptionSelect | 1 | adopted (S2-MGR) |
 | StillRightList | `components/nabalens/manager/venue/still-right-list.tsx` | Feature | Facts and space photos to confirm as still right (spec §7 M5, §9.3) | 1 | adopted (S2-MGR) |
 | VenueHistoryList, VenueHistoryPager | `components/nabalens/manager/venue/venue-history-list.tsx`, `venue-history-pager.tsx` | Feature | Venue history (spec §7 M5) | 2 | adopted (S2-MGR) |
+| AskedFor, askedForItems | `components/nabalens/requests/staff-requests.tsx` | Feature | Asked for on Album Home (spec §7 M4) | 1 | adopted (S2-REQ; renders AlbumSlotTile) |
+| RequestRow, RequestRows | `components/nabalens/requests/request-row.tsx` | Feature | Requests list (spec §7 M4) | 1 | adopted (S2-REQ; StatusChip `request_*`) |
+| RequestForm | `components/nabalens/requests/request-form.tsx` | Feature | New request (spec §7 M4) | 1 | adopted (S2-REQ) |
+| RequestControls | `components/nabalens/requests/request-controls.tsx` | Feature | Request actions (spec §7 M4, §3.3) | 1 | adopted (S2-REQ) |
+| ShotListCards, NewShotListForm | `components/nabalens/requests/shot-lists.tsx` | Feature | Shot lists (spec §7 M4) | 1 | adopted (S2-REQ) |
 
 AlbumAddTrigger is Add photos in the staff shell (tab and AppBar). Since A5 it is the only staff Add trigger; `ALBUM_ADD_OPTIONS` in the same file (the gallery for many photos, then Match) is what every Album Add photos opens.
 

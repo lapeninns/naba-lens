@@ -7,6 +7,7 @@ import {
   HourglassIcon,
   ImageSquareIcon,
   ImagesIcon,
+  ListChecksIcon,
   MagnifyingGlassIcon,
   PencilSimpleIcon,
   ShieldCheckIcon,
@@ -110,6 +111,22 @@ function SearchRow() {
   )
 }
 
+/** S2-REQ: requests and shot lists (spec §7 M4, "Request missing photos"). */
+function RequestsRow() {
+  return (
+    <ul className={ROW_LIST}>
+      <li data-link="requests">
+        <Row
+          href={managerHrefs.requests}
+          icon={<ListChecksIcon />}
+          title="Requests and shot lists"
+          subtitle="Ask for a missing photo, a new angle or a fact check."
+        />
+      </li>
+    </ul>
+  )
+}
+
 /** G-6: the venue default and each person's monthly photo target. */
 function TeamRow() {
   return (
@@ -169,6 +186,7 @@ export function OverviewBody({
       <NeedsLabelsRow count={needsLabels} />
       {/* Search needs a menu; photo targets don't (review c, 6). */}
       {overview.menuState !== "no_menu" ? <SearchRow /> : null}
+      <RequestsRow />
       <TeamRow />
     </>
   )

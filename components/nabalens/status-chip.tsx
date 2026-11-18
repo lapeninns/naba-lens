@@ -512,6 +512,38 @@ export const CHIP_STATES = {
     icon: LockSimpleIcon,
     shape: "closed",
   },
+  // S2-REQ: a request's state (spec §7 M4). Manager and admin screens only;
+  // staff see the slot itself, never these words.
+  request_open: {
+    word: "Open",
+    tone: "neutral",
+    icon: TargetIcon,
+    shape: "neutralSquare",
+  },
+  request_submitted: {
+    word: "Submitted",
+    tone: "pending",
+    icon: ArrowUpIcon,
+    shape: "submitted",
+  },
+  request_completed: {
+    word: "Completed",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "met",
+  },
+  request_blocked: {
+    word: "Blocked",
+    tone: "attention",
+    icon: WarningCircleIcon,
+    shape: "needs",
+  },
+  request_cancelled: {
+    word: "Cancelled",
+    tone: "closed",
+    icon: XIcon,
+    shape: "closed",
+  },
 } as const satisfies Record<string, ChipState>
 
 export type ChipStateKey = keyof typeof CHIP_STATES
