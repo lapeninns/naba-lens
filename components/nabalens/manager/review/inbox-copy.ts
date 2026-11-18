@@ -42,6 +42,9 @@ export const INBOX_COPY = {
     unmatched: "No slot chosen for 7 days",
   },
   video: "Video",
+  needsLabelTitle: (n: number) =>
+    n === 1 ? "1 photo needs a label" : `${n} photos need a label`,
+  you: "You",
   possibleDuplicate: "Possible duplicate",
   belowPublic: "Small: reference use only",
   belowPublicHelp:

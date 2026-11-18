@@ -8,6 +8,7 @@ import {
   fromMenuCard,
 } from "@/components/nabalens/album/review/model"
 import { ThumbReview } from "@/components/nabalens/album/review/thumb-review"
+import { NeedsLabelList } from "@/components/nabalens/manager/review/inbox-needs-label"
 import { ROUTES } from "@/lib/auth/routes"
 import { getAlbumBriefs, getAlbumPlacements } from "@/lib/server/album"
 import { AREA_QUEUE_LIMIT, listAreaPhotoQueue } from "@/lib/server/area-photos"
@@ -102,16 +103,28 @@ export async function AlbumReviewBody({
     ? Math.max(menuShown, overview.overview.pendingPhotos)
     : menuShown
   const areaTotal = areaCards.filter((c) => decidable(fromAreaCard(c))).length
+  // Needs label photos (FA-4, K1) are decided on their detail, not the stage.
+  const needsLabel = menuCards.filter((c) => c.kind === "unlabelled")
 
   return (
     <ThumbReview
       venueName={overview.overview.venueName || venueName}
       menuCards={menuCards}
       menuCursor={menuCursor}
-      filter={filter}
+      filter={
+        needsLabel.length > 0 ? (
+          <>
+            {filter}
+            <NeedsLabelList cards={needsLabel} />
+          </>
+        ) : (
+          filter
+        )
+      }
       areaCards={areaCards}
       areaMore={areaCards.length >= AREA_QUEUE_LIMIT}
-      total={menuTotal + areaTotal}
+      total={menuTotal + areaTotal + needsLabel.length}
+      waitingElsewhere={needsLabel.length}
       context={context}
       listHref={REVIEW_LIST_HREF}
     />
