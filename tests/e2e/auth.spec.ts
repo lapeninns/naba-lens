@@ -108,7 +108,7 @@ test.describe("authentication and role routing", () => {
     await expect(page).toHaveURL(/\/login\?next=%2Fstaff$/)
   })
 
-  test("an admin lands on /admin", async ({ page, baseURL }) => {
+  test("an admin lands on Overview", async ({ page, baseURL }) => {
     const adminUser = await createIdentity(admin, {
       label: "e2e-admin",
       role: "admin",
