@@ -11,13 +11,29 @@ import {
   END_MARKER,
   catalogueInsertSql,
   parseCatalogueCsv,
+  type CatalogueCsvRow,
 } from "@/scripts/db/amenity-catalogue-sql"
 
 const rows = parseCatalogueCsv(readFileSync(CATALOGUE_CSV, "utf8"))
 
+// Catalogue version 2 (20261118109300, S2-INT) changed only these evidence
+// rules; version 1 is the CSV with them restored.
+const V1_RULES: Record<string, CatalogueCsvRow["evidenceRule"]> = {
+  live_music: "either",
+  pub_quiz: "photo",
+  guest_wifi: "both",
+  dogs_inside: "photo",
+  dogs_outside: "photo",
+  curbside_pickup: "video",
+}
+const v1Rows = rows.map((r) => ({
+  ...r,
+  evidenceRule: V1_RULES[r.key] ?? r.evidenceRule,
+}))
+
 describe("catalogue generator and knowledge definition changes", () => {
   it("leaves the version 1 block without knowledge calls", () => {
-    const block = catalogueInsertSql(rows, 1)
+    const block = catalogueInsertSql(v1Rows, 1)
     expect(block).not.toContain("knowledge")
     const seed = readFileSync(
       "supabase/migrations/20261107120000_amenity_catalogue.sql",

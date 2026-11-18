@@ -1881,7 +1881,11 @@ export function CaptureForm({
   const missing = missingEvidenceText(rule, kinds)
   const canUpload = upload !== null
   const yesRefused =
-    uploadRefused && !canUpload && assets.length === 0 && !listError
+    rule !== "none" &&
+    uploadRefused &&
+    !canUpload &&
+    assets.length === 0 &&
+    !listError
       ? yesRefusedLine(rule)
       : null
   const today = londonToday()

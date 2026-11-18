@@ -9406,6 +9406,7 @@ export type Database = {
           p_original_filename: string
           p_purpose?: string
           p_size_bytes?: number
+          p_venue_id?: string
         }
         Returns: {
           id: string

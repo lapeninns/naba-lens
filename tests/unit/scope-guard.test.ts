@@ -560,6 +560,8 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
         "app/api/exports/",
         "lib/server/exports/",
         "supabase/migrations/20261118105",
+        // S2-INT re-creates export_candidate_rows and the download start.
+        "supabase/migrations/20261118109100_int_export_wiring.sql",
         "lib/db/types.ts",
       ],
       reason:
@@ -572,6 +574,12 @@ const ALLOWED_HITS: { file: string; text: string; reason: string }[] = [
     file: "supabase/migrations/20261107120000_amenity_catalogue.sql",
     text: "approved performance clip",
     reason: "catalogue capture brief text (live music), not a workflow",
+  },
+  {
+    file: "supabase/migrations/20261118109300_int_policy_evidence.sql",
+    text: "approved performance clip",
+    reason:
+      "catalogue version 2 restates the same capture brief text (live music)",
   },
 ]
 

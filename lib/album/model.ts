@@ -21,6 +21,7 @@
  */
 
 import { dayLabel } from "@/lib/server/coverage/time"
+import type { FactVerificationState } from "@/lib/knowledge/facts"
 
 export type SlotState =
   | "needed"
@@ -209,6 +210,12 @@ export type AmenityInput = {
   thumbnailUrl?: string | null
   /** The coverage rule's state, when the coverage read succeeded. */
   coverage?: CoverageState
+  /**
+   * The answer's fact verification (S1-FACTS, spec §10), when read. Used
+   * only without the coverage rule: a complete Yes that is not currently
+   * confirmed reads Check due (AC30).
+   */
+  verification?: FactVerificationState | null
 }
 
 export type AreaInput = {
@@ -358,10 +365,15 @@ export function amenityState(check: AmenityInput): SlotState | null {
     }
     return state
   }
-  if (check.progress === "complete")
-    return check.answer === "no" || check.answer === "not_applicable"
-      ? "not-here"
-      : "accepted"
+  if (check.progress === "complete") {
+    if (check.answer === "no" || check.answer === "not_applicable")
+      return "not-here"
+    // S2-INT (AC30): an answer that is not currently confirmed (Unconfirmed,
+    // Check due, Withdrawn) asks for a check and is not counted as filled.
+    if (check.verification && check.verification !== "confirmed")
+      return "check-due"
+    return "accepted"
+  }
   if (check.myLatestState === "needs_attention") return "retake"
   if (check.myLatestState && WAITING_FINDINGS.has(check.myLatestState))
     return "waiting"
