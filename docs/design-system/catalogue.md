@@ -44,6 +44,8 @@ Built to [DESIGN.md](DESIGN.md) §5. Each batch adds its rows.
 | SettingsFormView                    | `app/admin/settings/settings-form.tsx`               | Feature | Settings (spec §8 A7), Field and Notice (§5)    | 1              | adopted (S1-OPS)                                                        |
 | ExceptionsPanel, OperationsPanel    | `app/admin/settings/ops-panel.tsx`                   | Feature | Settings: exceptions and monitoring (spec §16)  | 1              | adopted (S1-OPS; uses CoverageSection, Tally, Table)                    |
 | ActivityList                        | `app/admin/activity/activity-list.tsx`               | Feature | Activity (spec §8 A7)                           | 1              | adopted (S1-OPS)                                                        |
+| MetricsReport, HowCounted           | `components/nabalens/metrics/metrics-report.tsx`     | Feature | Metrics (spec §18.1, AC39)                      | 2              | adopted (S2-METRICS; CoverageSection, Tally, Table, FilterPill)         |
+| MetricsOverviewTable                | `components/nabalens/metrics/metrics-overview.tsx`   | Feature | Metrics across venues (spec §18.1)              | 1              | adopted (S2-METRICS; CoverageSection, Table)                            |
 
 AlbumAddTrigger is Add photos in the staff shell (tab and AppBar). Since A5 it is the only staff Add trigger; `ALBUM_ADD_OPTIONS` in the same file (the gallery for many photos, then Match) is what every Album Add photos opens.
 

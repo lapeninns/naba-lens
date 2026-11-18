@@ -1,13 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/app/_metrics/actions", () => ({
-  recordFlowEventsAction: vi.fn(async () => ({ ok: true, stored: 0 })),
-}))
-
 import { EVENT_BATCH_MAX } from "@/lib/metrics/events"
 import {
   FLUSH_DELAY_MS,
+  QUEUE_MAX,
   flushFlowEvents,
+  registerFlowSender,
   resetFlowTracking,
   trackFlow,
   type QueuedFlowEvent,
@@ -59,6 +57,22 @@ describe("trackFlow", () => {
     trackFlow({ name: "submitted", route: "camera" as never })
     flushFlowEvents()
     expect(sent).toEqual([])
+  })
+
+  it("holds events until the signed-in shell registers a sender", () => {
+    resetFlowTracking(null)
+    for (let i = 0; i < QUEUE_MAX + 10; i++)
+      trackFlow({ name: "subject_selected", count: i })
+    flushFlowEvents()
+    expect(sent).toEqual([])
+    registerFlowSender(async (batch) => {
+      sent.push(batch)
+    })
+    vi.advanceTimersByTime(FLUSH_DELAY_MS)
+    const all = sent.flat()
+    // The oldest go first when too many wait.
+    expect(all).toHaveLength(QUEUE_MAX)
+    expect(all[0]!.count).toBe(10)
   })
 
   it("never throws when sending fails", () => {

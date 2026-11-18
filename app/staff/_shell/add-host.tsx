@@ -110,7 +110,8 @@ import { localUploadKeyStore } from "@/lib/upload/upload-keys"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
 import type { CaptureRoute } from "@/lib/metrics/events"
-import { trackFlow } from "@/lib/metrics/track"
+import { registerFlowSender, trackFlow } from "@/lib/metrics/track"
+import { recordFlowEventsAction } from "@/app/_metrics/actions"
 import type { EntryIntent, EntryMenu } from "@/lib/work-client/entry"
 import type {
   ContentType,
@@ -669,6 +670,7 @@ export function AddHost({
     batchId: "",
   })
   const fileRoutes = React.useRef(new WeakMap<File, CaptureRoute>())
+  React.useEffect(() => registerFlowSender(recordFlowEventsAction), [])
   const boardWanted = matchRun?.photos.some((p) => !outcomes.has(p.key))
   React.useEffect(() => {
     if (!boardWanted) return

@@ -7,6 +7,7 @@ import type {
   MetricSlot,
   MetricsOverview,
   VenueMetrics,
+  VenueMetricsSummary,
 } from "./model"
 
 const GENERATED = "2026-11-18T10:00:00.000Z"
@@ -196,7 +197,12 @@ export function emptyFixtureMetrics(): VenueMetrics {
 }
 
 export function fixtureOverview(): MetricsOverview {
-  const strip = ({ slots: _s, flow: _f, ...rest }: VenueMetrics) => rest
+  const strip = (m: VenueMetrics): VenueMetricsSummary => {
+    const rest: Partial<VenueMetrics> = { ...m }
+    delete rest.slots
+    delete rest.flow
+    return rest as VenueMetricsSummary
+  }
   return {
     days: 30,
     generatedAt: GENERATED,

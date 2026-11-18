@@ -4,8 +4,12 @@
 // throws and never retries: a lost event must not get in the way of someone
 // adding photos. The server keeps only allowlisted fields
 // (lib/metrics/events.ts).
-
-import { recordFlowEventsAction } from "@/app/_metrics/actions"
+//
+// The signed-in shell registers the sender (registerFlowSender, from the Add
+// host), so this module never imports a Server Action: shared components
+// such as the upload dialog can call trackFlow from any page, and pages open
+// to signed-out people reach no new action. Until a sender is registered,
+// events wait in a small queue.
 
 import {
   CAPTURE_ROUTES,
@@ -26,8 +30,11 @@ type Sender = (events: QueuedFlowEvent[]) => Promise<unknown>
 
 let queue: QueuedFlowEvent[] = []
 let timer: ReturnType<typeof setTimeout> | null = null
-let send: Sender = recordFlowEventsAction
+let send: Sender | null = null
 let listening = false
+
+/** At most this many events wait for a sender; the oldest go first. */
+export const QUEUE_MAX = 200
 
 function newId(): string {
   return globalThis.crypto.randomUUID()
@@ -39,11 +46,12 @@ export function flushFlowEvents(): void {
     clearTimeout(timer)
     timer = null
   }
+  if (!send) return
   while (queue.length > 0) {
     const batch = queue.slice(0, EVENT_BATCH_MAX)
     queue = queue.slice(EVENT_BATCH_MAX)
     try {
-      void send(batch).catch(() => undefined)
+      void Promise.resolve(send(batch)).catch(() => undefined)
     } catch {
       // Recording is best effort.
     }
@@ -76,6 +84,7 @@ export function trackFlow(input: FlowEventInput): void {
       clientEventId: newId(),
       occurredAt: new Date().toISOString(),
     })
+    if (queue.length > QUEUE_MAX) queue = queue.slice(-QUEUE_MAX)
     listen()
     if (queue.length >= EVENT_BATCH_MAX) flushFlowEvents()
     else timer ??= setTimeout(flushFlowEvents, FLUSH_DELAY_MS)
@@ -84,10 +93,16 @@ export function trackFlow(input: FlowEventInput): void {
   }
 }
 
+/** Where events go: the signed-in shell passes recordFlowEventsAction. */
+export function registerFlowSender(sender: Sender): void {
+  send = sender
+  if (queue.length > 0) timer ??= setTimeout(flushFlowEvents, FLUSH_DELAY_MS)
+}
+
 /** Tests only: replace the sender and empty the queue. */
-export function resetFlowTracking(sender?: Sender): void {
+export function resetFlowTracking(sender: Sender | null = null): void {
   if (timer) clearTimeout(timer)
   timer = null
   queue = []
-  send = sender ?? recordFlowEventsAction
+  send = sender
 }

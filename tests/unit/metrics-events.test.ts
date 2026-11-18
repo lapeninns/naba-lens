@@ -72,7 +72,8 @@ describe("cleanEvent", () => {
   })
 
   it("takes the fallback venue when none is given", () => {
-    const { venueId: _v, ...noVenue } = base
+    const noVenue: Record<string, unknown> = { ...base }
+    delete noVenue.venueId
     expect(cleanEvent(noVenue)).toBeNull()
     expect(cleanEvent(noVenue, VENUE)!.venueId).toBe(VENUE)
     // A named venue wins over the fallback; the database checks it.
