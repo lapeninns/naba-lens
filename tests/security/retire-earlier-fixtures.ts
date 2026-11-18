@@ -8,14 +8,18 @@
 // files ran before it (S6-CI: ops.test.ts and menu-section-oversight on a
 // loaded lane).
 //
-// Every earlier fixture venue ("TEST Venue …" from createVenue) is marked
-// inactive here, so each file sees only its own venues plus the seeded
-// "DEV FIXTURE" ones. Venues have no triggers, and nothing is deleted: the
-// append-only history keeps its references. A file's own venues are created
-// after this runs, in its beforeAll, so they stay active.
+// Every earlier fixture venue is marked inactive here: "TEST …" (createVenue,
+// admin venue tests) and "DEV FIXTURE …" venues made by the e2e helpers, which
+// a reused stack can also hold. The seeded venues (supabase/seed.sql, fixed
+// 00000000-0000-4000-8000-… ids) keep their state, so each file sees only its
+// own venues plus the seed. Venues have no triggers, and nothing is deleted:
+// the append-only history keeps its references. A file's own venues are
+// created after this runs, in its beforeAll, so they stay active.
 import { psql } from "./coverage-fixtures"
 
 psql(
   `update public.venues set active = false
-   where active and name like 'TEST Venue %' and created_at < now()`
+   where active and created_at < now()
+     and (name like 'TEST %' or name like 'DEV FIXTURE %')
+     and id::text not like '00000000-0000-4000-8000-%'`
 )
