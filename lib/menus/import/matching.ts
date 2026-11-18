@@ -221,19 +221,61 @@ export function diffMenuDocuments(
       fields.push("section")
       before.sectionName = b.sectionName
     }
+    const kindChanged = r.kind !== b.kind
+    let variantsRemoved: string[] = []
     if (!equal(i.variants, b.item.variants)) {
       fields.push("variants")
       before.variants = b.item.variants.map((v) => v.name)
+      const kept = new Set(i.variants.map((v) => v.variantId).filter(Boolean))
+      variantsRemoved = b.item.variants
+        .filter((v) => v.variantId && !kept.has(v.variantId))
+        .map((v) => v.name)
     }
     if (!equal(i.sourceMeta, b.item.sourceMeta)) {
       fields.push("meta")
       Object.assign(before, { meta: b.item.sourceMeta })
     }
-    if (fields.length) result.changed.push({ ...ref(r), fields, before })
+    if (fields.length)
+      result.changed.push({
+        ...ref(r),
+        fields,
+        before,
+        ...(kindChanged ? { kindChanged } : {}),
+        ...(variantsRemoved.length ? { variantsRemoved } : {}),
+      })
     else result.unchangedCount++
   }
   result.removed = old
     .filter((r) => r.item.itemId && !ids.has(r.item.itemId))
     .map((r) => ({ ...ref(r), itemId: r.item.itemId! }))
   return result
+}
+
+/**
+ * Splits changed items into those whose photos the activation will send to a
+ * recheck (spec §4.3 "changed presentations": a renamed dish, a dish moved
+ * between food, drinks and other, or a removed option) and every other change
+ * (description, aliases, price and other metadata), which keeps its photos.
+ * Mirrors private.reconcile_menu_item_photos.
+ */
+export function splitChanged(diff: MenuDiff): {
+  presentation: MenuDiff["changed"]
+  other: MenuDiff["changed"]
+} {
+  const presentation: MenuDiff["changed"] = []
+  const other: MenuDiff["changed"] = []
+  for (const change of diff.changed) {
+    const renamed =
+      change.before.name !== undefined &&
+      photoNameKey(change.before.name) !== photoNameKey(change.name)
+    const material =
+      renamed || !!change.kindChanged || !!change.variantsRemoved?.length
+    ;(material ? presentation : other).push(change)
+  }
+  return { presentation, other }
+}
+
+/** As private.menu_name_key: trimmed, spaces collapsed, lower case. */
+function photoNameKey(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase()
 }

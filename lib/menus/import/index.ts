@@ -6,12 +6,28 @@ import type {
   MenuDocItem,
   MenuSource,
 } from "../types"
+/**
+ * Identity and date columns of an imported CSV, spec §8 A3. Checked by the
+ * server against the venue the admin chose, never trusted as authority.
+ */
+export type CsvContext = {
+  /** Distinct `venue` values (venue id or name), empty when the column is absent. */
+  venues: string[]
+  /** The one `menu` value, used as the draft title; null when absent. */
+  menuName: string | null
+  /** `item_id` per item source key, for rows that name a stable item. */
+  itemIds: Record<string, { itemId: string; row: number }>
+  /** `active_from` / `active_to` (YYYY-MM-DD), one value per file. */
+  activeFrom: string | null
+  activeTo: string | null
+}
 export type ParseResult =
   | {
       ok: true
       document: MenuDocument
       issues: ImportIssue[]
       source?: MenuSource
+      csv?: CsvContext
     }
   | { ok: false; issues: ImportIssue[] }
 export const normaliseName = (s: string) =>
@@ -378,6 +394,11 @@ export function parseMenuCsv(text: string): ParseResult {
     }
   if (new Set(headers).size !== headers.length)
     return { ok: false, issues: [issue("row 1", "Duplicate headers")] }
+  if (headers.includes("variant") && headers.includes("variants"))
+    return {
+      ok: false,
+      issues: [issue("row 1", "Use one of variant or variants, not both")],
+    }
   const sections: {
     key: string
     name: string
@@ -386,6 +407,36 @@ export function parseMenuCsv(text: string): ParseResult {
   }[] = []
   const locations: number[][] = []
   const csvIssues: ImportIssue[] = []
+  const context: CsvContext = {
+    venues: [],
+    menuName: null,
+    itemIds: {},
+    activeFrom: null,
+    activeTo: null,
+  }
+  const single = (
+    field: "menuName" | "activeFrom" | "activeTo",
+    column: string,
+    value: string | undefined,
+    row: number
+  ) => {
+    const v = normaliseName(value ?? "")
+    if (!v) return
+    if (field !== "menuName" && !isCsvDate(v)) {
+      csvIssues.push(
+        issue(`row ${row}`, `${column} must be a date (YYYY-MM-DD)`)
+      )
+      return
+    }
+    if (context[field] === null) context[field] = v
+    else if (context[field] !== v)
+      csvIssues.push(
+        issue(
+          `row ${row}`,
+          `${column} differs from an earlier row; one file is one menu`
+        )
+      )
+  }
   rows.forEach((cells, n) => {
     if (cells.every((c) => !c.trim())) return
     if (cells.length !== headers.length) {
@@ -393,6 +444,12 @@ export function parseMenuCsv(text: string): ParseResult {
       return
     }
     const r = Object.fromEntries(headers.map((h, i) => [h, cells[i]]))
+    if (r.variant !== undefined) r.variants = r.variant
+    const venue = normaliseName(r.venue ?? "")
+    if (venue && !context.venues.includes(venue)) context.venues.push(venue)
+    single("menuName", "menu", r.menu, n + 2)
+    single("activeFrom", "active_from", r.active_from, n + 2)
+    single("activeTo", "active_to", r.active_to, n + 2)
     const key = r.section_key || slugify(r.section)
     let si = sections.findIndex((s) => s.key === key)
     if (si < 0) {
@@ -419,6 +476,18 @@ export function parseMenuCsv(text: string): ParseResult {
         .split("|")
         .map((x) => x.trim())
         .filter(Boolean)
+    const itemId = (r.item_id ?? "").trim()
+    if (itemId) {
+      if (!UUID_PATTERN.test(itemId))
+        csvIssues.push(issue(`row ${n + 2}`, "item_id is not a valid item id"))
+      else {
+        const sourceKey = r.key || makeSourceKey(key, normaliseName(r.item))
+        context.itemIds[sourceKey] = {
+          itemId: itemId.toLowerCase(),
+          row: n + 2,
+        }
+      }
+    }
     sections[si].items.push({
       name: r.item,
       ...(r.key ? { key: r.key } : {}),
@@ -449,9 +518,36 @@ export function parseMenuCsv(text: string): ParseResult {
       message: rowPath(i.message),
     })),
   ]
-  return !result.ok || issues.some((i) => i.severity === "error")
-    ? { ok: false, issues }
-    : { ...result, issues }
+  if (
+    context.activeFrom &&
+    context.activeTo &&
+    context.activeTo < context.activeFrom
+  )
+    issues.push(issue("active_to", "active_to is before active_from"))
+  if (!result.ok || issues.some((i) => i.severity === "error"))
+    return { ok: false, issues }
+  if (context.menuName) {
+    if ([...context.menuName].length > L.titleMax)
+      return {
+        ok: false,
+        issues: [
+          ...issues,
+          issue("menu", `menu is longer than ${L.titleMax} characters`),
+        ],
+      }
+    result.document.title = context.menuName
+  }
+  return { ...result, issues, csv: context }
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** A real calendar date written YYYY-MM-DD. */
+export function isCsvDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const d = new Date(`${value}T00:00:00Z`)
+  return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === value
 }
 export function parseMenuFile(input: {
   fileName: string
@@ -472,9 +568,11 @@ export function parseMenuFile(input: {
   const result =
     format === "json" ? parseMenuJson(input.text) : parseMenuCsv(input.text)
   if (result.ok && format === "csv") {
-    result.document.title = normaliseName(
-      input.fileName.replace(/^.*[\\/]/, "").replace(/\.[^.]*$/, "")
-    )
+    // A `menu` column names the menu; otherwise the file name does.
+    if (!result.csv?.menuName)
+      result.document.title = normaliseName(
+        input.fileName.replace(/^.*[\\/]/, "").replace(/\.[^.]*$/, "")
+      )
     result.issues.push(...validateMenuDocument(result.document))
     if (result.issues.some((i) => i.severity === "error"))
       return { ok: false, issues: result.issues }
@@ -493,4 +591,10 @@ export {
   matchImportToBase,
   diffMenuDocuments,
   applyReviewDecision,
+  splitChanged,
 } from "./matching"
+export {
+  MENU_CSV_TEMPLATE_COLUMNS,
+  MENU_CSV_TEMPLATE_FILENAME,
+  menuCsvTemplate,
+} from "./template"

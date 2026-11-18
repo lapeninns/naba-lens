@@ -101,6 +101,10 @@ const ALLOWED_PAGES = new Set([
   "/manager/review/contributors/[staffId]",
   "/manager/menu",
   "/manager/menu/[itemId]",
+  // Full App v1 S1-MENUS (spec §7 M5): local specials, and the active and
+  // future menus with the venue's catalogue change requests.
+  "/manager/menu/specials",
+  "/manager/menu/versions",
   "/manager/account",
   // A manager account's own uploads to label later (B02-c), while Add is on.
   "/manager/uploads",
@@ -195,6 +199,11 @@ const ALLOWED_HANDLERS = new Set([
   "/api/internal/archive-monitor/watchdog",
   // v0.3: JSON/CSV import preview upload (> Server Action body limit).
   "/api/admin/menus/import-preview",
+  // Full App v1 S1-MENUS (spec §8 A3): the downloadable menu CSV template
+  // (admin only), and the cron that activates scheduled menus (service role,
+  // bearer-authorised like the other /api/internal routes).
+  "/admin/menus/csv-template",
+  "/api/internal/menus/activate-due",
   // v0.4 §4: scoped task-evidence thumbnail/preview for authorised same-venue
   // reviewers; no originals, downloads or video, and community access is unchanged.
   "/api/coverage/evidence/[assetId]/thumb",

@@ -175,6 +175,10 @@ export type DiffChange = DiffItemRef & {
     variants?: string[]
     meta?: SourceMeta
   }
+  /** The section kind (food, drinks, other) changed. */
+  kindChanged?: boolean
+  /** Options of the current menu this item no longer offers. */
+  variantsRemoved?: string[]
 }
 
 export type UncertainMatch = DiffItemRef & {
@@ -214,6 +218,8 @@ export type MenuVersionSummary = {
   activatedAt: string | null
   activatedByName: string | null
   retiredAt: string | null
+  /** A draft approved to become active at this instant (S1-MENUS). */
+  scheduledFor?: string | null
 }
 
 export type MenuVersionDetail = MenuVersionSummary & {

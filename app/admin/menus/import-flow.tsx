@@ -170,6 +170,17 @@ export function ImportFlow({
           Compares a file with {possessive(venueName)} active menu. Items match
           only by their source key. Nothing is saved until you create the draft.
         </p>
+        <p className="max-w-reading text-body text-ink-muted">
+          <a
+            href="/admin/menus/csv-template"
+            download
+            className="rounded-square font-bold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+          >
+            Download the CSV template
+          </a>{" "}
+          with every column (venue, menu, section, item, item_id, variants,
+          active dates).
+        </p>
       </div>
 
       {createError ? (
@@ -230,6 +241,22 @@ export function ImportFlow({
             <Notice>
               Uncertain items can wait for the draft, but it can&apos;t be
               activated until each is decided.
+            </Notice>
+          ) : null}
+          {preview.duplicate ? (
+            <Notice tone="attention" title="This file was already imported">
+              {preview.duplicate.status === "active"
+                ? "It is the active menu. Creating a draft from it again changes nothing on its own."
+                : "It is already an open draft. Create draft opens that draft instead of a copy."}
+            </Notice>
+          ) : null}
+          {preview.activeDates?.activeFrom ? (
+            <Notice>
+              The file says this menu runs from {preview.activeDates.activeFrom}
+              {preview.activeDates.activeTo
+                ? ` to ${preview.activeDates.activeTo}`
+                : ""}
+              . Choose the activation time when you activate the draft.
             </Notice>
           ) : null}
           <ImportIssueList issues={preview.issues} />

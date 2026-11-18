@@ -26,8 +26,10 @@ import {
   getVenueMenuOverview,
   listMenuVenues,
 } from "@/lib/server/menus"
+import { listChangeRequests } from "@/lib/server/menus/local"
 import { cn } from "@/lib/utils"
 
+import { ChangeRequestsPanel } from "../change-requests"
 import { RetryButton } from "../retry-button"
 import { itemOptions } from "../review"
 import {
@@ -51,7 +53,9 @@ function versionWhen(v: MenuVersionSummary): string {
     case "discarded":
       return `Discarded ${formatDate(v.updatedAt)}`
     default:
-      return `Saved ${formatDateTime(v.updatedAt)}`
+      return v.scheduledFor
+        ? `Scheduled for ${formatDateTime(v.scheduledFor)}`
+        : `Saved ${formatDateTime(v.updatedAt)}`
   }
 }
 
@@ -202,9 +206,10 @@ export default async function VenueMenusPage({
   const { venueId } = await params
   const auth = await getMediaActor("admin")
   if (!auth.ok) throw new Error("Not authorised.")
-  const [overview, venueList] = await Promise.all([
+  const [overview, venueList, requests] = await Promise.all([
     getVenueMenuOverview(auth.actor, venueId),
     listMenuVenues(auth.actor),
+    listChangeRequests(auth.actor, { venueId, status: "open" }),
   ])
   const venues = venueList.ok
     ? venueList.venues.map((v) => ({ id: v.venueId, name: v.venueName }))
@@ -269,6 +274,20 @@ export default async function VenueMenusPage({
               count="Nothing with labels is ever deleted"
             />
             <VersionsTable versions={versions} venueId={venue.id} />
+          </section>
+          <section aria-labelledby="requests-title" className="grid gap-3">
+            <MenuSectionHead
+              id="requests-title"
+              title="Change requests"
+              count={
+                requests.ok
+                  ? `${requests.requests.length} open · from the venue's manager`
+                  : "Could not be loaded"
+              }
+            />
+            {requests.ok ? (
+              <ChangeRequestsPanel requests={requests.requests} />
+            ) : null}
           </section>
           <div className="grid items-start gap-6 lg:grid-cols-2">
             <section aria-labelledby="suggestions-title" className="min-w-0">

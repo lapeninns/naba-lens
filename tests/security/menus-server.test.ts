@@ -430,10 +430,20 @@ describe("re-import review", () => {
       })
     )
     expect(saved.revision).toBe(revision + 1)
+    // S1-MENUS (AC28): its proposed retirements must be confirmed by count.
+    const retirements = must(await getMenuVersion(admin, draftId)).diff!.removed
+      .length
+    expect(
+      await activateMenuVersion(admin, {
+        versionId: draftId,
+        expectedRevision: saved.revision,
+      })
+    ).toMatchObject({ ok: false, status: 409 })
     must(
       await activateMenuVersion(admin, {
         versionId: draftId,
         expectedRevision: saved.revision,
+        retirements,
       })
     )
     const active = must(await getMenuVersion(admin, draftId)).version

@@ -13,8 +13,11 @@ import {
   resolveMenuSuggestion,
   retireMenuVersion,
   saveMenuDraft,
+  scheduleMenuVersion,
   setMenuItemArchived,
+  unscheduleMenuVersion,
 } from "@/lib/server/menus"
+import { decideChangeRequest } from "@/lib/server/menus/local"
 
 // Server Functions are reachable by direct POST, so every argument is treated
 // as untrusted: each action re-authorises the caller (fresh profile read) and
@@ -129,13 +132,47 @@ export async function activateVersionAction(
 ): Promise<MenuAction> {
   if (!isObject(input) || typeof input.versionId !== "string")
     return BAD_REQUEST
-  const { versionId, expectedRevision } = input
+  const { versionId, expectedRevision, retirements } = input
   return asAdmin((actor) =>
     activateMenuVersion(actor, {
       versionId,
       expectedRevision: expectedRevision as number,
+      retirements: typeof retirements === "number" ? retirements : null,
     })
   )
+}
+
+/** Confirm a draft to become active at `at` (ISO instant), AC27. */
+export async function scheduleVersionAction(
+  input: unknown
+): Promise<MenuAction<{ scheduledFor: string }>> {
+  if (!isObject(input) || typeof input.versionId !== "string")
+    return BAD_REQUEST
+  const { versionId, expectedRevision, at, retirements } = input
+  if (typeof at !== "string") return BAD_REQUEST
+  return asAdmin((actor) =>
+    scheduleMenuVersion(actor, {
+      versionId,
+      expectedRevision: expectedRevision as number,
+      at,
+      retirements: typeof retirements === "number" ? retirements : null,
+    })
+  )
+}
+
+export async function unscheduleVersionAction(
+  versionId: unknown
+): Promise<MenuAction> {
+  if (typeof versionId !== "string") return BAD_REQUEST
+  return asAdmin((actor) => unscheduleMenuVersion(actor, versionId))
+}
+
+/** Admin decision on a manager's catalogue change request. */
+export async function decideChangeRequestAction(
+  input: unknown
+): Promise<MenuAction<{ status: string }>> {
+  if (!isObject(input)) return BAD_REQUEST
+  return asAdmin((actor) => decideChangeRequest(actor, input))
 }
 
 export async function retireVersionAction(
