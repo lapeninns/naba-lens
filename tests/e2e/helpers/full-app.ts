@@ -184,6 +184,7 @@ export async function requestDishPhoto(
   )("media_request_create", {
     p_venue_id: venue.id,
     p_type: "missing_photo",
+    p_intended_use: "public",
     p_brief: brief,
     p_slot_kind: "dish",
     p_slot_id: itemId,
