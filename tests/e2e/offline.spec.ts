@@ -119,11 +119,11 @@ test("admin list page: the shell shows the offline notice", async () => {
   await offlineRoundTrip(admin, "/admin", /./, "shell", moreFiltersAnswers)
 })
 
-test("admin Staff keeps its own notice and shows exactly one", async () => {
+test("admin People keeps its own notice and shows exactly one", async () => {
   await offlineRoundTrip(
     admin,
     "/admin/staff",
-    /^Staff$/,
+    /^People$/,
     "page",
     dialogAnswers("Invite staff")
   )
