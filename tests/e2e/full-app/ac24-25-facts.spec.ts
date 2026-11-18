@@ -76,8 +76,8 @@ test("AC24: a confirmed No for the pool table resolves the fact and leaves no ta
 
   // The fact is resolved; nothing asks for a photo of a table.
   expect(fact(w.venueA.id, "pool_table")).toMatch(/^no\|/)
-  // No required photo slot for it (pool_table has no knowledge rule, so it
-  // is not on any working list and has no slot at all: see the FA-32 test).
+  // No required photo slot for it: this check is not on the working list,
+  // so it has no coverage slot at all (the FA-32 test adds one).
   expect(slot(w.venueA.id, id)).not.toMatch(/:true$/)
   await staff.goto(OTHER_JOBS_PATH)
   await expect(otherJobsCheck(staff, question("pool_table")).card).toHaveCount(
@@ -145,6 +145,9 @@ test("FA-32 (AC24 context): a pool table Yes asks for a reviewed photo in covera
   // asks for one". pool_table's catalogue evidence rule is `photo`.
   const w = await provisionAmenitiesWorld()
   const id = await readyCheck(w, w.venueA, "pool_table", w.staffA)
+  // S3-R2 (D4): pool_table has a knowledge rule now, so the admin venue
+  // template puts it on the working list; this is that step.
+  await onWorkingList(w, "pool_table")
   const photo = await seedPhoto(w.staffA, w.venueA, `pool-${w.tag}`)
   const staff = await as(browser, w.staffA, PHONE)
   await staff.goto(staffCaptureHref(id))
