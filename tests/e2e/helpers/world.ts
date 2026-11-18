@@ -165,7 +165,8 @@ export async function signedInPage(
   const page = await context.newPage()
   await openEmailLink(
     page,
-    `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`
+    `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`,
+    who.email
   )
   return page
 }

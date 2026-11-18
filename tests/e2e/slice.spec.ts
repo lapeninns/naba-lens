@@ -91,7 +91,7 @@ async function assetsOf(uploaderId: string) {
 }
 
 test.describe("vertical slice: upload, portfolio, library, download, isolation", () => {
-  test("staff uploads; a different admin downloads identical bytes; other staff get previews only", async ({
+  test("staff uploads; a different admin downloads identical bytes; other staff see nothing before review (FA-20)", async ({
     browser,
     baseURL,
   }, testInfo) => {
@@ -221,25 +221,17 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     ).toBeVisible()
     await expect(library.getByRole("button", { name: /^Photo/ })).toHaveCount(0)
 
-    // --- Staff B (same venue, community colleague) gets A's previews only;
-    // the original never leaves through a staff route.
+    // --- Staff B (same venue colleague): A's photo has not been reviewed, so
+    // B gets nothing for it, not even a preview (FA-20, spec §3.3 row 3:
+    // colleagues see a photo only once it is accepted). The original never
+    // leaves through a staff route.
     const otherPage = await signIn(browser, staffB, baseURL!)
     await expect(otherPage).toHaveURL(STAFF_LANDING)
     await openPortfolio(otherPage)
     await expect(
       otherPage.getByRole("main").getByText("Your profile starts here.")
     ).toBeVisible()
-    for (const route of ["thumb", "preview"]) {
-      const response = await otherPage.request.get(
-        `/api/media/${photo.id}/${route}`,
-        { maxRedirects: 0 }
-      )
-      expect(response.status(), route).toBe(302)
-      expect(response.headers()["cache-control"], route).toBe(
-        "private, no-store"
-      )
-    }
-    for (const route of ["stream", "download"]) {
+    for (const route of ["thumb", "preview", "stream", "download"]) {
       const response = await otherPage.request.get(
         `/api/media/${photo.id}/${route}`,
         { maxRedirects: 0 }
@@ -268,8 +260,9 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     ).toBe(401)
     await anonymous.close()
 
-    // --- Deletion (lifecycle's removeMediaAsset): admin removes the photo...
-    await adminPage.goto("/admin")
+    // --- Deletion (lifecycle's removeMediaAsset): admin removes the photo
+    // (this person's files only: earlier runs on the stack used the same name)...
+    await adminPage.goto(`/admin?staff=${staffA.id}`)
     await library
       .getByRole("button", { name: /^Photo, curry-dish\.jpg/ })
       .click()
