@@ -54,6 +54,9 @@ ports may belong to another worktree. Follow the
 which copies the config, assigns a unique ID/unused ports and disables extra
 services without committing config changes.
 
+For iPhone Safari and Samsung Chrome on the same Wi-Fi as the Mac, use the
+[phone development loop](docs/dev-phone-loop.md).
+
 Then create your own ignored `.env.local` using `.env.example`, with your stack's
 public URL/key, server-only service key, app origin and cleanup secret. Run:
 

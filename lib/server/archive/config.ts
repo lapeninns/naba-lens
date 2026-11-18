@@ -1,6 +1,6 @@
 import "server-only"
 
-import { isIPv4 } from "node:net"
+import { isPrivateIPv4 } from "@/lib/dev/phone-origin.mjs"
 
 export type ArchiveConfig = {
   sourceUrl: string
@@ -32,15 +32,14 @@ export function readArchiveConfig(
   } catch {
     throw new Error("archive_source_not_configured")
   }
-  // The phone launcher opts in with the same private IPv4 address it binds
-  // Next to. A hosted environment still goes through project validation.
+  // dev:phone publishes the owned local stack on a LAN IP. Treat that exact
+  // development origin like loopback. Hosted identity checks still apply.
   const phoneDev =
     env.NODE_ENV === "development" &&
     mode === "disabled" &&
-    parsed.hostname === env.NABALENS_PHONE_HOST &&
     parsed.protocol === "http:" &&
-    isIPv4(parsed.hostname) &&
-    /^(?:10\.|172\.(?:1[6-9]|2\d|3[01])\.|192\.168\.)/.test(parsed.hostname)
+    parsed.hostname === env.NABALENS_PHONE_HOST &&
+    isPrivateIPv4(parsed.hostname)
   const local =
     (["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname) ||
       phoneDev) &&

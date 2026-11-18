@@ -4,6 +4,7 @@
 // bytes). It never uploads by itself and never promises background upload.
 // Nothing here is logged or sent anywhere.
 
+import { newIdempotencyKey } from "@/lib/browser/random-id"
 import type { CaptureCapabilities } from "./capabilities"
 import type { UploadPurpose } from "./types"
 
@@ -184,7 +185,7 @@ export async function openCaptureJournal(
 ): Promise<CaptureJournal> {
   const { backend, capabilities } = options
   const now = options.now ?? Date.now
-  const randomId = options.randomId ?? (() => globalThis.crypto.randomUUID())
+  const randomId = options.randomId ?? newIdempotencyKey
   const pending = new Map<string, number>()
   const lastWrite = new Map<string, number>()
   // Every change reads an entry and writes it back: run them one at a time,

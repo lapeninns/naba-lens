@@ -1,5 +1,6 @@
 "use client"
 
+import { newIdempotencyKey } from "@/lib/browser/random-id"
 import * as React from "react"
 
 const STORAGE_KEY = "nabalens.coverage-manage-intents"
@@ -51,7 +52,7 @@ export function useRequestIds() {
       const current = intents.current.get(scope)
       if (current && current.key === key) return current.id
       const stored = read()[key]
-      const id = stored ?? crypto.randomUUID()
+      const id = stored ?? newIdempotencyKey()
       intents.current.set(scope, { key, id })
       if (!stored) write({ ...read(), [key]: id })
       return id

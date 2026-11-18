@@ -5,6 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:phone": "node scripts/dev/phone.mjs",
+    "dev:reset": "node scripts/dev/phone.mjs --reset",
     "build": "next build",
     "scan:bundle": "node scripts/ci/scan-bundle.mjs",
     "start": "next start",
