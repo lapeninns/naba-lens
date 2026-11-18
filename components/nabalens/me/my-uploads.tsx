@@ -739,6 +739,7 @@ function CapturedAtDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent size="sm">
         <form
+          noValidate
           className="grid gap-4"
           onSubmit={(e) => {
             e.preventDefault()
@@ -793,6 +794,7 @@ function RemovalDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <form
+          noValidate
           className="grid gap-4"
           onSubmit={async (e) => {
             e.preventDefault()

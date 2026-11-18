@@ -44,8 +44,13 @@ const SCOPE: { screen: string; paths: string[] }[] = [
       "app/staff/page.tsx",
       "app/staff/staff-portfolio.tsx",
       "app/staff/needs-attention.tsx",
+      // S2-STAFF: My uploads, Help and account, notices, the notice.
+      "components/nabalens/me",
+      "lib/staff",
+      "app/staff/notifications",
     ],
   },
+  { screen: "Album slot (S2-STAFF)", paths: ["app/staff/album"] },
   { screen: "menu-photos", paths: ["components/nabalens/menu-photos"] },
 ]
 

@@ -128,7 +128,12 @@ export function ReportChangeDialog({
   return (
     <Dialog open={open} onOpenChange={change}>
       <DialogContent data-slot="report-change-dialog">
-        <form onSubmit={submit} className="grid gap-4">
+        <form
+          onSubmit={submit}
+          // Our own check says what is missing, beside the field (§6.7).
+          noValidate
+          className="grid gap-4"
+        >
           <DialogHeader>
             <DialogTitle>
               {photo ? REPORT_COPY.photoTitle : REPORT_COPY.slotTitle}
