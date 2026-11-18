@@ -4279,6 +4279,41 @@ export type Database = {
           },
         ]
       }
+      media_state_times: {
+        Row: {
+          asset_id: string
+          failure_count: number
+          first_failed_at: string | null
+          ready_at: string | null
+          reserved_at: string
+          venue_id: string
+        }
+        Insert: {
+          asset_id: string
+          failure_count?: number
+          first_failed_at?: string | null
+          ready_at?: string | null
+          reserved_at: string
+          venue_id: string
+        }
+        Update: {
+          asset_id?: string
+          failure_count?: number
+          first_failed_at?: string | null
+          ready_at?: string | null
+          reserved_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_state_times_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: true
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_use_destinations: {
         Row: {
           active: boolean
@@ -6144,6 +6179,85 @@ export type Database = {
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_events: {
+        Row: {
+          actor_id: string
+          actor_role: string
+          asset_id: string | null
+          batch_key: string | null
+          client_event_id: string
+          id: number
+          item_count: number | null
+          name: string
+          occurred_at: string
+          outcome: string | null
+          recorded_at: string
+          route: string | null
+          stage: string | null
+          subject_id: string | null
+          subject_kind: string | null
+          venue_id: string
+        }
+        Insert: {
+          actor_id: string
+          actor_role: string
+          asset_id?: string | null
+          batch_key?: string | null
+          client_event_id: string
+          id?: never
+          item_count?: number | null
+          name: string
+          occurred_at: string
+          outcome?: string | null
+          recorded_at?: string
+          route?: string | null
+          stage?: string | null
+          subject_id?: string | null
+          subject_kind?: string | null
+          venue_id: string
+        }
+        Update: {
+          actor_id?: string
+          actor_role?: string
+          asset_id?: string | null
+          batch_key?: string | null
+          client_event_id?: string
+          id?: never
+          item_count?: number | null
+          name?: string
+          occurred_at?: string
+          outcome?: string | null
+          recorded_at?: string
+          route?: string | null
+          stage?: string | null
+          subject_id?: string | null
+          subject_kind?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_events_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
             referencedColumns: ["id"]
           },
         ]
@@ -9110,6 +9224,7 @@ export type Database = {
         Args: { p_include_archived?: boolean; p_venue_id: string }
         Returns: Json
       }
+      metrics_overview: { Args: { p_days?: number }; Returns: Json }
       my_area_labels: {
         Args: { p_asset_ids: string[] }
         Returns: {
@@ -9124,6 +9239,7 @@ export type Database = {
         }[]
       }
       my_asset_delete_impact: { Args: { p_asset_id: string }; Returns: Json }
+      my_contribution_metrics: { Args: { p_days?: number }; Returns: Json }
       my_contributions_feed: {
         Args: { p_cursor: string; p_limit: number }
         Returns: Json
@@ -9376,6 +9492,7 @@ export type Database = {
         }[]
       }
       record_archive_monitor_heartbeat: { Args: never; Returns: undefined }
+      record_product_events: { Args: { p_events: Json }; Returns: number }
       release_maintenance_lease: {
         Args: { p_holder: string; p_name: string }
         Returns: undefined
@@ -9848,6 +9965,10 @@ export type Database = {
           venue_id: string
           venue_name: string
         }[]
+      }
+      venue_metrics: {
+        Args: { p_days?: number; p_venue_id?: string }
+        Returns: Json
       }
       venue_scope_read: { Args: { p_venue_id?: string }; Returns: Json }
       venue_scope_set: {

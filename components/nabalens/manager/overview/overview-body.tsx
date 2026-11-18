@@ -2,6 +2,7 @@ import Link from "next/link"
 import {
   ArrowsClockwiseIcon,
   CameraIcon,
+  ChartBarIcon,
   ClockIcon,
   ForkKnifeIcon,
   HourglassIcon,
@@ -22,6 +23,8 @@ import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 
 import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
+import { METRICS_COPY } from "@/components/nabalens/metrics/copy"
+import { metricsHrefs } from "@/components/nabalens/metrics/hrefs"
 import { Notice } from "@/components/nabalens/notice"
 import { SEARCH_COPY } from "@/components/nabalens/search/search-copy"
 import { amenityHrefs } from "@/lib/amenities/contract"
@@ -126,6 +129,22 @@ function TeamRow() {
   )
 }
 
+/** S2-METRICS (spec §18.1): the venue's metrics, with how each is counted. */
+function MetricsRow() {
+  return (
+    <ul className={ROW_LIST}>
+      <li data-link="metrics">
+        <Row
+          href={metricsHrefs.manager()}
+          icon={<ChartBarIcon />}
+          title={METRICS_COPY.entry}
+          subtitle={METRICS_COPY.entryNote}
+        />
+      </li>
+    </ul>
+  )
+}
+
 export function OverviewBody({
   overview,
   now,
@@ -157,6 +176,7 @@ export function OverviewBody({
       {/* Search needs a menu; photo targets don't (review c, 6). */}
       {overview.menuState !== "no_menu" ? <SearchRow /> : null}
       <TeamRow />
+      <MetricsRow />
     </>
   )
 

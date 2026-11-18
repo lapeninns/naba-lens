@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr"
+import { ChartBarIcon, ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { SelfReviewsControl } from "@/app/staff/manage/_shared/controls"
 import { ItemPhotoSelfReviewsControl } from "@/app/staff/manage/_shared/menu-items-controls"
@@ -8,6 +8,8 @@ import { unexpected } from "@/app/staff/manage/_shared/context"
 import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { EmptyState } from "@/components/nabalens/empty-state"
+import { METRICS_COPY } from "@/components/nabalens/metrics/copy"
+import { metricsHrefs } from "@/components/nabalens/metrics/hrefs"
 import { ITEM_SELF_REVIEWS_COPY } from "@/components/nabalens/menu-photos/item-photo-self-reviews"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 import { Notice } from "@/components/nabalens/notice"
@@ -175,6 +177,13 @@ export default async function CoverageOverviewPage({
             >
               <ShieldCheckIcon aria-hidden />
               {COVERAGE_COPY.venueManagers}
+            </Link>
+            <Link
+              href={metricsHrefs.admin()}
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              <ChartBarIcon aria-hidden />
+              {METRICS_COPY.entry}
             </Link>
             {needsPreparing ? <PrepareButton primary /> : null}
           </>
