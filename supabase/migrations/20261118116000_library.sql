@@ -384,6 +384,19 @@ as $$
   select exists (select 1 from public.media_asset_withdrawals w where w.asset_id = p_asset_id);
 $$;
 
+create function private.library_any_withdrawn()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.media_asset_withdrawals);
+$$;
+
+revoke all on function private.library_any_withdrawn() from public, anon;
+grant execute on function private.library_any_withdrawn() to authenticated, service_role;
+
 revoke all on function private.library_is_withdrawn(uuid) from public, anon;
 grant execute on function private.library_is_withdrawn(uuid) to authenticated, service_role;
 
@@ -1196,7 +1209,12 @@ begin
      and p_label_state in ('labelled', 'unlabelled')
      and p_item is null and p_variant is null and p_category is null
      and p_content_type is null and v_pattern is null
-     and coalesce(p_withdrawn, 'active') = 'all' and p_review is null
+     -- The set page cannot leave rows out afterwards (a short page would
+     -- read as the end), so it is used only when the withdrawn filter
+     -- removes nothing.
+     and (coalesce(p_withdrawn, 'active') = 'all'
+       or (coalesce(p_withdrawn, 'active') = 'active' and not private.library_any_withdrawn()))
+     and p_review is null
      and p_captured_from is null and p_captured_to is null and p_orientation is null
      and p_request is null and p_collection is null and p_destination is null and p_tag is null then
     v_ids := private.library_label_state_page(

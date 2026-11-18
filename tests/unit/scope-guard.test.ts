@@ -584,6 +584,7 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
         "app/admin/(content)/page.tsx",
         "app/admin/admin-library.tsx",
         "app/admin/library-more-filters.tsx",
+        "app/(dev)/ui-preview/ui-preview.tsx",
         "lib/library/",
         "lib/server/library/",
         "supabase/migrations/20261118116",

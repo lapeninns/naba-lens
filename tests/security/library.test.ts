@@ -463,6 +463,28 @@ describe("withdraw and restore", () => {
   })
 })
 
+describe("library_page fast paths", () => {
+  it("keeps a withdrawn photo out of the labelled/unlabelled set page", async () => {
+    const asset = await ready(staff)
+    await ok(
+      rpc(admin, "library_withdraw_asset", {
+        p_asset_id: asset,
+        p_reason: "Not for use",
+      })
+    )
+    const unlabelled = (extra: Record<string, unknown>) =>
+      page(admin, {
+        p_venue: venueA,
+        p_label_state: "unlabelled",
+        p_candidate_cap: 3000,
+        ...extra,
+      })
+    expect(await unlabelled({})).not.toContain(asset)
+    expect(await unlabelled({ p_withdrawn: "all" })).toContain(asset)
+    expect(await unlabelled({ p_withdrawn: "withdrawn" })).toContain(asset)
+  })
+})
+
 describe("venue correction (spec §11)", () => {
   it("keeps the original declaration, records the correction and suspends use", async () => {
     const asset = await ready(staff)
