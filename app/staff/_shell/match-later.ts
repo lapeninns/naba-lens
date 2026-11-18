@@ -25,14 +25,20 @@ function waiting(item: MediaItemView) {
  * newest few pages of their portfolio. The same rule as "needs labels"
  * (`private.asset_needs_labels`), read through the caller's own session, but
  * photos only: Match takes no videos. Null when it could not be read.
+ *
+ * Only photos sent to the active venue (V9, spec §3.1): Match later offers
+ * that venue's slots, and a photo at another venue could never be matched
+ * there. It waits until the person works at its venue again.
  */
 export async function listMatchLater(
   actor: MediaActor
 ): Promise<MatchLaterPhoto[] | null> {
+  const venueId = actor.profile.venueId
+  if (!venueId) return []
   const found: MediaItemView[] = []
   let cursor: string | null = null
   for (let page = 0; page < PAGES; page += 1) {
-    const result = await listOwnMedia(actor, cursor)
+    const result = await listOwnMedia(actor, cursor, { venueId })
     if (!result.ok) return page === 0 ? null : toPhotos(actor, found)
     found.push(...result.items.filter(waiting))
     cursor = result.nextCursor

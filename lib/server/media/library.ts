@@ -365,10 +365,14 @@ function base(db: Db) {
   return db.from("media_assets").select(SELECT).is("deleted_at", null)
 }
 
-/** The staff member's own portfolio: every technical state, newest first. */
+/**
+ * The staff member's own portfolio: every technical state, newest first.
+ * `venueId` keeps only the photos uploaded to that venue (Match later, V9).
+ */
 export function listOwnMedia(
   actor: MediaActor,
-  cursor?: string | null
+  cursor?: string | null,
+  { venueId }: { venueId?: string } = {}
 ): Promise<Outcome<MediaPage>> {
   if (actor.profile.role !== "staff") {
     return Promise.resolve({ ok: false, status: 403, message: "Staff only." })
@@ -377,6 +381,7 @@ export function listOwnMedia(
     actor,
     (after, limit) => {
       let query = base(actor.db).eq("uploader_id", actor.profile.id)
+      if (venueId) query = query.eq("venue_id", venueId)
       if (after) {
         query = query.or(
           `created_at.lt."${after.createdAt}",and(created_at.eq."${after.createdAt}",id.lt.${after.id})`
