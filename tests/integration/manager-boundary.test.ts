@@ -57,7 +57,7 @@ import {
   issueSignInLink,
   readSessionCookie,
 } from "./auth-support"
-import { followEmailLink } from "./auth-confirm"
+import { followEmailLink, passMfa } from "./auth-confirm"
 
 const service = serviceClient()
 const sha256 = (bytes: Uint8Array) =>
@@ -82,6 +82,8 @@ async function person(
     await issueSignInLink(service, identity.email)
   )
   expect(res.location).toBe("/")
+  // FA-23: an admin acts as one only after the second step (aal2).
+  if (opts.role === "admin") await passMfa(browser, identity.id)
   const { session } = readSessionCookie(browser)
   const rest = anonClient()
   const { error } = await rest.auth.setSession({

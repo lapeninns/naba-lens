@@ -40,7 +40,7 @@ import {
   type Db,
   type TestIdentity,
 } from "../support/identities"
-import { followEmailLink } from "./auth-confirm"
+import { signInAdmin } from "./auth-confirm"
 import {
   authUserCount,
   Browser,
@@ -151,8 +151,10 @@ beforeAll(async () => {
   invited = result.userId
 
   browser = new Browser("dir-admin")
-  await followEmailLink(
+  // FA-23: the admin passes the second step before any admin page.
+  await signInAdmin(
     browser,
+    adminUser.id,
     await issueSignInLink(service, adminUser.email)
   )
 })
@@ -286,7 +288,10 @@ describe("a directory longer than one PostgREST response", () => {
     localSql(`
       delete from auth.users
       where email like 'it-dir-many-%-${fixture.tag}@nabalens.test';
-      delete from public.venues where id = '${fixture.venueId}'::uuid;
+      -- The activity log is append-only (S1-OPS) and keeps its venue: a venue
+      -- it names stays (empty) rather than rolling back the whole cleanup.
+      delete from public.venues v where v.id = '${fixture.venueId}'::uuid
+        and not exists (select 1 from public.activity_events a where a.venue_id = v.id);
     `)
   })
 

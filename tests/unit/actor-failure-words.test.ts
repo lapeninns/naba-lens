@@ -57,7 +57,7 @@ vi.mock("@/lib/server/requests", () => {
   return {
     cancelShotList: never,
     closeRequest: never,
-    createRequest: never,
+    createManagerRequest: never,
     createShotList: never,
     editRequest: never,
     setRequestBlocked: never,

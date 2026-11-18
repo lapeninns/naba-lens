@@ -96,7 +96,7 @@ export type PreferencesPatch = Partial<
   >
 > & { quietStart?: string | null; quietEnd?: string | null }
 
-export async function savePreferences(
+export async function saveNotificationPreferences(
   caller: OpsCaller,
   patch: PreferencesPatch
 ): Promise<OpsResult<{ preferences: NotificationPreferences }>> {

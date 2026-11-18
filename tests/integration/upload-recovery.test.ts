@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises"
 import { createClient } from "@supabase/supabase-js"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
+import { MEDIA_LIMITS } from "../../lib/config/media"
 import type { Database } from "../../lib/db/types"
 import { runMediaCleanup } from "../../lib/server/lifecycle/cleanup"
 import { removeMediaAssetWith } from "../../lib/server/lifecycle/remove-media"
@@ -466,20 +467,21 @@ describe("upload recovery (local Supabase)", () => {
 
     it("an oversized photo is refused at reserve", async () => {
       const big = await fixture("oversized.jpg")
-      expect(big.byteLength).toBeGreaterThan(20 * MiB)
+      expect(big.byteLength).toBeGreaterThan(MEDIA_LIMITS.maxPhotoBytes)
       expect(
         await reserveAsset(actor, request(big, { filename: "big.jpg" }))
       ).toMatchObject({ ok: false, status: 400 })
     })
 
-    it("25 MiB stored in a 1 KiB photo reservation fails without being read, and is removed", async () => {
+    it("26 MiB stored in a 1 KiB photo reservation fails without being read, and is removed", async () => {
       const small = await syntheticJpeg()
-      const big = new Uint8Array(25 * MiB)
+      // Over the 25 MiB photo limit (spec §12.1).
+      const big = new Uint8Array(MEDIA_LIMITS.maxPhotoBytes + MiB)
       big.set(small)
       const input = request(big, { filename: "big.jpg", sizeBytes: 1024 })
       const reserved = await reserveAsset(actor, input)
       if (!reserved.ok) throw new Error(reserved.message)
-      // The signed URL accepts anything up to the bucket limit (200 MiB).
+      // The signed URL accepts anything up to the bucket limit (250 MiB).
       await put(reserved.objectKey, reserved.token!, big)
 
       const fetches = vi.spyOn(globalThis, "fetch")

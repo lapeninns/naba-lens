@@ -571,7 +571,9 @@ describe("signed reads", () => {
   })
 
   it("original responses carry attachment, validated type, nosniff and private, no-store", async () => {
-    const venue = await createVenue(service, "lib-headers")
+    // The original is stored while the reservation is open, which the storage
+    // guard allows only at a venue the uploader belongs to (FA-22): solo's.
+    const venue = homeVenue
     const staff = solo
     const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9])
     const asset = await seedAsset(service, {
@@ -612,7 +614,10 @@ describe("filter options past one PostgREST response", () => {
     localSql(`
       delete from auth.users
       where email like 'it-lib-many-%-${fixture.tag}@nabalens.test';
-      delete from public.venues where id = '${fixture.venueId}'::uuid;
+      -- The activity log is append-only (S1-OPS) and keeps its venue: a venue
+      -- it names stays (empty) rather than rolling back the whole cleanup.
+      delete from public.venues v where v.id = '${fixture.venueId}'::uuid
+        and not exists (select 1 from public.activity_events a where a.venue_id = v.id);
     `)
   })
 

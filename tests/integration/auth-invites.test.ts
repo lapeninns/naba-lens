@@ -43,7 +43,7 @@ import {
   readSessionCookie,
   redirectOf,
 } from "./auth-support"
-import { followEmailLink } from "./auth-confirm"
+import { followEmailLink, passMfa } from "./auth-confirm"
 
 const service = serviceClient()
 const INVITED = /invited/i
@@ -51,11 +51,13 @@ const INVITED = /invited/i
 let venue: { id: string }
 let admin: { id: string; email: string; browser: Browser; rest: Db }
 
-async function signIn(email: string) {
+/** Signs an admin in, including the second step (FA-23: aal2 for admin). */
+async function signIn(email: string, adminId: string) {
   const browser = new Browser(email)
   const link = await issueSignInLink(service, email)
   const res = await followEmailLink(browser, link)
   expect(res.location).toBe("/")
+  await passMfa(browser, adminId)
   const { session } = readSessionCookie(browser)
   const rest = anonClient()
   await rest.auth.setSession({
@@ -107,7 +109,7 @@ beforeAll(async () => {
     role: "admin",
     session: false,
   })
-  admin = { ...identity, ...(await signIn(identity.email)) }
+  admin = { ...identity, ...(await signIn(identity.email, identity.id)) }
 })
 
 describe("invitations", { timeout: 60_000 }, () => {
@@ -445,7 +447,7 @@ describe("admins cannot lock themselves out", () => {
       role: "admin",
       session: false,
     })
-    const peer = await signIn(other.email)
+    const peer = await signIn(other.email, other.id)
     for (const [db, target] of [
       [admin.rest, other.id],
       [peer.rest, admin.id],
