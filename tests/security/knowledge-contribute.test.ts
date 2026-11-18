@@ -167,16 +167,18 @@ describe("evidence and conditions (T2)", () => {
       }),
       "evidence_rule_unmet"
     )
-    await refused(
+    // Catalogue version 2 (S2-INT, FA-32): Wi-Fi is a policy fact, so a Yes
+    // with only a photo (or none) is accepted; a manager still confirms it.
+    const wifi = await json<{ outcome: string }>(
       v.staffA,
       "knowledge_submit",
       submitArgs(v, "guest_wifi", {
         assets: [await photo(v.staffA.id, v.venue)],
         metadata: wifiNotes(),
         redaction: true,
-      }),
-      "evidence_rule_unmet"
+      })
     )
+    expect(wifi.outcome).toBe("awaiting_confirmation")
   })
 
   it("stores the Wi-Fi redaction tick and refuses a photo without it", async () => {

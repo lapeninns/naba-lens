@@ -13,14 +13,19 @@ set lock_timeout = '5s';
 --              counts. Everything built on it follows: my_manager_venue_id,
 --              can_manage_venue (export access, S1-EXPORT), the ops digest
 --              recipients (private.ops_venue_managers, S1-OPS) and the RLS
---              policies. A person who manages A and is staff at B manages A
+--              policies. The rule is written out (not a call to
+--              venue_role_of) so per-row RLS and per-venue loops stay cheap.
+--              Multi-venue digest recipients (review R24) are S2-FIX's. A
+--              person who manages A and is staff at B manages A
 --              only while A is their active venue, and nothing at B (AC14).
 --   Upload     private.media_upload_venue_allowed(uploader, role, venue):
---                staff    an active staff profile whose active venue is the
---                         (active) venue and who holds an open membership
---                         there
---                manager  an active manager whose active venue it is and who
---                         manages it (venue_role_of = manager)
+--                staff    an active person with an open membership at the
+--                         (active) venue
+--                manager  an active person who manages the venue
+--                         (venue_role_of = manager)
+--              Neither depends on the active venue, so switching to another
+--              of one's venues does not end an upload in flight (review R10;
+--              lib/server/media/finalise.ts's matching check is S2-FIX's).
 --                admin    an active admin, any active venue; when the
 --                         uploader is the caller, on an aal2 session
 --              private.uploadable_venue_id also needs the open membership.
@@ -28,8 +33,8 @@ set lock_timeout = '5s';
 --              admin names the active venue it uploads to; staff and
 --              managers may omit it or name their own venue (else
 --              wrong_venue). The reservation records the role it was made
---              under, so a later switch of active venue or role stops the
---              upload at storage and finalise (AC12).
+--              under; losing that role at the venue stops the upload at
+--              storage and finalise (AC12).
 --   Album      private.can_view_venue_album(venue): the venue's manager or an
 --              admin (can_manage_venue), or staff whose active venue it is
 --              with an open membership there. Reads of an inactive venue stay
@@ -57,11 +62,20 @@ stable
 security definer
 set search_path = ''
 as $$
+  -- private.venue_role_of's manager rule, written out so it stays cheap in
+  -- RLS policies and per-venue loops.
   select p.venue_id
   from public.profiles p
-  where p.id = p_user and p.active and p.role in ('staff', 'manager') and p.venue_id is not null
-    and private.venue_role_of(p.id, p.venue_id) = 'manager';
+  join public.venues v on v.id = p.venue_id and v.active
+  where p.id = p_user and p.active and p.role in ('staff', 'manager')
+    and exists (
+      select 1 from public.venue_manager_grants g
+      where g.staff_id = p.id and g.venue_id = p.venue_id and g.revoked_at is null)
+    and exists (
+      select 1 from public.venue_memberships m
+      where m.profile_id = p.id and m.venue_id = p.venue_id and m.ended_at is null and m.role = 'manager');
 $$;
+
 
 -- ---------------------------------------------------------------------------
 -- Upload scope
@@ -86,11 +100,16 @@ as $$
       and (
         (p_uploader_role = 'admin' and p.role = 'admin'
           and ((select auth.uid()) is distinct from p_uploader or private.is_active_admin()))
-        or (p_uploader_role = 'manager' and p.role = 'manager' and p.venue_id = p_venue
+        -- Review R10: keyed on the membership at the upload's venue, not on
+        -- the active venue, so switching to another of one's venues does
+        -- not end an upload in flight; ending the membership does (AC12).
+        or (p_uploader_role = 'manager'
           and private.venue_role_of(p.id, p_venue) = 'manager')
         or (p_uploader_role is distinct from 'manager' and p_uploader_role is distinct from 'admin'
-          and p.role = 'staff' and p.venue_id = p_venue
-          and private.venue_role_of(p.id, p_venue) in ('staff', 'manager'))
+          and p.role in ('staff', 'manager')
+          and exists (
+            select 1 from public.venue_memberships m
+            where m.profile_id = p.id and m.venue_id = p_venue and m.ended_at is null))
       )
   );
 $$;

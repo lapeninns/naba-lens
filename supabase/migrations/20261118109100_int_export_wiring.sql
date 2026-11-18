@@ -15,9 +15,15 @@ set lock_timeout = '5s';
 --                         private.area_photo_freshness (S1-FACTS): a review
 --                         date passed, a reported or known change or an end
 --                         date keeps it out of new public packages (§9.3)
---                amenity  as before (use grant in force and the question's
---                         public media rule) and the photo's own latest
---                         amenity photo decision accepted at the public level
+--                amenity  the photo's own latest amenity photo decision
+--                         (private.amenity_photo_rows) accepted at the public
+--                         level, a public-audience grant in force (an internal
+--                         grant no longer counts), the question's public media
+--                         rule and a current confirmed Yes. The decision id is
+--                         the approval, so a later decision makes a package
+--                         stale (review R1, R21)
+--              Any photo whose public use was withdrawn is internal only,
+--              even when an internal grant remains (R21).
 --              Internal packages (admins only) still list reference and
 --              stale photos, marked internal, as they list photos waiting
 --              for review. Packages, staleness, publication records and
@@ -29,6 +35,12 @@ set lock_timeout = '5s';
 --
 -- Rollback: re-apply private.export_candidate_rows from 20261118105000 and
 -- public.export_package_download_start from 20261118105200.
+
+-- Amenity items now record the photo decision they were approved through.
+alter table public.export_package_items drop constraint export_package_items_approval_kind_check;
+alter table public.export_package_items add constraint export_package_items_approval_kind_check
+  check (approval_kind in ('menu_item_photo', 'area_photo_decision', 'area_label', 'amenity_submission',
+    'amenity_photo_decision'));
 
 create or replace function private.export_candidate_rows(p_venue_id uuid, p_mode text)
 returns table (
@@ -55,7 +67,13 @@ set search_path = ''
 as $$
   with assets as (
     select a.id, a.venue_id, a.created_at, a.width, a.height, a.use_baseline,
-      private.media_asset_use_state(a.id, now()) as use_state
+      private.media_asset_use_state(a.id, now()) as use_state,
+      -- The public audience alone (review R21): in_force, withdrawn or null.
+      (select case
+          when bool_or(private.media_use_grant_state(g, now()) = 'in_force') then 'in_force'
+          when bool_or(private.media_use_grant_state(g, now()) = 'withdrawn') then 'withdrawn'
+        end
+        from public.media_use_grants g where g.asset_id = a.id and g.audience = 'public') as public_use
     from public.media_assets a
     where a.venue_id = p_venue_id
       and a.upload_state = 'ready'
@@ -96,35 +114,31 @@ as $$
       and (d.action = 'accepted'
         or (p_mode = 'internal' and (d.action is null or d.action = 'needs_another_photo')))
   ),
-  amenity as (
-    select distinct on (c.id, sa.asset_id)
-      sa.asset_id, c.id as check_id, c.template_key, cat.question, sub.id as submission_id,
-      c.revision, u.use_state
-    from public.venue_amenity_checks c
-    join public.amenity_catalogue cat on cat.key = c.template_key
-    join public.amenity_submissions sub on sub.id = c.current_submission_id
-    join public.amenity_submission_assets sa on sa.submission_id = sub.id and sa.evidence_kind = 'photo'
-    join usable u on u.id = sa.asset_id
-    where c.venue_id = p_venue_id
-      and c.status = 'active'
-      and c.progress = 'complete'
-      and sub.answer = 'yes'
-      and private.knowledge_in_scope(c.venue_id, c.template_key)
-      and coalesce((private.knowledge_check_service_end(c.id, now()) ->> 'inEffect')::boolean, false) = false
-    order by c.id, sa.asset_id
+  -- Amenity photos from their own review (FA-32, review R1/R21): the
+  -- latest amenity_photo_decisions row per (check, photo). Public needs an
+  -- acceptance at the public level, a public-audience grant in force (an
+  -- internal grant is not enough), the question's public media rule and a
+  -- current confirmed Yes.
+  amenity_photo as (
+    select r.check_id, r.asset_id, r.state, r.review_level,
+      (select max(d.id) from public.amenity_photo_decisions d
+        where d.check_id = r.check_id and d.asset_id = r.asset_id) as decision_id
+    from private.amenity_photo_rows(p_venue_id) r
+    join usable u on u.id = r.asset_id
+    where r.state in ('accepted', 'pending', 'needs_another_photo')
   ),
   amenity_rated as (
-    select am.*,
-      (am.use_state = 'granted'
-        and exists (
-          select 1 from public.amenity_photo_decisions d
-          where d.check_id = am.check_id and d.asset_id = am.asset_id
-            and d.id = (select max(x.id) from public.amenity_photo_decisions x
-              where x.check_id = am.check_id and x.asset_id = am.asset_id)
-            and d.action = 'accepted' and d.review_level = 'public')
-        and coalesce((private.knowledge_public_media_eligible(p_venue_id, am.template_key) ->> 'eligible')::boolean, false)
+    select ap.asset_id, c.id as check_id, c.template_key, cat.question, ap.decision_id,
+      (ap.state = 'accepted' and ap.review_level = 'public'
+        and u.public_use = 'in_force'
+        and c.progress = 'complete' and c.answer = 'yes'
+        and coalesce((private.knowledge_check_service_end(c.id, now()) ->> 'inEffect')::boolean, false) = false
+        and coalesce((private.knowledge_public_media_eligible(p_venue_id, c.template_key) ->> 'eligible')::boolean, false)
       ) as public_ok
-    from amenity am
+    from amenity_photo ap
+    join usable u on u.id = ap.asset_id
+    join public.venue_amenity_checks c on c.id = ap.check_id
+    join public.amenity_catalogue cat on cat.key = c.template_key
   ),
   rows as (
     select m.asset_id, 'menu_item'::text as subject_kind, m.item_id as subject_id, m.name as subject_label,
@@ -142,17 +156,23 @@ as $$
     from area ar
     union all
     select r.asset_id, 'amenity', r.check_id, r.question, replace(r.template_key, '_', ' '), 'facilities',
-      'amenity_submission', r.submission_id::text, r.revision::text,
+      'amenity_photo_decision', coalesce(r.decision_id::text, 'pending'), coalesce(r.decision_id::text, 'pending'),
       case when r.public_ok then 'public' else 'internal' end
     from amenity_rated r
   )
   select r.asset_id, p_venue_id, r.subject_kind, r.subject_id, r.subject_label,
     coalesce(nullif(private.export_slug(r.slug_source, 60), ''), 'photo'),
-    r.category, r.approval_kind, r.approval_id, r.approval_version, r.approval_level,
+    r.category, r.approval_kind, r.approval_id, r.approval_version, x.level,
     u.created_at, u.width, u.height, u.use_baseline
   from rows r
   join usable u on u.id = r.asset_id
-  where p_mode = 'internal' or r.approval_level = 'public';
+  -- A withdrawn public use keeps any photo out of public packages, whatever
+  -- internal grant remains (review R21).
+  cross join lateral (
+    select case when r.approval_level = 'public' and u.public_use is distinct from 'withdrawn'
+      then 'public' else 'internal' end as level
+  ) x
+  where p_mode = 'internal' or x.level = 'public';
 $$;
 
 create or replace function public.export_package_download_start(p_package_id uuid)

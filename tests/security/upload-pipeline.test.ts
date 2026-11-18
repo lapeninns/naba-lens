@@ -215,13 +215,13 @@ describe("reserve_media_asset", () => {
     )
   })
 
-  it("is staff and manager only: admins and anon cannot reserve", async () => {
+  it("is staff and manager only, admins naming a venue (S2-INT); anon cannot reserve", async () => {
     await refused(
       v.admin,
       "reserve_media_asset",
       reservation(),
-      "not_active_staff",
-      "42501"
+      "venue_required",
+      "22023"
     )
     const { error } = await anonClient().rpc(
       "reserve_media_asset",

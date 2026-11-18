@@ -36,8 +36,14 @@ describe("version 1 restates today (no behaviour change)", () => {
         'versions', (select count(*) from public.knowledge_question_versions where version = 1),
         'mismatched', (select count(*) from public.amenity_catalogue c
           left join public.knowledge_question_versions v on v.key = c.key and v.version = 1
-          where v.key is null or v.catalogue_version <> c.catalogue_version
-            or v.evidence_rule <> c.evidence_rule
+          -- Catalogue version 2 (S2-INT) moved six evidence rules; version 1
+          -- restates catalogue version 1.
+          where v.key is null or v.catalogue_version <> 1
+            or v.evidence_rule <> case c.key
+              when 'live_music' then 'either' when 'pub_quiz' then 'photo'
+              when 'guest_wifi' then 'both' when 'dogs_inside' then 'photo'
+              when 'dogs_outside' then 'photo' when 'curbside_pickup' then 'video'
+              else c.evidence_rule end
             or v.guidance ->> 'question' <> c.question
             or v.guidance ->> 'captureBrief' <> c.capture_brief))`)
     ).toEqual({ catalogue: 39, questions: 39, versions: 39, mismatched: 0 })

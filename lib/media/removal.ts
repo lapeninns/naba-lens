@@ -37,7 +37,16 @@ export type RemovalImpact = {
   publicUses: number
   internalUses: number
   openRequests: number
-  /** True while publicUses > 0. */
+  /** Accepted amenity photo reviews (S2-INT, review R2). */
+  amenityPhotos: number
+  /** Area and amenity slots whose current primary it is. */
+  primaryChoices: number
+  /**
+   * Destinations where it is recorded as published (or the withdrawal is
+   * not yet confirmed): removal is refused until they are withdrawn (R22).
+   */
+  publications: number
+  /** True while publicUses > 0 or publications > 0. */
   blocked: boolean
   /** Pass back to the removal: it fails if any of the above has changed. */
   token: string
@@ -132,6 +141,10 @@ export function parseRemovalImpact(value: unknown): RemovalImpact | null {
     publicUses: publicUses!,
     internalUses: internalUses!,
     openRequests: openRequests!,
+    // Older servers did not send these three; read them as none.
+    amenityPhotos: num(raw.amenityPhotos) ?? 0,
+    primaryChoices: num(raw.primaryChoices) ?? 0,
+    publications: num(raw.publications) ?? 0,
     blocked: raw.blocked === true,
     token: raw.token,
   }

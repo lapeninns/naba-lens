@@ -229,7 +229,11 @@ async function matrix(p: Place, who: TestIdentity, kind: Kind) {
     p_purpose: "general",
   })
   wrote.canUpload = upload.error === null
-  if (upload.error) expect(upload.error.message).toBe("not_active_staff")
+  // S2-INT: an admin uploads only to a venue it names (venue_required here).
+  if (upload.error)
+    expect(upload.error.message).toBe(
+      kind === "admin" ? "venue_required" : "not_active_staff"
+    )
 
   // Staff label their own uploads; a manager account its own manager-era
   // upload (the one it just reserved); an admin any library photo.
