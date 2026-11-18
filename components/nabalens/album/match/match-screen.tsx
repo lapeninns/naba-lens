@@ -754,10 +754,15 @@ function Summary({
     (p) => sendStates.get(p.key) === "refused"
   ).length
   // A photo whose slot was not saved with it ("sent") fills no slot.
-  const filled = matched.filter(({ photo }) => {
-    const state = sendStates.get(photo.key)
-    return state !== "refused" && state !== "sent"
-  }).length
+  // Slots, not photos: four photos of one dish fill one slot (§5.4).
+  const filled = new Set(
+    matched
+      .filter(({ photo }) => {
+        const state = sendStates.get(photo.key)
+        return state !== "refused" && state !== "sent"
+      })
+      .map(({ slot }) => slot.id)
+  ).size
   return (
     <section
       className="grid grid-cols-[minmax(0,1fr)] gap-4 px-3 pt-3"

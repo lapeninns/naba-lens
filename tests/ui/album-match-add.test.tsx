@@ -1,0 +1,567 @@
+// @vitest-environment jsdom
+// Full App v1 S2-ADD (spec §5.1-§5.5, §6 S1-S2; FA-3, FA-4): adding and
+// labelling with Match. The venue is always named; "Same slot for the next
+// photos too?" takes a run of one dish in one tap; I'm not sure sends the
+// photo to the manager (Needs label) with an optional note; recent and
+// waiting slots and other names are offered; dark, blurred and small photos
+// get a hint that never blocks; a venue change undoes unsent choices (AC11);
+// the end names the venue, the counts and the slots. Taps are counted for
+// the two journeys the delivery measures.
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { AddHost } from "@/app/staff/_shell/add-host"
+import type { MatchBoard } from "@/components/nabalens/album/match/model"
+import {
+  AddTrigger,
+  useAdd,
+  type OpenAddOptions,
+} from "@/components/nabalens/shell/add-context"
+import type { Uploader } from "@/components/nabalens/upload-queue"
+
+import { CATALOGUE } from "./labels-fixtures"
+
+const PASS = "00000000-0000-4000-8000-00000000b002"
+const GARDEN = "00000000-0000-4000-8000-00000000b003"
+const BAR = "00000000-0000-4000-8000-00000000b001"
+
+const BOARD: MatchBoard = {
+  slots: [
+    {
+      id: "dish:item-lassi",
+      name: "Mango Lassi",
+      group: "Drinks",
+      place: BAR,
+      placeLabel: "The bar",
+      brief: null,
+      target: { kind: "dish", itemId: "item-lassi", name: "Mango Lassi" },
+    },
+    {
+      id: "dish:item-bhaji",
+      name: "Onion Bhaji",
+      group: "Starters",
+      place: PASS,
+      placeLabel: "Kitchen pass",
+      brief: "The whole plate, from above",
+      target: { kind: "dish", itemId: "item-bhaji", name: "Onion Bhaji" },
+      aliases: ["pakora"],
+    },
+    {
+      id: "dish:item-tikka",
+      name: "Chicken Tikka",
+      group: "Starters",
+      place: PASS,
+      placeLabel: "Kitchen pass",
+      brief: null,
+      target: { kind: "dish", itemId: "item-tikka", name: "Chicken Tikka" },
+    },
+    {
+      id: `area:${GARDEN}`,
+      name: "The garden",
+      group: "The space",
+      place: GARDEN,
+      placeLabel: "The garden",
+      brief: null,
+      target: { kind: "area", subjectId: GARDEN, name: "The garden" },
+    },
+  ],
+  amenities: ["Is there a darts board?"],
+  waiting: [
+    {
+      id: "dish:item-korma-chicken",
+      name: "Garlic Naan",
+      group: "Sides",
+      place: PASS,
+      placeLabel: "Kitchen pass",
+      brief: null,
+      target: {
+        kind: "dish",
+        itemId: "item-korma-chicken",
+        name: "Garlic Naan",
+      },
+      waiting: true,
+    },
+  ],
+  venue: { id: "venue-1", name: "The Bell" },
+}
+
+const { supabase, uploads, actions, match, area, quality } = vi.hoisted(() => ({
+  quality: {
+    hints: null as null | {
+      width: number
+      height: number
+      brightness: number
+      sharpness: number
+    },
+  },
+  supabase: {
+    auth: {
+      onAuthStateChange: vi.fn(() => ({
+        data: { subscription: { unsubscribe: vi.fn() } },
+      })),
+      getSession: vi.fn(async () => ({
+        data: { session: { user: { id: "u1" } } },
+        error: null,
+      })),
+    },
+  },
+  uploads: { current: null as Uploader | null },
+  actions: {
+    loadLabelEditorContext: vi.fn(),
+    loadLabelCatalogue: vi.fn(),
+    saveLabelBatch: vi.fn(),
+  },
+  match: {
+    loadMatchBoardAction: vi.fn(),
+    requestLabelHelpAction: vi.fn(),
+  },
+  area: {
+    setAreaLabelAction: vi.fn(),
+    loadAreaLabelsAction: vi.fn(),
+  },
+}))
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+}))
+vi.mock("@/lib/supabase/browser", () => ({ createClient: () => supabase }))
+vi.mock("@/app/_media/use-media-uploader", () => ({
+  useMediaUploader: () => uploads.current,
+}))
+vi.mock("@/app/_labels/actions", () => actions)
+vi.mock("@/app/staff/_shell/match-actions", () => match)
+vi.mock("@/app/_labels/area-actions", () => area)
+
+vi.mock("@/lib/upload/quality", async (original) => ({
+  ...(await original<typeof import("@/lib/upload/quality")>()),
+  measurePhoto: vi.fn(async () => quality.hints),
+}))
+
+const jpeg = (name: string, lastModified = 0) =>
+  new File([new Uint8Array(64)], name, { type: "image/jpeg", lastModified })
+
+/** The label API: the menu, and each label send. */
+let posted: { venueId: string; input: Record<string, unknown> }[] = []
+function labelApi(url: string, init?: RequestInit) {
+  const method = init?.method ?? "GET"
+  let body: unknown
+  if (method === "POST") {
+    const sent = JSON.parse(String(init!.body))
+    posted.push(sent)
+    body = { ok: true, assetId: sent.input.assetId, state: "pending" }
+  } else if (method === "DELETE") body = { ok: true }
+  else if (url.includes("attention=1")) body = { ok: true, items: [] }
+  else body = { ok: true, catalogue: CATALOGUE, focus: null }
+  return Promise.resolve({ json: async () => body } as Response)
+}
+
+let started: string[] = []
+beforeEach(() => {
+  vi.clearAllMocks()
+  window.localStorage.clear()
+  posted = []
+  started = []
+  uploads.current = async (file) => {
+    started.push(file.name)
+    await Promise.resolve()
+    return { assetId: `asset-${file.name}` }
+  }
+  match.loadMatchBoardAction.mockResolvedValue({ ok: true, board: BOARD })
+  match.requestLabelHelpAction.mockResolvedValue({ ok: true })
+  quality.hints = null
+  area.setAreaLabelAction.mockImplementation(
+    async (_asset: string, subjectId: string) => ({ ok: true, subjectId })
+  )
+  area.loadAreaLabelsAction.mockResolvedValue({
+    ok: true,
+    offered: false,
+    places: [],
+    labels: [],
+  })
+  vi.stubGlobal("matchMedia", () => ({ matches: true }))
+  vi.stubGlobal("fetch", vi.fn(labelApi))
+})
+
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
+
+function Opener({
+  opts,
+  label = "Add photos",
+}: {
+  opts: OpenAddOptions
+  label?: string
+}) {
+  const openAdd = useAdd()
+  return (
+    <button type="button" onClick={() => openAdd?.(opts)}>
+      {label}
+    </button>
+  )
+}
+
+function Host({
+  opts,
+  venueId = "venue-1",
+  venueName = "The Bell",
+}: {
+  opts: OpenAddOptions
+  venueId?: string
+  venueName?: string
+}) {
+  return (
+    <AddHost
+      blocked={null}
+      captchaRequired={false}
+      captchaSiteKey={null}
+      venueId={venueId}
+      venueName={venueName}
+    >
+      <Opener opts={opts} />
+    </AddHost>
+  )
+}
+
+function host(opts: OpenAddOptions) {
+  return render(<Host opts={opts} />)
+}
+
+const gallery = () =>
+  document.querySelector<HTMLInputElement>(
+    'input[data-photo-source="library"]'
+  )!
+
+/** Opens Add photos and picks `files` from the gallery. */
+async function pick(opts: OpenAddOptions, files: File[]) {
+  const user = userEvent.setup()
+  host(opts)
+  await user.click(screen.getByRole("button", { name: "Add photos" }))
+  await user.upload(gallery(), files)
+  return user
+}
+
+const matchDialog = () => screen.getByRole("dialog")
+const sentFor = (asset: string) =>
+  posted.filter((p) => p.input.assetId === asset)
+
+/** Counts every tap the person makes in the app (the OS picker excluded). */
+function counted(user: ReturnType<typeof userEvent.setup>) {
+  let taps = 0
+  return {
+    taps: () => taps,
+    click: async (element: Element) => {
+      taps += 1
+      await user.click(element)
+    },
+  }
+}
+
+describe("the venue (spec §5.1)", () => {
+  it("is named under Match's title and on the end", async () => {
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await waitFor(() =>
+      expect(within(dialog).getByText("For The Bell")).toBeTruthy()
+    )
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    expect(
+      await within(matchDialog()).findByText("1 photo for The Bell")
+    ).toBeTruthy()
+  })
+})
+
+describe("measured journeys", () => {
+  it("1 photo for a requested slot: one tap in the app, no typing (AC01)", async () => {
+    const user = userEvent.setup()
+    const tap = counted(user)
+    host({
+      slot: { kind: "dish", itemId: "item-bhaji", name: "Onion Bhaji" },
+    })
+    await tap.click(screen.getByRole("button", { name: "Add photos" }))
+    await user.upload(gallery(), [jpeg("one.jpg")])
+    await waitFor(() => expect(sentFor("asset-one.jpg")).toHaveLength(1))
+    expect(sentFor("asset-one.jpg")[0].input).toMatchObject({
+      items: [{ itemId: "item-bhaji", variantId: null }],
+    })
+    expect(
+      within(matchDialog()).getByRole("heading", { name: "1 slot filled" })
+    ).toBeTruthy()
+    expect(tap.taps()).toBe(1)
+  })
+
+  it("10 photos of 3 dishes: three groups in 7 taps, each photo labelled (AC05)", async () => {
+    const user = userEvent.setup()
+    const tap = counted(user)
+    host({ match: { place: PASS } })
+    await tap.click(screen.getByRole("button", { name: "Add photos" }))
+    const files = Array.from({ length: 10 }, (_, i) =>
+      jpeg(`p${i + 1}.jpg`, i + 1)
+    )
+    await user.upload(gallery(), files)
+    let dialog = await screen.findByRole("dialog", { name: "Photo 1 of 10" })
+    // Nothing is grouped until the person says so (§5.4).
+    expect(within(dialog).getByText(/Tap the last photo/)).toBeTruthy()
+    await tap.click(within(dialog).getByRole("button", { name: "Photo 4 too" }))
+    expect(
+      within(dialog)
+        .getAllByRole("button", { pressed: true })
+        .map((b) => b.getAttribute("aria-label"))
+    ).toEqual(["Photo 2 too", "Photo 3 too", "Photo 4 too"])
+    await tap.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    dialog = await screen.findByRole("dialog", { name: "Photo 5 of 10" })
+    await tap.click(within(dialog).getByRole("button", { name: "Photo 7 too" }))
+    await tap.click(
+      await within(dialog).findByRole("button", { name: /Chicken Tikka/ })
+    )
+    dialog = await screen.findByRole("dialog", { name: "Photo 8 of 10" })
+    await tap.click(within(dialog).getByRole("button", { name: "All 3 left" }))
+    await tap.click(
+      await within(dialog).findByRole("button", { name: /Mango Lassi/ })
+    )
+    await waitFor(() => expect(posted).toHaveLength(10))
+    const itemOf = (n: number) =>
+      (sentFor(`asset-p${n}.jpg`)[0].input.items as { itemId: string }[])[0]
+        .itemId
+    expect([1, 2, 3, 4].map(itemOf)).toEqual(Array(4).fill("item-bhaji"))
+    expect([5, 6, 7].map(itemOf)).toEqual(Array(3).fill("item-tikka"))
+    expect([8, 9, 10].map(itemOf)).toEqual(Array(3).fill("item-lassi"))
+    const end = within(matchDialog())
+    expect(end.getByRole("heading", { name: "3 slots filled" })).toBeTruthy()
+    expect(end.getByText("10 photos for The Bell")).toBeTruthy()
+    expect(end.getByText("Onion Bhaji × 4")).toBeTruthy()
+    expect(end.getByText("Chicken Tikka × 3")).toBeTruthy()
+    expect(end.getByText("Mango Lassi × 3")).toBeTruthy()
+    expect(tap.taps()).toBe(7)
+  })
+
+  it("lets a grouped photo go again with one tap", async () => {
+    const user = await pick({ match: { place: PASS } }, [
+      jpeg("a.jpg", 1),
+      jpeg("b.jpg", 2),
+      jpeg("c.jpg", 3),
+    ])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 3" })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Photo 3 too" })
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Photo 3 too" })
+    )
+    expect(
+      within(dialog)
+        .getAllByRole("button", { pressed: true })
+        .map((b) => b.getAttribute("aria-label"))
+    ).toEqual(["Photo 2 too"])
+    await user.click(
+      within(dialog).getByRole("button", { name: "Photo 2 too" })
+    )
+    expect(within(dialog).queryAllByRole("button", { pressed: true })).toEqual(
+      []
+    )
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    expect(
+      await screen.findByRole("dialog", { name: "Photo 2 of 3" })
+    ).toBeTruthy()
+  })
+})
+
+describe("I'm not sure (FA-4, AC03)", () => {
+  it("sends the photo to the manager with the optional note, and no slot", async () => {
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(within(dialog).getByRole("button", { name: "Add a note" }))
+    await user.type(
+      within(dialog).getByRole("textbox", {
+        name: "Note for your manager (optional)",
+      }),
+      "New special, by the window"
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: /I'm not sure/ })
+    )
+    await waitFor(() =>
+      expect(match.requestLabelHelpAction).toHaveBeenCalledWith("asset-a.jpg")
+    )
+    await waitFor(() => expect(sentFor("asset-a.jpg")).toHaveLength(1))
+    expect(sentFor("asset-a.jpg")[0].input).toMatchObject({
+      items: [],
+      contentTypes: [],
+      note: "New special, by the window",
+    })
+    expect(
+      await within(matchDialog()).findByText(
+        "1 photo is with your manager, who will choose its slot."
+      )
+    ).toBeTruthy()
+    expect(
+      within(matchDialog()).getByRole("heading", { name: "No slots filled" })
+    ).toBeTruthy()
+  })
+
+  it("needs no typing: without a note no label is sent", async () => {
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      within(dialog).getByRole("button", { name: /I'm not sure/ })
+    )
+    await waitFor(() =>
+      expect(match.requestLabelHelpAction).toHaveBeenCalledWith("asset-a.jpg")
+    )
+    expect(sentFor("asset-a.jpg")).toEqual([])
+  })
+
+  it("keeps the photo under Match later when the manager could not be told", async () => {
+    match.requestLabelHelpAction.mockResolvedValue({
+      ok: false,
+      message: "No signal",
+    })
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      within(dialog).getByRole("button", { name: /I'm not sure/ })
+    )
+    await waitFor(() =>
+      expect(match.requestLabelHelpAction).toHaveBeenCalledTimes(2)
+    )
+    expect(
+      await within(matchDialog()).findByText(
+        "1 photo is under Match later on Album."
+      )
+    ).toBeTruthy()
+  })
+})
+
+describe("choosing the slot (spec §5.3)", () => {
+  it("offers the person's recent slots first, never applied", async () => {
+    window.localStorage.setItem(
+      "nabalens.match.recent-slots",
+      JSON.stringify({ venue: "venue-1", slots: ["dish:item-korma-chicken"] })
+    )
+    await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    const recent = await within(dialog).findByRole("list", { name: "Recent" })
+    expect(within(recent).getByText("Garlic Naan")).toBeTruthy()
+    expect(
+      within(recent).getByText("Waiting · another photo is welcome")
+    ).toBeTruthy()
+    // Offered, not applied: nothing is sent until a tap.
+    expect(started).toEqual([])
+  })
+
+  it("remembers a matched slot as recent for this venue", async () => {
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    expect(
+      JSON.parse(window.localStorage.getItem("nabalens.match.recent-slots")!)
+    ).toEqual({ venue: "venue-1", slots: ["dish:item-bhaji"] })
+  })
+
+  it("finds a dish by its other name and a slot already waiting", async () => {
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    const search = await within(dialog).findByRole("searchbox", {
+      name: "Search all empty slots",
+    })
+    await user.type(search, "pakoras")
+    expect(
+      within(dialog).getByRole("button", { name: /Onion Bhaji/ })
+    ).toBeTruthy()
+    await user.clear(search)
+    await user.type(search, "naan")
+    const waiting = within(dialog).getByRole("button", { name: /Garlic Naan/ })
+    expect(waiting.textContent).toContain("another photo is welcome")
+    await user.click(waiting)
+    await waitFor(() => expect(sentFor("asset-a.jpg")).toHaveLength(1))
+    expect(sentFor("asset-a.jpg")[0].input).toMatchObject({
+      items: [{ itemId: "item-korma-chicken", variantId: null }],
+    })
+  })
+})
+
+describe("advice that never blocks (spec §5.5)", () => {
+  it("says a photo looks dark and small, and it still sends", async () => {
+    quality.hints = { width: 900, height: 600, brightness: 20, sharpness: 2 }
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    expect(
+      await within(dialog).findByText(
+        "This photo looks dark. You can still send it."
+      )
+    ).toBeTruthy()
+    expect(within(dialog).getByText(/This photo is small/)).toBeTruthy()
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    await waitFor(() => expect(sentFor("asset-a.jpg")).toHaveLength(1))
+  })
+
+  it("marks a photo the server had already (same bytes, same venue)", async () => {
+    uploads.current = async (file) => ({
+      assetId: `asset-${file.name}`,
+      duplicate: true,
+    })
+    const user = await pick({ match: { place: PASS } }, [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Onion Bhaji/ })
+    )
+    expect(
+      await within(matchDialog()).findByText(
+        /Sent before: it won't count twice/
+      )
+    ).toBeTruthy()
+  })
+})
+
+describe("a venue change before sending (AC11, spec §6 S2)", () => {
+  it("reads the new venue's slots and says so", async () => {
+    const user = userEvent.setup()
+    const view = render(<Host opts={{ match: { place: PASS } }} />)
+    await user.click(screen.getByRole("button", { name: "Add photos" }))
+    await user.upload(gallery(), [jpeg("a.jpg", 1), jpeg("b.jpg", 2)])
+    await screen.findByRole("dialog", { name: "Photo 1 of 2" })
+    await waitFor(() =>
+      expect(match.loadMatchBoardAction).toHaveBeenCalledTimes(1)
+    )
+    match.loadMatchBoardAction.mockResolvedValue({
+      ok: true,
+      board: { ...BOARD, venue: { id: "venue-2", name: "The Crown" } },
+    })
+    view.rerender(
+      <Host
+        opts={{ match: { place: PASS } }}
+        venueId="venue-2"
+        venueName="The Crown"
+      />
+    )
+    expect(
+      await within(matchDialog()).findByText(
+        "You are now adding photos for The Crown. The slots below are The Crown's."
+      )
+    ).toBeTruthy()
+    await waitFor(() =>
+      expect(match.loadMatchBoardAction).toHaveBeenCalledTimes(2)
+    )
+    expect(await within(matchDialog()).findByText("For The Crown")).toBeTruthy()
+  })
+})
