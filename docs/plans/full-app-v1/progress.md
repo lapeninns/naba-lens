@@ -1,0 +1,10 @@
+# Full App v1: progress record
+
+Spec: [../../spec/NabaLens-Full-App-Specification-v1.0.md](../../spec/NabaLens-Full-App-Specification-v1.0.md). Branch: `feat/full-app-v1` (built on `design/inn-identity`, the Album delivery A0 to A5). One bundled PR to `main` at the end.
+
+This file is the checkpoint log. Each entry says what was verified, on which commit, and what is next, so an interrupted run resumes from the last verified state.
+
+| When (UTC) | Commit      | Stage | What was verified                                                                                           | Next                                                |
+| ---------- | ----------- | ----- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 2026-11-18 | `31ce75b7a` | Start | Spec added to `docs/spec/`. Base: Album A0 to A5 merged and verified (V-1: e2e, security, migration suite). | Gap map of every spec requirement against the code. |
+| 2026-11-18 | (this commit) | Plan | Gap map: 493 requirements (136 done, 213 partial, 102 missing, 32 conflict, 10 R2); critic corrected 13 done claims. Decisions FA-1 to FA-44, sprint plan, checklist written. | Sprint 1 on eight T3 accounts. |
