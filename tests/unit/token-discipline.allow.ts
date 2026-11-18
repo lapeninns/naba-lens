@@ -48,18 +48,18 @@ const LINK_ONLY_FOCUS =
 export const ALLOW: AllowEntry[] = [
   /* ---------------------------------------------------------- raw-colour */
   {
-    file: "app/layout.tsx",
+    file: "lib/pwa/canvas-colours.ts",
     rule: "raw-colour",
-    match: "#eef0f3",
+    match: "#f6f1e7",
     reason:
-      "The browser's theme-color meta tag cannot read a CSS variable, so the light canvas is repeated in sRGB.",
+      "The theme-color meta tag and the web app manifest cannot read a CSS variable, so the light canvas is repeated in sRGB.",
   },
   {
-    file: "app/layout.tsx",
+    file: "lib/pwa/canvas-colours.ts",
     rule: "raw-colour",
-    match: "#131415",
+    match: "#151714",
     reason:
-      "The browser's theme-color meta tag cannot read a CSS variable, so the dark canvas is repeated in sRGB.",
+      "The theme-color meta tag cannot read a CSS variable, so the dark canvas is repeated in sRGB.",
   },
 
   /* ------------------------------------------- arbitrary-value: shadows */

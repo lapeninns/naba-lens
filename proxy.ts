@@ -115,7 +115,8 @@ function withSessionHeaders(from: NextResponse, to: NextResponse) {
 
 export const config = {
   matcher: [
-    // Everything except static assets and image optimisation.
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // Everything except static assets and image optimisation. The web app
+    // manifest (FA-53) is the same for everyone and needs no session.
+    "/((?!_next/static|_next/image|favicon.ico|manifest\\.webmanifest$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 }

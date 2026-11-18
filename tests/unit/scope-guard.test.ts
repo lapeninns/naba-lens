@@ -233,6 +233,8 @@ const ALLOWED_PAGES = new Set([
 ])
 
 const ALLOWED_HANDLERS = new Set([
+  // FA-53 (spec §15.3): the static web app manifest, the same for everyone.
+  "/manifest.webmanifest",
   "/auth/callback",
   "/auth/confirm/verify",
   "/auth/logout",
@@ -351,6 +353,17 @@ function walk(dir: string): string[] {
 
 type Route = { url: string; kind: "page" | "handler"; file: string }
 
+/** Where Next serves each generated metadata route (pages and route.ts aside). */
+const METADATA_URL: Record<string, string> = {
+  manifest: "manifest.webmanifest",
+  sitemap: "sitemap.xml",
+  robots: "robots.txt",
+  "opengraph-image": "opengraph-image",
+  "twitter-image": "twitter-image",
+  icon: "icon",
+  "apple-icon": "apple-icon",
+}
+
 function enumerateRoutes(): Route[] {
   const routes: Route[] = []
   for (const file of walk(appDir)) {
@@ -365,8 +378,12 @@ function enumerateRoutes(): Route[] {
         // Route groups `(name)` do not appear in the URL.
         .filter((s) => !(s.startsWith("(") && s.endsWith(")")))
         .join("/")
+    const base = url === "/" ? "/" : url.replace(/\/$/, "")
+    // A metadata route is served at its own file name, not at its folder.
+    const stem = name.split(".")[0]
+    const served = METADATA_URL[stem]
     routes.push({
-      url: url === "/" ? "/" : url.replace(/\/$/, ""),
+      url: served ? `${base === "/" ? "" : base}/${served}` : base,
       kind: name.startsWith("page.") ? "page" : "handler",
       file: relative(root, file),
     })
