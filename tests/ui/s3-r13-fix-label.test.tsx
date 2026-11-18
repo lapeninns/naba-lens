@@ -179,7 +179,7 @@ describe("X7: Fix label on a decided dish label", () => {
       "It is stew"
     )
     await user.click(
-      within(dialog).getByRole("button", { name: /Accept for Stew/ })
+      within(dialog).getByRole("button", { name: /Approve for Stew/ })
     )
     await waitFor(() =>
       expect(manager.decideMenuPhotoAction).toHaveBeenCalled()
@@ -255,7 +255,7 @@ describe("X8: one picker for menu items, places and amenities", () => {
       "It is the garden"
     )
     await user.click(
-      within(dialog).getByRole("button", { name: /Accept for Bar/ })
+      within(dialog).getByRole("button", { name: /Approve for Bar/ })
     )
     expect(within(dialog).getByText(REVIEW_COPY.pickerSameSlot)).toBeTruthy()
     expect(review.fixSlotLabelAction).not.toHaveBeenCalled()
@@ -264,7 +264,7 @@ describe("X8: one picker for menu items, places and amenities", () => {
 
     await user.click(within(dialog).getByRole("radio", { name: "Garden" }))
     await user.click(
-      within(dialog).getByRole("button", { name: /Accept for Garden/ })
+      within(dialog).getByRole("button", { name: /Approve for Garden/ })
     )
     await waitFor(() => expect(review.fixSlotLabelAction).toHaveBeenCalled())
     expect(review.fixSlotLabelAction.mock.calls[0]![0]).toEqual({
@@ -304,7 +304,7 @@ describe("X8: one picker for menu items, places and amenities", () => {
       "The car park"
     )
     await user.click(
-      within(dialog).getByRole("button", { name: /Accept for Parking/ })
+      within(dialog).getByRole("button", { name: /Approve for Parking/ })
     )
     await waitFor(() => expect(review.fixSlotLabelAction).toHaveBeenCalled())
     expect(review.fixSlotLabelAction.mock.calls[0]![0]).toEqual({
@@ -341,7 +341,7 @@ describe("X8: one picker for menu items, places and amenities", () => {
       "A bowl of stew"
     )
     await user.click(
-      within(dialog).getByRole("button", { name: /Accept for Stew/ })
+      within(dialog).getByRole("button", { name: /Approve for Stew/ })
     )
     await waitFor(() => expect(review.fixSlotLabelAction).toHaveBeenCalled())
     expect(review.fixSlotLabelAction.mock.calls[0]![0]).toMatchObject({

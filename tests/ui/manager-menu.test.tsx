@@ -446,7 +446,7 @@ describe("Item detail", () => {
   it("shows the menu photo, alternatives, waiting and history sections", () => {
     showItem(detail())
     expect(
-      screen.getByRole("link", { name: "Menu" }).getAttribute("href")
+      screen.getByRole("link", { name: "Album" }).getAttribute("href")
     ).toBe("/manager/menu?status=covered")
     expect(screen.getByRole("heading", { level: 1, name: "Soup" })).toBeTruthy()
     const menuPhoto = within(region("Menu photo"))
@@ -471,9 +471,7 @@ describe("Item detail", () => {
       alternatives.getByRole("button", { name: "Withdraw acceptance" })
     ).toBeTruthy()
     expect(
-      within(region("Waiting for review")).getByText(
-        MANAGER_COPY.item.noneWaiting
-      )
+      within(region("Awaiting review")).getByText(MANAGER_COPY.item.noneWaiting)
     ).toBeTruthy()
     const history = within(region("History"))
     expect(
@@ -554,7 +552,7 @@ describe("Item detail", () => {
       removed.getByText("This option is no longer on the menu")
     ).toBeTruthy()
     expect(
-      removed.queryByRole("button", { name: "Accept again for this menu" })
+      removed.queryByRole("button", { name: "Approve again for this menu" })
     ).toBeNull()
     expect(
       removed
@@ -565,7 +563,7 @@ describe("Item detail", () => {
     const renamed = within(cards[1]!)
     expect(renamed.getByText("Name changed on the new menu")).toBeTruthy()
     expect(
-      renamed.getByRole("button", { name: "Accept again for this menu" })
+      renamed.getByRole("button", { name: "Approve again for this menu" })
     ).toBeTruthy()
   })
 
@@ -603,7 +601,7 @@ describe("Item detail", () => {
       decide
     )
     await user.click(
-      screen.getByRole("button", { name: "Accept again for this menu" })
+      screen.getByRole("button", { name: "Approve again for this menu" })
     )
     expect(decide).toHaveBeenCalledTimes(1)
     const [input, view] = decide.mock.calls[0]!
@@ -620,7 +618,7 @@ describe("Item detail", () => {
     expect(typeof (input as { requestId: string }).requestId).toBe("string")
     expect(view).toEqual({ status: "all" })
     expect(router.refresh).toHaveBeenCalled()
-    expect(screen.getByText("Accepted again for Soup.")).toBeTruthy()
+    expect(screen.getByText("Approved again for Soup.")).toBeTruthy()
   })
 
   it("withdraw needs a reason and says what happens to the menu photo", async () => {
@@ -739,7 +737,7 @@ describe("Item detail", () => {
     for (const name of [
       "Menu photo",
       "Accepted alternatives",
-      "Asked for another photo",
+      "Another photo requested",
       "Needs a recheck",
     ]) {
       const section = within(region(name))
@@ -900,7 +898,7 @@ describe("Item detail", () => {
       groupCount: 0,
     }
     showItem(detail({ waiting: { items: [card], nextCursor: null } }))
-    const waiting = within(region("Waiting for review"))
+    const waiting = within(region("Awaiting review"))
     expect(waiting.getByText("1 photo waiting for a decision")).toBeTruthy()
     expect(
       waiting
@@ -910,7 +908,7 @@ describe("Item detail", () => {
     cleanup()
     showItem(detail({ item: menuItem({ othersWaiting: 2 }) }))
     expect(
-      within(region("Waiting for review")).getByText("Waiting for an admin")
+      within(region("Awaiting review")).getByText("Waiting for an admin")
     ).toBeTruthy()
   })
 })

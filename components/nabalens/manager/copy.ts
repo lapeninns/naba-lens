@@ -1,4 +1,6 @@
 import { plural } from "@/components/nabalens/coverage/copy"
+import { CHIP_STATES } from "@/components/nabalens/status-chip"
+import { INBOX_COPY } from "@/components/nabalens/manager/review/inbox-copy"
 
 /** Words of the venue manager workspace, shared by its pages and tests. */
 export const MANAGER_COPY = {
@@ -188,7 +190,8 @@ export const MANAGER_COPY = {
       "A contributor's photos will appear here once item review is switched on for your venue.",
   },
   menu: {
-    title: "Menu",
+    // S3-R13: the page the Album tab opens is headed as the tab is named.
+    title: "Album",
     loading: "Loading the menu",
     search: "Search items",
     searchPlaceholder: "Item name",
@@ -220,7 +223,7 @@ export const MANAGER_COPY = {
   item: {
     title: "Menu item",
     loading: "Loading this menu item",
-    back: "Menu",
+    back: "Album",
     menuPhoto: "Menu photo",
     noMenuPhoto: "No menu photo yet",
     fallback: "Showing the earliest accepted photo",
@@ -230,7 +233,7 @@ export const MANAGER_COPY = {
     alternatives: "Accepted alternatives",
     setPreferred: "Set as menu photo",
     withdrawAcceptance: "Withdraw acceptance",
-    askedForAnother: "Asked for another photo",
+    askedForAnother: CHIP_STATES.coverage_replacement_needed.word,
     withdraw: "Withdraw",
     recheck: "Needs a recheck",
     recheckKind: {
@@ -239,10 +242,10 @@ export const MANAGER_COPY = {
       variant_removed: "Option no longer on the menu",
       presentation_changed: "Served differently now",
     },
-    acceptAgain: "Accept again for this menu",
+    acceptAgain: INBOX_COPY.publicUse.again,
     variantRemoved: "This option is no longer on the menu",
     movedFrom: (name: string) => `Moved from ${name}`,
-    waiting: "Waiting for review",
+    waiting: CHIP_STATES.coverage_pending.word,
     waitingCount: (n: number) => `${plural(n, "photo")} waiting for a decision`,
     reviewWaiting: "Review these photos",
     noneWaiting: "No photos of this item are waiting for a decision.",
@@ -265,7 +268,7 @@ export const MANAGER_COPY = {
     done: {
       set_preferred: (item: string) => `Set as the menu photo for ${item}.`,
       withdraw: "Withdrawn.",
-      reaccept: (item: string) => `Accepted again for ${item}.`,
+      reaccept: INBOX_COPY.publicUse.doneAgain,
     },
     history: "History",
     historyVerb: {

@@ -68,7 +68,7 @@ for (const [size, options] of SIZES) {
     await dialog
       .getByRole("textbox", { name: "Why is the staff label wrong?" })
       .fill("It is the pie, not the soup")
-    await dialog.getByRole("button", { name: "Accept for Pie" }).click()
+    await dialog.getByRole("button", { name: "Approve for Pie" }).click()
     await expect(mgr.getByText("Saved.")).toBeVisible()
     await evidence(mgr, `ac15-fixed-${size.replace(" ", "-")}`)
 
@@ -112,7 +112,7 @@ test("AC15 (S3-R13 X7): a label accepted on the wrong dish is fixed later, witho
   await dialog
     .getByRole("textbox", { name: "Why is the staff label wrong?" })
     .fill("It is the pie, not the soup")
-  await dialog.getByRole("button", { name: "Accept for Pie" }).click()
+  await dialog.getByRole("button", { name: "Approve for Pie" }).click()
   await expect(mgr.getByText("Saved.")).toBeVisible()
 
   // The wrong acceptance is withdrawn, the photo is accepted on the right
@@ -185,7 +185,7 @@ test("AC17: Ask for another photo gives the reason to the contributor, and Retak
   await dialog.getByLabel("Add a short note (optional)").fill(note)
   await dialog.locator('[data-review-action="send-ask"]').click()
   await expect(mgr.getByText("Saved.")).toBeVisible()
-  await expect(mgr.getByText("Another photo asked for").first()).toBeVisible()
+  await expect(mgr.getByText("Another photo requested").first()).toBeVisible()
 
   expect(
     psql(`select state || '|' || reason from public.menu_item_photos

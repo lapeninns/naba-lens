@@ -46,6 +46,8 @@ import type {
   WithdrawnItemPhoto,
 } from "@/lib/server/coverage/types"
 
+import { INBOX_COPY } from "@/components/nabalens/manager/review/inbox-copy"
+
 import { ITEM_PHOTO_STATE_LABEL, ITEM_REVIEW_COPY, waitingFor } from "./copy"
 
 export type ReviewItemPhotoInput = {
@@ -284,7 +286,7 @@ export function ItemPhotoReview({
               ? { ...c, photo: { ...c.photo, isPrimary: false } }
               : c
         )
-        return `Accepted for ${candidate.item.name}.${photo.isPrimary ? " It's the main photo." : ""}${photo.selfReview ? " Recorded as a self-review." : ""}`
+        return `${INBOX_COPY.publicUse.doneShort(candidate.item.name)}${photo.isPrimary ? " It's the main photo." : ""}${photo.selfReview ? " Recorded as a self-review." : ""}`
       }
     )
   }

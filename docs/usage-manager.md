@@ -93,15 +93,15 @@ status gathers them too.
 
 **See every photo as a list** (`/manager/review?view=list`) shows photos
 staff labelled with a menu item, oldest first, then place and amenity photos
-with their own decisions. **Status** picks **Waiting**, **Needs a recheck**,
-**Asked for another**, **Accepted**, **Labelled for an old menu**,
+with their own decisions. **Status** picks **Awaiting review**, **Needs a
+recheck**, **Another photo requested**, **Accepted**, **Labelled for an old menu**,
 **Unlabelled photos**, **Your photos** (only when you have some waiting) or
 **All**. **Section** and **Contributor** narrow it, and **Narrow** adds
 **Waiting 2+ days**, **Waiting 7+ days**, **Possible duplicates** and **Has a
 needed-by date**.
 
-- **Accept for this item** counts the photo for its item; **Accept and set as
-  menu photo** also makes it the one shown.
+- **Approve for public use** counts the photo for its item; **Approve and set
+  as menu photo** also makes it the one shown.
 - **Choose a different menu item** moves a wrongly labelled photo and accepts
   it, with a reason. The card keeps the staff label and shows **Moved from**
   the old item.
@@ -141,7 +141,7 @@ this photo first** with **Show the latest**; the first decision stands.
 
 ## Album
 
-The **Album** tab opens the venue's menu (the page is headed **Menu**): every
+The **Album** tab opens the venue's menu (the page is headed **Album**): every
 active menu item by section with its photo state (**Has a photo**,
 **Awaiting review**, **Still needs a photo**, **New photo waiting**, **Needs a
 recheck**). Search with **Search items**, or filter with **Show** and

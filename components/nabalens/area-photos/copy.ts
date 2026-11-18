@@ -2,6 +2,8 @@
 // staff copy never says "any photo counts". The month line lives with Your
 // month in tasks/copy.ts (HOME_MONTH_COPY.counts); it is re-exported here.
 
+import { CHIP_STATES } from "../status-chip"
+import { INBOX_COPY } from "../manager/review/inbox-copy"
 import { HOME_MONTH_COPY } from "../tasks/copy"
 
 export const AREA_COPY = {
@@ -31,7 +33,14 @@ export const AREA_COPY = {
       "Photos staff labelled with a part of the venue. An accepted photo counts toward their month.",
     empty: "No venue area photos are waiting for review.",
     decidedHeading: "Decided recently",
-    accept: "Accept",
+    // S3-R13: manager review words (DESIGN.md §7, departure A-REV-1).
+    accept: INBOX_COPY.publicUse.action,
+    state: {
+      pending: CHIP_STATES.coverage_pending.word,
+      accepted: "Accepted",
+      needs_another_photo: CHIP_STATES.coverage_replacement_needed.word,
+      withdrawn: "Withdrawn",
+    },
     askAnother: "Ask for another photo",
     withdraw: "Withdraw",
     reasonLabel: "What should the next photo show?",

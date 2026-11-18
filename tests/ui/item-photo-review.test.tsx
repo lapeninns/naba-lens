@@ -203,7 +203,7 @@ describe("ItemPhotoReview", () => {
     })
     expect(input.requestId).toMatch(/^[0-9a-f-]{36}$/)
     expect(
-      await screen.findByText("Accepted for Soup. It's the main photo.")
+      await screen.findByText("Approved for Soup. It's the main photo.")
     ).toBeTruthy()
     await waitFor(() =>
       expect(document.activeElement).toBe(screen.getByRole("status"))
@@ -236,7 +236,7 @@ describe("ItemPhotoReview", () => {
     await user.click(
       within(card()).getByRole("button", { name: ITEM_REVIEW_COPY.accept })
     )
-    await screen.findByText("Accepted for Soup.")
+    await screen.findByText("Approved for Soup.")
     await user.click(
       within(card("Soup: photo by TEST Priya")).getByRole("button", {
         name: ITEM_REVIEW_COPY.accept,
@@ -283,7 +283,7 @@ describe("ItemPhotoReview", () => {
     await user.click(within(card()).getByRole("button", { name: "Saving…" }))
     expect(review).toHaveBeenCalledTimes(1)
     resolve()
-    expect(await screen.findByText("Accepted for Soup.")).toBeTruthy()
+    expect(await screen.findByText("Approved for Soup.")).toBeTruthy()
   })
 
   it("reuses the request key when a network failure is retried", async () => {
@@ -542,7 +542,7 @@ describe("ItemPhotoReview", () => {
       within(own).getByRole("button", { name: ITEM_REVIEW_COPY.accept })
     )
     expect(
-      await screen.findByText("Accepted for Soup. Recorded as a self-review.")
+      await screen.findByText("Approved for Soup. Recorded as a self-review.")
     ).toBeTruthy()
   })
 

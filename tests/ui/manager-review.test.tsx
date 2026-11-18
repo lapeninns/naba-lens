@@ -641,7 +641,7 @@ describe("ReviewScreen", () => {
       })
     )
     expect(
-      await screen.findByText("Accepted for Soup. Soup now has a photo.")
+      await screen.findByText("Approved for Soup. Soup now has a photo.")
     ).toBeTruthy()
     // The decided card stays, collapsed with its new state.
     const decided = cardEl(first.key)
@@ -685,7 +685,7 @@ describe("ReviewScreen", () => {
         name: REVIEW_COPY.accept,
       })
     )
-    await screen.findByText("Accepted for Soup. Soup now has a photo.")
+    await screen.findByText("Approved for Soup. Soup now has a photo.")
     // The sibling now carries the new revision and offers the covered action.
     expect(
       within(cardEl(sibling.key)).getByRole("button", {
