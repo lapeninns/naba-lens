@@ -7454,7 +7454,7 @@ export type Database = {
       }
       menu_special_decide: {
         Args: {
-          p_approve: boolean
+          p_accept: boolean
           p_reason: string
           p_revision: number
           p_special_id: string

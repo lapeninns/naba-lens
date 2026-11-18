@@ -25,7 +25,7 @@ const LINK =
 
 const STATUS_WORD: Record<ChangeRequestStatus, string> = {
   open: "Waiting for an admin",
-  approved: "Approved",
+  accepted: "Accepted",
   declined: "Declined",
   clarification_requested: "Admin asks for more detail",
   withdrawn: "Withdrawn",

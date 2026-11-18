@@ -13,7 +13,7 @@ import type { MenuChangeRequest } from "@/lib/server/menus/local"
 import { decideChangeRequestAction } from "./actions"
 
 // Spec §7 M5 / §8 A3: a manager's request for a permanent catalogue change,
-// decided here by an admin. Approving records the decision; the admin then
+// decided here by an admin. Accepting records the decision; the admin then
 // makes the change in a draft. Declining or asking for clarification needs a
 // reason, which the manager sees.
 
@@ -25,7 +25,7 @@ export const CHANGE_KIND_LABEL: Record<MenuChangeRequest["kind"], string> = {
   other: "Other",
 }
 
-type Decision = "approved" | "declined" | "clarification_requested"
+type Decision = "accepted" | "declined" | "clarification_requested"
 
 function RequestRow({ request }: { request: MenuChangeRequest }) {
   const router = useRouter()
@@ -36,7 +36,7 @@ function RequestRow({ request }: { request: MenuChangeRequest }) {
 
   async function decide(decision: Decision) {
     if (pending) return
-    if (decision !== "approved" && !reason.trim()) {
+    if (decision !== "accepted" && !reason.trim()) {
       setError("Give a reason the manager will see.")
       return
     }
@@ -93,11 +93,11 @@ function RequestRow({ request }: { request: MenuChangeRequest }) {
         <Button
           variant="primary"
           size="sm"
-          onClick={() => decide("approved")}
+          onClick={() => decide("accepted")}
           disabled={pending !== null}
-          aria-busy={pending === "approved" || undefined}
+          aria-busy={pending === "accepted" || undefined}
         >
-          Approve
+          Accept
         </Button>
         <Button
           variant="secondary"
@@ -135,7 +135,7 @@ export function ChangeRequestsPanel({
   return (
     <>
       <Notice>
-        Approving records your decision. Make the change in a draft, then
+        Accepting records your decision. Make the change in a draft, then
         activate it.
       </Notice>
       <ul className="divide-y divide-line">

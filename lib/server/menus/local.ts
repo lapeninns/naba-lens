@@ -395,23 +395,23 @@ function revision(v: unknown): number | null {
   return typeof v === "number" && Number.isInteger(v) && v >= 1 ? v : null
 }
 
-/** Approve or decline a staff suggestion (a reason is needed to decline). */
+/** Accept or decline a staff suggestion (a reason is needed to decline). */
 export async function decideSpecial(
   actor: MediaActor,
   input: unknown
 ): Promise<Outcome<{ status: string }>> {
   if (!isObject(input) || !isUuid(input.specialId))
     return notFound("This special could not be found.")
-  if (typeof input.approve !== "boolean" || !revision(input.revision))
+  if (typeof input.accept !== "boolean" || !revision(input.revision))
     return invalid("This request is invalid.")
   const reason = input.reason == null ? null : text(input.reason, 300)
-  if (!input.approve && !reason) return invalid("Say why it is declined.")
+  if (!input.accept && !reason) return invalid("Say why it is declined.")
   return call(
     actor,
     "menu_special_decide",
     {
       p_special_id: input.specialId,
-      p_approve: input.approve,
+      p_accept: input.accept,
       p_reason: reason,
       p_revision: input.revision,
     },
@@ -456,7 +456,7 @@ export async function reviewSpecial(
 export type ChangeRequestKind =
   "add" | "rename" | "remove" | "presentation" | "other"
 export type ChangeRequestStatus =
-  "open" | "approved" | "declined" | "clarification_requested" | "withdrawn"
+  "open" | "accepted" | "declined" | "clarification_requested" | "withdrawn"
 
 const KINDS: readonly string[] = [
   "add",
@@ -467,7 +467,7 @@ const KINDS: readonly string[] = [
 ]
 const STATUSES: readonly string[] = [
   "open",
-  "approved",
+  "accepted",
   "declined",
   "clarification_requested",
   "withdrawn",
@@ -573,7 +573,7 @@ export async function createChangeRequest(
   ).then((r) => (r.ok ? { ok: true, ...r.value } : r))
 }
 
-/** Admin only: approved | declined | clarification_requested. */
+/** Admin only: accepted | declined | clarification_requested. */
 export async function decideChangeRequest(
   actor: MediaActor,
   input: unknown
@@ -582,14 +582,14 @@ export async function decideChangeRequest(
     return notFound("This request could not be found.")
   const decision = input.decision
   if (
-    (decision !== "approved" &&
+    (decision !== "accepted" &&
       decision !== "declined" &&
       decision !== "clarification_requested") ||
     !revision(input.revision)
   )
     return invalid("This request is invalid.")
   const reason = input.reason == null ? null : text(input.reason, 500)
-  if (decision !== "approved" && !reason) return invalid("Give a reason.")
+  if (decision !== "accepted" && !reason) return invalid("Give a reason.")
   return call(
     actor,
     "menu_change_request_decide",

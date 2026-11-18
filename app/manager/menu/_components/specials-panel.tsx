@@ -14,7 +14,7 @@ import type { MenuSpecial, SpecialState } from "@/lib/server/menus/local"
 import type { LocalAction } from "../local-actions"
 
 // Spec §4.3, §7 M5 (S1-MENUS): dated local specials. A manager creates one
-// running; staff suggestions wait here for Approve or Decline. On its end
+// running; staff suggestions wait here for Accept or Decline. On its end
 // date a special asks for review: End it, or Extend it to a new date.
 
 export const SPECIAL_STATE_WORD: Record<SpecialState, string> = {
@@ -186,17 +186,17 @@ function SpecialRow({
               variant="primary"
               disabled={busy}
               onClick={() =>
-                void run(decide, { ...base, approve: true, reason: null })
+                void run(decide, { ...base, accept: true, reason: null })
               }
             >
-              Approve
+              Accept
             </Button>
             <Button
               size="sm"
               variant="quiet"
               disabled={busy}
               onClick={() =>
-                void run(decide, { ...base, approve: false, reason })
+                void run(decide, { ...base, accept: false, reason })
               }
             >
               Decline

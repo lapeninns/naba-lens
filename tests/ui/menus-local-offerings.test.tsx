@@ -257,7 +257,7 @@ describe("SpecialsList", () => {
     })
   })
 
-  it("approves a staff suggestion, and declines one with a reason", async () => {
+  it("accepts a staff suggestion, and declines one with a reason", async () => {
     const user = userEvent.setup()
     const decide = vi.fn().mockResolvedValue({ ok: true, status: "running" })
     render(
@@ -274,11 +274,11 @@ describe("SpecialsList", () => {
     )
     await user.click(screen.getByRole("button", { name: "Decline" }))
     expect(decide).toHaveBeenLastCalledWith(
-      expect.objectContaining({ approve: false, reason: "Not this week" })
+      expect.objectContaining({ accept: false, reason: "Not this week" })
     )
-    await user.click(screen.getByRole("button", { name: "Approve" }))
+    await user.click(screen.getByRole("button", { name: "Accept" }))
     expect(decide).toHaveBeenLastCalledWith(
-      expect.objectContaining({ approve: true, reason: null })
+      expect.objectContaining({ accept: true, reason: null })
     )
   })
 })

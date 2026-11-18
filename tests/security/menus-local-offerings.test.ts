@@ -377,7 +377,7 @@ describe("local specials", () => {
       }) as Rpc<{ items: Special[] }>
     ))!.items
 
-  it("lets staff suggest and the manager approve; expiry asks for review; ending keeps the item's history", async () => {
+  it("lets staff suggest and the manager accept; expiry asks for review; ending keeps the item's history", async () => {
     const suggested = (await ok(create(w.staff, w.venue)))!
     expect(suggested.status).toBe("suggested")
     // Another staff member does not see someone else's suggestion.
@@ -387,7 +387,7 @@ describe("local specials", () => {
     await fails(
       call(w.staff, "menu_special_decide", {
         p_special_id: suggested.specialId,
-        p_approve: true,
+        p_accept: true,
         p_reason: null,
         p_revision: 1,
       }) as Rpc,
@@ -396,7 +396,7 @@ describe("local specials", () => {
     await ok(
       call(w.mgr, "menu_special_decide", {
         p_special_id: suggested.specialId,
-        p_approve: true,
+        p_accept: true,
         p_reason: null,
         p_revision: 1,
       }) as Rpc
@@ -462,7 +462,7 @@ describe("local specials", () => {
     await fails(
       call(w.mgr, "menu_special_decide", {
         p_special_id: s.specialId,
-        p_approve: false,
+        p_accept: false,
         p_reason: null,
         p_revision: 1,
       }) as Rpc,
@@ -471,7 +471,7 @@ describe("local specials", () => {
     await ok(
       call(w.mgr, "menu_special_decide", {
         p_special_id: s.specialId,
-        p_approve: false,
+        p_accept: false,
         p_reason: "TEST not this week",
         p_revision: 1,
       }) as Rpc
@@ -550,7 +550,7 @@ describe("change requests and retirement impact", () => {
     await fails(
       call(w.mgr, "menu_change_request_decide", {
         p_request_id: created.requestId,
-        p_decision: "approved",
+        p_decision: "accepted",
         p_reason: null,
         p_revision: 1,
       }) as Rpc,
@@ -568,7 +568,7 @@ describe("change requests and retirement impact", () => {
     await ok(
       call(admin, "menu_change_request_decide", {
         p_request_id: created.requestId,
-        p_decision: "approved",
+        p_decision: "accepted",
         p_reason: null,
         p_revision: 1,
       }) as Rpc
@@ -580,7 +580,7 @@ describe("change requests and retirement impact", () => {
     ))!
     expect(
       all.items.find((r) => r.requestId === created.requestId)
-    ).toMatchObject({ status: "approved" })
+    ).toMatchObject({ status: "accepted" })
 
     const impact = (await ok(
       call(w.mgr, "menu_item_retirement_impact", { p_item_id: dal }) as Rpc<

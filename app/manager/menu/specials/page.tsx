@@ -21,7 +21,7 @@ import {
 export const metadata = { title: "Specials" }
 
 /**
- * Local specials (spec §4.3, §7 M5): add a dated special, approve or decline
+ * Local specials (spec §4.3, §7 M5): add a dated special, accept or decline
  * staff suggestions, and end or extend one at its end date. `?archived=1`
  * also lists ended and declined specials (spec §4.1 archive filter).
  */

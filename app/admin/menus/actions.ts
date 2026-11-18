@@ -142,7 +142,7 @@ export async function activateVersionAction(
   )
 }
 
-/** Approve a draft to become active at `at` (ISO instant), AC27. */
+/** Confirm a draft to become active at `at` (ISO instant), AC27. */
 export async function scheduleVersionAction(
   input: unknown
 ): Promise<MenuAction<{ scheduledFor: string }>> {

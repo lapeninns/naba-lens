@@ -2,7 +2,7 @@
 set lock_timeout = '5s';
 
 -- Full App v1, S1-MENUS (spec §4.3, §7 M5, §8 A3, §11; AC27, AC28):
--- scheduled menu activation, explicit approval of retirements, and the
+-- scheduled menu activation, explicit confirmation of retirements, and the
 -- manager's read of the active and future menus.
 --
 --   Schedule   A reviewed draft can be activated now or scheduled for a
@@ -10,12 +10,12 @@ set lock_timeout = '5s';
 --              draft stays a draft: until it becomes active it changes
 --              nothing in the current menu, coverage or labelling (AC27).
 --              Saving a scheduled draft clears its schedule (the admin
---              approved one exact revision). One scheduled draft per venue.
+--              confirmed one exact revision). One scheduled draft per venue.
 --   Promotion  public.menu_activate_due (the venue's manager or an admin, on
 --              page load) and public.menu_activate_due_all (service role,
 --              the cron route) activate every due schedule under the venue
 --              lock, with the scheduling admin as the actor. A schedule
---              whose draft or retirements changed since it was approved
+--              whose draft or retirements changed since it was confirmed
 --              lapses instead (event schedule_lapsed) and nothing changes.
 --   Retire     Activating a draft that drops items of the current menu needs
 --              the admin to confirm how many items retire
@@ -50,7 +50,7 @@ alter table public.menu_versions
   );
 
 comment on column public.menu_versions.scheduled_for is
-  'S1-MENUS: when an approved draft becomes active. Kept on the version after promotion as its record.';
+  'S1-MENUS: when a confirmed draft becomes active. Kept on the version after promotion as its record.';
 
 -- One scheduled draft per venue.
 create unique index menu_versions_one_scheduled_per_venue
@@ -67,7 +67,7 @@ alter table public.menu_events add constraint menu_events_action_check check (ac
   'scheduled', 'schedule_cleared', 'schedule_lapsed',
   'availability_set', 'availability_cleared', 'display_name_set', 'display_name_cleared',
   'presentation_changed',
-  'special_created', 'special_suggested', 'special_approved', 'special_declined',
+  'special_created', 'special_suggested', 'special_accepted', 'special_declined',
   'special_extended', 'special_ended',
   'change_requested', 'change_request_decided'
 ));
@@ -193,7 +193,7 @@ begin
 end;
 $$;
 
--- Saving a scheduled draft changes what was approved: the schedule is
+-- Saving a scheduled draft changes what was confirmed: the schedule is
 -- cleared and recorded. Runs inside save_menu_draft (owner) only, since no
 -- role may update menu_versions directly.
 create function private.menu_versions_schedule_cleared()
@@ -265,7 +265,7 @@ begin
 end;
 $$;
 
--- Approve a draft to become active at p_at (a future instant, within a year).
+-- Accept a draft to become active at p_at (a future instant, within a year).
 create function public.schedule_menu_version(
   p_version_id uuid,
   p_expected_revision integer,

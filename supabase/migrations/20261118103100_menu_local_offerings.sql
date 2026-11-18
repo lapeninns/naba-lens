@@ -20,7 +20,7 @@ set lock_timeout = '5s';
 --                  material rename does on activation (spec §4.3, M5).
 --   Specials       public.menu_special_create: a dated local special. A
 --                  manager or admin creates it running; staff of the venue
---                  suggest one, which the manager approves or declines
+--                  suggest one, which the manager accepts or declines
 --                  (public.menu_special_decide). At its end date it reads as
 --                  review_due until the manager ends or extends it
 --                  (public.menu_special_review). A special has its own stable
@@ -459,8 +459,8 @@ begin
 end;
 $$;
 
--- Approve (running) or decline (reason required) a staff suggestion.
-create function public.menu_special_decide(p_special_id uuid, p_approve boolean, p_reason text, p_revision integer)
+-- Accept (running) or decline (reason required) a staff suggestion.
+create function public.menu_special_decide(p_special_id uuid, p_accept boolean, p_reason text, p_revision integer)
 returns jsonb
 language plpgsql
 volatile
@@ -472,31 +472,31 @@ declare
   v public.menu_specials;
   v_reason text;
 begin
-  if p_approve is null then
+  if p_accept is null then
     raise exception 'invalid_decision' using errcode = '22023';
   end if;
   v := private.menu_special_for_write(p_special_id, p_revision);
   if v.status <> 'suggested' then
     raise exception 'menu_special_not_suggested' using errcode = 'P0001';
   end if;
-  v_reason := case when p_approve then private.clean_text(p_reason, 300, 'reason_too_long')
+  v_reason := case when p_accept then private.clean_text(p_reason, 300, 'reason_too_long')
                    else private.menu_reason(p_reason) end;
-  if p_approve and v.ends_on < private.london_today() then
+  if p_accept and v.ends_on < private.london_today() then
     raise exception 'invalid_dates' using errcode = '22023';
   end if;
 
   update public.menu_specials s
-  set status = case when p_approve then 'running' else 'declined' end,
+  set status = case when p_accept then 'running' else 'declined' end,
       decided_by = v_uid, decided_at = now(), decision_reason = v_reason, revision = s.revision + 1
   where s.id = v.id;
-  if not p_approve then
+  if not p_accept then
     update public.menu_items i set archived_at = now(), archived_by = v_uid where i.id = v.item_id;
   end if;
   insert into public.menu_events (venue_id, item_id, actor_id, action, detail)
-  values (v.venue_id, v.item_id, v_uid, case when p_approve then 'special_approved' else 'special_declined' end,
+  values (v.venue_id, v.item_id, v_uid, case when p_accept then 'special_accepted' else 'special_declined' end,
     jsonb_build_object('specialId', v.id, 'reason', v_reason));
   return jsonb_build_object('specialId', v.id,
-    'status', case when p_approve then 'running' else 'declined' end, 'revision', v.revision + 1);
+    'status', case when p_accept then 'running' else 'declined' end, 'revision', v.revision + 1);
 end;
 $$;
 

@@ -1064,7 +1064,7 @@ export async function activateMenuVersion(
 const SCHEDULE_MAX_MS = 366 * 86_400_000
 
 /**
- * Approve a draft to become active at `at` (an ISO instant at least a few
+ * Confirm a draft to become active at `at` (an ISO instant at least a few
  * minutes ahead). Saving the draft afterwards cancels the schedule.
  */
 export async function scheduleMenuVersion(

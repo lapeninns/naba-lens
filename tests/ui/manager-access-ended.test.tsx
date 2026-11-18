@@ -38,6 +38,14 @@ const photos = vi.hoisted(() => ({
 }))
 vi.mock("@/lib/server/menu-photos", () => photos)
 
+// S1-MENUS reads on the Menu pages: due schedules and the dish's local state.
+vi.mock("@/lib/server/menus", () => ({
+  activateDueMenus: vi.fn().mockResolvedValue(0),
+}))
+vi.mock("@/lib/server/menus/local", () => ({
+  getOfferingStates: vi.fn().mockResolvedValue({ ok: true, states: {} }),
+}))
+
 vi.mock("@/app/manager/actions", () => ({
   decideMenuPhotoAction: vi.fn(),
   loadReviewPageAction: vi.fn(),

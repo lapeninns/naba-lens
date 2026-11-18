@@ -8,10 +8,10 @@ set lock_timeout = '5s';
 --   Requests  public.menu_change_request_create: the venue's manager (or an
 --             admin) asks to add, rename, remove or change the presentation
 --             of a dish, or something else, in 1 to 1000 characters.
---             public.menu_change_request_decide (admin): approve, decline or
---             ask for clarification (a reason is required unless approving);
+--             public.menu_change_request_decide (admin): accept, decline or
+--             ask for clarification (a reason is required unless accepting);
 --             the requester may withdraw an open one
---             (public.menu_change_request_withdraw). Approving records the
+--             (public.menu_change_request_withdraw). Accepting records the
 --             decision; the admin then edits a menu draft. Every step is a
 --             menu_events row.
 --   Reads     public.menu_change_requests_list: the venue's manager sees
@@ -30,7 +30,7 @@ create table public.menu_change_requests (
   kind text not null check (kind in ('add', 'rename', 'remove', 'presentation', 'other')),
   detail text not null check (length(detail) between 1 and 1000 and detail = btrim(detail)),
   status text not null default 'open'
-    check (status in ('open', 'approved', 'declined', 'clarification_requested', 'withdrawn')),
+    check (status in ('open', 'accepted', 'declined', 'clarification_requested', 'withdrawn')),
   requested_by uuid not null references public.profiles (id) on delete restrict,
   requested_at timestamptz not null default now(),
   decided_by uuid references public.profiles (id) on delete restrict,
@@ -102,8 +102,8 @@ begin
 end;
 $$;
 
--- Admin: approved | declined | clarification_requested (reason required
--- unless approving). Only an open request is decided.
+-- Admin: accepted | declined | clarification_requested (reason required
+-- unless accepting). Only an open request is decided.
 create function public.menu_change_request_decide(
   p_request_id uuid, p_decision text, p_reason text, p_revision integer
 )
@@ -118,7 +118,7 @@ declare
   v public.menu_change_requests;
   v_reason text;
 begin
-  if p_decision is null or p_decision not in ('approved', 'declined', 'clarification_requested') then
+  if p_decision is null or p_decision not in ('accepted', 'declined', 'clarification_requested') then
     raise exception 'invalid_decision' using errcode = '22023';
   end if;
   select r.* into v from public.menu_change_requests r where r.id = p_request_id for update;
@@ -133,7 +133,7 @@ begin
     raise exception 'menu_change_request_not_open' using errcode = 'P0001';
   end if;
   v_reason := private.clean_text(p_reason, 500, 'reason_too_long');
-  if p_decision <> 'approved' and v_reason is null then
+  if p_decision <> 'accepted' and v_reason is null then
     raise exception 'reason_required' using errcode = '22023';
   end if;
 
@@ -206,7 +206,7 @@ begin
     perform private.assert_can_manage_venue(p_venue_id);
   end if;
   if p_status is not null
-     and p_status not in ('open', 'approved', 'declined', 'clarification_requested', 'withdrawn') then
+     and p_status not in ('open', 'accepted', 'declined', 'clarification_requested', 'withdrawn') then
     raise exception 'invalid_status' using errcode = '22023';
   end if;
   return jsonb_build_object('items', coalesce((
