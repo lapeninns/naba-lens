@@ -373,7 +373,9 @@ export function ThumbReview({
         <section
           aria-labelledby={`${uid}-name`}
           aria-roledescription={C.stageLabel}
-          className="grid gap-4"
+          // v2 review: the photo uncropped, at most a wide sheet's width so
+          // the decision stays in view beside the SideNav.
+          className="grid w-full max-w-dialog-wide gap-4"
         >
           <div className="grid gap-3 rounded-card bg-stage p-3 text-on-stage">
             {current.imageUrl ? (
@@ -519,7 +521,7 @@ export function ThumbReview({
 
       <Link
         href={listHref}
-        className="inline-flex min-h-12 items-center gap-2 justify-self-start font-bold text-accent-text underline underline-offset-4 focus-ring"
+        className="inline-flex min-h-12 items-center gap-2 justify-self-start font-semibold text-accent-text underline underline-offset-4 focus-ring"
       >
         <ListBulletsIcon aria-hidden className="size-5" />
         {C.allPhotos}
@@ -528,7 +530,7 @@ export function ThumbReview({
         <Link
           href={managerHrefs.photo(current.subject.assetId)}
           data-review-details
-          className="inline-flex min-h-12 items-center gap-2 justify-self-start font-bold text-accent-text underline underline-offset-4 focus-ring"
+          className="inline-flex min-h-12 items-center gap-2 justify-self-start font-semibold text-accent-text underline underline-offset-4 focus-ring"
         >
           {C.details}
         </Link>

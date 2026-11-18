@@ -1,5 +1,6 @@
 "use client"
 
+import { MetaList } from "@/components/nabalens/meta-list"
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 
@@ -104,17 +105,22 @@ export function ReviewersForm({
       }}
     >
       <p className="text-body text-ink-muted">{REVIEWERS_COPY.intro}</p>
-      <dl className="grid gap-1">
-        <dt className="text-label text-ink">{REVIEWER_ROLE_LABEL.main}</dt>
-        <dd
-          data-reviewer="main"
-          className="text-body [overflow-wrap:anywhere] text-ink"
-        >
-          {view.main?.name ?? (
-            <span className="text-ink-muted">{REVIEWERS_COPY.mainNone}</span>
-          )}
-        </dd>
-      </dl>
+      <MetaList
+        items={[
+          {
+            label: REVIEWER_ROLE_LABEL.main,
+            value: (
+              <span data-reviewer="main">
+                {view.main?.name ?? (
+                  <span className="text-ink-muted">
+                    {REVIEWERS_COPY.mainNone}
+                  </span>
+                )}
+              </span>
+            ),
+          },
+        ]}
+      />
       {options.length === 0 ? (
         <p role="status" className="text-body text-ink">
           {REVIEWERS_COPY.noCandidates}

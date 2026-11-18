@@ -222,7 +222,7 @@ export function PackagingControl({
         className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] sm:items-center sm:gap-4"
       >
         <span className="grid min-w-0 gap-0.5">
-          <span className="font-bold break-words text-ink">{name}</span>
+          <span className="font-semibold break-words text-ink">{name}</span>
           <span className="text-meta text-ink-muted">
             {[detail, copy.state(current)].filter(Boolean).join(" · ")}
           </span>

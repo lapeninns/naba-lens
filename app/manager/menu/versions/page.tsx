@@ -21,7 +21,7 @@ import { isRefusal } from "../../load-overview"
 export const metadata = { title: "Menus" }
 
 const LINK =
-  "rounded-square font-bold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+  "rounded-square font-semibold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
 
 const STATUS_WORD: Record<ChangeRequestStatus, string> = {
   open: "Waiting for an admin",
@@ -109,7 +109,7 @@ export default async function ManagerMenuVersionsPage({
           <ul className="divide-y divide-line rounded-card bg-surface px-3 shadow-card sm:px-4">
             {versions.versions.map((v) => (
               <li key={v.versionId} className="grid gap-1 py-3">
-                <p className="text-body font-bold break-words text-ink">
+                <p className="text-body font-semibold break-words text-ink">
                   {v.title}
                 </p>
                 <p className="text-body text-ink-muted">{versionLine(v)}</p>
@@ -145,7 +145,9 @@ export default async function ManagerMenuVersionsPage({
             {requests.requests.map((r) => (
               <li key={r.requestId} className="grid gap-1 py-3">
                 <p className="text-body text-ink">
-                  <span className="font-bold">{r.itemName ?? "New dish"}</span>{" "}
+                  <span className="font-semibold">
+                    {r.itemName ?? "New dish"}
+                  </span>{" "}
                   · {STATUS_WORD[r.status]}
                 </p>
                 <p className="text-body break-words text-ink-muted">

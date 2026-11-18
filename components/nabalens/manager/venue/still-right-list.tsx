@@ -113,7 +113,7 @@ function Row({
       ) : item.href ? (
         <Link
           href={item.href}
-          className="justify-self-start text-body font-bold text-accent-text underline underline-offset-4 focus-ring"
+          className="justify-self-start text-body font-semibold text-accent-text underline underline-offset-4 focus-ring"
         >
           {STILL_RIGHT_COPY.answer}
         </Link>

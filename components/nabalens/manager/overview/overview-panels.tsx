@@ -6,7 +6,8 @@ import {
   StorefrontIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
-import { HomeRow } from "@/components/nabalens/album/home-rows"
+import { Row } from "@/components/nabalens/common-room/row"
+import { MetaList } from "@/components/nabalens/meta-list"
 import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import type { ManagerVenueSummary } from "@/lib/manager/venue"
@@ -22,8 +23,9 @@ import { MenuMonthCheckControl } from "../venue/menu-month-check"
 
 /*
  * S2-MGR (Full App v1): the manager Overview's new panels (spec §7 M1),
- * in Album's look (DESIGN.md §3, §5): link rows with the HomeRow shape, a
- * card per panel with a 1px line edge, counts in words before any bar.
+ * drawn to v2's M1 recipe (D10): action ListRows in one list, flat cards
+ * with a line outline, counts in `figure`, one CoverageMeter per category,
+ * the venue's facts as a MetaList. Counts are in words before any bar.
  */
 
 const ICONS: Record<OverviewActionKey, React.ReactNode> = {
@@ -34,6 +36,13 @@ const ICONS: Record<OverviewActionKey, React.ReactNode> = {
 }
 
 const CARD = "grid gap-3 rounded-card bg-surface p-4 edge"
+
+/**
+ * v2 ListRows grouped in one box with lines between (RowList's look), for
+ * lists that keep their own <li> attributes.
+ */
+export const MANAGER_ROW_LIST =
+  "grid min-w-0 divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card [&_[data-slot=cr-row]]:rounded-none [&_[data-slot=cr-row]]:shadow-none [&_[data-slot=cr-row]]:focus-visible:-outline-offset-3"
 
 export const OVERVIEW_PANELS_COPY = {
   actionsTitle: "Do next",
@@ -94,19 +103,20 @@ export function OverviewActions({
           {copy.reviewNext(pendingPhotos)}
         </Link>
       ) : null}
-      <ul className="grid gap-2 md:grid-cols-2">
+      <ul className={MANAGER_ROW_LIST}>
         {actions.map((action) => (
           <li
             key={action.key}
             data-action={action.key}
             data-waiting={action.waiting || undefined}
+            data-slot="overview-action"
           >
-            <HomeRow
+            <Row
               href={action.href}
-              slot="overview-action"
               icon={ICONS[action.key]}
+              tone={action.waiting ? "warn" : "neutral"}
               title={action.title}
-              line={action.line}
+              subtitle={action.line}
             />
           </li>
         ))}
@@ -121,7 +131,7 @@ function Count({ value }: { value: number | null }) {
       {OVERVIEW_PANELS_COPY.couldNotCount}
     </p>
   ) : (
-    <p className="type-count text-ink tabular-nums">{value}</p>
+    <p className="type-figure text-ink">{value}</p>
   )
 }
 
@@ -139,12 +149,12 @@ export function BacklogPanel({ split }: { split: BacklogSplit }) {
       </h2>
       <div className="grid gap-3 sm:grid-cols-2">
         <div data-backlog="collect" className={CARD}>
-          <h3 className="text-label text-ink">{copy.toCollect}</h3>
+          <h3 className="text-heading text-ink">{copy.toCollect}</h3>
           <Count value={split.toCollect} />
           <p className="text-body text-ink-muted">{copy.toCollectLine}</p>
         </div>
         <div data-backlog="review" className={CARD}>
-          <h3 className="text-label text-ink">{copy.toReview}</h3>
+          <h3 className="text-heading text-ink">{copy.toReview}</h3>
           <Count value={split.photosWaiting} />
           <p className="text-body text-ink-muted">
             {copy.toReviewLine(split.slotsWaiting)}
@@ -175,30 +185,34 @@ export function CategoryCoverage({ rows }: { rows: CategoryRow[] | null }) {
           {copy.coverageFailed}
         </p>
       ) : (
-        <ul className={`${CARD} gap-4`}>
+        <ul className="grid gap-3 md:grid-cols-2">
           {rows.map((row) => {
             const words = `${row.label}: ${row.text}${row.percent ? `, ${row.percent}` : ""}`
             return (
+              // v2 CoverageMeter (`nl-cover`): the category, its count in
+              // figure with the percentage beside it, then the 12px bar.
               <li
                 key={row.key}
                 data-category={row.key}
-                className="grid gap-1.5"
+                className="grid gap-3 rounded-card bg-surface p-4 edge"
               >
-                <p className="flex flex-wrap items-baseline justify-between gap-x-3 text-body text-ink">
-                  <span className="text-label">{row.label}</span>
-                  <span className="font-mono text-meta tabular-nums">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <h3 className="text-heading text-ink">{row.label}</h3>
+                  <p className="type-figure text-ink">
                     {row.text}
                     {row.percent ? (
-                      <span className="text-ink-muted"> · {row.percent}</span>
+                      <small className="ml-1 font-sans text-meta text-ink-muted">
+                        · {row.percent}
+                      </small>
                     ) : null}
-                  </span>
-                </p>
+                  </p>
+                </div>
                 <Progress
                   value={row.total > 0 ? (row.covered / row.total) * 100 : 0}
                   aria-label={words}
                   aria-valuetext={words}
                   tone="ok"
-                  size="sm"
+                  size="lg"
                 />
               </li>
             )
@@ -246,36 +260,54 @@ export function VenueAtAGlance({
           {copy.venueTitle}
         </Link>
       </h2>
-      <dl className={`${CARD} sm:grid-cols-[auto_1fr] sm:gap-x-6`}>
-        <dt className="text-label text-ink">{copy.activeMenu}</dt>
-        <dd data-slot="active-menu" className="grid gap-2 text-body text-ink">
-          {menuCheck ? (
-            <>
-              <span className="[overflow-wrap:anywhere]">
-                {menuCheck.menuTitle}
+      <MetaList
+        className="rounded-card bg-surface p-4 edge"
+        items={[
+          {
+            label: copy.activeMenu,
+            value: (
+              <span
+                data-slot="active-menu"
+                className="grid justify-items-start gap-2"
+              >
+                {menuCheck ? (
+                  <>
+                    <span className="[overflow-wrap:anywhere]">
+                      {menuCheck.menuTitle}
+                    </span>
+                    <MenuMonthCheckControl
+                      venueId={summary.venueId}
+                      check={menuCheck}
+                    />
+                  </>
+                ) : (
+                  <span className="text-ink-muted">{copy.noMenu}</span>
+                )}
               </span>
-              <MenuMonthCheckControl
-                venueId={summary.venueId}
-                check={menuCheck}
-              />
-            </>
-          ) : (
-            <span className="text-ink-muted">{copy.noMenu}</span>
-          )}
-        </dd>
-        <dt className="text-label text-ink">{copy.mainReviewer}</dt>
-        <dd data-reviewer="main" className="text-body text-ink">
-          {reviewers.main?.name ?? (
-            <span className="text-ink-muted">{copy.mainNone}</span>
-          )}
-        </dd>
-        <dt className="text-label text-ink">{copy.backupReviewer}</dt>
-        <dd data-reviewer="backup" className="text-body text-ink">
-          {reviewers.backup?.name ?? (
-            <span className="text-ink-muted">{copy.nobody}</span>
-          )}
-        </dd>
-      </dl>
+            ),
+          },
+          {
+            label: copy.mainReviewer,
+            value: (
+              <span data-reviewer="main">
+                {reviewers.main?.name ?? (
+                  <span className="text-ink-muted">{copy.mainNone}</span>
+                )}
+              </span>
+            ),
+          },
+          {
+            label: copy.backupReviewer,
+            value: (
+              <span data-reviewer="backup">
+                {reviewers.backup?.name ?? (
+                  <span className="text-ink-muted">{copy.nobody}</span>
+                )}
+              </span>
+            ),
+          },
+        ]}
+      />
       {!reviewers.backup ? (
         <Link
           href={reviewersHref}

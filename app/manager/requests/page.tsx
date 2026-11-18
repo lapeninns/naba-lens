@@ -113,7 +113,7 @@ export default async function ManagerRequestsPage({
               href={requestHrefs.list(f.id)}
               aria-current={f.id === show ? "page" : undefined}
               className={cn(
-                "inline-flex min-h-11 items-center rounded-round px-4 font-bold focus-ring",
+                "inline-flex min-h-11 items-center rounded-round px-4 font-semibold focus-ring",
                 f.id === show
                   ? "bg-accent-soft text-accent-text inset-ring-2 inset-ring-accent"
                   : "bg-surface text-ink shadow-card"

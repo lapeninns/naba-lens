@@ -16,6 +16,7 @@ import {
 import { EvidenceThumb } from "@/components/nabalens/coverage/evidence-image"
 import { ReasonDialog } from "@/components/nabalens/coverage/reason-dialog"
 import { RETAKE_REASONS } from "@/components/nabalens/album/review/model"
+import { MetaList } from "@/components/nabalens/meta-list"
 import { Notice } from "@/components/nabalens/notice"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { StatusChip } from "@/components/nabalens/status-chip"
@@ -413,7 +414,7 @@ export function InboxPhotoDetail({
     detail.dishes.every((d) => !d.onMenu && d.state === null)
 
   return (
-    <div className="grid gap-6">
+    <div className="@container grid gap-6">
       <div
         ref={statusRef}
         tabIndex={-1}
@@ -468,38 +469,39 @@ export function InboxPhotoDetail({
               <StatusChip tone="neutral">{C.belowPublic}</StatusChip>
             ) : null}
           </div>
-          <dl className="grid gap-1.5 text-body">
-            <div className="flex flex-wrap gap-x-2">
-              <dt className="text-ink-muted">{C.contributor}</dt>
-              <dd className="break-words text-ink" data-review-contributor>
-                {detail.contributor.name}
-              </dd>
-            </div>
-            <div className="flex flex-wrap gap-x-2">
-              <dt className="text-ink-muted">{C.uploaded}</dt>
-              <dd className="text-ink">{dayOf(detail.uploadedAt)}</dd>
-            </div>
-            <div className="flex flex-wrap gap-x-2">
-              <dt className="sr-only">{C.provenance}</dt>
-              <dd className="text-ink" data-review-taken>
-                {takenWords(detail.capturedAt, detail.capturedAtSource)}
-              </dd>
-            </div>
-            <div className="flex flex-wrap gap-x-2">
-              <dt className="text-ink-muted">{C.size}</dt>
-              <dd className="text-ink">
-                {detail.width && detail.height
-                  ? C.sizeWords(detail.width, detail.height)
-                  : C.sizeUnknown}
-              </dd>
-            </div>
-            <div className="flex flex-wrap gap-x-2">
-              <dt className="text-ink-muted">{C.note}</dt>
-              <dd className="break-words text-ink" data-review-note>
-                {detail.note ?? C.noteNone}
-              </dd>
-            </div>
-          </dl>
+          <MetaList
+            items={[
+              {
+                label: C.contributor,
+                value: (
+                  <span data-review-contributor>{detail.contributor.name}</span>
+                ),
+              },
+              { label: C.uploaded, value: dayOf(detail.uploadedAt) },
+              {
+                label: C.provenance,
+                labelHidden: true,
+                value: (
+                  <span data-review-taken>
+                    {takenWords(detail.capturedAt, detail.capturedAtSource)}
+                  </span>
+                ),
+              },
+              {
+                label: C.size,
+                value:
+                  detail.width && detail.height
+                    ? C.sizeWords(detail.width, detail.height)
+                    : C.sizeUnknown,
+              },
+              {
+                label: C.note,
+                value: (
+                  <span data-review-note>{detail.note ?? C.noteNone}</span>
+                ),
+              },
+            ]}
+          />
           {small ? (
             <p className="text-meta text-ink-muted">{C.belowPublicHelp}</p>
           ) : null}
@@ -561,7 +563,7 @@ export function InboxPhotoDetail({
             return (
               <li
                 key={`${d.itemId}:${d.variantId ?? ""}`}
-                className="grid gap-2 rounded-card border border-line p-3"
+                className="grid gap-2 rounded-card bg-surface p-4 edge"
                 data-review-slot="dish"
               >
                 <div className="flex flex-wrap items-center gap-2">
@@ -594,7 +596,7 @@ export function InboxPhotoDetail({
                 </p>
                 <Compare photos={d.publicPhotos} thumbs={images.thumbs} />
                 {canDecide && (d.waiting || decided || fixable) ? (
-                  <div className="flex flex-wrap gap-2 @max-wide:*:flex-auto">
+                  <div className="mt-1 flex flex-wrap gap-2 border-t border-line pt-3 @max-wide:*:flex-auto">
                     {d.waiting ||
                     d.state === "better_photo_requested" ||
                     d.state === "accepted"
@@ -1080,7 +1082,7 @@ function SlotRow({
   const s = slot.state
   return (
     <li
-      className="grid gap-2 rounded-card border border-line p-3"
+      className="grid gap-2 rounded-card bg-surface p-4 edge"
       data-review-slot={kindLabel.toLowerCase()}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -1095,7 +1097,7 @@ function SlotRow({
       <h3 className="text-item-title break-words text-ink">{title}</h3>
       <Compare photos={slot.publicPhotos} thumbs={thumbs} />
       {canDecide ? (
-        <div className="flex flex-wrap gap-2 @max-wide:*:flex-auto">
+        <div className="mt-1 flex flex-wrap gap-2 border-t border-line pt-3 @max-wide:*:flex-auto">
           {s !== "withdrawn"
             ? levelButtons(keyBase, onLevel, { state: s, level: slot.level })
             : null}

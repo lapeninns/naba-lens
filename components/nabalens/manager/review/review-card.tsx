@@ -223,7 +223,7 @@ export function ReviewCard({
           ) : (
             <Link
               href={contributorHref(scope, card.contributor.id)}
-              className="rounded-control font-bold break-words text-ink underline underline-offset-3 focus-ring outline-none hover:decoration-2 max-md:inline-flex max-md:min-h-11 max-md:items-center"
+              className="rounded-control font-semibold break-words text-ink underline underline-offset-3 focus-ring outline-none hover:decoration-2 max-md:inline-flex max-md:min-h-11 max-md:items-center"
             >
               {who}
             </Link>
