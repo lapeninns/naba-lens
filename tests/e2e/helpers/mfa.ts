@@ -1,18 +1,35 @@
 import type { Page } from "@playwright/test"
 
-import { totpCode } from "../../support/totp"
+import {
+  knownTotpSecret,
+  rememberTotpFactor,
+  totpCode,
+} from "../../support/totp"
+import { provisioner, psql } from "./stack"
 
 /**
  * Admins pass a TOTP second step after signing in (FA-23, /auth/mfa). The
  * first sign-in of a test admin sets up the authenticator from the setup key
  * the page shows; later sign-ins in this worker enter a fresh code for it.
+ *
+ * The factor is remembered per account in tests/support/totp, so a database
+ * session (`signIn`) for the same admin reuses it instead of enrolling a
+ * second one (Supabase refuses that below aal2), and a browser sign-in after
+ * a database session uses the factor that session enrolled.
  */
-const secrets = new Map<string, string>()
+
+const userIdFor = (email: string) =>
+  psql(`select id from auth.users where email = '${email.replace(/'/g, "''")}'`)
+
+let unnamed: string | null = null
 
 /** Completes /auth/mfa when sign-in lands there; otherwise does nothing. */
 export async function passMfaIfAsked(page: Page, email: string) {
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/confirm"))
   if (!new URL(page.url()).pathname.startsWith("/auth/mfa")) return
+  // Callers that don't name the admin share one remembered key (the last
+  // authenticator set up without an email), as before.
+  const userId = email ? userIdFor(email) : ""
   const setup = page.getByRole("button", {
     name: "Set up with an authenticator app",
   })
@@ -22,9 +39,27 @@ export async function passMfaIfAsked(page: Page, email: string) {
     await setup.click()
     const key = page.getByTestId("mfa-secret")
     await key.waitFor()
-    secrets.set(email, ((await key.textContent()) ?? "").trim())
+    const secret = ((await key.textContent()) ?? "").trim()
+    await code.fill(totpCode(secret))
+    await page
+      .getByRole("button", { name: /^(Confirm code|Continue)$/ })
+      .click()
+    await page.waitForURL((url) => !url.pathname.startsWith("/auth/mfa"))
+    if (!userId) {
+      unnamed = secret
+      return
+    }
+    const { data, error } = await provisioner().auth.admin.mfa.listFactors({
+      userId,
+    })
+    if (error) throw error
+    const factor = data.factors.find(
+      (f) => f.factor_type === "totp" && f.status === "verified"
+    )
+    if (factor) rememberTotpFactor(userId, { factorId: factor.id, secret })
+    return
   }
-  const secret = secrets.get(email)
+  const secret = userId ? knownTotpSecret(userId) : unnamed
   if (!secret)
     throw new Error(`No authenticator set up in this run for ${email}`)
   await code.fill(totpCode(secret))
