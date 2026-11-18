@@ -104,6 +104,9 @@ const ALLOWED_PAGES = new Set([
   "/manager",
   "/manager/review",
   "/manager/review/contributors/[staffId]",
+  // Full App v1 S2-REVIEW (spec §7 M2): one photo's review with provenance,
+  // slots, history and every decision, at the manager's own venue.
+  "/manager/review/photo/[assetId]",
   "/manager/menu",
   "/manager/menu/[itemId]",
   // Full App v1 S1-MENUS (spec §7 M5): local specials, and the active and
@@ -564,6 +567,15 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
       ],
       reason:
         "S1-EXPORT records which approval a public export used (spec §14.1 manifest, §10 inv. 1)",
+    },
+    {
+      feature: "approval workflow",
+      prefixes: [
+        "components/nabalens/manager/review/inbox-",
+        "app/manager/review/photo/",
+      ],
+      reason:
+        "S2-REVIEW: managers see the spec's action names, Approve for public use and Keep as reference (spec §7 M2, decision FA-7)",
     },
   ]
 

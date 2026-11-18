@@ -942,6 +942,7 @@ begin
         'state', coalesce(d.action, 'pending'),
         'level', coalesce(d.review_level, 'public'),
         'decisionId', d.id,
+        'isPrimary', private.slot_effective_primary('area', l.subject_id) = v_asset.id,
         'publicPhotos', coalesce((
           select jsonb_agg(jsonb_build_object('assetId', sp.asset_id,
             'isPrimary', sp.asset_id = private.slot_effective_primary('area', l.subject_id)))
@@ -963,6 +964,7 @@ begin
         'photoRequired', private.amenity_photo_required(c.template_key),
         'decisionId', (select x.id from public.amenity_photo_decisions x
           where x.check_id = r.check_id and x.asset_id = r.asset_id order by x.id desc limit 1),
+        'isPrimary', private.slot_effective_primary('amenity', r.check_id) = r.asset_id,
         'publicPhotos', coalesce((
           select jsonb_agg(jsonb_build_object('assetId', sp.asset_id,
             'isPrimary', sp.asset_id = private.slot_effective_primary('amenity', r.check_id)))

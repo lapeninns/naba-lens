@@ -57,6 +57,8 @@ export type DetailPlace = {
   level: ReviewLevel
   /** The decision the next one is made against; null before any. */
   decisionId: number | null
+  /** This photo is the place's main photo now. */
+  isPrimary: boolean
   publicPhotos: ThumbRef[]
 }
 
@@ -67,6 +69,7 @@ export type DetailAmenity = {
   level: ReviewLevel
   photoRequired: boolean
   decisionId: number | null
+  isPrimary: boolean
   publicPhotos: ThumbRef[]
 }
 
@@ -258,6 +261,7 @@ export function parsePhotoDetail(data: unknown): PhotoDetail | null {
               state: slotState(p.state),
               level: level(p.level),
               decisionId: num(p.decisionId),
+              isPrimary: p.isPrimary === true,
               publicPhotos: thumbs(p.publicPhotos),
             },
           ]
@@ -273,6 +277,7 @@ export function parsePhotoDetail(data: unknown): PhotoDetail | null {
               level: level(a.level),
               photoRequired: a.photoRequired !== false,
               decisionId: num(a.decisionId),
+              isPrimary: a.isPrimary === true,
               publicPhotos: thumbs(a.publicPhotos),
             },
           ]

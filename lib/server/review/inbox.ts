@@ -140,6 +140,24 @@ export function reviewFailure(
 const BAD = (field: string, message: string) =>
   apiError("invalid_input", { field, message })
 
+/** A coverage-style failure (lib/server/album) as the shared envelope. */
+export function fromCoverageFailure(failure: {
+  status: number
+  message: string
+}): ReviewFailure {
+  const code =
+    failure.status === 404
+      ? "not_found"
+      : failure.status === 403
+        ? "forbidden"
+        : failure.status === 400
+          ? "invalid_input"
+          : failure.status === 409
+            ? "conflict"
+            : "unavailable"
+  return apiError(code, { message: failure.message })
+}
+
 /** One photo, everything a reviewer checks before deciding (§7 M2). */
 export async function getPhotoDetail(
   ctx: ManagerPhotoCtx,
@@ -319,18 +337,7 @@ export async function setDishLevel(
   if (result.ok) return { ok: true, itemRevision: result.itemRevision }
   if (result.code === "revision_conflict")
     return reviewFailure({ message: "coverage_conflict" }, "dish level")
-  return apiError(
-    result.status === 404
-      ? "not_found"
-      : result.status === 403
-        ? "forbidden"
-        : result.status === 400
-          ? "invalid_input"
-          : result.status === 409
-            ? "conflict"
-            : "unavailable",
-    { message: result.message }
-  )
+  return fromCoverageFailure(result)
 }
 
 /** An amenity photo waiting for review, for the Review page (FA-32). */
