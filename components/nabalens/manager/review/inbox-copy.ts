@@ -41,6 +41,8 @@ export const INBOX_COPY = {
     not_sure: "Sent as I'm not sure",
     no_dish: "Marked food or drink, no dish chosen",
     unmatched: "No slot chosen for 7 days",
+    // S5-IMPORT (FA-54): its legacy label matched no single slot.
+    imported: "Imported, no slot matched",
   },
   video: "Video",
   needsLabelTitle: (n: number) =>

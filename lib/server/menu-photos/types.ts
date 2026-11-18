@@ -124,7 +124,8 @@ export type QueueCardKind = "labelled" | "unlabelled" | "stale" | "decided"
  * I'm not sure, tagged it food or drink without a dish, or left it with no
  * label for 7 days.
  */
-export type UnlabelledReason = "not_sure" | "no_dish" | "unmatched"
+/** "imported": a legacy import whose label matched no single slot (FA-54). */
+export type UnlabelledReason = "not_sure" | "no_dish" | "unmatched" | "imported"
 
 export type QueueCard = {
   /** Stable card key (label, photo or asset id); also the paging key. */

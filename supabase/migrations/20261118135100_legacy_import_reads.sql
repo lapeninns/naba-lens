@@ -12,9 +12,10 @@ set lock_timeout = '5s';
 --               create or replace would add an overload PostgREST cannot
 --               choose between.
 --   Unlabelled  private.asset_unlabelled_reason: an imported photo with no
---               label is 'unmatched' at once. The 7-day wait (FA-4) keeps a
---               photo with the person who took it; an import has nobody
---               matching it later. A photo whose import staged an amenity is
+--               label waits at once, with its own reason 'imported' (its
+--               legacy label matched no single slot). The 7-day wait (FA-4)
+--               keeps a photo with the person who took it; an import has
+--               nobody matching it later. A photo whose import staged an amenity is
 --               held by that slot, not unlabelled.
 --   Amenities   private.amenity_photo_rows also reads the amenity an import
 --               staged (media_import_items), so the photo waits in the
@@ -373,8 +374,8 @@ grant execute on function public.library_page(
 -- Unlabelled rule
 -- ---------------------------------------------------------------------------
 
--- Body as in 20261118120300: an import without a label is unmatched at once,
--- and an import staged on an amenity is held by that slot.
+-- Body as in 20261118120300: an import without a label waits at once as
+-- 'imported', and an import staged on an amenity is held by that slot.
 create or replace function private.asset_unlabelled_reason(p_asset_id uuid)
 returns text
 language sql
@@ -386,9 +387,9 @@ as $$
       when exists (select 1 from public.media_label_help_requests r where r.asset_id = a.id)
         and not coalesce(ml.has_labels, false) then 'not_sure'
       when ml.content_types && array['dish', 'preparation', 'plating', 'drinks']::text[] then 'no_dish'
+      when not coalesce(ml.has_labels, false) and a.provenance = 'legacy_import' then 'imported'
       when not coalesce(ml.has_labels, false)
-        and (a.provenance = 'legacy_import'
-          or a.created_at <= now() - make_interval(days => private.label_help_unmatched_days())) then 'unmatched'
+        and a.created_at <= now() - make_interval(days => private.label_help_unmatched_days()) then 'unmatched'
     end
   from public.media_assets a
   left join public.media_labels ml on ml.asset_id = a.id

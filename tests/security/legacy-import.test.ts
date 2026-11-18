@@ -283,13 +283,18 @@ describe("legacy import", () => {
     expect(
       await queue("amenity_photo_queue", { p_venue_id: w.venue })
     ).toContain(byHash(assets, "amenity").id)
-    // Unlabelled at once (no 7-day Match later wait for an import).
-    expect(
-      await queue("manager_menu_photo_queue", {
+    // Unlabelled at once (no 7-day Match later wait for an import), with
+    // its own reason.
+    const unlabelled = (await ok(
+      call(w.manager, "manager_menu_photo_queue", {
         p_venue_id: w.venue,
         p_status: "unlabelled",
-      })
-    ).toContain(byHash(assets, "mystery").id)
+      }) as never
+    )) as { asset_id: string; unlabelled_reason: string }[]
+    expect(
+      unlabelled.find((r) => r.asset_id === byHash(assets, "mystery").id)
+        ?.unlabelled_reason
+    ).toBe("imported")
   })
 
   it("re-applying the same manifest changes nothing", async () => {

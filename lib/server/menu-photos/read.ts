@@ -360,7 +360,9 @@ export function queueCardView(r: QueueRow): QueueCard {
 }
 
 const unlabelledReason = (v: unknown): UnlabelledReason | null =>
-  v === "not_sure" || v === "no_dish" || v === "unmatched" ? v : null
+  v === "not_sure" || v === "no_dish" || v === "unmatched" || v === "imported"
+    ? v
+    : null
 
 const capturedSource = (v: unknown): CardProvenance["capturedAtSource"] =>
   v === "metadata" || v === "supplied" || v === "estimated" ? v : "unknown"
