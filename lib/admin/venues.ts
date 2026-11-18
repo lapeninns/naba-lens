@@ -91,10 +91,15 @@ export type AdminVenue = {
   setup: SetupChecklist
 }
 
+/**
+ * Someone who may be named a reviewer: a manager at the venue now (S2-MGR's
+ * private.venue_reviewer_eligible). Admins review every venue without being
+ * named, so they are never candidates (K8, S3-R5).
+ */
 export type ReviewerCandidate = {
   profileId: string
   name: string
-  role: "manager" | "admin"
+  role: "manager"
 }
 
 export type AdminVenueDetail = AdminVenue & {
@@ -227,9 +232,7 @@ export function parseVenueDetail(data: unknown): AdminVenueDetail | null {
   return {
     ...venue,
     candidates: candidates.flatMap((c) =>
-      isObj(c) &&
-      str(c.profileId) &&
-      (c.role === "manager" || c.role === "admin")
+      isObj(c) && str(c.profileId) && c.role === "manager"
         ? [
             {
               profileId: c.profileId as string,
@@ -360,7 +363,7 @@ export const VENUE_ERRORS: Record<
   reviewer_not_eligible: {
     field: "reason",
     message:
-      "That person doesn't review at this venue. Make them its manager first.",
+      "Only this venue's managers can be named. Make them a manager here first.",
   },
   reviewer_same_person: {
     field: "reason",

@@ -290,7 +290,7 @@ describe("venue forms (A2)", () => {
         venueId={V1}
         responsibility="main"
         current={venue.reviewers.main}
-        candidates={[{ profileId: V1, name: "Alex", role: "admin" }]}
+        candidates={[{ profileId: V1, name: "Alex", role: "manager" }]}
       />
     )
     expect(screen.getByText(/Sam no longer reviews at this venue/)).toBeTruthy()
@@ -298,7 +298,7 @@ describe("venue forms (A2)", () => {
     expect(options).toEqual([
       "Nobody named",
       "Sam (no longer reviews here)",
-      "Alex (admin)",
+      "Alex",
     ])
   })
 })
