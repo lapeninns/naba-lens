@@ -13,6 +13,7 @@ import {
   type MatchPhoto,
 } from "@/components/nabalens/album/match/match-screen"
 import { Button } from "@/components/ui/button"
+import { ManagerVenueBlock } from "./manager-venue"
 import * as React from "react"
 import { buildAlbum, currentPlace, type AlbumInput } from "@/lib/album/model"
 
@@ -74,6 +75,7 @@ export function AlbumBlock() {
     <div className="grid gap-8">
       <AlbumScreensBlock />
       <MatchSpecimen />
+      <ManagerVenueBlock />
       <div className="grid gap-4">
         <h3 className="type-heading-sm text-ink">Slot tile</h3>
         <ul className="grid max-w-feed grid-cols-3 gap-2 sm:grid-cols-4">

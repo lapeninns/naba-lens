@@ -51,7 +51,11 @@ type Handler = (args: Record<string, unknown>) => {
 }
 
 function actorWith(
-  handlers: Partial<Record<AmenityRpcName, Handler>>,
+  // S2-MGR: archive/restore call amenity_check_set_applicability, which is
+  // not one of the amenity RPC names.
+  handlers: Partial<
+    Record<AmenityRpcName | "amenity_check_set_applicability", Handler>
+  >,
   scope: Scope = {}
 ) {
   const rpc = vi.fn(async (fn: string, args: Record<string, unknown> = {}) => {
