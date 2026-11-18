@@ -24,6 +24,7 @@ const card = (over: Partial<AreaPhotoCard> = {}): AreaPhotoCard => ({
   assetId: "22222222-2222-4222-8222-222222222222",
   authorName: "Priya",
   area: "Garden",
+  subjectId: null,
   uploadedAt: "2026-11-14T12:00:00Z",
   labelledAt: "2026-11-14T12:01:00Z",
   creditMonth: "2026-11-01",
