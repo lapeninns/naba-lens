@@ -20,7 +20,7 @@ test("size-only cannot approve content", async () => {
 test("rejects oversized before decoding", async () => {
   assert.deepEqual(
     await validateMedia({
-      size: 201 * 1024 * 1024,
+      size: 251 * 1024 * 1024,
       declaredMime: "video/mp4",
       filename: "x.mp4",
     }),

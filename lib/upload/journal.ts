@@ -22,7 +22,8 @@ export const JOURNAL_LIMITS = {
   maxEntries: 50,
   /** Below the server's 24 h abandoned-upload window. */
   expiryMs: 20 * 60 * 60 * 1000,
-  maxPhotoBytes: 20 * 1024 * 1024,
+  /** Same as MEDIA_LIMITS.maxPhotoBytes. */
+  maxPhotoBytes: 25 * 1024 * 1024,
   maxFilesWithBytes: 10,
   maxTotalBytes: 100 * 1024 * 1024,
   /** Bytes are kept only when at least this many times their size is free. */

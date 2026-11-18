@@ -12,6 +12,11 @@ export interface VideoProbe {
   width?: number
   height?: number
   durationSeconds?: number
+  /**
+   * The movie header's creation time, in seconds since 1904-01-01 UTC (0 or
+   * absent: not recorded). lib/media/capture-time turns it into a date.
+   */
+  creationTime?: number
   codec?: string
   codecs: string[]
   /** A conservative hint, not a guarantee about a particular browser/device. */
@@ -244,6 +249,8 @@ function parseMoov(bytes: Uint8Array, result: VideoProbe): boolean {
         invalid("Truncated movie duration")
       const scale = u32(body, n)
       const duration = version === 1 ? u64(body, n + 4) : u32(body, n + 4)
+      const created = version === 1 ? u64(body, 4) : u32(body, 4)
+      if (created > 0) result.creationTime = created
       if (!scale) invalid("Zero movie timescale")
       result.durationSeconds = duration > 0 ? duration / scale : undefined
     }

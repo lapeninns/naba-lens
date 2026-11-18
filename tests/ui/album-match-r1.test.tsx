@@ -303,7 +303,7 @@ describe("B1: Match never loses a photo to the queue's limit", () => {
     const dialog = await screen.findByRole("dialog", { name: "Photo 1 of 1" })
     expect(
       within(dialog).getByText(
-        "1 photo was left in your gallery. Photos can be up to 20 MB."
+        "1 photo was left in your gallery. Photos can be up to 25 MB."
       )
     ).toBeTruthy()
   })

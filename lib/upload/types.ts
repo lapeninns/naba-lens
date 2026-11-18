@@ -41,6 +41,11 @@ export type ReserveInput = {
   preferResumable: boolean
   /** Fixed by the first reservation for this key. Omitted: general. */
   purpose?: UploadPurpose
+  /**
+   * Stable ID of the selection this file was picked in (spec §12.2 step 1),
+   * stored by the first reservation for this key. Omitted: none.
+   */
+  batchId?: string
 }
 
 export type ReserveResult = {
@@ -74,7 +79,12 @@ export type FinaliseLabels =
   | { state: "needs_attention"; code: SaveLabelsErrorCode; message: string }
 
 export type FinaliseResult =
-  | { state: "ready"; labels?: FinaliseLabels }
+  | {
+      state: "ready"
+      labels?: FinaliseLabels
+      /** An exact copy of an earlier file at the venue (spec §12.4). */
+      duplicate?: true
+    }
   | { state: "failed"; error?: string }
 
 export type ReserveFn = (input: ReserveInput) => Promise<ReserveResult>
@@ -116,6 +126,8 @@ export type UploadOptions = {
   signal?: AbortSignal
   /** Omitted: general. */
   purpose?: UploadPurpose
+  /** The selection's stable batch ID, sent with the reservation. */
+  batchId?: string
 }
 
 export type UploadResult = {
@@ -125,6 +137,8 @@ export type UploadResult = {
   error?: UploadError
   /** From finalise, when labels were waiting for this asset. */
   labels?: FinaliseLabels
+  /** An exact copy of an earlier file at the venue (spec §12.4). */
+  duplicate?: true
 }
 
 export type UploadFn = (
@@ -162,10 +176,16 @@ export type UploadContext = {
    * account on the same device never reuses them. Omitted: not scoped.
    */
   account?: string
+  /** Stable ID of the selection the file was added in (spec §12.2). */
+  batchId?: string
 }
 
 /** Injected upload function. Resolve when the asset is ready; reject on failure. */
 export type Uploader = (
   file: File,
   context: UploadContext
-) => Promise<void | { assetId: string; labels?: FinaliseLabels }>
+) => Promise<void | {
+  assetId: string
+  labels?: FinaliseLabels
+  duplicate?: true
+}>

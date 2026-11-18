@@ -61,6 +61,7 @@ export async function finaliseUpload(
         ? {
             state: "ready",
             ...(result.labels ? { labels: result.labels } : {}),
+            ...(result.duplicate ? { duplicate: true as const } : {}),
           }
         : { state: "failed", error: result.error },
   }

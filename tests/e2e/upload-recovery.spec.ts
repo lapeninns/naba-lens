@@ -236,7 +236,7 @@ test.describe("upload recovery in the real UI", () => {
       .filter({ hasText: /files? (was|were) not added/ })
     await expect(rejected).toContainText("2 files were not added")
     await expect(rejected).toContainText(
-      "oversized.jpg: Photos can be up to 20 MB."
+      "oversized.jpg: Photos can be up to 25 MB."
     )
     await expect(rejected).toContainText(
       "eleventh.jpg: You can upload up to 10 files at a time."

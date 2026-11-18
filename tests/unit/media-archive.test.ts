@@ -137,7 +137,7 @@ describe("durable original retention", () => {
   it("refuses oversized media before fetching it", async () => {
     const h = harness()
     await expect(
-      archiveOriginal({ ...source, sizeBytes: 201 * 1024 * 1024 }, h.deps)
+      archiveOriginal({ ...source, sizeBytes: 251 * 1024 * 1024 }, h.deps)
     ).rejects.toThrow("invalid_size")
     expect(h.deps.prepare).not.toHaveBeenCalled()
   })

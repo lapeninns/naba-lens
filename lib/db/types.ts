@@ -3025,9 +3025,15 @@ export type Database = {
       }
       media_assets: {
         Row: {
+          captured_at: string | null
+          captured_at_set_by: string | null
+          captured_at_source: string
+          client_batch_id: string | null
           client_upload_key: string | null
+          content_sha256: string | null
           created_at: string
           deleted_at: string | null
+          duplicate_of_asset_id: string | null
           duration_seconds: number | null
           height: number | null
           id: string
@@ -3048,9 +3054,15 @@ export type Database = {
           width: number | null
         }
         Insert: {
+          captured_at?: string | null
+          captured_at_set_by?: string | null
+          captured_at_source?: string
+          client_batch_id?: string | null
           client_upload_key?: string | null
+          content_sha256?: string | null
           created_at?: string
           deleted_at?: string | null
+          duplicate_of_asset_id?: string | null
           duration_seconds?: number | null
           height?: number | null
           id?: string
@@ -3071,9 +3083,15 @@ export type Database = {
           width?: number | null
         }
         Update: {
+          captured_at?: string | null
+          captured_at_set_by?: string | null
+          captured_at_source?: string
+          client_batch_id?: string | null
           client_upload_key?: string | null
+          content_sha256?: string | null
           created_at?: string
           deleted_at?: string | null
+          duplicate_of_asset_id?: string | null
           duration_seconds?: number | null
           height?: number | null
           id?: string
@@ -3420,6 +3438,50 @@ export type Database = {
             columns: ["uploader_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_renditions: {
+        Row: {
+          asset_id: string
+          created_at: string
+          height: number | null
+          kind: string
+          mime_type: string
+          object_key: string
+          pipeline_version: string
+          settings: Json
+          width: number | null
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          height?: number | null
+          kind: string
+          mime_type: string
+          object_key: string
+          pipeline_version: string
+          settings?: Json
+          width?: number | null
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          height?: number | null
+          kind?: string
+          mime_type?: string
+          object_key?: string
+          pipeline_version?: string
+          settings?: Json
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_renditions_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
             referencedColumns: ["id"]
           },
         ]
@@ -5747,6 +5809,8 @@ export type Database = {
       complete_media_finalise: {
         Args: {
           p_asset_id: string
+          p_captured_at?: string
+          p_content_sha256?: string
           p_duration_seconds?: number
           p_height?: number
           p_preview_path?: string
@@ -5757,6 +5821,7 @@ export type Database = {
         }
         Returns: {
           became_ready: boolean
+          duplicate_of_asset_id: string
           labels_code: string
           labels_has_labels: boolean
           labels_revision: number
@@ -6437,9 +6502,15 @@ export type Database = {
           p_variant?: string
         }
         Returns: {
+          captured_at: string | null
+          captured_at_set_by: string | null
+          captured_at_source: string
+          client_batch_id: string | null
           client_upload_key: string | null
+          content_sha256: string | null
           created_at: string
           deleted_at: string | null
+          duplicate_of_asset_id: string | null
           duration_seconds: number | null
           height: number | null
           id: string
@@ -6487,9 +6558,15 @@ export type Database = {
           p_venue?: string
         }
         Returns: {
+          captured_at: string | null
+          captured_at_set_by: string | null
+          captured_at_source: string
+          client_batch_id: string | null
           client_upload_key: string | null
+          content_sha256: string | null
           created_at: string
           deleted_at: string | null
+          duplicate_of_asset_id: string | null
           duration_seconds: number | null
           height: number | null
           id: string
@@ -7088,6 +7165,7 @@ export type Database = {
       }
       reserve_media_asset: {
         Args: {
+          p_client_batch_id?: string
           p_client_upload_key?: string
           p_extension: string
           p_media_type: Database["public"]["Enums"]["media_type"]
@@ -7265,6 +7343,10 @@ export type Database = {
           label_id: string
           subject_id: string
         }[]
+      }
+      set_media_captured_at: {
+        Args: { p_asset_id: string; p_captured_at: string }
+        Returns: Json
       }
       set_menu_item_archived: {
         Args: { p_archived: boolean; p_item_id: string }

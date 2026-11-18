@@ -118,9 +118,9 @@ export const FAKE_MEDIA: MediaItem[] = Array.from({ length: 14 }, (_, i) => {
 
 /** Preview-only copy of the spec defaults; the app passes MEDIA_LIMITS from lib/config/media.ts. */
 export const PREVIEW_LIMITS = {
-  maxBatchFiles: 10,
+  maxBatchFiles: 20,
   maxParallelUploads: 2,
-  maxPhotoBytes: 20 * 1024 * 1024,
-  maxVideoBytes: 200 * 1024 * 1024,
+  maxPhotoBytes: 25 * 1024 * 1024,
+  maxVideoBytes: 250 * 1024 * 1024,
 }
 export const PREVIEW_MAX_AVATAR_BYTES = 5 * 1024 * 1024

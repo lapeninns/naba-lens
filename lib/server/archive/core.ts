@@ -1,3 +1,4 @@
+import { MEDIA_LIMITS } from "@/lib/config/media"
 import { createHash } from "node:crypto"
 
 export type ArchiveSource = {
@@ -74,7 +75,7 @@ export async function archiveOriginal(
   if (
     !Number.isSafeInteger(source.sizeBytes) ||
     source.sizeBytes <= 0 ||
-    source.sizeBytes > 200 * 1024 * 1024
+    source.sizeBytes > MEDIA_LIMITS.maxVideoBytes
   )
     throw new Error("archive_invalid_size")
   const original = await deps.prepare(source)

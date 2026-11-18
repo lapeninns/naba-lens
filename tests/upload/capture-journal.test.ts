@@ -75,7 +75,7 @@ describe("capture journal limits", () => {
     )
     expect(v?.bytes).toBeUndefined()
     expect(resumeAction(v!)).toEqual({ kind: "reselect" })
-    const big = await j.pick(pickOf(photo(21 * MiB)))
+    const big = await j.pick(pickOf(photo(26 * MiB)))
     expect(big?.bytes).toBeUndefined()
   })
 

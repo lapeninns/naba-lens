@@ -22,6 +22,11 @@ export type ReserveRequest = {
    * new reservation.
    */
   purpose?: MediaPurpose
+  /**
+   * The client's stable batch ID (spec §12.2 step 1). Stored by the first
+   * reservation for this key; a retry keeps the first one.
+   */
+  batchId?: string
 }
 
 /**
@@ -129,6 +134,10 @@ export async function reserveAsset(
   if (input.mediaType !== "image" && input.mediaType !== "video") {
     return invalid("Choose a photo or a video.")
   }
+  const batchId = input.batchId ?? null
+  if (batchId !== null && !UPLOAD_KEY_PATTERN.test(String(batchId))) {
+    return invalid("This upload request is invalid.")
+  }
   const purpose = input.purpose ?? "general"
   if (purpose !== "general" && purpose !== "amenity") {
     return invalid("This upload request is invalid.")
@@ -163,6 +172,7 @@ export async function reserveAsset(
     p_size_bytes: size,
     p_client_upload_key: input.idempotencyKey,
     p_purpose: purpose,
+    ...(batchId ? { p_client_batch_id: batchId } : {}),
   })
   if (error) return rpcFailure(error)
   const row = data?.[0]
