@@ -144,8 +144,9 @@ revoke all on function private.notification_deliver_after(uuid, uuid, timestampt
 -- ---------------------------------------------------------------------------
 
 -- Writes one notice, or nothing (returns null) when: the person is inactive
--- or unknown; they turned the kind off; the same dedupe key exists; or they
--- still have an unread, unresolved notice of this kind about this subject.
+-- or unknown; they turned the kind off; the same dedupe key exists; they
+-- still have an unread, unresolved notice of this kind about this subject; or
+-- the insert fails (a warning is logged; the caller's change still commits).
 -- For triggers and security definer functions only.
 create function private.notify(
   p_recipient uuid,
@@ -193,15 +194,22 @@ begin
   ) then
     return null;
   end if;
-  insert into public.notifications (
-    recipient_id, venue_id, kind, subject_type, subject_id, dedupe_key, payload,
-    created_at, deliver_after)
-  values (
-    p_recipient, p_venue_id, p_kind, p_subject_type, p_subject_id, p_dedupe_key,
-    coalesce(p_payload, '{}'::jsonb), v_at,
-    private.notification_deliver_after(p_recipient, p_venue_id, v_at))
-  on conflict (recipient_id, dedupe_key) do nothing
-  returning id into v_id;
+  -- A notice must never block the decision that caused it: a failure here is
+  -- logged as a warning and the caller's transaction goes on.
+  begin
+    insert into public.notifications (
+      recipient_id, venue_id, kind, subject_type, subject_id, dedupe_key, payload,
+      created_at, deliver_after)
+    values (
+      p_recipient, p_venue_id, p_kind, p_subject_type, p_subject_id, p_dedupe_key,
+      coalesce(p_payload, '{}'::jsonb), v_at,
+      private.notification_deliver_after(p_recipient, p_venue_id, v_at))
+    on conflict (recipient_id, dedupe_key) do nothing
+    returning id into v_id;
+  exception when others then
+    raise warning 'notify_failed: % (%)', sqlerrm, sqlstate;
+    return null;
+  end;
   return v_id;
 end;
 $$;

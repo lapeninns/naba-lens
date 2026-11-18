@@ -619,6 +619,31 @@ describe("notifications", () => {
     ).toBe("2026-11-20 12:00:00+00")
   })
 
+  it("never blocks the caller when a notice cannot be written", () => {
+    // A payload over the 4 KB limit fails the insert: notify returns null and
+    // the statement (a decision, in real use) still succeeds.
+    expect(
+      psql(
+        `select coalesce(private.notify('${v.staffA.id}', '${v.venue}', 'assigned', 'amenity_check', 'x', 'test:${randomUUID()}', jsonb_build_object('pad', repeat('x', 5000)))::text, 'none')`
+      )
+    ).toBe("none")
+  })
+
+  it("keeps the writers private", () => {
+    for (const fn of [
+      "private.notify(uuid, uuid, text, text, text, text, jsonb, timestamptz)",
+      "private.record_activity(uuid, text, text, text, integer, integer, text, jsonb, jsonb)",
+      "private.notification_resolve(text, text, text, uuid)",
+      "public.ops_run_notification_jobs(timestamptz)",
+      "public.ops_record_job_run(text, text, timestamptz, text, jsonb, integer, uuid, text, uuid)",
+    ])
+      for (const role of ["anon", "authenticated"])
+        expect(
+          psql(`select has_function_privilege('${role}', '${fn}', 'execute')`),
+          `${role} ${fn}`
+        ).toBe("f")
+  })
+
   it("refuses an inactive account and anon", async () => {
     const gone = await leaver(v, "ops-n-gone", "staff")
     await fails(inbox(gone), "not_active_user")
