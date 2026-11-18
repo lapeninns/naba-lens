@@ -50,14 +50,14 @@ export const ALLOW: AllowEntry[] = [
   {
     file: "lib/pwa/canvas-colours.ts",
     rule: "raw-colour",
-    match: "#f6f1e7",
+    match: "#f6f3ec",
     reason:
       "The theme-color meta tag and the web app manifest cannot read a CSS variable, so the light canvas is repeated in sRGB.",
   },
   {
     file: "lib/pwa/canvas-colours.ts",
     rule: "raw-colour",
-    match: "#151714",
+    match: "#121613",
     reason:
       "The theme-color meta tag cannot read a CSS variable, so the dark canvas is repeated in sRGB.",
   },

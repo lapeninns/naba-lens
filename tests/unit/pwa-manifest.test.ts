@@ -8,8 +8,7 @@ import { describe, expect, it, vi } from "vitest"
 vi.mock("next/font/google", () => {
   const font = () => ({ variable: "font", className: "font" })
   return {
-    Atkinson_Hyperlegible_Mono: font,
-    Atkinson_Hyperlegible_Next: font,
+    Figtree: font,
     Fraunces: font,
   }
 })
@@ -20,13 +19,13 @@ import { config as proxyConfig } from "@/proxy"
 
 /**
  * FA-53 (spec §15.3): the web app manifest, its icons, the Apple touch icon,
- * theme colours and appleWebApp metadata. Album colours come from
+ * theme colours and appleWebApp metadata. v2 colours (D10) come from
  * app/globals.css (DESIGN.md §3.1).
  */
 
 const root = fileURLToPath(new URL("../../", import.meta.url))
-const PAPER_LIGHT = "#f6f1e7"
-const PAPER_DARK = "#151714"
+const PAPER_LIGHT = "#f6f3ec"
+const PAPER_DARK = "#121613"
 const ACCENT = "#1d4d36"
 
 describe("app/manifest.ts", () => {

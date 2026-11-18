@@ -26,7 +26,7 @@ export function RoleLine({
     <>
       {member.jobTitle}
       {member.jobTitle && member.department ? (
-        <span aria-hidden className="text-ink-subtle">
+        <span aria-hidden className="text-ink-muted">
           {" · "}
         </span>
       ) : null}
@@ -61,7 +61,7 @@ export function PersonCard({ member }: { member: CommunityMember }) {
           <span className="[overflow-wrap:anywhere]">
             {member.venueName ?? "No venue assigned"}
           </span>
-          <span aria-hidden className="text-ink-subtle">
+          <span aria-hidden className="text-ink-muted">
             ·
           </span>
           <span className="font-mono tabular-nums">
