@@ -12,7 +12,9 @@
  *
  * Dry run by default: reads only, and reports what --apply would do.
  * Idempotent: a manifest is one batch (by its SHA-256), and a line already
- * recorded in the batch is reported as unchanged.
+ * recorded in the batch is reported as unchanged. A line that failed after
+ * its reservation and whose reservation the 24-hour cleanup has since
+ * tombstoned is tried again at its next attempt id (S5-R3, review Y6).
  */
 import { createHash } from "node:crypto"
 import { readFile, stat } from "node:fs/promises"
@@ -94,9 +96,22 @@ export type ImportReport = {
 const sha256 = (data: Uint8Array | string) =>
   createHash("sha256").update(data).digest("hex")
 
-/** A stable asset id for a manifest line (a rerun finds the same row). */
-export function importAssetId(batchId: string, line: number): string {
-  const h = sha256(`nabalens-legacy-import:${batchId}:${line}`).slice(0, 32)
+/**
+ * A stable asset id for a manifest line (a rerun finds the same row).
+ * Attempt 0 is the line's first reservation; a later attempt is used only
+ * once every earlier one was tombstoned by cleanup (S5-R3, review Y6), so the
+ * ids stay derived from batch and line and a rerun still finds its row.
+ */
+export function importAssetId(
+  batchId: string,
+  line: number,
+  attempt = 0
+): string {
+  const seed =
+    attempt === 0
+      ? `nabalens-legacy-import:${batchId}:${line}`
+      : `nabalens-legacy-import:${batchId}:${line}:${attempt}`
+  const h = sha256(seed).slice(0, 32)
   const variant = ((parseInt(h[16]!, 16) & 0x3) | 0x8).toString(16)
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`
 }
@@ -178,14 +193,26 @@ async function readCandidates(
       .eq("status", "active"),
   ])
   if (places.error || checks.error) throw new Error("Could not read places.")
+  // Only questions on the venue's working list have an amenity queue
+  // (private.knowledge_in_scope); an off-list check is neither offered nor
+  // counted towards an ambiguous match (S5-R3, review Y5).
+  const working = await service
+    .from("knowledge_working_list")
+    .select("question_key")
+    .eq("venue_id", venueId)
+    .is("disabled_at", null)
+  if (working.error) throw new Error("Could not read the working list.")
+  const inScope = new Set((working.data ?? []).map((w) => w.question_key))
   for (const p of places.data ?? [])
     candidates.push({ kind: "place", id: p.id, names: [p.label] })
-  for (const c of checks.data ?? [])
+  for (const c of checks.data ?? []) {
+    if (!inScope.has(c.template_key)) continue
     candidates.push({
       kind: "amenity",
       id: c.id,
       names: [amenityWords(c.template_key)],
     })
+  }
   return candidates
 }
 
@@ -556,6 +583,9 @@ function problemRow(problem: ManifestProblem): ResultRow {
   }
 }
 
+/** Reservations one line may use before the operator must start a new batch. */
+const MAX_IMPORT_ATTEMPTS = 20
+
 type OneResult =
   | {
       ok: true
@@ -580,19 +610,35 @@ async function importOne(input: {
   staged: { kind: SubjectKind; id: string } | null
 }): Promise<OneResult> {
   const { service, row, file, validated } = input
-  const assetId = importAssetId(input.batchId, row.line)
-  let keys = mediaObjectKeys(input.uploaderId, assetId, file.ext)
   const bucket = service.storage.from(STORAGE_BUCKETS.media)
+
+  // 0. The line's reservation: the first attempt whose row is not
+  //    tombstoned. A row cleanup tombstoned (a failed line left for more than
+  //    24 hours) is closed for good: its objects are gone or going, and the
+  //    storage guard refuses a new original at its key. The line moves on to
+  //    its next attempt id instead (S5-R3, review Y6).
+  const attempts = Array.from({ length: MAX_IMPORT_ATTEMPTS }, (_, k) =>
+    importAssetId(input.batchId, row.line, k)
+  )
+  const rows = await service
+    .from("media_assets")
+    .select("id, deleted_at")
+    .in("id", attempts)
+  if (rows.error) return { ok: false, message: "could not read the asset" }
+  const tombstoned = new Set(
+    (rows.data ?? []).filter((r) => r.deleted_at).map((r) => r.id)
+  )
+  const assetId = attempts.find((id) => !tombstoned.has(id))
+  if (!assetId)
+    return {
+      ok: false,
+      message: `${MAX_IMPORT_ATTEMPTS} earlier attempts expired; import it under a new manifest`,
+    }
+  let keys = mediaObjectKeys(input.uploaderId, assetId, file.ext)
 
   // 1. The original, before the reservation: the storage write guard checks
   //    only keys that a reservation owns. A rerun finds it already stored.
-  const existing = await service
-    .from("media_assets")
-    .select("upload_state")
-    .eq("id", assetId)
-    .maybeSingle()
-  if (existing.error) return { ok: false, message: "could not read the asset" }
-  if (!existing.data) {
+  if (!rows.data?.some((r) => r.id === assetId)) {
     const stored = await bucket.upload(keys.original, file.bytes, {
       contentType: validated.mime,
       upsert: false,

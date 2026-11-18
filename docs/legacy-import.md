@@ -21,8 +21,9 @@ For each file in the manifest:
   photos cover nothing and earn no monthly credit until a reviewer accepts
   them.
 - Legacy label: if it names exactly one current dish (name or alias on the
-  active menu), place, or facility (its key as words, for example "pool
-  table") at that venue, the photo is labelled with it for review. Otherwise
+  active menu), place, or facility on the venue's working list (its key as
+  words, for example "pool table") at that venue, the photo is labelled with
+  it for review. A facility the venue has turned off is not matched. Otherwise
   (no match, or more than one) it stays unlabelled, with the legacy label
   kept as its note, and appears at once in the venue's **Needs label** list.
 - Who holds it: the contributor, when their email is an active staff or
@@ -50,7 +51,9 @@ It needs `NEXT_PUBLIC_SUPABASE_URL` (or `SUPABASE_URL`) and
 and never prints them.
 
 **Running it again** with the same manifest changes nothing: lines already
-done are reported as `unchanged`, and only failed lines are tried again. A
+done are reported as `unchanged`, and only failed lines are tried again, even
+after the hourly cleanup has removed a failed line's half-finished upload
+(more than 24 hours later): the line is then stored again under a new id. A
 changed manifest (any edit) is a new batch; its files that were already
 imported are then skipped as duplicates.
 

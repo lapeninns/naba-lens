@@ -220,6 +220,19 @@ describe("importAssetId and resultCsv", () => {
     expect(importAssetId("batch-2", 2)).not.toBe(a)
   })
 
+  it("gives each retry attempt its own stable id; attempt 0 is the first run's", () => {
+    // S5-R3 (review Y6): a line whose reservation cleanup tombstoned moves to
+    // its next attempt; attempt 0 keeps the id earlier runs used.
+    expect(importAssetId("batch-1", 2, 0)).toBe(importAssetId("batch-1", 2))
+    const ids = [0, 1, 2].map((k) => importAssetId("batch-1", 2, k))
+    expect(new Set(ids).size).toBe(3)
+    expect(importAssetId("batch-1", 2, 1)).toBe(ids[1])
+    for (const id of ids)
+      expect(id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      )
+  })
+
   it("quotes cells and neutralises spreadsheet formulas", () => {
     const csv = resultCsv([
       {

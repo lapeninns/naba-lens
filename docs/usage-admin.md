@@ -140,7 +140,8 @@ file appears once.
 **Imported** lists each legacy import batch (`pnpm import:legacy`, run by the
 owner; see [legacy import](legacy-import.md)) with how many photos and videos
 it brought in. Imported photos wait in Review like any upload and cover
-nothing until a reviewer accepts them.
+nothing until a reviewer accepts them. Running a manifest again also retries
+lines that failed, even after the daily cleanup.
 
 Open a photo and choose **Edit labels** (or **Add labels**) to correct its
 labels. Labels are optional, so unlabelled photos appear at once.
