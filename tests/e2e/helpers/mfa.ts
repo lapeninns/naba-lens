@@ -1,6 +1,11 @@
 import type { Page } from "@playwright/test"
 
-import { knownTotpSecret, totpCode } from "../../support/totp"
+import {
+  knownTotpSecret,
+  rememberTotpFactor,
+  totpCode,
+} from "../../support/totp"
+import { provisioner } from "./stack"
 
 /**
  * Admins pass a TOTP second step after signing in (FA-23, /auth/mfa). The
@@ -8,7 +13,9 @@ import { knownTotpSecret, totpCode } from "../../support/totp"
  * the page shows; later sign-ins in this worker enter a fresh code for it.
  * An admin whose factor a fixture enrolled through the API (createIdentity
  * with a session, tests/support/totp.ts) is asked for a code straight away:
- * that factor's secret is found by the signed-in user's id.
+ * that factor's secret is found by the signed-in user's id. A factor set up
+ * here is remembered for tests/support/totp.ts too, so a later API sign-in of
+ * the same admin (signIn) verifies it instead of enrolling a second one.
  */
 const secrets = new Map<string, string>()
 
@@ -62,4 +69,13 @@ export async function passMfaIfAsked(page: Page, email: string) {
   await code.fill(totpCode(secret))
   await page.getByRole("button", { name: /^(Confirm code|Continue)$/ }).click()
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/mfa"))
+  const userId = await sessionUserId(page)
+  if (userId && !knownTotpSecret(userId)) {
+    const { data, error } = await provisioner().auth.admin.mfa.listFactors({
+      userId,
+    })
+    if (error) throw error
+    const factor = data.factors.find((f) => f.factor_type === "totp")
+    if (factor) rememberTotpFactor(userId, { factorId: factor.id, secret })
+  }
 }
