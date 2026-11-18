@@ -398,8 +398,13 @@ test.describe("signed previews", () => {
     // Me lists Your photos first (S2-STAFF), so the portfolio's lazy tiles
     // load only once scrolled to.
     await portfolio.getByRole("button").nth(2).scrollIntoViewIfNeeded()
-    const alert = previewAlert(staffPage)
+    // Your photos follows the same rule (S3-R4, F7) with its own notice.
+    const yours = staffPage.locator('[data-slot="my-uploads-broken"]')
+    const alert = previewAlert(staffPage).and(
+      staffPage.locator(':not([data-slot="my-uploads-broken"])')
+    )
     await expect(alert).toHaveText(/1 preview could not load\./)
+    await expect(yours).toHaveText(/1 preview could not load\./)
     await expect(
       portfolio.getByRole("button").nth(2).locator("img")
     ).toHaveCount(0)
@@ -407,6 +412,8 @@ test.describe("signed previews", () => {
     await alert.getByRole("button", { name: "Try again" }).click()
     await expectImageLoaded(portfolio.getByRole("button").nth(2).locator("img"))
     await expect(alert).toHaveCount(0)
+    await yours.getByRole("button", { name: "Try again" }).click()
+    await expect(yours).toHaveCount(0)
     checkStaffOptimiser()
 
     // --- Admin portfolio (/admin/staff/[id]): the same gallery and recovery.
