@@ -82,6 +82,23 @@ const inbox = (who: TestIdentity, args: object = {}) =>
   rpc<Inbox>(who, "my_notifications", args)
 const unread = (who: TestIdentity) => rpc<number>(who, "my_notification_count")
 
+/**
+ * Every item in the person's inbox, page by page. The job notifies each admin
+ * of every venue's exceptions, so on a shared stack this test's notice need
+ * not be on the first page (S6-CI).
+ */
+async function allInbox(who: TestIdentity): Promise<Inbox["items"]> {
+  const items: Inbox["items"] = []
+  let before: number | null = null
+  for (let page = 0; page < 1000; page++) {
+    const box: Inbox = await ok(inbox(who, { p_before: before, p_limit: 100 }))
+    items.push(...box.items)
+    if (box.nextBefore === null) return items
+    before = box.nextBefore
+  }
+  throw new Error("inbox paging did not finish")
+}
+
 async function anonRefused(fn: string, args: object = {}) {
   const { error } = await anonClient().rpc(fn as never, args as never)
   expect(error, `anon ${fn}`).not.toBeNull()
@@ -709,8 +726,8 @@ describe("monitoring and the notification job", () => {
       submittedAt: new Date().toISOString(),
     })
     const digests = (who: TestIdentity) =>
-      ok(inbox(who)).then((b) =>
-        b.items.filter(
+      allInbox(who).then((items) =>
+        items.filter(
           (i) => i.kind === "review_digest" && i.subjectId === v.venue
         )
       )
@@ -773,8 +790,8 @@ describe("monitoring and the notification job", () => {
     })
 
     const notices = () =>
-      ok(inbox(v.admin)).then((b) =>
-        b.items.filter((i) => i.kind === "exception" && i.subjectId === job)
+      allInbox(v.admin).then((items) =>
+        items.filter((i) => i.kind === "exception" && i.subjectId === job)
       )
     await ok(service.rpc("ops_run_notification_jobs" as never, {} as never))
     await ok(service.rpc("ops_run_notification_jobs" as never, {} as never))
@@ -787,7 +804,7 @@ describe("monitoring and the notification job", () => {
     })
     // Staff and managers get no exceptions.
     expect(
-      (await ok(inbox(v.manager))).items.some((i) => i.kind === "exception")
+      (await allInbox(v.manager)).some((i) => i.kind === "exception")
     ).toBe(false)
 
     await ok(
@@ -807,14 +824,21 @@ describe("monitoring and the notification job", () => {
     const before = Number(
       psql(`select count(*) from public.media_assets where deleted_at is null`)
     )
+    // Usage is organisation-wide and grows with every earlier test file, so
+    // the quota is set from it: under 50% now, between 50% and 100% once one
+    // 600 MB original is recorded (S6-CI).
+    const used = (
+      await ok(rpc<{ storage: { usedBytes: number } }>(v.admin, "ops_status"))
+    ).storage.usedBytes
     const { revision } = await ok(settings(v.admin))
     await ok(
       setSettings(v.admin, revision, {
-        storageQuotaBytes: 1073741824,
+        // At least the 1 GiB minimum the settings allow.
+        storageQuotaBytes: Math.max(2 * used + 1_000_000_000, 1073741824),
         storageAlertPercent: 50,
       })
     )
-    // Make usage cross 50% of 1 GiB with one large recorded original.
+    // Make usage cross 50% of the quota with one large recorded original.
     const big = await uploadingAsset(v, v.staffA)
     psql(
       `update public.media_assets set size_bytes = 600000000 where id = '${big.id}'`
