@@ -25,7 +25,7 @@ export type AllowEntry = {
  * no token or recipe fits, and expect to be asked. Do not raise it to get a
  * red test to pass.
  */
-export const MAX_ALLOWED = 35
+export const MAX_ALLOWED = 33
 export const MAX_ALLOWED_DEV = 9
 
 const HEADER_HAIRLINE =
@@ -112,20 +112,7 @@ export const ALLOW: AllowEntry[] = [
     match: "shadow-[inset_0_-3px_0_var(--accent-text)]",
     reason: TAB_UNDERLINE,
   },
-  {
-    file: "components/ui/button.tsx",
-    rule: "arbitrary-value",
-    match: "shadow-[inset_0_0_0_1.5px_var(--line)]",
-    reason:
-      "The disabled button's hairline is 1.5px in the spec, and the edge recipe is 1px; it waits for a 1.5px edge recipe in app/globals.css.",
-  },
-  {
-    file: "components/ui/button.tsx",
-    rule: "arbitrary-value",
-    match: "shadow-[inset_0_0_0_1.5px_var(--warn-fg)]",
-    reason:
-      "The danger button's warn edge is 1.5px in the spec, and edge-invalid is 2px; it waits for a 1.5px edge recipe in app/globals.css.",
-  },
+
   {
     file: "components/nabalens/coverage/team-roster.tsx",
     rule: "arbitrary-value",

@@ -44,7 +44,7 @@ describe("Combobox", () => {
     const classes = input.className.split(" ")
     for (const name of [
       "h-14",
-      "bg-surface-2",
+      "bg-surface",
       "edge-strong",
       "rounded-control",
       "text-field",

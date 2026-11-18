@@ -34,7 +34,7 @@ const classes = (element: Element) => element.className.split(/\s+/)
 const RECIPE = [
   "w-full",
   "rounded-control",
-  "bg-surface-2",
+  "bg-surface",
   "edge-strong",
   "focus-ring",
   "hover:bg-raised",
@@ -117,7 +117,7 @@ describe("the shared field recipe", () => {
     ]
     for (const control of md) {
       expect(control.getAttribute("data-size")).toBe("md")
-      expect(classes(control)).toContain("min-h-14")
+      expect(classes(control)).toContain("min-h-12")
       expect(classes(control)).toContain("text-field")
     }
     for (const control of sm) {
@@ -163,14 +163,14 @@ describe("Input", () => {
 })
 
 describe("Textarea", () => {
-  it("is at least three rows and 120px, resized downwards only", () => {
+  it("is at least three rows and 96px, resized downwards only", () => {
     render(<Textarea aria-label="Reason" />)
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
     expect(textarea.tagName).toBe("TEXTAREA")
     expect(textarea.getAttribute("data-slot")).toBe("textarea")
     expect(textarea.rows).toBe(3)
-    expect(classes(textarea)).toContain("min-h-30")
-    expect(classes(textarea)).not.toContain("min-h-14")
+    expect(classes(textarea)).toContain("min-h-24")
+    expect(classes(textarea)).not.toContain("min-h-12")
     expect(classes(textarea)).toContain("resize-y")
   })
 

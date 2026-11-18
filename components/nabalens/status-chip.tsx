@@ -1,7 +1,9 @@
 import {
   ArrowUUpLeftIcon,
   ArrowUpIcon,
+  CameraIcon,
   CheckIcon,
+  CircleIcon,
   ClockIcon,
   DownloadSimpleIcon,
   GlobeIcon,
@@ -18,6 +20,7 @@ import {
   UserIcon,
   UsersIcon,
   WarningCircleIcon,
+  WarningIcon,
   WrenchIcon,
   XIcon,
 } from "@phosphor-icons/react/dist/ssr"
@@ -27,50 +30,69 @@ import { cn } from "@/lib/utils"
 
 /**
  * The chip's tone: the meaning in colour, which only repeats the word.
- * Common Room draws each state in its own shape too (see CHIP_SHAPES): a
- * state never depends on telling green from red.
+ * v2 draws five tones (docs/design-system/v2/GUIDELINES.md "Status
+ * language"); these six names map onto them in V2_TONE.
  */
 export type ChipTone =
   "neutral" | "positive" | "attention" | "negative" | "pending" | "closed"
 
 /**
- * Common Room state shapes (common-room.md §3). pill = round, square = 4px,
- * stamp = 2px with a double border. Reserved: the filled ok square
- * (`accepted`) is Accepted's alone; the round info outline (`ready`) is
- * Ready's alone; the stamp (`complete`) is Complete's alone; the dashed
- * hatched square (`setup`) is Needs setup's and Needs verification's alone.
+ * v2's five chip looks (StatusChip, `nl-chip--*`): neutral ink on
+ * surface-sunken, progress sky, positive bottle, attention brass-ink on
+ * brass-soft, and problem, the only solid chip, on-signal on signal.
+ */
+const V2_LOOK = {
+  neutral: "bg-surface-2 text-ink",
+  progress: "bg-info-bg text-info-fg",
+  positive: "bg-ok-bg text-ok-fg",
+  attention: "bg-warn-bg text-warn-fg",
+  problem: "bg-signal text-on-signal",
+} as const
+
+export type V2Tone = keyof typeof V2_LOOK
+
+/** The v2 tone each chip tone is drawn in. */
+export const V2_TONE: Record<ChipTone, V2Tone> = {
+  neutral: "neutral",
+  closed: "neutral",
+  pending: "progress",
+  positive: "positive",
+  attention: "attention",
+  negative: "problem",
+}
+
+/**
+ * The shape names states carry (and show as `data-shape`). Since D10 every
+ * one is v2's pill in one of its five tones; the names stay so the states
+ * table and the callers that pick a shape keep working. The upload shapes
+ * are the exception v2 also makes: an upload's state is words beside the
+ * file in its tone colour, with no box (UploadRow `nl-file__state`).
  */
 export const CHIP_SHAPES = {
-  ready: "rounded-round border-info-fg text-info-fg",
-  submitted: "rounded-round border-edge-strong text-ink",
-  accepted: "rounded-square border-ok-bg bg-ok-bg text-ok-fg",
-  needs: "rounded-round border-warn-fg bg-warn-bg text-warn-fg",
-  closed: "rounded-square border-line bg-surface-2 text-ink-muted",
-  overdue: "rounded-square border-warn-fg text-warn-fg",
-  complete:
-    "rounded-stamp border-4 border-double border-stamp-fg py-px type-stamp text-stamp-fg",
-  setup:
-    "rounded-square border-2 border-dashed border-ink-muted bg-hatch text-ink",
-  na: "rounded-square border-2 border-dotted border-ink-muted text-ink-muted",
-  progress: "rounded-round border-line bg-surface-2 text-ink",
-  met: "rounded-square border-ok-fg text-ok-fg",
-  self: "rounded-square border-info-fg bg-info-bg text-info-fg",
-  present: "rounded-square border-ok-fg text-ok-fg",
-  waiting: "rounded-round border-dashed border-edge-strong text-ink",
-  neutralSquare: "rounded-square border-edge-strong text-ink",
-  menuActive: "rounded-square border-edge-strong bg-surface-2 text-ink",
-  changed:
-    "rounded-square border-edge-strong border-l-[5px] border-l-warn-fg text-ink",
-  plain: "rounded-round border-transparent bg-surface-2 text-ink",
-  /** Problem with a fill (tone-only negative): square, warn tint and edge. */
-  warnSquare: "rounded-square border-warn-fg bg-warn-bg text-warn-fg",
-  /** Upload pipeline: words in mono beside the file, no box. */
-  upload:
-    "rounded-none border-transparent px-0 font-mono font-semibold text-ink",
-  uploadMuted:
-    "rounded-none border-transparent px-0 font-mono font-semibold text-ink-muted",
-  uploadFailed:
-    "rounded-none border-transparent px-0 font-mono font-semibold text-warn-fg",
+  ready: V2_LOOK.progress,
+  submitted: V2_LOOK.progress,
+  accepted: V2_LOOK.positive,
+  needs: V2_LOOK.attention,
+  closed: V2_LOOK.neutral,
+  overdue: V2_LOOK.attention,
+  complete: V2_LOOK.positive,
+  setup: V2_LOOK.attention,
+  na: V2_LOOK.neutral,
+  progress: V2_LOOK.neutral,
+  met: V2_LOOK.positive,
+  self: V2_LOOK.attention,
+  present: V2_LOOK.positive,
+  waiting: V2_LOOK.progress,
+  neutralSquare: V2_LOOK.neutral,
+  menuActive: V2_LOOK.positive,
+  changed: V2_LOOK.attention,
+  plain: V2_LOOK.neutral,
+  /** Problem: the solid signal chip. */
+  warnSquare: V2_LOOK.problem,
+  /** Upload pipeline: words beside the file, no box. */
+  upload: "rounded-none bg-transparent px-0 text-label text-info-fg",
+  uploadMuted: "rounded-none bg-transparent px-0 text-label text-ink-muted",
+  uploadFailed: "rounded-none bg-transparent px-0 text-label text-signal",
 } as const
 
 export type ChipShape = keyof typeof CHIP_SHAPES
@@ -125,7 +147,7 @@ export const CHIP_STATES = {
   failed: {
     word: "Failed",
     tone: "negative",
-    icon: WarningCircleIcon,
+    icon: WarningIcon,
     shape: "uploadFailed",
   },
   cancelled: {
@@ -150,7 +172,7 @@ export const CHIP_STATES = {
   needs_another_photo: {
     word: "Needs another photo",
     tone: "attention",
-    icon: ArrowUUpLeftIcon,
+    icon: CameraIcon,
     shape: "needs",
   },
   closed: {
@@ -575,7 +597,7 @@ export const CHIP_STATES = {
   coverage_replacement_needed: {
     word: "Another photo requested",
     tone: "attention",
-    icon: ArrowUUpLeftIcon,
+    icon: CameraIcon,
     shape: "needs",
   },
   coverage_missing: {
@@ -618,7 +640,7 @@ export const CHIP_STATES = {
   outcome_retake: {
     word: "Retake",
     tone: "attention",
-    icon: ArrowUUpLeftIcon,
+    icon: CameraIcon,
     shape: "needs",
   },
   outcome_label_corrected: {
@@ -720,17 +742,37 @@ export function chipState(key: string): ChipState {
     : { word: humanise(key), tone: "neutral" }
 }
 
-// Common Room chip: 32px, 17px bold, icon + word. A long word ("Ended:
-// moved to another venue") wraps inside the chip rather than pushing a 320px
-// or zoomed page sideways. The shape class (CHIP_SHAPES) sets radius, edge,
-// fill and colour.
+// v2 chip (`nl-chip`): a 28px pill, caption type at 600, a 16px icon and the
+// word. A long word ("Ended: moved to another venue") wraps inside the chip
+// rather than pushing a 320px or zoomed page sideways. The shape class
+// (CHIP_SHAPES) sets the tone's fill and colour.
 export const chipClassName =
-  "inline-flex max-w-full min-h-8 items-center gap-1.5 border-[1.5px] border-transparent bg-transparent py-0.5 pr-3 pl-2 text-left text-chip align-middle whitespace-normal [overflow-wrap:anywhere] [&_svg]:size-[18px] [&_svg]:shrink-0"
+  "inline-flex max-w-full min-h-7 items-center gap-1 rounded-round py-0.5 pr-2.5 pl-2 text-left text-chip align-middle whitespace-normal [overflow-wrap:anywhere] [&_svg]:size-4 [&_svg]:shrink-0"
+
+/**
+ * v2: every chip has an icon. A state without its own icon, or a chip
+ * redrawn in another tone, takes its tone's: a plain circle (nothing yet),
+ * the clock (waiting), the check (done), the exclamation (a person needs
+ * to act) or the triangle (a problem).
+ */
+const TONE_ICON: Record<V2Tone, Icon> = {
+  neutral: CircleIcon,
+  progress: ClockIcon,
+  positive: CheckIcon,
+  attention: WarningCircleIcon,
+  problem: WarningIcon,
+}
+
+const BOXLESS: ReadonlySet<ChipShape> = new Set([
+  "upload",
+  "uploadMuted",
+  "uploadFailed",
+])
 
 type StatusChipProps = {
   className?: string
   title?: string
-  /** Override the drawn shape (keep it to the reserved rules in §3). */
+  /** Override the drawn shape: one of the names in CHIP_SHAPES. */
   shape?: ChipShape
 } & (
   | {
@@ -756,12 +798,19 @@ export function StatusChip(props: StatusChipProps) {
     (props.tone && known && props.tone !== known.tone
       ? TONE_SHAPE[props.tone]
       : (known?.shape ?? TONE_SHAPE[tone]))
-  // The state's icon belongs to its own shape; a redrawn chip goes without.
-  const Icon = known && shape === known.shape ? known.icon : undefined
+  // The state's icon belongs to its own shape; a redrawn chip, or a state
+  // with none, takes its tone's. The box-less upload words keep their own.
+  const Icon =
+    known && shape === known.shape && known.icon
+      ? known.icon
+      : BOXLESS.has(shape)
+        ? undefined
+        : TONE_ICON[V2_TONE[tone]]
   return (
     <span
       data-slot="status-chip"
       data-tone={tone}
+      data-v2-tone={V2_TONE[tone]}
       data-shape={shape}
       data-state={props.state}
       title={props.title}
@@ -801,7 +850,7 @@ export function CountBadge({
       data-slot="count"
       data-tone={tone}
       className={cn(
-        "inline-grid h-[26px] min-w-[26px] place-items-center rounded-round px-[7px] font-mono text-mono leading-none font-bold tabular-nums",
+        "inline-grid h-[26px] min-w-[26px] place-items-center rounded-round px-[7px] font-mono text-mono leading-none font-semibold tabular-nums",
         tone === "warn" ? "bg-warn-fg text-surface" : "bg-ink text-surface",
         className
       )}
