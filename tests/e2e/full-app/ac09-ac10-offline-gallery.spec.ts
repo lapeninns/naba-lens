@@ -34,14 +34,21 @@ test("AC09 offline: no false Sent; saved on this phone; sent once back online (p
   const photo = await syntheticJpeg(`ac09-${w.tag}.jpg`)
   const page = await signedInPage(browser, w.staffA1, SIZES.phone)
   await openAlbum(page)
-  await page.context().setOffline(true)
+  // The signal drops once Match has its slots (they come from the server).
   const { match } = await startMatch(page, [photo.path])
+  await expect(
+    match.locator('[data-slot="match-picker"]').getByRole("button", { name: /^Salad\b/ })
+  ).toBeVisible()
+  await page.context().setOffline(true)
   await matchBySearch(match, "salad", "Salad")
   const summary = matchSummary(page)
   await expect(summary).toBeVisible()
   // Honest words for a photo still on the phone (spec §5.6).
   await expect(summary).toContainText("Saved on this phone")
-  await expect(summary).not.toContainText(/\b(Sent|Waiting)\b/)
+  // Nothing reached the server, so the end must not claim a filled slot or
+  // Waiting (soft: on the merged head it does; report D7).
+  await expect.soft(summary).not.toContainText(/\b(Sent|Waiting|slots? filled)\b/)
+  await expect(summary).not.toContainText(/\bSent\b/)
   await keep(page, info, "ac09-offline-summary")
   expect(
     assetsNamed(photo.name) === 0 ||
