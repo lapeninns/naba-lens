@@ -68,6 +68,9 @@ const ALLOWED_PAGES = new Set([
   "/admin",
   "/admin/staff",
   "/admin/staff/[id]",
+  // Full App v1 S1-OPS (spec §8 A7): Settings and activity. Admins only.
+  "/admin/settings",
+  "/admin/activity",
   "/auth/blocked",
   // Unmatched URLs in each area: notFound() only, so the area's own not-found
   // page (with its navigation) answers instead of the root one.
@@ -180,6 +183,9 @@ const ALLOWED_HANDLERS = new Set([
   "/api/media/[id]/stream",
   "/api/media/[id]/thumb",
   "/api/internal/cleanup",
+  // Full App v1 S1-OPS (spec §17): hourly review digests and admin exceptions,
+  // in-app only (FA-10). Bearer secret, no session.
+  "/api/internal/notifications",
   // B05-m6 internal evidence documents (b05-design §2A): PDF allergen and
   // recipe evidence for the venue's manager, admins and the allergen
   // authority. Attachment-only download, never inline; staff have no access.
@@ -430,8 +436,11 @@ const FORBIDDEN: { feature: string; pattern: RegExp }[] = [
   },
   { feature: "analytics", pattern: /analytics|posthog|gtag|plausible/i },
   {
-    feature: "notifications",
-    pattern: /notification|web-push|PushManager|serviceWorker/i,
+    // Full App v1 (spec §17, decision FA-10) adds in-app notices: an inbox
+    // list and badges, never toasts. Device push and email digests stay out
+    // until Release 2 (FA-43).
+    feature: "push notifications",
+    pattern: /web-push|PushManager|serviceWorker|push_subscription/i,
   },
   { feature: "leaderboard", pattern: /leaderboard/i },
   { feature: "campaigns", pattern: /campaign/i },
