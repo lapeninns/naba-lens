@@ -700,18 +700,3 @@ export function canSelectPrimary(detail: AssetDetail, slot: AssetSlot) {
       (slot.photoId !== null && slot.itemRevision !== null))
   )
 }
-
-/**
- * Which venues a set of library items belong to. An export package is per
- * venue (S1-EXPORT), so a selection from several venues is exported one
- * venue at a time.
- */
-export function groupByVenue<T extends { venueId: string }>(items: T[]) {
-  const out = new Map<string, T[]>()
-  for (const item of items) {
-    const list = out.get(item.venueId) ?? []
-    list.push(item)
-    out.set(item.venueId, list)
-  }
-  return out
-}
