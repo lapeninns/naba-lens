@@ -71,7 +71,7 @@ export const OVERVIEW_COPY = {
 }
 
 const NUMBER_LINK =
-  "inline-flex min-h-12 items-center gap-1 font-mono text-mono font-semibold tabular-nums text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+  "inline-flex min-h-12 flex-wrap items-center gap-x-1 font-mono text-mono font-semibold tabular-nums text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
 
 function NumberLink({
   href,
@@ -98,10 +98,11 @@ function NumberLink({
 
 /** Shades as the albums matrix (DESIGN.md §6.6): the tint repeats the words. */
 function tint(c: { covered: number; total: number }) {
-  if (c.total === 0) return "bg-surface"
-  if (c.covered >= c.total) return "bg-ok-fg text-on-ok [&_a]:text-on-ok"
-  if (c.covered === 0) return "bg-surface"
-  return c.covered * 2 < c.total ? "bg-ok-bg" : "bg-ok-half"
+  // From md only: a stacked phone block keeps its labels readable on surface.
+  if (c.total === 0 || c.covered === 0) return ""
+  if (c.covered >= c.total)
+    return "md:bg-ok-fg md:text-on-ok md:[&_a]:text-on-ok"
+  return c.covered * 2 < c.total ? "md:bg-ok-bg" : "md:bg-ok-half"
 }
 
 function CategoryCell({
@@ -153,7 +154,7 @@ function CategoryCell({
           )}
           label={`${label} at ${row.name}: ${words.main} covered`}
         >
-          {words.main}
+          <span className="whitespace-nowrap">{words.main}</span>
           {words.pct ? (
             <span className="font-sans text-meta font-normal">
               · {words.pct}
@@ -235,7 +236,7 @@ function OverviewTable({
                   data-testid="overview-row"
                   data-venue={row.venueId}
                 >
-                  <TableHead scope="row" className="align-top text-ink">
+                  <TableHead scope="row" className="align-top text-ink md:min-w-48">
                     <span className="grid gap-1">
                       <Link
                         href={href.venue}
@@ -280,7 +281,7 @@ function OverviewTable({
                         label={`Facts confirmed at ${row.name}: ${facts.main}`}
                         testId="overview-facts"
                       >
-                        {facts.main}
+                        <span className="whitespace-nowrap">{facts.main}</span>
                         {facts.pct ? (
                           <span className="font-sans text-meta font-normal">
                             · {facts.pct}
