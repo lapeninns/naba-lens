@@ -147,6 +147,9 @@ const ALLOWED_PAGES = new Set([
   // Phase 2): the same Review screen and contributor view for any venue.
   "/admin/coverage/[venueId]/menu-photos",
   "/admin/coverage/[venueId]/menu-photos/contributors/[staffId]",
+  // Full App v1 S3-R11 (review V18): one photo's review for an admin, opened
+  // from the facility photos on the admin Review page.
+  "/admin/coverage/[venueId]/menu-photos/photo/[assetId]",
   "/admin/coverage/[venueId]/team",
   "/admin/coverage/managers",
   // Album A4 (DESIGN.md §6.6): every venue's album and its biggest gaps.

@@ -40,11 +40,13 @@ export const SIGN_IN_AGAIN = "Sign in again to continue."
  * The words a Server Function shows for a failed `getMediaActor` (S3-R6,
  * review V6). Only a signed-out caller is told to sign in again; the second
  * sign-in step, an inactive account, a role the action doesn't admit and a
- * failed account check (retry, 503) each keep their own message.
+ * failed account check (retry, 503) each keep their own message. Takes any
+ * failure built from it (`getMediaActor`, `getAmenityActor`).
  */
-export function actorFailureMessage(
-  failure: Extract<ActorResult, { ok: false }>
-): string {
+export function actorFailureMessage(failure: {
+  status: number
+  message: string
+}): string {
   return failure.status === 401 ? SIGN_IN_AGAIN : failure.message
 }
 

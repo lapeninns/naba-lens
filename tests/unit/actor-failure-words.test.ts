@@ -49,10 +49,34 @@ vi.mock("@/lib/server/exports/service", () => {
   }
 })
 
+vi.mock("@/lib/server/requests", () => {
+  const never = async () => {
+    service.called++
+    return { ok: true }
+  }
+  return {
+    cancelShotList: never,
+    closeRequest: never,
+    createRequest: never,
+    createShotList: never,
+    editRequest: never,
+    setRequestBlocked: never,
+  }
+})
+vi.mock("@/lib/server/album", () => {
+  const never = async () => {
+    service.called++
+    return { ok: true, changed: false }
+  }
+  return { setAlbumBrief: never, setAlbumPlace: never }
+})
+
 const { actorFailureMessage, getMediaActor, MFA_REQUIRED, SIGN_IN_AGAIN } =
   await import("@/lib/server/media/context")
 const library = await import("@/app/admin/library/actions")
 const publishing = await import("@/app/admin/publishing/actions")
+const requests = await import("@/app/manager/requests/actions")
+const album = await import("@/app/manager/album/actions")
 
 const CASES = [
   { state: { status: "signed_out" }, words: SIGN_IN_AGAIN },
@@ -108,6 +132,54 @@ describe("actorFailureMessage", () => {
         await publishing.rebuildPackageAction({
           requestKey: "k",
           packageId: "p",
+        })
+      ).toEqual({ ok: false, message: c.words })
+    }
+    expect(service.called).toBe(0)
+  })
+
+  // S3-R11: the manager files the first pass left out (review V6).
+  it("manager Requests and Album actions report the same words and do nothing", async () => {
+    for (const c of CASES) {
+      arrange(c.state)
+      const failed = { ok: false, error: c.words }
+      expect(await requests.createRequestAction({ type: "dish" })).toEqual(
+        failed
+      )
+      const target = { requestId: "r", revision: 1 }
+      expect(
+        await requests.editRequestAction({ ...target, patch: {} })
+      ).toEqual(failed)
+      expect(
+        await requests.setRequestBlockedAction({ ...target, reason: "x" })
+      ).toEqual(failed)
+      expect(
+        await requests.closeRequestAction({
+          ...target,
+          state: "done",
+          reason: "x",
+        })
+      ).toEqual(failed)
+      expect(await requests.createShotListAction({})).toEqual(failed)
+      expect(
+        await requests.cancelShotListAction({
+          shotListId: "s",
+          revision: 1,
+          reason: "x",
+        })
+      ).toEqual(failed)
+      expect(
+        await album.setAlbumPlaceAction({
+          source: "menu_section",
+          key: "k",
+          subjectId: "s",
+        })
+      ).toEqual({ ok: false, message: c.words })
+      expect(
+        await album.setAlbumBriefAction({
+          source: "menu_item",
+          key: "k",
+          brief: "b",
         })
       ).toEqual({ ok: false, message: c.words })
     }

@@ -13,6 +13,7 @@ import {
 } from "@/lib/requests/model"
 import { getAmenityActor } from "@/lib/server/amenities"
 import type { ApiError } from "@/lib/server/http/errors"
+import { actorFailureMessage } from "@/lib/server/media/context"
 import {
   cancelShotList,
   closeRequest,
@@ -31,7 +32,11 @@ import {
 export type RequestActionResult<T extends object = object> =
   ({ ok: true } & T) | { ok: false; error: string; field?: string }
 
-const SIGNED_OUT = { ok: false as const, error: "Sign in again." }
+/** A failed account check, in its own words (review V6). */
+const signedOut = (auth: { status: number; message: string }) => ({
+  ok: false as const,
+  error: actorFailureMessage(auth),
+})
 
 function failed(error: ApiError): { ok: false; error: string; field?: string } {
   return {
@@ -70,7 +75,7 @@ export async function createRequestAction(
   input: unknown
 ): Promise<RequestActionResult<{ id: string }>> {
   const auth = await getAmenityActor()
-  if (!auth.ok) return SIGNED_OUT
+  if (!auth.ok) return signedOut(auth)
   const i = obj(input)
   const type = oneOf(REQUEST_TYPES, i.type)
   if (!type)
@@ -164,7 +169,7 @@ export async function editRequestAction(input: {
   patch: unknown
 }): Promise<RequestActionResult> {
   const auth = await getAmenityActor()
-  if (!auth.ok) return SIGNED_OUT
+  if (!auth.ok) return signedOut(auth)
   const requestId = text(input.requestId)
   const revision = int(input.revision)
   const patch = patchFrom(input.patch)
@@ -182,7 +187,7 @@ export async function setRequestBlockedAction(input: {
   reason: unknown
 }): Promise<RequestActionResult> {
   const auth = await getAmenityActor()
-  if (!auth.ok) return SIGNED_OUT
+  if (!auth.ok) return signedOut(auth)
   const requestId = text(input.requestId)
   const revision = int(input.revision)
   if (!requestId || revision === null)
@@ -204,7 +209,7 @@ export async function closeRequestAction(input: {
   reason: unknown
 }): Promise<RequestActionResult> {
   const auth = await getAmenityActor()
-  if (!auth.ok) return SIGNED_OUT
+  if (!auth.ok) return signedOut(auth)
   const requestId = text(input.requestId)
   const revision = int(input.revision)
   const state = oneOf(["completed", "cancelled"] as const, input.state)
@@ -225,7 +230,7 @@ export async function createShotListAction(
   input: unknown
 ): Promise<RequestActionResult<{ id: string }>> {
   const auth = await getAmenityActor()
-  if (!auth.ok) return SIGNED_OUT
+  if (!auth.ok) return signedOut(auth)
   const i = obj(input)
   const purpose = oneOf(SHOT_LIST_PURPOSES, i.purpose)
   if (!purpose)
@@ -247,7 +252,7 @@ export async function cancelShotListAction(input: {
   reason: unknown
 }): Promise<RequestActionResult<{ requestsCancelled: number }>> {
   const auth = await getAmenityActor()
-  if (!auth.ok) return SIGNED_OUT
+  if (!auth.ok) return signedOut(auth)
   const shotListId = text(input.shotListId)
   const revision = int(input.revision)
   if (!shotListId || revision === null)

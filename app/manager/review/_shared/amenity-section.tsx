@@ -21,8 +21,16 @@ const A = INBOX_COPY.amenities
  * first, under the menu and place photos on /manager/review. Each opens its
  * photo review, where it is approved for public use, kept as reference,
  * asked again or not used. A failed read leaves the rest of Review working.
+ * The admin Review page mounts it too, naming the venue (S3-R11, V18).
  */
-export async function AmenityReviewSection({ ctx }: { ctx: ManagerPhotoCtx }) {
+export async function AmenityReviewSection({
+  ctx,
+  venueId,
+}: {
+  ctx: ManagerPhotoCtx
+  /** The admin Review page: each photo opens the admin photo review (V18). */
+  venueId?: string
+}) {
   const read = await listAmenityPhotoQueue(ctx)
   return (
     <section aria-labelledby="review-amenities" className="grid gap-3">
@@ -41,7 +49,11 @@ export async function AmenityReviewSection({ ctx }: { ctx: ManagerPhotoCtx }) {
             {read.rows.map((r) => (
               <li key={`${r.checkId}:${r.assetId}`}>
                 <Link
-                  href={managerHrefs.photo(r.assetId)}
+                  href={
+                    venueId
+                      ? managerHrefs.adminPhoto(venueId, r.assetId)
+                      : managerHrefs.photo(r.assetId)
+                  }
                   className="flex items-center gap-3 rounded-card border border-line p-2 focus-ring outline-none hover:bg-surface-2"
                 >
                   <EvidenceThumb
