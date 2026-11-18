@@ -48,7 +48,7 @@ const MiB = 1024 * 1024
 const reservation = (
   opts: {
     key?: string
-    batch?: string | null
+    batch?: string
     size?: number
     mediaType?: "image" | "video"
   } = {}
