@@ -85,6 +85,12 @@ export const GALLERY_SECTIONS = [
     description:
       "What a screen shows while it loads, when it is empty, and when it fails.",
   },
+  {
+    id: "metrics",
+    title: "Metrics",
+    description:
+      "The manager and admin metrics screens (spec §18.1): a venue's report, one category, an empty venue, the admin overview, loading and a failed read.",
+  },
 ] as const
 
 export type GallerySectionId = (typeof GALLERY_SECTIONS)[number]["id"]

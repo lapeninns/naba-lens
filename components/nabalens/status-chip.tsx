@@ -489,6 +489,50 @@ export const CHIP_STATES = {
     icon: XIcon,
     shape: "warnSquare",
   },
+  // S2-METRICS (spec §18.1): a slot's state in a manager or admin report,
+  // from the one coverage rule (public.coverage_slots). Only "Covered"
+  // counts in the numerator; Not here and No photo needed leave the total.
+  coverage_covered: {
+    word: "Covered",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "present",
+  },
+  coverage_check_due: {
+    word: "Check due",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "changed",
+  },
+  coverage_pending: {
+    word: "Awaiting review",
+    tone: "pending",
+    icon: ArrowUpIcon,
+    shape: "waiting",
+  },
+  coverage_replacement_needed: {
+    word: "Another photo requested",
+    tone: "attention",
+    icon: ArrowUUpLeftIcon,
+    shape: "needs",
+  },
+  coverage_missing: {
+    word: "Missing",
+    tone: "neutral",
+    icon: MinusIcon,
+    shape: "neutralSquare",
+  },
+  coverage_not_here: {
+    word: "Not here",
+    tone: "closed",
+    shape: "na",
+  },
+  coverage_inactive: {
+    word: "No photo needed",
+    tone: "closed",
+    icon: MinusCircleIcon,
+    shape: "closed",
+  },
   // S2-STAFF, My uploads (spec §6 S4; FA-7): what happened to a person's
   // own photo, in staff words. Managers see the spec's action names.
   outcome_waiting: {

@@ -111,6 +111,9 @@ import type { UploadReceipt } from "@/lib/upload/states"
 import { localUploadKeyStore } from "@/lib/upload/upload-keys"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
+import type { CaptureRoute } from "@/lib/metrics/events"
+import { registerFlowSender, trackFlow } from "@/lib/metrics/track"
+import { recordFlowEventsAction } from "@/app/_metrics/actions"
 import type { EntryIntent, EntryMenu } from "@/lib/work-client/entry"
 import type {
   ContentType,
@@ -687,6 +690,15 @@ export function AddHost({
     ReadonlyMap<string, SlotSend>
   >(() => new Map())
   const matchSeq = React.useRef(0)
+  // S2-METRICS (spec §18.3): the current Match run's route and batch, and
+  // how each matched file was started, for workflow events (ids and counts
+  // only).
+  const matchFlow = React.useRef<{ route: CaptureRoute; batchId: string }>({
+    route: "gallery",
+    batchId: "",
+  })
+  const fileRoutes = React.useRef(new WeakMap<File, CaptureRoute>())
+  React.useEffect(() => registerFlowSender(recordFlowEventsAction), [])
   const boardWanted = matchRun?.photos.some((p) => !outcomes.has(p.key))
   React.useEffect(() => {
     if (!boardWanted) return
@@ -892,6 +904,11 @@ export function AddHost({
       noLabels: outcome.kind === "later" || (unsure && !kept),
     }
     claim(files, owner)
+    for (const file of files)
+      fileRoutes.current.set(
+        file,
+        outcome.kind === "later" ? "match_later" : matchFlow.current.route
+      )
     const slotId = outcome.kind === "slot" ? outcome.slot.id : null
     if (slotId)
       for (const file of files) {
@@ -920,6 +937,21 @@ export function AddHost({
       kept.map((file, i) => ({ key: `m${run}-${i}`, file }))
     )
     for (const photo of photos) matchKeys.current.set(photo.file, photo.key)
+    matchFlow.current = {
+      route: decided ? "slot" : "gallery",
+      batchId: crypto.randomUUID(),
+    }
+    trackFlow({
+      name: "flow_started",
+      ...matchFlow.current,
+      count: photos.length,
+    })
+    if (photos.length > 1)
+      trackFlow({
+        name: "batch_grouped",
+        ...matchFlow.current,
+        count: photos.length,
+      })
     // The menu, so a dish matched in a moment is labelled as it is sent.
     setCatalogueWanted(true)
     setOutcomes(
@@ -960,6 +992,22 @@ export function AddHost({
     const photo = matchRun?.photos.find((p) => p.key === key)
     if (!photo || outcomes.has(key)) return
     setOutcomes((current) => new Map(current).set(key, outcome))
+    const target = outcome.kind === "slot" ? outcome.slot.target : null
+    trackFlow({
+      name:
+        outcome.kind === "slot"
+          ? "subject_selected"
+          : outcome.kind === "later"
+            ? "match_later"
+            : "not_for_slot",
+      ...matchFlow.current,
+      subjectKind: target?.kind ?? null,
+      subjectId: target
+        ? target.kind === "dish"
+          ? target.itemId
+          : target.subjectId
+        : null,
+    })
     if (outcome.kind === "slot") {
       const place = placeKey(outcome.slot.place)
       writeLastPlace(place)
@@ -1211,6 +1259,12 @@ export function AddHost({
           files[i],
           receipts?.[i] === "label_not_saved" ? "sent" : "waiting"
         )
+        trackFlow({
+          name: "submitted",
+          assetId: id,
+          route: fileRoutes.current.get(files[i]) ?? null,
+          outcome: receipts?.[i] === "label_not_saved" ? "sent" : "waiting",
+        })
       })
       for (const listener of readyListeners.current) listener(ids)
       return kept
@@ -1662,6 +1716,12 @@ export function AddHost({
                   fileOwners.current.get(file)?.onSent?.(file, "checking")
                 }
                 onUnfinished={(file, reason, stage) => {
+                  if (reason === "failed")
+                    trackFlow({
+                      name: "transfer_failed",
+                      route: fileRoutes.current.get(file) ?? null,
+                      stage: stage === "processing" ? "processing" : "transfer",
+                    })
                   // Removed or cancelled: its asset needs no label clear (M5).
                   if (reason !== "failed") labelJournal.forgetFile(file)
                   fileOwners.current.get(file)?.onUnfinished?.(reason, file)

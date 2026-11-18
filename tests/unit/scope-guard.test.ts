@@ -204,6 +204,12 @@ const ALLOWED_PAGES = new Set([
   "/manager/requests",
   "/manager/requests/new",
   "/manager/requests/[requestId]",
+  // Full App v1 S2-METRICS (spec §18.1, AC39): coverage by category with
+  // numerator and denominator, facts, review delay, label corrections,
+  // contributions, content use and reliability. A venue's manager for their
+  // venue, admins every venue. Never a ranking of people (spec §18.1).
+  "/manager/metrics",
+  "/admin/metrics",
 ])
 
 const ALLOWED_HANDLERS = new Set([
