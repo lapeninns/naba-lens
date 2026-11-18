@@ -30,6 +30,8 @@ let otherAdmin: TestIdentity
 let aal1Admin: TestIdentity
 let inactiveAdmin: TestIdentity
 let managerA: TestIdentity
+// Coordinator merge: reviewers follow S2-MGR's rule (managers of the venue).
+let managerA2: { id: string }
 let managerB: TestIdentity
 let staffA: TestIdentity
 
@@ -145,6 +147,14 @@ beforeAll(async () => {
   })
   await makeManager(admin, mB, venueB)
   managerB = { ...mB, client: await signIn(service, mB.email) }
+  // A second manager at A, for the backup reviewer.
+  const mA2 = await createIdentity(service, {
+    label: "av-mgr-a2",
+    role: "staff",
+    venueId: venueA,
+  })
+  await makeManager(admin, mA2, venueA)
+  managerA2 = mA2
 })
 
 describe("who may call", () => {
@@ -351,7 +361,9 @@ describe("reviewers and setup", () => {
     )
     const ids = detail.candidates.map((c) => c.profileId)
     expect(ids).toContain(managerA.id)
-    expect(ids).toContain(admin.id)
+    expect(ids).toContain(managerA2.id)
+    // Admins review every venue without being named (S2-MGR's rule).
+    expect(ids).not.toContain(admin.id)
     expect(ids).not.toContain(staffA.id)
     expect(ids).not.toContain(managerB.id)
 
@@ -371,8 +383,9 @@ describe("reviewers and setup", () => {
     await fails(set(managerB.id, "main", 0), "reviewer_not_eligible")
     await ok(set(managerA.id, "main", 0))
     await fails(set(managerA.id, "backup", 0), "reviewer_same_person")
-    await fails(set(admin.id, "main", 0), "reviewer_conflict", "40001")
-    await ok(set(admin.id, "backup", 0))
+    await fails(set(managerA2.id, "main", 0), "reviewer_conflict", "40001")
+    await fails(set(admin.id, "backup", 0), "reviewer_not_eligible")
+    await ok(set(managerA2.id, "backup", 0))
 
     const after = await okAs<{
       reviewers: { main: Reviewer; backup: Reviewer }
@@ -382,7 +395,7 @@ describe("reviewers and setup", () => {
       profileId: managerA.id,
       eligible: true,
     })
-    expect(after.reviewers.backup.profileId).toBe(admin.id)
+    expect(after.reviewers.backup.profileId).toBe(managerA2.id)
     const reviewers = after.setup.items.find((i) => i.key === "reviewers")
     expect(reviewers?.done).toBe(true)
     expect(after.setup.items.find((i) => i.key === "staff")?.done).toBe(true)

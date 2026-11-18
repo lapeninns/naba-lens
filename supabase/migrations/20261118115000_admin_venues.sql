@@ -144,13 +144,13 @@ as $$
   select jsonb_build_object(
     'main', (
       select jsonb_build_object('profileId', a.profile_id, 'name', p.display_name,
-        'eligible', coalesce(private.venue_role_of(a.profile_id, p_venue_id) in ('manager', 'admin'), false),
+        'eligible', private.venue_reviewer_eligible(a.profile_id, p_venue_id),
         'revision', private.admin_venue_reviewer_revision(p_venue_id, 'main'), 'setAt', a.assigned_at)
       from public.venue_reviewer_assignments a join public.profiles p on p.id = a.profile_id
       where a.venue_id = p_venue_id and a.role = 'main' and a.ended_at is null),
     'backup', (
       select jsonb_build_object('profileId', a.profile_id, 'name', p.display_name,
-        'eligible', coalesce(private.venue_role_of(a.profile_id, p_venue_id) in ('manager', 'admin'), false),
+        'eligible', private.venue_reviewer_eligible(a.profile_id, p_venue_id),
         'revision', private.admin_venue_reviewer_revision(p_venue_id, 'backup'), 'setAt', a.assigned_at)
       from public.venue_reviewer_assignments a join public.profiles p on p.id = a.profile_id
       where a.venue_id = p_venue_id and a.role = 'backup' and a.ended_at is null));
@@ -263,7 +263,9 @@ begin
           'role', private.venue_role_of(p.id, v_venue.id))
         order by lower(p.display_name), p.id)
       from public.profiles p
-      where p.active and private.venue_role_of(p.id, v_venue.id) in ('manager', 'admin')
+      -- S2-MGR's rule (private.venue_reviewer_eligible): reviewers are the
+      -- venue's managers; admins review every venue without being named.
+      where p.active and private.venue_reviewer_eligible(p.id, v_venue.id)
     ), '[]'::jsonb));
 end;
 $$;

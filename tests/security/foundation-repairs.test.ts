@@ -7,6 +7,7 @@
 //
 // R27 (manager-era uploads) is covered by the OD-9 test in
 // manager-uploads.test.ts, which now accepts the manager-era upload.
+import { setApplicability } from "./amenity-applicability"
 import { spawn } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
 
@@ -489,7 +490,7 @@ describe("R28: a withdrawal waiting on an acceptance", () => {
 // ---------------------------------------------------------------------------
 
 describe("R12: core checks are admin-only on every archive path", () => {
-  it("refuses a manager archiving a core check through the old RPCs", async () => {
+  it("refuses a manager archiving a core check on every path", async () => {
     const k = await knowledgeWorld("r12-amen", { extra: ["pool_table"] })
     const core = k.checks["step_free_entrance"]!
     const revision = () =>
@@ -508,13 +509,22 @@ describe("R12: core checks are admin-only on every archive path", () => {
           p_revision: revision(),
           p_idempotency_key: randomUUID(),
         },
-        "core_check_admin_only"
+        // S2-MGR revoked the reasonless RPCs from signed-in users entirely.
+        "permission denied for function amenity_archive_check"
       )
       await refused(
         who,
         "amenity_archive_check",
         { p_check_id: core, p_revision: revision() },
-        "core_check_admin_only"
+        "permission denied for function amenity_archive_check"
+      )
+      // The one remaining path keeps the admin-only rule for core checks.
+      const viaApplicability = await setApplicability(who.client, "archive", {
+        p_check_id: core,
+        p_revision: revision(),
+      })
+      expect(viaApplicability.error?.message).toMatch(
+        /core_check_admin_only|not_venue_manager/
       )
     }
     expect(
@@ -526,20 +536,20 @@ describe("R12: core checks are admin-only on every archive path", () => {
     // A manager's own non-core check archives as before; an admin may
     // archive a core one.
     const extra = k.checks["pool_table"]!
-    await json(k.manager, "amenity_archive_check", {
+    const managerExtra = await setApplicability(k.manager.client, "archive", {
       p_check_id: extra,
       p_revision: Number(
         psql(
           `select revision from public.venue_amenity_checks where id = '${extra}'`
         )
       ),
-      p_idempotency_key: randomUUID(),
     })
-    await json(k.admin, "amenity_archive_check", {
+    expect(managerExtra.error).toBeNull()
+    const adminCore = await setApplicability(k.admin.client, "archive", {
       p_check_id: core,
       p_revision: revision(),
-      p_idempotency_key: randomUUID(),
     })
+    expect(adminCore.error).toBeNull()
     expect(
       psql(
         `select status from public.venue_amenity_checks where id = '${core}'`
