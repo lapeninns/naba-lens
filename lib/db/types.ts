@@ -6618,6 +6618,18 @@ export type Database = {
         Returns: Json
       }
       export_asset_status: { Args: { p_asset_id: string }; Returns: Json }
+      export_asset_thumb: {
+        Args: { p_asset_id: string }
+        Returns: {
+          asset_id: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number
+          media_type: Database["public"]["Enums"]["media_type"]
+          venue_id: string
+          width: number
+        }[]
+      }
       export_candidates: {
         Args: { p_mode?: string; p_venue_id: string }
         Returns: Json

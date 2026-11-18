@@ -22,6 +22,8 @@ export type EvidenceCheck =
   | "area_photo_asset"
   /** Album AL-7: a filled slot's current photo, for everyone at the venue. */
   | "album_slot_asset"
+  /** S1-EXPORT: a photo the caller may export, or one in their package. */
+  | "export_asset_thumb"
 
 /**
  * Signed (at most 60 s) URL for a task-evidence derivative. The caller-scoped

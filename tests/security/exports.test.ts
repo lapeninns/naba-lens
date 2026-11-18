@@ -937,6 +937,31 @@ describe("publication records (AC31, AC33)", () => {
   })
 })
 
+describe("export_asset_thumb: the thumbnail gate", () => {
+  const gate = async (who: { client: unknown }, asset: string) => {
+    const { data, error } = await call(who, "export_asset_thumb", {
+      p_asset_id: asset,
+    })
+    if (error) return error.code
+    return (data as Array<{ asset_id: string }>).map((r) => r.asset_id)
+  }
+
+  it("opens exportable photos to the venue's manager, internal ones to admins", async () => {
+    expect(await gate(v.w.manager, v.accepted.asset)).toEqual([
+      v.accepted.asset,
+    ])
+    expect(await gate(v.w.manager, v.waiting.asset)).toEqual([])
+    expect(await gate(admin, v.waiting.asset)).toEqual([v.waiting.asset])
+  })
+
+  it("is closed to another venue, staff, inactive accounts and anon", async () => {
+    for (const who of [other.w.manager, v.w.staffA, inactiveManager]) {
+      expect(await gate(who, v.accepted.asset)).toEqual([])
+    }
+    expect(await gate(anon, v.accepted.asset)).toBe("42501")
+  })
+})
+
 describe("tables are reachable only through the functions", () => {
   it("gives signed-in users no table access and keeps records append-only", async () => {
     for (const table of [
