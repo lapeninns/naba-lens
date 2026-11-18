@@ -180,6 +180,10 @@ const ALLOWED_PAGES = new Set([
   "/manager/exports",
   "/manager/exports/new",
   "/manager/exports/packages/[id]",
+  // S2-REQ: requests and shot lists (spec §7 M4).
+  "/manager/requests",
+  "/manager/requests/new",
+  "/manager/requests/[requestId]",
 ])
 
 const ALLOWED_HANDLERS = new Set([
@@ -551,6 +555,18 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
         "lib/server/exports/",
       ],
       reason: "S1-EXPORT export packages (spec §14.1, AC31, AC32)",
+    },
+    {
+      feature: "campaigns",
+      prefixes: [
+        "app/manager/requests/",
+        "components/nabalens/requests/",
+        "lib/requests/",
+        "lib/server/requests/",
+        "supabase/migrations/20261118114",
+      ],
+      reason:
+        "S2-REQ campaign collection: a request type and a shot list purpose (spec §7 M4); not a marketing campaign feature",
     },
     {
       feature: "approval workflow",

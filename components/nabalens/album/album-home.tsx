@@ -85,6 +85,7 @@ export function AlbumHome({
   matchLater = null,
   startHere = null,
   otherJobs = null,
+  askedFor = null,
 }: {
   venueName: string
   album: AlbumView
@@ -100,6 +101,11 @@ export function AlbumHome({
   startHere?: React.ReactNode
   /** The Other jobs row (R-2), under the Match later row. */
   otherJobs?: React.ReactNode
+  /**
+   * A manager's open requests as slots with their brief (S2-REQ, spec §7
+   * M4), under the retake row: asked-for work comes before the places.
+   */
+  askedFor?: React.ReactNode
 }) {
   const openAdd = useAdd()
   const Title = `h${headingLevel}` as "h1"
@@ -183,6 +189,8 @@ export function AlbumHome({
       ) : null}
 
       {blocked ? <Notice tone="attention">{blocked}</Notice> : null}
+
+      {askedFor}
 
       {allPlaces.length > 0 ? (
         <section aria-labelledby="album-where" className="grid gap-2">

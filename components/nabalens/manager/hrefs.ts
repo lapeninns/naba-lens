@@ -62,6 +62,8 @@ export const managerHrefs = {
   search: "/manager/search",
   /** S1-EXPORT: the venue's export packages; no nav tab. */
   exports: "/manager/exports",
+  /** S2-REQ: requests and shot lists, linked from Overview; no nav tab yet. */
+  requests: "/manager/requests",
   review: (q?: ReviewQuery) => withQuery("/manager/review", q),
   contributor: (id: string) =>
     `/manager/review/contributors/${encodeURIComponent(id)}`,

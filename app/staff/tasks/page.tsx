@@ -26,6 +26,11 @@ import { MatchLaterRow } from "@/components/nabalens/album/match/match-later"
 import { listMatchLater } from "@/app/staff/_shell/match-later"
 import { getCheck } from "@/lib/server/amenities"
 import { getCoverageActor } from "@/lib/server/coverage"
+import { listMyRequests } from "@/lib/server/requests"
+import {
+  AskedFor,
+  askedForItems,
+} from "@/components/nabalens/requests/staff-requests"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import {
@@ -143,6 +148,7 @@ export default async function AlbumHomePage({
     otherJobs,
     ownMedia,
     jar,
+    requests,
   ] = await Promise.all([
     searchParams,
     staffShellStatus(actor, profile),
@@ -157,6 +163,9 @@ export default async function AlbumHomePage({
     // Once dismissed, Start here never shows, so skip the read.
     dismissedAt ? true : hasOwnMedia(actor),
     cookies(),
+    // S2-REQ: a manager's open requests, shown as their slots. A failed read
+    // leaves the section out rather than failing Home.
+    listMyRequests(actor).catch(() => null),
   ])
   const blockedReason = uploadBlockReason(profile)
   // The legacy cookie still counts as dismissed; dismissal lives in the
@@ -167,6 +176,20 @@ export default async function AlbumHomePage({
     hasOwnMedia: ownMedia,
   })
   const place = first(params.place) ?? remembered ?? null
+  const asked =
+    album.ok && requests?.ok
+      ? askedForItems(
+          requests.list.items,
+          new Map(
+            [
+              ...album.album.places,
+              ...(album.album.unplaced ? [album.album.unplaced] : []),
+            ]
+              .flatMap((p) => p.groups.flatMap((g) => g.slots))
+              .map((slot) => [slot.id, slot])
+          )
+        )
+      : []
   const sent =
     typeof findingSent === "string"
       ? { question: findingSent, copy: undefined }
@@ -201,6 +224,13 @@ export default async function AlbumHomePage({
             }
             otherJobs={
               <OtherJobsRow count={otherJobs} href={OTHER_JOBS_PATH} />
+            }
+            askedFor={
+              <AskedFor
+                items={asked}
+                today={requests?.ok ? requests.list.today : ""}
+                canAdd={blockedReason === null}
+              />
             }
           />
         ) : blockedReason === "no_venue" ? (
