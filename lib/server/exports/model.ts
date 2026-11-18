@@ -49,20 +49,27 @@ export const PUBLICATION_STATES = [
 ] as const
 export type PublicationState = (typeof PUBLICATION_STATES)[number]
 
+// The words for each state are the `publication_<state>` chips in
+// components/nabalens/status-chip.tsx (admin and manager screens only;
+// FA-7, A5-words-conflict). "Exported" never claims the file is on a website
+// (§10 inv. 9).
+
 /**
- * Admin and manager words (FA-7, A5-words-conflict: staff screens never show
- * these). "Exported" never claims the file is on a website (§10 inv. 9).
+ * Why one photo in a package is no longer eligible (S3-R14, X10;
+ * export_package_detail `staleReason`). Its chip is `package_item_<reason>`.
  */
-export const PUBLICATION_WORDS: Record<PublicationState, string> = {
-  not_selected: "Not exported",
-  exported: "Exported",
-  queued: "Queued",
-  published_confirmed: "Published",
-  update_pending: "Update pending",
-  withdrawal_pending: "Withdrawal pending",
-  withdrawn_confirmed: "Withdrawn",
-  failed_unknown: "Failed or unknown",
-}
+export const STALE_REASONS = [
+  "withdrawn",
+  "deleted",
+  "off_menu",
+  "subject_retired",
+  "label_changed",
+  "check_due",
+  "fact_changed",
+  "review_changed",
+  "changed",
+] as const
+export type StaleReason = (typeof STALE_REASONS)[number]
 
 export type PublicationDestinationState = {
   destinationId: string
@@ -139,6 +146,8 @@ export type ExportPackageItem = {
   useRestrictions: string[]
   uploadedAt: string
   eligible: boolean
+  /** Not eligible only: why ("changed" when it can't be named). */
+  staleReason: StaleReason | null
   publication: AssetPublication
 }
 
@@ -430,6 +439,7 @@ export function parsePackageDetail(data: unknown): ExportPackageDetail | null {
           caption: str(r.caption),
           useRestrictions: strings(r.useRestrictions),
           eligible: r.eligible !== false,
+          staleReason: oneOf(r.staleReason, STALE_REASONS),
         },
       ]
     }),

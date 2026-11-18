@@ -18,12 +18,13 @@ import {
   londonDate,
   PACKAGE_CHIP,
   publicationChip,
+  staleChip,
 } from "./copy"
 import { RebuildButton, RecordPublishedForm } from "./publication-forms"
 
 /*
  * One export package (spec §14.1, §8 A5). What is wrong comes first
- * (DESIGN.md §11 rule 3): a package with a withdrawn photo can't be
+ * (DESIGN.md §11 rule 3): a package with a photo withdrawn or changed since can't be
  * downloaded and offers Rebuild (AC32). The main button is Download ZIP; the
  * browser saves the file and stays here. Each photo shows its publication
  * state; an admin can record where it is published (AC31: Exported is not
@@ -83,7 +84,8 @@ export function PackageDetail({
               <RebuildButton area={area} packageId={pkg.id} primary />
             ) : (
               <p className="text-body text-ink">
-                Every photo in it was withdrawn. Make a new package instead.
+                No photo in it can be downloaded now. Make a new package
+                instead.
               </p>
             )}
           </>
@@ -141,9 +143,7 @@ export function PackageDetail({
                 ) : null}
                 <div className="flex flex-wrap gap-1.5">
                   {stale.has(item.assetId) || !item.eligible ? (
-                    <StatusChip state="package_invalidated">
-                      Withdrawn since
-                    </StatusChip>
+                    <StatusChip state={staleChip(item.staleReason)} />
                   ) : null}
                   <StatusChip state={publicationChip(item.publication.state)} />
                 </div>

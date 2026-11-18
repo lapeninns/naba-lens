@@ -96,6 +96,10 @@ type ChipState = {
 /**
  * The fixed words from the system's States and words table, keyed by the
  * service's state names. Never add a synonym (Approved, Rejected, Done…).
+ * The one "Approved" is FA-7's manager and admin name for a public
+ * acceptance (`review_public`); staff see `outcome_public` instead.
+ * Every other file reads its state words from here (CHIP_STATES or
+ * chipState), never restates them.
  */
 export const CHIP_STATES = {
   // A file uploading (technical only, never an approval)
@@ -489,6 +493,63 @@ export const CHIP_STATES = {
     icon: XIcon,
     shape: "warnSquare",
   },
+  // S3-R14 (X10): why one photo in a package is no longer eligible, since
+  // the package was made (export_package_detail staleReason). Withdrawn is
+  // kept for a real withdrawal; a review or coverage change says so.
+  package_item_withdrawn: {
+    word: "Withdrawn since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_deleted: {
+    word: "Deleted since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_off_menu: {
+    word: "Off the menu since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_subject_retired: {
+    word: "Retired since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_label_changed: {
+    word: "Label changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_check_due: {
+    word: "Check due since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_fact_changed: {
+    word: "Answer changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_review_changed: {
+    word: "Review changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_changed: {
+    word: "Changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
   // S2-METRICS (spec §18.1): a slot's state in a manager or admin report,
   // from the one coverage rule (public.coverage_slots). Only "Covered"
   // counts in the numerator; Not here and No photo needed leave the total.
@@ -575,6 +636,33 @@ export const CHIP_STATES = {
     word: "Withdrawn",
     tone: "closed",
     icon: XIcon,
+    shape: "closed",
+  },
+  // S3-R14: a photo's review in the admin Library (FA-7: managers and
+  // admins see the spec's names). Waiting, another photo and withdrawn use
+  // waiting_for_review, coverage_replacement_needed and outcome_withdrawn.
+  review_public: {
+    word: "Approved for public use",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "present",
+  },
+  review_reference: {
+    word: "Kept as reference",
+    tone: "closed",
+    icon: FileTextIcon,
+    shape: "closed",
+  },
+  review_unreviewed: {
+    word: "Not reviewed yet",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "waiting",
+  },
+  review_not_used: {
+    word: "Not used",
+    tone: "closed",
+    icon: MinusCircleIcon,
     shape: "closed",
   },
   internal_only: {

@@ -19,10 +19,11 @@ import {
   parsePackageDetail,
   parsePublication,
   PUBLICATION_STATES,
-  PUBLICATION_WORDS,
   type ManifestRow,
 } from "@/lib/server/exports/model"
 import { renderExportFile } from "@/lib/server/exports/render"
+import { publicationChip } from "@/app/admin/publishing/_components/copy"
+import { CHIP_STATES, chipState } from "@/components/nabalens/status-chip"
 import { crc32, ZipWriter } from "@/lib/server/exports/zip"
 
 /** Reads a stored ZIP back from its central directory, checking each CRC. */
@@ -168,10 +169,11 @@ describe("manifest", () => {
 describe("publication words", () => {
   it("names every spec state, and Exported is never Published (§10 inv. 9)", () => {
     expect(PUBLICATION_STATES).toHaveLength(8)
+    // The words are the publication_* chips (status-chip.tsx), the one source.
     for (const s of PUBLICATION_STATES)
-      expect(PUBLICATION_WORDS[s]).toBeTruthy()
-    expect(PUBLICATION_WORDS.exported).toBe("Exported")
-    expect(PUBLICATION_WORDS.exported).not.toMatch(/publish/i)
+      expect(Object.hasOwn(CHIP_STATES, publicationChip(s))).toBe(true)
+    expect(chipState(publicationChip("exported")).word).toBe("Exported")
+    expect(chipState(publicationChip("exported")).word).not.toMatch(/publish/i)
   })
 
   it("reads an unknown or missing state as Not exported", () => {

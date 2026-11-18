@@ -180,7 +180,7 @@ test("AC32: a photo withdrawn after packaging blocks the download until the pack
 
   // Rebuild: a new package without the withdrawn photo downloads.
   await mgr
-    .getByRole("button", { name: "Rebuild without withdrawn photos" })
+    .getByRole("button", { name: "Rebuild without those photos" })
     .click()
   await expect(mgr).not.toHaveURL(new RegExp(pkg))
   await expect(mgr.getByText("Rebuilt from an earlier package")).toBeVisible()
