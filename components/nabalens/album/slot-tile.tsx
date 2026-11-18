@@ -10,7 +10,11 @@ import Link from "next/link"
 import type * as React from "react"
 
 import { Photo } from "@/components/ui/photo"
-import { SLOT_MARK_WORDS, type SlotState } from "@/lib/album/model"
+import {
+  OPTIONAL_SLOT_WORD,
+  SLOT_MARK_WORDS,
+  type SlotState,
+} from "@/lib/album/model"
 import { cn } from "@/lib/utils"
 
 /*
@@ -27,6 +31,10 @@ import { cn } from "@/lib/utils"
  *   check-due the photo, ok-waiting ring, ⟲ Needs checking (FA-11: a manager
  *             confirms it is still right; not counted as filled)
  *   not-here  dotted edge over hatching, Not here
+ *
+ * `optional` (FA-51: a packaged item without Photo wanted) changes only an
+ * empty tile: a plain solid edge-strong line instead of Needed's reserved dashed one,
+ * + Add, and the word Optional. With a photo it draws its state as usual.
  *
  * The whole tile is one target: a link when `href` is given, else a button
  * when `onSelect` is, else plain content. Its accessible name says the slot
@@ -49,6 +57,8 @@ type SlotTileProps = {
   href?: string
   /** Used when there is no href. */
   onSelect?: () => void
+  /** FA-51: an optional slot; an empty one reads Optional, not Needed. */
+  optional?: boolean
   className?: string
 }
 
@@ -136,17 +146,26 @@ function SlotTile({
   offline = false,
   href,
   onSelect,
+  optional = false,
   className,
 }: SlotTileProps) {
+  const emptyOptional = optional && state === "needed"
   // An offline sending tile shows "Saved on this phone", so its name says so too.
   const label = `${name}: ${
-    state === "sending" && offline ? "saved on this phone" : STATE_WORDS[state]
+    state === "sending" && offline
+      ? "saved on this phone"
+      : emptyOptional
+        ? OPTIONAL_SLOT_WORD.toLowerCase()
+        : STATE_WORDS[state]
   }`
   const hasPhoto = state !== "needed" && state !== "not-here"
 
   const frame = cn(
     "group/slot relative flex aspect-square w-full flex-col overflow-hidden rounded-card text-start",
-    state === "needed" && "justify-between slot-needed bg-surface p-2 text-ink",
+    state === "needed" &&
+      !emptyOptional &&
+      "justify-between slot-needed bg-surface p-2 text-ink",
+    emptyOptional && "justify-between bg-surface p-2 text-ink edge-strong",
     state === "not-here" &&
       "justify-end slot-not-here bg-surface p-2 text-ink-muted",
     hasPhoto && "bg-media-placeholder",
@@ -192,7 +211,14 @@ function SlotTile({
         <PlusIcon aria-hidden weight="bold" className="size-6" />
         Add
       </span>
-      <span className="line-clamp-3 text-label leading-tight">{name}</span>
+      <span className="grid gap-0.5">
+        <span className="line-clamp-3 text-label leading-tight">{name}</span>
+        {emptyOptional ? (
+          <span className="text-caption leading-tight text-ink-muted">
+            {OPTIONAL_SLOT_WORD}
+          </span>
+        ) : null}
+      </span>
     </>
   ) : (
     <>
@@ -213,6 +239,7 @@ function SlotTile({
         aria-label={label}
         data-slot="slot-tile"
         data-state={state}
+        data-optional={optional || undefined}
         className={frame}
       >
         {body}
@@ -226,6 +253,7 @@ function SlotTile({
         aria-label={label}
         data-slot="slot-tile"
         data-state={state}
+        data-optional={optional || undefined}
         className={frame}
       >
         {body}
@@ -237,6 +265,7 @@ function SlotTile({
       aria-label={label}
       data-slot="slot-tile"
       data-state={state}
+      data-optional={optional || undefined}
       className={frame}
     >
       {body}

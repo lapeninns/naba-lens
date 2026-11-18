@@ -83,6 +83,7 @@ const INVALID: Record<string, string> = {
   invalid_description: "The description is too long.",
   invalid_detail: "Describe the change in up to 1000 characters.",
   item_required: "Choose the dish this change is about.",
+  invalid_packaging: "Mark it packaged before asking for its photo.",
   core_check_admin_only:
     "Only an admin can change whether a core check applies.",
 }

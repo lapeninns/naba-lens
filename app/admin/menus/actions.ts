@@ -17,7 +17,7 @@ import {
   setMenuItemArchived,
   unscheduleMenuVersion,
 } from "@/lib/server/menus"
-import { decideChangeRequest } from "@/lib/server/menus/local"
+import { decideChangeRequest, setItemPackaging } from "@/lib/server/menus/local"
 
 // Server Functions are reachable by direct POST, so every argument is treated
 // as untrusted: each action re-authorises the caller (fresh profile read) and
@@ -213,4 +213,14 @@ export async function resolveSuggestionAction(
       note: typeof note === "string" ? note : null,
     })
   )
+}
+
+/** FA-51: marks a menu item or local offering packaged, and Photo wanted. */
+export async function setPackagingAction(
+  input: unknown
+): Promise<
+  MenuAction<{ changed: boolean; packaged: boolean; photoWanted: boolean }>
+> {
+  if (!isObject(input)) return BAD_REQUEST
+  return asAdmin((actor) => setItemPackaging(actor, input))
 }

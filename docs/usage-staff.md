@@ -113,6 +113,10 @@ Each slot shows its state with a frame, an icon and a word: **Add** (empty),
 your gallery; tap an amenity slot to answer its question first; tap a filled
 slot to open its page.
 
+A slot marked **Optional** (a bottled or canned drink nobody needs a photo
+of) is not counted: a photo is welcome, but it never shows as empty. Tap it to
+open its page and add one.
+
 You see a colleague's photo only once a manager has accepted it. Until then
 the slot just says how many photos are waiting ("1 waiting").
 

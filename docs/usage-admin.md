@@ -116,6 +116,12 @@ doesn't change any website, and it doesn't mean a dish is served today.
 7. **Missing-item suggestions** from staff (**Item not on the menu?**): link
    each to an item or dismiss it.
 
+**Packaged items** on the venue's menus page lists its drinks: turn on
+**Packaged (bottled or canned)** and, if its photo is still wanted, **Photo
+wanted**. Each asks once, without a reason. A packaged item without Photo
+wanted stays listed and takes photos but leaves the coverage counts; imports
+never change it (FA-51).
+
 Prices, dietary and spice values in a file are kept as source details only.
 Staff never see them. After a new menu is activated, the venue's manager sees
 which items kept their photo and which need a new decision.

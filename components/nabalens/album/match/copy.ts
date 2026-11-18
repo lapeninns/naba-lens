@@ -47,6 +47,8 @@ export const MATCH_COPY = {
   /** X5: a slot already in the album (spec §6: another photo welcome). */
   acceptedMeta: "In the album · another photo is welcome",
   checkDueMeta: "Needs checking · another photo is welcome",
+  /** FA-51: an optional slot with no photo yet (a packaged item). */
+  optionalMeta: "Optional · a photo is welcome",
   // "Use for the next N photos" (spec §5.4, FA-3).
   groupLabel: "Same slot for the next photos too?",
   groupPhoto: (n: number) => `Photo ${n} too`,

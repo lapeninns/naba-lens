@@ -13,6 +13,7 @@ import {
   reviewSpecial,
   setItemAvailability,
   setItemDisplayName,
+  setItemPackaging,
   withdrawChangeRequest,
 } from "@/lib/server/menus/local"
 
@@ -84,4 +85,9 @@ export async function decideSpecialAction(input: unknown) {
 
 export async function reviewSpecialAction(input: unknown) {
   return asManager(input, (actor, _venue, i) => reviewSpecial(actor, i))
+}
+
+/** FA-51: Packaged and Photo wanted on one item (no reason). */
+export async function setPackagingAction(input: unknown) {
+  return asManager(input, (actor, _venue, i) => setItemPackaging(actor, i))
 }

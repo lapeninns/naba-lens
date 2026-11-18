@@ -130,6 +130,7 @@ A slot's state is shown by its frame, an icon and a word. Colour is never the on
 | **Accepted**            | The photo, no ring                       | ✓ In the album, filled `ok-fg` square tag                             | Yes                       |
 | **Check due**           | The photo, 4px `ok-waiting` ring inset   | ⟲ Needs checking                                                      | Shown in the waiting part |
 | **Not here**            | 2px dotted edge, `hatch` hatching        | Not here, with the reason                                             | Leaves the total          |
+| **Optional** (FA-51)    | Empty: 1px `edge-strong` line, `surface` | + Add, Optional; with a photo, its state                              | Leaves the total          |
 
 **Reserved forms.** The dashed empty frame belongs to Needed alone. The filled green square tag with a tick belongs to Accepted alone. The double-bordered stamp belongs to a full section alone. No other element may use them.
 
@@ -370,6 +371,7 @@ Still to remove in batch A5, once no screen uses them: `info-*`, `stamp-fg`, `se
 
 ### Changelog
 
+- **1.7** (18 Nov 2026, Full App v1 S5-PACKAGED): §4 gains **Optional** (FA-51): a packaged item without Photo wanted is listed and takes photos but leaves every count and is never empty. Its empty tile has a solid `edge-strong` line (the dashed frame stays Needed's alone) and the word Optional (`OPTIONAL_SLOT_WORD` in `lib/album/model.ts`); with a photo it shows that photo's state. Its slot page says "Optional: a photo is welcome, but none is needed."; Match finds it by search ("Optional · a photo is welcome") and never suggests it. Reports name it **No photo needed** (the rule's `inactive`).
 - **1.6** (18 Nov 2026, Full App v1 S3-R14): a place's Needs updating filter (spec §6 S3) reads **Retake or needs checking**, the words of the tiles it shows (`SLOT_MARK_WORDS` in `lib/album/model.ts`, drawn by the slot tile). Withdrawn is one chip look everywhere (X icon).
 - **1.5** (18 Nov 2026, Full App v1 S4-DOCS): §4 gains the report words (`coverage_*`) and Withdrawn; §5a lists the Full App rows (Unfinished photos, the blocked notice, Asked for) and where Start here sits; new §5b (Me: Your photos, Your month, Help and account, Notices, the slot page), §6a (manager screens: navigation, Overview, Review, Requests, Metrics, Venue and Reported changes) and §6b (admin screens: `ADMIN_NAV` and More, Overview, Venues, Library and Suspend from use, Publishing, People, Settings & activity); §7 gains the manager and admin words; §10 gains `slot-ring-check`. No section was renumbered.
 

@@ -124,7 +124,9 @@ export function AlbumHome({
   const emptyHere = current
     ? current.groups
         .flatMap((g) => g.slots)
-        .filter((s) => s.state === "needed" || s.state === "retake")
+        .filter(
+          (s) => (s.state === "needed" || s.state === "retake") && !s.optional
+        )
     : []
 
   return (
@@ -365,13 +367,16 @@ export function AlbumSlotTile({
     )
   // An amenity opens its question; a filled dish or place opens its slot
   // page (DESIGN.md §5: "tapping a filled slot opens the slot"; spec §6 S3).
-  if (slot.target.kind === "amenity" || !fillable)
+  // FA-51: an optional slot opens its slot page too, which says it is
+  // optional and still offers Add.
+  if (slot.target.kind === "amenity" || !fillable || slot.optional)
     return (
       <SlotTile
         name={slot.name}
         state={slot.state}
         photoSrc={slot.thumbnailUrl ?? undefined}
         href={slotHref(slot)}
+        optional={slot.optional}
       />
     )
   const target = slot.target

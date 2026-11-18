@@ -158,6 +158,10 @@ alternatives** (**Set as menu photo**), rechecks, photos waiting and
   shows on the **Menus** page.
 - **Brief**: one line, up to 140 characters, on what the photo must show.
   **Save brief** or **Clear brief**. It comes before the section's brief.
+- **Packaged**: turn on **Packaged (bottled or canned)** for a bottled or
+  canned drink, and **Photo wanted** if you still want its photo. Each asks
+  once (no reason needed). A packaged item without Photo wanted stays listed
+  and takes photos, but no longer counts in coverage (FA-51).
 
 ### Album places and briefs
 
