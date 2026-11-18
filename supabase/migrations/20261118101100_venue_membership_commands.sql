@@ -282,10 +282,10 @@ begin
 
   return query
   select v.id, v.name, m.id, m.role, r.role, v_target.venue_id = v.id,
-    r.role in ('staff', 'manager', 'admin'),
-    r.role in ('manager', 'admin'),
-    r.role in ('manager', 'admin'),
-    r.role in ('manager', 'admin'),
+    coalesce(r.role in ('staff', 'manager', 'admin'), false),
+    coalesce(r.role in ('manager', 'admin'), false),
+    coalesce(r.role in ('manager', 'admin'), false),
+    coalesce(r.role in ('manager', 'admin'), false),
     coalesce(r.role = 'admin', false)
   from public.venue_memberships m
   join public.venues v on v.id = m.venue_id
