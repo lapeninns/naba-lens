@@ -22,9 +22,7 @@ export function CardFlags({ card }: { card: QueueCard }) {
       {needsLabel || p?.possibleDuplicate || small ? (
         <div className="flex flex-wrap items-center gap-1.5">
           {needsLabel ? (
-            <StatusChip tone="attention">
-              {INBOX_COPY.needsLabel}
-            </StatusChip>
+            <StatusChip tone="attention">{INBOX_COPY.needsLabel}</StatusChip>
           ) : null}
           {p?.possibleDuplicate ? (
             <StatusChip tone="attention">

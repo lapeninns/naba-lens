@@ -480,7 +480,11 @@ export async function listReviewQueue(
   // S2-REVIEW filters (spec §7 M2): category, age, possible duplicate and
   // dishes with a needed-by date.
   const sectionKind = args.sectionKind ?? null
-  if (sectionKind !== null && sectionKind !== "food" && sectionKind !== "drinks")
+  if (
+    sectionKind !== null &&
+    sectionKind !== "food" &&
+    sectionKind !== "drinks"
+  )
     return BAD_REQUEST
   const minAgeDays = args.minAgeDays ?? null
   if (

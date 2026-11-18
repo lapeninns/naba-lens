@@ -16,12 +16,7 @@ import { cn } from "@/lib/utils"
 
 import { ownPhotoBlocked, type ListCard } from "./card-model"
 import { CardFlags, DetailsLink } from "./inbox-flags"
-import {
-  contributorHref,
-  itemHref,
-  photoHref,
-  type ReviewScope,
-} from "./links"
+import { contributorHref, itemHref, photoHref, type ReviewScope } from "./links"
 import {
   alsoCountsText,
   CONTRIBUTOR_CHIP,

@@ -45,7 +45,9 @@ export async function AmenityReviewSection({ ctx }: { ctx: ManagerPhotoCtx }) {
                   className="flex items-center gap-3 rounded-card border border-line p-2 focus-ring outline-none hover:bg-surface-2"
                 >
                   <EvidenceThumb
-                    src={r.hasThumbnail ? evidenceHref(r.assetId, "thumb") : null}
+                    src={
+                      r.hasThumbnail ? evidenceHref(r.assetId, "thumb") : null
+                    }
                     className="aspect-square w-16 shrink-0 rounded-control"
                   />
                   <span className="grid min-w-0 gap-0.5">

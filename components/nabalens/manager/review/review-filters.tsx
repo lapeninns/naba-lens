@@ -121,9 +121,7 @@ export function ReviewFilters({
           <FilterPill
             selected={Boolean(shown.possibleDuplicate)}
             data-review-filter="duplicates"
-            onClick={() =>
-              go({ possibleDuplicate: !shown.possibleDuplicate })
-            }
+            onClick={() => go({ possibleDuplicate: !shown.possibleDuplicate })}
           >
             {INBOX_COPY.duplicates}
           </FilterPill>

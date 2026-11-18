@@ -797,7 +797,11 @@ export function InboxPhotoDetail({
       </section>
 
       <AskDialog
-        key={ask ? `${ask.kind}:${"dish" in ask ? ask.dish.itemId : "place" in ask ? ask.place.labelId : ask.amenity.checkId}` : "closed"}
+        key={
+          ask
+            ? `${ask.kind}:${"dish" in ask ? ask.dish.itemId : "place" in ask ? ask.place.labelId : ask.amenity.checkId}`
+            : "closed"
+        }
         target={ask}
         onClose={() => setAsk(null)}
         busy={disabled}
