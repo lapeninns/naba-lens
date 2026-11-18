@@ -431,7 +431,11 @@ describe("label correction by route, needs label and review delay", () => {
             route: "gallery",
             assetId: wrong,
           }),
-          event(v.w.venue, { name: "submitted", route: "slot", assetId: right }),
+          event(v.w.venue, {
+            name: "submitted",
+            route: "slot",
+            assetId: right,
+          }),
         ])
       )
     ).toBe(2)
@@ -582,12 +586,12 @@ describe("record_product_events (§18.3, AC13)", () => {
   })
 
   it("refuses another venue, another person's photo, too many events, the inactive and anon", async () => {
-    expect(
-      await errorOf(record(v.w.staffA, [event(other.w.venue)]))
-    ).toBe("wrong_venue")
-    expect(
-      await errorOf(record(v.w.manager, [event(other.w.venue)]))
-    ).toBe("wrong_venue")
+    expect(await errorOf(record(v.w.staffA, [event(other.w.venue)]))).toBe(
+      "wrong_venue"
+    )
+    expect(await errorOf(record(v.w.manager, [event(other.w.venue)]))).toBe(
+      "wrong_venue"
+    )
     const theirs = await reserveReady(service, other.w.staffA)
     expect(
       await errorOf(
