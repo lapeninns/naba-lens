@@ -159,8 +159,9 @@ describe("tables", () => {
       psql(
         `select count(*) from public.knowledge_question_versions where key = 'darts' and lifecycle = 'supported'`
       )
-      // Version 1 and the S1-FACTS check-date version.
-    ).toBe("2")
+      // Version 1, the S1-FACTS check-date version and the S3-R2 rule
+      // version (D4: every catalogue question has a knowledge rule).
+    ).toBe("3")
   })
 })
 
@@ -196,7 +197,8 @@ describe("reads", () => {
     await refused(
       w.staffA,
       "knowledge_question",
-      { p_key: "darts", p_version: 3 },
+      // darts has versions 1 to 3 (S3-R2 added its rule version).
+      { p_key: "darts", p_version: 4 },
       "knowledge_question_not_found",
       "P0002"
     )

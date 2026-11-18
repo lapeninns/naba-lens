@@ -133,9 +133,12 @@ test("AC30: an unchanged garden past its review date shows a check, and the mana
   await expect(mgr.getByRole("main")).toContainText("1 photo due a check")
   await evidence(mgr, "ac30-check-due")
   await mgr.getByRole("button", { name: `Still right: ${label}` }).click()
-  // The row leaves the list once confirmed (its "Confirmed as still right."
-  // status leaves with it: reported, S3-E2E-2 finding F6).
+  // Nothing is left to confirm, and the confirmed row keeps its announced
+  // status after the page refreshes (S3-R2, S3-E2E-2 finding F6).
   await expect(mgr.getByText("No space photos are due a check.")).toBeVisible()
+  await expect(
+    mgr.getByRole("status").filter({ hasText: "Confirmed as still right." })
+  ).toBeVisible()
 
   // Current again, and covered, with no new photo.
   expect(freshness()).toBe("current")

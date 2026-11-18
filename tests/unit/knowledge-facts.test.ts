@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 import { checkDateBasis } from "@/components/nabalens/knowledge/copy"
 import {
   coverageWords,
+  percentWords,
   FACT_VERIFICATION_LABEL,
   FACT_VERIFICATION_STATES,
   factHistoryVerification,
@@ -99,6 +100,20 @@ describe("coverage words and space photos", () => {
   it("shows n of N with the percentage as secondary text (FA-8, spec §18.2)", () => {
     expect(coverageWords(5, 6)).toEqual({ text: "5 of 6", percent: "83.3%" })
     expect(coverageWords(0, 0)).toEqual({ text: "0 of 0", percent: null })
+  })
+
+  it("uses one percentage rule: one decimal, never 100% or 0% early (S3-E2E-2 F5)", () => {
+    expect(percentWords(1, 3)).toBe("33.3%")
+    expect(percentWords(2, 3)).toBe("66.7%")
+    expect(percentWords(1, 2)).toBe("50%")
+    expect(percentWords(3, 3)).toBe("100%")
+    expect(percentWords(0, 3)).toBe("0%")
+    // Would round to 100.0% or 0.0%.
+    expect(percentWords(1999, 2000)).toBe("99.9%")
+    expect(percentWords(1, 2000)).toBe("0.1%")
+    expect(percentWords(0, 0)).toBeNull()
+    expect(percentWords(1, Number.NaN)).toBeNull()
+    expect(coverageWords(1999, 2000).percent).toBe("99.9%")
   })
 
   it("counts only a current space photo (spec §9.3)", () => {

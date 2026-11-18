@@ -159,6 +159,21 @@ export type FactCoverageView = {
   byCategory: { category: string; numerator: number; denominator: number }[]
 }
 
+/**
+ * The one percentage rule for "n of N" (S3-R2, S3-E2E-2 F5): one decimal
+ * place, a trailing ".0" dropped ("50%", "83.3%"). It never rounds up to
+ * 100% while something is still missing (999 of 1000 is "99.9%") and never
+ * down to 0% once something counts (1 of 2000 is "0.1%"). Null when there is
+ * nothing to count.
+ */
+export function percentWords(n: number, d: number): string | null {
+  if (!Number.isFinite(n) || !Number.isFinite(d) || d <= 0) return null
+  let tenths = Math.round((n / d) * 1000)
+  if (n < d && tenths >= 1000) tenths = 999
+  if (n > 0 && tenths <= 0) tenths = 1
+  return `${tenths / 10}%`
+}
+
 /** "5 of 6" with the percentage as secondary text (FA-8). */
 export function coverageWords(
   n: number,
@@ -167,10 +182,7 @@ export function coverageWords(
   text: string
   percent: string | null
 } {
-  return {
-    text: `${n} of ${d}`,
-    percent: d === 0 ? null : `${Math.round((n / d) * 1000) / 10}%`,
-  }
+  return { text: `${n} of ${d}`, percent: percentWords(n, d) }
 }
 
 /** Spec §14.3: one structured answer for a consuming service. */

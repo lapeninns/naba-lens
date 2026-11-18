@@ -13,6 +13,12 @@ import { Button } from "@/components/ui/button"
  * answer or photo as it is and restores it to current, without a new photo.
  * An item with no answer yet links to where it is answered instead. Each row
  * says what happened in place (DESIGN.md §6.7).
+ *
+ * S3-R2 (S3-E2E-2 F6): a confirmed item drops out of the server's list on
+ * refresh, which used to take its "Confirmed as still right." status with
+ * it. The list now stays mounted (it owns its empty text), keeps a confirmed
+ * row where it was with its status, and shows the empty text under it once
+ * nothing is left to confirm.
  */
 
 export const STILL_RIGHT_COPY = {
@@ -41,9 +47,11 @@ type Confirm = (
 function Row({
   item,
   onConfirm,
+  onDone,
 }: {
   item: StillRightItem
   onConfirm: Confirm
+  onDone: (item: StillRightItem) => void
 }) {
   const router = useRouter()
   const [state, setState] = useState<"idle" | "done" | "error">("idle")
@@ -90,6 +98,7 @@ function Row({
               const result = await onConfirm(item.payload)
               if (result.ok) {
                 setState("done")
+                onDone(item)
                 router.refresh()
               } else {
                 setMessage(result.message ?? null)
@@ -117,17 +126,42 @@ export function StillRightList({
   items,
   onConfirm,
   label,
+  empty,
 }: {
   items: StillRightItem[]
   onConfirm: Confirm
   /** Accessible name of the list. */
   label: string
+  /** Shown when nothing is left to confirm. */
+  empty?: string
 }) {
+  // Confirmed rows, in the order they were confirmed, kept after the
+  // refreshed list no longer has them (F6).
+  const [confirmed, setConfirmed] = useState<StillRightItem[]>([])
+  const onDone = (item: StillRightItem) =>
+    setConfirmed((prev) =>
+      prev.some((p) => p.id === item.id) ? prev : [...prev, item]
+    )
+  const ids = new Set(items.map((i) => i.id))
+  const shown = [...items, ...confirmed.filter((c) => !ids.has(c.id))]
+  const open = items.filter((i) => !confirmed.some((c) => c.id === i.id))
   return (
-    <ul aria-label={label} className="grid gap-2">
-      {items.map((item) => (
-        <Row key={item.id} item={item} onConfirm={onConfirm} />
-      ))}
-    </ul>
+    <>
+      {shown.length > 0 ? (
+        <ul aria-label={label} className="grid gap-2">
+          {shown.map((item) => (
+            <Row
+              key={item.id}
+              item={item}
+              onConfirm={onConfirm}
+              onDone={onDone}
+            />
+          ))}
+        </ul>
+      ) : null}
+      {open.length === 0 && empty ? (
+        <p className="text-body text-ink-muted">{empty}</p>
+      ) : null}
+    </>
   )
 }
