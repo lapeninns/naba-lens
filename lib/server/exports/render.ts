@@ -59,7 +59,7 @@ export async function renderExportFile(
     profile.format === "webp"
       ? pipeline.webp({ quality })
       : pipeline
-          .flatten({ background: "#ffffff" })
+          .flatten({ background: { r: 255, g: 255, b: 255 } })
           .jpeg({ quality, mozjpeg: true })
   const { data, info } = await encoded.toBuffer({ resolveWithObject: true })
   return {

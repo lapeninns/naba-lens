@@ -162,6 +162,15 @@ const ALLOWED_PAGES = new Set([
   "/admin/search",
   "/manager/search",
   "/staff/manage/search",
+  // Full App v1 S1-EXPORT (spec §14.1, §8 A5, §7 M3; decisions FA-7, FA-40):
+  // export packages of public-approved photos as a ZIP with a manifest, and
+  // manual publication records. Admins every venue, managers their venue.
+  "/admin/publishing",
+  "/admin/publishing/new",
+  "/admin/publishing/packages/[id]",
+  "/manager/exports",
+  "/manager/exports/new",
+  "/manager/exports/packages/[id]",
 ])
 
 const ALLOWED_HANDLERS = new Set([
@@ -234,6 +243,10 @@ const ALLOWED_HANDLERS = new Set([
   // screen; managers incl. legacy grant holders at their venue, admins all
   // venues; staff refused by the database. Thumbnails via /api/media/[id]/thumb.
   "/api/media/search",
+  // Full App v1 S1-EXPORT: a package's ZIP (rechecked at download) and the
+  // export screens' thumbnails (caller-scoped gate, signed 60 s).
+  "/api/exports/[id]/download",
+  "/api/exports/thumb/[assetId]",
 ])
 
 /*
@@ -496,6 +509,41 @@ function stripSqlComments(source: string) {
  * term, so no allow-list entry is needed for them today. Keep exceptions here,
  * each with a reason, if a library primitive ever trips a pattern.
  */
+/**
+ * Files where a feature the v0.2 scope excluded is now specified. Full App
+ * Specification v1.0 §14.1 (export packages: a ZIP with a manifest of
+ * public-approved versions) and §8 A5 (Publishing) bring back ZIP export and
+ * the words "approved for public use" (decision FA-7: managers and admins
+ * see the spec's words). Each entry names its feature and its files only;
+ * everywhere else the ban stands.
+ */
+const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
+  [
+    {
+      feature: "bulk ZIP export",
+      prefixes: [
+        "app/admin/publishing/",
+        "app/manager/exports/",
+        "app/api/exports/",
+        "lib/server/exports/",
+      ],
+      reason: "S1-EXPORT export packages (spec §14.1, AC31, AC32)",
+    },
+    {
+      feature: "approval workflow",
+      prefixes: [
+        "app/admin/publishing/",
+        "app/manager/exports/",
+        "app/api/exports/",
+        "lib/server/exports/",
+        "supabase/migrations/20261118105",
+        "lib/db/types.ts",
+      ],
+      reason:
+        "S1-EXPORT records which approval a public export used (spec §14.1 manifest, §10 inv. 1)",
+    },
+  ]
+
 const ALLOWED_HITS: { file: string; text: string; reason: string }[] = [
   {
     file: "supabase/migrations/20261107120000_amenity_catalogue.sql",
@@ -520,6 +568,14 @@ function scan() {
         if (!match) continue
         const rel = relative(root, file)
         if (ALLOWED_HITS.some((a) => a.file === rel && line.includes(a.text))) {
+          continue
+        }
+        if (
+          FEATURE_PATHS.some(
+            (a) =>
+              a.feature === feature && a.prefixes.some((p) => rel.startsWith(p))
+          )
+        ) {
           continue
         }
         hits.push(`${rel}:${i + 1} [${feature}] ${line.trim().slice(0, 120)}`)
