@@ -389,6 +389,7 @@ export type Database = {
           check_id: string
           decided_at: string
           decided_by: string
+          disposition_id: number | null
           id: number
           origin: string
           previous_decision_id: number | null
@@ -402,6 +403,7 @@ export type Database = {
           check_id: string
           decided_at?: string
           decided_by: string
+          disposition_id?: number | null
           id?: never
           origin?: string
           previous_decision_id?: number | null
@@ -415,6 +417,7 @@ export type Database = {
           check_id?: string
           decided_at?: string
           decided_by?: string
+          disposition_id?: number | null
           id?: never
           origin?: string
           previous_decision_id?: number | null
@@ -714,6 +717,7 @@ export type Database = {
           asset_id: string
           decided_at: string
           decided_by: string
+          disposition_id: number | null
           id: number
           label_id: string
           previous_decision_id: number | null
@@ -726,6 +730,7 @@ export type Database = {
           asset_id: string
           decided_at?: string
           decided_by: string
+          disposition_id?: number | null
           id?: never
           label_id: string
           previous_decision_id?: number | null
@@ -738,6 +743,7 @@ export type Database = {
           asset_id?: string
           decided_at?: string
           decided_by?: string
+          disposition_id?: number | null
           id?: never
           label_id?: string
           previous_decision_id?: number | null
@@ -8209,6 +8215,7 @@ export type Database = {
           name: string
           operating_status: string
           revision: number
+          single_reviewer: boolean
           slug: string
           timezone: string
           updated_at: string
@@ -8223,6 +8230,7 @@ export type Database = {
           name: string
           operating_status?: string
           revision?: number
+          single_reviewer?: boolean
           slug: string
           timezone?: string
           updated_at?: string
@@ -8237,6 +8245,7 @@ export type Database = {
           name?: string
           operating_status?: string
           revision?: number
+          single_reviewer?: boolean
           slug?: string
           timezone?: string
           updated_at?: string
@@ -8354,6 +8363,10 @@ export type Database = {
         Returns: Json
       }
       admin_venue_detail: { Args: { p_venue_id: string }; Returns: Json }
+      admin_venue_review_settings: {
+        Args: { p_limit?: number; p_venue_id: string }
+        Returns: Json
+      }
       admin_venue_save: {
         Args: {
           p_address: string
@@ -8362,6 +8375,15 @@ export type Database = {
           p_reason?: string
           p_revision: number
           p_timezone: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
+      admin_venue_set_single_reviewer: {
+        Args: {
+          p_enabled: boolean
+          p_reason: string
+          p_revision: number
           p_venue_id: string
         }
         Returns: Json
@@ -9883,6 +9905,10 @@ export type Database = {
         Args: { p_asset_id: string; p_reason: string }
         Returns: Json
       }
+      library_suspend_asset: {
+        Args: { p_asset_id: string; p_reason: string }
+        Returns: Json
+      }
       library_tag_save: {
         Args: {
           p_active?: boolean
@@ -10057,6 +10083,7 @@ export type Database = {
           p_contributor_id?: string
           p_item_id?: string
           p_limit?: number
+          p_media_type?: string
           p_min_age_days?: number
           p_needed_by?: boolean
           p_possible_duplicate?: boolean
@@ -10076,6 +10103,7 @@ export type Database = {
           corrects_item_name: string
           corrects_variant_id: string
           created_at: string
+          disposition_id: number
           duplicate_of_asset_id: string
           group_count: number
           has_preview: boolean
@@ -10091,6 +10119,7 @@ export type Database = {
           kind: string
           label_id: string
           labelled_at: string
+          media_type: string
           photo_id: string
           photo_state: string
           possible_duplicate: boolean
@@ -10099,9 +10128,11 @@ export type Database = {
           section_id: string
           section_kind: string
           section_name: string
+          self_review_allowed: boolean
           sort_key: string
           staff_label: Json
           staff_note: string
+          unlabelled_reason: string
           uploader_id: string
           uploader_name: string
           variant_id: string
@@ -10467,6 +10498,17 @@ export type Database = {
         Returns: Json
       }
       metrics_overview: { Args: { p_days?: number }; Returns: Json }
+      move_my_upload_slot: {
+        Args: {
+          p_asset_id: string
+          p_catalogue_version_id: string
+          p_expected_revision: number
+          p_shared_kind?: string
+          p_target_id?: string
+          p_target_kind: string
+        }
+        Returns: Json
+      }
       my_area_labels: {
         Args: { p_asset_ids: string[] }
         Returns: {
@@ -10570,6 +10612,8 @@ export type Database = {
           p_before?: string
           p_before_id?: string
           p_limit?: number
+          p_slot_id?: string
+          p_slot_kind?: string
         }
         Returns: Json
       }

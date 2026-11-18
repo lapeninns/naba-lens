@@ -5,7 +5,7 @@ import {
   rememberTotpFactor,
   totpCode,
 } from "../../support/totp"
-import { provisioner, psql } from "./stack"
+import { provisioner } from "./stack"
 
 /**
  * Admins pass a TOTP second step after signing in (FA-23, /auth/mfa). The
@@ -18,8 +18,21 @@ import { provisioner, psql } from "./stack"
  * a database session uses the factor that session enrolled.
  */
 
-const userIdFor = (email: string) =>
-  psql(`select id from auth.users where email = '${email.replace(/'/g, "''")}'`)
+// Looked up through the service client, not host psql, so a journey that only
+// signs people in keeps needing no SQL tools (journey prerequisites).
+async function userIdFor(email: string): Promise<string> {
+  const wanted = email.toLowerCase()
+  for (let page = 1; ; page += 1) {
+    const { data, error } = await provisioner().auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    })
+    if (error) throw error
+    const user = data.users.find((u) => u.email?.toLowerCase() === wanted)
+    if (user) return user.id
+    if (data.users.length < 1000) return ""
+  }
+}
 
 let unnamed: string | null = null
 
@@ -29,7 +42,7 @@ export async function passMfaIfAsked(page: Page, email: string) {
   if (!new URL(page.url()).pathname.startsWith("/auth/mfa")) return
   // Callers that don't name the admin share one remembered key (the last
   // authenticator set up without an email), as before.
-  const userId = email ? userIdFor(email) : ""
+  const userId = email ? await userIdFor(email) : ""
   const setup = page.getByRole("button", {
     name: "Set up with an authenticator app",
   })
