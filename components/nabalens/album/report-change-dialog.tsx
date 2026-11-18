@@ -80,13 +80,17 @@ export function ReportChangeDialog({
   const photo = kind === "photo"
   const labelId = React.useId()
 
-  React.useEffect(() => {
-    if (open) return
+  // Closing clears the sheet, so it opens empty next time.
+  const reset = () => {
     setChosen(null)
     setReason(null)
     setNote("")
     setError(null)
-  }, [open])
+  }
+  const change = (next: boolean) => {
+    if (!next) reset()
+    onOpenChange(next)
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -113,7 +117,7 @@ export function ReportChangeDialog({
         return
       }
       onSent(result.created, picked)
-      onOpenChange(false)
+      change(false)
     } catch (cause) {
       setError(sessionEnded(cause) ?? REPORT_COPY.failed)
     } finally {
@@ -122,7 +126,7 @@ export function ReportChangeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={change}>
       <DialogContent data-slot="report-change-dialog">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>

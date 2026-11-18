@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache"
 
 import { deleteMedia } from "@/app/_media/actions"
 import { requestRemoval } from "@/app/_media/removal-actions"
-import type { MatchTarget } from "@/components/nabalens/album/match/model"
+import {
+  SHARED_KINDS,
+  type MatchTarget,
+  type SharedKind,
+} from "@/components/nabalens/album/match/model"
 import type { NotificationPreferences } from "@/lib/ops/notifications"
 import { setAreaLabel } from "@/lib/server/area-photos"
 import { getLabellingCatalogue, saveAssetLabels } from "@/lib/server/labels"
@@ -46,6 +50,10 @@ export type MeReply<T extends object = Record<never, never>> =
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const isId = (v: unknown): v is string => typeof v === "string" && UUID.test(v)
 const KINDS = new Set(["dish", "area", "amenity", "photo"])
+
+/** Where Change slot moves a waiting photo: a slot, or a shared photo. */
+export type ChangeTarget =
+  MatchTarget | { kind: "shared"; sharedKind: SharedKind }
 
 const refused = (message: string) => ({ ok: false as const, error: message })
 
@@ -145,15 +153,21 @@ export async function changeUploadSlotAction(input: {
   expectedRevision: unknown
   target: unknown
 }): Promise<MeReply> {
-  const target = input.target as MatchTarget | null
+  const target = input.target as ChangeTarget | null
+  const valid =
+    target &&
+    (target.kind === "dish"
+      ? isId(target.itemId)
+      : target.kind === "area"
+        ? isId(target.subjectId)
+        : target.kind === "shared" &&
+          (SHARED_KINDS as readonly string[]).includes(target.sharedKind))
   if (
     !isId(input.assetId) ||
     typeof input.expectedRevision !== "number" ||
     !Number.isInteger(input.expectedRevision) ||
     !target ||
-    (target.kind === "dish" ? !isId(target.itemId) : false) ||
-    (target.kind === "area" ? !isId(target.subjectId) : false) ||
-    (target.kind !== "dish" && target.kind !== "area")
+    !valid
   )
     return refused("Reload the page.")
   const assetId = input.assetId
@@ -165,7 +179,10 @@ export async function changeUploadSlotAction(input: {
   if (!from || check.upload.slots.length !== 1 || from.kind === "amenity")
     return refused(STILL_WAITING)
 
-  const saveItems = async (items: { itemId: string; variantId: null }[]) => {
+  const saveLabels = async (
+    items: { itemId: string; variantId: null }[],
+    contentTypes: SharedKind[] = []
+  ) => {
     const catalogue = await getLabellingCatalogue(
       auth.actor,
       check.upload.venueId
@@ -178,7 +195,7 @@ export async function changeUploadSlotAction(input: {
       assetId,
       expectedRevision: input.expectedRevision as number,
       catalogueVersionId: versionId,
-      contentTypes: [],
+      contentTypes,
       note: null,
       items,
       missingItem: null,
@@ -189,16 +206,21 @@ export async function changeUploadSlotAction(input: {
         ? "This photo was changed just now. Reload the page."
         : saved.message || "The slot couldn't be changed. Try again."
   }
+  const clearArea = async () => {
+    if (from.kind !== "area") return null
+    const cleared = await setAreaLabel(auth.actor, assetId, null)
+    return cleared.ok ? null : cleared.message
+  }
 
   let problem: string | null = null
   if (target.kind === "dish") {
-    if (from.kind === "area") {
-      const cleared = await setAreaLabel(auth.actor, assetId, null)
-      if (!cleared.ok) return refused(cleared.message)
-    }
-    problem = await saveItems([{ itemId: target.itemId, variantId: null }])
+    problem =
+      (await clearArea()) ??
+      (await saveLabels([{ itemId: target.itemId, variantId: null }]))
+  } else if (target.kind === "shared") {
+    problem = (await clearArea()) ?? (await saveLabels([], [target.sharedKind]))
   } else {
-    if (from.kind === "dish") problem = await saveItems([])
+    if (from.kind === "dish") problem = await saveLabels([])
     if (!problem) {
       const set = await setAreaLabel(auth.actor, assetId, target.subjectId)
       if (!set.ok) problem = set.message

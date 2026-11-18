@@ -17,6 +17,7 @@ import {
 } from "@/lib/server/coverage"
 import type { RetakeNote } from "@/lib/server/coverage/types"
 import { avatarUrl } from "@/lib/server/media/library"
+import { unreadCount } from "@/lib/server/notifications"
 import type { MediaActor } from "@/lib/server/media/types"
 import { entryMenu, type EntryMenu } from "@/lib/work-client/entry"
 import { workServices } from "@/lib/work-client/services"
@@ -190,6 +191,8 @@ export type StaffShellStatus = {
   todoUnknown: boolean
   /** Only for a venue manager; none when the read fails. */
   reviewCount: number | undefined
+  /** Unread notices for the Me tab (FA-10); none when unread or failed. */
+  meCount: number | undefined
   avatarUrl: string | null
 }
 
@@ -228,18 +231,32 @@ export async function staffShellStatus(
   actor: MediaActor,
   profile: { id: string; avatarPath: string | null }
 ): Promise<StaffShellStatus> {
-  const [retakes, { canManage, reviewCount }] = await Promise.all([
+  const [retakes, { canManage, reviewCount }, notices] = await Promise.all([
     myAlbumRetakes(actor),
     managerStatus(actor),
+    myUnreadNotices(actor),
   ])
   return {
     canManage,
     todoUnknown: retakes === null,
     todoCount: retakes?.length,
     reviewCount,
+    meCount: notices ?? undefined,
     avatarUrl: avatarUrl(profile.id, profile.avatarPath),
   }
 }
+
+const unreadOf = cache(async (actor: MediaActor) => {
+  try {
+    return await unreadCount(actor)
+  } catch {
+    return null
+  }
+})
+
+/** Unread notices (FA-10), once per request; null when unread. */
+export const myUnreadNotices = (actor: MediaActor) =>
+  unreadOf(sharedActor(actor))
 
 const rechecksOf = cache(async (actor: MediaActor) => {
   try {
@@ -258,6 +275,7 @@ const NO_STATUS: StaffShellStatus = {
   todoCount: undefined,
   todoUnknown: false,
   reviewCount: undefined,
+  meCount: undefined,
   avatarUrl: null,
 }
 

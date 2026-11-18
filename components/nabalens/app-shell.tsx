@@ -59,6 +59,11 @@ type AppShellProps = {
       todoUnknown?: boolean
       /** Photos waiting for this manager's decision, counted on Manage. */
       reviewCount?: number
+      /**
+       * Unread notices (FA-10, S2-STAFF), counted on the Me tab while another
+       * section is open: a badge, never a toast.
+       */
+      meCount?: number
     }
   | {
       variant: "admin"
@@ -150,7 +155,9 @@ export function AppShell(props: AppShellProps) {
   const retakes = (id: string) =>
     staff && id === "tasks" && active !== "tasks"
       ? { count: staff.todoCount, unknown: !!staff.todoUnknown }
-      : null
+      : staff && id === "portfolio" && active !== "portfolio" && staff.meCount
+        ? { count: staff.meCount, unknown: false }
+        : null
   const barItems: { item: NavItem<string>; href: string; count?: number }[] =
     admin
       ? ADMIN_NAV.map((item) => ({
@@ -313,6 +320,7 @@ export function AppShell(props: AppShellProps) {
                   current={active === item.id}
                   count={retakes(item.id)?.count}
                   unknown={retakes(item.id)?.unknown}
+                  label={item.id === "portfolio" ? "unread notices" : undefined}
                 />
               ) : (
                 <AlbumAddTrigger key="add" kind="tab" />
@@ -329,12 +337,15 @@ function TabLink({
   current,
   count,
   unknown = false,
+  label,
 }: {
   item: NavItem<string>
   href: string
   current: boolean
   count?: number
   unknown?: boolean
+  /** What the count counts; retakes unless said. */
+  label?: string
 }) {
   const Icon = item.icon
   return (
@@ -353,7 +364,11 @@ function TabLink({
     >
       <Icon aria-hidden className="size-[26px]" />
       {item.label}
-      <TabBadge count={count} unknown={unknown} label={retakeLabel(count)} />
+      <TabBadge
+        count={count}
+        unknown={unknown}
+        label={label ?? retakeLabel(count)}
+      />
     </Link>
   )
 }
