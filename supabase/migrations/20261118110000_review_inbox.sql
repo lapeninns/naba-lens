@@ -35,7 +35,7 @@ set lock_timeout = '5s';
 --                 ("label_corrected", FA-7: Label corrected).
 --
 -- Rollback: re-apply private.menu_photo_pending_tuples,
--- private.menu_photo_unlabelled_eligible and private.menu_photo_stale_label
+-- and private.menu_photo_stale_label
 -- (20261107100300) and public.manager_menu_photo_queue (20261107100700);
 -- drop the new functions, triggers, columns and table; restore the
 -- notifications kind check (20261118106200).
@@ -128,25 +128,10 @@ revoke all on function private.asset_set_aside(uuid) from public, anon, authenti
 -- Waiting rules: a photo set aside no longer waits
 -- ---------------------------------------------------------------------------
 
--- Body as in 20261107100300, plus: not set aside.
-create or replace function private.menu_photo_unlabelled_eligible(p_asset uuid, p_venue uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select private.menu_photo_can_review_unlabelled() and exists (
-    select 1
-    from public.media_assets a
-    join public.media_labels ml on ml.asset_id = a.id
-    where a.id = p_asset and a.venue_id = p_venue
-      and a.media_type = 'image' and a.upload_state = 'ready' and a.deleted_at is null
-      and not exists (select 1 from public.media_label_items li where li.asset_id = a.id)
-      and ml.content_types && array['dish', 'preparation', 'plating', 'drinks']::text[])
-    and not private.asset_set_aside(p_asset);
-$$;
-
+-- private.menu_photo_unlabelled_eligible stays as it is: it also gates who
+-- may open an unlabelled photo (public.menu_item_photo_asset, asset search),
+-- and a photo set aside must still open for its reviewer. The queue and the
+-- detail add "not set aside" themselves.
 -- Body as in 20261107100300, plus: not set aside.
 create or replace function private.menu_photo_stale_label(p_asset uuid, p_venue uuid)
 returns boolean
@@ -705,6 +690,7 @@ begin
     where v_status in ('unlabelled', 'pending', 'all')
       and a.venue_id = v_venue
       and private.menu_photo_unlabelled_eligible(a.id, v_venue)
+      and not private.asset_set_aside(a.id)
       and private.menu_photo_reviewable_uploader(a.uploader_id, v_admin)
       and not exists (
         select 1 from public.menu_item_photos p
@@ -845,7 +831,8 @@ begin
     'note', (select ml.note from public.media_labels ml where ml.asset_id = v_asset.id),
     'contentTypes', coalesce((select to_jsonb(ml.content_types) from public.media_labels ml
       where ml.asset_id = v_asset.id), '[]'::jsonb),
-    'needsLabel', private.menu_photo_unlabelled_eligible(v_asset.id, v_asset.venue_id),
+    'needsLabel', private.menu_photo_unlabelled_eligible(v_asset.id, v_asset.venue_id)
+      and not private.asset_set_aside(v_asset.id),
     'duplicateOfAssetId', v_asset.duplicate_of_asset_id,
     'possibleDuplicates', coalesce((
       select jsonb_agg(jsonb_build_object('assetId', d.id,
