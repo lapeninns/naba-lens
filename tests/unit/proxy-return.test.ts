@@ -339,6 +339,26 @@ describe("proxy: signed in", () => {
     expect(returnCookie(res)).toEqual([])
   })
 
+  it("keeps it through the second sign-in step, which ends on / (S3-E2E-1 E2)", async () => {
+    for (const [path, init] of [
+      ["/auth/mfa", {}],
+      ["/auth/mfa", { method: "POST", headers: { "next-action": "abc" } }],
+    ] as [string, Parameters<typeof request>[1]][]) {
+      const res = await proxy(
+        request(path, {
+          ...init,
+          cookie: "nl-return-to=%2Fadmin%2Fstaff%3Ffrom%3Demail",
+        })
+      )
+      expect(returnCookie(res), path).toEqual([])
+    }
+    // Not a look-alike path.
+    const other = await proxy(
+      request("/auth/mfa-not", { cookie: "nl-return-to=%2Fadmin%2Fstaff" })
+    )
+    expect(returnCookie(other)).toHaveLength(1)
+  })
+
   it("sets no cookie when there is nothing to clear", async () => {
     expect(returnCookie(await proxy(request("/staff/tasks")))).toEqual([])
   })

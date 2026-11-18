@@ -22,10 +22,16 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (userId) {
-    // "/" applies the return path once signed in (app/page.tsx). Any other
-    // signed-in request means it was used, refused or belongs to an earlier
-    // visit, so it must not steer a later sign-in on this browser.
-    if (pathname !== "/" && request.cookies.has(RETURN_TO_COOKIE))
+    // "/" applies the return path once signed in (app/page.tsx). The second
+    // sign-in step (/auth/mfa, FA-23) is still part of signing in: it ends on
+    // "/", which then applies the path (S3-E2E-1 E2). Any other signed-in
+    // request means it was used, refused or belongs to an earlier visit, so
+    // it must not steer a later sign-in on this browser.
+    if (
+      pathname !== "/" &&
+      !isMfaStep(pathname) &&
+      request.cookies.has(RETURN_TO_COOKIE)
+    )
       response.cookies.delete(RETURN_TO_COOKIE)
     return response
   }
@@ -68,6 +74,11 @@ export async function proxy(request: NextRequest) {
     )
   }
   return redirect
+}
+
+/** The second sign-in step's page (and its Server Functions, posted there). */
+function isMfaStep(pathname: string) {
+  return pathname === ROUTES.mfa || pathname.startsWith(`${ROUTES.mfa}/`)
 }
 
 /** The requested page and query, without the router's cache-busting `_rsc`. */

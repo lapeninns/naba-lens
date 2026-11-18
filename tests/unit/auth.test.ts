@@ -27,10 +27,10 @@ const base: CurrentProfile = {
 }
 
 describe("role routing", () => {
-  it("sends staff to Home, managers to /manager and admins to /admin", () => {
+  it("sends staff to Home, managers to /manager and admins to Overview", () => {
     expect(homePathFor("staff")).toBe("/staff/tasks")
     expect(homePathFor("manager")).toBe("/manager")
-    expect(homePathFor("admin")).toBe("/admin")
+    expect(homePathFor("admin")).toBe("/admin/overview")
   })
 
   it("has a home for every role, each inside a protected area", () => {

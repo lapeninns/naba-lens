@@ -114,8 +114,8 @@ describe("returnPathFor (applied after sign-in)", () => {
     expect(returnPathFor("staff", "/manager/review")).toBe("/staff/tasks")
     expect(returnPathFor("manager", "/staff/tasks/t1")).toBe("/manager")
     expect(returnPathFor("manager", "/admin")).toBe("/manager")
-    expect(returnPathFor("admin", "/manager/review")).toBe("/admin")
-    expect(returnPathFor("admin", "/staff/manage")).toBe("/admin")
+    expect(returnPathFor("admin", "/manager/review")).toBe("/admin/overview")
+    expect(returnPathFor("admin", "/staff/manage")).toBe("/admin/overview")
   })
 
   it("sends anything unsafe or missing to the role's home", () => {
