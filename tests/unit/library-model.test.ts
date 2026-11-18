@@ -39,6 +39,7 @@ describe("A4 filter params", () => {
         collection: [S, "x"],
         destination: "not-a-uuid",
         tag: S,
+        import: S,
       })
     ).toEqual({
       withdrawn: "withdrawn",
@@ -51,6 +52,7 @@ describe("A4 filter params", () => {
       collectionId: S,
       destinationId: null,
       tagId: S,
+      importId: S,
     })
     expect(
       parseExtraFilters({
@@ -63,9 +65,19 @@ describe("A4 filter params", () => {
   })
 
   it("round-trips through URL params, leaving out what is off", () => {
-    const f = parseExtraFilters({ use: "all", tag: S, shot_from: "2026-01-02" })
+    const f = parseExtraFilters({
+      use: "all",
+      tag: S,
+      shot_from: "2026-01-02",
+      import: S,
+    })
     const params = extraFiltersToParams(f)
-    expect(params).toEqual({ use: "all", shot_from: "2026-01-02", tag: S })
+    expect(params).toEqual({
+      use: "all",
+      shot_from: "2026-01-02",
+      tag: S,
+      import: S,
+    })
     expect(parseExtraFilters(params)).toEqual(f)
     expect(extraFiltersToParams(NO_EXTRA_FILTERS)).toEqual({})
   })
@@ -231,7 +243,18 @@ describe("lists", () => {
     ).toEqual({
       requests: [{ id: S, name: "Roast", venueName: "The Bell" }],
       destinations: [],
+      imports: [],
     })
+    expect(
+      parseFilterLists({
+        imports: [
+          { id: S, name: "2019 drive", createdAt: "2026-11-18", imported: 3 },
+          { id: "x", name: "bad" },
+        ],
+      })?.imports
+    ).toEqual([
+      { id: S, name: "2019 drive", createdAt: "2026-11-18", imported: 3 },
+    ])
     expect(parseTags("x")).toBeNull()
   })
 })

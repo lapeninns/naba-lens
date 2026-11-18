@@ -81,6 +81,13 @@ export default async function AdminPage({
           collections: collections.ok ? collections.value.map(named) : [],
           requests: lists.ok ? lists.value.requests.map(named) : [],
           destinations: lists.ok ? lists.value.destinations.map(named) : [],
+          // S5-IMPORT (FA-54): each legacy import batch with its count.
+          imports: lists.ok
+            ? lists.value.imports.map((b) => ({
+                id: b.id,
+                name: `${b.name} · ${b.imported} imported`,
+              }))
+            : [],
         }}
         initialPage={page}
       />

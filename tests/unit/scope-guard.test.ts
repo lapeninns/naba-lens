@@ -673,6 +673,8 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
         "supabase/migrations/20261118116",
         // S3-R1 K1 re-creates library_page with the unlabelled rule.
         "supabase/migrations/20261118120300_unlabelled_rule.sql",
+        // S5-IMPORT re-creates library_page with the import filter (FA-54).
+        "supabase/migrations/20261118135100_legacy_import_reads.sql",
         "lib/db/types.ts",
       ],
       reason:

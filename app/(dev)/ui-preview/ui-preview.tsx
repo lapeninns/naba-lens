@@ -141,6 +141,7 @@ const PREVIEW_EXTRA_OPTIONS: LibraryExtraOptions = {
   collections: [{ id: "col-1", name: "Winter menu launch" }],
   requests: [{ id: "req-1", name: "Sunday roast · Sample venue" }],
   destinations: [{ id: "dest-1", name: "Website · Sample venue" }],
+  imports: [{ id: "import-1", name: "2019 shared drive · 120 imported" }],
 }
 
 function applyFilters(items: MediaItem[], f: LibraryFilterValue) {

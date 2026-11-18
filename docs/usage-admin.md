@@ -133,8 +133,14 @@ across the group, newest first. Filter by **Venue**, **Staff member** and
 **Media**, or open **More filters** for menu item and **Category** (choose a
 venue first), **Content type**, **Labelled** or **Needs labels**, dates, and
 search over labels and notes, plus **In use**, **Review**, **Orientation**,
-**Tag**, **Collection**, **Request**, **Published to**, **Taken from** and
-**Taken to**. Then **Apply filters**. Filters combine; each file appears once.
+**Tag**, **Collection**, **Request**, **Published to**, **Imported**,
+**Taken from** and **Taken to**. Then **Apply filters**. Filters combine; each
+file appears once.
+
+**Imported** lists each legacy import batch (`pnpm import:legacy`, run by the
+owner; see [legacy import](legacy-import.md)) with how many photos and videos
+it brought in. Imported photos wait in Review like any upload and cover
+nothing until a reviewer accepts them.
 
 Open a photo and choose **Edit labels** (or **Add labels**) to correct its
 labels. Labels are optional, so unlabelled photos appear at once.

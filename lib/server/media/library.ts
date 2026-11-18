@@ -489,6 +489,8 @@ export function listLibrary(
             ? { p_destination: label.destinationId }
             : {}),
           ...(label.tagId ? { p_tag: label.tagId } : {}),
+          // S5-IMPORT (FA-54): one legacy import batch.
+          ...(label.importId ? { p_import: label.importId } : {}),
           ...(after
             ? { p_after_created_at: after.createdAt, p_after_id: after.id }
             : {}),
