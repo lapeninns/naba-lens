@@ -228,7 +228,7 @@ const ASKED = askedForItems(
     },
     {
       id: "req-2",
-      type: "campaign",
+      type: "missing_photo",
       slot: null,
       subject: "Bonfire night table",
       brief: "A full table by the fire pit, lit",
