@@ -136,6 +136,17 @@ export const libraryList = (page: Page) =>
   page.getByRole("list", { name: "Library" })
 
 /**
+ * Me's way to the older Add sheet (R15-1): "Add a video", a secondary button
+ * beside Me's main Add photos. Add photos opens the gallery and Match, which
+ * takes photos only; the sheet takes photos and videos, labels them with
+ * "What's in these photos?" and lists each file with Retry. Every journey
+ * that tests the sheet itself starts here.
+ */
+export const ME_SHEET_ADD = "Add a video"
+export const meSheetButton = (page: Page) =>
+  page.getByRole("button", { name: ME_SHEET_ADD }).first()
+
+/**
  * The staff upload sheet. Before a pick it is "Add photos or videos" (or
  * "Upload photos" for photos only, a task screen's sheet); once files are
  * picked it is the "Saving N photos" sheet ("files" when a video is among them).
@@ -164,10 +175,7 @@ export async function uploadThroughDialog(
   files: SourceFile[],
   { expectSettled = `${files.length} saved`, close = true } = {}
 ): Promise<Record<string, string[]>> {
-  await page
-    .getByRole("button", { name: "Add photos or videos" })
-    .first()
-    .click()
+  await meSheetButton(page).click()
   const dialog = uploadSheet(page)
   await expect(dialog).toBeVisible()
   // Before the pick: the files start uploading the moment they are chosen.

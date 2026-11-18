@@ -9,6 +9,7 @@ import {
   CameraIcon,
   CaretRightIcon,
   ClipboardTextIcon,
+  FilmStripIcon,
   ForkKnifeIcon,
   ImagesIcon,
   PencilSimpleIcon,
@@ -114,6 +115,9 @@ type StaffPortfolioProps = {
 export type Milestone = "saved" | "label" | "accepted" | "better"
 
 /** The heading of Me's section of photos accepted for menu use. */
+/** Me's way to the older Add sheet, beside Add photos (R15-1). */
+export const ME_ADD_VIDEO_LABEL = "Add a video"
+
 const ACCEPTED_HEADING = "Accepted for menu use"
 
 /**
@@ -460,6 +464,22 @@ export function StaffPortfolio({
         {ALBUM_ADD_LABEL}
       </Button>
     )
+  // S3-R15 (R15-1): Match takes photos only, so Me keeps a quieter way to
+  // the older Add sheet for a video and anything Match does not take
+  // (departures.md A-D2). Gallery first: the sheet opens the phone's photos,
+  // never a camera (DESIGN.md §9). A secondary button beside the main one
+  // (DESIGN.md §5).
+  const videoButton =
+    uploadBlocked || !openAdd ? null : (
+      <Button
+        variant="secondary"
+        data-slot="me-add-video"
+        onClick={() => openAdd({ dialog: true })}
+      >
+        <FilmStripIcon data-icon="inline-start" aria-hidden />
+        {ME_ADD_VIDEO_LABEL}
+      </Button>
+    )
 
   return (
     // Common Room Me: a feed of white cards on the grey canvas.
@@ -499,6 +519,7 @@ export function StaffPortfolio({
               <PencilSimpleIcon data-icon="inline-start" aria-hidden />
               Edit profile
             </Button>
+            {videoButton}
             {uploadButton()}
           </>
         }

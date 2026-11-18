@@ -149,10 +149,7 @@ test.describe("GAP-19: leave warning during an active upload", () => {
       hold
     )
 
-    await page
-      .getByRole("button", { name: "Add photos or videos" })
-      .first()
-      .click()
+    await page.getByRole("button", { name: "Add a video" }).first().click()
     const dialog = uploadSheet(page)
     // The upload starts as soon as the file is picked (the hold is already in
     // place, so the transfer stays in flight).
@@ -302,8 +299,10 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
       staffPage.getByRole("status").filter({ hasText: /isn't taking photos/ })
     ).toBeVisible()
     await expect(
-      staffPage.getByRole("button", { name: /Add photos or videos/ })
+      staffPage.getByRole("button", { name: "Add a video" })
     ).toHaveCount(0)
+    // Me's Add photos (R15-1) is not offered either.
+    await expect(staffPage.locator('[data-slot="me-add"]')).toHaveCount(0)
     // Their own retained media is still listed for them.
     await expect(
       await staffTile(

@@ -15,6 +15,7 @@ import {
 } from "@playwright/test"
 
 import { signIn, type Db } from "../../support/identities"
+import { meSheetButton } from "./ui"
 import { legacyStaffGrant, type CoverageWorld } from "./coverage-world"
 import { syntheticJpeg, type SourceFile } from "./media"
 import { activateMenu, ok } from "./menus"
@@ -175,12 +176,12 @@ export const addTab = (page: Page) =>
     .getByRole("button", { name: /^Add photos/ })
 
 /**
- * Me's own Add (its profile card's button): the Add sheet with labels, for
- * photos and videos that aren't matched to a slot. The Album tab goes to
- * Match instead (AL-1), so the label journeys start here.
+ * Me's Add a video (its profile card's secondary button, R15-1): the Add
+ * sheet with labels, for photos and videos that aren't matched to a slot.
+ * Me's main Add photos and the Album tab go to Match instead (AL-1, S3-R12),
+ * so the label journeys start here.
  */
-export const meAddButton = (page: Page) =>
-  page.getByRole("button", { name: "Add photos or videos" }).first()
+export const meAddButton = meSheetButton
 
 export const addSheet = (page: Page) =>
   page.getByRole("dialog", { name: "Add photos", exact: true })
@@ -225,7 +226,7 @@ export async function pickFiles(
 }
 
 /**
- * Add with labels while idle: Me's Add (opening Me first when elsewhere),
+ * Add with labels while idle: Me's Add a video (opening Me first when elsewhere),
  * then "Choose from your photos" in the Add sheet. The Album tab's Add
  * photos opens Match instead (DESIGN.md §6.1), so it is not this path.
  */

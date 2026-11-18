@@ -120,10 +120,7 @@ test("security headers are sent and the CSP allows upload, thumbnails, preview a
   expect(headers["x-frame-options"]).toBe("DENY")
 
   // Upload a photo (signed PUT) and a video (TUS) through the real dialog.
-  await page
-    .getByRole("button", { name: "Add photos or videos" })
-    .first()
-    .click()
+  await page.getByRole("button", { name: "Add a video" }).first().click()
   const dialog = uploadSheet(page)
   await expect(dialog).toBeVisible()
   // Both start saving as soon as they are picked.

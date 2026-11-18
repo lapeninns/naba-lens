@@ -46,8 +46,10 @@ async function expectRetryPage(page: Page, path: string) {
   const html = await res!.text()
   expect(html).not.toContain("Internal Server Error")
   // Fails closed: neither app shell is rendered.
+  // Neither Me's Add a video nor any Add photos (Me's, the AppBar's or the
+  // tab bar's) is rendered.
   await expect(
-    page.getByRole("button", { name: "Add photos or videos" })
+    page.getByRole("button", { name: /^Add (a video|photos)/ })
   ).toHaveCount(0)
   await expect(page.getByRole("combobox", { name: "Venue" })).toHaveCount(0)
 }
@@ -91,7 +93,7 @@ test.describe("profile read outage on the role-gated layouts", () => {
     ).toBeVisible()
     await staffPage.getByRole("button", { name: "Try again" }).click()
     await expect(
-      staffPage.getByRole("button", { name: "Add photos or videos" }).first()
+      staffPage.getByRole("button", { name: "Add a video" }).first()
     ).toBeVisible()
 
     await staffPage.context().close()

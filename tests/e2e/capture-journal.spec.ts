@@ -135,7 +135,7 @@ async function recordProbe(page: Page, info: TestInfo) {
 }
 
 /**
- * Me's Add while idle: the upload sheet, which holds the resume block. The
+ * Me's Add a video while idle: the upload sheet, which holds the resume block. The
  * Album tab's Add photos opens Match (DESIGN.md §6.1), not this sheet.
  */
 async function openAddSheet(page: Page) {
@@ -145,7 +145,7 @@ async function openAddSheet(page: Page) {
   return sheet
 }
 
-/** Me's Add, then the library in the upload sheet. */
+/** Me's Add a video, then the library in the upload sheet. */
 async function pickFromAdd(page: Page, files: string[]) {
   const sheet = await openAddSheet(page)
   const chooser = page.waitForEvent("filechooser")

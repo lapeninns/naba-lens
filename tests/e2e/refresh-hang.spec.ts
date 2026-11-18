@@ -37,7 +37,7 @@ test.describe("a hung gallery refresh", () => {
     const page = await signedInPage(browser, staff)
     await openPortfolio(page)
     await expect(
-      page.getByRole("button", { name: "Add photos or videos" }).first()
+      page.getByRole("button", { name: "Add a video" }).first()
     ).toBeVisible()
 
     // Every refresh hangs: the request is held and never answered.

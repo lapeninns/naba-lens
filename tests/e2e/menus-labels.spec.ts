@@ -211,10 +211,7 @@ const tileLabels = (list: Locator) =>
  * optional labels ("What's in these photos?") inline.
  */
 async function pickInSheet(page: Page, files: SourceFile[]) {
-  await page
-    .getByRole("button", { name: "Add photos or videos" })
-    .first()
-    .click()
+  await page.getByRole("button", { name: "Add a video" }).first().click()
   const sheet = uploadSheet(page)
   await expect(sheet).toBeVisible()
   await sheet
