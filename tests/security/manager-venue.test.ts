@@ -113,8 +113,8 @@ describe("venue_review_assignments / set_venue_reviewer", () => {
     expect(ids).not.toContain(admin.id)
   })
 
-  it("a manager nominates a main and a backup at their own venue", async () => {
-    await ok(setReviewer(managerA, venueA, "main", managerA.id, "TEST main"))
+  it("an admin names the main reviewer and a manager nominates the backup", async () => {
+    await ok(setReviewer(admin, venueA, "main", managerA.id, "TEST main"))
     const view = (await ok(
       setReviewer(managerA, venueA, "backup", managerA2.id)
     )) as Reviewers
@@ -122,8 +122,41 @@ describe("venue_review_assignments / set_venue_reviewer", () => {
     expect(view.backup?.profileId).toBe(managerA2.id)
     expect(view.backup?.name).toMatch(/TEST mgr-a2/)
     // Re-nominating the current holder changes nothing.
-    await ok(setReviewer(managerA, venueA, "main", managerA.id))
+    await ok(setReviewer(managerA, venueA, "backup", managerA2.id))
     expect(await openRows(venueA)).toHaveLength(2)
+  })
+
+  // S3-R5 (release review V1; spec §7 M5, §8 A2): the main reviewer is an
+  // admin action. Before the fix a manager replaced or cleared it here.
+  it("refuses a manager's change to the main reviewer, and their move of the main reviewer to backup", async () => {
+    await fails(
+      setReviewer(managerA2, venueA, "main", managerA2.id, "TEST take over"),
+      "main_reviewer_admin_only"
+    )
+    await fails(
+      setReviewer(managerA2, venueA, "main", null, "TEST clear main"),
+      "main_reviewer_admin_only"
+    )
+    // Nominating the current main as backup would end the main role.
+    await fails(
+      setReviewer(managerA2, venueA, "backup", managerA.id),
+      "main_reviewer_admin_only"
+    )
+    await fails(
+      setReviewer(managerA2, venueA, "main", managerA3.id),
+      "main_reviewer_admin_only",
+      "42501"
+    )
+    const view = await reviewers(managerA)
+    expect(view.main?.profileId).toBe(managerA.id)
+    expect(view.backup?.profileId).toBe(managerA2.id)
+    expect(await openRows(venueA)).toHaveLength(2)
+    // A manager still clears and re-nominates the backup.
+    expect(
+      ((await ok(setReviewer(managerA, venueA, "backup", null))) as Reviewers)
+        .backup
+    ).toBeNull()
+    await ok(setReviewer(managerA, venueA, "backup", managerA2.id))
   })
 
   it("refuses staff, people from another venue, admins and inactive accounts as reviewers", async () => {
@@ -141,7 +174,7 @@ describe("venue_review_assignments / set_venue_reviewer", () => {
 
   it("moves a person between roles rather than giving them both", async () => {
     const view = (await ok(
-      setReviewer(managerA, venueA, "main", managerA2.id, "TEST swap")
+      setReviewer(admin, venueA, "main", managerA2.id, "TEST swap")
     )) as Reviewers
     expect(view.main?.profileId).toBe(managerA2.id)
     expect(view.backup).toBeNull()
@@ -358,7 +391,13 @@ describe("confirm_menu_month / manager_venue_summary", () => {
 describe("venue_history", () => {
   type History = {
     venueId: string
-    items: { source: string; action: string; at: string; id: string }[]
+    items: {
+      source: string
+      action: string
+      at: string
+      id: string
+      reason: string | null
+    }[]
     nextCursor: { at: string; source: string; id: string } | null
   }
 
@@ -388,6 +427,50 @@ describe("venue_history", () => {
     expect(new Set(keys).size).toBe(keys.length)
     const times = all.map((i) => Date.parse(i.at))
     expect([...times].sort((a, b) => b - a)).toEqual(times)
+  })
+
+  // S3-R5 (release review V2; FA-23): an admin's MFA reset and its reason are
+  // admin-only. Before the fix the row reached every manager of the venue.
+  it("leaves admin-only security events out for managers, not for admins", async () => {
+    await ok(
+      admin.client.rpc("admin_reset_mfa_authorise", {
+        p_profile_id: staffA.id,
+        p_reason: "TEST lost phone, identity checked by call",
+      })
+    )
+    const { data: logged } = await service
+      .from("activity_events")
+      .select("action, reason")
+      .eq("venue_id", venueA)
+      .eq("action", "mfa_reset")
+    expect(logged).toHaveLength(1)
+    const all = async (who: TestIdentity, venueId?: string) =>
+      (
+        (await ok(
+          who.client.rpc("venue_history", {
+            ...(venueId ? { p_venue_id: venueId } : {}),
+            p_limit: 100,
+          })
+        )) as History
+      ).items
+    const managerItems = await all(managerA)
+    expect(managerItems.length).toBeGreaterThan(0)
+    expect(managerItems.map((i) => i.action)).not.toContain("mfa_reset")
+    expect(managerItems.map((i) => i.reason)).not.toContain(
+      "TEST lost phone, identity checked by call"
+    )
+    const filtered = await ok(
+      managerA.client.rpc("venue_history", {
+        p_source: "activity",
+        p_limit: 100,
+      })
+    )
+    expect((filtered as History).items.map((i) => i.action)).not.toContain(
+      "mfa_reset"
+    )
+    expect((await all(admin, venueA)).map((i) => i.action)).toContain(
+      "mfa_reset"
+    )
   })
 
   it("filters by source and rejects a malformed cursor", async () => {

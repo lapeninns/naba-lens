@@ -56,7 +56,9 @@ export const OVERVIEW_PANELS_COPY = {
   mainReviewer: "Main reviewer",
   backupReviewer: "Backup reviewer",
   nobody: "Not chosen yet",
-  chooseReviewers: "Choose reviewers",
+  // S3-R5: the admin names the main reviewer; a manager chooses the backup.
+  mainNone: "Not named yet",
+  chooseReviewers: "Choose a backup reviewer",
 } as const
 
 /** Review next as the main button, then the four actions (spec §7 M1). */
@@ -264,7 +266,7 @@ export function VenueAtAGlance({
         <dt className="text-label text-ink">{copy.mainReviewer}</dt>
         <dd data-reviewer="main" className="text-body text-ink">
           {reviewers.main?.name ?? (
-            <span className="text-ink-muted">{copy.nobody}</span>
+            <span className="text-ink-muted">{copy.mainNone}</span>
           )}
         </dd>
         <dt className="text-label text-ink">{copy.backupReviewer}</dt>
@@ -274,7 +276,7 @@ export function VenueAtAGlance({
           )}
         </dd>
       </dl>
-      {!reviewers.main || !reviewers.backup ? (
+      {!reviewers.backup ? (
         <Link
           href={reviewersHref}
           className={buttonVariants({

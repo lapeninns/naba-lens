@@ -160,7 +160,7 @@ describe("Overview panels", () => {
     expect(screen.getByRole("status").textContent).toMatch(/couldn't/)
   })
 
-  it("names the active menu and both reviewers, and offers to choose a missing one", () => {
+  it("names the active menu and both reviewers, and offers to choose a missing backup", () => {
     const summary: ManagerVenueSummary = {
       venueId: "v",
       menuCheck: CHECK,
@@ -188,7 +188,7 @@ describe("Overview panels", () => {
     ).toBe("Not chosen yet")
     expect(
       screen
-        .getByRole("link", { name: "Choose reviewers" })
+        .getByRole("link", { name: "Choose a backup reviewer" })
         .getAttribute("href")
     ).toBe("/manager/venue#reviewers")
   })
@@ -253,25 +253,32 @@ describe("ReviewersForm", () => {
     await user.click(screen.getByRole("combobox", { name: /Backup reviewer/ }))
     await user.click(await screen.findByRole("option", { name: "Sam Okafor" }))
     await user.type(screen.getByLabelText(/Reason/), "Covers weekends")
-    await user.click(screen.getByRole("button", { name: "Save reviewers" }))
+    await user.click(
+      screen.getByRole("button", { name: "Save backup reviewer" })
+    )
     expect(onSet).toHaveBeenCalledTimes(1)
     expect(onSet).toHaveBeenCalledWith({
       role: "backup",
       profileId: "p2",
       reason: "Covers weekends",
     })
-    expect(await screen.findByText("Reviewers saved.")).toBeTruthy()
+    expect(await screen.findByText("Backup reviewer saved.")).toBeTruthy()
   })
 
-  it("refuses the same person in both roles, and explains an empty list", async () => {
+  // S3-R5 (V1): the main reviewer is the admin's (spec §8 A2).
+  it("shows the main reviewer read-only and never offers them as backup", async () => {
     const user = userEvent.setup()
     const onSet = vi.fn()
     render(<ReviewersForm reviewers={REVIEWERS} onSet={onSet} />)
+    expect(screen.queryByRole("combobox", { name: /Main reviewer/ })).toBeNull()
+    expect(document.querySelector('[data-reviewer="main"]')!.textContent).toBe(
+      "Maya Rai"
+    )
     await user.click(screen.getByRole("combobox", { name: /Backup reviewer/ }))
-    await user.click(await screen.findByRole("option", { name: "Maya Rai" }))
-    expect(screen.getByText("Choose two different people.")).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: "Save reviewers" }))
-    expect(onSet).not.toHaveBeenCalled()
+    expect(
+      await screen.findByRole("option", { name: "Sam Okafor" })
+    ).toBeTruthy()
+    expect(screen.queryByRole("option", { name: "Maya Rai" })).toBeNull()
     cleanup()
     render(
       <ReviewersForm
@@ -279,8 +286,29 @@ describe("ReviewersForm", () => {
         onSet={onSet}
       />
     )
+    expect(
+      document.querySelector('[data-reviewer="main"]')!.textContent
+    ).toMatch(/Ask an admin to name the main reviewer/)
     expect(screen.getByRole("status").textContent).toMatch(
       /Nobody else here holds manager permission/
+    )
+    expect(onSet).not.toHaveBeenCalled()
+  })
+
+  it("says what went wrong when the database refuses", async () => {
+    const user = userEvent.setup()
+    const onSet = vi.fn(async () => ({
+      ok: false as const,
+      message: "Choose someone who is a manager at this venue.",
+    }))
+    render(<ReviewersForm reviewers={REVIEWERS} onSet={onSet} />)
+    await user.click(screen.getByRole("combobox", { name: /Backup reviewer/ }))
+    await user.click(await screen.findByRole("option", { name: "Sam Okafor" }))
+    await user.click(
+      screen.getByRole("button", { name: "Save backup reviewer" })
+    )
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Choose someone who is a manager at this venue."
     )
   })
 })
