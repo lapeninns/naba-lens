@@ -14,7 +14,7 @@ const FOCUS = "outline-none focus-ring"
 
 /**
  * Page frame of the venue manager workspace: the wordmark, the venue's name,
- * Overview · Review · Menu · Amenities at every width (a row under the
+ * Overview · Review · Album · Requests · Venue at every width (a row under the
  * header from md, a bottom tab bar on phones), Account and Log out. Add shows
  * only inside the workspace's Add host, once R8 says this account can upload
  * (B02-c); there is no Photos, People or Me.
@@ -66,7 +66,9 @@ export function ManagerShell({
             <p
               data-slot="venue-name"
               title={venueName}
-              className="line-clamp-2 min-w-0 border-l border-edge-strong pl-3 text-meta font-semibold [overflow-wrap:anywhere] text-ink-muted"
+              // Below 352px the header holds Add beside the account; every
+              // page header names the venue there instead (S2-MGR).
+              className="line-clamp-2 min-w-0 border-l border-edge-strong pl-3 text-meta font-semibold [overflow-wrap:anywhere] text-ink-muted max-[22rem]:sr-only"
             >
               {venueName}
             </p>

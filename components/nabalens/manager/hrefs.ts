@@ -33,7 +33,17 @@ export type MenuQuery = {
   q?: string
 }
 
-export type ManagerSection = "overview" | "review" | "menu" | "amenities"
+/**
+ * Spec §7 navigation (S2-MGR): Overview / Review / Album / Requests / Venue.
+ * Album holds the menu and amenity screens (they were two tabs); Venue holds
+ * menus and specials, team, reviewers, facts, exports and history.
+ */
+export type ManagerSection =
+  | "overview"
+  | "review"
+  | "album"
+  | "requests"
+  | "venue"
 
 function withQuery(
   path: string,
@@ -60,8 +70,14 @@ export const managerHrefs = {
    * Add does not fit the 390px phone bar.
    */
   search: "/manager/search",
-  /** S1-EXPORT: the venue's export packages; no nav tab. */
+  /** S1-EXPORT: the venue's export packages, under Venue. */
   exports: "/manager/exports",
+  /** S2-MGR: the Venue hub (spec §7 M5). */
+  venue: "/manager/venue",
+  venueFacts: "/manager/venue/facts",
+  venueHistory: "/manager/venue/history",
+  /** S2-REQ: requests and shot lists (spec §7 M4). */
+  requests: "/manager/requests",
   review: (q?: ReviewQuery) => withQuery("/manager/review", q),
   contributor: (id: string) =>
     `/manager/review/contributors/${encodeURIComponent(id)}`,
@@ -80,8 +96,23 @@ export function managerSectionFor(pathname: string): ManagerSection | null {
   const under = (prefix: string) =>
     path === prefix || path.startsWith(`${prefix}/`)
   if (under("/manager/review")) return "review"
-  if (under("/manager/menu")) return "menu"
-  if (under("/manager/amenities")) return "amenities"
+  if (under("/manager/requests")) return "requests"
+  if (
+    under("/manager/venue") ||
+    under("/manager/team") ||
+    under("/manager/exports") ||
+    under("/manager/menu/versions") ||
+    under("/manager/menu/specials")
+  )
+    return "venue"
+  if (
+    under("/manager/menu") ||
+    under("/manager/amenities") ||
+    under("/manager/album") ||
+    under("/manager/search") ||
+    under("/manager/uploads")
+  )
+    return "album"
   if (path === "/manager") return "overview"
   return null
 }

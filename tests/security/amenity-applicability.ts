@@ -17,7 +17,7 @@ export async function setApplicability(
   reason = "TEST applicability"
 ): Promise<{
   data: number | null
-  error: { message: string; code: string; details: string | null } | null
+  error: { message: string; code: string; details?: string } | null
 }> {
   const { data, error } = await client.rpc("amenity_check_set_applicability", {
     p_check_id: args.p_check_id,
@@ -32,7 +32,7 @@ export async function setApplicability(
       error: {
         message: error.message,
         code: error.code,
-        details: error.details ?? null,
+        ...(error.details ? { details: error.details } : {}),
       },
     }
   return { data: (data as { revision: number }).revision, error: null }

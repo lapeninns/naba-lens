@@ -55,6 +55,8 @@ export const MANAGER_COPY = {
     needsLabels: (n: number) =>
       `${plural(n, "photo")} ${n === 1 ? "needs" : "need"} labels`,
     reviewPhotos: "Review photos",
+    exportsTitle: "Export photos",
+    exportsLine: "Download approved photos and record where they are published.",
     quietTitle: "Nothing waiting for review",
     quietBody: (n: number) =>
       `${plural(n, "item")} still ${n === 1 ? "needs" : "need"} a photo. Staff see these gaps in Our menu.`,

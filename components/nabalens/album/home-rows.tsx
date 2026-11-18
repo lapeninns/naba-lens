@@ -25,7 +25,12 @@ export const HOME_ROWS_COPY = {
         : `${n} jobs · checks and venue questions`,
 } as const
 
-function HomeRow({
+/**
+ * One link row: icon square, title, one line, chevron, the whole row one 64px
+ * target. Exported for the manager Overview and Venue hub (S2-MGR), which use
+ * the same row rather than a second one.
+ */
+export function HomeRow({
   href,
   icon,
   title,

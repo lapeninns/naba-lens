@@ -133,6 +133,8 @@ export function OverviewBody({
   confirmCount = 0,
   triage,
   needsLabels = null,
+  actions,
+  panels,
 }: {
   overview: ManagerOverview
   staffTargets?: React.ReactNode
@@ -147,6 +149,17 @@ export function OverviewBody({
   triage?: React.ReactNode
   /** R1: this manager account's uploads that need labels; null hides the row. */
   needsLabels?: number | null
+  /**
+   * S2-MGR (spec §7 M1): the actions panel, first after the page header.
+   * When given it carries Review next as the screen's main button, so the
+   * menu card's Review photos button is not drawn (DESIGN.md §11 rule 2).
+   */
+  actions?: React.ReactNode
+  /**
+   * S2-MGR: collection vs review backlog, coverage by category and the
+   * venue's menu and reviewers, before the menu photo detail.
+   */
+  panels?: React.ReactNode
 }) {
   const copy = MANAGER_COPY.overview
   const venueName = overview.venueName
@@ -169,6 +182,8 @@ export function OverviewBody({
           noteTitle={copy.noMenuTitle}
           note={copy.noMenuBody}
         />
+        {actions}
+        {panels}
         {confirm}
         {staffTargets}
       </div>
@@ -189,6 +204,8 @@ export function OverviewBody({
     return (
       <div className="grid gap-gutter">
         {header}
+        {actions}
+        {panels}
         {confirm}
         <EmptyState
           title={copy.emptyTitle}
@@ -266,6 +283,8 @@ export function OverviewBody({
   return (
     <div className="grid gap-gutter">
       {header}
+      {actions}
+      {panels}
       {confirm}
       <ActivationBanner overview={overview} now={now} />
       <section aria-labelledby="overview-photos" className="grid gap-gutter">
@@ -284,7 +303,7 @@ export function OverviewBody({
             tone="ok"
           />
           {meta ? <p className="text-meta text-ink-muted">{meta}</p> : null}
-          {pendingPhotos > 0 ? (
+          {pendingPhotos > 0 && !actions ? (
             <Link
               href={managerHrefs.review()}
               className={buttonVariants({
