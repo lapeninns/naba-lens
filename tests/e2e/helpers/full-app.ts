@@ -82,7 +82,7 @@ export async function matchBySearch(
   slot: string
 ) {
   await match
-    .getByRole("searchbox", { name: "Search all empty slots" })
+    .getByRole("searchbox", { name: "Search all slots" })
     .fill(query)
   await slotChoice(match, slot).click()
 }

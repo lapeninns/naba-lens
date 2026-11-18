@@ -82,15 +82,15 @@ for (const size of ["desktop", "phone"] as const) {
 
     // Search and choose Soup by keyboard.
     const search = match.getByRole("searchbox", {
-      name: "Search all empty slots",
+      name: "Search all slots",
     })
     await tabTo(page, search)
     await page.keyboard.type("soup")
     await expect(
-      match.getByRole("status").filter({ hasText: "empty slot" })
-    ).toHaveText("1 empty slot")
+      match.getByRole("status").filter({ hasText: /^\d+ slots?$/ })
+    ).toHaveText("1 slot")
     const soup = match
-      .getByRole("list", { name: "Search all empty slots" })
+      .getByRole("list", { name: "Search all slots" })
       .getByRole("button", { name: /^Soup\b/ })
     await tabTo(page, soup)
     await page.keyboard.press("Enter")

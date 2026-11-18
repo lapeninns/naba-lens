@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   ArrowLeftIcon,
   ArrowUpIcon,
+  ImageSquareIcon,
   PlusIcon,
   QuestionIcon,
 } from "@phosphor-icons/react"
@@ -20,10 +21,12 @@ import {
   recentSlots,
   searchNamesAmenity,
   searchSlots,
+  slotMark,
   suggestSlots,
   type MatchBoard,
   type MatchSlot,
   type SharedKind,
+  type SlotMark,
 } from "./model"
 
 /** The board as Match holds it: loading, read, or failed with a retry. */
@@ -42,6 +45,12 @@ export type BoardState =
  * recent slots come first (spec §5.3), offered, never applied; a slot with a
  * photo already waiting is found by search and marked so (spec §6 S1).
  *
+ * S3-R12 (X4, X5): a slot that already has a photo (matched in this visit,
+ * still sending, waiting, in the album) is never hidden: this visit's slots
+ * lead Recent, so the next photo of the same dish is one tap, and search
+ * finds every slot, marked. Not on the menu? only follows a search that
+ * found no slot at all.
+ *
  * The photo itself, and what happens after a choice, belong to the screen
  * around it (Match after picking, or Match later).
  */
@@ -51,6 +60,8 @@ export function MatchPicker({
   current,
   last,
   taken,
+  visit = [],
+  exclude,
   busy = false,
   headingLevel = 2,
   recent = [],
@@ -66,8 +77,16 @@ export function MatchPicker({
   current: string | null
   /** Place key of the place the person last matched in. */
   last: string | null
-  /** Slots already filled in this visit. */
+  /**
+   * Slots a photo of this visit went to, or still sending from an earlier
+   * one: never suggested as empty, but still offered (marked) under Recent
+   * and in search, since another photo of the same dish is welcome (X4).
+   */
   taken: ReadonlySet<string>
+  /** Slot ids matched in this visit, newest first: they lead Recent. */
+  visit?: readonly string[]
+  /** Slots never offered at all (the photo's own slot, in Change slot). */
+  exclude?: ReadonlySet<string>
   /** A choice is being sent: the buttons wait. */
   busy?: boolean
   headingLevel?: 2 | 3
@@ -132,14 +151,20 @@ export function MatchPicker({
     )
 
   const ready = board.state === "ready" ? board.board : null
-  const recents = ready ? recentSlots(ready, recent, taken) : []
+  const offered = (slot: MatchSlot) => !exclude?.has(slot.id)
+  const recents = ready
+    ? recentSlots(
+        ready,
+        [...visit, ...recent].filter((id) => !exclude?.has(id))
+      )
+    : []
   const recentIds = new Set(recents.map((slot) => slot.id))
   const suggested = ready
     ? suggestSlots(ready, { current, last, taken }).filter(
-        (slot) => !recentIds.has(slot.id)
+        (slot) => !recentIds.has(slot.id) && offered(slot)
       )
     : []
-  const found = ready ? searchSlots(ready, query, taken) : []
+  const found = ready ? searchSlots(ready, query, taken).filter(offered) : []
   const searching = query.trim().length > 0
   const amenity = ready && searching && searchNamesAmenity(ready, query)
 
@@ -182,6 +207,7 @@ export function MatchPicker({
           label={MATCH_COPY.recent}
           heading
           slots={recents}
+          taken={taken}
           busy={busy}
           onChoose={choose}
         />
@@ -193,6 +219,7 @@ export function MatchPicker({
             label={MATCH_COPY.suggested}
             heading={recents.length > 0}
             slots={suggested}
+            taken={taken}
             busy={busy}
             onChoose={choose}
           />
@@ -216,6 +243,7 @@ export function MatchPicker({
           <SlotChoices
             label={MATCH_COPY.searchLabel}
             slots={found.slice(0, 30)}
+            taken={taken}
             busy={busy}
             onChoose={choose}
           />
@@ -290,15 +318,25 @@ export function MatchPicker({
   )
 }
 
+/** The line under a slot that already has a photo (X4, X5). */
+const MARK_META: Record<SlotMark, string> = {
+  taken: MATCH_COPY.takenMeta,
+  waiting: MATCH_COPY.waitingMeta,
+  accepted: MATCH_COPY.acceptedMeta,
+  "check-due": MATCH_COPY.checkDueMeta,
+}
+
 /**
  * Slots as buttons, name then place: an empty one in the dashed Needed frame
- * (§4), one with a photo already waiting in a plain edge with ↑ (the dashed
- * frame belongs to Needed alone).
+ * (§4); one with a photo already on its way or waiting in a plain edge with
+ * ↑, one already in the album in a plain edge with a photo icon (the dashed
+ * frame belongs to Needed alone), each with its line.
  */
 function SlotChoices({
   label,
   heading = false,
   slots,
+  taken,
   busy,
   onChoose,
 }: {
@@ -306,6 +344,7 @@ function SlotChoices({
   /** Show the label as a small heading above the list. */
   heading?: boolean
   slots: MatchSlot[]
+  taken: ReadonlySet<string>
   busy: boolean
   onChoose: (slot: MatchSlot) => void
 }) {
@@ -322,50 +361,61 @@ function SlotChoices({
         aria-labelledby={heading ? id : undefined}
         className="grid gap-2 sm:grid-cols-2"
       >
-        {slots.map((slot) => (
-          <li key={slot.id}>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onChoose(slot)}
-              data-slot="match-slot"
-              data-waiting={slot.waiting ? "" : undefined}
-              className={cn(
-                "flex min-h-15 w-full items-center gap-3 rounded-card bg-surface px-3 py-2 text-start text-ink focus-ring disabled:opacity-60",
-                slot.waiting ? "edge" : "slot-needed"
-              )}
-            >
-              {slot.waiting ? (
-                <ArrowUpIcon
-                  aria-hidden
-                  weight="bold"
-                  className="size-6 shrink-0 text-ink-muted"
-                />
-              ) : (
-                <PlusIcon
-                  aria-hidden
-                  weight="bold"
-                  className="size-6 shrink-0 text-accent-text"
-                />
-              )}
-              <span className="grid min-w-0">
-                <span className="text-label [overflow-wrap:anywhere]">
-                  {slot.name}
-                </span>
-                <span className="text-meta text-ink-muted">
-                  {slot.placeLabel} · {slot.group}
-                </span>
-                {slot.waiting ? (
-                  <span className="text-meta text-ink-muted">
-                    {MATCH_COPY.waitingMeta}
+        {slots.map((slot) => {
+          const mark = slotMark(slot, taken)
+          return (
+            <li key={slot.id}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onChoose(slot)}
+                data-slot="match-slot"
+                data-waiting={mark === "waiting" ? "" : undefined}
+                data-mark={mark ?? undefined}
+                className={cn(
+                  "flex min-h-15 w-full items-center gap-3 rounded-card bg-surface px-3 py-2 text-start text-ink focus-ring disabled:opacity-60",
+                  mark ? "edge" : "slot-needed"
+                )}
+              >
+                {mark === "accepted" || mark === "check-due" ? (
+                  <ImageSquareIcon
+                    aria-hidden
+                    className="size-6 shrink-0 text-ink-muted"
+                  />
+                ) : mark ? (
+                  <ArrowUpIcon
+                    aria-hidden
+                    weight="bold"
+                    className="size-6 shrink-0 text-ink-muted"
+                  />
+                ) : (
+                  <PlusIcon
+                    aria-hidden
+                    weight="bold"
+                    className="size-6 shrink-0 text-accent-text"
+                  />
+                )}
+                <span className="grid min-w-0">
+                  <span className="text-label [overflow-wrap:anywhere]">
+                    {slot.name}
                   </span>
-                ) : slot.brief ? (
-                  <span className="text-meta text-ink-muted">{slot.brief}</span>
-                ) : null}
-              </span>
-            </button>
-          </li>
-        ))}
+                  <span className="text-meta text-ink-muted">
+                    {slot.placeLabel} · {slot.group}
+                  </span>
+                  {mark ? (
+                    <span className="text-meta text-ink-muted">
+                      {MARK_META[mark]}
+                    </span>
+                  ) : slot.brief ? (
+                    <span className="text-meta text-ink-muted">
+                      {slot.brief}
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

@@ -10,7 +10,10 @@ import {
 } from "@phosphor-icons/react"
 
 import { setAreaLabelAction } from "@/app/_labels/area-actions"
-import { loadMatchBoardAction } from "@/app/staff/_shell/match-actions"
+import {
+  loadMatchBoardAction,
+  requestLabelHelpAction,
+} from "@/app/staff/_shell/match-actions"
 import {
   loadUploadLabelContext,
   saveUploadLabels,
@@ -21,7 +24,12 @@ import type { ContentType, SaveLabelsInput } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
 
 import { MATCH_LATER_COPY } from "./copy"
-import { readLastPlace, writeLastPlace } from "./last-place"
+import {
+  readLastPlace,
+  readRecentSlots,
+  writeLastPlace,
+  writeRecentSlot,
+} from "./last-place"
 import { MatchPicker, type BoardState } from "./match-picker"
 import { ALBUM_HREF } from "./match-screen"
 import { placeKey, type MatchSlot, type SharedKind } from "./model"
@@ -101,11 +109,18 @@ export function MatchLaterScreen({
   const [problem, setProblem] = React.useState<Problem>(null)
   const [board, setBoard] = React.useState<BoardState>({ state: "loading" })
   const [boardTry, setBoardTry] = React.useState(0)
-  const [taken, setTaken] = React.useState<ReadonlySet<string>>(new Set())
+  // Slots matched on this screen, newest first: marked, and first under
+  // Recent, so the next photo of the same dish is one tap (X4).
+  const [visit, setVisit] = React.useState<readonly string[]>([])
+  const taken = React.useMemo(() => new Set(visit), [visit])
   const [last, setLast] = React.useState<string | null>(null)
+  const [recent, setRecent] = React.useState<readonly string[]>([])
   // Browser storage is read after hydration, never during the render.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  React.useEffect(() => setLast(readLastPlace()), [])
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLast(readLastPlace())
+    setRecent(readRecentSlots(null))
+  }, [])
   const target = React.useRef<Promise<LabelTarget | null> | null>(null)
   const Title = `h${headingLevel}` as "h1"
 
@@ -192,9 +207,13 @@ export function MatchLaterScreen({
       return
     }
     if (slot) {
-      setTaken((t) => new Set([...t, slot.id]))
+      setVisit((v) => [slot.id, ...v.filter((id) => id !== slot.id)])
       writeLastPlace(placeKey(slot.place))
       setLast(placeKey(slot.place))
+      writeRecentSlot(
+        board.state === "ready" ? (board.board.venue?.id ?? null) : null,
+        slot.id
+      )
     }
     setPhotos((list) => list.filter((p) => p.id !== item.id))
     setShown(null)
@@ -216,6 +235,22 @@ export function MatchLaterScreen({
         return result.ok ? null : result.message || MATCH_LATER_COPY.saveFailed
       },
       slot
+    )
+  }
+
+  // I'm not sure (FA-4, spec §5.3): the manager chooses the slot, here too
+  // (S3-R12: a photo that reached Match later because the first request
+  // failed is offered it again).
+  const unsure = () => {
+    if (!photo) return
+    const item = photo
+    void settle(
+      item,
+      async () => {
+        const result = await requestLabelHelpAction(item.id)
+        return result.ok ? null : result.message || MATCH_LATER_COPY.saveFailed
+      },
+      null
     )
   }
 
@@ -317,9 +352,12 @@ export function MatchLaterScreen({
             current={null}
             last={last}
             taken={taken}
+            visit={visit}
+            recent={recent}
             busy={busy}
             onMatch={match}
             onShared={share}
+            onUnsure={unsure}
           />
         </>
       ) : (

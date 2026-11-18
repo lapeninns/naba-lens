@@ -56,8 +56,10 @@ const input: AlbumInput = {
   dishes: [
     dish(1, "Guinness, pint", DRINKS),
     dish(2, "Aperol spritz", DRINKS),
-    // Accepted: not empty, never offered.
+    // Accepted: not empty, never suggested; found by search (X5).
     dish(3, "Cider", DRINKS, { covered: true }),
+    // Check due: found by search too (X5).
+    dish(6, "Porter", DRINKS, { covered: true, coverage: "check_due" }),
     dish(4, "Sticky toffee pudding", DESSERTS),
     dish(5, "Crème brûlée", DESSERTS),
   ],
@@ -103,6 +105,35 @@ describe("matchBoardOf", () => {
       name: "Guinness, pint",
     })
     expect(pint.place).toBe(BAR)
+  })
+
+  it("keeps slots already in the album apart, found by search only (X5)", () => {
+    expect(names(board.filled ?? []).sort()).toEqual(["Cider", "Porter"])
+    const cider = board.filled!.find((s) => s.name === "Cider")!
+    expect(cider.filled).toBe("accepted")
+    expect(board.filled!.find((s) => s.name === "Porter")!.filled).toBe(
+      "check-due"
+    )
+    // Never suggested as empty…
+    expect(
+      names(
+        suggestSlots(board, {
+          current: BAR,
+          last: null,
+          taken: new Set(),
+          limit: 20,
+        })
+      )
+    ).not.toContain("Cider")
+    // …but a search for it finds it, so Not on the menu? never shows for it.
+    expect(names(searchSlots(board, "cider", new Set()))).toEqual(["Cider"])
+    // Empty slots come first, filled ones last.
+    expect(names(searchSlots(board, "drinks", new Set()))).toEqual([
+      "Aperol spritz",
+      "Guinness, pint",
+      "Cider",
+      "Porter",
+    ])
   })
 
   it("keeps empty amenities aside, by name, for the search note", () => {
@@ -164,9 +195,12 @@ describe("searchSlots", () => {
     expect(names(searchSlots(board, "creme", new Set()))).toEqual([
       "Crème brûlée",
     ])
+    // Slots already in the album come after the empty ones (X5).
     expect(names(searchSlots(board, "bar", new Set()))).toEqual([
       "Aperol spritz",
       "Guinness, pint",
+      "Cider",
+      "Porter",
     ])
     expect(names(searchSlots(board, "kitchen sticky", new Set()))).toEqual([
       "Sticky toffee pudding",

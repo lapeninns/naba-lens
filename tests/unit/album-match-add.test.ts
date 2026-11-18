@@ -10,6 +10,7 @@ import {
   openAfter,
   recentSlots,
   searchSlots,
+  slotMark,
   suggestSlots,
   type MatchBoard,
   type MatchSlot,
@@ -78,10 +79,15 @@ describe("search (spec §5.3)", () => {
     ])
   })
 
-  it("never offers a slot taken in this visit, and finds nothing for nothing", () => {
+  it("still finds a slot taken in this visit, after the empty ones (X4), and finds nothing for nothing", () => {
+    // Chicken momo, Garden, Chicken momo: the third photo still finds it.
     expect(names(searchSlots(BOARD, "momo", new Set(["dish:momo"])))).toEqual([
       "Vegetable momo",
+      "Chicken momo",
     ])
+    expect(
+      names(searchSlots(BOARD, "chicken momo", new Set(["dish:momo"])))
+    ).toEqual(["Chicken momo"])
     expect(searchSlots(BOARD, "  ", none)).toEqual([])
     expect(searchSlots(BOARD, "pizza", none)).toEqual([])
   })
@@ -142,17 +148,40 @@ describe("waiting slots (spec §6 S1)", () => {
 })
 
 describe("recent slots (spec §5.3)", () => {
-  it("offers the latest ones still on the board, newest first, never taken ones", () => {
+  it("offers the latest ones still on the board, newest first, once each", () => {
     const recent = ["dish:tikka", "dish:gone", "dish:bhaji", "dish:momo"]
-    expect(names(recentSlots(BOARD, recent, none))).toEqual([
+    expect(names(recentSlots(BOARD, recent))).toEqual([
       "Chicken tikka",
       "Onion bhaji",
       "Chicken momo",
     ])
+    expect(names(recentSlots(BOARD, recent, 2))).toEqual([
+      "Chicken tikka",
+      "Onion bhaji",
+    ])
+    expect(recentSlots(BOARD, [], 3)).toEqual([])
+  })
+
+  it("keeps a slot used in this visit choosable: the caller puts it first (X4)", () => {
+    // Photo 1 Chicken momo, photo 2 Onion bhaji: photo 3 sees both, newest first.
+    const visit = ["dish:bhaji", "dish:momo"]
     expect(
-      names(recentSlots(BOARD, recent, new Set(["dish:bhaji"]), 2))
-    ).toEqual(["Chicken tikka", "Chicken momo"])
-    expect(recentSlots(BOARD, [], none)).toEqual([])
+      names(recentSlots(BOARD, [...visit, "dish:tikka", "dish:momo"]))
+    ).toEqual(["Onion bhaji", "Chicken momo", "Chicken tikka"])
+  })
+
+  it("marks a slot with a photo, never hides it (X4, X5)", () => {
+    const taken = new Set(["dish:momo"])
+    const [momo, veg] = BOARD.slots
+    expect(slotMark(momo, taken)).toBe("taken")
+    expect(slotMark(veg, taken)).toBeNull()
+    expect(slotMark(BOARD.waiting![0], none)).toBe("waiting")
+    expect(slotMark(slot("x", "X", { filled: "accepted" }), none)).toBe(
+      "accepted"
+    )
+    expect(slotMark(slot("y", "Y", { filled: "check-due" }), none)).toBe(
+      "check-due"
+    )
   })
 })
 
