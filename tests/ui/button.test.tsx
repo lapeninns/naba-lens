@@ -19,7 +19,9 @@ const VARIANTS = [
   "link",
 ] as const
 
-const HEIGHTS = { sm: "min-h-11", md: "min-h-12", lg: "min-h-12" } as const
+// sm is a 48px staff target; inside a manager or admin shell
+// (data-density="compact") it is v2's compact 44/40px (V2-4, review Z1).
+const HEIGHTS = { sm: "min-h-12", md: "min-h-12", lg: "min-h-12" } as const
 
 describe("Button", () => {
   it("is the outlined default at md unless told otherwise", () => {
@@ -49,6 +51,15 @@ describe("Button", () => {
     const button = screen.getByRole("button")
     expect(button.getAttribute("data-size")).toBe(size)
     expect(button.className.split(" ")).toContain(minHeight)
+  })
+
+  it("size sm is compact only inside a manager or admin shell", () => {
+    render(<Button size="sm">Go</Button>)
+    const classes = screen.getByRole("button").className.split(" ")
+    expect(classes).toContain("in-data-[density=compact]:min-h-11")
+    expect(classes).toContain("desktop:in-data-[density=compact]:min-h-10")
+    // No bare compact step: staff keep 48px at every width.
+    expect(classes).not.toContain("desktop:min-h-10")
   })
 
   it("icon sizes are 44px and 48px squares", () => {

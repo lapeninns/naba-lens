@@ -370,6 +370,36 @@ export function InboxPhotoDetail({
     )
 
   const disabled = busy !== null
+  // v2: one primary per view (Button README; review Z2). Only the first slot
+  // that still offers Approve gets the bottle fill; every other Approve, and
+  // Fix label while an Approve shows, is secondary. Same order as the list.
+  const offersApprove = (state: string | null, level: string | null) =>
+    state !== "accepted" || level === "reference"
+  const primaryApprove =
+    blocked || setAside
+      ? null
+      : ([
+          ...detail.dishes
+            .filter(
+              (d) =>
+                d.onMenu &&
+                (d.waiting ||
+                  d.state === "better_photo_requested" ||
+                  d.state === "accepted") &&
+                offersApprove(d.state, d.level)
+            )
+            .map((d) => `dish:${d.itemId}`),
+          ...detail.places
+            .filter(
+              (p) => p.state !== "withdrawn" && offersApprove(p.state, p.level)
+            )
+            .map((p) => `place:${p.labelId}`),
+          ...detail.amenities
+            .filter(
+              (a) => a.state !== "withdrawn" && offersApprove(a.state, a.level)
+            )
+            .map((a) => `amenity:${a.checkId}`),
+        ][0] ?? null)
   const levelButtons = (
     keyBase: string,
     onLevel: (level: "public" | "reference") => void,
@@ -381,7 +411,7 @@ export function InboxPhotoDetail({
         {!accepted || current.level === "reference" ? (
           <Button
             type="button"
-            variant="primary"
+            variant={keyBase === primaryApprove ? "primary" : "secondary"}
             disabled={disabled}
             aria-busy={busy === `${keyBase}:public` || undefined}
             data-review-action="approve"
@@ -723,7 +753,7 @@ export function InboxPhotoDetail({
             <p className="text-body text-ink-muted">{C.fixLabelHelp}</p>
             <Button
               type="button"
-              variant="primary"
+              variant={primaryApprove ? "secondary" : "primary"}
               disabled={disabled}
               data-review-action="fix-label"
               className="justify-self-start"

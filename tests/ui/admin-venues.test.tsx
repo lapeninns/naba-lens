@@ -177,6 +177,18 @@ describe("Overview (A1)", () => {
     expect(table.textContent).toContain("6 of 12 · 50%")
   })
 
+  it("draws the focus ring in on-ok inside a full (bottle) cell (review Z4)", () => {
+    render(<OverviewView rows={rows()} filters={filters} now={NOW} />)
+    const [bell] = screen.getAllByTestId("overview-row")
+    // Drinks is 4 of 4: the bottle fill, where the ink ring is under 3:1.
+    const full = within(bell).getByTestId("overview-drinks")
+    expect(full.className).toContain("md:bg-ok-fg")
+    expect(full.className).toContain("md:[--focus:var(--on-ok)]")
+    // A partial cell keeps the ink ring (at least 9.6:1 on ok-bg).
+    const part = within(bell).getByTestId("overview-food")
+    expect(part.className).not.toContain("--focus")
+  })
+
   it("flags a long wait from the admin's backlog alert setting (V21)", () => {
     // The Bell's oldest photo has waited 10 days.
     const { unmount } = render(

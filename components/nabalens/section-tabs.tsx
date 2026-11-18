@@ -20,6 +20,9 @@ export type SectionTab = {
  * the row scrolls sideways rather than wrapping or collapsing into a select. Inline-size
  * containment keeps the unwrapped row from widening an auto grid track above
  * it, which would push a 320px page sideways instead of scrolling the row.
+ * The row clips, so focus is drawn inside the tab: 4px of inline padding
+ * (and a 16px gap, still 24px between labels) keeps that ring off the first
+ * and last glyph and the count (review Z6).
  */
 export function SectionTabs({
   label,
@@ -41,7 +44,7 @@ export function SectionTabs({
         className
       )}
     >
-      <ul className="flex gap-6">
+      <ul className="flex gap-4">
         {tabs.map((tab) => {
           const current = tab.id === active
           return (
@@ -51,7 +54,7 @@ export function SectionTabs({
                 data-nav-item
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "inline-flex min-h-12 items-center gap-2 text-label whitespace-nowrap text-ink-muted shadow-[inset_0_-3px_0_transparent] focus-ring-inset transition-colors duration-quick outline-none hover:text-ink",
+                  "inline-flex min-h-12 items-center gap-2 px-1 text-label whitespace-nowrap text-ink-muted shadow-[inset_0_-3px_0_transparent] focus-ring-inset transition-colors duration-quick outline-none hover:text-ink",
                   current &&
                     "text-ink shadow-[inset_0_-3px_0_var(--accent-text)]"
                 )}

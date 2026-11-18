@@ -46,7 +46,11 @@ export function ManagerShell({
 }) {
   return (
     <ReviewCountProvider count={reviewCount}>
-      <div className="flex min-h-svh flex-col bg-canvas text-ink desktop:pl-rail">
+      {/* data-density: manager controls take v2's compact size (V2-4). */}
+      <div
+        data-density="compact"
+        className="flex min-h-svh flex-col bg-canvas text-ink desktop:pl-rail"
+      >
         <a
           href="#main"
           className="sr-only z-overlay rounded-control bg-accent px-4 py-3 text-button text-on-accent focus:not-sr-only focus:fixed focus:top-2 focus:left-2"

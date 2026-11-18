@@ -45,8 +45,11 @@ export function SideNav({
   className?: string
 }) {
   return (
-    <div
-      data-slot="side-nav-rail"
+    // The whole rail is the navigation landmark, so the name at the top is
+    // reached by landmark too (v2 SideNav example; review Z7).
+    <nav
+      aria-label={label}
+      data-slot="side-nav"
       className={cn(
         "fixed inset-y-0 left-0 z-nav hidden w-rail flex-col gap-4 overflow-y-auto border-r border-line bg-surface px-2 py-4 desktop:flex",
         className
@@ -58,43 +61,41 @@ export function SideNav({
       >
         Naba-Lens
       </Link>
-      <nav aria-label={label} data-slot="side-nav">
-        <ul className="flex flex-col gap-1">
-          {items.map((item) => {
-            const Icon = item.icon
-            const current = item.id === active
-            return (
-              <li key={item.id}>
-                <Link
-                  href={item.href}
-                  data-nav-item
-                  aria-current={current ? "page" : undefined}
-                  className={cn(
-                    "flex min-h-10 items-center gap-3 rounded-control px-3 py-2 text-label text-ink-muted focus-ring transition-colors duration-quick outline-none hover:bg-raised hover:text-ink",
-                    current &&
-                      "bg-accent-soft text-accent-text hover:bg-accent-soft hover:text-accent-text"
-                  )}
-                >
-                  <Icon aria-hidden className="size-5 shrink-0" />
-                  <span className="min-w-0 [overflow-wrap:anywhere]">
-                    {item.label}
+      <ul className="flex flex-col gap-1">
+        {items.map((item) => {
+          const Icon = item.icon
+          const current = item.id === active
+          return (
+            <li key={item.id}>
+              <Link
+                href={item.href}
+                data-nav-item
+                aria-current={current ? "page" : undefined}
+                className={cn(
+                  "flex min-h-10 items-center gap-3 rounded-control px-3 py-2 text-label text-ink-muted focus-ring transition-colors duration-quick outline-none hover:bg-raised hover:text-ink",
+                  current &&
+                    "bg-accent-soft text-accent-text hover:bg-accent-soft hover:text-accent-text"
+                )}
+              >
+                <Icon aria-hidden className="size-5 shrink-0" />
+                <span className="min-w-0 [overflow-wrap:anywhere]">
+                  {item.label}
+                </span>
+                {item.count && item.count.value > 0 ? (
+                  <span
+                    data-slot="side-nav-count"
+                    className="ml-auto font-mono text-chip"
+                  >
+                    <span className="sr-only">, </span>
+                    {item.count.value}
+                    <span className="sr-only"> {item.count.label}</span>
                   </span>
-                  {item.count && item.count.value > 0 ? (
-                    <span
-                      data-slot="side-nav-count"
-                      className="ml-auto font-mono text-chip"
-                    >
-                      <span className="sr-only">, </span>
-                      {item.count.value}
-                      <span className="sr-only"> {item.count.label}</span>
-                    </span>
-                  ) : null}
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
-      </nav>
-    </div>
+                ) : null}
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+    </nav>
   )
 }

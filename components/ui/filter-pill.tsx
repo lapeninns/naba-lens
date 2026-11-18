@@ -8,8 +8,10 @@ import { cn } from "@/lib/utils"
 /*
  * v2 PickChip (`nl-pick`, D10): a surface pill with a 1px line-strong edge,
  * and when it is on, an ink fill with paper text and a tick, so the state is
- * never told by colour alone. Pills are 44px on touch widths and v2's 40px
- * (target-compact) from bp-desktop; a long label wraps inside its pill and
+ * never told by colour alone. Pills are 48px wherever staff work (DESIGN.md
+ * §5 asks the Album place chip for 48px); only inside a manager or admin
+ * shell (`data-density="compact"`) are they 44px on touch widths and v2's
+ * 40px (target-compact) from bp-desktop (departure V2-4). A long label wraps inside its pill and
  * a row of pills wraps too, so nothing scrolls sideways.
  *
  * Two modes. With `href` it is a link for filters kept in the URL, and the
@@ -17,7 +19,7 @@ import { cn } from "@/lib/utils"
  * with `aria-pressed` for filters kept on the page.
  */
 const pillVariants = cva(
-  "group/pill inline-flex min-h-11 max-w-full min-w-11 items-center gap-2 rounded-round px-4 py-1.5 text-start text-label [overflow-wrap:anywhere] focus-ring transition-[background-color,box-shadow,color] duration-quick outline-none desktop:min-h-10 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5",
+  "group/pill inline-flex min-h-12 max-w-full min-w-11 items-center gap-2 rounded-round px-4 py-1.5 text-start text-label [overflow-wrap:anywhere] focus-ring transition-[background-color,box-shadow,color] duration-quick outline-none in-data-[density=compact]:min-h-11 desktop:in-data-[density=compact]:min-h-10 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5",
   {
     variants: {
       selected: {

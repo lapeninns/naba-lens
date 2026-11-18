@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { PlusIcon } from "@phosphor-icons/react"
+import { ImagesIcon } from "@phosphor-icons/react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -320,21 +320,23 @@ export function useAddRefreshSignal(): number {
 
 /**
  * Opens Add: the raised tab on phones, "Add photos" in the AppBar from md.
- * Outside the staff layout (previews, tests) it links to Me, where the
- * profile's own upload lives. With `match` (the Album tab bar, DESIGN.md §5
- * Tab bar) it opens the gallery straight away and then Match (§6.1).
+ * `compact` is the v2 Button "Add" a manager's phone header carries, where
+ * the bottom bar holds the five tabs. Outside the staff layout (previews,
+ * tests) it links to Me, where the profile's own upload lives. With `match`
+ * (the Album tab bar, DESIGN.md §5 Tab bar) it opens the gallery straight
+ * away and then Match (§6.1). Gallery only, never a camera (D9, D10).
  */
 export function AddTrigger({
   kind,
   match = false,
 }: {
-  kind: "tab" | "bar"
+  kind: "tab" | "bar" | "compact"
   match?: boolean
 }) {
   const add = useAddContext()
   const openAdd = add?.openAdd ?? null
   const busy = add?.busy
-  const label = kind === "tab" ? "Add" : "Add photos"
+  const label = kind === "bar" ? "Add photos" : "Add"
   // While the hidden Add queue has unfinished files, Add shows that queue:
   // a count on the trigger, and the words after its name. The name is set
   // whole because Chrome inserts a space before an sr-only suffix.
@@ -351,33 +353,37 @@ export function AddTrigger({
       />
     </span>
   ) : null
+  // The tab is v2's round bottle button (`nl-tab--upload`), as Album's
+  // (AlbumAddTrigger): a 40px bottle disc holding the gallery icon, the
+  // label under it in ink, inside the 64px bar (py-0.5, review Z8).
   const content =
     kind === "tab" ? (
       <>
-        {/* Common Room Add tab: a grey pill around the plus, never blue
-            (the screen's one blue is its own primary). */}
         <span
           data-slot="tabbar-disc"
           aria-hidden
-          className="grid h-[30px] w-11 place-items-center rounded-round bg-surface-2 text-ink transition-colors duration-quick group-hover:bg-raised"
+          className="grid size-10 place-items-center rounded-round bg-accent text-on-accent"
         >
-          <PlusIcon weight="bold" className="size-[22px]" />
+          <ImagesIcon className="size-5.5" />
         </span>
         {label}
         {badge}
       </>
     ) : (
       <>
-        <PlusIcon data-icon="inline-start" aria-hidden />
+        <ImagesIcon data-icon="inline-start" aria-hidden />
         {label}
         {badge}
       </>
     )
   const className =
     kind === "tab"
-      ? cn(TAB_ITEM, "group text-ink hover:bg-surface-2")
-      : // One line from lg: wrapping doubled the bar height at 1280 (768 needs the wrap).
-        cn(buttonVariants({ variant: "secondary" }), "lg:whitespace-nowrap")
+      ? cn(TAB_ITEM, "py-0.5 text-ink hover:bg-raised")
+      : kind === "compact"
+        ? // v2 Button: compact in the manager shell (44px on phones).
+          buttonVariants({ variant: "secondary", size: "sm" })
+        : // One line from lg: wrapping doubled the bar height at 1280 (768 needs the wrap).
+          cn(buttonVariants({ variant: "secondary" }), "lg:whitespace-nowrap")
   return openAdd ? (
     <button
       type="button"
