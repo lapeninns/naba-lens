@@ -31,6 +31,7 @@ import {
   saveOk,
   section,
 } from "./menus-fixtures"
+import { setApplicability } from "./amenity-applicability"
 
 const service = serviceClient()
 let admin: TestIdentity
@@ -335,7 +336,7 @@ describe("venue completion targets", () => {
 
     const check = checkIds[0]!
     const archivedRevision = await ok(
-      manager.client.rpc("amenity_archive_check", {
+      setApplicability(manager.client, "archive", {
         p_check_id: check,
         p_revision: await revision(check),
       })
@@ -345,7 +346,7 @@ describe("venue completion targets", () => {
       complete: false,
     })
     await ok(
-      manager.client.rpc("amenity_restore_check", {
+      setApplicability(manager.client, "restore", {
         p_check_id: check,
         p_revision: archivedRevision,
       })
@@ -723,7 +724,7 @@ describe("amenity credit baseline", () => {
     expect(await amenityUnits(author)).toBe(2)
 
     const archivedRevision = await ok(
-      manager.client.rpc("amenity_archive_check", {
+      setApplicability(manager.client, "archive", {
         p_check_id: archived,
         p_revision: await revision(archived),
       })
@@ -731,7 +732,7 @@ describe("amenity credit baseline", () => {
     expect(await amenityUnits(author)).toBe(1)
 
     await ok(
-      manager.client.rpc("amenity_restore_check", {
+      setApplicability(manager.client, "restore", {
         p_check_id: archived,
         p_revision: archivedRevision,
       })

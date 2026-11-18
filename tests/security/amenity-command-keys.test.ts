@@ -144,19 +144,33 @@ describe("a retry after a lost reply replays (R10)", () => {
 
   it("archive, then restore", async () => {
     const check = w.checks.pool_table!
+    // S2-MGR: through the reason-recording wrapper, which keeps the keyed
+    // command's idempotency.
     await lostReply(
       w.manager,
-      "amenity_archive_check",
+      "amenity_check_set_applicability",
       check,
       "archived",
-      (n, key) => ({ p_check_id: check, p_revision: n, p_idempotency_key: key })
+      (n, key) => ({
+        p_check_id: check,
+        p_applicable: false,
+        p_reason: "TEST not here",
+        p_revision: n,
+        p_idempotency_key: key,
+      })
     )
     await lostReply(
       w.manager,
-      "amenity_restore_check",
+      "amenity_check_set_applicability",
       check,
       "restored",
-      (n, key) => ({ p_check_id: check, p_revision: n, p_idempotency_key: key })
+      (n, key) => ({
+        p_check_id: check,
+        p_applicable: true,
+        p_reason: "TEST back",
+        p_revision: n,
+        p_idempotency_key: key,
+      })
     )
   })
 
@@ -322,9 +336,11 @@ describe("refused writes (R10)", () => {
     )
     await refused(
       v.staffA,
-      "amenity_archive_check",
+      "amenity_check_set_applicability",
       {
         p_check_id: check,
+        p_applicable: false,
+        p_reason: "TEST staff",
         p_revision: revision(check),
         p_idempotency_key: randomUUID(),
       },
@@ -355,8 +371,14 @@ describe("the old signatures (R10)", () => {
     }
     await step("amenity_assign_check", { p_assignee_id: v.staffA.id })
     await step("amenity_set_check_notes", { p_notes: "TEST old" })
-    await step("amenity_archive_check", {})
-    await step("amenity_restore_check", {})
+    // S2-MGR: the reasonless archive and restore are no longer callable.
+    for (const fn of ["amenity_archive_check", "amenity_restore_check"]) {
+      const { error } = await v.manager.client.rpc(fn as never, {
+        p_check_id: check,
+        p_revision: revision(check),
+      } as never)
+      expect(error?.code).toBe("42501")
+    }
     await yes(v.staffA, v, "guest_toilets")
     const toilets = v.checks.guest_toilets!
     const n = revision(toilets)

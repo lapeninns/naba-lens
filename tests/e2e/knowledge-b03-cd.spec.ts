@@ -529,9 +529,13 @@ test.describe("B03 browser charters C and D", () => {
           closedDecisionId: null,
         }),
       ])
-    await rpcOk(managerDb, "amenity_archive_check", {
+    // S2-MGR: archiving needs a reason (amenity_check_set_applicability).
+    await rpcOk(managerDb, "amenity_check_set_applicability", {
       p_check_id: id.archived,
+      p_applicable: false,
+      p_reason: "DEV-FIXTURE not here",
       p_revision: checkRevision(id.archived),
+      p_idempotency_key: randomUUID(),
     })
     const [staleTask] = tasksOf(id.stale)
     const [laterTask] = tasksOf(id.later)
