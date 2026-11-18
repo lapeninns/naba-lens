@@ -49,13 +49,15 @@ const ROW_LINK = `h-auto min-h-11 border-0 bg-transparent px-0 font-bold text-in
  * Sizes (common-room.md §2): sm 44px (the target floor, for actions inside
  * notices, rows and tables), md 52px, lg 60px. The same words mean the same
  * heights on every control. `icon` is a 44px square and `icon-lg` a 48px one;
- * both need an aria-label. Labels wrap rather than push a 320px page sideways.
+ * both need an aria-label. Labels wrap rather than push a 320px page sideways:
+ * `max-w-full` caps a long label at its container, since `shrink-0` alone let
+ * a chip in a wrapping row grow past a 320px dialog (S3-R5, D2).
  *
  * A busy button (`loading`) hides its own icon, so the spinner stands in its
  * place and the label does not shift twice.
  */
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center gap-2.5 rounded-control border border-transparent bg-clip-padding text-center font-sans text-button font-bold text-balance focus-ring transition-[background-color,box-shadow,color] duration-quick ease-out outline-none select-none active:translate-y-px disabled:cursor-not-allowed disabled:active:translate-y-0 aria-disabled:cursor-not-allowed aria-disabled:active:translate-y-0 aria-busy:aria-disabled:cursor-progress aria-invalid:edge-invalid motion-reduce:active:translate-y-0 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5.5 data-loading:[&_svg:not([data-slot=spinner])]:hidden",
+  "group/button inline-flex max-w-full shrink-0 items-center justify-center gap-2.5 rounded-control border border-transparent bg-clip-padding text-center font-sans text-button font-bold text-balance focus-ring transition-[background-color,box-shadow,color] duration-quick ease-out outline-none select-none active:translate-y-px disabled:cursor-not-allowed disabled:active:translate-y-0 aria-disabled:cursor-not-allowed aria-disabled:active:translate-y-0 aria-busy:aria-disabled:cursor-progress aria-invalid:edge-invalid motion-reduce:active:translate-y-0 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5.5 data-loading:[&_svg:not([data-slot=spinner])]:hidden",
   {
     variants: {
       variant: {
