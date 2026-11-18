@@ -63,11 +63,7 @@ export default async function ManagerVenueHistoryPage({
         className="pb-0 md:pb-0"
       />
       <PillGroup label="Kind of change">
-        <FilterPill
-          href={href(null)}
-          selected={source === null}
-          current="page"
-        >
+        <FilterPill href={href(null)} selected={source === null} current="page">
           {copy.all}
         </FilterPill>
         {HISTORY_SOURCES.map((s) => (

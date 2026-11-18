@@ -230,4 +230,3 @@ export const HISTORY_SOURCES: ReadonlyArray<{ key: string; label: string }> = [
 export function isHistorySource(v: unknown): v is string {
   return typeof v === "string" && HISTORY_SOURCES.some((s) => s.key === v)
 }
-

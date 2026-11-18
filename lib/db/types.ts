@@ -7,7 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-
   public: {
     Tables: {
       activity_events: {

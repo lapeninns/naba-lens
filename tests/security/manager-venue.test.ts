@@ -127,12 +127,7 @@ describe("venue_review_assignments / set_venue_reviewer", () => {
   })
 
   it("refuses staff, people from another venue, admins and inactive accounts as reviewers", async () => {
-    for (const id of [
-      staffA.id,
-      managerB.id,
-      admin.id,
-      inactiveManager.id,
-    ]) {
+    for (const id of [staffA.id, managerB.id, admin.id, inactiveManager.id]) {
       await fails(
         setReviewer(managerA, venueA, "backup", id),
         "reviewer_not_eligible"
@@ -294,17 +289,14 @@ describe("confirm_menu_month / manager_venue_summary", () => {
       managerB.client.rpc("manager_venue_summary", {})
     )) as { menuCheck: unknown }
     expect(summary.menuCheck).toBeNull()
-    await fails(
-      managerB.client.rpc("confirm_menu_month", {}),
-      "no_active_menu"
-    )
+    await fails(managerB.client.rpc("confirm_menu_month", {}), "no_active_menu")
   })
 
   it("counts the venue's unlabelled food and drink photos", async () => {
     const before = (
-      (await ok(
-        managerA.client.rpc("manager_venue_summary", {})
-      )) as { unlabelledPhotos: number }
+      (await ok(managerA.client.rpc("manager_venue_summary", {}))) as {
+        unlabelledPhotos: number
+      }
     ).unlabelledPhotos
     const asset = await insertAsset(service, {
       uploader: staffA.id,
@@ -317,9 +309,9 @@ describe("confirm_menu_month / manager_venue_summary", () => {
     })
     if (error) throw error
     const after = (
-      (await ok(
-        managerA.client.rpc("manager_venue_summary", {})
-      )) as { unlabelledPhotos: number }
+      (await ok(managerA.client.rpc("manager_venue_summary", {}))) as {
+        unlabelledPhotos: number
+      }
     ).unlabelledPhotos
     expect(after).toBe(before + 1)
   })
@@ -352,7 +344,10 @@ describe("confirm_menu_month / manager_venue_summary", () => {
   })
 
   it("an admin reads and confirms for a named venue only", async () => {
-    await fails(admin.client.rpc("manager_venue_summary", {}), "not_venue_manager")
+    await fails(
+      admin.client.rpc("manager_venue_summary", {}),
+      "not_venue_manager"
+    )
     const summary = (await ok(
       admin.client.rpc("manager_venue_summary", { p_venue_id: venueA })
     )) as { menuCheck: { due: boolean } }
@@ -438,16 +433,22 @@ describe("amenity archive needs a reason", () => {
   it("signed-in users can no longer call the reasonless archive or restore", async () => {
     const id = "00000000-0000-0000-0000-000000000000"
     for (const fn of ["amenity_archive_check", "amenity_restore_check"]) {
-      const { error } = await managerA.client.rpc(fn as never, {
-        p_check_id: id,
-        p_revision: 1,
-      } as never)
+      const { error } = await managerA.client.rpc(
+        fn as never,
+        {
+          p_check_id: id,
+          p_revision: 1,
+        } as never
+      )
       expect(error?.code).toBe("42501")
-      const keyed = await admin.client.rpc(fn as never, {
-        p_check_id: id,
-        p_revision: 1,
-        p_idempotency_key: id,
-      } as never)
+      const keyed = await admin.client.rpc(
+        fn as never,
+        {
+          p_check_id: id,
+          p_revision: 1,
+          p_idempotency_key: id,
+        } as never
+      )
       expect(keyed.error?.code).toBe("42501")
     }
   })

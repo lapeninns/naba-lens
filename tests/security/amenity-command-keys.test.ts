@@ -373,10 +373,13 @@ describe("the old signatures (R10)", () => {
     await step("amenity_set_check_notes", { p_notes: "TEST old" })
     // S2-MGR: the reasonless archive and restore are no longer callable.
     for (const fn of ["amenity_archive_check", "amenity_restore_check"]) {
-      const { error } = await v.manager.client.rpc(fn as never, {
-        p_check_id: check,
-        p_revision: revision(check),
-      } as never)
+      const { error } = await v.manager.client.rpc(
+        fn as never,
+        {
+          p_check_id: check,
+          p_revision: revision(check),
+        } as never
+      )
       expect(error?.code).toBe("42501")
     }
     await yes(v.staffA, v, "guest_toilets")

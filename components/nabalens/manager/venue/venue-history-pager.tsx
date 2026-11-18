@@ -1,10 +1,7 @@
 "use client"
 
 import { venueHistoryAction } from "@/app/manager/venue/actions"
-import type {
-  HistoryCursor,
-  VenueHistoryItem,
-} from "@/lib/manager/venue"
+import type { HistoryCursor, VenueHistoryItem } from "@/lib/manager/venue"
 
 import { VenueHistoryList } from "./venue-history-list"
 

@@ -16,6 +16,12 @@ export const GALLERY_SECTIONS = [
       "The Album components (docs/design-system/DESIGN.md §5), as each batch builds them. A1: the slot tile. A2: Album Home, a place and Album places.",
   },
   {
+    id: "manager",
+    title: "Manager Overview and Venue",
+    description:
+      "Full App v1 S2-MGR: the manager Overview's actions and panels (spec §7 M1) and the Venue hub's reviewers, To confirm and History (§7 M5), in their states.",
+  },
+  {
     id: "foundations",
     title: "Foundations",
     description:

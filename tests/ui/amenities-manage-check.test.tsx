@@ -173,10 +173,14 @@ describe("AmenityCheckDetail: status and actions", () => {
     await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
     expect(h.archive).not.toHaveBeenCalled()
     const dialog = await screen.findByRole("dialog")
-    await user.click(within(dialog).getByRole("button", { name: UI_TEXT.archive }))
+    await user.click(
+      within(dialog).getByRole("button", { name: UI_TEXT.archive })
+    )
     expect(h.archive).not.toHaveBeenCalled()
     await user.type(within(dialog).getByLabelText(/Reason/), "TEST no darts")
-    await user.click(within(dialog).getByRole("button", { name: UI_TEXT.archive }))
+    await user.click(
+      within(dialog).getByRole("button", { name: UI_TEXT.archive })
+    )
     expect(h.archive).toHaveBeenCalledWith({
       idempotencyKey: expect.any(String),
       checkId: WIFI_CHECK.id,
@@ -201,7 +205,9 @@ describe("AmenityCheckDetail: status and actions", () => {
     await user.click(screen.getByRole("button", { name: UI_TEXT.restore }))
     const again = await screen.findByRole("dialog")
     await user.type(within(again).getByLabelText(/Reason/), "TEST darts back")
-    await user.click(within(again).getByRole("button", { name: UI_TEXT.restore }))
+    await user.click(
+      within(again).getByRole("button", { name: UI_TEXT.restore })
+    )
     expect(h.restore).toHaveBeenCalledWith({
       idempotencyKey: expect.any(String),
       checkId: ARCHIVED.id,

@@ -39,11 +39,7 @@ export type MenuQuery = {
  * menus and specials, team, reviewers, facts, exports and history.
  */
 export type ManagerSection =
-  | "overview"
-  | "review"
-  | "album"
-  | "requests"
-  | "venue"
+  "overview" | "review" | "album" | "requests" | "venue"
 
 function withQuery(
   path: string,

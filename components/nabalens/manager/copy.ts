@@ -86,9 +86,11 @@ export const MANAGER_COPY = {
       "No menu is active yet. An admin imports and activates it; staff can keep adding photos meanwhile.",
     startsLater: (title: string, when: string) => `${title} starts ${when}`,
     menusLink: "Menus and change requests",
-    menusLine: "The current menu, later ones, and asking an admin for a change.",
+    menusLine:
+      "The current menu, later ones, and asking an admin for a change.",
     availabilityLink: "Dishes, availability and local names",
-    availabilityLine: "Mark a dish unavailable for now or give it a local name.",
+    availabilityLine:
+      "Mark a dish unavailable for now or give it a local name.",
     specialsTitle: "Local specials",
     specialsLine: (running: number, waiting: number) =>
       `${running} running · ${waiting} waiting for a decision`,

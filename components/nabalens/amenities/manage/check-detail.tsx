@@ -18,6 +18,7 @@ import {
   ReasonDialog,
   ReasonField,
 } from "@/components/nabalens/coverage"
+import { REPORTED } from "@/components/nabalens/coverage/use-coverage-action"
 import { Notice } from "@/components/nabalens/notice"
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { useStillWaiting } from "@/components/nabalens/use-still-waiting"
@@ -370,12 +371,17 @@ export function AmenityCheckDetail({
         : "Restored."
     )
     if (result.ok) return { ok: true as const }
-    return {
-      ok: false as const,
-      error: result.message,
-      fieldError:
-        "fieldErrors" in result ? result.fieldErrors?.reason : undefined,
-    }
+    // A reason the server refused stays in the dialog; any other failure
+    // closes it and is said in the page's notice, like Reopen.
+    const reasonError =
+      "fieldErrors" in result ? result.fieldErrors?.reason : undefined
+    if (reasonError)
+      return {
+        ok: false as const,
+        error: result.message,
+        fieldError: reasonError,
+      }
+    return REPORTED
   }
 
   async function reopen(input: {
@@ -887,11 +893,15 @@ export function AmenityCheckDetail({
             : "It is hidden from staff and the counts, and its history is kept. The reason is kept in the venue's history."
         }
         label="Reason"
-        confirmLabel={scopeOpen === "restore" ? UI_TEXT.restore : UI_TEXT.archive}
+        confirmLabel={
+          scopeOpen === "restore" ? UI_TEXT.restore : UI_TEXT.archive
+        }
         pendingLabel={SAVING}
         onConfirm={(reason) =>
           changeApplicability(scopeOpen ?? "archive", reason)
         }
+        // A failure is said in the page's notice, which takes focus.
+        reportFocus={() => noticeRef.current}
       />
 
       {canReopen ? (
