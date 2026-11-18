@@ -6954,6 +6954,55 @@ export type Database = {
           },
         ]
       }
+      venue_reviewers: {
+        Row: {
+          profile_id: string
+          responsibility: string
+          revision: number
+          set_at: string
+          set_by: string
+          venue_id: string
+        }
+        Insert: {
+          profile_id: string
+          responsibility: string
+          revision?: number
+          set_at?: string
+          set_by: string
+          venue_id: string
+        }
+        Update: {
+          profile_id?: string
+          responsibility?: string
+          revision?: number
+          set_at?: string
+          set_by?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_reviewers_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_reviewers_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_reviewers_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_scope: {
         Row: {
           applicable: boolean
@@ -7050,33 +7099,45 @@ export type Database = {
       venues: {
         Row: {
           active: boolean
+          address: string | null
+          archived_at: string | null
           created_at: string
           id: string
           locality: string | null
           name: string
           operating_status: string
+          revision: number
           slug: string
           timezone: string
+          updated_at: string
         }
         Insert: {
           active?: boolean
+          address?: string | null
+          archived_at?: string | null
           created_at?: string
           id?: string
           locality?: string | null
           name: string
           operating_status?: string
+          revision?: number
           slug: string
           timezone?: string
+          updated_at?: string
         }
         Update: {
           active?: boolean
+          address?: string | null
+          archived_at?: string | null
           created_at?: string
           id?: string
           locality?: string | null
           name?: string
           operating_status?: string
+          revision?: number
           slug?: string
           timezone?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -7137,6 +7198,20 @@ export type Database = {
         Args: { p_profile_id: string; p_reason: string }
         Returns: undefined
       }
+      admin_group_overview: {
+        Args: {
+          p_from?: string
+          p_include_archived?: boolean
+          p_menu?: string
+          p_to?: string
+          p_venue_ids?: string[]
+        }
+        Returns: Json
+      }
+      admin_reset_mfa_authorise: {
+        Args: { p_profile_id: string; p_reason: string }
+        Returns: Json
+      }
       admin_revoke_admin: {
         Args: { p_profile_id: string; p_reason: string; p_venue_id: string }
         Returns: undefined
@@ -7149,6 +7224,58 @@ export type Database = {
           p_venue_id: string
         }
         Returns: string
+      }
+      admin_set_venue_reviewer: {
+        Args: {
+          p_profile_id: string
+          p_reason: string
+          p_responsibility: string
+          p_revision: number
+          p_venue_id: string
+        }
+        Returns: Json
+      }
+      admin_venue_apply_template: {
+        Args: {
+          p_reason: string
+          p_source_venue_id: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
+      admin_venue_archive_impact: {
+        Args: { p_venue_id: string }
+        Returns: Json
+      }
+      admin_venue_detail: { Args: { p_venue_id: string }; Returns: Json }
+      admin_venue_save: {
+        Args: {
+          p_address: string
+          p_locality: string
+          p_name: string
+          p_reason?: string
+          p_revision: number
+          p_timezone: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
+      admin_venue_set_status: {
+        Args: {
+          p_reason: string
+          p_revision: number
+          p_status: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
+      admin_venue_template_preview: {
+        Args: { p_source_venue_id?: string; p_venue_id: string }
+        Returns: Json
+      }
+      admin_venues_list: {
+        Args: { p_include_archived?: boolean }
+        Returns: Json
       }
       album_admin_counts: { Args: { p_venue_id: string }; Returns: Json }
       album_area_states: { Args: { p_venue_id?: string }; Returns: Json }
@@ -9848,6 +9975,10 @@ export type Database = {
           venue_id: string
           venue_name: string
         }[]
+      }
+      venue_scope_impact: {
+        Args: { p_applicable: boolean; p_key: string; p_venue_id: string }
+        Returns: Json
       }
       venue_scope_read: { Args: { p_venue_id?: string }; Returns: Json }
       venue_scope_set: {
