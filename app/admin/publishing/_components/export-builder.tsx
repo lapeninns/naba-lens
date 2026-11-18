@@ -44,15 +44,29 @@ export function ExportBuilder({
   mode,
   candidates,
   profiles,
+  preselect = [],
 }: {
   area: ExportArea
   mode: ExportMode
   candidates: ExportCandidate[]
   profiles: ExportProfile[]
+  /**
+   * Asset ids chosen in the Library (S2-LIBRARY, spec §8 A4 "export
+   * selected"): every candidate row of these assets starts chosen. Ids that
+   * are not exportable here are simply not offered.
+   */
+  preselect?: string[]
 }) {
   const router = useRouter()
   const [category, setCategory] = useState<ExportCategory | "all">("all")
-  const [chosen, setChosen] = useState<Set<string>>(new Set())
+  const [chosen, setChosen] = useState<Set<string>>(
+    () =>
+      new Set(
+        candidates
+          .filter((c) => preselect.includes(c.assetId))
+          .map((c) => keyFor(c))
+      )
+  )
   const [alt, setAlt] = useState<Record<string, string>>({})
   const [profileKey, setProfileKey] = useState<string>("website")
   const [width, setWidth] = useState("")

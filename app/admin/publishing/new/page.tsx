@@ -28,13 +28,18 @@ export const metadata: Metadata = { title: EXPORTS_COPY.makePackage }
 export default async function AdminNewPackagePage({
   searchParams,
 }: {
-  searchParams: Promise<{ venue?: string; mode?: string }>
+  searchParams: Promise<{ venue?: string; mode?: string; assets?: string }>
 }) {
   const profile = await requireActiveAdmin()
   const auth = await getCoverageActor()
   if (!auth.ok) unexpected(auth)
   const params = await searchParams
   const mode = params.mode === "internal" ? "internal" : "public"
+  // Photos chosen in the Library (S2-LIBRARY): start them chosen.
+  const preselect = (typeof params.assets === "string" ? params.assets : "")
+    .split(",")
+    .filter((id) => isUuid(id))
+    .slice(0, 200)
   const venues = await listVenues(auth.actor)
   const venueList = venues.ok ? venues.venues : []
   const venueId = isUuid(params.venue)
@@ -50,6 +55,9 @@ export default async function AdminNewPackagePage({
     `${exportHrefs.adminNew()}?${new URLSearchParams({
       ...(v ? { venue: v } : {}),
       ...(m === "internal" ? { mode: m } : {}),
+      ...(preselect.length && v === venueId
+        ? { assets: preselect.join(",") }
+        : {}),
     })}`
 
   return (
@@ -117,6 +125,7 @@ export default async function AdminNewPackagePage({
             mode={mode}
             candidates={candidates.candidates.items}
             profiles={profiles.ok ? profiles.profiles : []}
+            preselect={preselect}
           />
         )}
       </div>
