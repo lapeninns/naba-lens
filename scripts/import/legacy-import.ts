@@ -581,7 +581,7 @@ async function importOne(input: {
 }): Promise<OneResult> {
   const { service, row, file, validated } = input
   const assetId = importAssetId(input.batchId, row.line)
-  const keys = mediaObjectKeys(input.uploaderId, assetId, file.ext)
+  let keys = mediaObjectKeys(input.uploaderId, assetId, file.ext)
   const bucket = service.storage.from(STORAGE_BUCKETS.media)
 
   // 1. The original, before the reservation: the storage write guard checks
@@ -620,6 +620,12 @@ async function importOne(input: {
       ok: false,
       message: `could not reserve the asset (${reserved.error?.message ?? "no row"})`,
     }
+
+  // A rerun keeps the holder the first run chose (the row's own key), even
+  // if the contributor's account changed in between.
+  const holder = reserved.data[0].original_path.split("/")[0]
+  if (holder && holder !== input.uploaderId)
+    keys = mediaObjectKeys(holder, assetId, file.ext)
 
   if (reserved.data[0].upload_state !== "ready") {
     // 3. Archive receipt, derivatives and renditions, as finalise does.
