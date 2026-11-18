@@ -193,6 +193,18 @@ const ALLOWED_PAGES = new Set([
   "/admin/venues/new",
   "/admin/venues/[venueId]",
   "/admin/more",
+  // Full App v1 S2-LIBRARY (spec §8 A4, §11, §16): an asset's detail
+  // (provenance, renditions, labels, review, slots and primary, exports),
+  // withdraw and restore, venue correction, permanent removal with an impact
+  // preview, duplicate comparison, collections and the controlled tags.
+  // Admins only.
+  "/admin/library/[assetId]",
+  "/admin/library/[assetId]/remove",
+  "/admin/library/compare",
+  "/admin/library/collections",
+  "/admin/library/collections/[collectionId]",
+  "/admin/library/tags",
+  "/admin/library/removals",
   "/manager/exports",
   "/manager/exports/new",
   "/manager/exports/packages/[id]",
@@ -617,6 +629,36 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
       ],
       reason:
         "S2-REVIEW: managers see the spec's action names, Approve for public use and Keep as reference (spec §7 M2, decision FA-7)",
+      feature: "tagging workflow",
+      prefixes: [
+        "app/admin/library/",
+        "app/admin/(content)/page.tsx",
+        "app/admin/admin-library.tsx",
+        "app/admin/library-more-filters.tsx",
+        "app/(dev)/ui-preview/ui-preview.tsx",
+        "lib/library/",
+        "lib/server/library/",
+        "supabase/migrations/20261118116",
+        "lib/db/types.ts",
+      ],
+      reason:
+        "S2-LIBRARY controlled tags: an admin-kept vocabulary, not free tagging (spec §8 A4)",
+    },
+    {
+      feature: "approval workflow",
+      prefixes: [
+        "app/admin/library/",
+        "lib/library/",
+        "supabase/migrations/20261118116",
+      ],
+      reason:
+        "S2-LIBRARY shows each photo's review level in the spec's admin words (spec §8 A4 eligibility, FA-7)",
+    },
+    {
+      feature: "campaigns",
+      prefixes: ["app/admin/library/", "lib/library/", "lib/server/library/"],
+      reason:
+        "S2-LIBRARY collections gather photos for a campaign (spec §8 A4, §11 Collection)",
     },
   ]
 

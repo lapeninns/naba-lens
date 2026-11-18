@@ -44,6 +44,11 @@ import {
   FAKE_OVERVIEW_NOW,
   FAKE_OVERVIEW_ROWS,
 } from "./admin-overview-fixture"
+import { NO_EXTRA_FILTERS, type LibraryExtraFilters } from "@/lib/library/model"
+import {
+  LibraryMoreFilters,
+  type LibraryExtraOptions,
+} from "@/app/admin/library-more-filters"
 
 import { CommonRoomPreview } from "./common-room-preview"
 import {
@@ -128,6 +133,16 @@ function ThemeToggle() {
   )
 }
 
+const PREVIEW_EXTRA_OPTIONS: LibraryExtraOptions = {
+  tags: [
+    { id: "tag-1", name: "Christmas" },
+    { id: "tag-2", name: "Garden" },
+  ],
+  collections: [{ id: "col-1", name: "Winter menu launch" }],
+  requests: [{ id: "req-1", name: "Sunday roast · Sample venue" }],
+  destinations: [{ id: "dest-1", name: "Website · Sample venue" }],
+}
+
 function applyFilters(items: MediaItem[], f: LibraryFilterValue) {
   const venueName = FAKE_VENUES.find((v) => v.id === f.venueId)?.name
   return items.filter(
@@ -152,6 +167,8 @@ export function UiPreview() {
   const [filters, setFilters] = React.useState<LibraryFilterValue>(
     EMPTY_LIBRARY_FILTERS
   )
+  const [extraFilters, setExtraFilters] =
+    React.useState<LibraryExtraFilters>(NO_EXTRA_FILTERS)
   const [pagerError, setPagerError] = React.useState(false)
   const [lastEvent, setLastEvent] = React.useState("None yet")
 
@@ -313,6 +330,16 @@ export function UiPreview() {
                 onChange={(v) => {
                   setFilters(v)
                   setLastEvent(`filters ${JSON.stringify(v)}`)
+                }}
+              />
+              {/* S2-LIBRARY: the A4 filters (fixture options; not applied
+                  to the fake data). */}
+              <LibraryMoreFilters
+                value={extraFilters}
+                options={PREVIEW_EXTRA_OPTIONS}
+                onChange={(v) => {
+                  setExtraFilters(v)
+                  setLastEvent(`library filters ${JSON.stringify(v)}`)
                 }}
               />
               {library.length > 0 ? (
@@ -497,6 +524,7 @@ export function UiPreview() {
         getPortfolioHref={
           viewerMode === "admin" ? () => "#portfolio" : undefined
         }
+        getDetailHref={viewerMode === "admin" ? () => "#details" : undefined}
         onDelete={(item) => {
           setViewerItem(null)
           setDeleteItem(item)
