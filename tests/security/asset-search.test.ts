@@ -1749,6 +1749,37 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
     if (rows) expect(d.rows).toBeGreaterThan(0)
   }
 
+  // Run these HTTP checks before the long synchronous SQL walks leave the
+  // PostgREST connections idle on slower runners.
+  it("short-circuits an empty candidate list to an empty page", async () => {
+    for (const who of [e.admin, e.manager, e.staffManager]) {
+      for (const filters of [
+        { check: randomUUID() },
+        { group: randomUUID() },
+        { submission: { source: "amenity", id: randomUUID() } },
+        { check: randomUUID(), rights: "in_force" },
+      ])
+        expect(await search(who, { p_filters: filters })).toEqual({
+          hasMore: false,
+          items: [],
+        })
+    }
+    await refused(
+      e.manager,
+      "asset_search",
+      { p_filters: { check: randomUUID(), venue: "nope" } },
+      "invalid_search_filter",
+      "22023"
+    )
+    await refused(
+      e.manager,
+      "asset_search",
+      { p_filters: { group: randomUUID(), venue: o.venue } },
+      "wrong_venue",
+      "42501"
+    )
+  })
+
   it("returns what the base body returns for every caller, filter and page", () => {
     const callers = [e.admin, e.manager, e.staffManager, o.manager]
     let rows = 0
@@ -1796,35 +1827,6 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
       expect(d.errors).toBe(faults().length)
     }
   }, 300_000)
-
-  it("short-circuits an empty candidate list to an empty page", async () => {
-    for (const who of [e.admin, e.manager, e.staffManager]) {
-      for (const filters of [
-        { check: randomUUID() },
-        { group: randomUUID() },
-        { submission: { source: "amenity", id: randomUUID() } },
-        { check: randomUUID(), rights: "in_force" },
-      ])
-        expect(await search(who, { p_filters: filters })).toEqual({
-          hasMore: false,
-          items: [],
-        })
-    }
-    await refused(
-      e.manager,
-      "asset_search",
-      { p_filters: { check: randomUUID(), venue: "nope" } },
-      "invalid_search_filter",
-      "22023"
-    )
-    await refused(
-      e.manager,
-      "asset_search",
-      { p_filters: { group: randomUUID(), venue: o.venue } },
-      "wrong_venue",
-      "42501"
-    )
-  })
 
   // Another venue's check, submission or group must cost what an unknown id
   // costs: its candidate list reads no evidence or group rows (only the key
