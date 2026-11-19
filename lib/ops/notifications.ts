@@ -106,6 +106,9 @@ export function notificationWords(n: AppNotification): {
       const what =
         text(p.itemName) ??
         text(p.placeName) ??
+        (p.source === "amenity"
+          ? (text(p.question) ?? "an amenity photo")
+          : null) ??
         (p.source === "checklist" ? "a checklist photo" : "a photo")
       return { title: `Retake: ${what}`, detail: text(p.reason) }
     }
