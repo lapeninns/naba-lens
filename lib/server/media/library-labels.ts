@@ -1,4 +1,7 @@
-import type { LibraryLabelFilterOptions } from "@/lib/menus/types"
+import type {
+  LabelCatalogue,
+  LibraryLabelFilterOptions,
+} from "@/lib/menus/types"
 import { redactError } from "@/lib/server/log/redact"
 
 import type { MediaActor } from "./types"
@@ -182,6 +185,37 @@ async function readOptions(
         sectionName: sectionName.get(e.section_id) ?? null,
         variants: [...current, ...past],
       })
+    }
+  }
+
+  // Running specials: current dishes with no entry on the active menu
+  // (menu_label_catalogue, private.current_photo_menu_items), listed as
+  // current, under their specials section, never as historical.
+  const { data: catalogue, error: catalogueError } = await db.rpc(
+    "menu_label_catalogue",
+    { p_venue_id: venueId }
+  )
+  if (catalogueError) throw catalogueError
+  const current = catalogue as LabelCatalogue | null
+  if (current?.status === "active") {
+    for (const section of current.sections) {
+      const specials = section.items.filter(
+        (item) => !seenItems.has(item.itemId)
+      )
+      if (specials.length === 0) continue
+      if (!seenSlugs.has(section.slug)) {
+        seenSlugs.add(section.slug)
+        categories.push({ slug: section.slug, name: section.name })
+      }
+      for (const item of specials) {
+        seenItems.add(item.itemId)
+        items.push({
+          id: item.itemId,
+          name: item.name,
+          sectionName: section.name,
+          variants: (variantsOf.get(item.itemId) ?? []).sort(byName),
+        })
+      }
     }
   }
 
