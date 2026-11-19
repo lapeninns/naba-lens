@@ -52,7 +52,9 @@ export function toQueueUploader(
   ): Promise<void | { assetId: string }> => {
     let token = readToken(context.resumeToken)
     if (!token) {
-      const stored = keys ? await keys.get(file).catch(() => null) : null
+      const stored = keys
+        ? await keys.get(file, context.purpose).catch(() => null)
+        : null
       token = {
         idempotencyKey: stored && !inUse.has(stored) ? stored : newKey(),
       }
@@ -67,12 +69,13 @@ export function toQueueUploader(
       })
     }
     inUse.add(idempotencyKey)
-    await keys?.set(file, idempotencyKey).catch(() => {})
+    await keys?.set(file, idempotencyKey, context.purpose).catch(() => {})
 
     let result: Awaited<ReturnType<UploadFn>>
     try {
       result = await upload(file, {
         idempotencyKey,
+        ...(context.purpose ? { purpose: context.purpose } : {}),
         signal: context.signal,
         onProgress: context.onProgress,
         onStateChange: (state) => {
@@ -95,11 +98,12 @@ export function toQueueUploader(
       result.state === "ready" ||
       result.error?.code === "processing_failed"
     ) {
-      await keys?.delete(file).catch(() => {})
+      await keys?.delete(file, context.purpose).catch(() => {})
     } else if (result.error?.code === "reservation_gone") {
-      // The reservation was removed or cleaned up: forget its key, so the
-      // retry reserves a new asset instead of failing again.
-      await keys?.delete(file).catch(() => {})
+      // The reservation was removed or cleaned up, or its key was reserved for
+      // the other purpose (the server refuses to resume it as this one): forget
+      // the key, so the retry reserves a new asset with this purpose.
+      await keys?.delete(file, context.purpose).catch(() => {})
       context.setResumeToken(null)
     }
 

@@ -1,0 +1,40 @@
+key,category,guest_question,evidence_rule,capture_brief,is_core
+pool_table,Games,Is there a pool table?,photo,"Show the table and playing space. Record cost, access times and any restrictions.",false
+darts,Games,Can guests play darts?,photo,"Show the board, throw line and playing space. Record whether equipment is available.",false
+fruit_machine,Games,Is there a fruit machine?,photo,Show the machine in its guest area without people playing. Record any venue restrictions.,false
+snooker,Games,Is there a snooker table?,photo,Show the table and playing space. Record booking or access conditions.,false
+board_games,Games,Are board games available?,photo,Show the games guests can borrow and where to find them.,false
+arcade,Games,Are arcade games available?,photo,Show the machines and access area. Record any charge.,false
+sports_screen,Entertainment,Can guests watch live sport?,photo,Show the screens from guest seating. Record where and when fixtures are shown.,false
+live_music,Entertainment,Does the venue host live music?,either,Capture a real setup or approved performance clip. Record the date and usual programme if applicable.,false
+pub_quiz,Entertainment,Is there a pub quiz?,photo,Show the current venue sign or event setup. Record the schedule and date verified.,false
+fireplace,Entertainment,Is there a fireplace in the guest area?,photo,Show it from guest seating. Record whether and when it is in use.,false
+guest_wifi,Connectivity,Is guest Wi-Fi available?,both,"Show guest instructions with credentials and join QR hidden. Film a successful connection and speed test. Record free or paid, test spot, date and speeds internally.",true
+charging,Connectivity,Can guests charge a device?,photo,Show the public sockets or charging point. Record the areas served.,false
+step_free_entrance,Accessibility,Is there a step-free entrance?,video,"Film the full approach through the entrance. Show surfaces, slopes, thresholds and doors.",true
+accessible_parking,Accessibility,Is designated accessible parking available?,both,"Show markings and signs, then film the route to the entrance.",false
+accessible_seating,Accessibility,Is there a wheelchair-accessible table?,both,Show the route to a usable table and its approach and clearance. Record exact areas and constraints.,false
+accessible_toilet,Accessibility,Is there a wheelchair-accessible toilet?,both,Film the route to the door and photograph the empty facility and access features.,false
+hearing_loop,Accessibility,Is a hearing loop or listening aid available?,photo,Show the sign or equipment. Ask staff to check it works and record where it can be used.,false
+braille_menu,Accessibility,Is a Braille menu available?,photo,Show the actual menu and record how guests request it.,false
+onsite_parking,Arrival,Is there on-site guest parking?,photo,"Show the entrance, lot and signs. Record surface, restrictions and charges.",true
+street_parking,Arrival,Is street parking available nearby?,photo,Show nearby spaces and restrictions. Record any charge or time limit.,false
+cycle_parking,Arrival,Is there somewhere to lock a bike?,photo,Show the rack and its location relative to the entrance.,false
+ev_charging,Arrival,Is EV charging available to guests?,photo,Show the charge point and parking bay. Record access and check current availability.,false
+dogs_inside,Pets,Are dogs welcome inside?,photo,Show the permitted area or policy sign. Have the duty lead confirm zones and conditions.,false
+dogs_outside,Pets,Are dogs welcome outside?,photo,Show the permitted outdoor area. Have the duty lead confirm zones and conditions.,false
+dog_water,Pets,Are water bowls available for dogs?,photo,Show a bowl at the guest water point or where staff provide it.,false
+dog_treats,Pets,Are dog treats or a dog menu available?,photo,Show the actual offering and record any charge.,false
+outdoor_seating,Outdoor,Is there outdoor seating?,photo,Show the full guest seating area and where guests enter.,false
+covered_seating,Outdoor,Is there covered outdoor seating?,photo,Show seating under the cover and record its extent.,false
+outdoor_heating,Outdoor,Is outdoor heating available?,photo,Show the heaters and the seating they serve. Record when they are used.,false
+high_chairs,Family,Are high chairs available?,photo,Show an available high chair and where guests request it.,false
+baby_changing,Family,Is there a baby changing station?,photo,Show the sign and empty station. Record which facility it is in.,false
+play_area,Family,Is there a children's play area?,photo,Show the equipment and boundary with the area empty. Record access conditions.,false
+guest_toilets,Facilities,Are there customer toilets?,photo,Show the sign and empty facility.,true
+gender_neutral_toilet,Facilities,Is there a gender-neutral toilet?,photo,Show the sign and location. Have the duty lead confirm availability.,false
+onsite_bar,Facilities,Is there a bar guests can order from?,either,Show the bar as guests see it. A service clip can demonstrate ordering.,false
+private_room,Facilities,Is there a private room for hire?,either,Show the room and layout. Record booking conditions and available setup.,false
+takeaway_pickup,Service,Is there a takeaway collection point?,photo,Show the collection point and signs. Record how guests collect.,false
+curbside_pickup,Service,Can guests collect an order at their car?,video,Film a staff demonstration and record the exact collection point and process.,false
+swimming_pool,Lodging and leisure,Is there a swimming pool guests can use?,photo,Show the pool and guest access area. Record access rules and availability.,false

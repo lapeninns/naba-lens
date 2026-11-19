@@ -9,6 +9,189 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      amenity_catalogue: {
+        Row: {
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          evidence_rule: string
+          is_core: boolean
+          key: string
+          position: number
+          question: string
+        }
+        Insert: {
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          evidence_rule: string
+          is_core?: boolean
+          key: string
+          position: number
+          question: string
+        }
+        Update: {
+          capture_brief?: string
+          catalogue_version?: number
+          category?: string
+          evidence_rule?: string
+          is_core?: boolean
+          key?: string
+          position?: number
+          question?: string
+        }
+        Relationships: []
+      }
+      amenity_check_events: {
+        Row: {
+          actor_id: string | null
+          check_id: string
+          created_at: string
+          detail: Json
+          id: number
+          kind: string
+          reason: string | null
+          venue_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          check_id: string
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind: string
+          reason?: string | null
+          venue_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          check_id?: string
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind?: string
+          reason?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amenity_check_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "amenity_check_events_check_fkey"
+            columns: ["check_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "venue_amenity_checks"
+            referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
+      amenity_submission_assets: {
+        Row: {
+          asset_id: string
+          evidence_kind: string
+          submission_id: string
+          venue_id: string
+        }
+        Insert: {
+          asset_id: string
+          evidence_kind: string
+          submission_id: string
+          venue_id: string
+        }
+        Update: {
+          asset_id?: string
+          evidence_kind?: string
+          submission_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amenity_submission_assets_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "amenity_submission_assets_submission_fkey"
+            columns: ["submission_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "amenity_submissions"
+            referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
+      amenity_submissions: {
+        Row: {
+          answer: string
+          check_id: string
+          created_at: string
+          evidence_rule: string
+          finding: string | null
+          id: string
+          idempotency_key: string
+          internal_metadata: Json | null
+          limitations: string | null
+          reason: string | null
+          result_revision: number
+          submitted_by: string
+          template_version: number
+          venue_id: string
+        }
+        Insert: {
+          answer: string
+          check_id: string
+          created_at?: string
+          evidence_rule: string
+          finding?: string | null
+          id?: string
+          idempotency_key: string
+          internal_metadata?: Json | null
+          limitations?: string | null
+          reason?: string | null
+          result_revision: number
+          submitted_by: string
+          template_version: number
+          venue_id: string
+        }
+        Update: {
+          answer?: string
+          check_id?: string
+          created_at?: string
+          evidence_rule?: string
+          finding?: string | null
+          id?: string
+          idempotency_key?: string
+          internal_metadata?: Json | null
+          limitations?: string | null
+          reason?: string | null
+          result_revision?: number
+          submitted_by?: string
+          template_version?: number
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amenity_submissions_check_fkey"
+            columns: ["check_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "venue_amenity_checks"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "amenity_submissions_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coverage_amenity_templates: {
         Row: {
           active: boolean
@@ -827,6 +1010,7 @@ export type Database = {
           original_filename: string
           original_path: string
           preview_path: string | null
+          purpose: string
           size_bytes: number | null
           thumbnail_path: string | null
           updated_at: string
@@ -847,6 +1031,7 @@ export type Database = {
           original_filename: string
           original_path: string
           preview_path?: string | null
+          purpose?: string
           size_bytes?: number | null
           thumbnail_path?: string | null
           updated_at?: string
@@ -867,6 +1052,7 @@ export type Database = {
           original_filename?: string
           original_path?: string
           preview_path?: string | null
+          purpose?: string
           size_bytes?: number | null
           thumbnail_path?: string | null
           updated_at?: string
@@ -2091,6 +2277,106 @@ export type Database = {
           },
         ]
       }
+      venue_amenity_checks: {
+        Row: {
+          answer: string
+          answered_at: string | null
+          answered_by: string | null
+          assignee_user_id: string | null
+          created_at: string
+          created_by: string | null
+          current_submission_id: string | null
+          id: string
+          notes: string | null
+          progress: string
+          recheck_reason: string | null
+          revision: number
+          status: string
+          template_key: string
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          answer?: string
+          answered_at?: string | null
+          answered_by?: string | null
+          assignee_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_submission_id?: string | null
+          id?: string
+          notes?: string | null
+          progress?: string
+          recheck_reason?: string | null
+          revision?: number
+          status?: string
+          template_key: string
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          answer?: string
+          answered_at?: string | null
+          answered_by?: string | null
+          assignee_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_submission_id?: string | null
+          id?: string
+          notes?: string | null
+          progress?: string
+          recheck_reason?: string | null
+          revision?: number
+          status?: string
+          template_key?: string
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_amenity_checks_answered_by_fkey"
+            columns: ["answered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_checks_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_checks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_checks_current_submission_fkey"
+            columns: ["current_submission_id", "id"]
+            isOneToOne: false
+            referencedRelation: "amenity_submissions"
+            referencedColumns: ["id", "check_id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_checks_template_key_fkey"
+            columns: ["template_key"]
+            isOneToOne: false
+            referencedRelation: "amenity_catalogue"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "venue_amenity_checks_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_amenity_fact_media: {
         Row: {
           added_at: string
@@ -2211,6 +2497,39 @@ export type Database = {
           },
         ]
       }
+      venue_amenity_settings: {
+        Row: {
+          enabled_at: string
+          enabled_by: string | null
+          venue_id: string
+        }
+        Insert: {
+          enabled_at?: string
+          enabled_by?: string | null
+          venue_id: string
+        }
+        Update: {
+          enabled_at?: string
+          enabled_by?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_amenity_settings_enabled_by_fkey"
+            columns: ["enabled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_settings_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: true
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_manager_grants: {
         Row: {
           grant_reason: string | null
@@ -2316,6 +2635,231 @@ export type Database = {
         Args: { p_expected_revision: number; p_version_id: string }
         Returns: undefined
       }
+      amenity_add_checks: {
+        Args: { p_keys: string[]; p_venue_id: string }
+        Returns: string[]
+      }
+      amenity_archive_check: {
+        Args: { p_check_id: string; p_revision: number }
+        Returns: number
+      }
+      amenity_assign_check: {
+        Args: { p_assignee_id: string; p_check_id: string; p_revision: number }
+        Returns: number
+      }
+      amenity_assignee_options: {
+        Args: { p_check_id: string }
+        Returns: {
+          display_name: string
+          id: string
+          job_title: string
+        }[]
+      }
+      amenity_catalogue_for_venue: {
+        Args: { p_venue_id: string }
+        Returns: {
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          check_id: string
+          check_status: string
+          evidence_rule: string
+          is_core: boolean
+          key: string
+          position: number
+          question: string
+        }[]
+      }
+      amenity_check: {
+        Args: { p_check_id: string }
+        Returns: {
+          answer: string
+          answered_at: string
+          answered_by: string
+          answered_by_name: string
+          assignee_name: string
+          assignee_user_id: string
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          current_submission_id: string
+          evidence_rule: string
+          id: string
+          is_core: boolean
+          notes: string
+          position: number
+          progress: string
+          question: string
+          recheck_reason: string
+          revision: number
+          status: string
+          template_key: string
+          updated_at: string
+          venue_id: string
+        }[]
+      }
+      amenity_check_events: {
+        Args: { p_check_id: string }
+        Returns: {
+          actor_id: string
+          actor_name: string
+          check_id: string
+          created_at: string
+          detail: Json
+          id: string
+          kind: string
+          reason: string
+        }[]
+      }
+      amenity_check_submission_assets: {
+        Args: { p_check_id: string }
+        Returns: {
+          asset_id: string
+          available: boolean
+          evidence_kind: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          submission_id: string
+        }[]
+      }
+      amenity_check_submissions: {
+        Args: { p_check_id: string }
+        Returns: {
+          answer: string
+          check_id: string
+          created_at: string
+          evidence_rule: string
+          finding: string
+          id: string
+          internal_metadata: Json
+          limitations: string
+          reason: string
+          submitted_by: string
+          submitted_by_name: string
+          template_version: number
+        }[]
+      }
+      amenity_checks_for_venue: {
+        Args: { p_include_archived: boolean; p_venue_id: string }
+        Returns: {
+          answer: string
+          answered_at: string
+          answered_by: string
+          answered_by_name: string
+          assignee_name: string
+          assignee_user_id: string
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          current_submission_id: string
+          evidence_rule: string
+          id: string
+          is_core: boolean
+          notes: string
+          position: number
+          progress: string
+          question: string
+          recheck_reason: string
+          revision: number
+          status: string
+          template_key: string
+          updated_at: string
+          venue_id: string
+        }[]
+      }
+      amenity_enable_venue: { Args: { p_venue_id: string }; Returns: number }
+      amenity_evidence_asset: {
+        Args: { p_asset_id: string }
+        Returns: {
+          asset_id: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          media_type: Database["public"]["Enums"]["media_type"]
+        }[]
+      }
+      amenity_my_checks: {
+        Args: never
+        Returns: {
+          answer: string
+          answered_at: string
+          answered_by: string
+          answered_by_name: string
+          assignee_name: string
+          assignee_user_id: string
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          current_submission_id: string
+          evidence_rule: string
+          id: string
+          is_core: boolean
+          notes: string
+          position: number
+          progress: string
+          question: string
+          recheck_reason: string
+          revision: number
+          status: string
+          template_key: string
+          updated_at: string
+          venue_id: string
+        }[]
+      }
+      amenity_reopen_check: {
+        Args: {
+          p_check_id: string
+          p_preset: string
+          p_reason: string
+          p_revision: number
+        }
+        Returns: number
+      }
+      amenity_restore_check: {
+        Args: { p_check_id: string; p_revision: number }
+        Returns: number
+      }
+      amenity_set_check_notes: {
+        Args: { p_check_id: string; p_notes: string; p_revision: number }
+        Returns: number
+      }
+      amenity_submit_finding: {
+        Args: {
+          p_answer: string
+          p_asset_ids: string[]
+          p_check_id: string
+          p_finding: string
+          p_idempotency_key: string
+          p_internal_metadata: Json
+          p_limitations: string
+          p_reason: string
+          p_redaction_confirmed: boolean
+          p_revision: number
+        }
+        Returns: {
+          replayed: boolean
+          revision: number
+          submission_id: string
+        }[]
+      }
+      amenity_submittable_assets: {
+        Args: { p_check_id: string }
+        Returns: {
+          asset_id: string
+          created_at: string
+          has_thumbnail: boolean
+          media_type: Database["public"]["Enums"]["media_type"]
+          source: string
+        }[]
+      }
+      amenity_venue_state: {
+        Args: { p_venue_id: string }
+        Returns: {
+          can_enable: boolean
+          enabled: boolean
+          venue_id: string
+          venue_name: string
+        }[]
+      }
       attach_coverage_evidence: {
         Args: {
           p_accept?: boolean
@@ -2346,18 +2890,18 @@ export type Database = {
         Returns: {
           contributor_name: string
           created_at: string
-          duration_seconds: number | null
+          duration_seconds: number
           has_preview: boolean
           has_thumbnail: boolean
-          height: number | null
+          height: number
           id: string
           media_type: Database["public"]["Enums"]["media_type"]
-          original_filename: string | null
-          size_bytes: number | null
+          original_filename: string
+          size_bytes: number
           uploader_id: string
-          validated_mime_type: string | null
+          validated_mime_type: string
           venue_name: string
-          width: number | null
+          width: number
         }[]
       }
       community_members: {
@@ -2370,31 +2914,31 @@ export type Database = {
           p_venue?: string
         }
         Returns: {
-          avatar_path: string | null
-          department: string | null
+          avatar_path: string
+          department: string
           display_name: string
           id: string
-          job_title: string | null
+          job_title: string
           media_count: number
-          venue_id: string | null
-          venue_name: string | null
+          venue_id: string
+          venue_name: string
         }[]
       }
       community_readable_assets: {
         Args: { p_asset_ids: string[] }
         Returns: {
           created_at: string
-          duration_seconds: number | null
+          duration_seconds: number
           has_preview: boolean
           has_thumbnail: boolean
-          height: number | null
+          height: number
           id: string
           media_type: Database["public"]["Enums"]["media_type"]
-          size_bytes: number | null
+          size_bytes: number
           uploader_id: string
-          validated_mime_type: string | null
+          validated_mime_type: string
           venue_id: string
-          width: number | null
+          width: number
         }[]
       }
       complete_archive_monitor_alert: {
@@ -2413,14 +2957,14 @@ export type Database = {
         Args: never
         Returns: {
           active: boolean
-          department: string | null
+          department: string
           is_admin: boolean
-          manager_grant_id: string | null
-          manager_venue_id: string | null
+          manager_grant_id: string
+          manager_venue_id: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
           venue_active: boolean
-          venue_id: string | null
+          venue_id: string
         }[]
       }
       coverage_candidate_assets: {
@@ -2436,17 +2980,17 @@ export type Database = {
           created_at: string
           has_preview: boolean
           has_thumbnail: boolean
-          height: number | null
-          live_item_id: string | null
-          live_item_state: string | null
-          live_requirement_id: string | null
+          height: number
+          live_item_id: string
+          live_item_state: string
+          live_requirement_id: string
           monthly_eligible_now: boolean
           uploaded_month: string
           uploader_active: boolean
           uploader_id: string
           uploader_name: string
           venue_id: string
-          width: number | null
+          width: number
         }[]
       }
       coverage_group_overview: {
@@ -2456,8 +3000,8 @@ export type Database = {
           amenity_unknown_count: number
           applicable_count: number
           coverage_complete: boolean
-          last_preparation_at: string | null
-          last_preparation_status: string | null
+          last_preparation_at: string
+          last_preparation_status: string
           menu_state: string
           needs_reassignment_count: number
           needs_setup_count: number
@@ -2492,39 +3036,39 @@ export type Database = {
           author_active: boolean
           author_id: string
           author_name: string
-          decided_at: string | null
-          decided_by: string | null
-          decision_reason: string | null
+          decided_at: string
+          decided_by: string
+          decision_reason: string
           evidence_available: boolean
           has_preview: boolean
           has_thumbnail: boolean
-          height: number | null
+          height: number
           item_id: string
           media_type: Database["public"]["Enums"]["media_type"]
           monthly_eligible: boolean
           origin: string
-          replaces_item_id: string | null
-          requirement_id: string | null
-          requirement_title: string | null
+          replaces_item_id: string
+          requirement_id: string
+          requirement_title: string
           revision: number
-          self_review: boolean | null
+          self_review: boolean
           state: string
           submitted_at: string
           submitted_by: string
           submitted_month: string
           uploaded_month: string
           venue_id: string
-          width: number | null
+          width: number
         }[]
       }
       coverage_preparation_status: {
         Args: { p_venue_id?: string }
         Returns: {
-          last_error_code: string | null
-          last_failure_at: string | null
-          last_run_at: string | null
-          last_status: string | null
-          last_success_at: string | null
+          last_error_code: string
+          last_failure_at: string
+          last_run_at: string
+          last_status: string
+          last_success_at: string
           period_month: string
           staff_without_target: number
           targets_needing_setup: number
@@ -2535,17 +3079,17 @@ export type Database = {
         Returns: {
           accepted_count: number
           amenity_confirmed: boolean
-          amenity_key: string | null
-          amenity_presence: string | null
+          amenity_key: string
+          amenity_presence: string
           assignee_ids: string[]
-          due_on: string | null
+          due_on: string
           evidence_removed_count: number
-          guidance: string | null
+          guidance: string
           is_current: boolean
           kind: string
-          menu_plan_id: string | null
-          menu_plan_status: string | null
-          menu_version_id: string | null
+          menu_plan_id: string
+          menu_plan_status: string
+          menu_version_id: string
           needs_another_photo_count: number
           needs_reassignment: boolean
           overdue: boolean
@@ -2554,9 +3098,9 @@ export type Database = {
           requirement_id: string
           revision: number
           satisfied: boolean
-          section_snapshot: Json | null
+          section_snapshot: Json
           status: string
-          status_reason: string | null
+          status_reason: string
           title: string
           venue_id: string
         }[]
@@ -2569,15 +3113,15 @@ export type Database = {
         }
         Returns: {
           accepted_count: number
-          avatar_path: string | null
+          avatar_path: string
           complete: boolean
-          department: string | null
+          department: string
           display_name: string
-          due_on: string | null
+          due_on: string
           evidence_removed_count: number
           is_current_member: boolean
           is_manager: boolean
-          job_title: string | null
+          job_title: string
           late_accepted_count: number
           needs_another_photo_count: number
           needs_setup: boolean
@@ -2586,10 +3130,10 @@ export type Database = {
           period_month: string
           setup_missing: string[]
           staff_id: string
-          target_count: number | null
-          target_id: string | null
-          target_revision: number | null
-          target_source: string | null
+          target_count: number
+          target_id: string
+          target_revision: number
+          target_source: string
           venue_id: string
           venue_name: string
         }[]
@@ -2640,6 +3184,7 @@ export type Database = {
           original_filename: string
           original_path: string
           preview_path: string | null
+          purpose: string
           size_bytes: number | null
           thumbnail_path: string | null
           updated_at: string
@@ -2687,6 +3232,7 @@ export type Database = {
           original_filename: string
           original_path: string
           preview_path: string | null
+          purpose: string
           size_bytes: number | null
           thumbnail_path: string | null
           updated_at: string
@@ -2919,6 +3465,7 @@ export type Database = {
           p_extension: string
           p_media_type: Database["public"]["Enums"]["media_type"]
           p_original_filename: string
+          p_purpose?: string
           p_size_bytes?: number
         }
         Returns: {
@@ -3189,23 +3736,23 @@ export type Database = {
           asset_id: string
           has_preview: boolean
           has_thumbnail: boolean
-          height: number | null
+          height: number
           media_type: Database["public"]["Enums"]["media_type"]
           uploader_id: string
-          validated_mime_type: string | null
+          validated_mime_type: string
           venue_id: string
-          width: number | null
+          width: number
         }[]
       }
       venue_coverage_summary: {
         Args: { p_venue_id?: string }
         Returns: {
-          active_menu_version_id: string | null
+          active_menu_version_id: string
           amenity_unknown_count: number
           applicable_count: number
           complete: boolean
-          current_plan_id: string | null
-          draft_plan_id: string | null
+          current_plan_id: string
+          draft_plan_id: string
           menu_state: string
           needs_reassignment_count: number
           needs_setup_count: number
@@ -3224,18 +3771,18 @@ export type Database = {
         Returns: {
           effective: boolean
           grant_id: string
-          grant_reason: string | null
+          grant_reason: string
           granted_at: string
           granted_by: string
           granted_by_name: string
-          revoke_kind: string | null
-          revoke_reason: string | null
-          revoked_at: string | null
-          revoked_by_name: string | null
+          revoke_kind: string
+          revoke_reason: string
+          revoked_at: string
+          revoked_by_name: string
           staff_active: boolean
           staff_id: string
           staff_name: string
-          staff_venue_id: string | null
+          staff_venue_id: string
           venue_id: string
           venue_name: string
         }[]

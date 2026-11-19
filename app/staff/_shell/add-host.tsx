@@ -7,6 +7,10 @@ import { LabelEditorHost } from "@/app/_labels/label-editor-host"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import { UploadDialog } from "@/components/nabalens"
 import type { UploadBusy } from "@/components/nabalens/upload-dialog"
+import type {
+  Uploader,
+  UploadPurpose,
+} from "@/components/nabalens/upload-queue"
 import {
   SessionGuardProvider,
   type SessionGuard,
@@ -33,6 +37,8 @@ import { getSiteUrl } from "@/lib/supabase/env"
 type PickOwner = {
   onReady: ((assetIds: string[]) => boolean | void) | null
   preset: AddLabelPreset | null
+  /** Fixed at reservation; "amenity" keeps the files out of the community. */
+  purpose: UploadPurpose
 }
 
 function samePreset(a: AddLabelPreset | undefined, b: AddLabelPreset) {
@@ -165,7 +171,7 @@ export function AddHost({
     onPicked.current = null
     const owner = pendingOwner.current
     pendingOwner.current = null
-    if (owner && (owner.onReady || owner.preset))
+    if (owner && (owner.onReady || owner.preset || owner.purpose !== "general"))
       for (const file of files) fileOwners.current.set(file, owner)
     if (files.length > 0) notify?.()
   }, [])
@@ -249,6 +255,7 @@ export function AddHost({
         pendingOwner.current = {
           onReady: opts.onReady ?? null,
           preset: opts.preset ?? null,
+          purpose: opts.purpose ?? "general",
         }
         onPicked.current = opts.onPicked ?? null
         const only = opts.imagesOnly ?? false
@@ -273,6 +280,19 @@ export function AddHost({
       refreshSignal,
     }),
     [blocked, waiting, busyWords, refreshSignal, onReady, labelled, openPicker]
+  )
+
+  // One queue, files from several Add calls: each file is reserved with the
+  // purpose of the call that picked it (general unless it said otherwise).
+  const upload = React.useMemo<Uploader>(
+    () => (file, context) => {
+      const purpose = fileOwners.current.get(file)?.purpose
+      return uploader(
+        file,
+        purpose && purpose !== "general" ? { ...context, purpose } : context
+      )
+    },
+    [uploader]
   )
 
   const refreshAfterLabels = React.useCallback(() => {
@@ -302,7 +322,7 @@ export function AddHost({
               // being labelled), so nothing waits any more.
               if (!open && busy.active === 0) setReadyToLabel([])
             }}
-            uploader={uploader}
+            uploader={upload}
             limits={MEDIA_LIMITS}
             imagesOnly={imagesOnly}
             initialFiles={pickedFiles}
