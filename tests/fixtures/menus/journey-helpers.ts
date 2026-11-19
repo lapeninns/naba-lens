@@ -11,7 +11,7 @@ import {
 
 import { signIn } from "../../support/identities"
 import { provisioner, psql } from "../../e2e/helpers/stack"
-import { portfolioList, staffTile } from "../../e2e/helpers/ui"
+import { escape } from "../../e2e/helpers/ui"
 import {
   provisionWorld,
   signedInPage,
@@ -135,14 +135,44 @@ export async function worldWithActiveRailway(
   return { world, admin }
 }
 
-export async function openOwnLabelEditor(page: Page, fileName: string) {
-  await page.goto("/staff")
-  await (await staffTile(portfolioList(page), fileName)).click()
+/**
+ * The library viewer's label editor for a file, opened by the admin `page`
+ * from the uploader's library (`/admin?staff=`). Staff no longer have a
+ * viewer of their own photos or a label editor there: My photos replaced
+ * Me's portfolio (DESIGN.md §5e), and staff label in the Add sheet only.
+ */
+export async function openLibraryLabelEditor(
+  page: Page,
+  uploaderId: string,
+  fileName: string
+) {
+  await page.goto(`/admin?staff=${uploaderId}`)
+  await page
+    .getByRole("list", { name: "Library" })
+    .getByRole("button", {
+      name: new RegExp(`^(Photo|Video), ${escape(fileName)}`),
+    })
+    .click()
   const viewer = page.getByRole("dialog").first()
   await viewer.getByRole("button", { name: /^(Add|Edit) labels$/ }).click()
   const editor = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
   await expect(editor).toBeVisible()
   return { viewer, editor }
+}
+
+/**
+ * @deprecated Staff no longer have a label editor for their own photos (Me's
+ * portfolio and its viewer were removed; My photos, DESIGN.md §5e). Callers
+ * must move to `openLibraryLabelEditor` or to the Add sheet; this fails
+ * loudly instead of pretending the screen exists.
+ */
+export async function openOwnLabelEditor(
+  _page: Page,
+  fileName: string
+): Promise<{ viewer: Locator; editor: Locator }> {
+  throw new Error(
+    `openOwnLabelEditor(${fileName}): staff have no own-photo label editor since My photos replaced Me's portfolio`
+  )
 }
 
 export async function pickMenuItem(

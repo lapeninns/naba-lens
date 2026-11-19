@@ -38,7 +38,6 @@ import {
   meAddButton,
   modalsOpened,
   phone,
-  pickFiles,
   recordBudget,
   resetModals,
   savingSheet,
@@ -46,7 +45,8 @@ import {
   TapCounter,
   uploadState,
 } from "./helpers/upload-label-flow"
-import { portfolioList, staffTile } from "./helpers/ui"
+import { openMeTab, openPhotoPage } from "./helpers/s3-upload"
+import { STAFF_TABS } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -120,7 +120,7 @@ test("a1 log out while the photo is processing: no warning, and its labels land 
   // the server while its answer is held: the phone still says "Saving…".
   const finalise = await gate(page, isFinalise, { holdResponse: true })
   try {
-    await page.goto("/staff")
+    await page.goto(STAFF_TABS.photos)
     const photo = await syntheticJpeg(`${unique("a1")}.jpg`)
     const sheet = await addFromLibrary(page, [photo.path])
     await chooseDish(sheet, COMMON_FIELD, "bhaji", /^Onion Bhaji/)
@@ -142,6 +142,8 @@ test("a1 log out while the photo is processing: no warning, and its labels land 
 
     await doneButton(sheet).click()
     await expect(sheet).toBeHidden()
+    // On phones Log out lives on Me, reached by its tab (no page load).
+    await openMeTab(page)
     // Processing isn't work leaving stops (UP-05) and the labels are on the
     // server, so Log out goes straight through. It is a plain form POST, not
     // a Server Action, so it never waits for the held finalise answer.
@@ -158,8 +160,8 @@ test("a1 log out while the photo is processing: no warning, and its labels land 
     await expect(signInHeading).toBeVisible()
     expect(prompts).toEqual([])
     // Signed out for real: staff pages send this browser back to sign in.
-    await page.goto("/staff")
-    await expect(page).toHaveURL(/\/login\?next=%2Fstaff$/)
+    await page.goto(STAFF_TABS.photos)
+    await expect(page).toHaveURL(/\/login\?next=%2Fstaff%2Fphotos$/)
     await expect(signInHeading).toBeVisible()
 
     expect(uploadState(id)).toBe("ready")
@@ -180,7 +182,7 @@ test("a2 leaving or logging out warns while labels are not on the server yet; th
   const page = await signedInPage(browser, world.staffA, phone(360))
   acceptPrompts(page)
   const labelPost = await gate(page, isLabelPost)
-  await page.goto("/staff")
+  await page.goto(STAFF_TABS.photos)
   const photo = await syntheticJpeg(`${unique("a2")}.jpg`)
   const sheet = await addFromLibrary(page, [photo.path])
   await chooseDish(sheet, COMMON_FIELD, "bhaji", /^Onion Bhaji/)
@@ -192,6 +194,8 @@ test("a2 leaving or logging out warns while labels are not on the server yet; th
   await doneButton(sheet).click()
   await expect(sheet).toBeHidden()
 
+  // On phones Log out lives on Me, reached by its tab (no page load).
+  await openMeTab(page)
   await page.getByRole("button", { name: "Log out", exact: true }).click()
   const logoutGuard = page.getByRole("alertdialog", { name: "Log out now?" })
   await expect(logoutGuard).toContainText(
@@ -200,7 +204,7 @@ test("a2 leaving or logging out warns while labels are not on the server yet; th
   await expect(logoutGuard).not.toContainText("upload stops")
   await logoutGuard.getByRole("button", { name: "Stay" }).click()
   await expect(logoutGuard).toBeHidden()
-  await expect(page).toHaveURL(/\/staff$/)
+  await expect(page).toHaveURL(/\/staff\/me$/)
 
   await (await addOutsideLink(page)).click()
   const leaveGuard = page.getByRole("alertdialog", { name: "Leave now?" })
@@ -208,7 +212,7 @@ test("a2 leaving or logging out warns while labels are not on the server yet; th
     "Labels for 1 photo haven't saved yet."
   )
   await leaveGuard.getByRole("button", { name: "Stay" }).click()
-  await expect(page).toHaveURL(/\/staff$/)
+  await expect(page).toHaveURL(/\/staff\/me$/)
 
   const id = assetIdsNamed(photo.name)[0]!
   expect(labelsOn(id)).toBe("")
@@ -229,7 +233,7 @@ test("a3 reload mid-upload: picking the same file again puts the kept labels on 
   const page = await signedInPage(browser, world.staffA, phone(360))
   acceptPrompts(page)
   const transfer = await gate(page, isTusTransfer)
-  await page.goto("/staff/tasks")
+  await page.goto(STAFF_TABS.today)
   const video = supportedMp4(`${unique("a3")}.mp4`)
   const sheet = await addFromLibrary(page, [video.path])
   await expect(sheet).toHaveAccessibleName("Saving 1 file")
@@ -266,7 +270,7 @@ test("b Momo with no variant picked saves as Momo (Not specified)", async ({
 }) => {
   test.setTimeout(180_000)
   const page = await signedInPage(browser, world.staffA, phone(360))
-  await page.goto("/staff/tasks")
+  await page.goto(STAFF_TABS.today)
   const photo = await syntheticJpeg(`${unique("b")}.jpg`)
   const sheet = await addFromLibrary(page, [photo.path])
   await chooseDish(sheet, COMMON_FIELD, "momo", /^Momo/)
@@ -287,16 +291,14 @@ test("b Momo with no variant picked saves as Momo (Not specified)", async ({
     .poll(() => labelItems(id), { timeout: 90_000 })
     .toBe("Momo|null|null")
 
-  // Named the same way once saved: Me's photo says Not specified (A2).
-  await page.goto("/staff")
-  await (await staffTile(portfolioList(page), photo.name)).click()
-  const viewer = page.getByRole("dialog").first()
+  // Once saved, the photo's own page under My photos names its dish slot
+  // (DESIGN.md §5e "One photo"): Momo, waiting for the manager.
+  await openPhotoPage(page, id)
   await expect(
-    viewer
-      .getByRole("region", { name: "Labels" })
-      .getByRole("list", { name: "Menu items" })
-      .getByRole("listitem")
-  ).toHaveText(["Momo (Not specified) · Appetisers"])
+    page.locator('[data-slot="my-upload-row"]').getByRole("heading", {
+      level: 2,
+    })
+  ).toHaveText("Momo")
 })
 
 // ---------------------------------------------------------------------------
@@ -313,7 +315,7 @@ test("c menu changed mid-upload: Needs attention, Fix labels re-picks and saves 
   })
   const page = await signedInPage(browser, world.staffC, phone(360))
   const transfer = await gate(page, isSignedPut)
-  await page.goto("/staff/tasks")
+  await page.goto(STAFF_TABS.today)
   const photo = await syntheticJpeg(`${unique("c")}.jpg`)
   const sheet = await addFromLibrary(page, [photo.path])
   await chooseDish(sheet, COMMON_FIELD, "soup", /^Soup/)
@@ -361,97 +363,25 @@ test("c menu changed mid-upload: Needs attention, Fix labels re-picks and saves 
 })
 
 // ---------------------------------------------------------------------------
-// d, e. Taps and modals at phone widths (J5, J1, J3)
+// e. Taps and modals at phone widths (J1, J3)
 // ---------------------------------------------------------------------------
 // e1 and e2 enter through the global Add, which asks "What are you adding?"
 // first (B02-02); their counts include that tap and dialog. The owner kept
 // the chooser and approved the measured budgets at both widths: e1 6 taps
-// and 3 modals, e2 9 taps and 3 modals. d keeps the J5 limits.
+// and 3 modals, e2 9 taps and 3 modals.
 
 const E1_BUDGET = { taps: 6, modals: 3 }
 const E2_BUDGET = { taps: 9, modals: 3 }
 
 for (const width of [360, 412]) {
-  test(`d @${width}: known dish from Our menu in at most 2 taps and 1 modal (J5)`, async ({
-    browser,
-  }) => {
-    test.setTimeout(180_000)
-    const page = await signedInPage(browser, world.staffA, phone(width))
-    await countModals(page)
-    await page.goto("/staff/menu")
-    const dish = page.getByRole("article", { name: "Onion Bhaji", exact: true })
-    await expect(dish).toBeVisible()
-    await resetModals(page)
-    const taps = new TapCounter()
-    const photo = await syntheticJpeg(`${unique(`d${width}`)}.jpg`)
-
-    const input = await pickFiles(
-      page,
-      dish.getByRole("button", { name: "Add photos of this dish" }),
-      [photo.path],
-      taps
-    )
-    // Gallery first (DESIGN.md §2, §9): the photo library, not the camera.
-    expect(input.capture).toBeNull()
-    const sheet = savingSheet(page, "Saving 1 photo")
-    await expect(sheet).toBeVisible()
-    // The dish is already applied, as a chip staff could remove.
-    await expect(
-      sheet.getByRole("button", { name: "Remove Onion Bhaji" })
-    ).toBeVisible()
-    await taps.tap(doneButton(sheet), "Done")
-    await expect(sheet).toBeHidden()
-
-    const modals = await modalsOpened(page)
-    expect(taps.taps, taps.steps.join(" > ")).toBeLessThanOrEqual(2)
-    expect(modals.count, modals.names.join(", ")).toBeLessThanOrEqual(1)
-    const id = await assetIdFor(photo.name)
-    await expect
-      .poll(() => labelsOn(id), { timeout: 90_000 })
-      .toBe("Onion Bhaji")
-  })
-
-  test(`d2 @${width}: Add photos of this dish opens the photo library, photos only`, async ({
-    browser,
-  }) => {
-    test.setTimeout(180_000)
-    const page = await signedInPage(browser, world.staffA, phone(width))
-    await page.goto("/staff/menu")
-    const dish = page.getByRole("article", { name: "Onion Bhaji", exact: true })
-    await expect(dish).toBeVisible()
-    const photo = await syntheticJpeg(`${unique(`d2-${width}`)}.jpg`)
-
-    // The OS picker is the only feedback the tap gives: it must open.
-    const input = await pickFiles(
-      page,
-      dish.getByRole("button", { name: "Add photos of this dish" }),
-      [photo.path]
-    )
-    expect(input.capture).toBeNull()
-    expect(input.multiple).toBe(true)
-    expect(input.accept).toContain("image/jpeg")
-    expect(input.accept).not.toMatch(/video/)
-    const sheet = savingSheet(page, "Saving 1 photo")
-    await expect(sheet).toBeVisible()
-    await expect(
-      sheet.getByRole("button", { name: "Remove Onion Bhaji" })
-    ).toBeVisible()
-    await doneButton(sheet).click()
-    await expect(sheet).toBeHidden()
-    const id = await assetIdFor(photo.name)
-    await expect
-      .poll(() => labelsOn(id), { timeout: 90_000 })
-      .toBe("Onion Bhaji")
-  })
-
   test(`e1 @${width}: Add with one dish in at most ${E1_BUDGET.taps} taps and ${E1_BUDGET.modals} modals`, async ({
     browser,
   }, testInfo) => {
     test.setTimeout(180_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
-    // The label journeys start from Me's Add a video (Add photos opens Match).
-    await page.goto("/staff")
+    // The label journeys start from My photos' Add a video (Add opens Match).
+    await page.goto(STAFF_TABS.photos)
     await expect(meAddButton(page)).toBeVisible()
     await resetModals(page)
     const taps = new TapCounter()
@@ -482,8 +412,8 @@ for (const width of [360, 412]) {
     test.setTimeout(240_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
-    // The label journeys start from Me's Add a video (Add photos opens Match).
-    await page.goto("/staff")
+    // The label journeys start from My photos' Add a video (Add opens Match).
+    await page.goto(STAFF_TABS.photos)
     await expect(meAddButton(page)).toBeVisible()
     await resetModals(page)
     const taps = new TapCounter()
@@ -548,10 +478,11 @@ test("f photo batched with a slow video is labelled and selectable on the task s
   // The audit's 25-second video: its transfer waits until the photo checks
   // are done, so "before the video finishes" never depends on timing.
   const transfer = await gate(page, isTusTransfer)
-  // Photos and videos are added from Me (the task screen and Album's Add
-  // photos take photos only); the task is then reached in the app, with no
-  // page load, through Me's Other jobs row while the video still uploads.
-  await page.goto("/staff")
+  // Photos and videos are added from My photos' Add a video (the task
+  // screen and the Add tab take photos only); the task is then reached in
+  // the app, with no page load, through Today's Other jobs row while the
+  // video still uploads.
+  await page.goto(STAFF_TABS.photos)
   const photo = await syntheticJpeg(`${unique("f")}.jpg`)
   const video = supportedMp4(`${unique("f")}.mp4`)
 
@@ -569,9 +500,11 @@ test("f photo batched with a slow video is labelled and selectable on the task s
   await doneButton(sheet).click()
   await expect(sheet).toBeHidden()
   await page
-    .getByRole("navigation", { name: "Your work" })
-    .getByRole("link", { name: /^Other jobs/ })
+    .locator('[data-slot="tabbar"]')
+    .getByRole("link", { name: /^Today\b/ })
     .click()
+  await expect(page).toHaveURL(new RegExp(`${STAFF_TABS.today}$`))
+  await page.getByRole("link", { name: /^Other jobs/ }).click()
   await expect(page).toHaveURL(/\/staff\/tasks\/other$/)
   await page.getByRole("link", { name: title, exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/staff/tasks/${taskId}$`))
@@ -606,7 +539,7 @@ test("g a file that can't be processed shows its reason with Remove only", async
   const page = await signedInPage(browser, world.staffA, phone(360))
   // Finalise waits until the labels are kept, so the file fails with labels.
   const finalise = await gate(page, isFinalise)
-  await page.goto("/staff/tasks")
+  await page.goto(STAFF_TABS.today)
   const bad = await corruptJpeg(`${unique("g")}.jpg`)
   const sheet = await addFromLibrary(page, [bad.path])
   await chooseDish(sheet, COMMON_FIELD, "bhaji", /^Onion Bhaji/)

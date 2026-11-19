@@ -18,7 +18,8 @@ import {
 } from "../fixtures/uploads/support"
 import { openEmailLink } from "./helpers/email-link"
 import { provisioner, requireIsolatedStack } from "./helpers/stack"
-import { STAFF_LANDING } from "./helpers/ui"
+import { openMeTab } from "./helpers/s3-upload"
+import { openMyPhotos, STAFF_LANDING } from "./helpers/ui"
 import { meAddButton, savingSheet } from "./helpers/upload-label-flow"
 import { provisionWorld, signedInPage, type Person } from "./helpers/world"
 
@@ -135,8 +136,8 @@ async function recordProbe(page: Page, info: TestInfo) {
 }
 
 /**
- * Me's Add a video while idle: the upload sheet, which holds the resume block. The
- * Album tab's Add photos opens Match (DESIGN.md §6.1), not this sheet.
+ * My photos' Add a video while idle: the upload sheet, which holds the resume
+ * block. The Add tab opens Match (DESIGN.md §6.1), not this sheet.
  */
 async function openAddSheet(page: Page) {
   await meAddButton(page).click()
@@ -145,7 +146,7 @@ async function openAddSheet(page: Page) {
   return sheet
 }
 
-/** Me's Add a video, then the library in the upload sheet. */
+/** My photos' Add a video, then the library in the upload sheet. */
 async function pickFromAdd(page: Page, files: string[]) {
   const sheet = await openAddSheet(page)
   const chooser = page.waitForEvent("filechooser")
@@ -170,10 +171,12 @@ async function holdPatchesFrom(page: Page, offset: number) {
   return held
 }
 
-/** Me, where Add with the upload sheet (and its resume block) lives. */
+/**
+ * My photos, where Add a video opens the upload sheet (and its resume
+ * block) (DESIGN.md §5e).
+ */
 async function openStaff(page: Page) {
-  await page.goto("/staff")
-  await expect(page).toHaveURL(/\/staff$/)
+  await openMyPhotos(page)
 }
 
 /** Signs `who` in on this page (same browser context: same device). */
@@ -311,9 +314,9 @@ test("capture-journal: sign-out mid-upload empties the journal and keys; account
 }, info) => {
   const world = await provisionWorld()
   const page = await signedInPage(browser, world.staffA, view(info))
-  // Me, where phones log out; a page load later would meet beforeunload.
-  await page.goto("/staff")
-  await expect(page).toHaveURL(/\/staff$/)
+  // My photos' Add a video; Me (where phones log out) is then a tab away,
+  // a client navigation, since a page load would meet beforeunload.
+  await openStaff(page)
   const held = await holdPatchesFrom(page, 6 * MiB)
   await pickFromAdd(page, [fixtureFile(PHOTO)])
   await expect.poll(() => held.length, { timeout: 90_000 }).toBeGreaterThan(0)
@@ -325,6 +328,7 @@ test("capture-journal: sign-out mid-upload empties the journal and keys; account
   await expect(savingSheet(page)).toBeHidden()
 
   // Log out from Me, past the leave guard.
+  await openMeTab(page)
   await page.getByRole("main").getByRole("button", { name: "Log out" }).click()
   const confirm = page.getByRole("alertdialog", { name: "Log out now?" })
   await expect(confirm).toBeVisible()

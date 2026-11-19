@@ -7,7 +7,8 @@ import {
   seedReadyVideo,
 } from "../fixtures/menus/journey-helpers"
 import { requireIsolatedStack } from "../e2e/helpers/stack"
-import { portfolioList } from "../e2e/helpers/ui"
+import { myPhotoTiles } from "../e2e/helpers/s3-upload"
+import { openMyPhotos } from "../e2e/helpers/ui"
 import {
   provisionWorld,
   seedReadyAssets,
@@ -16,9 +17,11 @@ import {
 
 /**
  * Journey menus.d1-video-tile-name (MENUS-D1, docs/qa/menus-qa-report.md §4):
- * staff portfolio tiles must keep their visible text (duration, label badge)
- * inside their accessible name (WCAG 2.5.3 Label in Name). Asserts the correct
- * behaviour, so it fails while the defect exists.
+ * a staff member's own photo tiles must keep any visible text inside their
+ * accessible name (WCAG 2.5.3 Label in Name). Me's portfolio, where the
+ * defect was found, was replaced by My photos (DESIGN.md §5e, D19): its tiles
+ * are links named by what the photo is and its mark ("Video, Waiting"), and
+ * never by file name.
  */
 
 test.beforeAll(() => requireIsolatedStack())
@@ -52,20 +55,15 @@ test("menus.d1-video-tile-name: video and photo tiles name what they show", asyn
   await labelContentTypes(world.staffA, photo, ["dish"])
 
   const page = await signedInPage(browser, world.staffA)
-  await page.goto("/staff")
-  const list = portfolioList(page)
+  await openMyPhotos(page)
+  const tiles = myPhotoTiles(page)
   // Not vacuous: both video tiles and the photo tile must be on the page.
-  await expect(
-    list.getByRole("button", { name: /^Video, uploaded / })
-  ).toHaveCount(2)
-  await expect(
-    list.getByRole("button", { name: /^Photo, uploaded / })
-  ).toHaveCount(1)
-  await attachShot(testInfo, "staff-portfolio", page)
+  await expect(tiles).toHaveCount(3)
+  await attachShot(testInfo, "staff-my-photos", page)
 
   await test.step("axe: no label-content-name-mismatch on any tile", async () => {
     const result = await new AxeBuilder({ page })
-      .include('ul[aria-label="Your portfolio"]')
+      .include('[data-slot="my-photos"]')
       .withRules(["label-content-name-mismatch"])
       .analyze()
     expect(
@@ -74,36 +72,33 @@ test("menus.d1-video-tile-name: video and photo tiles name what they show", asyn
   })
 
   await test.step("every visible line of a tile is part of its accessible name", async () => {
-    const tiles = await list.locator("figure").evaluateAll((figures) =>
-      figures.map((figure) => ({
-        name: figure.querySelector("button")?.getAttribute("aria-label") ?? "",
-        visible: (figure as HTMLElement).innerText
+    const named = await tiles.evaluateAll((links) =>
+      links.map((link) => ({
+        name: link.getAttribute("aria-label") ?? "",
+        visible: (link as HTMLElement).innerText
           .split("\n")
           .map((line) => line.trim())
           .filter(Boolean),
       }))
     )
-    expect(tiles).toHaveLength(3)
-    for (const { name, visible } of tiles) {
+    expect(named).toHaveLength(3)
+    for (const { name, visible } of named) {
+      expect(name, "every tile has a name").not.toBe("")
       for (const line of visible) {
         expect(name.toLowerCase(), `"${line}" in "${name}"`).toContain(
           line.toLowerCase()
         )
       }
     }
-    // Staff tile names leave out file names, so tell the two videos apart
-    // by their label state.
+    // Staff tile names leave out file names.
     expect(
-      tiles.every((t) => !t.name.includes("jr-d1-")),
+      named.every((t) => !t.name.includes("jr-d1-")),
       "no tile name carries a file name"
     ).toBe(true)
-    const videos = tiles.filter((t) => t.name.startsWith("Video"))
-    const video = videos.find((t) => t.name.endsWith(", 2 labels"))
-    expect(video, "the labelled video tile").toBeDefined()
-    expect(video!.visible).toEqual(expect.arrayContaining(["<0:01"]))
-    expect(video!.name).toMatch(/duration <0:01, 2 labels$/)
-    const needs = videos.find((t) => t.name.endsWith(", Needs labels"))
-    expect(needs, "the unlabelled video tile").toBeDefined()
-    expect(needs!.name).toMatch(/duration 1:15, Needs labels$/)
+    // Each name says what it is and its mark (§5e step 6).
+    for (const { name } of named)
+      expect(name).toMatch(
+        /, (Needs you|Waiting|In the album|Not in the album)$/
+      )
   })
 })

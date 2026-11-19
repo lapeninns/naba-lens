@@ -32,10 +32,20 @@ import { firefoxLaunchOptions } from "./helpers/firefox"
 import { syntheticJpeg } from "./helpers/media"
 import { mailboxIds, SUBJECTS, waitForLink } from "./helpers/mailpit"
 import {
+  myPhotoTile,
+  myPhotoTileById,
+  myPhotoTiles,
+  needsYouInbox,
+  openMeTab,
+} from "./helpers/s3-upload"
+import {
   ADMIN_LANDING,
-  openPortfolio,
+  libraryList,
+  myPhotos,
+  openMyPhotos,
   STAFF_LANDING,
-  staffTile,
+  STAFF_TABS,
+  tile,
   uploadSheet,
 } from "./helpers/ui"
 
@@ -105,7 +115,7 @@ async function signIn(
     `/auth/confirm?token_hash=${link.data.properties.hashed_token}&type=email`
   )
   await expect(page).toHaveURL(home)
-  if (home === STAFF_LANDING) await openPortfolio(page)
+  if (home === STAFF_LANDING) await openMyPhotos(page)
   return page
 }
 
@@ -350,30 +360,36 @@ test.describe("upload recovery in the real UI", () => {
     await dialog.screenshot({ path: testInfo.outputPath("batch-dialog.png") })
     await dialog.getByRole("button", { name: "Done" }).click()
 
-    // Reload and a fresh context show the same states from the server.
-    const expectPortfolio = async (p: Page) => {
-      const portfolio = p.getByRole("list", { name: "Your portfolio" })
-      await expect(portfolio.getByRole("button")).toHaveCount(20)
+    // Reload and a fresh context show the same states from the server, on
+    // My photos (DESIGN.md §5e): a file that didn't finish is a "Photo" that
+    // needs the person, listed in Needs you with what to do; a finished one
+    // is named by its slot ("No slot yet") or as a video.
+    const expectMyPhotos = async (p: Page) => {
+      await expect(myPhotoTiles(p)).toHaveCount(20)
       await expect(
-        portfolio.getByRole("button", { name: /, Failed$/ })
+        myPhotoTiles(p).and(p.getByRole("link", { name: "Photo, Needs you" }))
       ).toHaveCount(2)
-      const disguised = await staffTile(portfolio, "disguised.jpg", staff.id)
+      await expect(
+        needsYouInbox(p)
+          .getByRole("listitem")
+          .filter({ hasText: "Didn't finish. Add it again from your gallery." })
+      ).toHaveCount(2)
+      const disguised = await myPhotoTile(p, "disguised.jpg", staff.id)
       await expect(disguised).toBeVisible()
-      await expect(disguised).toHaveAccessibleName(/^Photo, .*Failed$/)
+      await expect(disguised).toHaveAccessibleName("Photo, Needs you")
       for (const name of valid) {
-        const tile = await staffTile(portfolio, name, staff.id)
+        const tile = await myPhotoTile(p, name, staff.id)
         await expect(tile).toBeVisible()
-        await expect(tile).not.toHaveAccessibleName(
-          /(Uploading|Stopped|Processing|Failed)$/
-        )
+        await expect(tile).toHaveAccessibleName(/^(No slot yet|Video), /)
+        await expect(tile).not.toHaveAccessibleName(/Waiting$/)
       }
     }
     await page.reload()
-    await expectPortfolio(page)
+    await expectMyPhotos(page)
     const fresh = await signIn(browser, staff, baseURL!)
-    await expectPortfolio(fresh)
+    await expectMyPhotos(fresh)
     await fresh.screenshot({
-      path: testInfo.outputPath("batch-portfolio.png"),
+      path: testInfo.outputPath("batch-my-photos.png"),
       fullPage: true,
     })
     await fresh.context().close()
@@ -439,7 +455,7 @@ test.describe("upload recovery in the real UI", () => {
     let heldReserve: Route | null = null
     let heldPut: Route | null = null
     await page.route(
-      (url) => url.pathname === "/staff",
+      (url) => url.pathname === STAFF_TABS.photos,
       async (route) => {
         const req = route.request()
         if (
@@ -505,21 +521,22 @@ test.describe("upload recovery in the real UI", () => {
     expect(rows.map((r) => r.original_filename)).not.toContain("eleventh.jpg")
     await dialog.getByRole("button", { name: "Done" }).click()
 
-    // Until cleanup, the portfolio lists them as unfinished, never ready:
-    // stopped, since nothing on this device is sending them any more.
-    const portfolio = page.getByRole("list", { name: "Your portfolio" })
+    // Until cleanup, My photos lists them as unfinished, never ready: still
+    // waiting, and counted in its Sending line.
     await page.reload()
     await expect(
-      portfolio.getByRole("button", { name: /^Photo, uploaded .*Stopped$/ })
+      myPhotoTiles(page).and(page.getByRole("link", { name: "Photo, Waiting" }))
     ).toHaveCount(2)
     for (const r of cancelled) {
-      await expect(
-        portfolio.locator(`button[data-media-id="${r.id}"]`)
-      ).toHaveAccessibleName(/Stopped$/)
+      await expect(myPhotoTileById(page, r.id)).toHaveAccessibleName(
+        "Photo, Waiting"
+      )
     }
     await expect(
-      portfolio.getByRole("button", { name: "Open Add" })
-    ).toHaveCount(2)
+      myPhotos(page)
+        .getByRole("status")
+        .filter({ hasText: "Sending 2 photos…" })
+    ).toBeVisible()
 
     // Cleanup (24 h window) removes the abandoned reservations.
     const { error } = await admin.rpc("prepare_media_cleanup", {
@@ -537,10 +554,8 @@ test.describe("upload recovery in the real UI", () => {
       expect(data!.deleted_at).not.toBeNull()
     }
     await page.reload()
-    await expect(portfolio.getByRole("button")).toHaveCount(1)
-    await expect(
-      await staffTile(portfolio, "retry.jpg", staff.id)
-    ).toBeVisible()
+    await expect(myPhotoTiles(page)).toHaveCount(1)
+    await expect(await myPhotoTile(page, "retry.jpg", staff.id)).toBeVisible()
     await page.context().close()
   })
 
@@ -639,10 +654,10 @@ test.describe("upload recovery in the real UI", () => {
     await dialog.getByRole("button", { name: "Done" }).click()
     await page.unroute(TUS)
 
-    // --- 3. A reload mid-transfer ends it. The portfolio shows the upload as
-    // stopped (the server still has it uploading, nothing here sends it) with
-    // what to do, and choosing the same file again resumes the same asset
-    // from the stored offset.
+    // --- 3. A reload mid-transfer ends it. My photos shows the upload as
+    // waiting (the server still has it uploading) and its page says it is
+    // still being prepared; choosing the same file again resumes the same
+    // asset from the stored offset.
     storage.reset()
     let held = false
     await page.route(TUS, async (route) => {
@@ -666,27 +681,26 @@ test.describe("upload recovery in the real UI", () => {
     expect(rows).toHaveLength(3)
     const unfinished = rows[2]
     expect(unfinished.upload_state).toBe("uploading")
-    const portfolio = page.getByRole("list", { name: "Your portfolio" })
+    const waitingVideo = (p: Page) =>
+      myPhotoTiles(p).and(p.getByRole("link", { name: "Video, Waiting" }))
+    await expect(myPhotoTileById(page, unfinished.id)).toHaveAccessibleName(
+      "Video, Waiting"
+    )
+    await expect(waitingVideo(page)).toHaveCount(1)
+    // A fresh context (another device or browser) shows the same states, and
+    // the video's own page says it is not ready yet.
+    const other = await signIn(browser, staff, baseURL!)
+    await expect(waitingVideo(other)).toHaveCount(1)
     await expect(
-      portfolio.locator(`button[data-media-id="${unfinished.id}"]`)
-    ).toHaveAccessibleName(/^Video, uploaded .*Stopped$/)
+      myPhotoTiles(other).and(other.getByRole("link", { name: /^Video, / }))
+    ).toHaveCount(3)
+    await myPhotoTileById(other, unfinished.id).click()
+    await expect(other).toHaveURL(new RegExp(`/staff/photos/${unfinished.id}$`))
     await expect(
-      portfolio.getByRole("button", { name: /^Video, uploaded .*Stopped$/ })
-    ).toHaveCount(1)
-    await expect(
-      portfolio.getByText(
-        "Stopped. Choose the same video again from Add to finish it; it continues where it stopped."
+      other.getByText(
+        "Still being prepared. It appears under Waiting when it's ready."
       )
     ).toBeVisible()
-    // A fresh context (another device or browser) shows the same states.
-    const other = await signIn(browser, staff, baseURL!)
-    const otherPortfolio = other.getByRole("list", { name: "Your portfolio" })
-    await expect(
-      otherPortfolio.getByRole("button", { name: /Stopped$/ })
-    ).toHaveCount(1)
-    await expect(
-      otherPortfolio.getByRole("button", { name: /^Video, uploaded / })
-    ).toHaveCount(3)
     await other.context().close()
 
     storage.reset()
@@ -700,8 +714,10 @@ test.describe("upload recovery in the real UI", () => {
     expect(rows).toHaveLength(3)
     expect(rows[2]).toMatchObject({ id: unfinished.id, upload_state: "ready" })
     await dialog.getByRole("button", { name: "Done" }).click()
+    await page.reload()
+    await expect(myPhotoTiles(page)).toHaveCount(3)
     await expect(
-      portfolio.getByRole("button", { name: /(Uploading|Stopped)$/ })
+      myPhotoTiles(page).and(page.getByRole("link", { name: /Waiting$/ }))
     ).toHaveCount(0)
     await page.context().close()
   })
@@ -742,7 +758,9 @@ test.describe("upload recovery in the real UI", () => {
     await adminPage.context().close()
     await page.context().close()
 
-    // Per engine: what the staff viewer shows for each video.
+    // Per engine: what the viewer shows for each video. Staff no longer
+    // have a video viewer (My photos shows a video's icon, DESIGN.md §5e);
+    // the admin library's viewer is where a video plays.
     type Cell = {
       canPlayType: string
       outcome: "plays" | "fallback" | "broken"
@@ -778,7 +796,8 @@ test.describe("upload recovery in the real UI", () => {
         continue
       }
       try {
-        const p = await signIn(b, staff, baseURL!)
+        const p = await signIn(b, adminUser, baseURL!, ADMIN_LANDING)
+        await p.goto(`/admin?staff=${staff.id}`)
         matrix[engine] = {}
         h264Support[engine] = await p.evaluate(() =>
           document
@@ -787,10 +806,7 @@ test.describe("upload recovery in the real UI", () => {
         )
         for (const name of videos) {
           const r = rows.find((x) => x.original_filename === name)!
-          await p
-            .getByRole("list", { name: "Your portfolio" })
-            .locator(`button[data-media-id="${r.id}"]`)
-            .click()
+          await tile(libraryList(p), "Video", r.original_filename).click()
           const viewer = p.getByRole("dialog")
           await expect(viewer).toBeVisible()
           const fallback = viewer.getByText(
@@ -1180,8 +1196,8 @@ test.describe("leaving while uploads run", () => {
       held.push(route)
     })
 
-    // Me's Add a video opens the upload dialog (Add photos opens Match).
-    if (new URL(page.url()).pathname !== "/staff") await page.goto("/staff")
+    // My photos' Add a video opens the upload dialog (Add opens Match).
+    await openMyPhotos(page)
     await page
       .getByRole("main")
       .getByRole("button", { name: "Add a video" })
@@ -1218,13 +1234,13 @@ test.describe("leaving while uploads run", () => {
     await keep.click()
     await expect(confirm).toBeHidden()
     await expect(logOut).toBeFocused()
-    await expect(page).toHaveURL(/\/staff$/)
+    await expect(page).toHaveURL(/\/staff\/photos$/)
     expect(held).toHaveLength(2)
 
     // Album's Add photos carries the count, but photos only sending never
     // hold back the next pick: it opens the gallery, not the queue (R-1 SF1;
-    // a failed file opens the queue, the phone test below). Me's own Add
-    // shows the same queue, still running.
+    // a failed file opens the queue, the phone test below). My photos' Add a
+    // video shows the same queue, still running.
     const addPhotos = page
       .getByRole("banner")
       .getByRole("button", { name: /^Add photos\b/ })
@@ -1246,8 +1262,10 @@ test.describe("leaving while uploads run", () => {
     await page.keyboard.press("Escape")
     await expect(queue).toBeHidden()
 
-    // Phones: Log out lives on Me (staff-portfolio), behind the same guard.
+    // Phones: Log out lives on Me, behind the same guard. Me's tab is a
+    // client navigation, so the uploads carry on.
     await page.setViewportSize({ width: 390, height: 844 })
+    await openMeTab(page)
     await page
       .getByRole("main")
       .getByRole("button", { name: "Log out" })
@@ -1272,7 +1290,7 @@ test.describe("leaving while uploads run", () => {
 
     for (const route of held.splice(0)) await route.abort().catch(() => {})
     await page.unrouteAll({ behavior: "ignoreErrors" })
-    await page.goto("/staff")
+    await page.goto(STAFF_TABS.photos)
     await expect(page).toHaveURL(/\/login/)
     await context.close()
   })
@@ -1298,8 +1316,8 @@ test.describe("leaving while uploads run", () => {
     const tabbar = page.locator('[data-slot="tabbar"]')
     const sheet = page.getByRole("dialog", { name: "Add photos", exact: true })
     const queue = uploadSheet(page)
-    // Me's Add a video opens the upload sheet (Add photos opens Match).
-    if (new URL(page.url()).pathname !== "/staff") await page.goto("/staff")
+    // My photos' Add a video opens the upload sheet (Add opens Match).
+    await openMyPhotos(page)
     await page
       .getByRole("main")
       .getByRole("button", { name: "Add a video" })
