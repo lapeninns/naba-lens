@@ -1,11 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { signIn } from "../support/identities"
-import {
-  legacyStaffGrant,
-  provisionCoverageWorld,
-  seedImages,
-} from "./helpers/coverage-world"
+import { provisionCoverageWorld, seedImages } from "./helpers/coverage-world"
+import { convertToManager } from "./helpers/manager-world"
 import { syntheticJpeg } from "./helpers/media"
 import { provisioner, psql, requireIsolatedStack } from "./helpers/stack"
 import {
@@ -21,16 +18,17 @@ import {
   sql,
   TapCounter,
 } from "./helpers/upload-label-flow"
-import { escape } from "./helpers/ui"
+import { escape, STAFF_TABS } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
  * Batch B, ME-1 (G-3 words): a manager asks for another photo of a dish, and
- * the staff member who took it sends a new one from Me in at most two taps
- * (Retake, Done), already labelled with that dish and its variant. The service
- * role only seeds the menu, the grant and the photo bytes; the first label is
- * saved by the uploader's own session and the request goes through the
- * manager's page. Chromium, phone context at 390 px (emulation, not a device).
+ * the staff member who took it sends a new one from Today's retake row
+ * (DESIGN.md §5c step 3) in at most two taps (Retake, Done), already labelled
+ * with that dish. The service role only seeds the menu, the manager account
+ * and the photo bytes; the first label is saved by the uploader's own session
+ * and the request goes through the manager's review page (/manager, D3).
+ * Chromium, phone context at 390 px (emulation, not a device).
  */
 
 async function settled(page: Page) {
@@ -53,7 +51,7 @@ const photoState = (assetId: string, itemId: string) =>
     `select state from public.menu_item_photos where asset_id = ${sql(assetId)}::uuid and item_id = ${sql(itemId)}::uuid and state in ('accepted', 'better_photo_requested', 'needs_recheck')`
   )
 
-test.describe("Needs another photo: retake from Me", () => {
+test.describe("Needs another photo: retake from Today", () => {
   test.setTimeout(300_000)
 
   test("staff take the replacement from the request in two taps, labelled with the dish", async ({
@@ -64,7 +62,8 @@ test.describe("Needs another photo: retake from Me", () => {
     const admin = await signedInPage(browser, w.admin)
     await importRailway(admin, w.venue1.id)
     await admin.context().close()
-    await legacyStaffGrant(w.admin, w.manager, w.venue1)
+    const adminDb = await signIn(provisioner(), w.admin.email)
+    await convertToManager(adminDb, w.manager, w.venue1)
     const momo = activeItemId(w.venue1.id, "appetisers--momo-veg-chicken")
     const veg = vegVariantId(w.venue1.id, momo)
 
@@ -87,33 +86,34 @@ test.describe("Needs another photo: retake from Me", () => {
     // The manager asks for another photo, with a reason.
     const reason = `Show all ten momos, in focus (${w.tag})`
     const manager = await signedInPage(browser, w.manager)
-    await manager.goto("/staff/manage/menu/items")
+    await manager.goto(`/manager/review/photo/${first}`)
     await settled(manager)
-    const card = manager.getByRole("article", {
-      name: new RegExp(`^Momo.*photo by ${escape(w.staffA.name)}`),
+    await manager
+      .getByRole("button", { name: "Ask for another photo" })
+      .first()
+      .click()
+    const ask = manager.getByRole("dialog", {
+      name: /^Ask for another photo: Momo/,
     })
-    await card.getByRole("button", { name: "Ask for another photo" }).click()
-    const ask = manager.getByRole("dialog", { name: "Ask for another photo" })
-    await ask.getByRole("textbox", { name: /Reason/ }).fill(reason)
-    await ask.getByRole("button", { name: "Ask for another photo" }).click()
+    await ask
+      .getByRole("textbox", { name: "Add a short note (optional)" })
+      .fill(reason)
+    await ask.locator('[data-review-action="send-ask"]').click()
     await expect(ask).toBeHidden()
     await expect
       .poll(() => photoState(first!, momo))
       .toBe("better_photo_requested")
     await manager.context().close()
 
-    // Staff A on a phone: the note is on Me with the dish and the reason
-    // (my_retake_notes, shared with Home).
+    // Staff A on a phone: Today's retake row names the dish and the reason
+    // (my_retake_notes, DESIGN.md §5c step 3).
     const page = await signedInPage(browser, w.staffA, phone(390))
-    await page.goto("/staff")
+    await page.goto(STAFF_TABS.today)
     await settled(page)
-    const section = page.getByRole("region", {
-      name: /^Needs another photo/,
+    const take = page.getByRole("button", {
+      name: new RegExp(`Momo.*: ${escape(reason)}`),
     })
-    await expect(section).toBeVisible()
-    const request = section.getByRole("article", { name: "Momo (Veg)" })
-    await expect(request).toContainText(reason)
-    const take = request.getByRole("button", { name: "Retake: Momo (Veg)" })
+    await expect(take).toBeVisible()
     const takeBox = await take.boundingBox()
     expect(takeBox?.height ?? 0).toBeGreaterThanOrEqual(44)
 
@@ -132,29 +132,23 @@ test.describe("Needs another photo: retake from Me", () => {
     await expect(sheet).toBeHidden()
     expect(taps.taps, taps.steps.join(" > ")).toBeLessThanOrEqual(2)
 
-    // The new photo is staff A's, labelled Momo (Veg): it is waiting for the
-    // manager under that dish.
+    // The new photo is staff A's, labelled Momo: it is waiting for the
+    // manager under that dish. Today's retake row names the dish only
+    // (HomeRetakes presets the item with no variant), so the variant the
+    // first photo had (Veg) is not carried over.
     const id = await assetIdFor(photo.name)
     expect(
       psql(`select uploader_id from public.media_assets where id = ${sql(id)}`)
     ).toBe(w.staffA.id)
     await expect
       .poll(() => labelItems(id), { timeout: 90_000 })
-      .toBe(`Momo|${veg}|Veg`)
+      .toBe("Momo|null|null")
 
     // The server decides the note is retaken once the new photo is labelled:
-    // it says it was sent and offers only a quiet Add another.
+    // Today no longer asks for it.
     await page.reload()
     await settled(page)
-    await expect(request).toContainText("New photo sent · waiting for review")
-    await expect(request.getByRole("button", { name: /^Retake/ })).toHaveCount(
-      0
-    )
-    const again = request.getByRole("button", {
-      name: "Add another: Momo (Veg)",
-    })
-    await expect(again).toBeVisible()
-    expect((await again.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
+    await expect(take).toHaveCount(0)
 
     // No page scrolls sideways at 390 px.
     expect(
