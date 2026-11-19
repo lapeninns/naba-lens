@@ -15,7 +15,7 @@ import {
 /**
  * FA-53 (spec §15.3): Naba-Lens is installable and browser use is unchanged.
  * The manifest, icons and Apple touch icon are served to signed-out browsers
- * with the security headers and nothing about anyone; Me › Help and account
+ * with the security headers and nothing about anyone; Me › Settings
  * offers Add to home screen only while the browser fires
  * `beforeinstallprompt` (hidden once answered), and Safari's steps on iOS.
  *
@@ -136,9 +136,9 @@ for (const [size, options] of SIZES) {
     page.on("console", (m) => {
       if (/Content Security Policy/i.test(m.text())) csp.push(m.text())
     })
-    await page.goto("/staff")
+    await page.goto("/staff/me/settings")
     await expect(
-      page.getByRole("heading", { name: "Help and account" })
+      page.getByRole("heading", { name: "Settings", level: 1 })
     ).toBeVisible()
     // Chromium has not offered installation: nothing to show.
     await expect(installHeading(page)).toHaveCount(0)
@@ -177,7 +177,7 @@ test("FA-53 (phone 390, iPhone Safari): Me shows the Share › Add to Home Scree
     ...PHONE,
     userAgent: IPHONE_SAFARI,
   })
-  await page.goto("/staff")
+  await page.goto("/staff/me/settings")
   await expect(installHeading(page)).toBeVisible()
   const card = page.locator('[data-slot="me-install"]')
   await expect(card).toHaveAttribute("data-offer", "ios")
@@ -197,9 +197,9 @@ test("FA-53 (desktop 1280): a desktop browser with no install offer shows nothin
 }) => {
   const w = await provisionWorld()
   const page = await as(browser, w.staffB, DESKTOP)
-  await page.goto("/staff")
+  await page.goto("/staff/me/settings")
   await expect(
-    page.getByRole("heading", { name: "Help and account" })
+    page.getByRole("heading", { name: "Settings", level: 1 })
   ).toBeVisible()
   await expect(installHeading(page)).toHaveCount(0)
 })
