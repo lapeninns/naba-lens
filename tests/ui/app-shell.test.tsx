@@ -92,7 +92,12 @@ describe("AppShell staff navigation", () => {
         screen
           .getAllByRole("navigation", { name: "Staff" })
           .find((el) => el.dataset.slot === "tabbar")!.children
-      ).map((el) => el.textContent)
+      ).map((el) => {
+        // The aria-hidden narrow word (departure V2-15) is not the name.
+        const copy = el.cloneNode(true) as Element
+        copy.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove())
+        return copy.textContent
+      })
     ).toEqual(["Today", "Album", "Add", "My photos, 2 retakes", "Me"])
     expect(tabbar.queryByRole("link", { name: /Manage/ })).toBeNull()
   })
