@@ -1381,4 +1381,15 @@ it("counts the next menu like current coverage: no duplicate copies, no optional
       inactive: 1,
     })
   )
+  // An archived dish leaves the next menu's count, as it leaves coverage.
+  psql(`update public.menu_items set archived_at = now()
+    where id = '${v.id("mains--korma")}'`)
+  expect(await next()).toContainEqual(
+    expect.objectContaining({
+      category: "food",
+      total: 1,
+      covered: 1,
+      missing: 0,
+    })
+  )
 })
