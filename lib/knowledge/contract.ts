@@ -921,7 +921,11 @@ export type SlotHistoryView = {
     questionVersion: number
     /** B08 M1: the registry version in force at `at` (null before B03). */
     registryVersion?: number | null
-    /** B08 M1: freshness as it read at `at`, under the policies then. */
+    /**
+     * B08 M1: freshness as it read at `at`, under the policies then. Computed
+     * even when `withdrawn` is true and without scope: read `withdrawn` first.
+     * A history read; B08 scoring uses stored facts instead (B08 §6.2a).
+     */
     freshness?: FreshnessEntry[]
     selectionRule:
       | "adopted"

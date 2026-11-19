@@ -175,7 +175,29 @@ describe("freshness as it read at a time (B08 M1)", () => {
       )
     ).toBe("f")
   })
-})
+
+  it("dates a schema_changed recheck from the version in force, not the latest (review R-L1)", () => {
+    // Reads only: a new registry version would be permanent on the shared stack.
+    expect(
+      psql(`select private.knowledge_schema_change_due('guest_toilets', now())
+        = (select greatest(v.created_at, coalesce(v.effective_from, v.created_at))
+           from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.version = 1)`)
+    ).toBe("t")
+    expect(
+      psql(
+        `select private.knowledge_schema_change_due('guest_toilets', '2026-01-01'::timestamptz) is null`
+      )
+    ).toBe("t")
+    expect(
+      psql(`select position('knowledge_schema_change_due(v_row.question_key, p_now)'
+        in pg_get_functiondef('private.knowledge_open_rechecks(timestamptz)'::regprocedure)) > 0`)
+    ).toBe("t")
+    expect(
+      psql(
+        `select has_function_privilege('authenticated', 'private.knowledge_schema_change_due(text,timestamptz)', 'execute')`
+      )
+    ).toBe("f")
+  })})
 
 describe("recheck tasks (§7.4, A11, A24)", () => {
   let w: World
