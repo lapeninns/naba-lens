@@ -31,6 +31,8 @@ import {
   saveOk,
   section,
 } from "./menus-fixtures"
+import { libraryLabelFilterOptions } from "../../lib/server/media/library-labels"
+import { actorFor } from "../slice/media-actor"
 import { removeAsAdmin } from "./privacy-fixtures"
 
 const service = serviceClient()
@@ -1207,6 +1209,71 @@ describe("running specials across dish readers", () => {
     expect(
       notes.find((n) => n.kind === "menu" && n.asset_id === asset.id)
     ).toMatchObject({ status: "open", can_retake: true })
+  })
+
+  it("accepts the special as a photo-set and export subject, and lists it as a current Library filter", async () => {
+    expect(
+      psql(
+        `select private.contribution_subject_exists('${v.venue}', 'menu_item', '${special}'),
+          private.contribution_subject_exists('${v.venue}', 'menu_item', '${w.id("mains--korma")}')`
+      ).trim()
+    ).toBe("t|f")
+    const group = (await ok(
+      v.staff.client.rpc("contribution_group_start", {
+        p_key: randomUUID(),
+        p_subject_kind: "menu_item",
+        p_subject_id: special,
+      })
+    )) as string
+    expect(
+      await ok(v.staff.client.rpc("contribution_group", { p_group_id: group }))
+    ).toMatchObject({
+      subject: { kind: "menu_item", id: special, name: "TEST Mango lassi" },
+    })
+    // Its own accepted photo of the special: an export candidate.
+    const asset = await reserveReady(service, v.staff)
+    await saveOk(v.staff, {
+      asset: asset.id,
+      revision: 0,
+      types: ["dish"],
+      items: [{ itemId: special, variantId: null }],
+    })
+    await ok(
+      v.mgr.client.rpc("review_menu_item_photo", {
+        p_asset_id: asset.id,
+        p_item_id: special,
+        p_variant_id: null as unknown as string,
+        p_decision: "accepted",
+        p_expected_revision: await head(special),
+      } as never)
+    )
+    expect(
+      psql(
+        `select count(*) from private.export_candidate_rows('${v.venue}', 'public')
+         where subject_kind = 'menu_item' and subject_id = '${special}'
+           and asset_id = '${asset.id}'`
+      ).trim()
+    ).toBe("1")
+    expect(
+      psql(
+        `select private.is_current_photo_item('${v.venue}', '${special}', array['food', 'drinks', 'other'])`
+      ).trim()
+    ).toBe("t")
+    const options = await libraryLabelFilterOptions(
+      await actorFor(admin),
+      v.venue
+    )
+    expect(options.categories).toContainEqual({
+      slug: "drinks-specials",
+      name: "Drinks specials",
+    })
+    expect(options.items).toContainEqual(
+      expect.objectContaining({
+        id: special,
+        name: "TEST Mango lassi",
+        sectionName: "Drinks specials",
+      })
+    )
   })
 
   it("gives the special a brief slot and the admin album a ready menu", async () => {
