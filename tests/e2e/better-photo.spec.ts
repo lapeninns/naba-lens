@@ -132,17 +132,16 @@ test.describe("Needs another photo: retake from Today", () => {
     await expect(sheet).toBeHidden()
     expect(taps.taps, taps.steps.join(" > ")).toBeLessThanOrEqual(2)
 
-    // The new photo is staff A's, labelled Momo: it is waiting for the
-    // manager under that dish. Today's retake row names the dish only
-    // (HomeRetakes presets the item with no variant), so the variant the
-    // first photo had (Veg) is not carried over.
+    // The new photo is staff A's, labelled Momo (Veg): it is waiting for the
+    // manager under that dish. Today's retake row presets the reviewed
+    // photo's dish and variant, so the replacement keeps Veg.
     const id = await assetIdFor(photo.name)
     expect(
       psql(`select uploader_id from public.media_assets where id = ${sql(id)}`)
     ).toBe(w.staffA.id)
     await expect
       .poll(() => labelItems(id), { timeout: 90_000 })
-      .toBe("Momo|null|null")
+      .toBe(`Momo|${veg}|Veg`)
 
     // The server decides the note is retaken once the new photo is labelled:
     // Today no longer asks for it.

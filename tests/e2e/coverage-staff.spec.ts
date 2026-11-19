@@ -508,6 +508,10 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     await expect(monthly.getByText("Needs setup").first()).toBeVisible()
   })
 
+  /** Album › Menu at a section's shelf, Needed only, scrolled to the section. */
+  const SECTION_SHELF =
+    /\/staff\/album\/menu\?kind=food&shelf=[^&#]+&show=needed#shelf-section-/
+
   test("photo guide: a menu-section task goes to the Album's Menu; the guide teaches the four angles (phone)", async ({
     browser,
     request,
@@ -521,17 +525,17 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     const page = await signedInPage(browser, w.staffA, devices["Pixel 7"])
 
     // G-4: menu work is on the Album's Menu (DESIGN.md §5d, D16). With no
-    // open "needs another photo" request, the section's task link ends there
-    // (a soft redirect through loading.tsx, then the retired Our menu URL's
-    // redirect, which keeps no section).
+    // open "needs another photo" request, the section's task link opens the
+    // section's shelf at that section, showing the dishes still needed.
     expect(sectionId).toMatch(/^[0-9a-f-]{36}$/)
     await page.goto(`/staff/tasks/${startersId}`)
-    await expect(page).toHaveURL(/\/staff\/album\/menu$/)
+    await expect(page).toHaveURL(SECTION_SHELF)
+    // The shelf is the page; the task's section is a heading inside it.
     await expect(
-      page.getByRole("heading", { level: 1, name: "Menu" })
+      page.getByRole("heading", { level: 2, name: "Starters" })
     ).toBeVisible()
     await page.goto(`/staff/tasks/${startersId}?replaces=${randomUUID()}`)
-    await expect(page).toHaveURL(/\/staff\/album\/menu$/)
+    await expect(page).toHaveURL(SECTION_SHELF)
 
     // The full guide: the examples open full screen, no angle marked.
     await page.goto("/staff/tasks/guide")

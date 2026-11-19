@@ -518,9 +518,12 @@ test.describe("retired staff Manage (decision D3; DESIGN.md §15)", () => {
     const manager = await signedInPage(browser, w.manager)
     const staff = await signedInPage(browser, w.staffA)
     const checkId = randomUUID()
-    // Each retired page redirects to its /manager screen; the staff layout
-    // sends a manager account to the workspace home first, so either is the
-    // landing. The staff-side checklist has no /manager screen.
+    // Each retired page redirects to its /manager twin, but the staff
+    // layout's requireActiveStaff sends a manager account to /manager before
+    // the page's own redirect runs, so today it lands on the workspace home
+    // (open app defect, 19 Nov 2026). Either is accepted until that is fixed;
+    // then tighten this to the twin. The staff-side checklist has no /manager
+    // screen, so it lands on the workspace home.
     for (const [from, to] of [
       ["/staff/manage", "/manager"],
       ["/staff/manage/review", "/manager/review"],
