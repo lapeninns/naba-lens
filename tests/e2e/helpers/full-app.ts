@@ -31,14 +31,28 @@ export const SIZES = {
 } satisfies Record<string, BrowserContextOptions>
 export type SizeName = keyof typeof SIZES
 
-/** Album (Home) once its content, not the loading skeleton, is on screen. */
-export async function openAlbum(page: Page) {
-  if (new URL(page.url()).pathname !== "/staff/tasks")
-    await page.goto("/staff/tasks")
-  await expect(page.locator('[data-slot="album-home"]')).toBeVisible()
+/**
+ * Today, where staff land (DESIGN.md §5c): Asked for, retakes, the add
+ * reminder, Match later, Other jobs and recent activity. These were on the
+ * old Album home.
+ */
+export async function openToday(page: Page) {
+  if (new URL(page.url()).pathname !== "/staff/home")
+    await page.goto("/staff/home")
+  await expect(page.locator("#today-top")).toBeVisible()
 }
 
-/** Album's Add photos: the phone tab or the AppBar button, whichever shows. */
+/**
+ * The Album tab (DESIGN.md §5d) once its landing is on screen: Menu,
+ * Amenities and Spaces, with search. A part is `/staff/album/menu|amenities|spaces`.
+ */
+export async function openAlbum(page: Page) {
+  if (new URL(page.url()).pathname !== "/staff/album")
+    await page.goto("/staff/album")
+  await expect(page.locator('[data-slot="album-landing"]')).toBeVisible()
+}
+
+/** Add photos: the phone's Add tab or the AppBar button, whichever shows. */
 export const albumAdd = (page: Page) =>
   page.locator('[data-slot="album-add"]').filter({ visible: true }).first()
 

@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto"
 import { expect } from "@playwright/test"
 
 import { signIn } from "../../support/identities"
+import { convertToManager } from "./manager-world"
 import {
-  legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
   type CoverageWorld,
@@ -13,8 +13,9 @@ import { activateMenu, createMenuDraft, ok } from "./menus"
 import { provisioner, psql } from "./stack"
 
 /**
- * A coverage world whose manager holds a (legacy, staff-held) venue grant and has prepared the
- * month, so coverage, team, checklist and task pages carry real chips; plus a
+ * A coverage world whose manager is a venue manager ACCOUNT (converted by the
+ * admin, so it holds an effective grant and uses /manager, decision D3) and has
+ * prepared the month, so coverage, team, checklist and task pages carry real chips; plus a
  * staff task, an active menu and a draft for the editor.
  */
 export type ManagedWorld = {
@@ -43,7 +44,7 @@ export async function provisionManagedWorld(
     world.venue1.id,
     `${label} menu draft`
   )
-  await legacyStaffGrant(world.admin, world.manager, world.venue1)
+  await convertToManager(adminDb, world.manager, world.venue1)
   await ok(
     managerDb.rpc("prepare_coverage_month", { p_venue_id: world.venue1.id })
   )
@@ -76,24 +77,30 @@ export async function provisionManagedWorld(
   return { world, checklistItemId, taskId, draftId }
 }
 
+/** The five tabs (DESIGN.md §15) and the staff pages they open. */
 export const staffPages = (m: ManagedWorld) => [
-  "/staff/tasks",
+  "/staff/home",
+  "/staff/album",
+  "/staff/album/menu",
+  "/staff/photos",
+  "/staff/me",
+  "/staff/me/settings",
   `/staff/tasks/${m.taskId}`,
   "/staff/tasks/month",
   "/staff/tasks/guide",
-  "/staff",
   "/staff/community",
   "/staff/people",
   `/staff/people/${m.world.staffB.id}`,
 ]
 
-export const managerPages = (m: ManagedWorld) => [
-  "/staff/manage",
-  "/staff/manage/team",
-  "/staff/manage/checklist",
-  `/staff/manage/checklist/${m.checklistItemId}`,
-  "/staff/manage/review",
-  "/staff/manage/menu",
+/** The venue manager workspace (/manager, decision D3). */
+export const managerPages = (_m: ManagedWorld) => [
+  "/manager",
+  "/manager/team",
+  "/manager/review",
+  "/manager/menu",
+  "/manager/requests",
+  "/manager/album",
 ]
 
 export const adminPages = (m: ManagedWorld) => [
