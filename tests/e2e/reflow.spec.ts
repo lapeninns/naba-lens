@@ -4,10 +4,10 @@ import { syntheticJpeg } from "./helpers/media"
 import {
   adminPages,
   managerPages,
+  provisionManagedWorld,
   staffPages,
   type ManagedWorld,
 } from "./helpers/managed-world"
-import { provisionLayoutWorld } from "./helpers/s5-layout"
 import { horizontalOverflow } from "./helpers/overflow"
 import { signedInPage } from "./helpers/world"
 
@@ -40,7 +40,7 @@ let anon: Page
 
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(240_000)
-  m = await provisionLayoutWorld("reflow")
+  m = await provisionManagedWorld("reflow")
   staff = await signedInPage(browser, m.world.staffA)
   manager = await signedInPage(browser, m.world.manager)
   admin = await signedInPage(browser, m.world.admin)

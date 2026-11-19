@@ -15,7 +15,10 @@ import { provisioner, psql } from "./stack"
 /**
  * A coverage world whose manager is a venue manager ACCOUNT (converted by the
  * admin, so it holds an effective grant and uses /manager, decision D3) and has
- * prepared the month, so coverage, team, checklist and task pages carry real chips; plus a
+ * a prepared month. The admin, who may manage every venue, prepares the
+ * month and saves the staff task before the manager is converted: a manager
+ * account makes no legacy coverage writes (`deny_manager_coverage_writes`).
+ * So coverage, team, checklist and task pages carry real chips; plus a
  * staff task, an active menu and a draft for the editor.
  */
 export type ManagedWorld = {
@@ -32,9 +35,7 @@ export async function provisionManagedWorld(
   await seedImages(world.staffA, world.venue1, 3, { prefix: `${label}-a` })
   await seedImages(world.staffB, world.venue1, 2, { prefix: `${label}-b` })
 
-  const service = provisioner()
-  const adminDb = await signIn(service, world.admin.email)
-  const managerDb = await signIn(service, world.manager.email)
+  const adminDb = await signIn(provisioner(), world.admin.email)
   await activateMenu(
     adminDb,
     await createMenuDraft(adminDb, world.venue1.id, `${label} menu`)
@@ -44,9 +45,8 @@ export async function provisionManagedWorld(
     world.venue1.id,
     `${label} menu draft`
   )
-  await convertToManager(adminDb, world.manager, world.venue1)
   await ok(
-    managerDb.rpc("prepare_coverage_month", { p_venue_id: world.venue1.id })
+    adminDb.rpc("prepare_coverage_month", { p_venue_id: world.venue1.id })
   )
   const checklistItemId = psql(
     `select id from public.coverage_requirements where venue_id = '${world.venue1.id}'::uuid and status = 'needs_setup' order by title limit 1`
@@ -55,7 +55,7 @@ export async function provisionManagedWorld(
     /^[0-9a-f-]{36}$/
   )
   const [task] = await ok(
-    managerDb.rpc("save_coverage_requirement", {
+    adminDb.rpc("save_coverage_requirement", {
       p_venue_id: world.venue1.id,
       p_requirement_id: null as never,
       p_expected_revision: null as never,
@@ -69,15 +69,15 @@ export async function provisionManagedWorld(
   )
   const taskId = (task as { requirement_id: string }).requirement_id
   await ok(
-    managerDb.rpc("set_coverage_requirement_assignees", {
+    adminDb.rpc("set_coverage_requirement_assignees", {
       p_requirement_id: taskId,
       p_staff_ids: [world.staffA.id],
     })
   )
+  await convertToManager(adminDb, world.manager, world.venue1)
   return { world, checklistItemId, taskId, draftId }
 }
 
-/** The five tabs (DESIGN.md §15) and the staff pages they open. */
 export const staffPages = (m: ManagedWorld) => [
   "/staff/home",
   "/staff/album",

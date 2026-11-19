@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { provisionLayoutWorld } from "./helpers/s5-layout"
+import { provisionManagedWorld } from "./helpers/managed-world"
 import { appBarFit } from "./helpers/overflow"
 import { signedInPage } from "./helpers/world"
 
@@ -18,7 +18,7 @@ test.skip(({ browserName }) => browserName !== "chromium", "Chromium only")
 
 test("AppBar sections fit beside Add and Log out", async ({ browser }) => {
   test.setTimeout(180_000)
-  const m = await provisionLayoutWorld("appbar")
+  const m = await provisionManagedWorld("appbar")
   const people = [
     ["staff", m.world.staffA, "/staff/home"],
     ["admin", m.world.admin, "/admin"],

@@ -4,10 +4,10 @@ import { expect, test, type Page } from "@playwright/test"
 import {
   adminPages,
   managerPages,
+  provisionManagedWorld,
   staffPages,
   type ManagedWorld,
 } from "./helpers/managed-world"
-import { provisionLayoutWorld } from "./helpers/s5-layout"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -34,7 +34,7 @@ let hovered = 0
 
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(240_000)
-  m = await provisionLayoutWorld("dark")
+  m = await provisionManagedWorld("dark")
 
   const dark = { colorScheme: "dark" } as const
   staff = await signedInPage(browser, m.world.staffA, dark)
