@@ -382,16 +382,15 @@ begin
     with templates as (
       select * from private.shot_template_rows()
     ),
-    -- A dish on the active menu, in its first section (the category is the
-    -- section's kind, as private.coverage_slot_rows).
+    -- A current dish (an active-menu entry or a running special, the
+    -- targets of private.current_photo_menu_items, 20261118103100), in its
+    -- first section (the category is the section's kind, as
+    -- private.coverage_slot_rows).
     dish as (
-      select distinct on (i.id) i.id as slot_id, s.kind as category, s.slug
-      from public.menu_versions mv
-      join public.menu_sections s on s.version_id = mv.id and s.venue_id = mv.venue_id
-      join public.menu_entries e on e.version_id = mv.id and e.section_id = s.id
-      join public.menu_items i on i.id = e.item_id and i.venue_id = mv.venue_id
-      where mv.venue_id = v_venue and mv.status = 'active' and i.archived_at is null
-      order by i.id, s.position, e.position
+      select distinct on (o.item_id) o.item_id as slot_id, o.section_kind as category,
+        o.section_slug as slug
+      from private.current_photo_menu_items(v_venue) o
+      order by o.item_id, o.section_position, o.entry_position
     ),
     slots as (
       select 'dish'::text as kind, d.slot_id, d.category,

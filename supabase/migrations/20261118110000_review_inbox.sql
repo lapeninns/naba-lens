@@ -146,9 +146,8 @@ as $$
     and not exists (
       select 1
       from public.media_label_items li
-      join private.current_photo_menu_items(p_venue) e
-        on e.item_id = li.item_id and e.section_kind in ('food', 'drinks')
-      where li.asset_id = p_asset)
+      where li.asset_id = p_asset
+        and private.is_current_photo_item(p_venue, li.item_id))
     and not exists (
       select 1 from public.menu_item_photos p
       where p.asset_id = p_asset

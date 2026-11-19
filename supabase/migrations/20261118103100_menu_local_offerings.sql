@@ -259,6 +259,37 @@ as $$
   left join public.menu_item_display_names d on d.item_id = o.item_id and d.venue_id = p_venue_id;
 $$;
 
+-- Whether one item is a current target in one of p_kinds' sections: the
+-- same rule as private.current_photo_menu_items for a single item, with
+-- indexed lookups only, for per-row checks (stale labels, needed-by).
+create function private.is_current_photo_item(
+  p_venue_id uuid, p_item_id uuid, p_kinds text[] default array['food', 'drinks']
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with active as (select private.active_menu_version_id(p_venue_id) as id)
+  select exists (
+      select 1 from public.menu_items i
+      where i.id = p_item_id and i.venue_id = p_venue_id and i.archived_at is null)
+    and (
+      exists (
+        select 1 from active a
+        join public.menu_entries e on e.version_id = a.id and e.item_id = p_item_id
+        join public.menu_sections s on s.id = e.section_id
+        where s.kind = any(p_kinds))
+      or exists (
+        select 1 from active a
+        join public.menu_specials sp on sp.venue_id = p_venue_id and sp.item_id = p_item_id
+        where sp.kind = any(p_kinds) and sp.status = 'running'
+          and private.london_today() between sp.starts_on and sp.ends_on
+          and not exists (
+            select 1 from public.menu_entries e where e.version_id = a.id and e.item_id = sp.item_id)));
+$$;
+
 -- One statement keeps the version, sections, and their items on the same
 -- snapshot. A JSON result also fits menus larger than PostgREST's row cap.
 create function public.menu_label_catalogue(p_venue_id uuid)
@@ -310,6 +341,7 @@ as $$
 $$;
 
 revoke all on function private.current_photo_menu_items(uuid) from public, anon, authenticated, service_role;
+revoke all on function private.is_current_photo_item(uuid, uuid, text[]) from public, anon, authenticated, service_role;
 revoke all on function public.menu_label_catalogue(uuid) from public, anon, service_role;
 grant execute on function public.menu_label_catalogue(uuid) to authenticated;
 

@@ -353,6 +353,7 @@ as $$
 declare
   v_uid uuid := private.amenity_assert_active_user();
   v_active uuid;
+  v_has_menu boolean;
   v_cov jsonb;
 begin
   if not private.is_active_admin() then
@@ -366,11 +367,15 @@ begin
   end if;
   v_active := private.active_menu_version_id(p_venue_id);
   v_cov := private.coverage_slots_json(p_venue_id);
+  -- A venue with running specials and no published menu still has dishes
+  -- (private.current_photo_menu_items, 20261118103100): its menu is ready.
+  v_has_menu := v_active is not null or exists (
+    select 1 from jsonb_array_elements(v_cov -> 'slots') s where s ->> 'kind' = 'dish');
 
   return jsonb_build_object(
     'venueId', p_venue_id,
-    'menuState', case when v_active is null then 'no_menu' else 'ready' end,
-    'sections', case when v_active is null then '[]'::jsonb else coalesce((
+    'menuState', case when v_has_menu then 'ready' else 'no_menu' end,
+    'sections', case when not v_has_menu then '[]'::jsonb else coalesce((
       select jsonb_agg(jsonb_build_object(
           'sectionId', g.section_id, 'name', g.section_name, 'kind', g.section_kind,
           'total', g.total, 'accepted', g.accepted, 'waiting', g.waiting)

@@ -2,7 +2,7 @@
 
 Prepared by the build agents; **none of these steps has been run**. Each one changes a hosted environment, so the owner runs it (or approves it step by step). Release notes: [full-app-v1-release-notes.md](full-app-v1-release-notes.md).
 
-What ships: one PR from `feat/full-app-v1` to `main`, holding the Album design system (A0 to A5, draft PR #33) and Full App v1. It adds **87 migrations** (4 Album, 83 Full App, `20261118100000` to `20261118138100`). All are additive. Merging to `main` deploys production on Vercel, so **the production migrations go first, the merge last**.
+What ships: one PR from `feat/full-app-v1` to `main`, holding the Album design system (A0 to A5, draft PR #33) and Full App v1. It adds **89 migrations** (4 Album, 85 Full App, `20261118100000` to `20261118138200`). All are additive. Merging to `main` deploys production on Vercel, so **the production migrations go first, the merge last**.
 
 Never merge while a production migration is pending: the new code calls functions the old database does not have.
 
@@ -31,7 +31,7 @@ Run from a clean checkout of the PR head (no `.env.local`, no `.next`), linked t
    supabase db push --linked --dry-run
    ```
 
-   The dry run should list the 87 migrations above and nothing else.
+   The dry run should list the 89 migrations above and nothing else.
 
 2. Hosted settings. The repo's `supabase/config.toml` now enables TOTP MFA and a 250 MiB storage limit. Either apply them with `supabase config push` (check `supabase config diff` first; it pushes every setting in the file), or set them in the dashboard:
    - Auth › MFA: TOTP enrol and verify **on**;
@@ -62,7 +62,7 @@ Run from a clean checkout of the PR head (no `.env.local`, no `.next`), linked t
 
 ## 2. Production
 
-1. Link the **production** project and repeat 1.1 (dry run lists the same 87 migrations).
+1. Link the **production** project and repeat 1.1 (dry run lists the same 89 migrations).
 2. Apply the same hosted settings as staging (1.2).
 3. Apply the migrations:
 

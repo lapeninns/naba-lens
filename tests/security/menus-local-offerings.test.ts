@@ -1111,3 +1111,198 @@ describe("venue scope (AC29) and amenity applicability", () => {
     })
   })
 })
+
+// Review repair (PR 34): every reader that decides whether a dish is current
+// treats a running special like an active-menu entry, and the Next menu
+// counts by the same rules as current coverage.
+describe("running specials across dish readers", () => {
+  let v: { venue: string; mgr: TestIdentity; staff: TestIdentity }
+  let special: string
+
+  beforeAll(async () => {
+    const venue = (await createVenue(service, "menus-special-readers")).id
+    const [mgr, staff] = await Promise.all(
+      ["mgr", "staff"].map((role) =>
+        createIdentity(service, {
+          label: `special-readers-${role}`,
+          role: "staff",
+          venueId: venue,
+        })
+      )
+    )
+    await makeManager(admin, mgr!, venue)
+    v = { venue, mgr: mgr!, staff: staff! }
+    special = (await ok(
+      call(v.mgr, "menu_special_create", {
+        p_venue_id: venue,
+        p_name: "TEST Mango lassi",
+        p_description: null,
+        p_kind: "drinks",
+        p_starts_on: londonDay(0),
+        p_ends_on: londonDay(7),
+      }) as Rpc<{ itemId: string }>
+    ))!.itemId
+  })
+
+  it("agrees, item by item, with the offering set", () => {
+    const rows = psql(`
+      select i.id, private.is_current_photo_item('${v.venue}', i.id),
+        exists (select 1 from private.current_photo_menu_items('${v.venue}') o
+          where o.item_id = i.id and o.section_kind in ('food', 'drinks'))
+      from public.menu_items i where i.venue_id in ('${v.venue}', '${w.venue}')`)
+      .trim()
+      .split("\n")
+    expect(rows.length).toBeGreaterThan(1)
+    for (const row of rows) {
+      const [, helper, set] = row.split("|")
+      expect(helper).toBe(set)
+    }
+    // Another venue's item is never current here.
+    expect(
+      psql(
+        `select private.is_current_photo_item('${v.venue}', '${w.id("mains--korma")}')`
+      ).trim()
+    ).toBe("f")
+  })
+
+  it("keeps a retake on a special open to retake, and lets the manager set its needed-by date", async () => {
+    await ok(
+      call(v.mgr, "set_menu_item_needed_by", {
+        p_item_id: special,
+        p_needed_by: londonDay(3),
+      })
+    )
+    const asset = await reserveReady(service, v.staff)
+    await saveOk(v.staff, {
+      asset: asset.id,
+      revision: 0,
+      types: ["dish"],
+      items: [{ itemId: special, variantId: null }],
+    })
+    await ok(
+      v.mgr.client.rpc("review_menu_item_photo", {
+        p_asset_id: asset.id,
+        p_item_id: special,
+        p_variant_id: null as unknown as string,
+        p_decision: "better_photo_requested",
+        p_reason: "Brighter, please",
+        p_expected_revision: await head(special),
+      } as never)
+    )
+    const notes = (await ok(v.staff.client.rpc("my_retake_notes"))) as {
+      kind: string
+      asset_id: string
+      status: string
+      can_retake: boolean
+    }[]
+    expect(
+      notes.find((n) => n.kind === "menu" && n.asset_id === asset.id)
+    ).toMatchObject({ status: "open", can_retake: true })
+  })
+
+  it("gives the special a brief slot and the admin album a ready menu", async () => {
+    const briefs = (await ok(
+      call(v.staff, "slot_briefs", {
+        p_venue_id: v.venue,
+        p_include_requests: true,
+      }) as Rpc<{ items: { kind: string; slotId: string; category: string }[] }>
+    ))!.items
+    expect(briefs).toContainEqual(
+      expect.objectContaining({
+        kind: "dish",
+        slotId: special,
+        category: "drinks",
+      })
+    )
+    expect(
+      await ok(
+        call(admin, "album_admin_counts", { p_venue_id: v.venue }) as Rpc
+      )
+    ).toMatchObject({
+      menuState: "ready",
+      sections: [
+        expect.objectContaining({ name: "Drinks specials", total: 1 }),
+      ],
+    })
+  })
+})
+
+it("counts the next menu like current coverage: no duplicate copies, no optional packaged items", async () => {
+  const v = await world("next-menu-rules")
+  const { sections } = await readDocument(service, v.version)
+  const version = await createDraft(
+    admin,
+    v.venue,
+    menu("TEST next rules", sections),
+    v.version
+  )
+  const draft = await ok<{ revision: number }>(
+    service.from("menu_versions").select("revision").eq("id", version).single()
+  )
+  await ok(
+    admin.client.rpc("schedule_menu_version", {
+      p_version_id: version,
+      p_expected_revision: draft.revision,
+      p_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+      p_retirements: 0,
+    })
+  )
+  const asset = async (photo: string) =>
+    (await ok<{ asset_id: string }>(
+      service
+        .from("menu_item_photos")
+        .select("asset_id")
+        .eq("id", photo)
+        .single()
+    ))!.asset_id
+  const original = await asset(await acceptedPhoto(v, v.id("mains--dal")))
+  const copy = await asset(await acceptedPhoto(v, v.id("mains--korma")))
+  const next = async () =>
+    (
+      (await ok(
+        admin.client.rpc("admin_group_overview", {
+          p_venue_ids: [v.venue],
+          p_menu: "next",
+        })
+      )) as { rows: { categories: { category: string }[] }[] }
+    ).rows[0]!.categories
+  expect(await next()).toContainEqual(
+    expect.objectContaining({
+      category: "food",
+      total: 2,
+      covered: 2,
+      missing: 0,
+    })
+  )
+  // A copy of a live, accepted original never covers its dish.
+  psql(`begin;
+    set local session_replication_role = replica;
+    update public.media_assets set duplicate_of_asset_id = '${original}'
+    where id = '${copy}';
+    commit;`)
+  expect(await next()).toContainEqual(
+    expect.objectContaining({
+      category: "food",
+      total: 2,
+      covered: 1,
+      missing: 1,
+    })
+  )
+  // FA-51: packaged without Photo wanted leaves the total.
+  await ok(
+    call(v.mgr, "menu_item_packaging_set", {
+      p_item_id: v.id("drinks--lassi"),
+      p_packaged: true,
+      p_photo_wanted: false,
+    }) as Rpc
+  )
+  expect(await next()).toContainEqual(
+    expect.objectContaining({
+      category: "drinks",
+      total: 0,
+      covered: 0,
+      missing: 0,
+      inactive: 1,
+    })
+  )
+})
