@@ -1,58 +1,78 @@
-# Release: five-tab staff app (design/home-next)
+# Release: five-tab staff app and Full App v1 (shipped 19 Nov 2026)
 
-Status, 19 Nov 2026 (night): the branch is committed and merged with the
-latest `feat/full-app-v1` (PR 34). Typecheck, repo-wide lint and the unit
-suite (433 files, 5,310 tests) pass on `9177095cc`. Nothing is pushed,
-deployed or migrated. The owner runs every production step below.
+**Shipped.** `main` is the source of truth; start new work from it.
 
-What ships: Today, Album (Menu, Amenities, Spaces; shelves as folders),
-Add, My photos and the Me hub for every staff member; the old `/staff`,
+| PR  | What                                                                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #35 | Five-tab staff app (Today, Album with shelves, Add, My photos, Me hub) and all of Full App v1 (PR 34's branch at `db0da20e6`); e2e specs moved to the five tabs and `/manager` |
+| #36 | PR 34's last review repairs, restated as `20261119120000_pr34_review_followups`; two test-stabilisation commits                                                                |
+| #37 | PR 34's last five commits and one test, restated as `20261119130000_full_app_v1_tail_fixes`                                                                                    |
+
+PR 34 was closed: everything in it is in `main`.
+
+What ships: Today, Album (Menu, Amenities, Spaces; shelves as folders), Add,
+My photos and the Me hub for every staff member. The old `/staff`,
 `/staff/tasks`, `/staff/menu`, `/staff/album/[placeId]` and `/staff/manage/*`
-redirect (DESIGN.md §5b to §5e, §15; D15 to D19; D3). Match keeps
+redirect; `/staff/manage/<x>` goes to its `/manager/<x>` twin in
+`next.config.ts` (DESIGN.md §5b to §5e, §15; D15 to D19; D3). Match keeps
 MatchScreen; the tray stays a trial (D13).
 
-## Blocking before release
+## How it went out (read before the next release)
 
-1. **PR 34 lands first.** Another thread is qualifying `feat/full-app-v1`.
-   Do not start a second `lci` run while it holds the shared runner.
-2. **E2E migration (done, 19 Nov).** Merged from `test/e2e-five-tab-urls`
-   (`cafb0b8dc`). On an isolated stack: chromium 302 passed, 1 failed, 7
-   skipped; mobile-chromium 47 passed; visual 15 passed, 3 failed. The four
-   failures are app findings outside this redesign: the Today goal chip's
-   name, `/manager` touch targets, two chips in the menus "Saving" sheet at
-   360px, and admin coverage overflow at 768px. `scripts/ci/fixtures.ts`
-   signs the admin in without the second factor, so its menu step fails;
-   check it before `lci`. Details: the shared note `e2e-migration-handover.md`.
-3. **Integration tests not run.** `tests/integration/auth-access.test.ts`
-   and `auth-links.test.ts` were retargeted to `/staff/me` and
-   `/staff/photos` and typecheck, but need the local stack
-   (`pnpm test:integration`).
-4. **Legacy manager grants.** A staff account that still holds a manager
-   grant is now sent to `/manager` (D3). Check production has none before
-   release, or move them to manager accounts.
-5. **Phone check.** The five tabs, Album folders and My photos were checked
-   in a 375px browser only, not on the phones (docs/dev-phone-loop.md).
+The owner asked to ship without CI or `lci`. #35 merged before production had
+PR 34's migrations, so production ran new code on the old schema for about 20
+minutes, until `supabase db push --linked` applied all 90. #36 and #37 were
+released in the right order: migration first, then merge.
 
-## Release steps (owner)
+- A merge to `main` deploys production on Vercel. Compare
+  `supabase migration list --linked` with `main`'s migrations **before**
+  merging.
+- Never edit a migration production has applied: Supabase will not re-run it.
+  Restate the change as a new migration (`create or replace function` with the
+  latest body). #36 and #37 did this and checked that a fresh database matches
+  the edited files (`pg_get_functiondef`).
+- There is no separate staging Supabase project in this account.
 
-1. After PR 34 merges: `git fetch origin && git rebase origin/main` on
-   `design/home-next` (or merge `origin/main`); re-run
-   `pnpm typecheck && pnpm exec eslint . --ignore-pattern '.claude/**' && pnpm test`.
-2. `gh auth switch --user lapeninns`, push `design/home-next`, open one PR:
-   "feat(staff): five-tab staff app with Today, Album shelves, My photos
-   and Me hub".
-3. Migration `supabase/migrations/20261118140000_album_shelves.sql`:
-   staging first, then production, with the repo's `pnpm db:*` scripts.
-   The app works without it (Album uses the suggested shelves; managers see
-   the shelf but cannot move it), so it can follow the deploy if needed.
-4. On the final head, once: `pnpm verify:release` (it runs `lci`). Then
-   `lci merge` (the only merge path; no `--force`, `--only`, `--no-codex`).
-5. Deploy and smoke as for PR 32 and PR 34. Smoke: staff sign-in lands on
-   Today with five tabs; `/staff/tasks` and `/staff` redirect; a manager's
-   `/staff/manage` goes to `/manager`; Album › Menu shows folders; My photos
-   opens a photo page; Add opens the gallery, then Match.
+## State on 19 Nov 2026
 
-## Not in this batch (next)
+- Production app: `nabalens.vercel.app` on `85c046534` (#37), Ready.
+- Production database: every migration applied, none pending.
+- Hosted Auth and Storage settings match `supabase/config.toml`
+  (`supabase config diff` empty), including TOTP MFA for admins.
+- Checked on the merged head: typecheck, repo-wide lint, unit suite
+  (435 files, 5,326 tests). E2E on an isolated stack before #36: chromium 302
+  passed, 1 failed; mobile-chromium 47 passed; journeys 17 passed.
+
+## Still open
+
+1. **Signed-in production check.** Only signed-out pages were checked. Check
+   that an admin is asked for an authenticator code, that a staff phone adds a
+   photo from the gallery and sees it under My photos as Waiting, and that the
+   manager sees it in Review.
+2. **App findings the specs keep strict:** the Today goal chip's accessible
+   name does not include its visible text; on `/manager`, "This venue",
+   "Specials" and "Current and future menus" are under 44px; two chips in the
+   menus "Saving" sheet fail target size at 360px.
+3. **`scripts/ci/fixtures.ts`** signs the admin in without the second factor,
+   so its menu step fails with `not_active_admin`.
+4. **Not run since #36:** the security and e2e suites (Docker on the dev Mac
+   could not start Supabase's auth and storage services).
+5. **Phone check.** The five tabs, Album folders and My photos were checked in
+   a 375px browser only, not on the phones (`docs/dev-phone-loop.md`).
+6. **After-release admin steps** from `docs/release/full-app-v1-owner-steps.md`
+   section 3: check manager grants, set each venue's main reviewer, review the
+   shot templates, mark packaged drinks.
+
+## Repository cleanup (19 Nov 2026)
+
+The repo was reduced to `main` plus open PR branches; 144 worktrees and 397
+local branches were removed. Nothing was lost: every commit and uncommitted
+change that was not on GitHub is kept as a tag under `archive/2026-11-19/`
+(`branch/`, `wip/`, `detached/`, `remote/`, `stash/`). Restore one with
+`git switch -c <name> archive/2026-11-19/<path>`. Older archives are the
+`archive/nabalens-2026-11-18/*` branches.
+
+## Next (not in this release)
 
 - Move the task-era screens to clearer URLs with redirects (`tasks/month` →
   `me/month`, `tasks/other` → `me/jobs`, `tasks/welcome` → `welcome`,
