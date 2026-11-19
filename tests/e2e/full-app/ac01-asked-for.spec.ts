@@ -4,7 +4,7 @@ import {
   assetNamed,
   dishesOn,
   keep,
-  openAlbum,
+  openToday,
   requestDishPhoto,
   SIZES,
   venueOfAsset,
@@ -15,7 +15,7 @@ import { signedInPage } from "../helpers/world"
 
 /**
  * AC01 (spec §5.2, FA-5, S2-REQ): a manager asks for a photo of a dish.
- * Staff see it on Album under "Asked for" with the brief; tapping the slot
+ * Staff see it on Today (DESIGN.md §5c) under "Asked for" with the brief; tapping the slot
  * opens the gallery for THAT slot, so venue, item and view are already
  * chosen and nothing is typed. The photo lands labelled with that dish at
  * that venue. Staff words never say task, request or due.
@@ -47,7 +47,7 @@ for (const size of ["phone", "narrow", "desktop"] as const) {
           (window as unknown as { __typed: () => void }).__typed()
       })
     )
-    await openAlbum(page)
+    await openToday(page)
     const asked = page.locator('[data-slot="asked-for"]')
     await expect(asked).toBeVisible()
     await expect(
@@ -80,7 +80,7 @@ for (const size of ["phone", "narrow", "desktop"] as const) {
     expect(venueOfAsset(id)).toBe(w.venueA.id)
     expect(typed, "keystrokes in a text field").toBe(0)
     await page.reload()
-    await openAlbum(page)
+    await openToday(page)
     await keep(page, info, `ac01-${size}-after`)
     await page.context().close()
   })

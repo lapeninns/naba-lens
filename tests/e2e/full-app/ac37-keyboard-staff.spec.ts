@@ -16,6 +16,7 @@ import {
 import { provisionManagerWorld } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
 import { provisioner, psql } from "../helpers/stack"
+import { myPhotos, openMyPhotos } from "../helpers/ui"
 import { signedInPage } from "../helpers/world"
 
 /**
@@ -23,7 +24,7 @@ import { signedInPage } from "../helpers/world"
  * from the keyboard alone, with names a screen reader reads: the Add
  * trigger, Match's grouping buttons (aria-pressed) and its polite hint,
  * the photo strip's per-photo answers, the end, and a manager's Retake
- * reason on Me with its Retake link. (Review flows are S3-E2E-2's.)
+ * reason on My photos with its Retake link. (Review flows are S3-E2E-2's.)
  */
 
 test.skip(({ browserName }) => browserName !== "chromium", "Chromium only")
@@ -149,14 +150,12 @@ for (const size of ["desktop", "phone"] as const) {
     } as never)
     expect(asked.error).toBeNull()
 
-    // On Me, the row reads the reason, and Retake opens the same slot.
-    await page.goto("/staff")
-    // A retake asked for is under Needs attention (lib/staff/my-uploads.ts).
-    await expect(
-      page.getByRole("button", { name: /^Needs attention/ })
-    ).toHaveAttribute("aria-pressed", "true")
-    const rows = page.locator('[data-slot="my-upload-row"]')
-    const row = rows.filter({ hasText: reason })
+    // On My photos (DESIGN.md §5e), the Needs you row reads the reason, and
+    // Retake opens the same slot (lib/staff/my-photos.ts).
+    await openMyPhotos(page)
+    const needsYou = myPhotos(page).getByRole("region", { name: /^Needs you/ })
+    await expect(needsYou).toBeVisible()
+    const row = needsYou.getByRole("listitem").filter({ hasText: reason })
     await expect(row).toBeVisible()
     await expect(row).toContainText("Retake")
     const retake = row.getByRole("link", { name: /Retake/ })
