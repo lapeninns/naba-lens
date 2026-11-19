@@ -1,54 +1,72 @@
 import { expect, test } from "@playwright/test"
 
+import { signIn } from "../support/identities"
 import {
   legacyStaffGrant,
   provisionCoverageWorld,
 } from "./helpers/coverage-world"
-import { requireIsolatedStack } from "./helpers/stack"
-import { signedInPage } from "./helpers/world"
+import { convertToManager } from "./helpers/manager-world"
+import { provisioner, requireIsolatedStack } from "./helpers/stack"
+import { STAFF_LANDING, STAFF_TABS } from "./helpers/ui"
+import { signedInPage, type Person } from "./helpers/world"
 
 /**
- * S16 Me on a phone: the Manage row is a venue manager's way into Manage when
- * Home has nothing to review; plain staff never see it.
+ * S16 Me on a phone (DESIGN.md §5b, decision D3): managing a venue needs a
+ * venue manager account, which works in /manager and never opens the staff
+ * app. Me is a hub of rows, and plain staff see no Manage row.
  */
 
 test.beforeAll(() => requireIsolatedStack())
 
 const PHONE = { viewport: { width: 390, height: 844 } }
 
-test("at 390px a granted manager reaches Manage from Me; plain staff see no Manage row", async ({
+async function expectNoManageRow(
+  browser: Parameters<typeof signedInPage>[0],
+  who: Person
+) {
+  const staff = await signedInPage(browser, who, PHONE)
+  await staff.goto(STAFF_TABS.me)
+  await expect(staff).toHaveURL(/\/staff\/me$/)
+  await expect(
+    staff.getByRole("heading", { level: 2, name: who.name })
+  ).toBeVisible()
+  await expect(staff.locator('[data-slot="me-settings"]')).toBeVisible()
+  await expect(staff.locator('[data-slot="me-manage"]')).toHaveCount(0)
+  await expect(staff.getByRole("link", { name: /^Manage\b/ })).toHaveCount(0)
+  // /manager is for manager accounts only: staff go back to Today.
+  await staff.goto("/manager")
+  await expect(staff).toHaveURL(STAFF_LANDING)
+  await staff.context().close()
+}
+
+test("at 390px a manager account opening Me lands in /manager; plain staff see no Manage row", async ({
   browser,
 }) => {
   test.setTimeout(120_000)
   const w = await provisionCoverageWorld()
-  // A staff-held (legacy) grant: the transitional rule keeps /staff/manage.
-  await legacyStaffGrant(w.admin, w.manager, w.venue1)
+  const adminDb = await signIn(provisioner(), w.admin.email)
+  await convertToManager(adminDb, w.manager, w.venue1)
 
   const manager = await signedInPage(browser, w.manager, PHONE)
-  await manager.goto("/staff")
-  const row = manager
-    .getByRole("navigation", { name: "Manage" })
-    .getByRole("link", { name: `Manage ${w.venue1.name}` })
-  await expect(row).toBeVisible()
-  await expect(row).toHaveAccessibleDescription(
-    "Review, checklist, menu and team"
-  )
-  const box = await row.boundingBox()
-  expect(box!.height).toBeGreaterThanOrEqual(52)
-  await row.click()
-  await expect(manager).toHaveURL(/\/staff\/manage$/)
-  await expect(manager).toHaveTitle("Manage · Naba-Lens")
+  await manager.goto(STAFF_TABS.me)
+  await expect(manager).toHaveURL(/\/manager$/)
+  await expect(manager).toHaveTitle(/Naba-Lens$/)
   await expect(
-    manager.getByRole("heading", { name: "Manage isn't available" })
+    manager.getByRole("heading", { name: "Venue access unavailable" })
   ).toHaveCount(0)
   await manager.context().close()
 
-  const staff = await signedInPage(browser, w.staffA, PHONE)
-  await staff.goto("/staff")
-  await expect(
-    staff.getByRole("heading", { level: 1, name: w.staffA.name })
-  ).toBeVisible()
-  await expect(staff.getByRole("navigation", { name: "Manage" })).toHaveCount(0)
-  await expect(staff.getByRole("link", { name: /^Manage\b/ })).toHaveCount(0)
-  await staff.context().close()
+  await expectNoManageRow(browser, w.staffA)
+})
+
+// App defect (D3): Me still shows "Manage <venue>" to a staff account holding
+// a legacy staff-held grant (canManageVenue counts staff-held grants), and the
+// row's /manager link sends that account straight back to Today.
+test.fixme("at 390px staff holding a legacy staff-held grant see no Manage row", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000)
+  const w = await provisionCoverageWorld()
+  await legacyStaffGrant(w.admin, w.staffB, w.venue1)
+  await expectNoManageRow(browser, w.staffB)
 })

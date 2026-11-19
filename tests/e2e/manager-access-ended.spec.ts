@@ -8,6 +8,7 @@ import {
 
 import { labelledPhoto, provisionManagerWorld } from "./helpers/manager-world"
 import { psql, requireIsolatedStack } from "./helpers/stack"
+import { STAFF_LANDING } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -16,7 +17,7 @@ import { signedInPage } from "./helpers/world"
  * these drive the in-app nav rather than page loads: after an admin revokes
  * the grant, or converts the account back to staff, the next tab the manager
  * opens must say so (Venue access unavailable, with the shell and its nav
- * gone, or the staff home), never "Try again", and show nothing from the
+ * gone, or the staff landing, Today: DESIGN.md §5c), never "Try again", and show nothing from the
  * venue. Page loads after a revoke are covered by manager-workspace.spec.ts.
  *
  * Chromium only (the phone project selects files by name in
@@ -136,7 +137,7 @@ test.describe("manager access ends mid-session", () => {
 
     await navLink(mgr, /^Review/).click()
     await expect(mgr).not.toHaveURL(/\/manager(\/|$)/)
-    await expect(mgr).toHaveURL(/\/staff\//)
+    await expect(mgr).toHaveURL(STAFF_LANDING)
     await expectNoErrorState(mgr)
     await evidence(mgr, "converted-client-navigation")
   })

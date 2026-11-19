@@ -21,18 +21,21 @@ import { activateMenu, createMenuDraft } from "./helpers/menus"
 import { provisioner, psql } from "./helpers/stack"
 import {
   escape,
+  myPhotoLink,
+  myPhotos,
+  openMyPhotos,
   openOtherJobs,
-  openPortfolio,
-  portfolioList,
+  OTHER_JOBS_PATH,
   savingTitle,
   STAFF_LANDING,
-  staffTile,
+  STAFF_TABS,
 } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
  * Staff coverage journey (owner handoff §6 AC-13, AC-14, AC-16, AC-18; R-S1..R-S4) in
- * the real staff pages. Until the manager pages land, the manager's part (grant,
+ * the real staff pages: Today, My photos, Other jobs and Me's Your month row
+ * (DESIGN.md §5b, §5c, §5e). Until the manager pages land, the manager's part (grant,
  * task, target, review) is done through the manager's own signed-in database
  * session, the same calls the manager pages make; everything staff do goes
  * through the UI.
@@ -109,6 +112,19 @@ async function managerSetup(w: CoverageWorld): Promise<Setup> {
   )
   return { manager, requirementId, title }
 }
+
+/** Your month, opened the way staff do: the Your month row on Me (§5b). */
+async function openYourMonth(page: Page) {
+  await page.goto(STAFF_TABS.me)
+  await page.locator('[data-slot="me-month"]').click()
+  await expect(page).toHaveURL(/\/staff\/tasks\/month$/)
+}
+
+/** The newest asset this person uploaded under a file name. */
+const assetNamed = (uploaderId: string, fileName: string) =>
+  psql(
+    `select id from public.media_assets where uploader_id = '${uploaderId}'::uuid and original_filename = '${fileName}' order by created_at desc limit 1`
+  )
 
 const revisionOf = (table: string, id: string) =>
   Number(psql(`select revision from public.${table} where id = '${id}'::uuid`))
@@ -326,11 +342,11 @@ async function staffJourney(
   setup: Setup,
   browser: Browser
 ) {
-  // Album is Home (DESIGN.md §5a): Your month is on Me; the venue-specific
-  // job is one Other jobs row away from Album (revb B2), in the list page.
-  const monthly = page.getByRole("region", { name: "Your month", exact: true })
+  // Staff land on Today (DESIGN.md §5c); the month's target is Your month,
+  // a row on Me (§5b); the venue-specific job is one Other jobs row away
+  // from Today (revb B2), in the list page.
   const monthProgress = (accepted: number) =>
-    monthly.getByRole("progressbar", {
+    page.getByRole("main").getByRole("progressbar", {
       name: `${accepted} of 2 photos accepted`,
       exact: true,
     })
@@ -339,10 +355,9 @@ async function staffJourney(
     has: page.getByRole("link", { name: setup.title, exact: true }),
   })
 
-  // Landing: Album, with the Other jobs row; the month's target is on Me.
+  // Landing: Today, with the Other jobs row; the month's target on Your month.
   await expect(page).toHaveURL(STAFF_LANDING)
-  await expect(page.locator('[data-slot="album-home"]')).toBeVisible()
-  await openPortfolio(page)
+  await openYourMonth(page)
   await expect(monthProgress(0)).toBeVisible()
   await openOtherJobs(page)
   await expect(assigned.getByRole("link", { name: setup.title })).toBeVisible()
@@ -373,16 +388,18 @@ async function staffJourney(
 
   await expiredLinkRecovery(page)
 
-  // In My portfolio at once; a colleague sees nothing before review (FA-20,
+  // On My photos at once; a colleague sees nothing before review (FA-20,
   // spec §3.3 row 3; this reverses Goals v0.5's AC-13).
   let sent = items(setup.requirementId)
   expect(sent.map((i) => [i.name, i.state])).toEqual([
     [first!.name, "submitted"],
     [second!.name, "submitted"],
   ])
-  await openPortfolio(page)
+  await openMyPhotos(page)
   for (const file of [first!, second!]) {
-    await expect(await staffTile(portfolioList(page), file.name)).toBeVisible()
+    await expect(
+      myPhotoLink(myPhotos(page), assetNamed(w.staffA.id, file.name))
+    ).toBeVisible()
   }
   const colleague = await signedInPage(browser, w.staffB)
   const byA = colleague.getByRole("button", {
@@ -407,19 +424,24 @@ async function staffJourney(
   }
   await colleague.context().close()
 
-  await openPortfolio(page)
+  await openYourMonth(page)
   await expect(monthProgress(1)).toBeVisible()
-  // The retake note is on Me: Album's retake row is for dishes only (§5a).
-  const replacements = page.getByRole("region", {
-    name: /^Needs another photo/,
-  })
-  await expect(replacements.getByText(reason)).toBeVisible()
-  await replacements
-    .getByRole("link", { name: `Retake: ${setup.title}` })
-    .click()
+  // The job's card on Other jobs says it needs another photo; its page asks
+  // for the replacement with the reviewer's reason.
+  await openOtherJobs(page)
+  await expect(taskCard).toContainText("Needs another photo")
+  await taskCard.getByRole("link", { name: setup.title }).click()
   await expect(page).toHaveURL(
-    new RegExp(`/staff/tasks/${setup.requirementId}\\?replaces=${sent[1]!.id}$`)
+    new RegExp(`/staff/tasks/${setup.requirementId}(\\?|$)`)
   )
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Send another photo" })
+  ).toBeVisible()
+  await expect(
+    page
+      .getByRole("region", { name: "What your reviewer asked for" })
+      .getByText(reason)
+  ).toBeVisible()
   await expect(
     page.getByText("The photos you send now replace this one.")
   ).toBeVisible()
@@ -436,18 +458,20 @@ async function staffJourney(
   await review(setup.manager, replacement, "accepted")
 
   // Done: target met, nothing left to replace, the job complete in its list.
-  await openPortfolio(page)
+  await openYourMonth(page)
   await expect(monthProgress(2)).toBeVisible()
-  await expect(monthly.getByText("Target met")).toBeVisible()
-  await expect(page.getByRole("link", { name: /^Retake/ })).toHaveCount(0)
-  await page.goto("/staff/tasks/other")
+  await expect(
+    page.getByRole("main").getByText("Target met", { exact: true })
+  ).toBeVisible()
+  await page.goto(OTHER_JOBS_PATH)
   await expect(taskCard).toContainText("Complete")
+  await expect(taskCard).not.toContainText("Needs another photo")
 }
 
 test.describe("coverage: staff tasks journey (WS5)", () => {
   test.setTimeout(240_000)
 
-  test("desktop: land on Album, send, replace on request, reach the target", async ({
+  test("desktop: land on Today, send, replace on request, reach the target", async ({
     browser,
   }) => {
     const w = await provisionCoverageWorld()
@@ -473,20 +497,18 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     const w = await provisionCoverageWorld()
     const page = await signedInPage(browser, w.joiner)
     await expect(page).toHaveURL(STAFF_LANDING)
-    // Your month is on Me (Album shell); it says what setup is missing.
-    await openPortfolio(page)
-    const monthly = page.getByRole("region", {
-      name: "Your month",
-      exact: true,
-    })
-    await expect(monthly).toBeVisible()
-    await expect(monthly).toContainText("Your team (FOH or BOH) isn't set yet")
-    await expect(monthly).toContainText("Ask an admin to set it.")
+    // Your month (the Me row, DESIGN.md §5b) reads Needs setup, never
+    // complete. (Me's Your month card, which named the missing team, is gone.)
+    await openYourMonth(page)
+    const monthly = page.getByRole("main")
+    await expect(monthly).toContainText(
+      /Your manager sets your target for .+\. Until then, photos you add still go to Photos/
+    )
     await expect(monthly.getByText("Target met")).toHaveCount(0)
-    await expect(page.getByText("Needs setup").first()).toBeVisible()
+    await expect(monthly.getByText("Needs setup").first()).toBeVisible()
   })
 
-  test("photo guide: a menu-section task goes to Our menu; the guide teaches the four angles (phone)", async ({
+  test("photo guide: a menu-section task goes to the Album's Menu; the guide teaches the four angles (phone)", async ({
     browser,
     request,
   }) => {
@@ -498,20 +520,18 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     )
     const page = await signedInPage(browser, w.staffA, devices["Pixel 7"])
 
-    // G-4: menu work is on Our menu. With no open "needs another photo"
-    // request, the section's task link ends on its Still needed dishes
-    // (a soft redirect through loading.tsx).
+    // G-4: menu work is on the Album's Menu (DESIGN.md §5d, D16). With no
+    // open "needs another photo" request, the section's task link ends there
+    // (a soft redirect through loading.tsx, then the retired Our menu URL's
+    // redirect, which keeps no section).
+    expect(sectionId).toMatch(/^[0-9a-f-]{36}$/)
     await page.goto(`/staff/tasks/${startersId}`)
-    await expect(page).toHaveURL(
-      new RegExp(`/staff/menu\\?section=${sectionId}&filter=gaps$`)
-    )
+    await expect(page).toHaveURL(/\/staff\/album\/menu$/)
     await expect(
-      page.getByRole("heading", { level: 1, name: "Our menu" })
+      page.getByRole("heading", { level: 1, name: "Menu" })
     ).toBeVisible()
     await page.goto(`/staff/tasks/${startersId}?replaces=${randomUUID()}`)
-    await expect(page).toHaveURL(
-      new RegExp(`/staff/menu\\?section=${sectionId}&filter=gaps$`)
-    )
+    await expect(page).toHaveURL(/\/staff\/album\/menu$/)
 
     // The full guide: the examples open full screen, no angle marked.
     await page.goto("/staff/tasks/guide")
