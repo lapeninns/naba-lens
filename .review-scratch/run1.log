@@ -1,0 +1,34 @@
+
+ RUN  v5.0.5 /Users/amankumarshrestha/.t3/worktrees/nabalens/review-nl-upload-path2
+
+ ❯ tests/security/upload-path-review.repro.test.ts (10 tests | 1 failed) 80505ms
+   ❯ upload path review repros (10)
+     × R1: staff-minted upsert signed upload URL replaces a READY original after validation 36525ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/security/upload-path-review.repro.test.ts > upload path review repros > R1: staff-minted upsert signed upload URL replaces a READY original after validation
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/security/upload-path-review.repro.test.ts:176:18
+    174|     const input = req(jpeg)
+    175|     const r = await reserveAsset(actorA, input)
+    176|     expect(r.ok).toBe(true)
+       |                  ^
+    177|     if (!r.ok) return
+    178|     // While `uploading`, the staff member mints their own upload URL …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  00:24:55
+   Duration  80.73s (tests 100%)
+

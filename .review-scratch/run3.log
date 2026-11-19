@@ -1,0 +1,17 @@
+
+ RUN  v5.0.5 /Users/amankumarshrestha/.t3/worktrees/nabalens/review-nl-upload-path2
+
+R4b raw PUT: 200
+R4b finalise: {"ok":true,"state":"ready"} validated: image/jpeg storage metadata: {"eTag":"\"515c1920988df5f4ef2784b095287902\"","size":2140,"mimetype":"text/html","cacheControl":"no-cache","lastModified":"2026-10-30T00:29:40.020Z","contentLength":2140,"httpStatusCode":200}
+R4b storage GET: 200 content-type: text/plain; charset=UTF-8 nosniff: null csp: null
+R4b authenticated GET: 200 content-type: text/plain; charset=UTF-8
+R4b app download route: 200 image/jpeg attachment; filename="dish.jpg"; filename*=UTF-8''dish.jpg nosniff
+R10 rpc: [{"id":"ba90a593-d938-4233-b635-495999a4046a","original_path":"2d30002f-51c8-4065-a43e-cd156d6703fe/ba90a593-d938-4233-b635-495999a4046a/original.html","venue_id":"884c06df-680b-4608-9e9a-846c7bf53e88","upload_state":"uploading","reused":false}]
+R10 direct upload to original.html : stored
+R10 finalise (no key on row): {"ok":true,"state":"failed","error":"This file type is not supported. Use JPEG, PNG, WebP, HEIC, MP4, MOV or WebM."} row size_bytes 999999999999
+
+ Test Files  1 passed (1)
+      Tests  2 passed | 10 skipped (12)
+   Start at  00:29:37
+   Duration  2.98s (tests 92%, import 4%, transform 4%)
+

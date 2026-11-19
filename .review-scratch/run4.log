@@ -1,0 +1,15 @@
+
+ RUN  v5.0.5 /Users/amankumarshrestha/.t3/worktrees/nabalens/review-nl-upload-path2
+
+R4c text/html -> 200 text/plain; charset=UTF-8 row: ready
+R4c image/svg+xml -> 200 image/svg+xml row: ready
+R4c application/xhtml+xml -> 200 application/xhtml+xml row: ready
+R4c text/xml -> 200 text/xml; charset=UTF-8 row: ready
+R4c application/pdf -> 200 application/pdf row: ready
+R4c text/javascript -> 200 text/javascript row: ready
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 12 skipped (13)
+   Start at  00:30:12
+   Duration  26.93s (tests 100%)
+

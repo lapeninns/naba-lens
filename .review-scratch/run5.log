@@ -1,0 +1,48 @@
+
+ RUN  v5.0.5 /Users/amankumarshrestha/.t3/worktrees/nabalens/review-nl-upload-path2
+
+R1 mint upsert URL: new row violates row-level security policy
+R2 TUS create (upsert): 403 new row violates row-level security policy
+R2b TUS create: 201
+R2b delete: {"ok":true,"assetId":"3acdd3fe-b3b8-4233-9240-be50a541740b","storage":"removed"}
+R2b TUS patch after delete: 403 new row violates row-level security policy
+R2b object exists after delete: false
+R2b signed PUT after delete: stored
+R3 replay server URL: The resource already exists
+R4 row validated mime: image/jpeg
+R4 1-year signed URL by staff: issued
+R4 GET: 200 content-type: text/plain; charset=UTF-8 nosniff: null disposition: null
+R4 GET after deactivation: 200
+R5 reserved with size 10, resumable: false row size 10
+R5 finalise: {"ok":true,"state":"ready"} row size now 17894 actual 17894
+R5 25MiB stored into a 1KB image reservation: stored
+R5 finalise big: {"ok":true,"state":"failed","error":"This file is larger than the upload limit."} state failed
+R5 cleanup now: {"status":"completed","removed":{"assets":1,"objects":1,"byState":{"uploading":1,"processing":0,"ready":0,"failed":0}},"failed":[],"more":false}
+R5 failed object still stored: 26214400
+R6 delete: {"ok":true,"assetId":"a2128f25-d195-418b-bdb5-35f02eaba7ff","storage":"removed"} finalise: {"ok":true,"state":"ready"} row: ready deleted_at set: true objects left: [ 'preview.webp', 'thumb.webp' ]
+R7 cleanup @+30d: "completed" row: processing deleted_at: null object kept: true
+R8 concurrent reserve same key -> distinct assets: 1
+R8 concurrent finalise: [{"ok":true,"state":"ready"},{"ok":true,"state":"ready"},{"ok":true,"state":"ready"},{"ok":true,"state":"ready"},{"ok":true,"state":"ready"}]
+R8 rows for key: 1 state: ready
+R9 B: {"ok":false,"status":404,"message":"This upload could not be found."} wrong key: {"ok":false,"status":404,"message":"This upload could not be found."} admin: {"ok":false,"status":403,"message":"Only staff can upload."} state: uploading
+R9 B direct: new row violates row-level security policy B mint: new row violates row-level security policy A mint derivative: new row violates row-level security policy
+R4b raw PUT: 200
+R4b finalise: {"ok":true,"state":"ready"} validated: image/jpeg storage metadata: {"eTag":"\"3f6434b4a4615a66a8938144e5938a90\"","size":2142,"mimetype":"text/html","cacheControl":"no-cache","lastModified":"2026-10-30T00:34:23.677Z","contentLength":2142,"httpStatusCode":200}
+R4b storage GET: 200 content-type: text/plain; charset=UTF-8 nosniff: null csp: null
+R4b authenticated GET: 200 content-type: text/plain; charset=UTF-8
+R4b app download route: 200 image/jpeg attachment; filename="dish.jpg"; filename*=UTF-8''dish.jpg nosniff
+R10 rpc: [{"id":"88a15d86-dea4-498b-b0c2-50ba590f34c7","original_path":"98761426-2ecb-443a-be7c-b4d6e99372d7/88a15d86-dea4-498b-b0c2-50ba590f34c7/original.html","venue_id":"8a146ac0-4524-42b1-b32b-f6c0d30e24c1","upload_state":"uploading","reused":false}]
+R10 direct upload to original.html : stored
+R10 finalise (no key on row): {"ok":true,"state":"failed","error":"This file type is not supported. Use JPEG, PNG, WebP, HEIC, MP4, MOV or WebM."} row size_bytes 999999999999
+R4c text/html -> 200 text/plain; charset=UTF-8 row: ready
+R4c image/svg+xml -> 200 image/svg+xml row: ready
+R4c application/xhtml+xml -> 200 application/xhtml+xml row: ready
+R4c text/xml -> 200 text/xml; charset=UTF-8 row: ready
+R4c application/pdf -> 200 application/pdf row: ready
+R4c text/javascript -> 200 text/javascript row: ready
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  00:33:43
+   Duration  40.79s (tests 100%)
+

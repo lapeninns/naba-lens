@@ -1,0 +1,34 @@
+
+ RUN  v5.0.5 /Users/amankumarshrestha/.t3/worktrees/nabalens/review-nl-upload-path2
+
+R1 mint upsert URL: new row violates row-level security policy
+R2 TUS create (upsert): 403 new row violates row-level security policy
+R2b TUS create: 201
+R2b delete: {"ok":true,"assetId":"60cfe5ea-3a6c-4d33-b580-80217880e2e2","storage":"removed"}
+R2b TUS patch after delete: 403 new row violates row-level security policy
+R2b object exists after delete: false
+R2b signed PUT after delete: stored
+R3 replay server URL: The resource already exists
+R4 row validated mime: image/jpeg
+R4 1-year signed URL by staff: issued
+R4 GET: 200 content-type: text/plain; charset=UTF-8 nosniff: null disposition: null
+R4 GET after deactivation: 200
+R5 reserved with size 10, resumable: false row size 10
+R5 finalise: {"ok":true,"state":"ready"} row size now 17894 actual 17894
+R5 25MiB stored into a 1KB image reservation: stored
+R5 finalise big: {"ok":true,"state":"failed","error":"This file is larger than the upload limit."} state failed
+R5 cleanup now: {"status":"completed","removed":{"assets":1,"objects":1,"byState":{"uploading":1,"processing":0,"ready":0,"failed":0}},"failed":[],"more":false}
+R5 failed object still stored: 26214400
+R6 delete: {"ok":true,"assetId":"d98c4b98-0e50-4064-8253-2776972e2818","storage":"removed"} finalise: {"ok":true,"state":"ready"} row: ready deleted_at set: true objects left: [ 'preview.webp', 'thumb.webp' ]
+R7 cleanup @+30d: "completed" row: processing deleted_at: null object kept: true
+R8 concurrent reserve same key -> distinct assets: 1
+R8 concurrent finalise: [{"ok":true,"state":"ready"},{"ok":true,"state":"ready"},{"ok":true,"state":"ready"},{"ok":true,"state":"ready"},{"ok":true,"state":"ready"}]
+R8 rows for key: 1 state: ready
+R9 B: {"ok":false,"status":404,"message":"This upload could not be found."} wrong key: {"ok":false,"status":404,"message":"This upload could not be found."} admin: {"ok":false,"status":403,"message":"Only staff can upload."} state: uploading
+R9 B direct: new row violates row-level security policy B mint: new row violates row-level security policy A mint derivative: new row violates row-level security policy
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  00:27:27
+   Duration  34.07s (tests 100%)
+
