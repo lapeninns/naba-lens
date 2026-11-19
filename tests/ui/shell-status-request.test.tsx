@@ -77,8 +77,8 @@ describe("shell status within one request", () => {
     await staffShellStatus(pageActor as never, PROFILE)
     await StaffNotFound()
     expect(coverage.listMyRetakeNotes).toHaveBeenCalledTimes(1)
-    expect(coverage.getCoverageScope).toHaveBeenCalledTimes(1)
-    expect(coverage.getManagerReviewCount).toHaveBeenCalledTimes(1)
+    // The staff shell reads no manager status (D3).
+    expect(coverage.getManagerReviewCount).not.toHaveBeenCalled()
     // Every read ran as the page's own actor for that person.
     expect(coverage.listMyRetakeNotes).toHaveBeenCalledWith(pageActor)
   })

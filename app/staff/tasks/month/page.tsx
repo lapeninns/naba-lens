@@ -352,7 +352,7 @@ export default async function MonthPage({
           </ul>
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/staff/menu"
+              href="/staff/album/menu"
               className={buttonVariants({ variant: "secondary" })}
             >
               Browse menu items

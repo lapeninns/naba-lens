@@ -34,17 +34,14 @@ import type {
   PlaceLens,
   Shelf as AlbumShelf,
 } from "@/lib/album/shelves"
+import { sectionAnchor } from "@/lib/album/shelves"
 import { cn } from "@/lib/utils"
 
 import {
   LENS_COPY,
   PlaceLensPills,
-  shelfAnchor,
   type LensPlace,
 } from "./album-lens"
-
-/** The id a section's heading has inside an open shelf, for the jump bar. */
-const sectionAnchor = (key: string) => shelfAnchor(`section-${key}`)
 
 /*
  * One part of the album (DESIGN.md §5d "A part"): Menu (with its Food |

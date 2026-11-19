@@ -13,10 +13,8 @@ export const LENS_COPY = {
   allPlaces: "All places",
 }
 
-/** The id a shelf's heading has, for the jump bar and the landing's links. */
-export function shelfAnchor(key: string): string {
-  return `shelf-${key.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
-}
+// Kept here for the client screens; it lives in lib so servers can use it.
+export { shelfAnchor } from "@/lib/album/shelves"
 
 export type LensPlace = { id: string; label: string; empty: number }
 
