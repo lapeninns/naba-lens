@@ -105,10 +105,11 @@ async function offlineRoundTrip(
   await expect(offlineAlerts(page)).toHaveCount(0)
 }
 
+// Settings (DESIGN.md §5b) holds Edit profile, the staff page's own dialog.
 test("staff list page: the shell shows the offline notice", async () => {
   await offlineRoundTrip(
     staff,
-    "/staff",
+    "/staff/me/settings",
     /./,
     "shell",
     dialogAnswers("Edit profile")

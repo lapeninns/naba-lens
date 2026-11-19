@@ -4,10 +4,10 @@ import { expect, test, type Page } from "@playwright/test"
 import {
   adminPages,
   managerPages,
-  provisionManagedWorld,
   staffPages,
   type ManagedWorld,
 } from "./helpers/managed-world"
+import { provisionLayoutWorld } from "./helpers/s5-layout"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -15,8 +15,10 @@ import { signedInPage } from "./helpers/world"
  * theme follows the system, so a dark colour scheme on the context is what a
  * user with a dark OS sees. Light is covered by responsive.spec.ts. Each
  * failure names the page, width, element and the colours axe measured. The
- * manager's month is prepared first so coverage, team, checklist and task
- * pages carry real chips; a visible closed chip is also measured on hover.
+ * venue's month is prepared first so the staff task, coverage and team pages
+ * carry real chips; a visible closed chip is also measured on hover. Staff
+ * pages are the five tabs and what they open (DESIGN.md §15); manager pages
+ * are the /manager workspace (decision D3).
  */
 
 const WIDTHS = [390, 1280] as const
@@ -32,7 +34,7 @@ let hovered = 0
 
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(240_000)
-  m = await provisionManagedWorld("dark")
+  m = await provisionLayoutWorld("dark")
 
   const dark = { colorScheme: "dark" } as const
   staff = await signedInPage(browser, m.world.staffA, dark)
@@ -63,6 +65,8 @@ async function contrast(page: Page, width: number, path: string) {
   await page.setViewportSize({ width, height: 900 })
   const res = await page.goto(path)
   expect(res?.status(), `${path} status`).toBeLessThan(400)
+  // A redirect (a retired URL, a wrong-role guard) would measure another page.
+  await expect(page).toHaveURL((url) => url.pathname === path)
   await expect(page.locator("html")).toHaveClass(/\bdark\b/)
   await expect(page.locator("h1").first()).toBeVisible()
   // A route with loading.tsx shows its skeleton (which has an h1 of its own)

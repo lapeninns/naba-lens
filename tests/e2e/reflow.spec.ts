@@ -4,10 +4,10 @@ import { syntheticJpeg } from "./helpers/media"
 import {
   adminPages,
   managerPages,
-  provisionManagedWorld,
   staffPages,
   type ManagedWorld,
 } from "./helpers/managed-world"
+import { provisionLayoutWorld } from "./helpers/s5-layout"
 import { horizontalOverflow } from "./helpers/overflow"
 import { signedInPage } from "./helpers/world"
 
@@ -40,7 +40,7 @@ let anon: Page
 
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(240_000)
-  m = await provisionManagedWorld("reflow")
+  m = await provisionLayoutWorld("reflow")
   staff = await signedInPage(browser, m.world.staffA)
   manager = await signedInPage(browser, m.world.manager)
   admin = await signedInPage(browser, m.world.admin)
@@ -97,8 +97,8 @@ for (const size of SIZES) {
 
   test(`staff pages, Add and Match reflow at ${size.name}`, async () => {
     for (const path of staffPages(m)) await reflow(staff, size, path)
-    // Me's Add a video: the upload sheet.
-    await reflow(staff, size, "/staff")
+    // My photos' Add a video: the upload sheet (DESIGN.md §5e).
+    await reflow(staff, size, "/staff/photos")
     await dialogReflows(
       staff,
       size,
@@ -120,8 +120,8 @@ for (const size of SIZES) {
         staff.getByRole("button", { name: "45° angle. Open example" }).click(),
       staff.getByRole("dialog", { name: "45° angle" })
     )
-    // Album's Add photos: the phone's photos, then Match (DESIGN.md §6.1).
-    await reflow(staff, size, "/staff/tasks")
+    // Add: the phone's photos, then Match (DESIGN.md §6.1).
+    await reflow(staff, size, "/staff/album")
     const photo = await syntheticJpeg(`reflow-${size.name}-${Date.now()}.jpg`)
     const tab = staff
       .locator('[data-slot="tabbar"], header')
@@ -143,19 +143,10 @@ for (const size of SIZES) {
     await expect(tab).toHaveAccessibleName("Add photos", { timeout: 60_000 })
   })
 
-  test(`manager pages and Add a checklist item reflow at ${size.name}`, async () => {
+  // The /manager workspace (decision D3) has no checklist screen, so the
+  // old Add a checklist item dialog is gone with it.
+  test(`manager pages reflow at ${size.name}`, async () => {
     for (const path of managerPages(m)) await reflow(manager, size, path)
-    await reflow(manager, size, "/staff/manage/checklist")
-    await dialogReflows(
-      manager,
-      size,
-      "Add a checklist item",
-      () =>
-        manager
-          .getByRole("button", { name: "Add a venue-specific item" })
-          .click(),
-      manager.getByRole("dialog", { name: "Add a checklist item" })
-    )
   })
 
   test(`admin pages and Invite staff reflow at ${size.name}`, async () => {
@@ -220,13 +211,13 @@ async function smallTargets(page: Page) {
 test("staff targets are 48px at 390 and 1366 (review Z1)", async () => {
   test.setTimeout(240_000)
   let measured = 0
-  // Album place: the first place Album home links to.
+  // Album's place lens (DESIGN.md §5d): the first place Album links to.
   await staff.setViewportSize({ width: 390, height: 844 })
-  await staff.goto("/staff/tasks")
+  await staff.goto("/staff/album")
   const place = await staff
-    .locator('main a[href^="/staff/album/"]')
+    .locator('main a[href^="/staff/album?place="]')
     .first()
-    .getAttribute("href")
+    .getAttribute("href", { timeout: 2_000 })
     .catch(() => null)
   const paths = [...staffPages(m), ...(place ? [place] : [])]
   for (const width of [390, 1366]) {
@@ -245,7 +236,7 @@ test("staff targets are 48px at 390 and 1366 (review Z1)", async () => {
 
 test("the staff TabBar is --spacing-tabbar tall at 320 (review Z8)", async () => {
   await staff.setViewportSize({ width: 320, height: 640 })
-  await staff.goto("/staff/tasks")
+  await staff.goto("/staff/home")
   const bar = staff.locator('[data-slot="tabbar"]')
   await expect(bar).toBeVisible()
   await settle(staff)
@@ -367,10 +358,10 @@ test.describe("forced colours", () => {
     let buttons = 0
     let chips = 0
     const pages: [Page, string][] = [
-      [fcStaff, "/staff/tasks"],
+      [fcStaff, "/staff/home"],
       [fcStaff, `/staff/tasks/${m.taskId}`],
-      [fcManager, "/staff/manage/checklist"],
-      [fcManager, "/staff/manage/team"],
+      [fcManager, "/manager"],
+      [fcManager, "/manager/team"],
       [fcAdmin, "/admin/staff"],
       [fcAdmin, `/admin/menus/${m.world.venue1.id}`],
     ]
@@ -396,13 +387,13 @@ test.describe("forced colours", () => {
   })
 
   test("the TabBar keeps its edge and current tab", async () => {
-    // Me is a tab (Album shell, DESIGN.md §5 Tab bar), so one tab is current.
-    await visit(fcStaff, 390, "/staff")
+    // Me is a tab (DESIGN.md §15), so one tab is current.
+    await visit(fcStaff, 390, "/staff/me")
     const bar = fcStaff.locator('[data-slot="tabbar"]')
     const current = bar.locator('[aria-current="page"]')
-    // Measured, never vacuous: the bar has Album, Add photos and Me, and Me
-    // is current. Add photos is a plain tab now, with no disc to mark.
-    await expect(bar.locator("a, button")).toHaveCount(3)
+    // Measured, never vacuous: the bar has Today, Album, Add, My photos and
+    // Me, and Me is current. Add is a plain tab, with no disc to mark.
+    await expect(bar.locator("a, button")).toHaveCount(5)
     await expect(current).toHaveCount(1)
     await expect(bar.locator('[data-slot="album-add"]')).toHaveCount(1)
     expect(await unmarked(bar)).toEqual([])
@@ -471,7 +462,7 @@ test.describe("forced colours", () => {
       [fcAdmin, "/admin", 1280],
       [fcAdmin, "/admin/staff", 390],
       [fcStaff, "/staff/community", 390],
-      [fcManager, `/staff/manage/checklist/${m.checklistItemId}`, 1280],
+      [fcManager, "/manager/team", 1280],
     ]
     let measured = 0
     for (const [page, path, width] of pages) {
