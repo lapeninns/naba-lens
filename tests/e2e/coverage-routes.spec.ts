@@ -11,7 +11,9 @@ import {
   seedImages,
   type CoverageWorld,
 } from "./helpers/coverage-world"
+import { convertToManager } from "./helpers/manager-world"
 import { provisioner, psql } from "./helpers/stack"
+import { STAFF_LANDING } from "./helpers/ui"
 import { seedReadyAssets, signedInPage } from "./helpers/world"
 
 /**
@@ -271,7 +273,7 @@ test.describe("private media responses send no-referrer (D-004)", () => {
       expect(statuses, label).toContain(res.status())
       expect(res.headers()["referrer-policy"], label).toBe("no-referrer")
     }
-    const ordinary = await owner.request.get("/staff/tasks")
+    const ordinary = await owner.request.get("/staff/home")
     expect(ordinary.status()).toBe(200)
     expect(ordinary.headers()["referrer-policy"]).toBe(
       "strict-origin-when-cross-origin"
@@ -300,17 +302,19 @@ test.describe("signed out (R-X1)", () => {
     const context = await browser.newContext()
     const page = await context.newPage()
     for (const path of [
-      "/staff/tasks",
+      "/staff/home",
+      "/staff/album",
+      "/staff/photos",
       "/staff/tasks/month",
       "/staff/tasks/other",
       "/staff/tasks/all",
       `/staff/tasks/${randomUUID()}`,
-      "/staff/manage",
-      "/staff/manage/review",
-      "/staff/manage/team",
-      "/staff/manage/checklist",
-      `/staff/manage/checklist/${randomUUID()}`,
-      "/staff/manage/menu",
+      "/manager",
+      "/manager/review",
+      "/manager/team",
+      "/manager/menu",
+      "/manager/search",
+      "/manager/amenities",
       "/admin/coverage",
       "/admin/coverage/managers",
       `/admin/coverage/${w.venue1.id}`,
@@ -478,7 +482,7 @@ test.describe("scheduled monthly preparation route (AC-26)", () => {
 })
 
 test.describe("staff task routes (G-4)", () => {
-  test("All tasks lands on Other jobs; a missing task goes back to Home without task words", async ({
+  test("All tasks lands on Other jobs; a missing task goes back to Today without task words", async ({
     browser,
   }) => {
     const w = await provisionCoverageWorld()
@@ -497,9 +501,52 @@ test.describe("staff task routes (G-4)", () => {
     await expect(
       page.getByRole("heading", { name: "We can't find that page" })
     ).toBeVisible()
-    const back = page.getByRole("link", { name: "Go to Home" })
-    await expect(back).toHaveAttribute("href", "/staff/tasks")
+    const back = page.getByRole("link", { name: "Go to Today" })
+    await expect(back).toHaveAttribute("href", "/staff/home")
     await expect(page.getByRole("main")).not.toContainText(/\btasks?\b/i)
     await page.context().close()
+  })
+})
+
+test.describe("retired staff Manage (decision D3; DESIGN.md §15)", () => {
+  test("every /staff/manage URL takes a manager account into /manager; plain staff go to Today", async ({
+    browser,
+  }) => {
+    const w = await provisionCoverageWorld()
+    const adminDb = await signIn(provisioner(), w.admin.email)
+    await convertToManager(adminDb, w.manager, w.venue1)
+    const manager = await signedInPage(browser, w.manager)
+    const staff = await signedInPage(browser, w.staffA)
+    const checkId = randomUUID()
+    // Each retired page redirects to its /manager screen; the staff layout
+    // sends a manager account to the workspace home first, so either is the
+    // landing. The staff-side checklist has no /manager screen.
+    for (const [from, to] of [
+      ["/staff/manage", "/manager"],
+      ["/staff/manage/review", "/manager/review"],
+      ["/staff/manage/team", "/manager/team"],
+      ["/staff/manage/menu", "/manager/menu"],
+      ["/staff/manage/menu/items", "/manager/menu"],
+      ["/staff/manage/search", "/manager/search"],
+      ["/staff/manage/amenities", "/manager/amenities"],
+      ["/staff/manage/amenities/places", "/manager/amenities/places"],
+      [`/staff/manage/amenities/${checkId}`, `/manager/amenities/${checkId}`],
+      ["/staff/manage/checklist", "/manager"],
+      [`/staff/manage/checklist/${checkId}`, "/manager"],
+    ] as const) {
+      const label = from.replace(UUID_TEXT, "<id>")
+      await manager.goto(from)
+      await expect
+        .poll(() => new URL(manager.url()).pathname, { message: label })
+        .toMatch(/^\/manager(\/|$)/)
+      expect([to, "/manager"], label).toContain(new URL(manager.url()).pathname)
+      await staff.goto(from)
+      await expect(staff, `staff ${label}`).toHaveURL(STAFF_LANDING)
+    }
+    await expect(
+      manager.getByRole("navigation", { name: "Venue workspace" }).first()
+    ).toBeAttached()
+    await manager.context().close()
+    await staff.context().close()
   })
 })
