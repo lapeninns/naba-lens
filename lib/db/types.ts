@@ -7451,6 +7451,48 @@ export type Database = {
           },
         ]
       }
+      shot_templates: {
+        Row: {
+          category: string
+          example_asset_id: string | null
+          instruction: string
+          revision: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category: string
+          example_asset_id?: string | null
+          instruction: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category?: string
+          example_asset_id?: string | null
+          instruction?: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shot_templates_example_asset_id_fkey"
+            columns: ["example_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shot_templates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slot_change_report_events: {
         Row: {
           action: string
@@ -11237,6 +11279,25 @@ export type Database = {
         }
         Returns: Json
       }
+      shot_template_example_can_open: {
+        Args: { p_asset_id: string }
+        Returns: boolean
+      }
+      shot_template_example_choices: {
+        Args: { p_before?: Json; p_limit?: number; p_venue_id?: string }
+        Returns: Json
+      }
+      shot_template_set: {
+        Args: {
+          p_category: string
+          p_example_asset_id: string
+          p_expected_revision: number
+          p_instruction: string
+          p_reason?: string
+        }
+        Returns: Json
+      }
+      shot_templates: { Args: never; Returns: Json }
       skip_work_profile: {
         Args: never
         Returns: {
@@ -11256,6 +11317,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      slot_briefs: {
+        Args: { p_include_requests?: boolean; p_venue_id?: string }
+        Returns: Json
       }
       slot_change_reports: {
         Args: { p_limit?: number; p_state?: string; p_venue_id?: string }
