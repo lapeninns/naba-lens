@@ -205,6 +205,29 @@ describe("venues", () => {
     expect(await activity(row.id, "venue_created")).toHaveLength(1)
   })
 
+  it("keeps capped venue slugs valid and distinct when the cut falls on a word separator", async () => {
+    const word = crypto.randomUUID().slice(0, 8) + "x".repeat(57)
+    const create = (suffix: string) =>
+      okAs<Obj>(
+        admin.client.rpc("admin_venue_save", {
+          p_venue_id: null as unknown as string,
+          p_name: `The ${word} ${suffix}`,
+          p_locality: "",
+          p_address: "",
+          p_timezone: "",
+          p_revision: 0,
+        })
+      )
+    expect(await create("Restaurant")).toMatchObject({
+      created: true,
+      slug: `the-${word}`,
+    })
+    expect(await create("Pub")).toMatchObject({
+      created: true,
+      slug: `the-${word}-2`,
+    })
+  })
+
   it("edits with a stale check, validates timezone and names", async () => {
     const before = await venue(venueA)
     await fails(
