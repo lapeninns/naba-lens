@@ -9,9 +9,18 @@ import {
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
-import { getAlbumBriefs, getAlbumPlacements } from "@/lib/server/album"
+import {
+  getAlbumBriefs,
+  getAlbumPlacements,
+  getAlbumShelves,
+} from "@/lib/server/album"
+import { isShelfOf, SHELVES, suggestShelf } from "@/lib/album/shelves"
 
-import { setAlbumBriefAction, setAlbumPlaceAction } from "./actions"
+import {
+  setAlbumBriefAction,
+  setAlbumPlaceAction,
+  setAlbumShelfAction,
+} from "./actions"
 
 export const metadata: Metadata = { title: "Album places" }
 
@@ -24,18 +33,20 @@ export const metadata: Metadata = { title: "Album places" }
  */
 export default async function ManagerAlbumPlacesPage() {
   const ctx = await workspaceManagerContext()
-  const [placements, list, briefs] = await Promise.all([
+  const [placements, list, briefs, shelves] = await Promise.all([
     getAlbumPlacements(ctx.actor, ctx.venueId),
     knowledgeServices.getWorkingList(ctx.actor, {}).catch(() => null),
     getAlbumBriefs(ctx.actor, ctx.venueId),
+    getAlbumShelves(ctx.actor, ctx.venueId),
   ])
+  const chosen = shelves.ok ? shelves.chosen : new Map<string, string>()
 
   const header = (
     <PageHeader
       venueScope
       scope={ctx.venue.name}
       title="Album places"
-      summary="Choose where staff photograph each menu section and amenity, and write a one-line brief for each section. Album shows staff the empty slots wherever they are standing."
+      summary="Choose where staff photograph each menu section and amenity, which shelf each section sits on in Album, and write a one-line brief for each section."
     />
   )
 
@@ -68,6 +79,22 @@ export default async function ManagerAlbumPlacesPage() {
       brief: briefs.ok
         ? (briefs.briefs.sections.get(section.slug) ?? null)
         : null,
+      // §5d: a food or drinks section's shelf in Album.
+      ...(section.kind === "food" || section.kind === "drinks"
+        ? {
+            shelf: {
+              options: SHELVES[section.kind].map(({ key, label }) => ({
+                key,
+                label,
+              })),
+              suggested: suggestShelf(section.kind, section.name),
+              chosen: (() => {
+                const own = chosen.get(section.slug)
+                return own && isShelfOf(section.kind, own) ? own : null
+              })(),
+            },
+          }
+        : {}),
     })),
     ...categories.map((category) => ({
       source: "amenity_category" as const,
@@ -104,6 +131,13 @@ export default async function ManagerAlbumPlacesPage() {
           .
         </p>
       )}
+      {shelves.ok ? null : (
+        <Notice tone="info" role="note">
+          Album shows each section on the shelf its name suggests. Moving a
+          section to another shelf will be possible once the shelves update is
+          installed.
+        </Notice>
+      )}
       {briefs.ok ? null : (
         <Notice tone="negative" role="alert">
           Section briefs could not be read: {briefs.message}
@@ -114,6 +148,7 @@ export default async function ManagerAlbumPlacesPage() {
         groups={groups}
         onSet={setAlbumPlaceAction}
         onSetBrief={briefs.ok ? setAlbumBriefAction : undefined}
+        onSetShelf={shelves.ok ? setAlbumShelfAction : undefined}
       />
     </div>
   )

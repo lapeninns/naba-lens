@@ -184,6 +184,11 @@ export type AlbumSlot = {
    * tile reads Optional (DESIGN.md §4).
    */
   optional?: boolean
+  /**
+   * A dish's menu section slug (stable across menu versions), which a
+   * manager's shelf choice is kept by (DESIGN.md §5d, album_shelves).
+   */
+  sectionKey?: string
 }
 
 export type AlbumGroup = {
@@ -454,12 +459,13 @@ export function amenityState(check: AmenityInput): SlotState | null {
   return "needed"
 }
 
-const isEmpty = (state: SlotState) => state === "needed" || state === "retake"
+export const isEmpty = (state: SlotState) =>
+  state === "needed" || state === "retake"
 /** In Album's counts: not Not here and not optional (DESIGN.md §4; FA-51). */
-const isCounted = (slot: AlbumSlot) =>
+export const isCounted = (slot: AlbumSlot) =>
   slot.state !== "not-here" && !slot.optional
 /** Waiting on someone else: a review, a send, or a manager's check (FA-11). */
-const isWaiting = (state: SlotState) =>
+export const isWaiting = (state: SlotState) =>
   state === "waiting" || state === "sending" || state === "check-due"
 
 /**
@@ -607,7 +613,7 @@ function slotRank(slot: AlbumSlot): number {
   return slot.state === "needed" && slot.neededBy ? -1 : ORDER[slot.state]
 }
 
-function sortSlots(a: AlbumSlot, b: AlbumSlot) {
+export function sortSlots(a: AlbumSlot, b: AlbumSlot) {
   const byState = slotRank(a) - slotRank(b)
   if (byState) return byState
   if (a.neededBy && !b.neededBy) return -1
@@ -661,6 +667,7 @@ export function buildAlbum(input: AlbumInput): AlbumView {
           )
         ),
         target: { kind: "dish", itemId: dish.itemId, itemName: dish.name },
+        ...(slug ? { sectionKey: slug } : {}),
         category: dish.coverageCategory ?? "food",
         pendingCount: dish.pendingCount ?? 0,
         needsUpdate: needsUpdate(optional ? undefined : dish.coverage, state),

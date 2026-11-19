@@ -1,48 +1,112 @@
-import Link from "next/link"
-import { notFound } from "next/navigation"
-import { FilmStripIcon, ImageIcon } from "@phosphor-icons/react/dist/ssr"
+import { cookies } from "next/headers"
 
-import { AlbumAddTrigger } from "@/components/nabalens/album/album-add-trigger"
 import { MatchLaterRow } from "@/components/nabalens/album/match/match-later"
-import { UnfinishedRow } from "@/components/nabalens/album/unfinished-row"
-import { YourMonthCard } from "@/components/nabalens/album/your-month-card"
-import { AppShell } from "@/components/nabalens/app-shell"
-import { Notice } from "@/components/nabalens/notice"
-import { StatusChip } from "@/components/nabalens/status-chip"
-import { Photo } from "@/components/ui/photo"
-import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import {
-  ALBUM_UPLOAD_TRAY,
-  STAFF_PHOTO_ROUTES,
-} from "@/lib/config/album-upload-tray"
+  OtherJobsRow,
+  StartHereRow,
+} from "@/components/nabalens/album/home-rows"
+import { UnfinishedRow } from "@/components/nabalens/album/unfinished-row"
+import { AppShell } from "@/components/nabalens/app-shell"
+import { AddReminder } from "@/components/nabalens/home/add-reminder"
+import { HomeRetakes } from "@/components/nabalens/home/home-retakes"
+import { RecentActivity } from "@/components/nabalens/home/recent-activity"
+import { FindingSentNotice } from "@/components/nabalens/amenities/capture/finding-sent-notice"
+import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { AskedFor } from "@/components/nabalens/requests/staff-requests"
+import {
+  FIRST_RUN_COOKIE,
+  showWelcomeEntry,
+} from "@/components/nabalens/tasks/first-run-state"
+import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import { getOnboardingState } from "@/lib/auth/venues"
+import { askedForItems } from "@/lib/requests/asked-for"
+import { loadAlbum } from "@/lib/server/album"
 import { getCoverageActor } from "@/lib/server/coverage"
+import { listMyRequests } from "@/lib/server/requests"
 import { getMyUploads } from "@/lib/server/staff"
-import { datesLine, OUTCOME_CHIP, receiptWord } from "@/lib/staff/my-uploads"
+import { addReminder } from "@/lib/staff/home"
 
+import { hasOwnMedia } from "../_shell/album-rows"
+import { sentFinding } from "../_shell/finding-sent"
 import { listMatchLater } from "../_shell/match-later"
-import { ownMonth, staffShellStatus } from "../_shell/shell-status"
+import {
+  myAlbumRetakes,
+  myOtherJobsCount,
+  ownMonth,
+  staffShellStatus,
+} from "../_shell/shell-status"
 import { ADD_BLOCKED } from "../add-blocked"
-import { unwrap } from "../tasks/result"
+import { OTHER_JOBS_PATH, WELCOME_PATH, unwrap } from "../tasks/result"
 
-export const metadata = { title: "Home" }
+export const metadata = { title: "Today" }
 
-/** Gallery-first staff Home and a short view of your own work (DESIGN.md §6.1a). */
-export default async function StaffHomePage() {
-  if (!ALBUM_UPLOAD_TRAY) notFound()
+/** Where Dismiss on the finding notice hands focus: the top of Today. */
+const TODAY_TOP_ID = "today-top"
+
+/**
+ * Staff Home: a reminder to add photos and the person's recent activity
+ * (DESIGN.md §5c, D15). Home never chooses a slot; only a reviewer's retake
+ * or a manager's request names one. Each read that can fail on its own
+ * leaves its part out (or says so) rather than failing Home.
+ */
+export default async function StaffHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const profile = await requireActiveStaff()
   const { actor } = unwrap(await getCoverageActor())
-  const [shell, monthly, later, uploads] = await Promise.all([
+  const dismissedAt = profile.work?.welcomeDismissedAt ?? null
+  const [
+    shell,
+    monthly,
+    album,
+    retakes,
+    later,
+    otherJobs,
+    ownMedia,
+    jar,
+    onboarding,
+    requests,
+    uploads,
+    findingSent,
+  ] = await Promise.all([
     staffShellStatus(actor, profile),
     ownMonth(actor),
+    loadAlbum(actor),
+    myAlbumRetakes(actor),
     listMatchLater(actor).catch(() => null),
+    myOtherJobsCount(actor),
+    dismissedAt ? true : hasOwnMedia(actor),
+    cookies(),
+    getOnboardingState(actor.db).catch(() => null),
+    listMyRequests(actor).catch(() => null),
     getMyUploads(actor).catch(() => null),
+    searchParams.then((p) => sentFinding(actor, p)),
   ])
   const blocked = uploadBlockReason(profile)
-  const recent = uploads?.ok
-    ? uploads.page.items
-        .filter((item) => item.venueId === profile.venueId)
-        .slice(0, 6)
-    : null
+  const canAdd = blocked === null
+  const showWelcome =
+    showWelcomeEntry({
+      dismissedAt,
+      legacyCookie: jar.has(FIRST_RUN_COOKIE),
+      hasOwnMedia: ownMedia,
+    }) ||
+    (onboarding !== null && !onboarding.noticeAcknowledgedAt)
+  const view = album.ok ? album.album : null
+  const items = uploads?.ok ? uploads.page.items : null
+  const here = items?.filter((item) => item.venueId === profile.venueId) ?? null
+  const asked =
+    view && requests?.ok
+      ? askedForItems(
+          requests.list.items,
+          new Map(
+            [...view.places, ...(view.unplaced ? [view.unplaced] : [])]
+              .flatMap((p) => p.groups.flatMap((g) => g.slots))
+              .map((slot) => [slot.id, slot])
+          )
+        )
+      : []
 
   return (
     <AppShell
@@ -53,109 +117,47 @@ export default async function StaffHomePage() {
       venueName={profile.venue?.name}
       monthly={monthly}
     >
-      <div className="mx-auto grid w-full max-w-feed gap-4">
-        <section
-          className="grid gap-3 rounded-card border border-line bg-surface p-4"
-          aria-labelledby="home-add-title"
-        >
-          <div className="grid gap-1">
-            <h1 id="home-add-title" className="type-page-title text-ink">
-              Add to the album
-            </h1>
-            <p className="text-body text-ink-muted">
-              Pick photos from your gallery, then match them to a dish or space.
-            </p>
-          </div>
-          {blocked ? (
-            <Notice tone="attention">{ADD_BLOCKED[blocked]}</Notice>
-          ) : (
-            <AlbumAddTrigger kind="home" />
+      <OfflineNotice className="mb-3" />
+      <div
+        id={TODAY_TOP_ID}
+        tabIndex={-1}
+        className="mx-auto grid w-full max-w-feed gap-5 pb-4 outline-none"
+      >
+        {findingSent ? (
+          <FindingSentNotice
+            question={
+              typeof findingSent === "string"
+                ? findingSent
+                : findingSent.question
+            }
+            copy={
+              typeof findingSent === "string" ? undefined : findingSent.copy
+            }
+            returnFocusId={TODAY_TOP_ID}
+          />
+        ) : null}
+        <StartHereRow href={showWelcome ? WELCOME_PATH : null} />
+        {canAdd ? <UnfinishedRow /> : null}
+        <HomeRetakes retakes={retakes ?? []} canAdd={canAdd} />
+        <AskedFor
+          items={asked}
+          today={requests?.ok ? requests.list.today : ""}
+          canAdd={canAdd}
+        />
+        <AddReminder
+          reminder={addReminder(
+            items,
+            profile.venueId ?? null,
+            new Date(),
+            Boolean(uploads?.ok && uploads.page.next)
           )}
-        </section>
-
-        <UnfinishedRow />
+          counts={view?.counts ?? null}
+          venueName={profile.venue?.name ?? ""}
+          blocked={blocked ? ADD_BLOCKED[blocked] : null}
+        />
         <MatchLaterRow count={later?.length ?? 0} />
-        <YourMonthCard monthly={monthly} compact />
-
-        <section className="grid gap-2" aria-labelledby="home-recent-title">
-          <div className="flex flex-wrap items-center justify-between gap-x-3">
-            <h2 id="home-recent-title" className="type-section-title">
-              Recent activity
-            </h2>
-            <Link
-              href={STAFF_PHOTO_ROUTES.me}
-              className="inline-flex min-h-11 items-center rounded-control text-label text-accent-text underline underline-offset-4 focus-ring"
-            >
-              See your photos
-            </Link>
-          </div>
-          {recent === null ? (
-            <p className="rounded-card border border-line bg-surface p-4 text-body text-ink-muted">
-              Recent activity couldn’t be loaded. Reload to try again.
-            </p>
-          ) : recent.length === 0 ? (
-            <p className="rounded-card border border-dashed border-line bg-surface p-4 text-body text-ink-muted">
-              Photos you send to this venue will appear here.
-            </p>
-          ) : (
-            <ul className="grid gap-2">
-              {recent.map((item) => {
-                const word = receiptWord(item)
-                const slot =
-                  item.slots.find(
-                    ({ outcome }) => outcome === "awaiting_review"
-                  ) ?? item.slots[0]
-                const name =
-                  item.slots.map(({ name }) => name).join(", ") ||
-                  (item.labelHelp
-                    ? "With your manager"
-                    : item.sharedKinds.length
-                      ? "Shared photo"
-                      : item.mediaType === "video"
-                        ? "Video"
-                        : "Photo without a slot")
-                const Icon =
-                  item.mediaType === "video" ? FilmStripIcon : ImageIcon
-                return (
-                  <li
-                    key={item.assetId}
-                    className="flex min-h-16 items-center gap-3 rounded-card border border-line bg-surface p-2.5"
-                  >
-                    {item.mediaType === "image" &&
-                    item.uploadState === "ready" ? (
-                      <Photo
-                        alt=""
-                        ratio="1/1"
-                        src={`/api/media/${item.assetId}/thumb`}
-                        className="size-12 shrink-0"
-                      />
-                    ) : (
-                      <span className="grid size-12 shrink-0 place-items-center rounded-control bg-surface-2">
-                        <Icon aria-hidden className="size-5" />
-                      </span>
-                    )}
-                    <div className="grid min-w-0 gap-0.5">
-                      <p className="text-label [overflow-wrap:anywhere]">
-                        {name}
-                      </p>
-                      <p className="text-meta text-ink-muted">
-                        {datesLine(item)}
-                      </p>
-                      {word ? (
-                        <span className="text-meta font-semibold">{word}</span>
-                      ) : slot ? (
-                        <StatusChip
-                          state={OUTCOME_CHIP[slot.outcome]}
-                          className="justify-self-start"
-                        />
-                      ) : null}
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </section>
+        <OtherJobsRow count={otherJobs} href={OTHER_JOBS_PATH} />
+        <RecentActivity items={here} />
       </div>
     </AppShell>
   )

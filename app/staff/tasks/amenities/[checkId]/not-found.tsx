@@ -12,10 +12,10 @@ export default function AmenityCaptureNotFound() {
         Your amenity checks are on Home.
       </p>
       <Link
-        href="/staff/tasks"
+        href="/staff/album/amenities"
         className={buttonVariants({ variant: "primary" })}
       >
-        Go to Home
+        Go to Amenities
       </Link>
     </main>
   )

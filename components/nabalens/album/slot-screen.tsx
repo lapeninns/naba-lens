@@ -21,7 +21,6 @@ import { VenueBar } from "@/components/nabalens/venue-bar"
 import { Button } from "@/components/ui/button"
 import { Photo } from "@/components/ui/photo"
 import type { AlbumSlot } from "@/lib/album/model"
-import { ALBUM_UPLOAD_TRAY } from "@/lib/config/album-upload-tray"
 import { cn } from "@/lib/utils"
 import {
   OUTCOME_CHIP,
@@ -227,19 +226,15 @@ export function AlbumSlotScreen({
                   <li
                     key={photo.assetId}
                     className={cn(
-                      "flex flex-wrap items-center gap-2",
-                      ALBUM_UPLOAD_TRAY &&
-                        "min-h-14 rounded-card border border-line bg-surface p-2"
+                      "flex min-h-14 flex-wrap items-center gap-2 rounded-card border border-line bg-surface p-2"
                     )}
                   >
-                    {ALBUM_UPLOAD_TRAY ? (
-                      <Photo
-                        src={`/api/media/${encodeURIComponent(photo.assetId)}/thumb`}
-                        alt=""
-                        ratio="1/1"
-                        className="size-10 shrink-0"
-                      />
-                    ) : null}
+                    <Photo
+                      src={`/api/media/${encodeURIComponent(photo.assetId)}/thumb`}
+                      alt=""
+                      ratio="1/1"
+                      className="size-10 shrink-0"
+                    />
                     <StatusChip state={OUTCOME_CHIP[photo.outcome]} />
                     <span className="text-meta text-ink-muted">
                       Sent {shortDay(photo.uploadedAt)}
@@ -276,13 +271,7 @@ export function AlbumSlotScreen({
             onClick={add}
           >
             <ImagesIcon data-icon="inline-start" aria-hidden />
-            {ALBUM_UPLOAD_TRAY
-              ? empty
-                ? "Add photos for this slot"
-                : "Add more photos"
-              : empty
-                ? SLOT_COPY.add
-                : SLOT_COPY.addAnother}
+            {empty ? "Add photos for this slot" : "Add more photos"}
           </Button>
         </div>
       ) : null}

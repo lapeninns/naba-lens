@@ -21,10 +21,7 @@ import {
 import { Notice } from "@/components/nabalens/notice"
 import { Photo } from "@/components/ui/photo"
 import type { ContentType, SaveLabelsInput } from "@/lib/menus/types"
-import {
-  ALBUM_UPLOAD_TRAY,
-  STAFF_PHOTO_ROUTES,
-} from "@/lib/config/album-upload-tray"
+import { STAFF_PHOTO_ROUTES } from "@/lib/config/album-upload-tray"
 import { cn } from "@/lib/utils"
 
 import { MATCH_LATER_COPY } from "./copy"
@@ -35,7 +32,6 @@ import {
   writeRecentSlot,
 } from "./last-place"
 import { MatchPicker, type BoardState } from "./match-picker"
-import { ALBUM_HREF } from "./match-screen"
 import { placeKey, type MatchSlot, type SharedKind } from "./model"
 
 /** Where Match later lives. */
@@ -274,11 +270,11 @@ export function MatchLaterScreen({
     <div className="grid gap-4 pb-4" data-slot="match-later">
       <div>
         <Link
-          href={ALBUM_UPLOAD_TRAY ? STAFF_PHOTO_ROUTES.home : ALBUM_HREF}
+          href={STAFF_PHOTO_ROUTES.home}
           className="inline-flex min-h-12 items-center gap-1 text-label text-ink focus-ring"
         >
           <ArrowLeftIcon aria-hidden className="size-5" />
-          {ALBUM_UPLOAD_TRAY ? "Home" : MATCH_LATER_COPY.back}
+          Today
         </Link>
       </div>
       <header className="grid gap-1">

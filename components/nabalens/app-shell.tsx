@@ -7,6 +7,7 @@ import {
   ForkKnifeIcon,
   GearSixIcon,
   HouseIcon,
+  ImageIcon,
   ImagesIcon,
   ImagesSquareIcon,
   SignOutIcon,
@@ -16,10 +17,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr"
 
 import { Button } from "@/components/ui/button"
-import {
-  ALBUM_UPLOAD_TRAY,
-  STAFF_PHOTO_ROUTES,
-} from "@/lib/config/album-upload-tray"
+import { STAFF_PHOTO_ROUTES } from "@/lib/config/album-upload-tray"
 import type { MonthlyProgress } from "@/lib/server/coverage/types"
 import { cn } from "@/lib/utils"
 
@@ -42,7 +40,14 @@ type AdminSection =
   | "settings"
   | "more"
 type StaffSection =
-  "home" | "tasks" | "menu" | "portfolio" | "community" | "people" | "manage"
+  | "home"
+  | "tasks"
+  | "photos"
+  | "menu"
+  | "portfolio"
+  | "community"
+  | "people"
+  | "manage"
 
 type AppShellProps = {
   children: React.ReactNode
@@ -199,14 +204,37 @@ const ALBUM: NavItem<StaffSection> = {
   icon: ImagesSquareIcon,
 }
 const PHONE_TABS: ReadonlyArray<NavItem<StaffSection>> = [
-  { id: "home", label: "Home", href: STAFF_PHOTO_ROUTES.home, icon: HouseIcon },
+  {
+    id: "home",
+    label: "Today",
+    href: STAFF_PHOTO_ROUTES.home,
+    icon: HouseIcon,
+  },
   { ...ALBUM, href: STAFF_PHOTO_ROUTES.album },
+  {
+    id: "photos",
+    label: "My photos",
+    href: STAFF_PHOTO_ROUTES.photos,
+    icon: ImageIcon,
+  },
   { ...ME, href: STAFF_PHOTO_ROUTES.me },
+]
+/**
+ * The phone TabBar in the photo preview (DESIGN.md §15, D18): Today, Album,
+ * Add in the middle, My photos, Me. `null` is Add (AlbumAddTrigger).
+ */
+const PHONE_TAB_BAR: ReadonlyArray<NavItem<StaffSection> | null> = [
+  PHONE_TABS[0]!,
+  PHONE_TABS[1]!,
+  null,
+  PHONE_TABS[2]!,
+  PHONE_TABS[3]!,
 ]
 const MANAGE: NavItem<StaffSection> = {
   id: "manage",
   label: "Manage",
-  href: "/staff/manage",
+  // Venue managers work in /manager (decision D3); /staff/manage redirects.
+  href: "/manager",
   icon: ClipboardTextIcon,
 }
 
@@ -227,11 +255,14 @@ export function AppShell(props: AppShellProps) {
   const { children, userName, onLogout, className } = props
   const staff = props.variant === "staff" ? props : null
   const admin = props.variant === "admin" ? props : null
-  const photoNav = staff !== null && ALBUM_UPLOAD_TRAY
+  const photoNav = staff !== null
   // The Album tab counts the retakes Album shows (DESIGN.md §5a), never
   // the empty slots, and only while another section is open.
+  // In the photo preview retakes are your own photos: My photos counts them
+  // (DESIGN.md §15, D18) and Album carries no count.
+  const retakeTab = photoNav ? "photos" : "tasks"
   const retakes = (id: string) =>
-    staff && id === "tasks" && active !== "tasks"
+    staff && id === retakeTab && active !== retakeTab
       ? { count: staff.todoCount, unknown: !!staff.todoUnknown }
       : staff && id === "portfolio" && active !== "portfolio" && staff.meCount
         ? { count: staff.meCount, unknown: false }
@@ -245,7 +276,7 @@ export function AppShell(props: AppShellProps) {
       : [
           // Album's places (DESIGN.md §5 Tab bar), and Manage. Our menu,
           // Photos and People are reached from Me.
-          ...(photoNav ? PHONE_TABS : [ALBUM, ME]),
+          ...PHONE_TABS,
           ...(staff?.canManage ? [MANAGE] : []),
         ].map((item) => ({
           item,
@@ -431,7 +462,7 @@ export function AppShell(props: AppShellProps) {
               phoneSection && "max-md:hidden"
             )}
           >
-            {staff && !photoNav ? (
+            {staff ? (
               <div className="hidden md:block">
                 <AlbumAddTrigger kind="bar" />
               </div>
@@ -494,7 +525,7 @@ export function AppShell(props: AppShellProps) {
                 }
               />
             ))
-          : (photoNav ? PHONE_TABS : [ALBUM, null, ME]).map((item) =>
+          : PHONE_TAB_BAR.map((item) =>
               item ? (
                 <TabLink
                   key={item.id}
@@ -506,7 +537,11 @@ export function AppShell(props: AppShellProps) {
                   label={item.id === "portfolio" ? "unread notices" : undefined}
                 />
               ) : (
-                <AlbumAddTrigger key="add" kind="tab" />
+                <AlbumAddTrigger
+                  key="add"
+                  kind="tab"
+                  label={photoNav ? "Add" : undefined}
+                />
               )
             )}
       </nav>

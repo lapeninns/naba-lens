@@ -31,7 +31,22 @@ export type AlbumPlacesGroup = {
   subjectId: string | null
   /** A menu section's brief (AL-4); amenity categories have none here. */
   brief?: string | null
+  /**
+   * A menu section's shelf in Album (DESIGN.md §5d): its type's shelves, the
+   * one its name suggests and the manager's own choice, if any.
+   */
+  shelf?: {
+    options: Array<{ key: string; label: string }>
+    suggested: string
+    chosen: string | null
+  }
 }
+
+/** Puts a section on a shelf, or clears the choice (null) (§5d, D16). */
+export type AlbumShelfSetter = (input: {
+  key: string
+  shelf: string | null
+}) => Promise<{ ok: true } | { ok: false; message: string }>
 
 export const SECTION_BRIEF_HINT = `One line on what each photo in this section must show, up to ${BRIEF_MAX} characters. A dish's own brief, set on its menu page, comes first.`
 
@@ -61,12 +76,18 @@ export function AlbumPlacesForm({
   groups,
   onSet,
   onSetBrief,
+  onSetShelf,
 }: {
   places: Array<{ subjectId: string; label: string }>
   groups: AlbumPlacesGroup[]
   onSet: AlbumPlacesSetter
   /** When given, each menu section gets a brief field (AL-4). */
   onSetBrief?: AlbumBriefSetter
+  /**
+   * When given, each menu section's shelf can be changed (§5d); without it
+   * the shelf is shown but not offered (shelves not installed yet).
+   */
+  onSetShelf?: AlbumShelfSetter
 }) {
   const menu = groups.filter((g) => g.source === "menu_section")
   const amenities = groups.filter((g) => g.source === "amenity_category")
@@ -79,6 +100,7 @@ export function AlbumPlacesForm({
         places={places}
         onSet={onSet}
         onSetBrief={onSetBrief}
+        onSetShelf={onSetShelf}
       />
       <GroupList
         title="Amenities"
@@ -98,6 +120,7 @@ function GroupList({
   places,
   onSet,
   onSetBrief,
+  onSetShelf,
 }: {
   title: string
   empty: string
@@ -105,6 +128,7 @@ function GroupList({
   places: Array<{ subjectId: string; label: string }>
   onSet: AlbumPlacesSetter
   onSetBrief?: AlbumBriefSetter
+  onSetShelf?: AlbumShelfSetter
 }) {
   return (
     <section className="grid gap-3" aria-labelledby={`album-${title}`}>
@@ -122,6 +146,7 @@ function GroupList({
               places={places}
               onSet={onSet}
               onSetBrief={onSetBrief}
+              onSetShelf={onSetShelf}
             />
           ))}
         </ul>
@@ -135,11 +160,13 @@ function GroupRow({
   places,
   onSet,
   onSetBrief,
+  onSetShelf,
 }: {
   group: AlbumPlacesGroup
   places: Array<{ subjectId: string; label: string }>
   onSet: AlbumPlacesSetter
   onSetBrief?: AlbumBriefSetter
+  onSetShelf?: AlbumShelfSetter
 }) {
   const id = React.useId()
   const [value, setValue] = React.useState(group.subjectId ?? "")
@@ -184,12 +211,24 @@ function GroupRow({
       </div>
     ) : null
 
+  const shelf = group.shelf ? (
+    <div className="sm:col-span-2">
+      <ShelfField
+        name={group.name}
+        sectionKey={group.key}
+        shelf={group.shelf}
+        onSet={onSetShelf}
+      />
+    </div>
+  ) : null
+
   // No places to choose from yet: the group is not placed, nothing to pick.
   if (places.length === 0)
     return (
       <li className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] sm:items-center">
         <p className="text-label text-ink">{group.name}</p>
         <p className="text-meta text-ink-muted">Not placed</p>
+        {shelf}
         {brief}
       </li>
     )
@@ -231,7 +270,93 @@ function GroupRow({
           ) : null}
         </div>
       </div>
+      {shelf}
       {brief}
     </li>
+  )
+}
+
+/**
+ * A section's shelf in Album (DESIGN.md §5d): "Suggested" follows the
+ * section's name; another choice is the manager's and always wins. Saved as
+ * soon as it changes, with the result written beside it (§6.7).
+ */
+function ShelfField({
+  name,
+  sectionKey,
+  shelf,
+  onSet,
+}: {
+  name: string
+  sectionKey: string
+  shelf: NonNullable<AlbumPlacesGroup["shelf"]>
+  onSet?: AlbumShelfSetter
+}) {
+  const id = React.useId()
+  const [value, setValue] = React.useState(shelf.chosen ?? "")
+  const [status, setStatus] = React.useState<RowStatus>({ kind: "idle" })
+  const label = (key: string) =>
+    shelf.options.find((o) => o.key === key)?.label ?? key
+  const suggested = label(shelf.suggested)
+
+  if (!onSet)
+    return (
+      <p className="text-meta text-ink-muted">
+        Shelf in Album: {label(shelf.chosen ?? shelf.suggested)}
+        {shelf.chosen ? "" : " (suggested)"}
+      </p>
+    )
+
+  async function change(next: string) {
+    const previous = value
+    setValue(next)
+    setStatus({ kind: "saving" })
+    const result = await onSet!({ key: sectionKey, shelf: next || null })
+    if (result.ok)
+      setStatus({ kind: "saved", place: next ? label(next) : null })
+    else {
+      setValue(previous)
+      setStatus({ kind: "failed", message: result.message })
+    }
+  }
+
+  return (
+    <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] sm:items-center">
+      <label htmlFor={id} className="text-meta text-ink-muted">
+        Shelf in Album
+      </label>
+      <div className="grid gap-1.5">
+        <select
+          id={id}
+          value={value}
+          disabled={status.kind === "saving"}
+          onChange={(event) => void change(event.target.value)}
+          className={fieldControlVariants({ size: "md" })}
+          aria-describedby={`${id}-status`}
+        >
+          <option value="">Suggested: {suggested}</option>
+          {shelf.options.map((o) => (
+            <option key={o.key} value={o.key}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <div id={`${id}-status`} role="status" aria-live="polite">
+          {status.kind === "saving" ? (
+            <p className="text-meta text-ink-muted">Saving…</p>
+          ) : status.kind === "saved" ? (
+            <p className="text-meta text-ink-muted">
+              {status.place
+                ? `Saved: ${name} is on ${status.place}.`
+                : `Saved: ${name} follows the suggestion, ${suggested}.`}
+            </p>
+          ) : status.kind === "failed" ? (
+            <Notice tone="negative" role="none">
+              {status.message}
+            </Notice>
+          ) : null}
+        </div>
+      </div>
+    </div>
   )
 }

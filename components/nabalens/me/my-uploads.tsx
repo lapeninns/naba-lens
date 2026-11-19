@@ -120,6 +120,7 @@ export const MY_UPLOADS_COPY = {
   readFailed:
     "Your photos couldn't be loaded. Check your connection and reload the page. Photos you sent are safe.",
   loadMore: "Show older photos",
+  detailGone: "This photo is no longer listed. It may have been withdrawn.",
   noSlot: "No slot yet",
   noSlotHint: "Match it to a slot from Album, under Match later.",
   // E4: "I'm not sure" sends it to the manager, never to Match later.
@@ -249,6 +250,34 @@ function Thumb({ item, state }: { item: MyUpload; state?: ThumbState }) {
   )
 }
 
+/** The photo itself, large, on its own page (DESIGN.md §5e "One photo"). */
+function LargePhoto({ item }: { item: MyUpload }) {
+  const [broken, setBroken] = React.useState(false)
+  const ready = item.uploadState === "ready"
+  return (
+    <span className="relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-card bg-plate text-on-stage">
+      {ready && item.mediaType === "image" && !broken ? (
+        // Signed private URLs never go through next/image (see MediaTile).
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          ref={(el) => {
+            if (el && el.complete && el.naturalWidth === 0) setBroken(true)
+          }}
+          src={`/api/media/${item.assetId}/preview`}
+          alt=""
+          decoding="async"
+          onError={() => setBroken(true)}
+          className="absolute inset-0 size-full object-contain"
+        />
+      ) : item.mediaType === "video" ? (
+        <FilmStripIcon aria-hidden className="size-10" />
+      ) : (
+        <ImageIcon aria-hidden className="size-10" />
+      )}
+    </span>
+  )
+}
+
 type Open =
   | { kind: "withdraw"; item: MyUpload }
   | { kind: "change"; item: MyUpload }
@@ -263,6 +292,8 @@ export function MyUploads({
   correctionsAsked = [],
   actions,
   headingLevel = 2,
+  showTitle = true,
+  layout = "list",
 }: {
   /** The first page, read on the server; null when it couldn't be read. */
   initial: MyUploadsPage | null
@@ -271,6 +302,16 @@ export function MyUploads({
   correctionsAsked?: string[]
   actions: MyUploadsActions
   headingLevel?: 2 | 3 | 4
+  /**
+   * False on its own page (`/staff/photos`), whose title already says
+   * My photos: the heading stays for screen readers only.
+   */
+  showTitle?: boolean
+  /**
+   * detail: one photo on its own page (DESIGN.md §5e "One photo"), shown
+   * large with every action as a full-width button; no filters, no paging.
+   */
+  layout?: "list" | "detail"
 }) {
   const router = useRouter()
   const sessionEnded = useSessionEndedCatch()
@@ -362,13 +403,35 @@ export function MyUploads({
       className="grid gap-3"
       data-slot="my-uploads"
     >
-      <Heading id={headingId} className="px-1 type-section-title text-ink">
+      <Heading
+        id={headingId}
+        className={showTitle ? "px-1 type-section-title text-ink" : "sr-only"}
+      >
         {MY_UPLOADS_COPY.title}
       </Heading>
       {initial === null ? (
         <Notice tone="negative" role="alert">
           {MY_UPLOADS_COPY.readFailed}
         </Notice>
+      ) : layout === "detail" ? (
+        items[0] ? (
+          <ul ref={attachThumbs} onError={onThumbError} className="grid">
+            <UploadRow
+              detail
+              item={items[0]}
+              thumb={thumbs[items[0].assetId]}
+              currentVenueId={currentVenueId}
+              correctionAsked={asked.has(items[0].assetId)}
+              note={notes[items[0].assetId] ?? null}
+              error={errors[items[0].assetId] ?? null}
+              onOpen={setOpen}
+            />
+          </ul>
+        ) : (
+          <p role="status" className="text-body text-ink">
+            {MY_UPLOADS_COPY.detailGone}
+          </p>
+        )
       ) : items.length === 0 ? (
         <p className="px-1 text-body text-ink-muted">
           {MY_UPLOADS_COPY.noUploads}
@@ -563,7 +626,10 @@ function UploadRow({
   note,
   error,
   onOpen,
+  detail = false,
 }: {
+  /** One photo on its own page: large, with full-width actions. */
+  detail?: boolean
   item: MyUpload
   thumb: ThumbState | undefined
   currentVenueId: string | null
@@ -586,15 +652,27 @@ function UploadRow({
         : MY_UPLOADS_COPY.noSlot
   return (
     <li
-      className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 p-3"
+      className={
+        detail ? "grid gap-4" : "grid grid-cols-[auto_minmax(0,1fr)] gap-3 p-3"
+      }
       data-slot="my-upload-row"
       data-asset={item.assetId}
     >
-      <Thumb item={item} state={thumb} />
-      <div className="grid min-w-0 gap-1.5">
-        <p className="text-item-title [overflow-wrap:anywhere] text-ink">
-          {title}
-        </p>
+      {detail ? (
+        <LargePhoto item={item} />
+      ) : (
+        <Thumb item={item} state={thumb} />
+      )}
+      <div className={detail ? "grid min-w-0 gap-2" : "grid min-w-0 gap-1.5"}>
+        {detail ? (
+          <h2 className="type-page-title [overflow-wrap:anywhere] text-ink">
+            {title}
+          </h2>
+        ) : (
+          <p className="text-item-title [overflow-wrap:anywhere] text-ink">
+            {title}
+          </p>
+        )}
         {receiptWord(item) ? (
           <StatusChip
             state={item.uploadState === "failed" ? "failed" : "processing"}
@@ -666,7 +744,13 @@ function UploadRow({
             {REPORT_COPY.photoTitle}: sent
           </StatusChip>
         ) : null}
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div
+          className={
+            detail
+              ? "grid gap-2 pt-2 [&>*]:min-h-12 [&>*]:w-full"
+              : "flex flex-wrap gap-2 pt-1"
+          }
+        >
           {can.retake ? (
             <LinkButton
               variant="secondary"

@@ -19,7 +19,7 @@ export default async function StaffNotFound() {
   return (
     <AppShell variant="staff" {...shell} userName={profile.displayName}>
       <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
-        <NotFoundCard backHref={ROUTES.staffLanding} backLabel="Go to Home" />
+        <NotFoundCard backHref={ROUTES.staffLanding} backLabel="Go to Today" />
       </div>
     </AppShell>
   )

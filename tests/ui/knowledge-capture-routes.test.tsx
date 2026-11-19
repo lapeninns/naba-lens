@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // G2: every route that captures a working-list question renders the knowledge
-// form (staff, manager account, legacy grant, admin), and every route keeps
+// form (staff, manager account, admin; the legacy-grant /staff/manage route
+// redirects to /manager since D3), and every route keeps
 // the legacy form for a question that isn't on a working list. Renders the
 // real capture screen and form.
 import {
@@ -95,7 +96,6 @@ vi.mock("@/app/_media/use-media-uploader", () => ({
 
 import AdminCapturePage from "@/app/admin/coverage/[venueId]/amenities/[checkId]/capture/page"
 import ManagerCapturePage from "@/app/manager/amenities/[checkId]/capture/page"
-import ManageCapturePage from "@/app/staff/manage/amenities/[checkId]/capture/page"
 import StaffCapturePage from "@/app/staff/tasks/amenities/[checkId]/page"
 import type { CheckDetail } from "@/lib/amenities/contract"
 import type { QuestionView, WorkingSlot } from "@/lib/knowledge-client/contract"
@@ -216,7 +216,6 @@ const params = Promise.resolve({ checkId: DARTS.id, venueId: VENUE.id })
 const pages = {
   staff: () => StaffCapturePage({ params }),
   manager: () => ManagerCapturePage({ params }),
-  "legacy grant": () => ManageCapturePage({ params }),
   admin: () => AdminCapturePage({ params }),
 } as const
 
@@ -534,7 +533,7 @@ describe("capture routes on a working-list question (G2)", () => {
     })
   })
 
-  it.each(["manager", "legacy grant", "admin"] as const)(
+  it.each(["manager", "admin"] as const)(
     "%s capture keeps the amenity read on a working-list question",
     async (name) => {
       knowledge.getKnowledgeCheck.mockResolvedValue({
@@ -616,7 +615,7 @@ describe("capture routes on a working-list question (G2)", () => {
     expect(amenityActions.listSubmittableAssetsAction).not.toHaveBeenCalled()
   })
 
-  it.each(["manager", "legacy grant", "admin"] as const)(
+  it.each(["manager", "admin"] as const)(
     "%s capture keeps the amenity media list on a working-list question",
     async (name) => {
       knowledge.getKnowledgeCheck.mockResolvedValue({

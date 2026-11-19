@@ -104,7 +104,6 @@ import {
   resumableEntries,
 } from "@/components/nabalens/shell/capture-resume"
 import { MEDIA_LIMITS } from "@/lib/config/media"
-import { ALBUM_UPLOAD_TRAY } from "@/lib/config/album-upload-tray"
 import {
   annotateCapture,
   captureAnnotation,
@@ -194,7 +193,15 @@ type MatchRun = {
   lockedSlot?: MatchOutcome
 }
 
-const PhotoMatchScreen = ALBUM_UPLOAD_TRAY ? MatchTray : MatchScreen
+/**
+ * The Match tray (DESIGN.md §6.1a) is still a trial (D13): it does not yet
+ * warn about dark or small photos, mark a photo already sent (FA-35), offer
+ * "I'm not sure" or suggest a special, so MatchScreen stays the Match UI.
+ * Turn this on only once the tray does all of that (D20).
+ */
+const MATCH_TRAY = false
+
+const PhotoMatchScreen = MATCH_TRAY ? MatchTray : MatchScreen
 
 /** The catalogue item for a preset, when this menu still offers it. */
 function onMenu(catalogue: LabelCatalogue, preset: AddLabelPreset) {
@@ -853,7 +860,7 @@ export function AddHost({
       const key = matchKeys.current.get(file)
       if (!key) return
       setOutcomes((current) => new Map(current).set(key, { kind: "later" }))
-      setSent(file, ALBUM_UPLOAD_TRAY ? "sent" : null)
+      setSent(file, MATCH_TRAY ? "sent" : null)
     },
     [setSent]
   )
@@ -887,7 +894,7 @@ export function AddHost({
         )
         if (saved) {
           tries.set(assetId, "saved")
-          if (ALBUM_UPLOAD_TRAY && areaReady.current.has(assetId))
+          if (MATCH_TRAY && areaReady.current.has(assetId))
             owner.onSent?.(file, "waiting")
           return
         }
@@ -992,7 +999,7 @@ export function AddHost({
       contentTypes: outcome.kind === "shared" ? [outcome.shared] : null,
       note: kept,
       help: unsure,
-      onSent: ALBUM_UPLOAD_TRAY || slot || unsure ? setSent : null,
+      onSent: MATCH_TRAY || slot || unsure ? setSent : null,
       noLabels: outcome.kind === "later" || (unsure && !kept),
       venueId: runVenue.current ?? venueId,
     }
@@ -1116,7 +1123,7 @@ export function AddHost({
     if (matchRun && runVenue.current && venueId !== runVenue.current) {
       const old = runVenue.current
       runVenue.current = venueId
-      if (ALBUM_UPLOAD_TRAY && matchRun.lockedSlot)
+      if (MATCH_TRAY && matchRun.lockedSlot)
         setMatchRun({ ...matchRun, lockedSlot: undefined })
       const waitingFiles = new Set(outbox)
       const undone = matchRun.photos.filter(
@@ -1211,7 +1218,7 @@ export function AddHost({
       }
       if (mode.kind === "slot") {
         startMatch(
-          ALBUM_UPLOAD_TRAY ? files : files.slice(0, 1),
+          MATCH_TRAY ? files : files.slice(0, 1),
           null,
           { kind: "slot", slot: slotOf(mode.slot) },
           mode.request
@@ -1417,7 +1424,7 @@ export function AddHost({
         if (labelPending && receipt !== "label_not_saved")
           awaitingLabel.current.set(id, files[i])
         const sendState: SendState =
-          ALBUM_UPLOAD_TRAY &&
+          MATCH_TRAY &&
           (owner?.area || owner?.help) &&
           areaTries.current.get(id) !== "saved"
             ? "checking"
@@ -1524,7 +1531,7 @@ export function AddHost({
         // The phone preview gives recovery its own Home row so Add photos
         // always starts a new gallery pick (DESIGN.md §6.1a).
         if (
-          !ALBUM_UPLOAD_TRAY &&
+          !MATCH_TRAY &&
           opts.match &&
           !blocked &&
           role === "staff" &&
@@ -1544,7 +1551,7 @@ export function AddHost({
             ? { kind: "slot", slot: opts.slot, request }
             : { kind: "match", place: opts.match?.place ?? null, request }
           openPicker({
-            multiple: ALBUM_UPLOAD_TRAY || !opts.slot,
+            multiple: MATCH_TRAY || !opts.slot,
             imagesOnly: true,
           })
           return
@@ -1969,17 +1976,11 @@ export function AddHost({
                 }
               />
               <PhotoMatchScreen
-                key={
-                  ALBUM_UPLOAD_TRAY
-                    ? `${matchSeq.current}:${venueId}`
-                    : undefined
-                }
+                key={MATCH_TRAY ? `${matchSeq.current}:${venueId}` : undefined}
                 open={matchRun !== null}
                 lockedSlot={matchRun?.lockedSlot}
                 onAddMore={
-                  ALBUM_UPLOAD_TRAY &&
-                  matchRun &&
-                  matchRun.photos.length < MATCH_MAX
+                  MATCH_TRAY && matchRun && matchRun.photos.length < MATCH_MAX
                     ? () => {
                         pickMode.current = { kind: "append" }
                         openPicker({ imagesOnly: true })
@@ -2017,7 +2018,7 @@ export function AddHost({
               <OutboxGuard
                 count={
                   outbox.length +
-                  (ALBUM_UPLOAD_TRAY && matchRun
+                  (MATCH_TRAY && matchRun
                     ? matchRun.photos.filter(
                         (photo) => !outcomes.has(photo.key)
                       ).length
@@ -2025,7 +2026,7 @@ export function AddHost({
                 }
                 onLeave={() => {
                   setOutbox([])
-                  if (ALBUM_UPLOAD_TRAY) setMatchRun(null)
+                  if (MATCH_TRAY) setMatchRun(null)
                 }}
               />
               <p role="status" className="sr-only">

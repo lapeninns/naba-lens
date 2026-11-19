@@ -26,15 +26,31 @@ export const ALBUM_ADD_LABEL = "Add photos"
 
 /**
  * Add photos in the Album shell: the middle tab on phones, a button in the
- * AppBar from md. Outside the staff layout (previews, tests) it links to Me.
+ * AppBar from md. Outside the staff layout (previews, tests) it links to Me
+ * (/staff/me).
  */
-export function AlbumAddTrigger({ kind }: { kind: "tab" | "bar" | "home" }) {
+export function AlbumAddTrigger({
+  kind,
+  label,
+}: {
+  kind: "tab" | "bar" | "home"
+  /**
+   * A shorter word on screen ("Add" in the five-tab bar, DESIGN.md §15); the
+   * button is still announced as Add photos, which contains it.
+   */
+  label?: string
+}) {
   const add = useAddContext()
   const openAdd = add?.openAdd ?? null
   const busy = add?.busy
   // While Add's queue has unfinished files, say so after the name. Set whole:
   // Chrome inserts a space before an sr-only suffix.
-  const busyName = busy ? `${ALBUM_ADD_LABEL}, ${busy.words}` : undefined
+  const busyName = busy
+    ? `${ALBUM_ADD_LABEL}, ${busy.words}`
+    : label
+      ? ALBUM_ADD_LABEL
+      : undefined
+  const shown = label ?? ALBUM_ADD_LABEL
   const badge = busy ? (
     <span aria-hidden data-slot="add-busy" className="contents">
       <TabBadge
@@ -59,13 +75,13 @@ export function AlbumAddTrigger({ kind }: { kind: "tab" | "bar" | "home" }) {
         >
           <ImagesIcon aria-hidden className="size-5.5" />
         </span>
-        {ALBUM_ADD_LABEL}
+        {shown}
         {badge}
       </>
     ) : (
       <>
         <ImagesIcon data-icon="inline-start" aria-hidden />
-        {ALBUM_ADD_LABEL}
+        {shown}
         {badge}
       </>
     )
@@ -90,7 +106,7 @@ export function AlbumAddTrigger({ kind }: { kind: "tab" | "bar" | "home" }) {
       {content}
     </button>
   ) : (
-    <Link href="/staff" data-slot="album-add" className={className}>
+    <Link href="/staff/me" data-slot="album-add" className={className}>
       {content}
     </Link>
   )

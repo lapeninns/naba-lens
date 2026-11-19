@@ -102,7 +102,7 @@ function staffNav(slot: "app-nav" | "tabbar") {
 
 function renderShell(
   openAdd = vi.fn(),
-  props: { canManage?: boolean; active?: "tasks" | "portfolio" } = {}
+  props: { canManage?: boolean; active?: "tasks" | "photos" | "portfolio" } = {}
 ) {
   render(
     <AddProvider value={{ openAdd }}>
@@ -121,46 +121,51 @@ function renderShell(
   return openAdd
 }
 
-describe("Album shell: the tab bar (DESIGN.md §5 Tab bar)", () => {
-  it("has three tabs in order: Album, Add photos, Me", () => {
+describe("Album shell: the tab bar (DESIGN.md §15, D18)", () => {
+  it("has five tabs in order: Today, Album, Add, My photos, Me", () => {
     renderShell()
     const tabs = within(staffNav("tabbar"))
     const items = Array.from(
       staffNav("tabbar").querySelectorAll<HTMLElement>("a, button")
     ).map((el) => [el.tagName, el.textContent, el.getAttribute("href")])
     expect(items).toEqual([
-      ["A", "Album", "/staff/tasks"],
-      ["BUTTON", "Add photos", null],
-      ["A", "Me", "/staff"],
+      ["A", "Today", "/staff/home"],
+      ["A", "Album", "/staff/album"],
+      ["BUTTON", "Add", null],
+      ["A", "My photos, 4 retakes", "/staff/photos"],
+      ["A", "Me", "/staff/me"],
     ])
     expect(tabs.getByRole("link", { name: "Album" })).toBeTruthy()
+    // "Add" on screen, announced as Add photos, which contains it.
     expect(tabs.getByRole("button", { name: "Add photos" })).toBeTruthy()
     expect(tabs.getByRole("link", { name: "Me" })).toBeTruthy()
   })
 
-  it("marks the open tab and counts Album's retakes on its tab elsewhere", () => {
+  it("marks the open tab and counts retakes on My photos elsewhere", () => {
     renderShell(vi.fn(), { active: "portfolio" })
     const tabs = within(staffNav("tabbar"))
     expect(
       tabs.getByRole("link", { name: "Me" }).getAttribute("aria-current")
     ).toBe("page")
-    // The badge counts the retakes Album shows (§5a), never empty slots.
+    // Retakes are the person's own photos (D18): My photos counts them,
+    // never Album and never empty slots.
     expect(
-      tabs.getByRole("link", { name: /^Album\W+4\s*retakes$/ })
+      tabs.getByRole("link", { name: /^My photos\W+4\s*retakes$/ })
     ).toBeTruthy()
     expect(
       within(staffNav("app-nav")).getByRole("link", {
-        name: /^Album\W+4\s*retakes$/,
+        name: /^My photos\W+4\s*retakes$/,
       })
     ).toBeTruthy()
+    expect(tabs.getByRole("link", { name: "Album" }).textContent).toBe("Album")
   })
 
-  it("shows no retake badge on Album itself, and ? when unread", () => {
-    renderShell()
+  it("shows no retake badge on My photos itself, and ? when unread", () => {
+    renderShell(vi.fn(), { active: "photos" })
     expect(
-      within(staffNav("tabbar")).getByRole("link", { name: "Album" })
+      within(staffNav("tabbar")).getByRole("link", { name: "My photos" })
         .textContent
-    ).toBe("Album")
+    ).toBe("My photos")
     cleanup()
     render(
       <AppShell variant="staff" active="portfolio" todoUnknown>
@@ -169,7 +174,7 @@ describe("Album shell: the tab bar (DESIGN.md §5 Tab bar)", () => {
     )
     expect(
       within(staffNav("tabbar"))
-        .getByRole("link", { name: /^Album/ })
+        .getByRole("link", { name: /^My photos/ })
         .textContent?.includes("?")
     ).toBe(true)
   })
@@ -182,15 +187,17 @@ describe("Album shell: the tab bar (DESIGN.md §5 Tab bar)", () => {
     expect(screen.queryByRole("link", { name: "Me: Anil Thapa" })).toBeNull()
   })
 
-  it("keeps the AppBar to Album, Me and a manager's Manage", () => {
+  it("keeps the AppBar to the four places and a manager's Manage", () => {
     renderShell(vi.fn(), { canManage: true })
     const links = within(staffNav("app-nav"))
       .getAllByRole("link")
       .map((a) => [a.textContent, a.getAttribute("href")])
     expect(links).toEqual([
-      ["Album", "/staff/tasks"],
-      ["Me", "/staff"],
-      ["Manage, 2 to review", "/staff/manage"],
+      ["Today", "/staff/home"],
+      ["Album", "/staff/album"],
+      ["My photos, 4 retakes", "/staff/photos"],
+      ["Me", "/staff/me"],
+      ["Manage, 2 to review", "/manager"],
     ])
   })
 
@@ -238,10 +245,10 @@ describe("Album shell: the tab bar (DESIGN.md §5 Tab bar)", () => {
     render(<AlbumAddTrigger kind="tab" />)
     expect(
       screen.getByRole("link", { name: "Add photos" }).getAttribute("href")
-    ).toBe("/staff")
+    ).toBe("/staff/me")
   })
 
-  it("shows the three Album tabs on every staff page, with no extra prop", () => {
+  it("shows the five tabs on every staff page, with no extra prop", () => {
     // R-2 (revb should-fix 6): a page that renders AppShell itself, like the
     // manager's amenity capture page, gets Album's tabs, never the old five.
     render(
@@ -252,7 +259,7 @@ describe("Album shell: the tab bar (DESIGN.md §5 Tab bar)", () => {
     const names = Array.from(
       staffNav("tabbar").querySelectorAll("a, button")
     ).map((el) => el.textContent)
-    expect(names).toEqual(["Album", "Add photos", "Me"])
+    expect(names).toEqual(["Today", "Album", "Add", "My photos", "Me"])
   })
 
   it("ranks nobody: no leaderboard words anywhere in the shell", () => {

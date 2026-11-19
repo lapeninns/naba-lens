@@ -1,8 +1,4 @@
 import type { Database } from "@/lib/db/types"
-import {
-  ALBUM_UPLOAD_TRAY,
-  STAFF_PHOTO_ROUTES,
-} from "@/lib/config/album-upload-tray"
 import { getSiteUrl } from "@/lib/supabase/env"
 
 export type AppRole = Database["public"]["Enums"]["app_role"]
@@ -11,8 +7,8 @@ export const ROUTES = {
   login: "/login",
   /** Root of the staff area (and My portfolio); the protected prefix. */
   staffHome: "/staff",
-  /** Home: where staff land, inside the staff area. */
-  staffLanding: "/staff/tasks",
+  /** Today: where staff land, inside the staff area (DESIGN.md §15). */
+  staffLanding: "/staff/home",
   /** Venue manager workspace (Overview); the protected prefix. */
   managerHome: "/manager",
   managerReview: "/manager/review",
@@ -34,7 +30,7 @@ export const ROUTES = {
 export function homePathFor(role: AppRole): string {
   switch (role) {
     case "staff":
-      return ALBUM_UPLOAD_TRAY ? STAFF_PHOTO_ROUTES.home : ROUTES.staffLanding
+      return ROUTES.staffLanding
     case "manager":
       return ROUTES.managerHome
     case "admin":

@@ -110,8 +110,8 @@ describe("returnPathFor (applied after sign-in)", () => {
   })
 
   it("sends a wrong-role path to the role's home, never into another area", () => {
-    expect(returnPathFor("staff", "/admin/menus/v1")).toBe("/staff/tasks")
-    expect(returnPathFor("staff", "/manager/review")).toBe("/staff/tasks")
+    expect(returnPathFor("staff", "/admin/menus/v1")).toBe("/staff/home")
+    expect(returnPathFor("staff", "/manager/review")).toBe("/staff/home")
     expect(returnPathFor("manager", "/staff/tasks/t1")).toBe("/manager")
     expect(returnPathFor("manager", "/admin")).toBe("/manager")
     expect(returnPathFor("admin", "/manager/review")).toBe("/admin/overview")

@@ -46,6 +46,17 @@ export const ACCOUNT_COPY = {
   cantAddHint: "Photo access on your phone, file types and sizes",
 } as const
 
+export type MeAccountPart =
+  "venues" | "notices" | "help" | "install" | "managers"
+
+const ALL_PARTS: readonly MeAccountPart[] = [
+  "venues",
+  "notices",
+  "help",
+  "install",
+  "managers",
+]
+
 const ROLE_WORD = { staff: "Staff", manager: "Manager", admin: "Admin" }
 
 const ROW =
@@ -69,6 +80,8 @@ export function MeAccount({
   unread,
   helpHref,
   headingLevel = 2,
+  parts = ALL_PARTS,
+  title = ACCOUNT_COPY.title,
 }: {
   /** The person's venues (my_venue_memberships); null when unread. */
   venues: VenueSwitcherVenue[] | null
@@ -81,140 +94,174 @@ export function MeAccount({
   unread: number | null
   helpHref: string
   headingLevel?: 2 | 3 | 4
+  /**
+   * Which blocks to show (DESIGN.md §5b): Settings shows venues and install,
+   * Help shows the help link and managers. All by default (legacy `/staff`).
+   */
+  parts?: readonly MeAccountPart[]
+  /** The section's heading; null leaves it out (a page that has its own). */
+  title?: string | null
 }) {
+  const has = (part: MeAccountPart) => parts.includes(part)
   const Heading = `h${headingLevel}` as "h2"
   const Sub = `h${headingLevel + 1}` as "h3"
   const id = React.useId()
   const active = venues?.find((v) => v.isActive) ?? null
   return (
     <section
-      aria-labelledby={`${id}-account`}
+      aria-labelledby={title ? `${id}-account` : undefined}
       className="grid gap-3 pt-2"
       data-slot="me-account"
     >
-      <Heading
-        id={`${id}-account`}
-        className="px-1 type-section-title text-ink"
-      >
-        {ACCOUNT_COPY.title}
-      </Heading>
-
-      <div className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
-        <Sub
-          id={`${id}-venues`}
-          className="flex items-center gap-2 text-item-title text-ink"
+      {title ? (
+        <Heading
+          id={`${id}-account`}
+          className="px-1 type-section-title text-ink"
         >
-          <StorefrontIcon aria-hidden className="size-6" />
-          {ACCOUNT_COPY.venues}
-        </Sub>
-        {venues === null ? null : venues.length === 0 ? (
-          <p className="text-body text-ink-muted">{ACCOUNT_COPY.noVenue}</p>
-        ) : (
-          <ul aria-labelledby={`${id}-venues`} className="grid gap-1">
-            {venues.map((v) => (
-              <li
-                key={v.venueId}
-                className="text-body [overflow-wrap:anywhere] text-ink"
-              >
-                {v.isActive ? (
-                  <strong>
-                    {ACCOUNT_COPY.workingAt(v.venueName, ROLE_WORD[v.role])}
-                  </strong>
-                ) : (
-                  `${v.venueName} · ${ROLE_WORD[v.role]}`
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        {venues && venues.length > 1 && active ? (
-          <VenueSwitcher venues={venues} onSwitch={switchVenue} />
-        ) : null}
-      </div>
+          {title}
+        </Heading>
+      ) : null}
 
-      <nav aria-label={ACCOUNT_COPY.title}>
-        <ul className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card">
-          <li>
-            <Link href="/staff/notifications" className={ROW}>
-              <RowIcon>
-                <BellSimpleIcon />
-              </RowIcon>
-              <span className="grid min-w-0 gap-0.5">
-                <span className="text-item-title">{ACCOUNT_COPY.notices}</span>
-                <span className="text-body text-ink-muted">
-                  {ACCOUNT_COPY.noticesHint}
-                </span>
-              </span>
-              <span className="flex items-center gap-2 text-ink-muted">
-                {unread ? (
-                  <CountBadge count={unread} label="unread" tone="warn" />
-                ) : null}
-                <CaretRightIcon aria-hidden weight="bold" className="size-5" />
-              </span>
-            </Link>
-          </li>
-          <li>
-            <Link href={helpHref} className={ROW}>
-              <RowIcon>
-                <LifebuoyIcon />
-              </RowIcon>
-              <span className="grid min-w-0 gap-0.5">
-                <span className="text-item-title">{ACCOUNT_COPY.cantAdd}</span>
-                <span className="text-body text-ink-muted">
-                  {ACCOUNT_COPY.cantAddHint}
-                </span>
-              </span>
-              <CaretRightIcon
-                aria-hidden
-                weight="bold"
-                className="size-5 text-ink-muted"
-              />
-            </Link>
-          </li>
-        </ul>
-      </nav>
-
-      <InstallApp headingLevel={(headingLevel + 1) as 3 | 4 | 5} />
-
-      <div
-        className="grid gap-2 rounded-card bg-surface p-4 shadow-card"
-        data-slot="me-managers"
-      >
-        <Sub
-          id={`${id}-managers`}
-          className="flex items-center gap-2 text-item-title text-ink"
-        >
-          <UserCircleIcon aria-hidden className="size-6" />
-          {ACCOUNT_COPY.managers}
-          {active ? (
-            <span className="font-normal text-ink-muted">
-              {" "}
-              · {active.venueName}
-            </span>
+      {has("venues") ? (
+        <div className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
+          <Sub
+            id={`${id}-venues`}
+            className="flex items-center gap-2 text-item-title text-ink"
+          >
+            <StorefrontIcon aria-hidden className="size-6" />
+            {ACCOUNT_COPY.venues}
+          </Sub>
+          {venues === null ? null : venues.length === 0 ? (
+            <p className="text-body text-ink-muted">{ACCOUNT_COPY.noVenue}</p>
+          ) : (
+            <ul aria-labelledby={`${id}-venues`} className="grid gap-1">
+              {venues.map((v) => (
+                <li
+                  key={v.venueId}
+                  className="text-body [overflow-wrap:anywhere] text-ink"
+                >
+                  {v.isActive ? (
+                    <strong>
+                      {ACCOUNT_COPY.workingAt(v.venueName, ROLE_WORD[v.role])}
+                    </strong>
+                  ) : (
+                    `${v.venueName} · ${ROLE_WORD[v.role]}`
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {venues && venues.length > 1 && active ? (
+            <VenueSwitcher venues={venues} onSwitch={switchVenue} />
           ) : null}
-        </Sub>
-        {managers === null ? (
-          <Notice tone="attention">{ACCOUNT_COPY.managersFailed}</Notice>
-        ) : managers.length === 0 ? (
-          <p className="text-body text-ink-muted">{ACCOUNT_COPY.noManagers}</p>
-        ) : (
-          <ul aria-labelledby={`${id}-managers`} className="grid gap-1">
-            {managers.map((m) => (
-              <li
-                key={m.id}
-                className="text-body [overflow-wrap:anywhere] text-ink"
-              >
-                <strong>{m.displayName}</strong>
-                {m.isYou ? ` (${ACCOUNT_COPY.you})` : null}
-                {m.jobTitle ? (
-                  <span className="text-ink-muted"> · {m.jobTitle}</span>
-                ) : null}
+        </div>
+      ) : null}
+
+      {has("notices") || has("help") ? (
+        <nav aria-label={ACCOUNT_COPY.title}>
+          <ul className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card">
+            {has("notices") ? (
+              <li>
+                <Link href="/staff/notifications" className={ROW}>
+                  <RowIcon>
+                    <BellSimpleIcon />
+                  </RowIcon>
+                  <span className="grid min-w-0 gap-0.5">
+                    <span className="text-item-title">
+                      {ACCOUNT_COPY.notices}
+                    </span>
+                    <span className="text-body text-ink-muted">
+                      {ACCOUNT_COPY.noticesHint}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2 text-ink-muted">
+                    {unread ? (
+                      <CountBadge count={unread} label="unread" tone="warn" />
+                    ) : null}
+                    <CaretRightIcon
+                      aria-hidden
+                      weight="bold"
+                      className="size-5"
+                    />
+                  </span>
+                </Link>
               </li>
-            ))}
+            ) : null}
+            {has("help") ? (
+              <li>
+                <Link href={helpHref} className={ROW}>
+                  <RowIcon>
+                    <LifebuoyIcon />
+                  </RowIcon>
+                  <span className="grid min-w-0 gap-0.5">
+                    <span className="text-item-title">
+                      {ACCOUNT_COPY.cantAdd}
+                    </span>
+                    <span className="text-body text-ink-muted">
+                      {ACCOUNT_COPY.cantAddHint}
+                    </span>
+                  </span>
+                  <CaretRightIcon
+                    aria-hidden
+                    weight="bold"
+                    className="size-5 text-ink-muted"
+                  />
+                </Link>
+              </li>
+            ) : null}
           </ul>
-        )}
-        <p className="text-meta text-ink-muted">{ACCOUNT_COPY.managersHint}</p>
-      </div>
+        </nav>
+      ) : null}
+
+      {has("install") ? (
+        <InstallApp headingLevel={(headingLevel + 1) as 3 | 4 | 5} />
+      ) : null}
+
+      {has("managers") ? (
+        <div
+          className="grid gap-2 rounded-card bg-surface p-4 shadow-card"
+          data-slot="me-managers"
+        >
+          <Sub
+            id={`${id}-managers`}
+            className="flex items-center gap-2 text-item-title text-ink"
+          >
+            <UserCircleIcon aria-hidden className="size-6" />
+            {ACCOUNT_COPY.managers}
+            {active ? (
+              <span className="font-normal text-ink-muted">
+                {" "}
+                · {active.venueName}
+              </span>
+            ) : null}
+          </Sub>
+          {managers === null ? (
+            <Notice tone="attention">{ACCOUNT_COPY.managersFailed}</Notice>
+          ) : managers.length === 0 ? (
+            <p className="text-body text-ink-muted">
+              {ACCOUNT_COPY.noManagers}
+            </p>
+          ) : (
+            <ul aria-labelledby={`${id}-managers`} className="grid gap-1">
+              {managers.map((m) => (
+                <li
+                  key={m.id}
+                  className="text-body [overflow-wrap:anywhere] text-ink"
+                >
+                  <strong>{m.displayName}</strong>
+                  {m.isYou ? ` (${ACCOUNT_COPY.you})` : null}
+                  {m.jobTitle ? (
+                    <span className="text-ink-muted"> · {m.jobTitle}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-meta text-ink-muted">
+            {ACCOUNT_COPY.managersHint}
+          </p>
+        </div>
+      ) : null}
     </section>
   )
 }

@@ -8668,6 +8668,11 @@ export type Database = {
         Returns: Json
       }
       album_places: { Args: { p_venue_id?: string }; Returns: Json }
+      album_shelf_set: {
+        Args: { p_key: string; p_shelf: string; p_venue_id: string }
+        Returns: Json
+      }
+      album_shelves: { Args: { p_venue_id?: string }; Returns: Json }
       album_slot_asset: {
         Args: { p_asset_id: string }
         Returns: {

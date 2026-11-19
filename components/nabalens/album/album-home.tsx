@@ -337,7 +337,7 @@ export function AlbumHome({
   )
 }
 
-function RetakeRow({
+export function RetakeRow({
   retakes,
   onRetake,
 }: {
@@ -447,12 +447,18 @@ export function AlbumSlotTile({
 /** Venue-wide search uses the same slot action as a place (DESIGN.md §6.1a). */
 const SLOTS_PER_PAGE = 18
 
-function AlbumSearch({
+export function AlbumSearch({
   places,
   add,
+  quiet = false,
 }: {
   places: AlbumPlace[]
   add: (opts: OpenAddOptions) => void
+  /**
+   * Album's landing (DESIGN.md §5d step 2): no category pills (the types
+   * below are the categories) and results only once something is typed.
+   */
+  quiet?: boolean
 }) {
   const [query, setQuery] = React.useState("")
   const [category, setCategory] = React.useState<CoverageCategory | null>(null)
@@ -487,6 +493,7 @@ function AlbumSearch({
   const categories = new Set(
     groups.flatMap((group) => group.slots.map((slot) => slot.category))
   )
+  const searching = !quiet || term.length > 0
 
   return (
     <section
@@ -502,72 +509,81 @@ function AlbumSearch({
           setQuery(value)
           setVisibleCount(SLOTS_PER_PAGE)
         }}
-        resultCount={`${count} ${count === 1 ? "slot" : "slots"}`}
+        resultCount={
+          searching ? `${count} ${count === 1 ? "slot" : "slots"}` : undefined
+        }
       />
-      <div className="grid gap-3">
-        <PillGroup label="Album category">
-          <Button
-            type="button"
-            variant={category === null ? "primary" : "secondary"}
-            className="min-h-12"
-            aria-pressed={category === null}
-            onClick={() => {
-              setCategory(null)
-              setVisibleCount(SLOTS_PER_PAGE)
-            }}
-          >
-            All
-          </Button>
-          {COVERAGE_CATEGORIES.filter(({ key }) => categories.has(key)).map(
-            ({ key, label }) => (
+      {searching ? (
+        <div className="grid gap-3">
+          {quiet ? null : (
+            <PillGroup label="Album category">
               <Button
-                key={key}
                 type="button"
-                variant={category === key ? "primary" : "secondary"}
+                variant={category === null ? "primary" : "secondary"}
                 className="min-h-12"
-                aria-pressed={category === key}
+                aria-pressed={category === null}
                 onClick={() => {
-                  setCategory(key)
+                  setCategory(null)
                   setVisibleCount(SLOTS_PER_PAGE)
                 }}
               >
-                {label}
+                All
               </Button>
-            )
+              {COVERAGE_CATEGORIES.filter(({ key }) => categories.has(key)).map(
+                ({ key, label }) => (
+                  <Button
+                    key={key}
+                    type="button"
+                    variant={category === key ? "primary" : "secondary"}
+                    className="min-h-12"
+                    aria-pressed={category === key}
+                    onClick={() => {
+                      setCategory(key)
+                      setVisibleCount(SLOTS_PER_PAGE)
+                    }}
+                  >
+                    {label}
+                  </Button>
+                )
+              )}
+            </PillGroup>
           )}
-        </PillGroup>
-        {count === 0 ? (
-          <p className="text-body text-ink-muted">
-            No slots match. Try another name or category.
-          </p>
-        ) : null}
-        {visible.map((group) => (
-          <div key={`${group.placeId}:${group.name}`} className="grid gap-1.5">
-            <h3 className="text-meta font-bold text-ink-muted">
-              {group.place} · {group.name}
-            </h3>
-            <ul className="grid gap-1.5">
-              {group.slots.map((slot) => (
-                <li key={slot.id}>
-                  <AlbumSlotTile slot={slot} add={add} layout="row" />
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-        {count > visibleCount ? (
-          <Button
-            type="button"
-            variant="secondary"
-            className="min-h-12"
-            onClick={() =>
-              setVisibleCount((previous) => previous + SLOTS_PER_PAGE)
-            }
-          >
-            Show more slots
-          </Button>
-        ) : null}
-      </div>
+          {count === 0 ? (
+            <p className="text-body text-ink-muted">
+              No slots match. Try another name or category.
+            </p>
+          ) : null}
+          {visible.map((group) => (
+            <div
+              key={`${group.placeId}:${group.name}`}
+              className="grid gap-1.5"
+            >
+              <h3 className="text-meta font-bold text-ink-muted">
+                {group.place} · {group.name}
+              </h3>
+              <ul className="grid gap-1.5">
+                {group.slots.map((slot) => (
+                  <li key={slot.id}>
+                    <AlbumSlotTile slot={slot} add={add} layout="row" />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {count > visibleCount ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-12"
+              onClick={() =>
+                setVisibleCount((previous) => previous + SLOTS_PER_PAGE)
+              }
+            >
+              Show more slots
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   )
 }

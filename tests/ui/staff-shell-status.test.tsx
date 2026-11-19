@@ -4,7 +4,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 
-import { cleanup, render, within } from "@testing-library/react"
+import { cleanup, render } from "@testing-library/react"
 import type * as React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -97,7 +97,6 @@ import {
   staffShellStatus,
 } from "@/app/staff/_shell/shell-status"
 import StaffNotFound from "@/app/staff/not-found"
-import StaffPage from "@/app/staff/page"
 import PhotoGuidePage from "@/app/staff/tasks/guide/page"
 
 const check = (id: string) =>
@@ -234,22 +233,28 @@ describe("staff pages", () => {
 
   it("covers every staff page with a shell", () => {
     expect(pages.map((p) => relative(process.cwd(), p)).sort()).toEqual([
-      "app/staff/album/[placeId]/page.tsx",
+      "app/staff/album/amenities/page.tsx",
       "app/staff/album/match-later/page.tsx",
+      "app/staff/album/menu/page.tsx",
+      "app/staff/album/page.tsx",
       "app/staff/album/slot/[kind]/[slotId]/page.tsx",
+      "app/staff/album/spaces/page.tsx",
       "app/staff/community/page.tsx",
-      "app/staff/menu/page.tsx",
+      "app/staff/home/page.tsx",
+      "app/staff/me/help/page.tsx",
+      "app/staff/me/page.tsx",
+      "app/staff/me/settings/page.tsx",
       "app/staff/notifications/page.tsx",
-      "app/staff/page.tsx",
       "app/staff/people/[id]/page.tsx",
       "app/staff/people/page.tsx",
+      "app/staff/photos/[assetId]/page.tsx",
+      "app/staff/photos/page.tsx",
       "app/staff/profile/page.tsx",
       "app/staff/tasks/[requirementId]/page.tsx",
       "app/staff/tasks/amenities/[checkId]/page.tsx",
       "app/staff/tasks/guide/page.tsx",
       "app/staff/tasks/month/page.tsx",
       "app/staff/tasks/other/page.tsx",
-      "app/staff/tasks/page.tsx",
     ])
   })
 
@@ -300,24 +305,6 @@ describe("staff pages", () => {
   })
 })
 
-describe("Me", () => {
-  it("reads menu decisions without waiting for the review count", async () => {
-    coverage.getCoverageScope.mockResolvedValue(scope(true))
-    let release!: (value: unknown) => void
-    coverage.getManagerReviewCount.mockReturnValue(
-      new Promise((resolve) => {
-        release = resolve
-      })
-    )
-    const page = StaffPage()
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(coverage.listMyMenuPhotoDecisions).toHaveBeenCalled()
-    release({ ok: true, count: 1 })
-    render(await page)
-    expect(shell.props).toMatchObject({ canManage: true, reviewCount: 1 })
-  })
-})
-
 describe("currentStaffShell", () => {
   it("is the signed-in person's status", async () => {
     coverage.getCoverageActor.mockResolvedValueOnce({
@@ -363,138 +350,10 @@ describe("currentStaffShell", () => {
     cleanup()
     coverage.getCoverageActor.mockRejectedValueOnce(new Error("down"))
     const { getByRole } = render(await StaffNotFound())
-    expect(getByRole("link", { name: "Go to Home" })).toBeTruthy()
+    expect(getByRole("link", { name: "Go to Today" })).toBeTruthy()
     expect(shell.props).toMatchObject({
       variant: "staff",
       todoCount: undefined,
     })
-  })
-})
-
-describe("Me: Your findings (B01-06)", () => {
-  it("shows the history on Me when there is some", async () => {
-    knowledge.listMyFindings.mockResolvedValue({
-      ok: true,
-      page: {
-        items: [
-          {
-            findingRef: { type: "contribution", id: "f1" },
-            checkId: "c1",
-            question: "Is there parking on site?",
-            venue: { id: "v1", name: "TEST Inn" },
-            answer: "yes",
-            kind: "finding",
-            state: "current",
-            noLongerUsed: null,
-            stateReason: null,
-            managerNote: null,
-            detailRequestId: null,
-            unknownPreset: null,
-            answeredBy: null,
-            sentAt: "2026-11-05T10:00:00.000Z",
-            savedAt: null,
-            decidedAt: null,
-            recognition: { kind: "pending" },
-          },
-        ],
-        nextCursor: null,
-        hiddenEarlierVenues: [],
-      },
-    })
-    const { getByRole } = render(await StaffPage())
-    expect(getByRole("region", { name: "Your findings" })).toBeTruthy()
-    expect(
-      getByRole("heading", { level: 3, name: "Is there parking on site?" })
-    ).toBeTruthy()
-  })
-
-  it("leaves it out at a venue with no questions and nothing sent, even when the read fails", async () => {
-    knowledge.listMyFindings.mockRejectedValue(new Error("down"))
-    const { queryByRole } = render(await StaffPage())
-    expect(queryByRole("region", { name: /Your findings/ })).toBeNull()
-  })
-})
-
-describe("Me: My contributions (B02 §6.1)", () => {
-  const FEED = {
-    items: [
-      {
-        type: "photo",
-        key: "p:a1",
-        at: "2026-11-06T10:00:00.000Z",
-        assetId: "a1",
-        venueId: "v1",
-        venueName: "TEST Inn",
-        mediaType: "image",
-        uploadState: "ready",
-        sentAt: "2026-11-06T10:00:00.000Z",
-        labels: { hasLabels: true, needsLabels: false, needsAttention: false },
-        menuDecisions: [],
-        menuUseAccepted: false,
-      },
-    ],
-    nextCursor: null,
-  }
-  const draft = {
-    findingRef: null,
-    checkId: "c2",
-    question: "Is there step-free access?",
-    venue: { id: "v1", name: "TEST Inn" },
-    answer: null,
-    kind: "draft",
-    state: "saved",
-    noLongerUsed: null,
-    stateReason: null,
-    managerNote: null,
-    detailRequestId: null,
-    unknownPreset: null,
-    answeredBy: null,
-    sentAt: null,
-    savedAt: "2026-11-07T09:00:00.000Z",
-    decidedAt: null,
-    recognition: { kind: "pending" },
-    sendable: true,
-  }
-
-  afterEach(() => vi.unstubAllEnvs())
-
-  it("replaces the Your findings heading, with B01's drafts above the feed", async () => {
-    work.getContributions.mockResolvedValue({ status: "ok", value: FEED })
-    knowledge.listMyFindings.mockResolvedValue({
-      ok: true,
-      page: { items: [draft], nextCursor: null, hiddenEarlierVenues: [] },
-    })
-    const { getByRole, queryByRole } = render(await StaffPage())
-    const region = getByRole("region", { name: "My contributions" })
-    expect(queryByRole("region", { name: /Your findings/ })).toBeNull()
-    const lists = within(region).getAllByRole("list")
-    expect(lists[0].getAttribute("aria-label")).toBe("Drafts")
-    expect(
-      within(lists[0]).getByRole("heading", { name: draft.question })
-    ).toBeTruthy()
-    expect(within(region).getByText("Upload: Saved")).toBeTruthy()
-    expect(work.getContributions).toHaveBeenCalledWith(ACTOR)
-  })
-
-  it("keeps B01's Your findings when the database predates the feed", async () => {
-    knowledge.listMyFindings.mockResolvedValue({
-      ok: true,
-      page: { items: [draft], nextCursor: null, hiddenEarlierVenues: [] },
-    })
-    const { getByRole, queryByRole } = render(await StaffPage())
-    expect(getByRole("region", { name: "Your findings" })).toBeTruthy()
-    expect(queryByRole("region", { name: /My contributions/ })).toBeNull()
-  })
-
-  it("switched to b01, never reads the feed", async () => {
-    vi.stubEnv("NABALENS_MY_CONTRIBUTIONS", "b01")
-    work.getContributions.mockResolvedValue({ status: "ok", value: FEED })
-    knowledge.listMyFindings.mockResolvedValue({
-      ok: true,
-      page: { items: [draft], nextCursor: null, hiddenEarlierVenues: [] },
-    })
-    const { getByRole } = render(await StaffPage())
-    expect(getByRole("region", { name: "Your findings" })).toBeTruthy()
-    expect(work.getContributions).not.toHaveBeenCalled()
   })
 })

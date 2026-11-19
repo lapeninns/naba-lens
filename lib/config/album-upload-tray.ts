@@ -6,5 +6,6 @@ export const ALBUM_UPLOAD_TRAY =
 export const STAFF_PHOTO_ROUTES = {
   home: "/staff/home",
   album: "/staff/album",
+  photos: "/staff/photos",
   me: "/staff/me",
 } as const

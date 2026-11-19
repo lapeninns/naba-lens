@@ -1,20 +1,14 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { managerAccess } from "@/app/staff/manage/_shared/context"
-import { NotManagerPage } from "@/app/staff/manage/_shared/frame"
-import { AmenityCheckScreen } from "@/app/staff/manage/_shared/screens/amenities"
-
-export const metadata: Metadata = {
-  title: "Amenity check · Manage",
-}
-
-export default async function ManageAmenityCheckPage({
+/**
+ * Retired (decision D3; DESIGN.md §15): venue managers work in /manager.
+ * The old URL keeps working as a redirect.
+ */
+export default async function RetiredManagePage({
   params,
 }: {
   params: Promise<{ checkId: string }>
 }) {
   const { checkId } = await params
-  const access = await managerAccess()
-  if (!access.ok) return <NotManagerPage viewerName={access.viewerName} />
-  return <AmenityCheckScreen ctx={access.ctx} checkId={checkId} />
+  permanentRedirect(`/manager/amenities/${encodeURIComponent(checkId)}`)
 }

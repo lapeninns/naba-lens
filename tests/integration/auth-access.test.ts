@@ -40,7 +40,8 @@ import RootPage from "@/app/page"
 import { finaliseUpload, loadMyMedia, reserveUpload } from "@/app/staff/actions"
 import { AddHost } from "@/app/staff/_shell/add-host"
 import StaffLayout from "@/app/staff/layout"
-import StaffPage from "@/app/staff/page"
+import StaffPage from "@/app/staff/me/page"
+import StaffMyPhotosPage from "@/app/staff/photos/page"
 import { authorize, getAuthState, requireActiveManager } from "@/lib/auth"
 import { getManagerWorkspace, requireManagerVenue } from "@/lib/auth/manager"
 import { proxy } from "@/proxy"
@@ -554,19 +555,22 @@ describe("staff venue states", () => {
       expect(error).toBeNull()
     })
 
-    it("its staff see the setup message instead of Upload", async () => {
-      const page = await worker.browser.run(() => redirectOf(StaffPage))
+    it("its staff see the setup message instead of Add on My photos", async () => {
+      const myPhotos = () => StaffMyPhotosPage(noSearch)
+      const page = await worker.browser.run(() => redirectOf(myPhotos))
       expect(page.location).toBeNull()
-      const portfolio = findProps(page.value, "uploadBlocked")
-      // R-2 words (app/staff/add-blocked.ts).
-      expect(portfolio?.uploadBlocked).toMatch(/isn't taking photos right now/)
+      // R-2 words (app/staff/add-blocked.ts), in My photos' notice.
+      expect(JSON.stringify(page.value)).toMatch(
+        /isn't taking photos right now/
+      )
+      const photos = findProps(page.value, "canAdd")
+      expect(photos?.canAdd).toBe(false)
       // Their own retained media is still listed for them.
-      const items = (portfolio?.initialPage as { items: { id: string }[] })
-        .items
-      expect(items.map((i) => i.id)).toContain(retained.assetId)
+      const items = (photos?.initial as { items: { assetId: string }[] }).items
+      expect(items.map((i) => i.assetId)).toContain(retained.assetId)
 
-      const active = await staff.browser.run(() => redirectOf(StaffPage))
-      expect(findProps(active.value, "uploadBlocked")?.uploadBlocked).toBeNull()
+      const active = await staff.browser.run(() => redirectOf(myPhotos))
+      expect(findProps(active.value, "canAdd")?.canAdd).toBe(true)
     })
 
     it("its staff cannot reserve or store a new upload", async () => {
@@ -759,9 +763,9 @@ describe("profile reads", () => {
       (await run(() => updateStaffAccountAction(otherStaff.id, {}))).ok
     ).toBe(false)
 
-    // The staff page itself carries only the caller's own profile.
+    // Me carries only the caller's own profile (DESIGN.md §5b).
     const page = await run(() => redirectOf(StaffPage))
-    const shown = JSON.stringify(findProps(page.value, "profile")?.profile)
+    const shown = JSON.stringify(findProps(page.value, "displayName"))
     expect(shown).toContain("TEST acc-staff")
     expect(shown).not.toContain("acc-admin")
     expect(shown).not.toContain("acc-other")

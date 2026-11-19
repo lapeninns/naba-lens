@@ -60,3 +60,52 @@ These were settled in the Common Room spec before it came into the repo. They bi
   commit their matches? The phone trial sends on confirmation and uses the
   existing Match later destination. Early transfer needs a decision about
   draft retention and recovery.
+
+## Staff Home
+
+- **D15** (18 Nov 2026, Aman Kumar Shrestha). Staff Home reminds the
+  person to add photos and shows their recent activity (DESIGN.md §5c). It
+  never chooses which dish, drink or space to photograph: only a reviewer's
+  retake or a manager's request names one, and Album is where slots are
+  browsed. The month card leaves Home (it stays on Me). Tried and dropped
+  the same day: a second grid of empty slots (it repeated Album) and a
+  daily list of five chosen slots ("today's shots"). Supersedes the Home
+  content of D13 and §6.1a MT-4.
+
+## Album shelves
+
+- **D16** (18 Nov 2026, Aman Kumar Shrestha). Album opens on three parts,
+  Menu (Food and Drinks, as a switch), Amenities and Spaces, as Google
+  Business Profile groups a venue's photos (DESIGN.md §5d). Inside, sections
+  sit on shelves (Spirits, Mains). The place (Bar, Kitchen pass) is a lens
+  over every screen, not the top level. Shelves are one fixed Naba-Lens set;
+  each section is suggested a shelf from words in its name and a venue's
+  manager can move it (`album_shelves`). Amenities holds every feature a
+  photo can show; the rest stay facts. Chosen over type or place as the top
+  level, a Profile part (logo, cover, frontage: later) and code-only name
+  rules. Plan: `docs/plans/album-shelves.md`.
+
+## Me
+
+- **D17** (19 Nov 2026, Aman Kumar Shrestha). Staff Me is a hub of rows
+  (DESIGN.md §5b): profile, "n photos need you", Your photos, Your month,
+  Notices, then Your venue, Settings and Help. Your photos
+  (`/staff/photos` since D18), Settings (`/staff/me/settings`) and Help
+  (`/staff/me/help`) get their own routes. My contributions, the media
+  gallery, the accepted-photos grid, Needs labels and the retake notes leave
+  Me: each repeated Your photos. Add photos stays a tab only. The legacy
+  `/staff` page is unchanged until it is retired.
+
+- **D18** (19 Nov 2026, Aman Kumar Shrestha). Five staff tabs in the photo
+  preview shell: Today (was Home, `/staff/home`), Album, Add in the middle,
+  My photos (`/staff/photos`, moved from Me) and Me (DESIGN.md §15, §5e).
+  Retakes are counted on My photos, not Album. Add shows "Add" and is
+  announced as Add photos. Chosen over keeping Home's name and over Home ·
+  Venue · Add · Photos · Profile.
+
+- **D19** (19 Nov 2026, Aman Kumar Shrestha). My photos is photo first
+  (DESIGN.md §5e): one Needs you inbox (retakes, no slot yet, couldn't
+  finish, labels not saved), a three-up grid grouped by day with All,
+  Waiting and In the album, and a page per photo (`/staff/photos/[assetId]`)
+  holding every action. Sending is a row, not a filter. Chosen over a
+  compact list by day and over a bottom sheet for details.

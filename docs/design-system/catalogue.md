@@ -113,8 +113,11 @@ The Batch Match phone preview (DESIGN.md §6.1a) uses `MatchTray` in
 receipts. The tray shares MatchPicker, photo thumbnails, and receipt words
 with MatchScreen. AlbumHome's search renders results using SlotTile's row
 layout and the same AlbumSlotTile actions as the grid.
-The preview's Home reuses AlbumAddTrigger, UnfinishedRow, MatchLaterRow and
-YourMonthCard. AppShell owns the Home, Album and Me navigation.
+Home (DESIGN.md §5c, D15) is `AddReminder` and `RecentActivity` in
+`components/nabalens/home/`. It reuses AlbumAddTrigger, UnfinishedRow,
+AskedFor, MatchLaterRow, StartHereRow, OtherJobsRow, Photo and StatusChip;
+the retake row is AlbumHome's. AppShell owns the Home, Album
+and Me navigation.
 
 ## Primitives
 

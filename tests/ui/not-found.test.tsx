@@ -66,7 +66,7 @@ describe("branded not-found pages", () => {
     })
     expect(cardIn(page)).toMatchObject({
       type: NotFoundCard,
-      props: { backHref: "/staff/tasks", backLabel: "Go to Home" },
+      props: { backHref: "/staff/home", backLabel: "Go to Today" },
     })
   })
 
@@ -77,8 +77,8 @@ describe("branded not-found pages", () => {
     const page = (await TaskNotFound()) as unknown as Element
     const card = cardIn(page)
     expect(card.props).toMatchObject({
-      backHref: "/staff/tasks",
-      backLabel: "Go to Home",
+      backHref: "/staff/home",
+      backLabel: "Go to Today",
     })
     render(
       <NotFoundCard
@@ -87,7 +87,7 @@ describe("branded not-found pages", () => {
     )
     const text = document.body.textContent ?? ""
     expect(text).not.toMatch(/\btasks?\b/i)
-    expect(screen.getByRole("link", { name: "Go to Home" })).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Go to Today" })).toBeTruthy()
   })
 
   it("a missing admin page keeps the admin navigation and goes back to Library", async () => {

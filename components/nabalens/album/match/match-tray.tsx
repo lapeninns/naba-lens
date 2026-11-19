@@ -234,7 +234,7 @@ export function MatchTray({
                   <ul className="grid grid-cols-2 gap-3">
                     {group.photos.map((photo) => (
                       <li key={photo.key} className="min-w-0">
-                        <label className="relative grid cursor-pointer gap-1 rounded-card border border-line bg-surface p-1.5 has-checked:border-accent has-focus-visible:ring-2 has-focus-visible:ring-focus">
+                        <label className="relative grid cursor-pointer gap-1 rounded-card border border-line bg-surface p-1.5 focus-ring-within has-checked:border-accent">
                           <span className="aspect-square overflow-hidden rounded-control bg-media-placeholder">
                             <MatchThumb file={photo.file} />
                           </span>

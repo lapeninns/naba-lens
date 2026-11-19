@@ -38,15 +38,17 @@ function current(name: string, slot: "app-nav" | "tabbar" = "app-nav") {
 }
 
 describe("AppShell staff navigation", () => {
-  it("puts Album first and hides Manage by default", () => {
+  it("lists Today, Album, My photos and Me, and hides Manage by default", () => {
     render(
       <AppShell variant="staff" active="tasks">
         x
       </AppShell>
     )
     expect(links("Staff")).toEqual([
-      ["Album", "/staff/tasks"],
-      ["Me", "/staff"],
+      ["Today", "/staff/home"],
+      ["Album", "/staff/album"],
+      ["My photos", "/staff/photos"],
+      ["Me", "/staff/me"],
     ])
     expect(current("Staff")).toEqual(["Album"])
   })
@@ -57,10 +59,7 @@ describe("AppShell staff navigation", () => {
         x
       </AppShell>
     )
-    expect(links("Staff").at(-1)).toEqual([
-      "Manage, 3 to review",
-      "/staff/manage",
-    ])
+    expect(links("Staff").at(-1)).toEqual(["Manage, 3 to review", "/manager"])
     expect(current("Staff")).toEqual(["Manage, 3 to review"])
   })
 
@@ -81,7 +80,7 @@ describe("AppShell staff navigation", () => {
     expect(screen.queryByRole("link", { name: "Manage" })).toBeNull()
   })
 
-  it("gives phones three tabs, Add photos in the middle, never Manage", () => {
+  it("gives phones five tabs, Add in the middle, never Manage (DESIGN.md §15)", () => {
     render(
       <AppShell variant="staff" active="community" canManage todoCount={2}>
         x
@@ -94,7 +93,7 @@ describe("AppShell staff navigation", () => {
           .getAllByRole("navigation", { name: "Staff" })
           .find((el) => el.dataset.slot === "tabbar")!.children
       ).map((el) => el.textContent)
-    ).toEqual(["Album, 2 retakes", "Add photos", "Me"])
+    ).toEqual(["Today", "Album", "Add", "My photos, 2 retakes", "Me"])
     expect(tabbar.queryByRole("link", { name: /Manage/ })).toBeNull()
   })
 

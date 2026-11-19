@@ -209,9 +209,7 @@ describe("Slot page (spec §6 S3; AC17)", () => {
     expect(screen.getByText("Too dark, use the bar lights")).toBeTruthy()
     expect(screen.getByText("The photo in the album")).toBeTruthy()
     expect(screen.getByText("Retake")).toBeTruthy()
-    expect(
-      screen.getByRole("button", { name: "Add another photo" })
-    ).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Add more photos" })).toBeTruthy()
   })
 
   it("adds a photo to this slot from the gallery", async () => {
@@ -233,7 +231,7 @@ describe("Slot page (spec §6 S3; AC17)", () => {
       open
     )
     await user.click(
-      screen.getByRole("button", { name: "Add a photo for this slot" })
+      screen.getByRole("button", { name: "Add photos for this slot" })
     )
     expect(open).toHaveBeenCalledWith({
       slot: { kind: "dish", itemId: D1, name: "Guinness" },

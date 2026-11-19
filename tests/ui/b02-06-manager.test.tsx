@@ -294,7 +294,7 @@ describe("tab badges (UP-18, MG-24, HM-21, HM-22)", () => {
     expect(within(link).getByText("9+")).toBeTruthy()
   })
 
-  it("shows the retake count on the desktop Album link too", () => {
+  it("shows the retake count on the desktop My photos link too (D18)", () => {
     render(
       <AppShell variant="staff" active="people" todoCount={3}>
         x
@@ -303,9 +303,9 @@ describe("tab badges (UP-18, MG-24, HM-21, HM-22)", () => {
     const bars = screen.getAllByRole("navigation", { name: "Staff" })
     expect(bars).toHaveLength(2)
     for (const bar of bars)
-      expect(within(bar).getAllByRole("link")[0].textContent).toMatch(
-        /^Album.*3 retakes$/
-      )
+      expect(
+        within(bar).getByRole("link", { name: /^My photos/ }).textContent
+      ).toMatch(/^My photos.*3 retakes$/)
   })
 
   it("says couldn't check, not nothing, when the retakes couldn't be read", () => {
@@ -314,7 +314,7 @@ describe("tab badges (UP-18, MG-24, HM-21, HM-22)", () => {
         x
       </AppShell>
     )
-    const homes = screen.getAllByRole("link", { name: /^Album/ })
+    const homes = screen.getAllByRole("link", { name: /^My photos/ })
     expect(homes.length).toBe(2)
     for (const home of homes) {
       expect(home.textContent).toContain("?")

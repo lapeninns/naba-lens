@@ -10,7 +10,6 @@ import {
 } from "@/components/nabalens/tasks/copy"
 import { Progress } from "@/components/ui/progress"
 import type { MonthlyProgress } from "@/components/nabalens/tasks/types"
-import { ALBUM_UPLOAD_TRAY } from "@/lib/config/album-upload-tray"
 
 // Moved from tasks/monthly-progress-card.tsx (deleted in A5) for Me (AL-2).
 
@@ -168,7 +167,7 @@ export function YourMonthCard({
         ) : null}
       </CardHead>
       <p className="text-meta text-ink-muted">
-        {ALBUM_UPLOAD_TRAY && monthly ? monthly.period.label : COPY.private}
+        {monthly ? monthly.period.label : COPY.private}
       </p>
 
       {!monthly ? (
@@ -188,7 +187,7 @@ export function YourMonthCard({
       <p className="max-w-reading text-meta text-ink-muted">
         {compact && monthly?.status === "set" && !monthly.completionProgress
           ? "Photos count once accepted. Check your month for the full rules."
-          : ALBUM_UPLOAD_TRAY && monthly?.completionProgress
+          : monthly?.completionProgress
             ? "Menu photos you label count once accepted for the menu. Valid findings for your assigned amenity checks also count."
             : COPY.counts}
       </p>

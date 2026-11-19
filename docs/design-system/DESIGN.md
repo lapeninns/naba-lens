@@ -1,6 +1,6 @@
 # Naba-Lens design system
 
-Version 2.0 · 18 Nov 2026 · Status: adopted. **The look is design system v2** (decision D10, 18 Nov 2026): its tokens in light and dark, Figtree and Fraunces type, its 21 components and the SideNav. **The behaviour and the words are Album's** (decisions D8 and D9, 17 Nov 2026; Full App v1 decisions FA-1 to FA-51 in [the Full App decisions](../plans/full-app-v1/decisions.md)): every venue is an album of slots, adding is gallery first with Match on add, the FA-7 status words, and the three staff tabs Album / Add photos / Me. Where v2 and Album disagree, D10 says which wins (§13), and each place the product keeps Album's rule is a departure from v2 in [departures.md](departures.md).
+Version 2.5 · 19 Nov 2026 · Status: adopted. **The look is design system v2** (decision D10, 18 Nov 2026): its tokens in light and dark, Figtree and Fraunces type, its 21 components and the SideNav. **The behaviour and the words are Album's** (decisions D8 and D9, 17 Nov 2026; Full App v1 decisions FA-1 to FA-51 in [the Full App decisions](../plans/full-app-v1/decisions.md)): every venue is an album of slots, adding is gallery first with Match on add, the FA-7 status words, and the three staff tabs Album / Add photos / Me. Where v2 and Album disagree, D10 says which wins (§13), and each place the product keeps Album's rule is a departure from v2 in [departures.md](departures.md).
 
 Applies to every Naba-Lens surface: the staff app (phone first), the venue manager screens (phone, tablet, desktop) and the admin desktop app.
 
@@ -206,19 +206,124 @@ Requests never change the album count.
 
 ## 5b. Me (staff)
 
-Me holds the person's own work and their account (FA-1; departure A-S1). Top to bottom:
+Me is the person's account hub: one screen of rows, each opening the page that does that job (D17). Their photos are the My photos tab (§5e, D18), not a row here. Every job has one home; nothing on Me repeats another page. Top to bottom, on a phone:
 
-1. **Your photos** (FA-48: the spec's My uploads in Album's words). Filters Needs attention, Sending, Waiting and Reviewed. Each row: thumbnail, slot names (or "No slot yet"), the outcome word (§4), the reviewer's reason on a retake, the venue when it is not the current one, sent and taken dates ("Unknown" when the date taken is not known) and "Already sent before: it doesn't count twice" for an exact copy (FA-35). Actions sit on the row: Retake opens the slot with the reviewer's reason; Change slot (the §5 Match picker) and Withdraw while the photo is undecided; Fix date taken; Ask to remove once it is accepted (FA-21). The component is `components/nabalens/me/my-uploads.tsx`.
-2. **Your month** (FA-34): the person's own target and "n slots in the album from your photos". It is never compared with a colleague's (§9).
-3. **Help and account** (spec §6 S5): Your venues with the person's role and the venue switcher, Notices, "If you can't add photos" (on the Photo guide) and Your managers (`components/nabalens/me/me-account.tsx`).
+1. **The profile card** (`ProfileHeader`): face, name, role and venue. Edit profile is on Settings.
+2. **Unfinished photos** (`UnfinishedRow`), when there are any.
+3. **Your month**: "6 of 10 this month", or "Not set up yet" → `/staff/tasks/month`. Never compared with a colleague's (§9).
+4. **Notices**, with the unread count → `/staff/notifications`.
+5. **Manage The Bell** (managers only) and **Other jobs** (when there are any).
+6. **Your venue**: Colleagues' photos (`/staff/community`) and People (`/staff/people`).
+7. **Settings** (`/staff/me/settings`) and **Help** (`/staff/me/help`).
+8. Log out (phones; from md it is in the AppBar).
 
-Me's header holds the main Add photos (gallery, then Match, as the tab bar) and, before it, a secondary Add a video that opens the older Add sheet for video and files Match does not take (R15-1, departure A-D2); both open the gallery, never a camera.
+Add photos is the tab (§5 Tab bar), not a button on Me; Album's Menu is the menu (§5d), not a link here.
 
-Older blocks follow (Needs labels, accepted photos, findings; departure A-S2). Log out is on Me on phones and in the AppBar from md.
+**Settings** (`/staff/me/settings`): Edit profile (name and photo), Work details (`/staff/profile`), Your venues with the venue switcher (FA-22), Add to home screen (FA-53), Appearance (System, Light, Dark) and Log out.
+
+**Help** (`/staff/me/help`): How Naba-Lens works, the Photo guide, If you can't add photos (spec §6 S5) and Your managers.
+
+The older blocks (Needs labels, accepted photos, My contributions and the media gallery; departure A-S2) are gone from Me in the tray shell: each repeated Your photos. The legacy `/staff` page keeps them until it is retired.
 
 **Notices** (FA-10) are an inbox page, `/staff/notifications`, reached from Me: newest first, each with what happened and a link to it, then what to be told about. An unread notice puts a count badge on the Me tab. There are no toasts and no push (§6.7, FA-43). The component is `components/nabalens/me/notices-inbox.tsx`.
 
 **Slot page** (`/staff/album/slot/[kind]/[slotId]`): the slot's photo when it is in the album or due a check, its brief, its state word, "n waiting" when colleagues' photos wait (never the photos themselves, FA-20), Add photos for the slot and Report a change.
+
+## 5c. Home (staff): a reminder to add photos
+
+Home **reminds the person to add photos** and shows what happened to the ones they sent (D15). It never chooses which dish, drink or space to photograph: Album is where slots are browsed, and only a person (a reviewer's retake, a manager's request) ever names one. It is the landing tab of the three-tab staff shell (§6.1a MT-4, `/staff/home`). Top to bottom, on a phone:
+
+1. **Start here**, for a new starter (as §5a step 7).
+2. **Unfinished photos** (`UnfinishedRow`), when there are any.
+3. **The retake row** (§5a step 2), when the person has retakes: named by the reviewer, not by Home.
+4. **Asked for** (§5a, S2-REQ), when a manager has open requests: named by the manager, not by Home.
+5. **The reminder** (the page title and the main button, in one card). The title and line follow when the person last added photos at this venue:
+   - none yet: "Add your first photos" · "Dishes, drinks and corners of the venue you took on shift. Pick them from your gallery."
+   - some today: "Got more from today?" · "You've added 3 photos today."
+   - earlier: "Got photos from today?" · "Your last photos were yesterday." or "… 3 days ago."
+   - can't be read: "Got photos from today?" with no line.
+     Under it, "237 slots still empty at The Bell" (V2-14) when the album can be read, then **Add photos** (`AlbumAddTrigger`, the same button as the tab, §6.1): the gallery for many photos, then Match. When the person cannot add photos at this venue, the blocked notice says why in place of the button. The card names no slot.
+6. **Match later** and **Other jobs** rows, when there are any.
+7. **Recent activity**: the person's six newest photos at this venue, each with its thumbnail, slot names (or "With your manager", "Shared photo", "Photo without a slot"), sent and taken dates and its outcome chip (§4, FA-7), and "See all" to My photos (§5e). Empty: "Photos you send to this venue will appear here." Can't be read: "Recent activity couldn't be loaded. Reload to try again."
+
+The screen shows nothing else: no list of slots to fill, no month card (the header carries the month's line when a target is set, §6.1a MT-6; the card is on Me), no feed of colleagues, no ranking (§9) and no setup notice the person cannot act on themselves. "Today" is the venue's calendar day.
+
+The page is `app/staff/home/page.tsx`; the reminder is `AddReminder` and the list `RecentActivity`, both in `components/nabalens/home/`; the reminder's words come from `addReminder` in `lib/staff/home.ts`.
+
+## 5d. Album (staff): Menu, Amenities and Spaces
+
+Album is the whole venue to browse (D16). It opens on three **parts**, the way Google Business Profile groups a venue's photos (food and drink, amenities, the place itself), and each part narrows in steps, so no screen is a list of a hundred slots:
+
+| Level   | What it is                           | Example    | Where it comes from                                                                        |
+| ------- | ------------------------------------ | ---------- | ------------------------------------------------------------------------------------------ |
+| Part    | Menu, Amenities or Spaces            | Menu       | The type of each slot (FA-6): Food and Drinks are Menu; Facilities and Other are Amenities |
+| Type    | Within Menu only: Food or Drinks     | Drinks     | The coverage rule's category                                                               |
+| Shelf   | A family of sections                 | Spirits    | Naba-Lens's fixed shelf set; each section suggested from its name, a manager can move it   |
+| Section | The menu section or amenity category | Gin        | The active menu, or the amenity catalogue                                                  |
+| Slot    | One dish, drink, amenity or area     | Hendrick's | As §4                                                                                      |
+
+**Amenities** holds every venue feature a photo can show, grouped like Google's attributes (Accessibility, Arrival, Family, Pets, Outdoor, Games, Entertainment, Facilities, Connectivity, Service). Attributes a photo cannot show (payments, crowd, planning) are facts in venue knowledge, never slots. A new photographable feature is a row in the amenity catalogue, not code. **Spaces** holds the venue's areas (the bar, the kitchen pass, the garden), one slot each, with no shelves.
+
+**The shelf set.** Fixed in `SHELVES` (`lib/album/shelves.ts`); a venue never adds one. Each type ends with a "More" shelf that takes any section no rule fits, so nothing is lost.
+
+| Type       | Shelves, in order                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| Food       | Starters & small plates · Mains · Rice, breads & sides · Specials · Kids · Desserts · More food  |
+| Drinks     | Beer & cider · Wine & fizz · Spirits · Cocktails & jugs · Soft & hot drinks · More drinks        |
+| Spaces     | One shelf, The venue: the areas themselves                                                       |
+| Facilities | One shelf per amenity catalogue category (Accessibility, Outdoor, Family, Pets, Games…), by name |
+| Other      | One shelf, Other                                                                                 |
+
+A section's suggested shelf comes from words in its name ("Gin", "Red Wine", "Naans"). The narrower shelves are checked first (Kids and Desserts before Mains, Cocktails before Spirits), so "Kids burgers" is Kids and "Gin cocktails" is Cocktails; a section whose name fits none goes on More. A manager's choice (`album_shelves`, set on `/manager/album`) always wins over the suggestion. Code never lists menu items or section names: the rules match words, and a venue whose words differ is fixed by its manager.
+
+**Place is a lens.** "Where are you?" (All places, then each place with its empty count) filters every Album screen to the slots photographed there (§5a step 3, `album_places`). The chosen place is remembered on the phone (AL-2) and kept in the URL (`?place=`).
+
+**Album landing** (`/staff/album`), top to bottom on a phone:
+
+1. "The Bell album" (title) and "237 slots still empty" (V2-14).
+2. Search (`AlbumSearch`, §6.1a MT-1): any slot by name, with its place and section; results only once something is typed.
+3. "Where are you?": the place lens.
+4. One card per part, in the order Menu, Amenities, Spaces (under a place, only parts with slots there; on All places an empty part says "Nothing to photograph here yet."): its name, "235 still empty of 243", its bar (§13 CoverageMeter), up to four accepted photos as a strip, and links into it with their empty counts (Menu: Food and Drinks; Amenities: its shelves; Spaces: none). A part with every slot filled reads "All in". The card opens the part.
+5. Match later, when there are any (§5a step 5).
+
+**A part** (`/staff/album/menu`, `/staff/album/amenities`, `/staff/album/spaces`), top to bottom:
+
+1. "← Album", then the part's name with "124 still empty of 124" beside it.
+2. Menu only: the Food | Drinks switch (`SegmentedControl`) with each one's empty count (`?kind=food|drinks`; default Food, or Drinks when Food has no slots).
+3. One filter row: a **Filter** button with the number of filters changed from the default, the line "All · Bar" saying what is shown, and Clear when anything is changed. Filter opens a sheet (§5 Sheet) with Show (Needed, Waiting, In the album, Retake or needs checking, All; `ALBUM_SHOWS`, `?show=`) and Where are you? (the place lens, `?place=`); each choice applies at once and Done closes it. An open shelf shows All by default. A part with no slots has no filter row.
+4. **Folders**: each shelf as a card, two across on a phone: a 2×2 cover of its accepted photos (with none yet, a dashed frame with the gallery icon and "30 to add"), its name with a tick when every slot is in, and "20 of 43 in · 16 empty". The card opens the shelf (`?shelf=`). A part with one shelf (Spaces) skips the folders and opens on it. The folders have no Show filter; the place lens still applies.
+5. **An open shelf**: "← Menu · Food", the shelf's name and its count; the filter row (Show opens on All here, photos and gaps together); a sticky jump bar of its sections with their empty counts, the one in view marked (`aria-current`) and scrolled into view; then each section: its name (h2), "2 of 9" and, when every slot is filled, a Done mark (§2 principle 6), over three-up slot tiles (§5 slot tile). A shelf with one section leaves its heading to screen readers. A filter that empties a section leaves it out.
+6. The main button: Add photos from your gallery, for Match (§6.1).
+
+**Words.** Part, type, shelf and section names are shown as they are; the levels themselves are never named on screen ("part" and "shelf" are words for this spec and for managers). Counts are remaining ("still empty") for staff (V2-14).
+
+**States.** No slots under the lens: "Nothing at the bar yet. Choose All places." Album can't be read: the problem notice with the message, and Add photos still works. Shelves can't be read (or the migration is not applied): suggestions only, with no notice to staff.
+
+The model is `buildShelves` and `ALBUM_PARTS` in `lib/album/shelves.ts`; the screens are `AlbumLanding` and `AlbumPart` in `components/nabalens/album/`; a manager moves a section on `/manager/album` (`AlbumPlacesForm`, Shelf in Album).
+
+## 5e. My photos (staff)
+
+A tab (§15, D18): everything the person has sent and what happened to it, photo first (D19). Its tab counts open retakes. Three ideas: **one inbox** for whatever needs the person, **a grid by day** for everything else, and **details on tap**.
+
+**My photos** (`/staff/photos`), top to bottom on a phone:
+
+1. Add a video on the right (R15-1, departure A-D2; the older Add sheet for video and files Match does not take, gallery only). The bar above says My photos.
+2. The summary line: "42 sent · 30 in the album · 9 waiting" (only the parts that are not zero).
+3. **Needs you · 3**, when anything needs the person, one row each with its own button, newest first:
+   - a retake: the slot's name, "Retake: " and the reviewer's reason, **Retake** (opens the slot, §5b slot page);
+   - no slot yet (not "I'm not sure", which is the manager's job): "Which dish or space is this?", **Choose** (opens the photo, where Change slot is);
+   - couldn't finish: "Didn't finish. Add it again from your gallery.", **Add again** (the gallery, then Match);
+   - labels the server kept but could not add (`NeedsAttention`, without its own heading): Fix labels or Discard labels.
+4. **Sending 2 photos…**, a thin row while uploads from this phone are on their way (the receipt words, §4). Never a filter.
+5. The filter: All · Waiting · In the album (`SegmentedControl`, `?show=`). All by default. Waiting is anything a reviewer has not decided, sending included; In the album is accepted for public use or kept for reference.
+6. **The grid**: three-up square photos grouped by the day they were sent ("Today", "Yesterday", "Tue 17 Nov", in the venue's calendar), newest first. Each photo carries one small mark in its corner: a tick (in the album), a clock (waiting), an exclamation (needs you) or none (not used, withdrawn). A video shows its film icon. Under the grid, "Show more" while there are older photos (§7, never infinite scroll).
+7. Empty: "Photos you add appear here, newest first." with Add photos.
+
+**One photo** (`/staff/photos/[assetId]`): "← My photos", the photo large (`/api/media/[id]/preview`), the slot names with each one's state chip (§4, FA-7), the reviewer's reason on a retake, the venue when it is not the current one, sent and taken dates, "Already sent before: it doesn't count twice" (FA-35), then every action the photo allows as full-width buttons: Retake, Change slot (the §5 Match picker), Fix date taken, Ask for a correction, Ask to remove (FA-21) and Withdraw (last, destructive). After Withdraw the page says so and links back. A photo that is not the person's, or no longer exists, is not found.
+
+The words are Album's (§7). Nothing on My photos ranks the person or compares them with a colleague (§9).
+
+The screen is `MyPhotos` (`components/nabalens/me/my-photos.tsx`); the rules (needs you, state, day groups, filter) are `lib/staff/my-photos.ts`; one photo reuses `MyUploads` in its detail layout, so every action and dialog has one implementation.
 
 ## 6. Patterns
 
@@ -247,10 +352,10 @@ Local trial of the two routes. Enable it in development with
   Both routes show a receipt with one row per file and Retry on recoverable
   failures. Count files already sent for review separately from those still
   sending. Match later continues to keep unassigned photos.
-- **MT-4**. Preview sign-in lands on **Home** (`/staff/home`), with Add
-  photos, recovery, Match later, your month and your recent activity.
-  The bottom bar links to Home, Album and Me. Each tab has a real URL
-  and the current tab is labelled as the current page.
+- **MT-4**. Preview sign-in lands on **Home** (`/staff/home`), which shows
+  what to photograph next (§5c, D15).
+  The bottom bar is Today, Album, Add, My photos and Me (§15). Each
+  tab has a real URL and the current tab is labelled as the current page.
 - **MT-5**. **Album** (`/staff/album`) opens on searchable, grouped slot
   rows. The known-slot receipt links to the slot's own page, which shows
   the brief and the staff member's submissions for that slot.
@@ -422,6 +527,11 @@ Still to remove once no screen uses them: `stamp-fg`, `bg-stripe` and the `rail-
 
 ### Changelog
 
+- **2.5** (19 Nov 2026, decision D19): §5e rewritten: My photos as one Needs you inbox, a three-up grid by day with All, Waiting and In the album, and a page per photo (`/staff/photos/[assetId]`) holding every action. No section was renumbered.
+- **2.4** (19 Nov 2026, decision D18): five staff tabs, Today, Album, Add, My photos and Me (§15). New §5e, My photos at `/staff/photos` (moved from Me); its tab counts retakes. No section was renumbered.
+- **2.3** (19 Nov 2026, decision D17): §5b, Me as a hub of rows with Your photos, Settings and Help on their own routes (`/staff/me/photos`, `/staff/me/settings`, `/staff/me/help`); the repeated photo lists and the Add photos buttons leave Me. No section was renumbered.
+- **2.2** (18 Nov 2026, decision D16): new §5d, Album as three parts (Menu, Amenities, Spaces), then Food or Drinks in Menu, shelves and sections, with place as a lens. The fixed shelf set lives in `lib/album/shelves.ts`; a manager can move a section to another shelf (`album_shelves`). No section was renumbered.
+- **2.1** (18 Nov 2026, decision D15): new §5c, staff Home as **a reminder to add photos**: a card whose words follow when the person last added photos, the main button, and their recent activity. Home never chooses a slot to photograph; retakes and requests (named by a person) keep their rows. The month card leaves Home. No section was renumbered.
 - **2.0** (18 Nov 2026, batch V2, decision D10): the look becomes design system v2 ([v2/](v2/README.md)). §3 is v2's colours, contrast, type (Figtree and Fraunces), space, size, shape and motion; §4's frames take v2 colours, its marks become v2 chips under the name and the filled Accepted square tag is retired; §5 names the v2 component each Album component is drawn as and adds Notice, Empty state and lists; §6.7 and §9 note v2's Toast is built but unused; §6a and §6b move manager and admin navigation to v2's TabBar and SideNav (departure A-R5-1 retired); §8 is v2's accessibility (2px ink focus outline, 48px staff and 40px compact desktop targets, 16px body and 13px floor); §10 maps the roles onto v2's values; §11 rule 6 changes with the type floor and rule 9 is new. New §13 (v2 and D10), §14 (status tones), §15 (navigation) and §16 (interaction states). Every Album section number and the rule it names is kept; D10's kept rules are departures V2-1 to V2-14.
 
 - **1.7** (18 Nov 2026, Full App v1 S5-PACKAGED): §4 gains **Optional** (FA-51): a packaged item without Photo wanted is listed and takes photos but leaves every count and is never empty. Its empty tile has a solid `edge-strong` line (the dashed frame stays Needed's alone) and the word Optional (`OPTIONAL_SLOT_WORD` in `lib/album/model.ts`); with a photo it shows that photo's state. Its slot page says "Optional: a photo is welcome, but none is needed."; Match finds it by search ("Optional · a photo is welcome") and never suggests it. Reports name it **No photo needed** (the rule's `inactive`).
@@ -479,7 +589,7 @@ The chip's look follows its shape in `CHIP_SHAPES`, each of which is one of the 
 
 ## 15. Navigation
 
-- **Staff** (phone first, one column at every width, centred on larger screens): v2's TabBar with Album, Add photos and Me (§5 Tab bar). From 768px the same places are links in the top bar, with Add photos as a button.
+- **Staff** (phone first, one column at every width, centred on larger screens): v2's TabBar with Album, Add photos and Me (§5 Tab bar). In the photo preview shell (§6.1a, D18) it is five tabs: **Today** (`/staff/home`, §5c), **Album** (§5d), **Add** in the middle (the gallery, then Match; `AlbumAddTrigger`, announced as Add photos), **My photos** (`/staff/photos`, §5e; its count is open retakes) and **Me** (§5b; its count is unread notices). Five is the most: Notices badges Me and People is on Me. From 768px the same places are links in the top bar, with Add photos as a button.
 - **Managers**: on phones v2's TabBar with the five tabs of §6a; from 768px the section tabs (v2 Tabs) under the header; from 1100px v2's **SideNav**: a 240px rail on `surface` fixed to the left with "Naba-Lens" in `title` at the top, one level of items, the current item `accent-soft` with bottle text and `aria-current="page"`, and Review's count beside it. The content column is padded by the rail's width.
 - **Admins**: below lg the tab bar with Overview, Venues, Library and More; from lg to 1100px the top bar with all seven sections; from 1100px the SideNav with all seven (§6b, departure A-ADMIN-1).
 - **Tabs** inside a page (SectionTabs): `label` type, the current one in ink with a 3px bottle bar under it.

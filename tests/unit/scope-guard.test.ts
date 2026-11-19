@@ -38,6 +38,8 @@ const ALLOWED_PAGES = new Set([
   // Owner-requested organization portfolio discovery (November 2026).
   "/staff/community",
   "/staff/people",
+  "/staff/photos",
+  "/staff/photos/[assetId]",
   "/staff/people/[id]",
   // v0.4 Home (was My tasks), the staff landing: own target, assignments, submissions and
   // review results (docs/spec/NabaLens-Staff-Coverage-v0.4.md §3).
@@ -57,14 +59,22 @@ const ALLOWED_PAGES = new Set([
   "/staff/tasks/guide",
   // Our menu (November 2026): the venue's active menu with how many items have
   // an accepted photo, search and "Still needs a photo"; no scoring.
+  "/staff/me",
+  "/staff/me/help",
+  "/staff/me/settings",
   "/staff/menu",
   // Album A2 (docs/design-system/DESIGN.md §6.2, decision D8): one place's
   // slots by section. Photos only; no scoring or ranking.
+  "/staff/album",
+  "/staff/album/amenities",
+  "/staff/album/menu",
+  "/staff/album/spaces",
   "/staff/album/[placeId]",
   "/staff/album/match-later",
   // Full App v1 S2-STAFF (spec §6 S3): one slot's page with its photo in the
   // album, brief, waiting count, Add a photo and Report a change.
   "/staff/album/slot/[kind]/[slotId]",
+  "/staff/home",
   // Full App v1 S2-STAFF (spec §17, FA-10): the staff notice inbox and its
   // preferences, an in-app list and a badge on Me, never toasts.
   "/staff/notifications",

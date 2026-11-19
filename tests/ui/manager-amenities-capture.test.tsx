@@ -17,6 +17,9 @@ vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`NEXT_REDIRECT ${to}`)
   },
+  permanentRedirect: (to: string) => {
+    throw new Error(`NEXT_REDIRECT ${to}`)
+  },
 }))
 
 const access = vi.hoisted(() => ({
@@ -126,13 +129,10 @@ describe("Capture myself: who may upload", () => {
     expect("maxDuration" in managerCapturePage).toBe(false)
   })
 
-  it("/staff/manage keeps the upload flow for a staff account with a grant", async () => {
-    await show(ManageAmenityCapturePage({ params }))
-    expect(screen.getByText("Add a photo or video")).toBeTruthy()
-    expect(
-      screen.getByRole("button", { name: "Choose from your photos" })
-    ).toBeTruthy()
-    expect(screen.queryByText(NO_UPLOAD)).toBeNull()
+  it("/staff/manage's capture redirects to /manager's (decision D3)", async () => {
+    await expect(ManageAmenityCapturePage({ params })).rejects.toThrow(
+      /NEXT_REDIRECT \/manager\/amenities\/.+\/capture/
+    )
   })
 })
 
@@ -153,16 +153,12 @@ describe("Capture myself: Yes with nothing to attach (§5.3)", () => {
     expect(screen.getByText(REFUSED)).toBeTruthy()
   })
 
-  it("not once something can be attached, nor for a staff account with a grant", async () => {
+  it("not once something can be attached", async () => {
     services.listSubmittableAssets.mockResolvedValue({
       ok: true,
       assets: [ASSET],
     })
     await show(ManagerAmenityCapturePage({ params }))
-    expect(screen.queryByText(REFUSED)).toBeNull()
-    cleanup()
-    services.listSubmittableAssets.mockResolvedValue({ ok: true, assets: [] })
-    await show(ManageAmenityCapturePage({ params }))
     expect(screen.queryByText(REFUSED)).toBeNull()
   })
 })

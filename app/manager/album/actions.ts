@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { getAmenityActor } from "@/lib/server/amenities"
-import { setAlbumBrief, setAlbumPlace } from "@/lib/server/album"
+import { setAlbumBrief, setAlbumPlace, setAlbumShelf } from "@/lib/server/album"
 import { actorFailureMessage } from "@/lib/server/media/context"
 
 /**
@@ -59,4 +59,29 @@ export async function setAlbumBriefAction(input: {
     revalidatePath("/staff", "layout")
   }
   return { ok: true as const, brief: result.brief }
+}
+
+/**
+ * Album shelves (DESIGN.md §5d, D16): put a menu section (by slug) on one of
+ * its type's shelves, or clear the choice (null) to use the suggestion.
+ * Untrusted input, as above: the database checks the venue, the manager's
+ * grant, the section and that the shelf belongs to the section's kind.
+ */
+export async function setAlbumShelfAction(input: {
+  key: unknown
+  shelf: unknown
+}) {
+  const auth = await getAmenityActor()
+  if (!auth.ok)
+    return { ok: false as const, message: actorFailureMessage(auth) }
+  const result = await setAlbumShelf(auth.actor, {
+    key: input.key,
+    shelf: input.shelf,
+  })
+  if (!result.ok) return { ok: false as const, message: result.message }
+  if (result.changed) {
+    revalidatePath("/manager/album")
+    revalidatePath("/staff", "layout")
+  }
+  return { ok: true as const }
 }

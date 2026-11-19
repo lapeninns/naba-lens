@@ -57,6 +57,10 @@ const MESSAGES: Record<string, CoverageFailure> = {
   venue_required: failure("invalid_input", "Choose a venue first."),
   invalid_source: failure("invalid_input", "Reload the page."),
   invalid_key: failure("invalid_input", "Reload the page."),
+  invalid_shelf: failure(
+    "invalid_input",
+    "Choose one of this section's shelves. Reload the page."
+  ),
   unknown_place: failure(
     "state_conflict",
     "That place is no longer listed for this venue. Reload the page."
@@ -140,7 +144,13 @@ const rows = (data: unknown, key: string): Record<string, unknown>[] => {
 export type AlbumPlacements = {
   places: Array<{ subjectId: string; kind: string; label: string }>
   placements: PlacementInput[]
-  sections: Array<{ sectionId: string; slug: string; name: string }>
+  /** `kind` is the menu section's own kind ("food", "drinks"), when read. */
+  sections: Array<{
+    sectionId: string
+    slug: string
+    name: string
+    kind?: string
+  }>
 }
 
 type PlacementReads = {
@@ -195,8 +205,9 @@ async function readAlbumPlacements(
   const sections = rows(placedRead.data, "sections").flatMap((row) => {
     const slug = text(row.slug)
     const name = text(row.name)
+    const kind = text(row.kind)
     return isUuid(row.sectionId) && slug && name
-      ? [{ sectionId: row.sectionId, slug, name }]
+      ? [{ sectionId: row.sectionId, slug, name, ...(kind ? { kind } : {}) }]
       : []
   })
   return { places, placed: { ok: true, placements, sections } }
@@ -256,6 +267,63 @@ export async function setAlbumPlace(
     p_subject_id: input.subjectId as string,
   })
   if (error) return albumFailure(error, "album place set")
+  return {
+    ok: true,
+    changed: (data as { changed?: unknown } | null)?.changed === true,
+  }
+}
+
+// ---- shelves (DESIGN.md §5d, D16) ----------------------------------------------
+
+/**
+ * A venue manager's shelf for each menu section, by slug (public.album_shelves,
+ * 20261118140000_album_shelves.sql). The fixed shelves and the suggestions
+ * live in lib/album/shelves.ts; this is only the manager's own choice.
+ */
+export async function getAlbumShelves(
+  actor: MediaActor,
+  venueId?: string
+): Promise<Result<{ chosen: Map<string, string> }>> {
+  const { data, error } = await Promise.resolve(
+    actor.db.rpc("album_shelves", venueId ? { p_venue_id: venueId } : {})
+  ).catch((e: unknown) => ({ data: null, error: e as DbError }))
+  if (error) return albumFailure(error, "album shelves")
+  const chosen = new Map<string, string>()
+  for (const row of rows(data, "items")) {
+    const key = text(row.key)
+    const shelf = text(row.shelf)
+    if (key && shelf) chosen.set(key, shelf)
+  }
+  return { ok: true, chosen }
+}
+
+/**
+ * For Album: a failed shelves read (or the migration not yet applied) reads
+ * as no choices, so every section sits on its suggested shelf (§5d States).
+ */
+export async function albumShelvesOrNone(
+  actor: MediaActor
+): Promise<Map<string, string>> {
+  const read = await getAlbumShelves(actor)
+  return read.ok ? read.chosen : new Map()
+}
+
+/** Puts a menu section (by slug) on a shelf, or clears the choice with null. */
+export async function setAlbumShelf(
+  actor: MediaActor,
+  input: { venueId?: string | null; key: unknown; shelf: unknown }
+): Promise<Result<{ changed: boolean }>> {
+  if (typeof input.key !== "string" || !input.key.trim())
+    return MESSAGES.invalid_key
+  if (input.shelf !== null && typeof input.shelf !== "string")
+    return MESSAGES.invalid_shelf
+  const { data, error } = await actor.db.rpc("album_shelf_set", {
+    // The generated types do not know null is allowed; the function takes it.
+    p_venue_id: (input.venueId ?? null) as string,
+    p_key: input.key,
+    p_shelf: input.shelf as string,
+  })
+  if (error) return albumFailure(error, "album shelf set")
   return {
     ok: true,
     changed: (data as { changed?: unknown } | null)?.changed === true,
