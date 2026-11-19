@@ -304,8 +304,10 @@ describe("tab badges (UP-18, MG-24, HM-21, HM-22)", () => {
     expect(bars).toHaveLength(2)
     for (const bar of bars)
       expect(
-        within(bar).getByRole("link", { name: /^My photos/ }).textContent
-      ).toMatch(/^My photos.*3 retakes$/)
+        // Its name, not its text: below 360px the bar also carries an
+        // aria-hidden "Photos" (departure V2-15).
+        within(bar).getByRole("link", { name: /^My photos\W+3\s*retakes$/ })
+      ).toBeTruthy()
   })
 
   it("says couldn't check, not nothing, when the retakes couldn't be read", () => {

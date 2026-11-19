@@ -1,4 +1,5 @@
 import type * as React from "react"
+import { redirect } from "next/navigation"
 
 import { AlbumPart } from "@/components/nabalens/album/album-part"
 import { Notice } from "@/components/nabalens/notice"
@@ -10,6 +11,8 @@ import {
   defaultShow,
   emptyPart,
   partType,
+  sectionAnchor,
+  sectionShelf,
   type AlbumPartKey,
 } from "@/lib/album/shelves"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -43,6 +46,24 @@ export async function partBody(
         {shelves.message}
       </Notice>
     )
+  // An old link names a menu section (`?section=`, its id): open its shelf
+  // at that section. A section with no slots opens Menu as usual.
+  const sectionId = first(query.section)
+  if (key === "menu" && sectionId) {
+    const slug = shelves.sections.find((s) => s.sectionId === sectionId)?.slug
+    const at = slug ? sectionShelf(shelves.view, slug) : null
+    const next = new URLSearchParams()
+    if (at) next.set("kind", at.category)
+    if (at) next.set("shelf", at.shelf)
+    const place = first(query.place)
+    if (place) next.set("place", place)
+    const show = first(query.show)
+    if (isAlbumShow(show)) next.set("show", show)
+    const rest = next.toString()
+    redirect(
+      `/staff/album/menu${rest ? `?${rest}` : ""}${at && slug ? `#${sectionAnchor(slug)}` : ""}`
+    )
+  }
   const part =
     albumParts(shelves.view).find((p) => p.key === key) ?? emptyPart(key)
   const type = key === "menu" ? partType(part, first(query.kind)) : null

@@ -19,7 +19,7 @@ import { EntryFlow, type EntryHrefs, type EntryStep } from "./entry-flow"
 /** Staff destinations; `from` brings the person back to this page. */
 export function staffEntryHrefs(from: string | null): EntryHrefs {
   return {
-    dish: "/staff/menu",
+    dish: "/staff/album/menu",
     task: (id) => withFrom(`/staff/tasks/${encodeURIComponent(id)}`, from),
     question: (checkId) =>
       withFrom(`/staff/tasks/amenities/${encodeURIComponent(checkId)}`, from),

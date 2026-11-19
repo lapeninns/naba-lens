@@ -135,9 +135,10 @@ const NOT_TASKS = new Set(["amenities", "guide", "welcome"])
 export function fromHref(
   value: string | null | undefined
 ): { origin: EntryOrigin; href: string } | null {
-  if (value === "home") return { origin: "home", href: "/staff/tasks" }
-  if (value === "menu") return { origin: "menu", href: "/staff/menu" }
-  if (value === "me") return { origin: "me", href: "/staff" }
+  // The five-tab app (DESIGN.md §15): Today, Album › Menu and Me.
+  if (value === "home") return { origin: "home", href: "/staff/home" }
+  if (value === "menu") return { origin: "menu", href: "/staff/album/menu" }
+  if (value === "me") return { origin: "me", href: "/staff/me" }
   if (value?.startsWith("task:")) {
     const id = value.slice("task:".length)
     if (ID.test(id) && !NOT_TASKS.has(id))
@@ -148,9 +149,11 @@ export function fromHref(
 
 /** The `from` value for the page someone is on, or null for any other page. */
 export function entryFrom(pathname: string | null | undefined): string | null {
-  if (pathname === "/staff/tasks") return "home"
-  if (pathname === "/staff/menu") return "menu"
-  if (pathname === "/staff") return "me"
+  // The retired URLs still name their old page while they redirect.
+  if (pathname === "/staff/home" || pathname === "/staff/tasks") return "home"
+  if (pathname === "/staff/album/menu" || pathname === "/staff/menu")
+    return "menu"
+  if (pathname === "/staff/me" || pathname === "/staff") return "me"
   const task = /^\/staff\/tasks\/([^/]+)$/.exec(pathname ?? "")
   return task && fromHref(`task:${task[1]}`) ? `task:${task[1]}` : null
 }

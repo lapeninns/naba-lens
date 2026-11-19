@@ -42,5 +42,12 @@ export async function loadShelves(
     lens,
     sectionOrder: album.placements.sections.map((s) => s.slug),
   })
-  return { ok: true as const, view, lens, places, searchPlaces: all }
+  return {
+    ok: true as const,
+    view,
+    lens,
+    places,
+    searchPlaces: all,
+    sections: album.placements.sections,
+  }
 }

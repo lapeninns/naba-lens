@@ -22,11 +22,6 @@ export const ME_COPY = {
   notices: "Notices",
   noticesLine: (unread: number | null) =>
     unread ? `${unread} unread` : "Retakes, jobs and photos that didn't send",
-  manage: (venue: string | null) => (venue ? `Manage ${venue}` : "Manage"),
-  manageLine: (n: number | null) =>
-    n
-      ? `${plural(n, "photo", "photos")} to review`
-      : "Review, requests and your venue",
   otherJobs: "Other jobs",
   otherJobsLine: (n: number | null) =>
     n === null

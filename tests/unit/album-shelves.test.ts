@@ -9,6 +9,8 @@ import {
   isShelfOf,
   normaliseName,
   partType,
+  sectionAnchor,
+  sectionShelf,
   shelfOf,
   suggestShelf,
 } from "@/lib/album/shelves"
@@ -232,5 +234,21 @@ describe("albumParts (DESIGN.md §5d)", () => {
     expect(partType(parts[0]!, "drinks")?.category).toBe("drinks")
     expect(isAlbumPartKey("menu")).toBe(true)
     expect(isAlbumPartKey("food")).toBe(false)
+  })
+})
+
+describe("sectionShelf (old section links, DESIGN.md §5d)", () => {
+  it("finds the type and shelf that hold a menu section", () => {
+    const v = buildShelves(view([place("bar", [slot("dish:gin")])]))
+    expect(sectionShelf(v, "gin")).toEqual({
+      category: "drinks",
+      shelf: "drinks.spirits",
+    })
+    expect(sectionAnchor("gin")).toBe("shelf-section-gin")
+  })
+
+  it("is null for a section with no slots", () => {
+    const v = buildShelves(view([place("bar", [slot("dish:gin")])]))
+    expect(sectionShelf(v, "puddings")).toBeNull()
   })
 })

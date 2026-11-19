@@ -418,3 +418,27 @@ export function partType(part: AlbumPart, asked: unknown): AlbumType | null {
     null
   )
 }
+
+/** The id a shelf's heading has, for the jump bar and the landing's links. */
+export function shelfAnchor(key: string): string {
+  return `shelf-${key.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+}
+
+/** The id a section's heading has inside an open shelf, for the jump bar. */
+export const sectionAnchor = (key: string) => shelfAnchor(`section-${key}`)
+
+/**
+ * Where a menu section sits in the album: its type and its shelf. Old links
+ * name a section ("Our menu at this section", DESIGN.md §5d, D16); Album
+ * opens that shelf at the section. Null when the section has no slots.
+ */
+export function sectionShelf(
+  view: ShelfView,
+  sectionKey: string
+): { category: CoverageCategory; shelf: string } | null {
+  for (const type of view.types)
+    for (const shelf of type.shelves)
+      if (shelf.sections.some((s) => s.key === sectionKey))
+        return { category: type.category, shelf: shelf.key }
+  return null
+}

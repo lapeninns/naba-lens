@@ -75,6 +75,9 @@ export const ALBUM_COPY = {
 export type AlbumRetake = {
   itemId: string
   itemName: string
+  /** The variant that was reviewed; the retake is for the same one. */
+  variantId?: string | null
+  variantName?: string | null
   reason: string | null
 }
 
@@ -217,9 +220,9 @@ export function AlbumHome({
               imagesOnly: true,
               preset: {
                 itemId: r.itemId,
-                variantId: null,
+                variantId: r.variantId ?? null,
                 itemName: r.itemName,
-                variantName: null,
+                variantName: r.variantName ?? null,
               },
             })
           }

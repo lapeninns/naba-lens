@@ -166,9 +166,12 @@ describe("entryMenu (§4.1, §5.3)", () => {
 
 describe("return paths (§4.3)", () => {
   it("allow-lists from values as relative /staff paths", () => {
-    expect(fromHref("home")).toEqual({ origin: "home", href: "/staff/tasks" })
-    expect(fromHref("menu")).toEqual({ origin: "menu", href: "/staff/menu" })
-    expect(fromHref("me")).toEqual({ origin: "me", href: "/staff" })
+    expect(fromHref("home")).toEqual({ origin: "home", href: "/staff/home" })
+    expect(fromHref("menu")).toEqual({
+      origin: "menu",
+      href: "/staff/album/menu",
+    })
+    expect(fromHref("me")).toEqual({ origin: "me", href: "/staff/me" })
     expect(fromHref("task:3f0c9a52-6b1d")).toEqual({
       origin: "task",
       href: "/staff/tasks/3f0c9a52-6b1d",
@@ -192,6 +195,10 @@ describe("return paths (§4.3)", () => {
     expect(entryFrom("/staff/tasks")).toBe("home")
     expect(entryFrom("/staff/menu")).toBe("menu")
     expect(entryFrom("/staff")).toBe("me")
+    // The five-tab pages (DESIGN.md §15) name the same places.
+    expect(entryFrom("/staff/home")).toBe("home")
+    expect(entryFrom("/staff/album/menu")).toBe("menu")
+    expect(entryFrom("/staff/me")).toBe("me")
     expect(entryFrom("/staff/tasks/t1")).toBe("task:t1")
     expect(entryFrom("/staff/tasks/month")).toBe("task:month")
     expect(entryFrom("/staff/tasks/guide")).toBeNull()

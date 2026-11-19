@@ -194,25 +194,15 @@ describe("staffShellStatus", () => {
     }
   )
 
-  it("gives a manager the Manage badge, kept apart from Album's", async () => {
+  it("never offers Manage, even to staff holding a legacy grant (D3)", async () => {
+    // /manager takes manager accounts only, so Manage would bounce them.
     coverage.getCoverageScope.mockResolvedValue(scope(true))
     expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
-      canManage: true,
-      reviewCount: 3,
-      todoCount: 0,
-    })
-  })
-
-  it("keeps Manage and the avatar when the review count fails, without a number", async () => {
-    coverage.getCoverageScope.mockResolvedValue(scope(true))
-    coverage.getManagerReviewCount.mockRejectedValue(new Error("down"))
-    expect(await staffShellStatus(ACTOR as never, PROFILE)).toEqual({
-      canManage: true,
-      todoCount: 0,
-      todoUnknown: false,
+      canManage: false,
       reviewCount: undefined,
-      avatarUrl: `/api/avatars/${PROFILE.id}`,
     })
+    expect(coverage.getCoverageScope).not.toHaveBeenCalled()
+    expect(coverage.getManagerReviewCount).not.toHaveBeenCalled()
   })
 })
 
@@ -291,15 +281,13 @@ describe("staff pages", () => {
     }
   })
 
-  it("renders the guide with the Album badge, the Manage badge and the avatar", async () => {
-    coverage.getCoverageScope.mockResolvedValue(scope(true))
+  it("renders the guide with the Album badge and the avatar", async () => {
     coverage.listMyRetakeNotes.mockResolvedValue({ ok: true, notes: [note()] })
     render(await PhotoGuidePage())
     expect(shell.props).toMatchObject({
       variant: "staff",
-      canManage: true,
+      canManage: false,
       todoCount: 1,
-      reviewCount: 3,
       avatarUrl: `/api/avatars/${PROFILE.id}`,
     })
   })

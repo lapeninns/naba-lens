@@ -119,7 +119,7 @@ describe("Add with the shared entry on", () => {
       within(dialog)
         .getByRole("link", { name: /A dish or drink/ })
         .getAttribute("href")
-    ).toBe("/staff/menu")
+    ).toBe("/staff/album/menu")
     expect(names.join(" ")).not.toMatch(/public/i)
   })
 

@@ -11,7 +11,6 @@ import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getMyAmenityTasks } from "@/lib/server/amenities"
 import {
   getCoverageActor,
-  getManagerReviewCount,
   getMyTasks,
   listMyRetakeNotes,
 } from "@/lib/server/coverage"
@@ -21,8 +20,6 @@ import { unreadCount } from "@/lib/server/notifications"
 import type { MediaActor } from "@/lib/server/media/types"
 import { entryMenu, type EntryMenu } from "@/lib/work-client/entry"
 import { workServices } from "@/lib/work-client/services"
-
-import { canManageVenue } from "../can-manage"
 
 /**
  * One actor per person per request. React's cache matches arguments by
@@ -161,35 +158,6 @@ export function myContributionEntry(
   return entryOf(sharedActor(actor), venueName)
 }
 
-/**
- * Whether the caller manages their venue and, only then, the photos waiting
- * for their review. Runs alongside the tasks rather than after them.
- */
-const managerStatusOf = cache(
-  async (
-    actor: MediaActor
-  ): Promise<{ canManage: boolean; reviewCount: number | undefined }> => {
-    try {
-      if (!(await canManageVenue(actor)))
-        return { canManage: false, reviewCount: undefined }
-    } catch {
-      return { canManage: false, reviewCount: undefined }
-    }
-    try {
-      const result = await getManagerReviewCount(actor)
-      return {
-        canManage: true,
-        reviewCount: result.ok ? result.count : undefined,
-      }
-    } catch {
-      // A failed count keeps Manage (its pages re-read it) without a number.
-      return { canManage: true, reviewCount: undefined }
-    }
-  }
-)
-
-const managerStatus = (actor: MediaActor) => managerStatusOf(sharedActor(actor))
-
 /** The staff AppShell's props that come from the database. */
 export type StaffShellStatus = {
   canManage: boolean
@@ -226,6 +194,8 @@ export async function myAlbumRetakes(
           {
             itemId: note.dish.itemId,
             itemName: note.dish.itemName,
+            variantId: note.dish.variantId,
+            variantName: note.dish.variantName,
             reason: note.reason,
           },
         ]
@@ -243,16 +213,18 @@ export async function staffShellStatus(
   actor: MediaActor,
   profile: { id: string; avatarPath: string | null }
 ): Promise<StaffShellStatus> {
-  const [retakes, { canManage, reviewCount }, notices] = await Promise.all([
+  const [retakes, notices] = await Promise.all([
     myAlbumRetakes(actor),
-    managerStatus(actor),
     myUnreadNotices(actor),
   ])
   return {
-    canManage,
+    // Staff pages serve staff accounts only, and /manager takes manager
+    // accounts only (D3): a staff account holding a legacy grant would be
+    // sent straight back, so the staff shell never offers Manage.
+    canManage: false,
     todoUnknown: retakes === null,
     todoCount: retakes?.length,
-    reviewCount,
+    reviewCount: undefined,
     meCount: notices ?? undefined,
     avatarUrl: avatarUrl(profile.id, profile.avatarPath),
   }

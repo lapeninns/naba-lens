@@ -92,17 +92,6 @@ describe("Me is a hub of rows (DESIGN.md §5b, D17)", () => {
     expect(screen.queryByRole("link", { name: /^Manage/ })).toBeNull()
   })
 
-  it("sends a venue manager to /manager with the review count (D3)", async () => {
-    shell.staffShellStatus.mockResolvedValueOnce({
-      canManage: true,
-      reviewCount: 3,
-      avatarUrl: null,
-    })
-    render(await StaffMePage())
-    expect(href(/^Manage TEST Railway/)).toBe("/manager")
-    expect(screen.getByText("3 photos to review")).toBeTruthy()
-  })
-
   it("keeps Other jobs while there are some, or when they couldn't be counted", async () => {
     render(await StaffMePage())
     expect(screen.queryByRole("link", { name: /^Other jobs/ })).toBeNull()
@@ -186,7 +175,15 @@ describe("Retired staff routes redirect (DESIGN.md §15, D3, D16, D17)", () => {
   })
 
   it("Our menu, a place and Manage go to their new homes", async () => {
-    expect(() => RetiredMenuPage()).toThrow("NEXT_REDIRECT /staff/album/menu")
+    await expect(RetiredMenuPage({ searchParams: params({}) })).rejects.toThrow(
+      "NEXT_REDIRECT /staff/album/menu"
+    )
+    // An old section link keeps its section and its gaps filter.
+    await expect(
+      RetiredMenuPage({
+        searchParams: params({ section: "s-9", filter: "gaps" }),
+      })
+    ).rejects.toThrow("NEXT_REDIRECT /staff/album/menu?section=s-9&show=needed")
     await expect(
       RetiredPlacePage({ params: params({ placeId: "bar-1" }) })
     ).rejects.toThrow("NEXT_REDIRECT /staff/album?place=bar-1")

@@ -106,15 +106,6 @@ export default async function StaffMePage() {
             title={ME_COPY.notices}
             line={ME_COPY.noticesLine(unread)}
           />
-          {shell.canManage ? (
-            <HomeRow
-              href="/manager"
-              slot="me-manage"
-              icon={<ClipboardTextIcon />}
-              title={ME_COPY.manage(profile.venue?.name ?? null)}
-              line={ME_COPY.manageLine(shell.reviewCount ?? null)}
-            />
-          ) : null}
           {otherJobs === null || otherJobs > 0 ? (
             <HomeRow
               href="/staff/tasks/other"

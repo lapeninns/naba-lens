@@ -28,10 +28,11 @@ export function HomeRetakes({
           source: "library",
           imagesOnly: true,
           preset: {
+            // The same dish and variant the reviewer asked again for.
             itemId: r.itemId,
-            variantId: null,
+            variantId: r.variantId ?? null,
             itemName: r.itemName,
-            variantName: null,
+            variantName: r.variantName ?? null,
           },
         })
       }}
