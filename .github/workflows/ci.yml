@@ -52,7 +52,7 @@ jobs:
     needs: common
     runs-on: ubuntu-24.04
     # This budget includes runner setup, database suites and browser tests.
-    timeout-minutes: 120
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:

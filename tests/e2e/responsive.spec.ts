@@ -84,7 +84,13 @@ async function check(
   width: number,
   state: string,
   primary: Locator,
-  scope?: Locator
+  {
+    scope,
+    viewportScreenshot = false,
+  }: {
+    scope?: Locator
+    viewportScreenshot?: boolean
+  } = {}
 ) {
   await expect(primary).toBeVisible()
   // Let entry animations settle before measuring and capturing.
@@ -133,7 +139,7 @@ async function check(
   findings.push({ width, state, overflowPx, primaryVisible, axe: serious })
   await page.screenshot({
     path: join(SHOTS, `${String(width).padStart(4, "0")}-${state}.png`),
-    fullPage: !scope,
+    fullPage: !scope && !viewportScreenshot,
   })
   expect
     .soft(overflowPx, `${state}@${width}: horizontal overflow (${culprit})`)
@@ -208,7 +214,7 @@ for (const width of WIDTHS) {
       width,
       "staff-upload-dialog",
       uploadDialog.getByRole("button", { name: "Choose from your photos" }),
-      uploadDialog
+      { scope: uploadDialog }
     )
     // A pick starts saving at once: the "Saving 1 photo" sheet, its row and
     // the label field, with Done as the primary action.
@@ -225,7 +231,7 @@ for (const width of WIDTHS) {
       width,
       "staff-upload-saving",
       uploadDialog.getByRole("button", { name: "Done" }),
-      uploadDialog
+      { scope: uploadDialog }
     )
     await uploadDialog.getByRole("button", { name: "Done" }).click()
     await expect(uploadDialog).toBeHidden()
@@ -237,7 +243,7 @@ for (const width of WIDTHS) {
       width,
       "staff-edit-profile",
       edit.getByRole("button", { name: /^Save/ }),
-      edit
+      { scope: edit }
     )
     await closeDialog(staff)
 
@@ -248,7 +254,7 @@ for (const width of WIDTHS) {
       width,
       "staff-viewer-photo",
       viewer.getByRole("button", { name: "Delete" }),
-      viewer
+      { scope: viewer }
     )
     await viewer.getByRole("button", { name: "Delete" }).click()
     const confirm = staff.getByRole("alertdialog")
@@ -262,7 +268,7 @@ for (const width of WIDTHS) {
       width,
       "staff-delete-confirm",
       confirm.getByRole("button", { name: /^Delete( anyway)?$/ }),
-      confirm
+      { scope: confirm }
     )
     await confirm
       .getByRole("button", { name: /^Keep (photo|video|file)$/ })
@@ -289,7 +295,7 @@ for (const width of WIDTHS) {
       width,
       "admin-viewer-video",
       adminViewer.getByRole("link", { name: "Download original" }),
-      adminViewer
+      { scope: adminViewer }
     )
     await closeDialog(admin)
     await admin.getByRole("combobox", { name: "Venue" }).click()
@@ -302,12 +308,18 @@ for (const width of WIDTHS) {
     await admin.keyboard.press("Escape")
   })
 
-  test(`admin staff screens and dialogs at ${width}px`, async () => {
+  test(`admin staff directory and its dialogs at ${width}px`, async () => {
     test.setTimeout(240_000)
     await admin.setViewportSize(viewport)
     await admin.goto("/admin/staff")
+    // Other suites share this stack. Keep this layout check on its own roster.
+    await admin.getByRole("searchbox", { name: "Search" }).fill(world.tag)
+    await admin.getByRole("button", { name: "Apply filters" }).click()
+    await expect(admin.getByText("3 shown", { exact: true })).toBeVisible()
     const invite = admin.getByRole("button", { name: "Invite staff" })
-    await check(admin, width, "admin-staff-directory", invite)
+    await check(admin, width, "admin-staff-directory", invite, {
+      viewportScreenshot: true,
+    })
     await invite.click()
     const inviteDialog = admin.getByRole("dialog")
     await check(
@@ -315,7 +327,7 @@ for (const width of WIDTHS) {
       width,
       "admin-invite-dialog",
       inviteDialog.getByRole("button", { name: "Send invitation" }),
-      inviteDialog
+      { scope: inviteDialog }
     )
     await closeDialog(admin)
     await admin
@@ -325,17 +337,22 @@ for (const width of WIDTHS) {
       admin,
       width,
       "admin-row-actions-menu",
-      admin.getByRole("menuitem", { name: "Edit details" })
+      admin.getByRole("menuitem", { name: "Edit details" }),
+      { scope: admin.getByRole("menu") }
     )
     await admin.keyboard.press("Escape")
+  })
 
-    // --- /admin/staff/[id] and its dialogs
+  test(`admin staff portfolio and its dialogs at ${width}px`, async () => {
+    test.setTimeout(240_000)
+    await admin.setViewportSize(viewport)
     await admin.goto(`/admin/staff/${world.staffA.id}`)
     await check(
       admin,
       width,
       "admin-staff-portfolio",
-      admin.getByRole("button", { name: "Edit details" })
+      admin.getByRole("button", { name: "Edit details" }),
+      { viewportScreenshot: true }
     )
     await admin.getByRole("button", { name: "Edit details" }).click()
     const details = admin.getByRole("dialog")
@@ -344,7 +361,7 @@ for (const width of WIDTHS) {
       width,
       "admin-edit-details",
       details.getByRole("button", { name: "Save changes" }),
-      details
+      { scope: details }
     )
     await closeDialog(admin)
     await admin
@@ -357,7 +374,7 @@ for (const width of WIDTHS) {
       width,
       "admin-deactivate-confirm",
       deactivate.getByRole("button", { name: "Deactivate" }),
-      deactivate
+      { scope: deactivate }
     )
     await deactivate.getByRole("button", { name: "Cancel" }).click()
     await expect(deactivate).toBeHidden()
