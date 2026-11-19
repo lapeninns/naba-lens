@@ -4,6 +4,9 @@
 
 import ConfirmPage from "@/app/auth/confirm/page"
 import { POST as verify } from "@/app/auth/confirm/verify/route"
+import { confirmMfaCode, startMfaEnrolment } from "@/app/auth/mfa/actions"
+
+import { knownTotpSecret, rememberTotpFactor, totpCode } from "../support/totp"
 
 import { APP_ORIGIN, appRequest, Browser, redirectOf } from "./auth-support"
 
@@ -99,4 +102,41 @@ export async function followEmailLink(browser: Browser, confirmPath: string) {
     throw new Error("Confirm page form does not POST to /auth/confirm/verify")
   }
   return submitConfirm(browser, page.form.fields)
+}
+
+/**
+ * The second sign-in step an admin must pass (FA-23): enrols a TOTP factor
+ * through the app's own /auth/mfa Server Functions the first time for this
+ * account, then submits a fresh code. The browser's session becomes aal2 and
+ * the action sends it to "/", which routes by role.
+ */
+export async function passMfa(browser: Browser, userId: string) {
+  let secret = knownTotpSecret(userId)
+  const form = new FormData()
+  if (!secret) {
+    const enrolment = await browser.run(() => startMfaEnrolment())
+    if (!enrolment.ok) throw new Error(`MFA enrolment: ${enrolment.error}`)
+    secret = enrolment.secret
+    rememberTotpFactor(userId, { factorId: enrolment.factorId, secret })
+    form.set("factorId", enrolment.factorId)
+  }
+  form.set("code", totpCode(secret))
+  const done = await browser.run(() =>
+    redirectOf(() => confirmMfaCode({ error: null }, form))
+  )
+  if (done.location !== "/") {
+    throw new Error(`MFA step did not finish: ${JSON.stringify(done.value)}`)
+  }
+}
+
+/** An admin's whole sign-in: the email link, then the second step. */
+export async function signInAdmin(
+  browser: Browser,
+  userId: string,
+  confirmPath: string
+) {
+  const res = await followEmailLink(browser, confirmPath)
+  if (res.location !== "/") return res
+  await passMfa(browser, userId)
+  return res
 }

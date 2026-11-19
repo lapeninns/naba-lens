@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { listMyMenuPhotoDecisions } from "@/lib/server/coverage/menu-items"
 import type { MediaActor } from "@/lib/server/media/types"
+import { isMenuUse } from "@/lib/staff/my-uploads"
 
 vi.mock("server-only", () => ({}))
 
@@ -45,7 +46,8 @@ function state(
 function actor(
   tables: Record<string, Result>,
   calls: string[][],
-  venueId: string | null = VENUE
+  venueId: string | null = VENUE,
+  catalogue: Result = { data: null, error: null }
 ) {
   return {
     profile: { id: ME, active: true, role: "staff", venueId },
@@ -53,8 +55,47 @@ function actor(
       from: vi.fn((table: string) =>
         query(table, tables[table] ?? { data: [], error: null }, calls)
       ),
+      rpc: vi.fn(async (name: string, args: unknown) => {
+        calls.push(["rpc", name, JSON.stringify(args)])
+        return catalogue
+      }),
     },
   } as unknown as MediaActor
+}
+
+type CatalogueItem = { itemId: string; variants?: string[] }
+
+/** menu_label_catalogue's answer: the venue's current offerings by section. */
+function catalogue(
+  sections: { kind: string; slug: string; items: CatalogueItem[] }[]
+): Result {
+  return {
+    error: null,
+    data: {
+      venueId: VENUE,
+      venueName: "The Bell",
+      status: "active",
+      versionId: "version-1",
+      versionTitle: "Autumn",
+      activatedAt: null,
+      sections: sections.map((section) => ({
+        id: `section-${section.slug}`,
+        slug: section.slug,
+        name: section.slug,
+        kind: section.kind,
+        items: section.items.map((item) => ({
+          itemId: item.itemId,
+          name: item.itemId,
+          description: null,
+          aliases: [],
+          variants: (item.variants ?? []).map((variantId) => ({
+            variantId,
+            name: variantId,
+          })),
+        })),
+      })),
+    },
+  }
 }
 
 const PHOTOS = [
@@ -66,22 +107,22 @@ const PHOTOS = [
 ]
 
 describe("Me's better-photo requests and the current menu (B9)", () => {
-  it("flags only requests whose dish and variant the current venue's active food or drinks menu offers", async () => {
+  it("flags only requests whose dish and variant the current venue's food or drinks offerings include", async () => {
     const calls: string[][] = []
     const result = await listMyMenuPhotoDecisions(
       actor(
-        {
-          menu_item_photos: { data: PHOTOS, error: null },
-          menu_versions: { data: { id: "version-1" }, error: null },
-          menu_entries: {
-            data: [
-              { item_id: "soup", menu_entry_variants: [] },
-              { item_id: "momo", menu_entry_variants: [{ variant_id: "veg" }] },
-            ],
-            error: null,
+        { menu_item_photos: { data: PHOTOS, error: null } },
+        calls,
+        VENUE,
+        catalogue([
+          {
+            kind: "food",
+            slug: "mains",
+            items: [{ itemId: "soup" }, { itemId: "momo", variants: ["veg"] }],
           },
-        },
-        calls
+          // Not food or drinks: never a retake target.
+          { kind: "other", slug: "extras", items: [{ itemId: "gone" }] },
+        ])
       )
     )
     expect(result.ok).toBe(true)
@@ -95,45 +136,63 @@ describe("Me's better-photo requests and the current menu (B9)", () => {
         ["p5", "accepted", undefined],
       ]
     )
-    // The caller's current venue, its active version, food or drinks
-    // sections only, and items not archived.
-    expect(calls).toEqual(
-      expect.arrayContaining([
-        ["menu_versions", "eq", JSON.stringify(["venue_id", VENUE])],
-        ["menu_versions", "eq", JSON.stringify(["status", "active"])],
-        ["menu_entries", "eq", JSON.stringify(["version_id", "version-1"])],
-        [
-          "menu_entries",
-          "in",
-          JSON.stringify(["item_id", ["soup", "momo", "gone"]]),
-        ],
-        [
-          "menu_entries",
-          "in",
-          JSON.stringify(["menu_sections.kind", ["food", "drinks"]]),
-        ],
-        [
-          "menu_entries",
-          "is",
-          JSON.stringify(["menu_items.archived_at", null]),
-        ],
-      ])
-    )
+    // The caller's current venue's catalogue (menu entries and running
+    // specials, read under the caller's own permissions).
+    expect(calls).toContainEqual([
+      "rpc",
+      "menu_label_catalogue",
+      JSON.stringify({ p_venue_id: VENUE }),
+    ])
   })
 
-  it("can't retake anything without a venue or an active menu", async () => {
-    for (const [venueId, version] of [
-      [null, { id: "version-1" }],
-      [VENUE, null],
+  it("can retake a running special, which has no variants", async () => {
+    const result = await listMyMenuPhotoDecisions(
+      actor(
+        {
+          menu_item_photos: {
+            data: [state("s1", "lassi", null), state("s2", "lassi", "large")],
+            error: null,
+          },
+        },
+        [],
+        VENUE,
+        catalogue([
+          {
+            kind: "drinks",
+            slug: "drinks-specials",
+            items: [{ itemId: "lassi" }],
+          },
+        ])
+      )
+    )
+    expect(result.ok && result.states.map((s) => s.canRetake)).toEqual([
+      true,
+      false,
+    ])
+  })
+
+  it("can't retake anything without a venue or a current menu", async () => {
+    for (const [venueId, answer] of [
+      [
+        null,
+        catalogue([
+          { kind: "food", slug: "mains", items: [{ itemId: "soup" }] },
+        ]),
+      ],
+      [
+        VENUE,
+        {
+          data: { venueId: VENUE, venueName: "The Bell", status: "none" },
+          error: null,
+        },
+      ],
     ] as const) {
       const result = await listMyMenuPhotoDecisions(
         actor(
-          {
-            menu_item_photos: { data: PHOTOS.slice(0, 1), error: null },
-            menu_versions: { data: version, error: null },
-          },
+          { menu_item_photos: { data: PHOTOS.slice(0, 1), error: null } },
           [],
-          venueId
+          venueId,
+          answer
         )
       )
       expect(result.ok && result.states[0].canRetake).toBe(false)
@@ -143,13 +202,46 @@ describe("Me's better-photo requests and the current menu (B9)", () => {
   it("leaves the flag unknown when the menu can't be read", async () => {
     const result = await listMyMenuPhotoDecisions(
       actor(
-        {
-          menu_item_photos: { data: PHOTOS.slice(0, 1), error: null },
-          menu_versions: { data: null, error: { message: "down" } },
-        },
-        []
+        { menu_item_photos: { data: PHOTOS.slice(0, 1), error: null } },
+        [],
+        VENUE,
+        { data: null, error: { message: "down" } }
       )
     )
     expect(result.ok && result.states[0].canRetake).toBeUndefined()
+  })
+})
+
+describe("Me's accepted for menu use (X9)", () => {
+  it("reads each accepted decision's review level, and only a public one is menu use", async () => {
+    const calls: string[][] = []
+    const result = await listMyMenuPhotoDecisions(
+      actor(
+        {
+          menu_item_photos: {
+            data: [
+              {
+                ...state("p1", "pie", null, "accepted"),
+                review_level: "public",
+              },
+              {
+                ...state("p2", "soup", null, "accepted"),
+                review_level: "reference",
+              },
+            ],
+            error: null,
+          },
+        },
+        calls
+      )
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(calls[0]?.[2]).toContain("review_level")
+    expect(result.states.map((s) => [s.photoId, s.reviewLevel])).toEqual([
+      ["p1", "public"],
+      ["p2", "reference"],
+    ])
+    expect(result.states.map(isMenuUse)).toEqual([true, false])
   })
 })

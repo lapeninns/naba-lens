@@ -29,6 +29,7 @@ import {
   psql,
   requestKey,
 } from "./coverage-fixtures"
+import { setApplicability } from "./amenity-applicability"
 
 const service = serviceClient()
 
@@ -265,7 +266,8 @@ describe("enable and add", () => {
         current_submission_id: null,
         revision: 1,
         is_core: true,
-        catalogue_version: 1,
+        // Catalogue version 2 (S2-INT, 20261118109300).
+        catalogue_version: 2,
       })
       const history = await events(manager, c.id)
       expect(history).toHaveLength(1)
@@ -350,14 +352,14 @@ describe("enable and add", () => {
     const id = await addCheck(manager, venue, "board_games")
     await ok(assign(manager, id, staffA.id))
     const archived = await ok(
-      manager.client.rpc("amenity_archive_check", {
+      setApplicability(manager.client, "archive", {
         p_check_id: id,
         p_revision: await revisionOf(id),
       })
     )
     expect(archived).toBe(3)
     await fails(
-      manager.client.rpc("amenity_archive_check", {
+      setApplicability(manager.client, "archive", {
         p_check_id: id,
         p_revision: archived,
       }),
@@ -391,13 +393,13 @@ describe("enable and add", () => {
     })
 
     await ok(
-      manager.client.rpc("amenity_archive_check", {
+      setApplicability(manager.client, "archive", {
         p_check_id: id,
         p_revision: 4,
       })
     )
     await fails(
-      manager.client.rpc("amenity_restore_check", {
+      setApplicability(manager.client, "restore", {
         p_check_id: id,
         p_revision: 4,
       }),
@@ -405,7 +407,7 @@ describe("enable and add", () => {
     )
     expect(
       await ok(
-        manager.client.rpc("amenity_restore_check", {
+        setApplicability(manager.client, "restore", {
           p_check_id: id,
           p_revision: 5,
         })
@@ -585,7 +587,8 @@ describe("submitting findings", () => {
       subs.find((s: { id: string }) => s.id === first!.submission_id)
     ).toMatchObject({
       finding: "By the door",
-      template_version: 1,
+      // Catalogue version 2 (S2-INT) is the template version now.
+      template_version: 2,
       evidence_rule: "photo",
     })
     expect(await checkRow(manager, check)).toMatchObject({
@@ -595,7 +598,7 @@ describe("submitting findings", () => {
   })
 
   it("applies the evidence rules for photo, video, either and both", async () => {
-    // pool_table photo, step_free_entrance video, live_music either, accessible_toilet both
+    // pool_table photo, step_free_entrance video, live_music none, accessible_toilet both
     const [pool, entrance, music, toilet] = await ok(
       manager.client.rpc("amenity_add_checks", {
         p_venue_id: venue,
@@ -624,9 +627,15 @@ describe("submitting findings", () => {
     expect(err.details).toBe("video")
     await ok(submit(manager, entrance!, { assets: [await v()] }))
 
-    await fails(submit(manager, music!, { assets: [] }), "evidence_rule_unmet")
+    // live_music is fact-only since catalogue version 2 (S2-INT, FA-32):
+    // rule none, so a Yes needs no media; evidence sent is still kept.
+    await ok(submit(manager, music!, { assets: [] }))
     await ok(submit(manager, music!, { assets: [await v()] }))
-    await ok(submit(manager, music!, { assets: [await p()] }))
+    // The either rule itself (onsite_bar, private_room).
+    expect(
+      psql(`select concat_ws(',', private.amenity_rule_met('either', array['video']),
+        private.amenity_rule_met('either', array['photo']), private.amenity_rule_met('either', '{}'))`)
+    ).toBe("t,t,f")
 
     for (const assets of [[await p()], [await v()], [await p(), await p()]]) {
       err = await fails(
@@ -1270,11 +1279,12 @@ describe("access", () => {
     )
     // Cross-venue writes.
     await fails(
-      otherManager.client.rpc("amenity_archive_check", {
+      setApplicability(otherManager.client, "archive", {
         p_check_id: here,
         p_revision: 2,
       }),
-      "amenity_check_not_found"
+      // S2-MGR: the reason-recording path checks the venue first.
+      "not_venue_manager"
     )
     const crossVenue = await fails(
       submit(otherManager, there, { assets: [herePhoto] }),
@@ -1492,13 +1502,13 @@ describe("manager accounts", () => {
     expect((await checkRow(acct, bar!)).progress).toBe("needs_recheck")
     await ok(submit(acct, room!, { assets: [staffEra] }))
     await ok(
-      acct.client.rpc("amenity_archive_check", {
+      setApplicability(acct.client, "archive", {
         p_check_id: room!,
         p_revision: await revisionOf(room!),
       })
     )
     await ok(
-      acct.client.rpc("amenity_restore_check", {
+      setApplicability(acct.client, "restore", {
         p_check_id: room!,
         p_revision: await revisionOf(room!),
       })
@@ -1770,7 +1780,7 @@ describe("inactive venue", () => {
     await ok(assign(admin, open!, sleepyStaff.id))
     await ok(submit(admin, answered!, { answer: "no", reason: "None" }))
     await ok(
-      admin.client.rpc("amenity_archive_check", {
+      setApplicability(admin.client, "archive", {
         p_check_id: archived!,
         p_revision: await revisionOf(archived!),
       })
@@ -1805,12 +1815,12 @@ describe("inactive venue", () => {
           p_keys: ["pool_table"],
         }),
       () =>
-        admin.client.rpc("amenity_archive_check", {
+        setApplicability(admin.client, "archive", {
           p_check_id: open!,
           p_revision: revisions[0]!,
         }),
       () =>
-        admin.client.rpc("amenity_restore_check", {
+        setApplicability(admin.client, "restore", {
           p_check_id: archived!,
           p_revision: revisions[2]!,
         }),
@@ -1934,13 +1944,15 @@ describe("guest Wi-Fi", () => {
         "invalid_wifi_metadata"
       )
     }
+    // Catalogue version 2 (S2-INT, FA-32): Wi-Fi needs no media, but a Yes
+    // still needs the redaction tick and the test notes.
     await fails(
-      submit(staffA, check, {
-        assets: [await photo(staffA.id)],
-        metadata: wifi(),
-        redaction: true,
-      }),
-      "evidence_rule_unmet"
+      submit(staffA, check, { assets: [], metadata: wifi() }),
+      "redaction_not_confirmed"
+    )
+    await fails(
+      submit(staffA, check, { assets: [], redaction: true }),
+      "invalid_wifi_metadata"
     )
     // A photo with No still needs the tick; notes are only for Wi-Fi.
     await fails(

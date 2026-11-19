@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 // B02-06: manager amenity screens, the shells' tab badges and the venue name.
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -73,14 +80,16 @@ describe("check detail writes (MG-12, MG-26)", () => {
   it("says Saving… on the pressed button only, then focuses the outcome", async () => {
     const user = userEvent.setup()
     const reply = deferred<{ ok: true; revision: number }>()
+    // S2-MGR: Archive now asks for a reason in a dialog first, so the
+    // direct write pressed here is Unassign.
     render(
       <AmenityCheckDetail
         detail={detail()}
         basePath={BASE}
-        handlers={detailHandlers({ archive: () => reply.promise })}
+        handlers={detailHandlers({ assign: () => reply.promise })}
       />
     )
-    await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
+    await user.click(screen.getByRole("button", { name: UI_TEXT.unassign }))
     const busy = screen.getByRole("button", { name: SAVING })
     expect(busy.getAttribute("aria-busy")).toBe("true")
     // Only the pressed button changes its words.
@@ -88,7 +97,7 @@ describe("check detail writes (MG-12, MG-26)", () => {
     await act(async () => reply.resolve({ ok: true, revision: 5 }))
     const status = screen
       .getAllByRole("status")
-      .find((el) => el.textContent?.includes("Archived."))!
+      .find((el) => el.textContent?.includes("Unassigned."))!
     expect(status).toBeTruthy()
     expect(document.activeElement).toBe(status)
     expect(screen.queryByRole("button", { name: SAVING })).toBeNull()
@@ -119,10 +128,10 @@ describe("check detail writes (MG-12, MG-26)", () => {
       <AmenityCheckDetail
         detail={detail()}
         basePath={BASE}
-        handlers={detailHandlers({ archive: () => new Promise(() => {}) })}
+        handlers={detailHandlers({ assign: () => new Promise(() => {}) })}
       />
     )
-    fireEvent.click(screen.getByRole("button", { name: UI_TEXT.archive }))
+    fireEvent.click(screen.getByRole("button", { name: UI_TEXT.unassign }))
     expect(screen.queryByText(STILL_SAVING)).toBeNull()
     act(() => {
       vi.advanceTimersByTime(15_000)
@@ -194,6 +203,12 @@ describe("restore on the archived list (MG-13)", () => {
     await user.click(
       within(archived).getByRole("button", { name: UI_TEXT.restore })
     )
+    // S2-MGR (AC29): the reason first.
+    const dialog = await screen.findByRole("dialog")
+    await user.type(within(dialog).getByLabelText(/Reason/), "TEST back")
+    await user.click(
+      within(dialog).getByRole("button", { name: UI_TEXT.restore })
+    )
     expect(h.restore).toHaveBeenCalled()
     const back = { ...ARCHIVED, status: "active" as const }
     rerender(
@@ -233,6 +248,11 @@ describe("restore on the archived list (MG-13)", () => {
       />
     )
     await user.click(screen.getByRole("button", { name: UI_TEXT.restore }))
+    const dialog = await screen.findByRole("dialog")
+    await user.type(within(dialog).getByLabelText(/Reason/), "TEST back")
+    await user.click(
+      within(dialog).getByRole("button", { name: UI_TEXT.restore })
+    )
     await screen.findByText("Amenities are unavailable.")
     expect(document.activeElement?.getAttribute("role")).toBe("status")
   })
@@ -274,7 +294,7 @@ describe("tab badges (UP-18, MG-24, HM-21, HM-22)", () => {
     expect(within(link).getByText("9+")).toBeTruthy()
   })
 
-  it("shows the To do count on the desktop Home link too", () => {
+  it("shows the retake count on the desktop My photos link too (D18)", () => {
     render(
       <AppShell variant="staff" active="people" todoCount={3}>
         x
@@ -283,18 +303,20 @@ describe("tab badges (UP-18, MG-24, HM-21, HM-22)", () => {
     const bars = screen.getAllByRole("navigation", { name: "Staff" })
     expect(bars).toHaveLength(2)
     for (const bar of bars)
-      expect(within(bar).getAllByRole("link")[0].textContent).toMatch(
-        /^Home.*3 things to do$/
-      )
+      expect(
+        // Its name, not its text: below 360px the bar also carries an
+        // aria-hidden "Photos" (departure V2-15).
+        within(bar).getByRole("link", { name: /^My photos\W+3\s*retakes$/ })
+      ).toBeTruthy()
   })
 
-  it("says couldn't check, not nothing, when To do couldn't be read", () => {
+  it("says couldn't check, not nothing, when the retakes couldn't be read", () => {
     render(
       <AppShell variant="staff" active="people" todoUnknown>
         x
       </AppShell>
     )
-    const homes = screen.getAllByRole("link", { name: /^Home/ })
+    const homes = screen.getAllByRole("link", { name: /^My photos/ })
     expect(homes.length).toBe(2)
     for (const home of homes) {
       expect(home.textContent).toContain("?")

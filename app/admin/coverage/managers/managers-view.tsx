@@ -36,16 +36,17 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 import { SectionHead } from "../coverage-sections"
 import { MANAGERS_COPY, compareBySurname } from "./managers-copy"
-
-const TH =
-  "px-3 py-2.5 text-left text-meta font-semibold text-ink-muted first:pl-4 last:pr-4"
-const TD =
-  "px-3 py-2.5 align-middle text-body text-ink first:pl-4 last:pr-4 max-md:flex max-md:gap-2 max-md:px-4 max-md:py-1 max-md:before:min-w-28 max-md:before:text-ink-muted max-md:before:content-[attr(data-label)]"
-const TABLE =
-  "w-full border-collapse max-md:block max-md:[&_tbody]:block max-md:[&_thead]:sr-only max-md:[&_tr]:block max-md:[&_tr]:py-2"
 
 const ENDED_CHIP: Record<string, string> = {
   revoked: "revoked",
@@ -61,7 +62,7 @@ function PersonCell({ name }: { name: string }) {
   return (
     <span className="flex items-center gap-3">
       <ProfileAvatar name={name} size="md" />
-      <span className="font-bold break-words">{name}</span>
+      <span className="font-semibold break-words">{name}</span>
     </span>
   )
 }
@@ -266,102 +267,86 @@ export function ManagersView({
           />
         ) : (
           <>
-            <div className="overflow-x-auto rounded-card bg-surface shadow-card">
-              <table
-                aria-label={MANAGERS_COPY.currentHeading}
-                className={TABLE}
-              >
-                <thead className="border-b border-line">
-                  <tr>
-                    <th scope="col" className={TH}>
-                      {MANAGERS_COPY.columns.person}
-                    </th>
-                    <th scope="col" className={TH}>
-                      {MANAGERS_COPY.columns.venue}
-                    </th>
-                    <th scope="col" className={TH}>
-                      {MANAGERS_COPY.columns.since}
-                    </th>
-                    <th scope="col" className={TH}>
-                      {MANAGERS_COPY.columns.grantedBy}
-                    </th>
-                    <th scope="col" className={`${TH} w-16`}>
-                      <span className="sr-only">
-                        {MANAGERS_COPY.columns.actions}
+            <Table stacked framed aria-label={MANAGERS_COPY.currentHeading}>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{MANAGERS_COPY.columns.person}</TableHead>
+                  <TableHead>{MANAGERS_COPY.columns.venue}</TableHead>
+                  <TableHead>{MANAGERS_COPY.columns.since}</TableHead>
+                  <TableHead>{MANAGERS_COPY.columns.grantedBy}</TableHead>
+                  <TableHead className="w-16">
+                    <span className="sr-only">
+                      {MANAGERS_COPY.columns.actions}
+                    </span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {current.map((g) => (
+                  <TableRow key={g.id}>
+                    <TableHead scope="row" className="text-label text-ink">
+                      <PersonCell name={g.staff.displayName} />
+                    </TableHead>
+                    <TableCell
+                      label={MANAGERS_COPY.columns.venue}
+                      className="whitespace-normal"
+                    >
+                      <span className="flex flex-wrap items-center gap-2">
+                        {g.venue.name}
+                        {!g.effective ? (
+                          <StatusChip tone="attention">
+                            {notInEffect(g)}
+                          </StatusChip>
+                        ) : null}
+                        {g.legacyStaffGrant ? (
+                          <StatusChip tone="pending">
+                            {MANAGERS_COPY.legacyStaffGrant}
+                          </StatusChip>
+                        ) : null}
                       </span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {current.map((g) => (
-                    <tr key={g.id}>
-                      <th
-                        scope="row"
-                        className={`${TD} text-left max-md:before:content-none`}
-                      >
-                        <PersonCell name={g.staff.displayName} />
-                      </th>
-                      <td
-                        data-label={MANAGERS_COPY.columns.venue}
-                        className={TD}
-                      >
-                        <span className="flex flex-wrap items-center gap-2">
-                          {g.venue.name}
-                          {!g.effective ? (
-                            <StatusChip tone="attention">
-                              {notInEffect(g)}
-                            </StatusChip>
-                          ) : null}
-                          {g.legacyStaffGrant ? (
-                            <StatusChip tone="pending">
-                              {MANAGERS_COPY.legacyStaffGrant}
-                            </StatusChip>
-                          ) : null}
-                        </span>
-                      </td>
-                      <td
-                        data-label={MANAGERS_COPY.columns.since}
-                        className={`${TD} tabular-nums`}
-                      >
-                        {formatDate(g.grantedAt)}
-                      </td>
-                      <td
-                        data-label={MANAGERS_COPY.columns.grantedBy}
-                        className={TD}
-                      >
-                        {g.grantedBy.displayName ?? ""}
-                      </td>
-                      <td className={`${TD} md:text-right`}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button
-                                variant="quiet"
-                                size="icon-lg"
-                                disabled={action.pending}
-                                aria-label={MANAGERS_COPY.moreActions(
-                                  g.staff.displayName
-                                )}
-                              />
-                            }
+                    </TableCell>
+                    <TableCell
+                      label={MANAGERS_COPY.columns.since}
+                      className="whitespace-normal tabular-nums"
+                    >
+                      {formatDate(g.grantedAt)}
+                    </TableCell>
+                    <TableCell
+                      label={MANAGERS_COPY.columns.grantedBy}
+                      className="whitespace-normal"
+                    >
+                      {g.grantedBy.displayName ?? ""}
+                    </TableCell>
+                    <TableCell className="md:text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="quiet"
+                              size="icon-lg"
+                              disabled={action.pending}
+                              aria-label={MANAGERS_COPY.moreActions(
+                                g.staff.displayName
+                              )}
+                            />
+                          }
+                        >
+                          <DotsThreeIcon weight="bold" aria-hidden />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-44">
+                          <DropdownMenuItem
+                            variant="danger"
+                            onClick={() => setRevoking(g)}
                           >
-                            <DotsThreeIcon weight="bold" aria-hidden />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="min-w-44">
-                            <DropdownMenuItem
-                              variant="danger"
-                              onClick={() => setRevoking(g)}
-                            >
-                              {MANAGERS_COPY.revokeItem}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                            {MANAGERS_COPY.revokeItem}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
             {anyLegacy ? (
               <p className="max-w-prose px-1 text-meta text-ink-muted">
                 {MANAGERS_COPY.legacyStaffGrantNote}
@@ -398,72 +383,57 @@ export function ManagersView({
         </div>
         {includeRevoked && ended.length > 0 ? (
           <>
-            <div className="overflow-x-auto rounded-card bg-surface shadow-card">
-              <table aria-label={MANAGERS_COPY.endedHeading} className={TABLE}>
-                <thead className="border-b border-line">
-                  <tr>
-                    <th scope="col" className={TH}>
-                      {MANAGERS_COPY.columns.person}
-                    </th>
-                    <th scope="col" className={TH}>
-                      {MANAGERS_COPY.columns.venue}
-                    </th>
-                    <th scope="col" className={TH}>
-                      {MANAGERS_COPY.columns.dates}
-                    </th>
-                    <th scope="col" className={TH}>
-                      {MANAGERS_COPY.columns.howItEnded}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {ended.map((g) => {
-                    const chip = g.revokeKind
-                      ? ENDED_CHIP[g.revokeKind]
-                      : undefined
-                    return (
-                      <tr key={g.id}>
-                        <th
-                          scope="row"
-                          className={`${TD} text-left max-md:before:content-none`}
-                        >
-                          <PersonCell name={g.staff.displayName} />
-                        </th>
-                        <td
-                          data-label={MANAGERS_COPY.columns.venue}
-                          className={TD}
-                        >
-                          {g.venue.name}
-                        </td>
-                        <td
-                          data-label={MANAGERS_COPY.columns.dates}
-                          className={`${TD} tabular-nums`}
-                        >
-                          {formatDate(g.grantedAt)} to{" "}
-                          {formatDate(g.revokedAt ?? g.grantedAt)}
-                        </td>
-                        <td
-                          data-label={MANAGERS_COPY.columns.howItEnded}
-                          className={`${TD} max-md:flex-wrap md:align-top`}
-                        >
-                          <span className="grid gap-1.5">
-                            {chip ? <StatusChip state={chip} /> : null}
-                            {g.revokeReason ? (
-                              <span className="text-meta text-ink-muted">
-                                {g.revokeReason}
-                                {g.revokedByName
-                                  ? ` · ${g.revokedByName}`
-                                  : null}
-                              </span>
-                            ) : null}
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <Table stacked framed aria-label={MANAGERS_COPY.endedHeading}>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{MANAGERS_COPY.columns.person}</TableHead>
+                  <TableHead>{MANAGERS_COPY.columns.venue}</TableHead>
+                  <TableHead>{MANAGERS_COPY.columns.dates}</TableHead>
+                  <TableHead>{MANAGERS_COPY.columns.howItEnded}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ended.map((g) => {
+                  const chip = g.revokeKind
+                    ? ENDED_CHIP[g.revokeKind]
+                    : undefined
+                  return (
+                    <TableRow key={g.id}>
+                      <TableHead scope="row" className="text-label text-ink">
+                        <PersonCell name={g.staff.displayName} />
+                      </TableHead>
+                      <TableCell
+                        label={MANAGERS_COPY.columns.venue}
+                        className="whitespace-normal"
+                      >
+                        {g.venue.name}
+                      </TableCell>
+                      <TableCell
+                        label={MANAGERS_COPY.columns.dates}
+                        className="whitespace-normal tabular-nums"
+                      >
+                        {formatDate(g.grantedAt)} to{" "}
+                        {formatDate(g.revokedAt ?? g.grantedAt)}
+                      </TableCell>
+                      <TableCell
+                        label={MANAGERS_COPY.columns.howItEnded}
+                        className="whitespace-normal max-md:flex-wrap md:align-top"
+                      >
+                        <span className="grid gap-1.5">
+                          {chip ? <StatusChip state={chip} /> : null}
+                          {g.revokeReason ? (
+                            <span className="text-meta text-ink-muted">
+                              {g.revokeReason}
+                              {g.revokedByName ? ` · ${g.revokedByName}` : null}
+                            </span>
+                          ) : null}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
             <p className="px-1 text-meta text-ink-muted">
               {MANAGERS_COPY.sortNote}
             </p>

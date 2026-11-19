@@ -4,6 +4,7 @@
 // bytes). It never uploads by itself and never promises background upload.
 // Nothing here is logged or sent anywhere.
 
+import { newIdempotencyKey } from "@/lib/browser/random-id"
 import type { CaptureCapabilities } from "./capabilities"
 import type { UploadPurpose } from "./types"
 
@@ -22,7 +23,8 @@ export const JOURNAL_LIMITS = {
   maxEntries: 50,
   /** Below the server's 24 h abandoned-upload window. */
   expiryMs: 20 * 60 * 60 * 1000,
-  maxPhotoBytes: 20 * 1024 * 1024,
+  /** Same as MEDIA_LIMITS.maxPhotoBytes. */
+  maxPhotoBytes: 25 * 1024 * 1024,
   maxFilesWithBytes: 10,
   maxTotalBytes: 100 * 1024 * 1024,
   /** Bytes are kept only when at least this many times their size is free. */
@@ -183,7 +185,7 @@ export async function openCaptureJournal(
 ): Promise<CaptureJournal> {
   const { backend, capabilities } = options
   const now = options.now ?? Date.now
-  const randomId = options.randomId ?? (() => globalThis.crypto.randomUUID())
+  const randomId = options.randomId ?? newIdempotencyKey
   const pending = new Map<string, number>()
   const lastWrite = new Map<string, number>()
   // Every change reads an entry and writes it back: run them one at a time,

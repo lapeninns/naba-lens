@@ -222,7 +222,7 @@ function AppliesChoice({
 
 const HINT = "text-meta text-ink-muted"
 const MUTED = "text-body text-ink-muted"
-/** The white card each block of the item sits in (DESIGN.md §4). */
+/** The white card each block of the item sits in (common-room.md §4). */
 const CARD = "grid min-w-0 gap-4 rounded-card bg-surface p-4 shadow-card"
 
 /**

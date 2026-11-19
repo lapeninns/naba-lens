@@ -70,7 +70,7 @@ export function ProfileHeader({
           <p className="flex flex-wrap items-center gap-1.5 text-body text-ink-muted">
             <MapPinIcon aria-hidden className="size-[18px] shrink-0" />
             {venueName ? (
-              <b className="font-bold [overflow-wrap:anywhere] text-ink">
+              <b className="font-semibold [overflow-wrap:anywhere] text-ink">
                 {venueName}
               </b>
             ) : (
@@ -87,7 +87,7 @@ export function ProfileHeader({
         </div>
       </div>
       {actions ? (
-        // Callers pass grey first and blue last (DESIGN.md §4): stacked on
+        // Callers pass grey first and blue last (common-room.md §4): stacked on
         // phones blue is at the bottom, from md it is on the right, and the
         // focus order matches both.
         <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end [&>*]:w-full md:[&>*]:w-auto">

@@ -214,7 +214,8 @@ describe("availableActions (the §4.5 button matrix)", () => {
       kind: "decided",
       basis: "staff_label",
     })
-    expect(a).toEqual(["set_preferred", "withdraw"])
+    // S3-R13 X7: Fix label stays on a decided staff label.
+    expect(a).toEqual(["set_preferred", "relink", "withdraw"])
     expect(a).not.toContain("ask_another")
   })
 
@@ -227,7 +228,7 @@ describe("availableActions (the §4.5 button matrix)", () => {
         basis: "staff_label",
         isEffectivePrimary: true,
       })
-    ).toEqual(["withdraw"])
+    ).toEqual(["relink", "withdraw"])
   })
 
   it("a variant_removed recheck offers only withdraw", () => {
@@ -238,7 +239,7 @@ describe("availableActions (the §4.5 button matrix)", () => {
         recheckKind: "variant_removed",
         basis: "staff_label",
       })
-    ).toEqual(["withdraw"])
+    ).toEqual(["relink", "withdraw"])
   })
 
   it("a staff-label recheck: accept again, ask, withdraw", () => {
@@ -249,7 +250,7 @@ describe("availableActions (the §4.5 button matrix)", () => {
         recheckKind: "name_changed",
         basis: "staff_label",
       })
-    ).toEqual(["reaccept", "ask_another", "withdraw"])
+    ).toEqual(["reaccept", "relink", "ask_another", "withdraw"])
   })
 
   it("a reviewer-basis recheck: accept again and withdraw, never ask", () => {
@@ -273,7 +274,7 @@ describe("availableActions (the §4.5 button matrix)", () => {
         photoId: id(0x21),
         basis: "staff_label",
       })
-    ).toEqual(["accept", "withdraw"])
+    ).toEqual(["accept", "relink", "withdraw"])
   })
 
   it("stale and unlabelled cards offer Choose a menu item", () => {
@@ -640,7 +641,7 @@ describe("ReviewScreen", () => {
       })
     )
     expect(
-      await screen.findByText("Accepted for Soup. Soup now has a photo.")
+      await screen.findByText("Approved for Soup. Soup now has a photo.")
     ).toBeTruthy()
     // The decided card stays, collapsed with its new state.
     const decided = cardEl(first.key)
@@ -684,7 +685,7 @@ describe("ReviewScreen", () => {
         name: REVIEW_COPY.accept,
       })
     )
-    await screen.findByText("Accepted for Soup. Soup now has a photo.")
+    await screen.findByText("Approved for Soup. Soup now has a photo.")
     // The sibling now carries the new revision and offers the covered action.
     expect(
       within(cardEl(sibling.key)).getByRole("button", {
@@ -898,9 +899,12 @@ describe("ReviewScreen", () => {
     const user = userEvent.setup()
     renderScreen([card()], { showMine: true })
     await user.click(screen.getByRole("button", { name: "Needs a recheck" }))
-    expect(nav.replace).toHaveBeenCalledWith("/manager/review?status=recheck", {
-      scroll: false,
-    })
+    expect(nav.replace).toHaveBeenCalledWith(
+      "/manager/review?status=recheck&view=list",
+      {
+        scroll: false,
+      }
+    )
     expect(screen.getByRole("button", { name: "Your photos" })).toBeTruthy()
   })
 
@@ -914,7 +918,8 @@ describe("ReviewScreen", () => {
     await user.click(
       screen.getByRole("button", { name: REVIEW_COPY.removeItemFilter("Soup") })
     )
-    expect(nav.replace).toHaveBeenCalledWith("/manager/review", {
+    // Clearing the last filter keeps the full list, not Review in a thumb.
+    expect(nav.replace).toHaveBeenCalledWith("/manager/review?view=list", {
       scroll: false,
     })
   })

@@ -15,42 +15,17 @@ import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
 import { Notice } from "../notice"
-import { PhotoSourceActions, type PhotoSource } from "../photo-source"
+import { PhotoSourceActions } from "../photo-source"
 import { useAdd } from "../shell/add-context"
 import { completionBreakdown } from "./copy"
 import { StatusChip } from "./status-badges"
-import type {
-  CompletionProgress,
-  MonthlySetupGap,
-  ProfileSetupGap,
-} from "./types"
-
-/**
- * What is still missing, in the words of the copy deck: the profile's own
- * gaps (venue, team) and this month's (team, target).
- */
-export function setupGaps({
-  missing,
-  monthly,
-}: {
-  missing: readonly ProfileSetupGap[]
-  monthly: { setupMissing: readonly MonthlySetupGap[] } | null
-}): string[] {
-  const gaps: string[] = []
-  if (missing.includes("venue"))
-    gaps.push("No venue yet: an admin assigns your venue")
-  if (missing.includes("team") || monthly?.setupMissing.includes("team"))
-    gaps.push("No team yet: an admin assigns Front of house or Back of house")
-  if (monthly?.setupMissing.includes("target"))
-    gaps.push("No target yet: your manager sets it")
-  return gaps
-}
+import type { CompletionProgress } from "./types"
 
 /** The three milestones of a photo, in order. */
 const MILESTONES = [
   {
     word: "Saved to your portfolio",
-    text: "As soon as it uploads. Colleagues see it in Photos.",
+    text: "As soon as it is sent. Colleagues see it in Photos.",
   },
   {
     word: "Ready to label",
@@ -83,6 +58,7 @@ export function FirstRun({
   homeHref,
   back = null,
   dismiss,
+  notice = null,
 }: {
   name: string
   venueName: string | null
@@ -113,6 +89,8 @@ export function FirstRun({
   back?: { href: string; label: string } | null
   /** Records the dismissal (welcome_dismissed_at); errors are ignored. */
   dismiss: (dismissed: boolean) => Promise<unknown>
+  /** The contribution-use notice (spec §3.2; S2-STAFF), after the welcome. */
+  notice?: React.ReactNode
 }) {
   const router = useRouter()
   const openAdd = useAdd()
@@ -126,8 +104,9 @@ export function FirstRun({
     void dismiss(true).catch(() => undefined)
   }
 
-  const choose = (source: PhotoSource) => {
-    openAdd?.({ source, onPicked: recordPick })
+  // Gallery first: the phone's photos, never an in-app camera (DESIGN.md §2, §9).
+  const choose = () => {
+    openAdd?.({ source: "library", onPicked: recordPick })
   }
 
   const skip = () =>
@@ -215,12 +194,12 @@ export function FirstRun({
       </h2>
       <p
         id="month-count"
-        className="font-mono text-body font-bold text-ink tabular-nums"
+        className="text-body font-semibold text-ink tabular-nums"
       >
         {monthly.completionProgress?.total ?? monthly.accepted} of{" "}
         {monthly.target} {monthly.completionProgress ? "completed" : "accepted"}
       </p>
-      {/* The frames are Progress segments (DESIGN.md §4; decision 6). */}
+      {/* The frames are Progress segments (common-room.md §4; decision 6). */}
       <Progress
         mode="segments"
         accepted={monthly.completionProgress?.total ?? monthly.accepted}
@@ -245,20 +224,20 @@ export function FirstRun({
           {back ? (
             <Link
               href={back.href}
-              className="-ml-1 inline-flex min-h-11 w-fit items-center gap-1 rounded-control px-1 text-meta font-bold text-ink focus-ring outline-none hover:underline"
+              className="-ml-1 inline-flex min-h-11 w-fit items-center gap-1 rounded-control px-1 text-label text-ink focus-ring outline-none hover:underline"
             >
               <CaretLeftIcon aria-hidden weight="bold" className="size-5" />
               {back.label}
             </Link>
           ) : null}
-          <p className="type-page-title text-ink">Naba-Lens</p>
+          <p className="type-title text-ink">Naba-Lens</p>
           <p className="flex flex-wrap items-center gap-x-1.5 text-meta text-ink-muted">
             {venueName ? (
               <MapPinIcon aria-hidden className="size-[18px] shrink-0" />
             ) : null}
             <span>
               {venueName ? (
-                <b className="font-bold text-ink">{venueName}</b>
+                <b className="font-semibold text-ink">{venueName}</b>
               ) : null}
               {venueName ? " · " : null}
               {periodLabel}
@@ -285,6 +264,7 @@ export function FirstRun({
           </p>
         </section>
 
+        {notice}
         {gapsFirst ? middle : null}
         {milestones}
         {!gapsFirst || monthly?.completionProgress ? targetProgress : null}
@@ -294,7 +274,7 @@ export function FirstRun({
             What do you do at {venue}?
           </h2>
           {workRole ? (
-            <p className="flex items-center gap-2 text-body font-bold text-ink">
+            <p className="flex items-center gap-2 text-body font-semibold text-ink">
               <span
                 aria-hidden
                 className="grid size-8 place-items-center rounded-round bg-ok-bg text-ok-fg [&_svg]:size-5"
@@ -319,7 +299,7 @@ export function FirstRun({
             </Link>
             <Link
               href={profileHref}
-              className="inline-flex min-h-11 items-center rounded-control text-body font-bold text-ink underline underline-offset-3 focus-ring outline-none"
+              className="inline-flex min-h-11 items-center rounded-control text-body font-semibold text-ink underline underline-offset-3 focus-ring outline-none"
             >
               {hasAvatar ? "Change profile photo" : "Add a profile photo"}{" "}
               (optional)
@@ -329,9 +309,13 @@ export function FirstRun({
 
         <div className="mt-1 grid gap-2 rounded-card bg-surface p-3 shadow-card">
           {uploadBlocked ? (
-            <PhotoSourceActions onChoose={() => undefined} disabled />
+            <PhotoSourceActions
+              onChoose={() => undefined}
+              disabled
+              cameraHidden
+            />
           ) : openAdd ? (
-            <PhotoSourceActions onChoose={choose} />
+            <PhotoSourceActions onChoose={choose} cameraHidden />
           ) : (
             <Link
               href={photoHref}

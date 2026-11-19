@@ -3,7 +3,7 @@ import { expect, test, type Locator } from "@playwright/test"
 import {
   activateNewVersion,
   attachShot,
-  openOwnLabelEditor,
+  openLibraryLabelEditor,
   pickMenuItem,
   sql,
   worldWithActiveRailway,
@@ -36,12 +36,19 @@ async function staleEditor(
   const prefix = `${tag}-${world.tag}`
   await seedReadyAssets(world.staffA.id, world.venue1.id, 1, "image", prefix)
   const fileName = `${prefix}-01.jpg`
-  const staff = await signedInPage(browser, world.staffA)
-  const { viewer, editor } = await openOwnLabelEditor(staff, fileName)
+  // Staff have no label editor for their own photos since My photos
+  // replaced Me's portfolio (DESIGN.md §5e); the library's editor is the
+  // same component, opened here by the admin in a second session.
+  const labeller = await signedInPage(browser, world.adminA)
+  const { viewer, editor } = await openLibraryLabelEditor(
+    labeller,
+    world.staffA.id,
+    fileName
+  )
   await pickMenuItem(editor, "onion bhaji", /^Onion Bhaji\s*Appetisers/)
   await editor.getByRole("button", { name: "Kitchen" }).click()
   await activateNewVersion(admin, world.venue1)
-  return { world, staff, viewer, editor, fileName }
+  return { world, labeller, viewer, editor, fileName }
 }
 
 async function expectChoicesKept(editor: Locator) {
@@ -58,7 +65,7 @@ test("menus.label-conflict: a menu activated while staff edit is refused, nothin
   browser,
 }, testInfo) => {
   test.setTimeout(240_000)
-  const { staff, viewer, editor, fileName } = await staleEditor(
+  const { labeller, viewer, editor, fileName } = await staleEditor(
     browser,
     "jr-conflict"
   )
@@ -66,7 +73,7 @@ test("menus.label-conflict: a menu activated while staff edit is refused, nothin
   await test.step("Save is refused with the menu-updated error", async () => {
     await editor.getByRole("button", { name: /^Save labels/ }).click()
     await expect(editor).toContainText(MENU_UPDATED)
-    await attachShot(testInfo, "menu-updated-error", staff)
+    await attachShot(testInfo, "menu-updated-error", labeller)
   })
 
   await test.step("nothing was saved and the choices are kept", async () => {
@@ -91,7 +98,7 @@ test("menus.label-conflict: a menu activated while staff edit is refused, nothin
       labels.getByRole("list", { name: "Content types" })
     ).toHaveText("Kitchen")
     expect(labelRows(fileName)).toBe("1")
-    await attachShot(testInfo, "labels-saved-after-reload", staff)
+    await attachShot(testInfo, "labels-saved-after-reload", labeller)
   })
 })
 
@@ -99,7 +106,7 @@ test("menus.o1-save-while-reloading: while the reloaded menu is loading, Save is
   browser,
 }, testInfo) => {
   test.setTimeout(240_000)
-  const { staff, editor, fileName } = await staleEditor(browser, "jr-o1")
+  const { labeller, editor, fileName } = await staleEditor(browser, "jr-o1")
   await editor.getByRole("button", { name: /^Save labels/ }).click()
   await expect(editor).toContainText(MENU_UPDATED)
 
@@ -107,7 +114,7 @@ test("menus.o1-save-while-reloading: while the reloaded menu is loading, Save is
   let release: () => void = () => {}
   const gate = new Promise<void>((resolve) => (release = resolve))
   let held = 0
-  await staff.route("**/*", async (route) => {
+  await labeller.route("**/*", async (route) => {
     const request = route.request()
     if (request.method() === "POST" && request.headers()["next-action"]) {
       held += 1
@@ -120,14 +127,14 @@ test("menus.o1-save-while-reloading: while the reloaded menu is loading, Save is
   await expect.poll(() => held).toBe(1)
   const save = editor.getByRole("button", { name: /^Save labels/ })
   await expect(save).toBeDisabled()
-  await attachShot(testInfo, "save-disabled-while-reloading", staff)
+  await attachShot(testInfo, "save-disabled-while-reloading", labeller)
 
   // A submit that bypasses the disabled button (the Enter key, a script) must
   // not send a stale save either.
   await editor
     .locator("form")
     .evaluate((form: HTMLFormElement) => form.requestSubmit())
-  await staff.waitForTimeout(500)
+  await labeller.waitForTimeout(500)
   expect(held).toBe(1)
   expect(labelRows(fileName)).toBe("0")
 

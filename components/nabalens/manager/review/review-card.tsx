@@ -15,7 +15,8 @@ import { dishName } from "@/lib/menus/dish-name"
 import { cn } from "@/lib/utils"
 
 import { ownPhotoBlocked, type ListCard } from "./card-model"
-import { contributorHref, itemHref, type ReviewScope } from "./links"
+import { CardFlags, DetailsLink } from "./inbox-flags"
+import { contributorHref, itemHref, photoHref, type ReviewScope } from "./links"
 import {
   alsoCountsText,
   CONTRIBUTOR_CHIP,
@@ -100,6 +101,8 @@ export function ReviewCard({
   const chip = CONTRIBUTOR_CHIP[card.contributor.status]
   const label = REVIEW_COPY.photoBy(card.contributor.name)
   const Heading = headingLevel === 2 ? "h2" : "h3"
+  // S2-REVIEW: provenance, slots, history and the other decisions.
+  const details = photoHref(scope, card.asset.assetId)
   // Only while accepting is still the reviewer's to do (ORP-3b).
   const alsoCounts =
     card.state === "accepted" || card.settled
@@ -167,6 +170,7 @@ export function ReviewCard({
             </StatusChip>
           ) : null}
         </div>
+        <CardFlags card={card} />
         <Heading id={titleId} className="text-item-title break-words text-ink">
           {card.item ? (
             showItemLink ? (
@@ -219,7 +223,7 @@ export function ReviewCard({
           ) : (
             <Link
               href={contributorHref(scope, card.contributor.id)}
-              className="rounded-control font-bold break-words text-ink underline underline-offset-3 focus-ring outline-none hover:decoration-2 max-md:inline-flex max-md:min-h-11 max-md:items-center"
+              className="rounded-control font-semibold break-words text-ink underline underline-offset-3 focus-ring outline-none hover:decoration-2 max-md:inline-flex max-md:min-h-11 max-md:items-center"
             >
               {who}
             </Link>
@@ -237,9 +241,14 @@ export function ReviewCard({
         ) : null}
         {ownPhotoBlocked(card, scope.kind) ? (
           <Notice tone="plain">{REVIEW_COPY.ownPhoto}</Notice>
+        ) : card.kind === "unlabelled" && card.mediaType === "video" ? (
+          <p className="text-body text-ink-muted">{REVIEW_COPY.videoNoDish}</p>
         ) : (
           actions
         )}
+        {details ? (
+          <DetailsLink href={details} who={card.contributor.name} />
+        ) : null}
         {error ? (
           <div
             role="alert"

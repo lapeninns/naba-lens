@@ -2,23 +2,25 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { signIn, type Db } from "../support/identities"
 import {
-  legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
   type CoverageWorld,
 } from "./helpers/coverage-world"
+import { convertToManager } from "./helpers/manager-world"
 import { activateMenu, createMenuDraft } from "./helpers/menus"
 import { provisioner, psql } from "./helpers/stack"
 import { escape } from "./helpers/ui"
 import { signedInPage, type Person } from "./helpers/world"
 
 /**
- * Our menu (menu items with an accepted photo) in the built app: staff browse
- * the venue's menu and filter to "Still needs a photo"; the venue's manager
- * accepts a labelled photo for a dish and the count goes up for everyone. The
- * service role only seeds the menu, the grant and the photo bytes; the label
- * is saved by the uploader's own session, and every decision goes through
- * the pages.
+ * Menu completion (menu items with an accepted photo) in the built app:
+ * staff see the venue's menu as Album's Menu part, its shelves as folders
+ * (DESIGN.md §5d) with each dish's slot tile; the venue's manager account
+ * (decision D3) filters its Menu to "Still needs a photo", accepts a
+ * labelled photo for a dish, and the dish counts as covered for everyone.
+ * The service role only seeds the menu, the manager account and the photo
+ * bytes; the label is saved by the uploader's own session, and every
+ * decision goes through the pages.
  */
 
 const sql = (v: string) => `'${v.replace(/'/g, "''")}'`
@@ -64,16 +66,16 @@ const photoState = (assetId: string, itemId: string) =>
     `select state || ':' || self_review::text from public.menu_item_photos where asset_id = ${sql(assetId)}::uuid and item_id = ${sql(itemId)}::uuid and state in ('accepted', 'better_photo_requested', 'needs_recheck')`
   )
 
-/** A three-dish menu (Soup and Salad in Starters, Pie in Mains), a manager and one labelled photo of Soup. */
+/** A three-dish menu (Soup and Salad in Starters, Pie in Mains), a manager account and one labelled photo of Soup. */
 async function menuWorld(w: CoverageWorld) {
   const admin: Db = await signIn(provisioner(), w.admin.email)
   const versionId = await createMenuDraft(
     admin,
     w.venue1.id,
-    `Our menu ${w.tag}`
+    `Menu completion ${w.tag}`
   )
   await activateMenu(admin, versionId)
-  await legacyStaffGrant(w.admin, w.manager, w.venue1)
+  await convertToManager(admin, w.manager, w.venue1)
   const soup = activeItemId(w.venue1.id, "starters--soup")
   const [asset] = await seedImages(w.staffA, w.venue1, 1, {
     prefix: "DEV-FIXTURE-our-menu",
@@ -92,107 +94,110 @@ async function open(page: Page, path: string) {
   await settled(page)
 }
 
-const progress = (page: Page, covered: number) =>
+/** A shelf (folder) link on Album's Menu part: "Mains 0 of 1 in · 1 empty". */
+const shelf = (page: Page, name: string, line: string) =>
   page
     .getByRole("main")
-    .getByText(`${covered} of 3 menu items have an accepted photo.`, {
-      exact: true,
-    })
+    .getByRole("link", { name: `${name} ${line}`, exact: true })
 
+/** The manager Menu's dish rows, by their level-3 headings. */
 const dishes = (page: Page) =>
   page.getByRole("main").getByRole("heading", { level: 3 })
 
-test.describe("Our menu: menu items with an accepted photo", () => {
+test.describe("Menu completion: menu items with an accepted photo", () => {
   test.setTimeout(240_000)
 
-  test("staff browse and filter to gaps; a manager accepts a labelled photo and the count goes up", async ({
+  test("staff see the menu in Album; a manager filters to gaps, accepts a labelled photo and the dish is covered", async ({
     browser,
   }) => {
     const w = await provisionCoverageWorld()
     const { soup, asset } = await menuWorld(w)
 
-    // Staff: the whole menu, grouped by section, then only the gaps.
+    // Staff: Album's Menu, by shelf. Soup's photo waits, so it is not empty.
     const staff = await signedInPage(browser, w.staffA)
-    await open(staff, "/staff/menu")
+    await open(staff, "/staff/album/menu")
     await expect(
-      staff.getByRole("heading", { level: 1, name: "Our menu" })
+      staff.getByRole("heading", { level: 1, name: "Menu" })
     ).toBeVisible()
-    await expect(progress(staff, 0)).toBeVisible()
-    await expect(staff.getByRole("region", { name: "Starters" })).toBeVisible()
-    await expect(staff.getByRole("region", { name: "Mains" })).toBeVisible()
-    await expect(dishes(staff)).toHaveText(["Soup", "Salad", "Pie"])
-    // Each dish offers "Take a photo of this dish" (camera) first and
-    // "Choose from photos" to uploaders.
-    const soupRow = staff.getByRole("article", { name: "Soup" })
+    await expect(staff.getByText("2 still empty of 3")).toBeVisible()
     await expect(
-      soupRow.getByRole("button", { name: "Take a photo of this dish" })
+      shelf(staff, "Starters & small plates", "0 of 2 in · 1 empty")
     ).toBeVisible()
+    await expect(shelf(staff, "Mains", "0 of 1 in · 1 empty")).toBeVisible()
+    await shelf(staff, "Starters & small plates", "0 of 2 in · 1 empty").click()
+    await expect(staff).toHaveURL(/shelf=food\.starters/)
+    await settled(staff)
+    // Each slot is one tile: an empty one adds from the phone's photos; there
+    // is no in-app camera (DESIGN.md §2, §9).
     await expect(
-      soupRow.getByRole("button", { name: "Choose from photos" })
-    ).toBeVisible()
-
-    await staff.getByRole("link", { name: "Still needs a photo" }).click()
-    await expect(staff).toHaveURL(/\/staff\/menu\?filter=gaps$/)
-    await expect(
-      staff.getByRole("link", { name: "Still needs a photo" })
-    ).toHaveAttribute("aria-current", "page")
-    await expect(dishes(staff)).toHaveText(["Soup", "Salad", "Pie"])
-
-    // Search keeps the gaps filter.
-    await staff.getByRole("searchbox", { name: /Search the menu/ }).fill("pie")
-    await staff.getByRole("button", { name: "Search", exact: true }).click()
-    await expect(staff).toHaveURL(/filter=gaps/)
-    await expect(staff).toHaveURL(/q=pie/)
-    await expect(dishes(staff)).toHaveText(["Pie"])
-
-    // Manager: the labelled photo waits under its dish; accept it.
-    const manager = await signedInPage(browser, w.manager)
-    await open(manager, "/staff/manage/menu/items")
-    await expect(
-      manager.getByRole("heading", { level: 1, name: "Our menu" })
+      staff.getByRole("link", { name: "Soup: waiting for review" })
     ).toBeVisible()
     await expect(
-      manager.getByText(
-        /Unlabelled photos need labelling by their uploader first/
-      )
+      staff.getByRole("button", { name: "Salad: needed" })
     ).toBeVisible()
-    await expect(progress(manager, 0)).toBeVisible()
-    await expect(
-      manager.getByText(
-        /1 photo is waiting for a decision; the oldest has waited/
-      )
-    ).toBeVisible()
-    const card = manager.getByRole("article", {
-      name: `Soup: photo by ${w.staffA.name}`,
-    })
-    await expect(card).toContainText(w.venue1.name)
-    await expect(card.locator("img")).toHaveAttribute(
-      "src",
-      new RegExp(`/api/menu-photos/${escape(asset)}/thumb`)
-    )
-    await card.getByRole("button", { name: "Accept for this dish" }).click()
-    await expect(manager.getByText(/^Accepted for Soup\./)).toBeVisible()
-    // Once accepted, the photo leaves the "To review" queue (the refresh may
-    // land before or after this line), so assert the settled queue instead.
-    await expect(card).toHaveCount(0)
-    await expect(
-      manager.getByText("Nothing to review", { exact: false })
-    ).toBeVisible()
-    expect(photoState(asset, soup)).toBe("accepted:false")
-
-    // The count went up for the reviewer and for staff; Soup left the gaps.
-    await manager.reload()
-    await settled(manager)
-    await expect(progress(manager, 1)).toBeVisible()
-    await open(staff, "/staff/menu")
-    await expect(progress(staff, 1)).toBeVisible()
     await expect(
       staff
-        .getByRole("article", { name: "Soup" })
-        .getByText("Has an accepted photo")
+        .getByRole("main")
+        .getByRole("button", { name: /Take a photo|camera/ })
+    ).toHaveCount(0)
+
+    // Manager: the whole menu, grouped by section, then only the gaps.
+    const manager = await signedInPage(browser, w.manager)
+    await open(manager, "/manager/menu")
+    await expect(
+      manager.getByRole("region", { name: "Starters" })
     ).toBeVisible()
-    await open(staff, "/staff/menu?filter=gaps")
-    await expect(dishes(staff)).toHaveText(["Salad", "Pie"])
+    await expect(manager.getByRole("region", { name: "Mains" })).toBeVisible()
+    await expect(dishes(manager)).toHaveText(["Soup", "Salad", "Pie"])
+    await manager
+      .getByRole("link", { name: "Still needs a photo 2", exact: true })
+      .click()
+    await expect(manager).toHaveURL(/status=/)
+    await settled(manager)
+    await expect(dishes(manager)).toHaveText(["Salad", "Pie"])
+
+    // Search keeps the gaps filter.
+    const filtered = new URL(manager.url()).searchParams.get("status")
+    await manager.getByRole("searchbox", { name: "Search items" }).fill("pie")
+    await manager
+      .getByRole("searchbox", { name: "Search items" })
+      .press("Enter")
+    await expect(manager).toHaveURL(/q=pie/)
+    await expect(manager).toHaveURL(new RegExp(`status=${escape(filtered!)}`))
+    await expect(dishes(manager)).toHaveText(["Pie"])
+
+    // The labelled photo waits under its dish; accept it.
+    await open(manager, "/manager/menu")
+    await manager.getByRole("link", { name: "Soup", exact: true }).click()
+    await expect(manager).toHaveURL(new RegExp(`/manager/menu/${soup}$`))
+    await settled(manager)
+    const card = manager
+      .getByRole("region", { name: "Awaiting review" })
+      .getByRole("article", { name: "Soup" })
+    await expect(card).toContainText(w.staffA.name)
+    await expect(card.locator("img")).toHaveAttribute(
+      "src",
+      new RegExp(`${escape(asset)}`)
+    )
+    await card.getByRole("button", { name: "Approve for public use" }).click()
+    await expect.poll(() => photoState(asset, soup)).toBe("accepted:false")
+    await expect(card).toHaveCount(0)
+
+    // Soup is covered for the manager and for staff.
+    await open(manager, "/manager/menu")
+    await expect(
+      manager
+        .getByRole("region", { name: "Starters" })
+        .getByText("1 of 2 covered")
+    ).toBeVisible()
+    await open(staff, "/staff/album/menu")
+    await expect(
+      shelf(staff, "Starters & small plates", "1 of 2 in · 1 empty")
+    ).toBeVisible()
+    await open(staff, "/staff/album/menu?kind=food&shelf=food.starters")
+    await expect(
+      staff.getByRole("link", { name: /^Soup: in the album/ })
+    ).toBeVisible()
 
     for (const page of [staff, manager]) await page.context().close()
   })

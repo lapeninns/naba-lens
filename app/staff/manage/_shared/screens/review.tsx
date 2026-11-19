@@ -52,7 +52,7 @@ export async function ReviewScreen({
       summary={
         nothingToReview
           ? undefined
-          : "Oldest first. Accepting decides whether a photo counts. It's already shared in Photos either way."
+          : "Oldest first. Accepting decides whether a photo counts, and shares it with colleagues in Photos."
       }
       pendingReview={pendingReview}
     >

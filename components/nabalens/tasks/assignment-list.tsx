@@ -28,7 +28,7 @@ export function SharedProgress({
       {progress.target ? (
         <>
           <p className="text-body text-ink-muted">
-            <span className="font-bold text-ink tabular-nums">
+            <span className="font-semibold text-ink tabular-nums">
               {progress.accepted} of {progress.target}
             </span>{" "}
             photos accepted

@@ -139,7 +139,7 @@ for (const body of BODIES) {
   for (const rows of ROWS) {
     const calls = CASES.map(
       ([name, who, filters, limit]) => `
-select set_config('request.jwt.claims', '{"sub":"${who}","role":"authenticated","aud":"authenticated"}', true) is null;
+select set_config('request.jwt.claims', '{"sub":"${who}","role":"authenticated","aud":"authenticated","aal":"aal2"}', true) is null;
 set local role authenticated;
 select 'R|' || jsonb_build_object('name', '${name}', 'r', pg_temp.tiny_run('${JSON.stringify(filters)}'::jsonb, ${limit}, ${N}))::text;
 reset role;`

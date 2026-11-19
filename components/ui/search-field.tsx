@@ -48,7 +48,7 @@ type SearchFieldProps = Omit<
 }
 
 /*
- * Search (DESIGN.md §4 Field; components.md "Text input", leading icon): a
+ * Search (common-room.md §4 Field; components.md "Text input", leading icon): a
  * labelled search input with a magnifier, the shared field recipe and a
  * Clear search button that shows once there is text. A client component:
  * it has to know whether the field is empty.

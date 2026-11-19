@@ -6,7 +6,7 @@ import { CHOICE_DISABLED, CHOICE_MARK } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 
 /*
- * Radio group (DESIGN.md §4 "Radio row", §2 "Blue is rationed"): one choice
+ * Radio group (common-room.md §4 "Radio row", §2 "Blue is rationed"): one choice
  * from a few. Each radio is a 24px circle in a 44px target; chosen, its edge
  * and its dot take `select`. The dot carries the state, not the colour.
  *

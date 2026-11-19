@@ -38,6 +38,8 @@ const ALLOWED_PAGES = new Set([
   // Owner-requested organization portfolio discovery (November 2026).
   "/staff/community",
   "/staff/people",
+  "/staff/photos",
+  "/staff/photos/[assetId]",
   "/staff/people/[id]",
   // v0.4 Home (was My tasks), the staff landing: own target, assignments, submissions and
   // review results (docs/spec/NabaLens-Staff-Coverage-v0.4.md §3).
@@ -57,14 +59,39 @@ const ALLOWED_PAGES = new Set([
   "/staff/tasks/guide",
   // Our menu (November 2026): the venue's active menu with how many items have
   // an accepted photo, search and "Still needs a photo"; no scoring.
+  "/staff/me",
+  "/staff/me/help",
+  "/staff/me/settings",
   "/staff/menu",
+  // Album A2 (docs/design-system/DESIGN.md §6.2, decision D8): one place's
+  // slots by section. Photos only; no scoring or ranking.
+  "/staff/album",
+  "/staff/album/amenities",
+  "/staff/album/menu",
+  "/staff/album/spaces",
+  "/staff/album/[placeId]",
+  "/staff/album/match-later",
+  // Full App v1 S2-STAFF (spec §6 S3): one slot's page with its photo in the
+  // album, brief, waiting count, Add a photo and Report a change.
+  "/staff/album/slot/[kind]/[slotId]",
+  "/staff/home",
+  // Full App v1 S2-STAFF (spec §17, FA-10): the staff notice inbox and its
+  // preferences, an in-app list and a badge on Me, never toasts.
+  "/staff/notifications",
   // Self-described work details (November 2026): main job and extra areas for
   // Home's prompt and the label picker's order; never access or team.
   "/staff/profile",
   "/admin",
   "/admin/staff",
   "/admin/staff/[id]",
+  // Full App v1 S1-OPS (spec §8 A7): Settings and activity. Admins only.
+  "/admin/settings",
+  // FA-52: Settings › Shot templates, one category's template. Admins only.
+  "/admin/settings/shot-templates/[category]",
+  "/admin/activity",
   "/auth/blocked",
+  // FA-23: the second sign-in step.
+  "/auth/mfa",
   // Unmatched URLs in each area: notFound() only, so the area's own not-found
   // page (with its navigation) answers instead of the root one.
   "/staff/[...missing]",
@@ -95,8 +122,15 @@ const ALLOWED_PAGES = new Set([
   "/manager",
   "/manager/review",
   "/manager/review/contributors/[staffId]",
+  // Full App v1 S2-REVIEW (spec §7 M2): one photo's review with provenance,
+  // slots, history and every decision, at the manager's own venue.
+  "/manager/review/photo/[assetId]",
   "/manager/menu",
   "/manager/menu/[itemId]",
+  // Full App v1 S1-MENUS (spec §7 M5): local specials, and the active and
+  // future menus with the venue's catalogue change requests.
+  "/manager/menu/specials",
+  "/manager/menu/versions",
   "/manager/account",
   // A manager account's own uploads to label later (B02-c), while Add is on.
   "/manager/uploads",
@@ -109,6 +143,8 @@ const ALLOWED_PAGES = new Set([
   // B03-b places: a venue's entrances, routes, rooms and areas, kept by its
   // manager or an admin for the capture form's choices.
   "/manager/amenities/places",
+  // Album A2: where staff photograph each menu section and amenity category.
+  "/manager/album",
   "/manager/amenities/[checkId]",
   "/manager/amenities/[checkId]/capture",
   // v0.4 admin coverage oversight: the same tools for any venue, plus grants.
@@ -123,8 +159,13 @@ const ALLOWED_PAGES = new Set([
   // Phase 2): the same Review screen and contributor view for any venue.
   "/admin/coverage/[venueId]/menu-photos",
   "/admin/coverage/[venueId]/menu-photos/contributors/[staffId]",
+  // Full App v1 S3-R11 (review V18): one photo's review for an admin, opened
+  // from the facility photos on the admin Review page.
+  "/admin/coverage/[venueId]/menu-photos/photo/[assetId]",
   "/admin/coverage/[venueId]/team",
   "/admin/coverage/managers",
+  // Album A4 (DESIGN.md §6.6): every venue's album and its biggest gaps.
+  "/admin/albums",
   // Shared amenity catalogue (November 2026): per-venue checks with photo or
   // video evidence; a valid submission is the answer, managers can reopen it.
   // Never part of monthly targets (docs/plans/amenity-catalogue.md).
@@ -154,9 +195,56 @@ const ALLOWED_PAGES = new Set([
   "/admin/search",
   "/manager/search",
   "/staff/manage/search",
+  // Full App v1 S1-EXPORT (spec §14.1, §8 A5, §7 M3; decisions FA-7, FA-40):
+  // export packages of public-approved photos as a ZIP with a manifest, and
+  // manual publication records. Admins every venue, managers their venue.
+  "/admin/publishing",
+  "/admin/publishing/new",
+  "/admin/publishing/packages/[id]",
+  // Full App v1, S2-ADMIN (spec §8 A1, A2): Overview, Venues, and More (every
+  // admin section on phones and tablets).
+  "/admin/overview",
+  "/admin/venues",
+  "/admin/venues/new",
+  "/admin/venues/[venueId]",
+  "/admin/more",
+  // Full App v1 S2-LIBRARY (spec §8 A4, §11, §16): an asset's detail
+  // (provenance, renditions, labels, review, slots and primary, exports),
+  // withdraw and restore, venue correction, permanent removal with an impact
+  // preview, duplicate comparison, collections and the controlled tags.
+  // Admins only.
+  "/admin/library/[assetId]",
+  "/admin/library/[assetId]/remove",
+  "/admin/library/compare",
+  "/admin/library/collections",
+  "/admin/library/collections/[collectionId]",
+  "/admin/library/tags",
+  "/admin/library/removals",
+  "/manager/exports",
+  "/manager/exports/new",
+  "/manager/exports/packages/[id]",
+  // Full App v1 S2-MGR: the Venue hub, To confirm and History (spec §7 M5).
+  "/manager/venue",
+  "/manager/venue/facts",
+  "/manager/venue/history",
+  // Full App v1 S3-R5 (K3): staff reports of a changed slot or photo detail,
+  // which the manager deals with or dismisses (spec §6 S3, S4, §7 M5).
+  "/manager/venue/reports",
+  // S2-REQ: requests and shot lists (spec §7 M4).
+  "/manager/requests",
+  "/manager/requests/new",
+  "/manager/requests/[requestId]",
+  // Full App v1 S2-METRICS (spec §18.1, AC39): coverage by category with
+  // numerator and denominator, facts, review delay, label corrections,
+  // contributions, content use and reliability. A venue's manager for their
+  // venue, admins every venue. Never a ranking of people (spec §18.1).
+  "/manager/metrics",
+  "/admin/metrics",
 ])
 
 const ALLOWED_HANDLERS = new Set([
+  // FA-53 (spec §15.3): the static web app manifest, the same for everyone.
+  "/manifest.webmanifest",
   "/auth/callback",
   "/auth/confirm/verify",
   "/auth/logout",
@@ -172,6 +260,9 @@ const ALLOWED_HANDLERS = new Set([
   "/api/media/[id]/stream",
   "/api/media/[id]/thumb",
   "/api/internal/cleanup",
+  // Full App v1 S1-OPS (spec §17): hourly review digests and admin exceptions,
+  // in-app only (FA-10). Bearer secret, no session.
+  "/api/internal/notifications",
   // B05-m6 internal evidence documents (b05-design §2A): PDF allergen and
   // recipe evidence for the venue's manager, admins and the allergen
   // authority. Attachment-only download, never inline; staff have no access.
@@ -187,6 +278,11 @@ const ALLOWED_HANDLERS = new Set([
   "/api/internal/archive-monitor/watchdog",
   // v0.3: JSON/CSV import preview upload (> Server Action body limit).
   "/api/admin/menus/import-preview",
+  // Full App v1 S1-MENUS (spec §8 A3): the downloadable menu CSV template
+  // (admin only), and the cron that activates scheduled menus (service role,
+  // bearer-authorised like the other /api/internal routes).
+  "/admin/menus/csv-template",
+  "/api/internal/menus/activate-due",
   // v0.4 §4: scoped task-evidence thumbnail/preview for authorised same-venue
   // reviewers; no originals, downloads or video, and community access is unchanged.
   "/api/coverage/evidence/[assetId]/thumb",
@@ -206,9 +302,16 @@ const ALLOWED_HANDLERS = new Set([
   // derivatives for 60 s; no originals or downloads.
   "/api/area-photos/[assetId]/thumb",
   "/api/area-photos/[assetId]/preview",
+  // Album slot photos (AL-7), checked by album_slot_asset: the current photo
+  // of an accepted or waiting area slot or an accepted amenity slot, for
+  // everyone at the venue. A thumbnail signed for 60 s; nothing else.
+  "/api/album/[assetId]/thumb",
   // v0.4 §3 rule 9: hourly idempotent monthly preparation, cron-only bearer auth
   // like the other /api/internal routes; it sends nothing to staff.
   "/api/internal/coverage/monthly-preparation",
+  // S1-FACTS (spec §9.3): the hourly knowledge recheck job (b03-design §7.4),
+  // cron-only bearer auth like the other /api/internal routes.
+  "/api/internal/knowledge-rechecks",
   // Upload labels (November 2026), own uploads only: GET the label menu or,
   // with ?attention=1, the caller's stored labels; POST labels (stored until
   // the photo is ready); DELETE ?assetId= discards stored labels.
@@ -222,6 +325,10 @@ const ALLOWED_HANDLERS = new Set([
   // screen; managers incl. legacy grant holders at their venue, admins all
   // venues; staff refused by the database. Thumbnails via /api/media/[id]/thumb.
   "/api/media/search",
+  // Full App v1 S1-EXPORT: a package's ZIP (rechecked at download) and the
+  // export screens' thumbnails (caller-scoped gate, signed 60 s).
+  "/api/exports/[id]/download",
+  "/api/exports/thumb/[assetId]",
 ])
 
 /*
@@ -256,6 +363,17 @@ function walk(dir: string): string[] {
 
 type Route = { url: string; kind: "page" | "handler"; file: string }
 
+/** Where Next serves each generated metadata route (pages and route.ts aside). */
+const METADATA_URL: Record<string, string> = {
+  manifest: "manifest.webmanifest",
+  sitemap: "sitemap.xml",
+  robots: "robots.txt",
+  "opengraph-image": "opengraph-image",
+  "twitter-image": "twitter-image",
+  icon: "icon",
+  "apple-icon": "apple-icon",
+}
+
 function enumerateRoutes(): Route[] {
   const routes: Route[] = []
   for (const file of walk(appDir)) {
@@ -270,8 +388,12 @@ function enumerateRoutes(): Route[] {
         // Route groups `(name)` do not appear in the URL.
         .filter((s) => !(s.startsWith("(") && s.endsWith(")")))
         .join("/")
+    const base = url === "/" ? "/" : url.replace(/\/$/, "")
+    // A metadata route is served at its own file name, not at its folder.
+    const stem = name.split(".")[0]
+    const served = METADATA_URL[stem]
     routes.push({
-      url: url === "/" ? "/" : url.replace(/\/$/, ""),
+      url: served ? `${base === "/" ? "" : base}/${served}` : base,
       kind: name.startsWith("page.") ? "page" : "handler",
       file: relative(root, file),
     })
@@ -418,8 +540,11 @@ const FORBIDDEN: { feature: string; pattern: RegExp }[] = [
   },
   { feature: "analytics", pattern: /analytics|posthog|gtag|plausible/i },
   {
-    feature: "notifications",
-    pattern: /notification|web-push|PushManager|serviceWorker/i,
+    // Full App v1 (spec §17, decision FA-10) adds in-app notices: an inbox
+    // list and badges, never toasts. Device push and email digests stay out
+    // until Release 2 (FA-43).
+    feature: "push notifications",
+    pattern: /web-push|PushManager|serviceWorker|push_subscription/i,
   },
   { feature: "leaderboard", pattern: /leaderboard/i },
   { feature: "campaigns", pattern: /campaign/i },
@@ -484,11 +609,122 @@ function stripSqlComments(source: string) {
  * term, so no allow-list entry is needed for them today. Keep exceptions here,
  * each with a reason, if a library primitive ever trips a pattern.
  */
+/**
+ * Files where a feature the v0.2 scope excluded is now specified. Full App
+ * Specification v1.0 §14.1 (export packages: a ZIP with a manifest of
+ * public-approved versions) and §8 A5 (Publishing) bring back ZIP export and
+ * the words "approved for public use" (decision FA-7: managers and admins
+ * see the spec's words). Each entry names its feature and its files only;
+ * everywhere else the ban stands.
+ */
+const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
+  [
+    {
+      feature: "bulk ZIP export",
+      prefixes: [
+        "app/admin/publishing/",
+        "app/manager/exports/",
+        "app/api/exports/",
+        "lib/server/exports/",
+      ],
+      reason: "S1-EXPORT export packages (spec §14.1, AC31, AC32)",
+    },
+    {
+      feature: "campaigns",
+      prefixes: [
+        "app/manager/requests/",
+        "components/nabalens/requests/",
+        "lib/requests/",
+        "lib/server/requests/",
+        "supabase/migrations/20261118114",
+      ],
+      reason:
+        "S2-REQ campaign collection: a request type and a shot list purpose (spec §7 M4); not a marketing campaign feature",
+    },
+    {
+      feature: "approval workflow",
+      prefixes: [
+        "app/admin/publishing/",
+        "app/manager/exports/",
+        "app/api/exports/",
+        "lib/server/exports/",
+        "supabase/migrations/20261118105",
+        // S2-FIX R23: export_candidates / export_package_detail rebodied.
+        "supabase/migrations/20261118108500_publication_states_once.sql",
+        // S2-INT re-creates export_candidate_rows and the download start.
+        "supabase/migrations/20261118109100_int_export_wiring.sql",
+        // S3-R14 X10: export_package_detail rebodied with each item's
+        // stale reason, read against the item's approval id.
+        "supabase/migrations/20261118132100_export_item_stale_reason.sql",
+        "lib/db/types.ts",
+      ],
+      reason:
+        "S1-EXPORT records which approval a public export used (spec §14.1 manifest, §10 inv. 1)",
+    },
+    {
+      feature: "approval workflow",
+      prefixes: [
+        "components/nabalens/manager/review/inbox-",
+        "app/manager/review/photo/",
+      ],
+      reason:
+        "S2-REVIEW: managers see the spec's action names, Approve for public use and Keep as reference (spec §7 M2, decision FA-7)",
+    },
+    {
+      feature: "tagging workflow",
+      prefixes: [
+        "app/admin/library/",
+        "app/admin/(content)/page.tsx",
+        "app/admin/admin-library.tsx",
+        "app/admin/library-more-filters.tsx",
+        "app/(dev)/ui-preview/ui-preview.tsx",
+        "lib/library/",
+        "lib/server/library/",
+        "supabase/migrations/20261118116",
+        // S3-R1 K1 re-creates library_page with the unlabelled rule.
+        "supabase/migrations/20261118120300_unlabelled_rule.sql",
+        // S5-IMPORT re-creates library_page with the import filter (FA-54).
+        "supabase/migrations/20261118135100_legacy_import_reads.sql",
+        "lib/db/types.ts",
+      ],
+      reason:
+        "S2-LIBRARY controlled tags: an admin-kept vocabulary, not free tagging (spec §8 A4)",
+    },
+    {
+      feature: "approval workflow",
+      prefixes: [
+        "app/admin/library/",
+        "lib/library/",
+        "supabase/migrations/20261118116",
+      ],
+      reason:
+        "S2-LIBRARY shows each photo's review level in the spec's admin words (spec §8 A4 eligibility, FA-7)",
+    },
+    {
+      feature: "campaigns",
+      prefixes: ["app/admin/library/", "lib/library/", "lib/server/library/"],
+      reason:
+        "S2-LIBRARY collections gather photos for a campaign (spec §8 A4, §11 Collection)",
+    },
+  ]
+
 const ALLOWED_HITS: { file: string; text: string; reason: string }[] = [
+  {
+    file: "components/nabalens/status-chip.tsx",
+    text: 'word: "Approved for public use"',
+    reason:
+      "S3-R14: the review_public chip, FA-7's manager and admin word, moved from lib/library so status words have one source (admin and manager screens only)",
+  },
   {
     file: "supabase/migrations/20261107120000_amenity_catalogue.sql",
     text: "approved performance clip",
     reason: "catalogue capture brief text (live music), not a workflow",
+  },
+  {
+    file: "supabase/migrations/20261118109300_int_policy_evidence.sql",
+    text: "approved performance clip",
+    reason:
+      "catalogue version 2 restates the same capture brief text (live music)",
   },
 ]
 
@@ -508,6 +744,14 @@ function scan() {
         if (!match) continue
         const rel = relative(root, file)
         if (ALLOWED_HITS.some((a) => a.file === rel && line.includes(a.text))) {
+          continue
+        }
+        if (
+          FEATURE_PATHS.some(
+            (a) =>
+              a.feature === feature && a.prefixes.some((p) => rel.startsWith(p))
+          )
+        ) {
           continue
         }
         hits.push(`${rel}:${i + 1} [${feature}] ${line.trim().slice(0, 120)}`)

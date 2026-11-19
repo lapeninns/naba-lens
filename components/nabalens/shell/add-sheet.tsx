@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CameraIcon, ImageIcon, InfoIcon } from "@phosphor-icons/react"
+import { ImageIcon, InfoIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -14,7 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
-import { CAMERA_LABEL, LIBRARY_LABEL, usePhotoSource } from "../photo-source"
+import { useGalleryPicker } from "../album/match/gallery-picker"
+import { LIBRARY_LABEL } from "../photo-source"
 import { EntryContext } from "./entry-flow"
 
 export type AddBlocked =
@@ -28,9 +29,10 @@ export const ACCESS_ENDED =
   "Your venue manager access has ended, so you can't add photos or videos here."
 
 /**
- * What Add opens on phones: choose from the phone's photos (first, several at
- * a time) or take a photo. The chosen files start uploading at once, in the
- * "Saving N photos" sheet.
+ * What Add opens on phones: choose from the phone's photos, several at a
+ * time. Add is gallery first and has no camera (DESIGN.md §2, §9): photos
+ * are taken with the phone's own camera and added from the gallery. The
+ * chosen files start uploading at once, in the "Saving N photos" sheet.
  */
 export function AddSheet({
   open,
@@ -58,9 +60,9 @@ export function AddSheet({
   /** B05-05 (OD-B5-05-3): this browser can't keep photos if the page closes. */
   keepOpenNote?: string | null
 }) {
-  // The inputs live inside the sheet, so the click that opens a picker is on
-  // the open dialog's own content.
-  const picker = usePhotoSource({ imagesOnly, onFiles })
+  // The input lives inside the sheet, so the click that opens the picker is
+  // on the open dialog's own content.
+  const picker = useGalleryPicker({ onFiles })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -97,13 +99,7 @@ export function AddSheet({
                 icon={<ImageIcon aria-hidden className="size-7" />}
                 title={LIBRARY_LABEL}
                 hint={`Up to ${maxFiles} at a time`}
-                onClick={() => picker.open("library")}
-              />
-              <AddOption
-                icon={<CameraIcon aria-hidden className="size-7" />}
-                title={CAMERA_LABEL}
-                hint="Opens your phone's camera for one photo."
-                onClick={() => picker.open("camera")}
+                onClick={() => picker.open({ imagesOnly })}
               />
               {picker.inputs}
             </div>

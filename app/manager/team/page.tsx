@@ -6,12 +6,21 @@ import {
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
+import { Card } from "@/components/nabalens/common-room"
+import { VenueSwitcher } from "@/components/nabalens/venue-switcher"
 import { getManagerWorkspace } from "@/lib/auth/manager"
+import { switchVenueAction } from "@/lib/auth/venue-actions"
+import { listMyVenues } from "@/lib/auth/venues"
+import { listVenueTeam } from "@/lib/server/accounts"
+import { accountsContext } from "@/lib/server/accounts/request"
 import { getVenueTargets } from "@/lib/server/coverage/targets"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 
 import { failedRead, isRefusal } from "../load-overview"
+import { VenuePeople } from "./venue-people"
 import {
+  inviteVenueStaffAction,
+  removeVenueStaffAction,
   setPersonTargetAction,
   setVenueDefaultTargetAction,
   backToVenueDefaultAction,
@@ -42,6 +51,21 @@ export default async function ManagerTeamPage() {
       return <VenueAccessUnavailable reason="no_grant" refreshShell />
     failedRead(read.code, MANAGER_COPY.couldNotLoad.team, "/manager/team")
   }
+  // People at the venue and the person's own venues (S1-PEOPLE, FA-22).
+  const ctx = await accountsContext()
+  const [team, venues] = await Promise.all([
+    listVenueTeam(ctx, workspace.venue.id),
+    listMyVenues(ctx.caller),
+  ])
+  if (!team.ok) {
+    if (team.code === "forbidden")
+      return <VenueAccessUnavailable reason="no_grant" refreshShell />
+    failedRead(
+      "database_failed",
+      MANAGER_COPY.couldNotLoad.team,
+      "/manager/team"
+    )
+  }
   const copy = MANAGER_COPY.team
   const { view } = read
   return (
@@ -63,6 +87,24 @@ export default async function ManagerTeamPage() {
         onSetPerson={setPersonTargetAction}
         onUseDefault={backToVenueDefaultAction}
       />
+      <VenuePeople
+        venue={workspace.venue}
+        selfId={workspace.profile.id}
+        people={team.members.map((m) => ({
+          profileId: m.profileId,
+          displayName: m.displayName,
+          jobTitle: m.jobTitle,
+          role: m.membershipRole,
+          workingHere: m.isActiveVenue,
+        }))}
+        onInvite={inviteVenueStaffAction}
+        onRemove={removeVenueStaffAction}
+      />
+      {venues.length > 1 ? (
+        <Card>
+          <VenueSwitcher venues={venues} onSwitch={switchVenueAction} />
+        </Card>
+      ) : null}
     </div>
   )
 }

@@ -12,7 +12,7 @@ import { OPTION_ITEM_FOCUS } from "@/components/ui/option-item"
 import { cn } from "@/lib/utils"
 
 /*
- * Select (DESIGN.md §4 Field; components.md "Select"): a Base UI listbox
+ * Select (common-room.md §4 Field; components.md "Select"): a Base UI listbox
  * behind a trigger that is drawn with the shared field recipe, so it sits
  * beside an Input at the same height, width and edge. It is the engine
  * behind OptionSelect; screens use that, or put Select in a FormField, so

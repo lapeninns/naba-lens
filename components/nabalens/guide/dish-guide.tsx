@@ -1,13 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { CheckIcon } from "@phosphor-icons/react"
 
 import {
   GUIDE_ANGLES,
   GUIDE_DISHES,
   type GuideAngle,
 } from "@/lib/guide/dish-guide"
+import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
 import { cn } from "@/lib/utils"
 
 import { GuideViewer } from "./guide-viewer"
@@ -52,33 +52,18 @@ export function DishGuide({
 
   return (
     <div className="flex min-w-0 flex-col gap-gutter">
-      <div
-        role="group"
-        aria-label="Example dish"
-        className="flex flex-wrap gap-2"
-      >
-        {GUIDE_DISHES.map((d) => {
-          const pressed = d.id === dish.id
-          return (
-            <button
-              key={d.id}
-              type="button"
-              aria-pressed={pressed}
-              onClick={() => setDishId(d.id)}
-              className={cn(
-                "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-round bg-surface-2 px-4 text-label whitespace-nowrap text-ink focus-ring transition-colors duration-quick outline-none hover:bg-raised",
-                pressed &&
-                  "bg-accent-soft text-accent-text shadow-[inset_0_0_0_2px_var(--accent-text)] hover:bg-accent-soft"
-              )}
-            >
-              {pressed ? (
-                <CheckIcon aria-hidden weight="bold" className="size-[18px]" />
-              ) : null}
-              {d.name}
-            </button>
-          )
-        })}
-      </div>
+      {/* v2 PickChip (FilterPill): a 48px staff target with a tick when on. */}
+      <PillGroup label="Example dish">
+        {GUIDE_DISHES.map((d) => (
+          <FilterPill
+            key={d.id}
+            selected={d.id === dish.id}
+            onClick={() => setDishId(d.id)}
+          >
+            {d.name}
+          </FilterPill>
+        ))}
+      </PillGroup>
 
       <ul
         className={
@@ -94,7 +79,7 @@ export function DishGuide({
             <span
               aria-hidden
               className={cn(
-                "grid shrink-0 place-items-center rounded-round font-display font-extrabold tabular-nums",
+                "grid shrink-0 place-items-center rounded-round font-display font-semibold tabular-nums",
                 posts
                   ? "size-9 bg-ink text-heading-sm text-surface"
                   : "absolute top-2 left-2 size-8 bg-plate text-label text-on-stage"

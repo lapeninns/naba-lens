@@ -1,3 +1,5 @@
+import { MEDIA_LIMITS } from "@/lib/config/media"
+
 import type { Outcome } from "./types"
 
 type DbError = { message?: string; code?: string } | null | undefined
@@ -21,6 +23,17 @@ export function rpcFailure(error: DbError): Outcome<never> {
       status: 404,
       message:
         "This unfinished upload was started somewhere else. Retry to upload the file again.",
+    }
+  }
+  if (message.includes("wrong_venue")) {
+    // reserve_media_asset: the file was matched for a venue that is no
+    // longer the active one (AC11). 409, retryable once the person is back
+    // at that venue; never reserved at the new one.
+    return {
+      ok: false,
+      status: 409,
+      message:
+        "This photo was matched for another venue. Switch back to that venue to send it, or match it again.",
     }
   }
   if (message.includes("not_active_staff")) {
@@ -54,6 +67,7 @@ export function rpcFailure(error: DbError): Outcome<never> {
     message.includes("invalid_extension") ||
     message.includes("invalid_size") ||
     message.includes("invalid_upload_key") ||
+    message.includes("invalid_batch_id") ||
     message.includes("invalid_purpose")
   ) {
     return {
@@ -80,6 +94,8 @@ export function validationMessage(code: string): string {
       return "This file's content does not match its type."
     case "file_too_large":
       return "This file is larger than the upload limit."
+    case "video_too_long":
+      return `Videos can be up to ${MEDIA_LIMITS.maxVideoSeconds} seconds. Trim it on your phone, then add it again.`
     case "size_mismatch":
     case "invalid_size":
       return "The stored file is incomplete. Upload it again."

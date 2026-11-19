@@ -3,10 +3,18 @@
 import * as React from "react"
 
 import { LoginCard } from "@/components/nabalens"
-import { clearAllDrafts } from "@/components/nabalens/amenities/capture/draft"
-import { clearCaptureDataOnDevice } from "@/lib/upload/device-cleanup"
+import { OptionRow } from "@/components/ui/option-row"
 import { normaliseEmail, signInWithCode } from "@/lib/auth/magic-link"
 import { createClient } from "@/lib/supabase/browser"
+
+import {
+  readDeviceMode,
+  shouldWipeOnSignIn,
+  subscribeDeviceMode,
+  wipePrivateDeviceData,
+  writeDeviceMode,
+  type DeviceMode,
+} from "./shared-device"
 
 type LoginCardHostProps = Omit<
   React.ComponentProps<typeof LoginCard>,
@@ -30,7 +38,9 @@ type LoginCardHostProps = Omit<
  *
  * Every sign-out (app shell, Me, the blocked page) lands here with
  * `signed_out`, so unsent amenity drafts, upload resume keys and the capture
- * journal on a shared device go with it.
+ * journal go with it. On a device marked shared (the option under the card,
+ * spec §3.2, AC36) any arrival here wipes, also after a session ended
+ * without signing out (./shared-device.ts).
  */
 export function LoginCardHost({
   onSubmit,
@@ -39,13 +49,22 @@ export function LoginCardHost({
 }: LoginCardHostProps) {
   const supabase = React.useMemo(() => createClient(), [])
   const { signedOut } = props
+  // The device's choice; null on the server, which cannot know it.
+  const mode = React.useSyncExternalStore<DeviceMode | null>(
+    subscribeDeviceMode,
+    () => readDeviceMode(),
+    () => null
+  )
   React.useEffect(() => {
-    if (!signedOut) return
-    clearAllDrafts()
+    const current = readDeviceMode()
+    if (!shouldWipeOnSignIn(current, !!signedOut)) return
     // J-1: upload resume keys and the capture journal (with any photo bytes)
-    // go too.
-    clearCaptureDataOnDevice()
+    // go too; on a shared device also the tab's working copies.
+    void wipePrivateDeviceData(current)
   }, [signedOut])
+  const chooseMode = React.useCallback((shared: boolean) => {
+    writeDeviceMode(shared ? "shared" : "personal")
+  }, [])
   const verify = React.useCallback(
     async (rawEmail: string, code: string) => {
       const email = normaliseEmail(rawEmail)
@@ -61,5 +80,16 @@ export function LoginCardHost({
       onSubmit(email, captchaToken, returnTo ?? undefined),
     [onSubmit, returnTo]
   )
-  return <LoginCard {...props} onSubmit={submit} onVerifyCode={verify} />
+  return (
+    <>
+      <LoginCard {...props} onSubmit={submit} onVerifyCode={verify} />
+      <OptionRow
+        type="checkbox"
+        label="This is a shared device"
+        hint="Signing out, or a session ending, removes anything not yet sent from this device."
+        checked={mode === "shared"}
+        onCheckedChange={(checked) => chooseMode(checked === true)}
+      />
+    </>
+  )
 }

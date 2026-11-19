@@ -107,12 +107,12 @@ export function StaffMonth({
           <span
             className={cn(
               "tabular-nums",
-              inactive ? "text-label" : "type-count"
+              inactive ? "text-label" : "type-figure"
             )}
           >
             {count}
           </span>
-          <span className="text-lead font-bold text-ink-muted">
+          <span className="text-lead font-semibold text-ink-muted">
             {needsSetup ? unit : `of ${target} ${unit}`}
           </span>
           {needsSetup ? (

@@ -9,11 +9,13 @@ import {
   CameraIcon,
   CaretRightIcon,
   ClipboardTextIcon,
+  FilmStripIcon,
   ForkKnifeIcon,
+  ImagesIcon,
   PencilSimpleIcon,
   SignOutIcon,
   TagIcon,
-  UploadSimpleIcon,
+  UsersIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -32,8 +34,20 @@ import {
 } from "@/components/nabalens"
 import type { MediaItem } from "@/components/nabalens/types"
 import { formatBytes } from "@/components/nabalens/format"
+import {
+  ALBUM_ADD_LABEL,
+  ALBUM_ADD_OPTIONS,
+} from "@/components/nabalens/album/album-add-trigger"
+import { HOME_ROWS_COPY } from "@/components/nabalens/album/home-rows"
+import { UnfinishedRow } from "@/components/nabalens/album/unfinished-row"
 import { GUIDE_PATH } from "@/components/nabalens/guide"
-import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
+import {
+  CountBadge,
+  StatusChip,
+  type ChipStateKey,
+} from "@/components/nabalens/status-chip"
+import { isMenuUse } from "@/lib/staff/my-uploads"
+import { ALBUM_UPLOAD_TRAY } from "@/lib/config/album-upload-tray"
 import { ThemeSetting } from "@/components/nabalens/theme-setting"
 import {
   useAdd,
@@ -79,21 +93,39 @@ type StaffPortfolioProps = {
   menuPhotoItems?: MediaItem[]
   /** "Your findings" (B01-06), after the menu decisions; null to leave it out. */
   findings?: React.ReactNode
+  /**
+   * The person's own month (Album shell, proposal §7.6: moved off Home), shown
+   * under the profile; null to leave it out.
+   */
+  month?: React.ReactNode
+  /**
+   * Other jobs waiting on the person (decision 10): Me lists the row when
+   * there are any, or when they couldn't be counted (null). Undefined leaves
+   * it out.
+   */
+  otherJobs?: number | null
+  /** My uploads (FA-1; spec §6 S4), Me's first section; null to leave it out. */
+  myUploads?: React.ReactNode
+  /** Help and account (spec §6 S5), after the work links; null to leave it out. */
+  account?: React.ReactNode
 }
 
-/** The three milestones of an own photo, in these exact words. */
-export const MILESTONES = {
-  saved: "Saved to your portfolio",
-  label: "Ready to label",
-  accepted: "Accepted for menu use",
-  better: "Needs another photo",
-} as const
+/**
+ * The milestones of an own photo (docs/usage-staff.md). A tile's state word
+ * is its chip's (MILESTONE_STATE): status words live only in status-chip.tsx.
+ */
+export type Milestone = "saved" | "label" | "accepted" | "better"
 
-export type Milestone = keyof typeof MILESTONES
+/** The heading of Me's section of photos accepted for menu use. */
+/** Me's way to the older Add sheet, beside Add photos (R15-1). */
+export const ME_ADD_VIDEO_LABEL = "Add a video"
+
+const ACCEPTED_HEADING = "Accepted for menu use"
 
 /**
- * Where one own photo stands: accepted for menu use (any live accepted
- * decision), ready to label (ready, labels loaded and none yet), or saved.
+ * Where one own photo stands: accepted for menu use (a live decision
+ * accepted for public use; X9: never one kept as reference), ready to label
+ * (ready, labels loaded and none yet), or saved.
  * Files still uploading, processing or failed have no milestone.
  */
 export function photoMilestone(
@@ -311,11 +343,10 @@ function MilestoneTile({
         ) : null}
       </span>
       <span className="sr-only">{kind}: </span>
-      {/* Common Room §3 shapes: Accepted is the filled ok square, a better
-          photo request the warn pill, the rest a plain grey pill. */}
-      <StatusChip state={MILESTONE_STATE[milestone]} className="w-fit">
-        {MILESTONES[milestone]}
-      </StatusChip>
+      {/* The chip's own word and shape (status-chip.tsx): In the album is
+          the filled ok square, a better photo request the warn pill, the
+          rest a plain grey pill. */}
+      <StatusChip state={MILESTONE_STATE[milestone]} className="w-fit" />
       {detail ? (
         <span
           title={detail}
@@ -328,11 +359,14 @@ function MilestoneTile({
   )
 }
 
-/** Which §3 state shape draws each milestone (the word stays MILESTONES'). */
-const MILESTONE_STATE: Record<Milestone, string> = {
+/**
+ * The chip that draws each milestone on a tile, word and shape. Accepted for
+ * menu use is the staff outcome In the album (FA-7), as My uploads says.
+ */
+const MILESTONE_STATE: Record<Milestone, ChipStateKey> = {
   saved: "portfolio_saved",
   label: "needs_labels",
-  accepted: "accepted",
+  accepted: "outcome_public",
   better: "needs_another_photo",
 }
 
@@ -350,6 +384,10 @@ export function StaffPortfolio({
   retakeNotes = [],
   areaLabelled = [],
   findings = null,
+  month = null,
+  otherJobs,
+  myUploads = null,
+  account = null,
 }: StaffPortfolioProps) {
   const router = useRouter()
   const [editOpen, setEditOpen] = React.useState(initialEditOpen)
@@ -395,7 +433,8 @@ export function StaffPortfolio({
   const accepted = React.useMemo(() => {
     const accepted = new Map<string, string[]>()
     for (const state of menuPhotos) {
-      if (state.state !== "accepted") continue
+      // X9: a photo kept as reference is not accepted for menu use.
+      if (!isMenuUse(state)) continue
       const name = state.variantName
         ? `${state.itemName} (${state.variantName})`
         : state.itemName
@@ -412,56 +451,95 @@ export function StaffPortfolio({
   const acceptedItems = menuPhotoItems.filter(
     (item) => photoMilestone(item, acceptedIds) === "accepted"
   )
+  // S3-R12 (S4-DOCS): Me's Add photos is the tab bar's: the phone's
+  // gallery first, then Match (DESIGN.md §6.1, D9). Match takes photos only;
+  // video goes where a requirement asks for it (departures.md A-D2).
   const uploadButton = (variant: "primary" | "secondary" = "primary") =>
     uploadBlocked || !openAdd ? null : (
-      <Button variant={variant} onClick={() => openAdd({ dialog: true })}>
-        <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-        Upload photos or videos
+      <Button
+        variant={variant}
+        data-slot="me-add"
+        // Synchronously, inside the click: the host clicks its hidden input.
+        onClick={() => openAdd(ALBUM_ADD_OPTIONS)}
+      >
+        <ImagesIcon data-icon="inline-start" aria-hidden />
+        {ALBUM_ADD_LABEL}
+      </Button>
+    )
+  // S3-R15 (R15-1): Match takes photos only, so Me keeps a quieter way to
+  // the older Add sheet for a video and anything Match does not take
+  // (departures.md A-D2). Gallery first: the sheet opens the phone's photos,
+  // never a camera (DESIGN.md §9). A secondary button beside the main one
+  // (DESIGN.md §5).
+  const videoButton =
+    uploadBlocked || !openAdd ? null : (
+      <Button
+        variant="secondary"
+        data-slot="me-add-video"
+        onClick={() => openAdd({ dialog: true })}
+      >
+        <FilmStripIcon data-icon="inline-start" aria-hidden />
+        {ME_ADD_VIDEO_LABEL}
       </Button>
     )
 
-  return (
-    // Common Room Me: a feed of white cards on the grey canvas.
-    <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
-      <ProfileHeader
-        displayName={profile.displayName}
-        avatarUrl={profile.avatarUrl}
-        jobTitle={profile.jobTitle}
-        department={profile.department}
-        venueName={profile.venueName}
-        workRole={profile.workRole}
-        actions={
-          // Grey first, blue last, in DOM order: stacked on phones Upload is
-          // at the bottom, nearest the thumb; from md blue is on the right.
-          <>
-            {/* From md, Log out is in the AppBar; on phones it lives on Me. */}
-            {/* A plain POST, not a Server Action: it still signs out after the
+  const profileCard = (
+    <ProfileHeader
+      headingLevel={ALBUM_UPLOAD_TRAY ? "h2" : "h1"}
+      displayName={profile.displayName}
+      avatarUrl={profile.avatarUrl}
+      jobTitle={profile.jobTitle}
+      department={profile.department}
+      venueName={profile.venueName}
+      workRole={profile.workRole}
+      actions={
+        // Grey first, blue last, in DOM order: stacked on phones Upload is
+        // at the bottom, nearest the thumb; from md blue is on the right.
+        <>
+          {/* From md, Log out is in the AppBar; on phones it lives on Me. */}
+          {/* A plain POST, not a Server Action: it still signs out after the
                 session has ended, when the proxy refuses an action. */}
-            <form
-              action="/auth/logout"
-              method="post"
-              className="md:hidden"
-              data-logout
-            >
-              <Button type="submit" variant="quiet">
-                <SignOutIcon data-icon="inline-start" aria-hidden />
-                Log out
-              </Button>
-            </form>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setProfileSaved(false)
-                setEditOpen(true)
-              }}
-            >
-              <PencilSimpleIcon data-icon="inline-start" aria-hidden />
-              Edit profile
+          <form
+            action="/auth/logout"
+            method="post"
+            className="md:hidden"
+            data-logout
+          >
+            <Button type="submit" variant="quiet">
+              <SignOutIcon data-icon="inline-start" aria-hidden />
+              Log out
             </Button>
-            {uploadButton()}
-          </>
-        }
-      />
+          </form>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setProfileSaved(false)
+              setEditOpen(true)
+            }}
+          >
+            <PencilSimpleIcon data-icon="inline-start" aria-hidden />
+            Edit profile
+          </Button>
+          {videoButton}
+          {!ALBUM_UPLOAD_TRAY ? uploadButton() : null}
+        </>
+      }
+    />
+  )
+
+  return (
+    <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
+      {!ALBUM_UPLOAD_TRAY ? profileCard : null}
+      {ALBUM_UPLOAD_TRAY ? (
+        <>
+          <h1 className="sr-only">Me</h1>
+          {month}
+          <UnfinishedRow />
+        </>
+      ) : null}
+      {myUploads}
+      {!ALBUM_UPLOAD_TRAY ? month : null}
+      {ALBUM_UPLOAD_TRAY ? profileCard : null}
       {profileSaved ? (
         <Notice tone="positive">{PROFILE_SAVE_COPY.saved}</Notice>
       ) : null}
@@ -497,8 +575,31 @@ export function StaffPortfolio({
             title="Our menu"
             hint="See which dishes and drinks still need a photo"
           />
+          {/* The Album tab bar has only Album, Add photos and Me (DESIGN.md
+              §5), so Me lists Photos and People among its own links. */}
+          <MeRow
+            href="/staff/community"
+            icon={<ImagesIcon />}
+            title="Photos"
+            hint="Accepted photos from colleagues at your venue, newest first"
+          />
+          <MeRow
+            href="/staff/people"
+            icon={<UsersIcon />}
+            title="People"
+            hint="Your colleagues and their photos"
+          />
+          {otherJobs === null || (otherJobs ?? 0) > 0 ? (
+            <MeRow
+              href="/staff/tasks/other"
+              icon={<ClipboardTextIcon />}
+              title={HOME_ROWS_COPY.otherJobs}
+              hint={HOME_ROWS_COPY.otherJobsLine(otherJobs ?? null)}
+            />
+          ) : null}
         </ul>
       </nav>
+      {account}
       <NeedsAttention
         refreshSignal={addRefreshSignal}
         onFixed={(saved) => {
@@ -549,7 +650,7 @@ export function StaffPortfolio({
             id="accepted-heading"
             className="px-1 type-section-title text-ink"
           >
-            {MILESTONES.accepted}
+            {ACCEPTED_HEADING}
           </h2>
           <ul aria-label="Photos accepted for menu use" className={TILE_GRID}>
             {acceptedItems.map((item) => (

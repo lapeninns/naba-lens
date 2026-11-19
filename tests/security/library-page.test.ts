@@ -114,11 +114,58 @@ function applyFeed<Q extends Feed<Q>>(
   return next
 }
 
+/**
+ * For an admin, labels=unlabelled is the one unlabelled rule (S3-R1 K1,
+ * private.asset_unlabelled), not "no label saved": the ids it holds now, as
+ * the reference.
+ */
+function unlabelledRule(venue: string | undefined): string[] {
+  const url = process.env.NABALENS_TEST_DB_URL!
+  if (venue && !/^[0-9a-f-]{36}$/.test(venue)) throw new Error("bad venue")
+  return execFileSync(
+    "psql",
+    [
+      url,
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-qAtc",
+      `select coalesce(string_agg(id::text, ','), '') from public.media_assets
+       where ${venue ? `venue_id = '${venue}' and ` : ""}private.asset_unlabelled(id)`,
+    ],
+    { encoding: "utf8" }
+  )
+    .trim()
+    .split(",")
+    .filter(Boolean)
+}
+
+let adminId: string | null = null
+
 async function oldPage(
   user: TestIdentity,
   c: Combo,
   after: { created_at: string; id: string } | null
 ): Promise<Row[]> {
+  if (c.state === "unlabelled" && user.id === adminId) {
+    const ids = unlabelledRule(c.venue)
+    const { data, error } = await applyFeed(
+      user.client
+        .from("media_assets")
+        .select(SEL)
+        .is("deleted_at", null)
+        .in(
+          "id",
+          ids.length > 0 ? ids : ["00000000-0000-0000-0000-000000000000"]
+        ),
+      c,
+      after
+    )
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(PAGE)
+    if (error) throw new Error(`old: ${error.message}`)
+    return data ?? []
+  }
   const label =
     c.item || c.variant || c.category || c.content || c.state || c.query
   const args = {
@@ -222,6 +269,7 @@ describe("library_page against library_assets and the table feed", () => {
   beforeAll(async () => {
     venue = (await createVenue(service, "lp-a")).id
     admin = await createIdentity(service, { label: "lp-admin", role: "admin" })
+    adminId = admin.id
     staff1 = await createIdentity(service, {
       label: "lp-staff-1",
       role: "staff",

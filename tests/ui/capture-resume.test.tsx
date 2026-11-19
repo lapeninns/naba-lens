@@ -457,7 +457,7 @@ describe("from md, the upload dialog (J2)", () => {
     await waitFor(() => expect(opened).toHaveBeenCalledWith("u1"))
     fireEvent.click(screen.getByRole("button", { name: "Add" }))
     const dialog = await screen.findByRole("dialog", {
-      name: "Upload photos or videos",
+      name: "Add photos or videos",
     })
     expect(screen.queryByRole("dialog", { name: "Add photos" })).toBeNull()
     return dialog

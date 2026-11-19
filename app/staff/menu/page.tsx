@@ -1,108 +1,22 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { loadOurMenuItemsAction } from "@/app/_coverage/actions"
-import { AppShell } from "@/components/nabalens/app-shell"
-import {
-  OUR_MENU_QUERY_MAX,
-  OurMenuScreen,
-  type OurMenuFilter,
-  type OurMenuLoad,
-} from "@/components/nabalens/menu-photos"
-import { OfflineNotice } from "@/components/nabalens/offline-notice"
-import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
-import {
-  getCoverageActor,
-  getOurMenu,
-  listOurMenuItems,
-} from "@/lib/server/coverage"
-import type { CoverageFailure } from "@/lib/server/coverage/types"
-import { isUuid } from "@/lib/server/coverage/validate"
-import type { MediaActor } from "@/lib/server/media/types"
-
-import { staffShellStatus } from "../_shell/shell-status"
-
-export const metadata: Metadata = { title: "Our menu" }
-
-type OurMenuSearch = Record<string, string | string[] | undefined>
-
-const one = (value: string | string[] | undefined) =>
-  typeof value === "string" ? value : undefined
-
-/** `?section=<id>&filter=gaps&q=…`; anything else is ignored. */
-function ourMenuFilter(search: OurMenuSearch): OurMenuFilter {
-  const section = one(search.section)
-  return {
-    sectionId: section && isUuid(section) ? section : null,
-    gapsOnly: one(search.filter) === "gaps",
-    query: (one(search.q) ?? "").trim().slice(0, OUR_MENU_QUERY_MAX),
-  }
-}
-
-/** Refusals and setup gaps are states of the page; anything else is a failed load. */
-function failedLoad(failure: CoverageFailure): OurMenuLoad {
-  if (failure.code === "needs_setup") return { state: "needs_venue" }
-  return { state: "unavailable" }
-}
-
-async function loadOurMenu(
-  actor: MediaActor,
-  filter: OurMenuFilter
-): Promise<{ load: OurMenuLoad; filter: OurMenuFilter }> {
-  const summary = await getOurMenu(actor, {})
-  if (!summary.ok) return { load: failedLoad(summary), filter }
-  const menu = summary.menu
-  if (menu.menuState !== "ready")
-    return { load: { state: menu.menuState, menu }, filter }
-  // A section from another menu version (an old link) shows every section.
-  const sectionId = menu.sections.some((s) => s.sectionId === filter.sectionId)
-    ? filter.sectionId
-    : null
-  const shown = { ...filter, sectionId }
-  const items = await listOurMenuItems(actor, {
-    ...(sectionId ? { sectionId } : {}),
-    gapsOnly: shown.gapsOnly,
-    ...(shown.query ? { query: shown.query } : {}),
-  })
-  if (!items.ok) return { load: failedLoad(items), filter: shown }
-  return { load: { state: "ready", menu, items }, filter: shown }
-}
+const first = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? value[0] : value
 
 /**
- * Our menu for staff (managers included): the current venue's active menu,
- * grouped by section, with how many items have an accepted photo, search and
- * "Still needs a photo". A failed read renders the page's unavailable state
- * rather than the error boundary, so the shell and Add stay usable.
+ * Retired: Our menu is Album's Menu (DESIGN.md §5d, D16). The old URL keeps
+ * working as a redirect, and keeps its section and its gaps filter.
  */
-export default async function OurMenuPage({
+export default async function RetiredMenuPage({
   searchParams,
 }: {
-  searchParams: Promise<OurMenuSearch>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const profile = await requireActiveStaff()
-  const auth = await getCoverageActor()
-  if (!auth.ok) throw new Error(auth.message)
-  const requested = ourMenuFilter(await searchParams)
-  const [{ load, filter }, shell] = await Promise.all([
-    loadOurMenu(auth.actor, requested),
-    staffShellStatus(auth.actor, profile),
-  ])
-
-  return (
-    <AppShell
-      variant="staff"
-      active="menu"
-      {...shell}
-      userName={profile.displayName}
-    >
-      <div className="flex flex-col gap-gutter">
-        <OfflineNotice />
-        <OurMenuScreen
-          load={load}
-          filter={filter}
-          canAdd={uploadBlockReason(profile) === null}
-          loadItems={loadOurMenuItemsAction}
-        />
-      </div>
-    </AppShell>
-  )
+  const query = await searchParams
+  const next = new URLSearchParams()
+  const section = first(query.section)
+  if (section) next.set("section", section)
+  if (first(query.filter) === "gaps") next.set("show", "needed")
+  const rest = next.toString()
+  permanentRedirect(`/staff/album/menu${rest ? `?${rest}` : ""}`)
 }

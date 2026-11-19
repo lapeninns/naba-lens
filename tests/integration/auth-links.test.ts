@@ -17,7 +17,7 @@ import { GET as avatar } from "@/app/api/avatars/[id]/route"
 import { loadMyMedia } from "@/app/staff/actions"
 import { loadLibraryPage } from "@/app/admin/library-actions"
 import RootPage from "@/app/page"
-import StaffPage from "@/app/staff/page"
+import StaffPage from "@/app/staff/me/page"
 import AdminPage from "@/app/admin/(content)/page"
 import { getAuthState } from "@/lib/auth"
 import { proxy } from "@/proxy"
@@ -46,7 +46,12 @@ import {
   tokenHashOf,
   writeSessionCookie,
 } from "./auth-support"
-import { followEmailLink, loadConfirmPage, submitConfirm } from "./auth-confirm"
+import {
+  followEmailLink,
+  loadConfirmPage,
+  passMfa,
+  submitConfirm,
+} from "./auth-confirm"
 
 const service = serviceClient()
 
@@ -99,10 +104,16 @@ describe("magic links", () => {
       "/staff/tasks"
     )
 
+    // FA-23: an admin's link session is aal1, so "/" sends it to the second
+    // step first; after it, K7's admin home is Overview.
     const adminBrowser = new Browser("admin")
     await signedIn(adminBrowser, admin.email)
     expect((await adminBrowser.run(() => redirectOf(RootPage))).location).toBe(
-      "/admin"
+      "/auth/mfa"
+    )
+    await passMfa(adminBrowser, admin.id)
+    expect((await adminBrowser.run(() => redirectOf(RootPage))).location).toBe(
+      "/admin/overview"
     )
   })
 
@@ -131,7 +142,11 @@ describe("magic links", () => {
     shared.absorb((await proxy(appRequest(shared, deepLink))).cookies.getAll())
     await signedIn(shared, admin.email)
     expect((await shared.run(() => redirectOf(RootPage))).location).toBe(
-      "/admin"
+      "/auth/mfa"
+    )
+    await passMfa(shared, admin.id)
+    expect((await shared.run(() => redirectOf(RootPage))).location).toBe(
+      "/admin/overview"
     )
   })
 
@@ -466,8 +481,12 @@ describe("session expiry", () => {
   it("logout ends the session for this browser only", async () => {
     const a = new Browser("logout-a")
     const b = new Browser("logout-b")
+    // In turn: Supabase Auth ends an account's aal1 sessions when its first
+    // factor is verified, so b signs in after a has passed the second step.
     await signedIn(a, admin.email)
+    await passMfa(a, admin.id)
     await signedIn(b, admin.email)
+    await passMfa(b, admin.id)
 
     const res = await a.run(() =>
       logout(

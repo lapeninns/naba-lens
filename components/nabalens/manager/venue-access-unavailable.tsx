@@ -84,9 +84,7 @@ export function VenueAccessUnavailablePage({
     <div className="flex min-h-svh flex-col bg-canvas text-ink">
       <header className="relative z-local bg-surface shadow-[0_1px_0_var(--line)]">
         <div className="mx-auto flex min-h-15 w-full max-w-page items-center px-3 md:px-6">
-          <span className="font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.02em] text-ink">
-            Naba-Lens
-          </span>
+          <span className="type-title text-ink">Naba-Lens</span>
         </div>
       </header>
       <main

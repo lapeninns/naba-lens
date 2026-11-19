@@ -1,3 +1,5 @@
+import type { MonthlySetupGap, ProfileSetupGap } from "./types"
+
 /**
  * Set (client-side) by earlier app versions once a starter had left the
  * welcome screen. It is no longer written; a browser that still has it counts
@@ -23,4 +25,22 @@ export function showWelcomeEntry({
   hasOwnMedia: boolean
 }): boolean {
   return !dismissedAt && !legacyCookie && !hasOwnMedia
+}
+
+/** Setup messages for the profile and monthly target, prepared by the welcome page. */
+export function setupGaps({
+  missing,
+  monthly,
+}: {
+  missing: readonly ProfileSetupGap[]
+  monthly: { setupMissing: readonly MonthlySetupGap[] } | null
+}): string[] {
+  const gaps: string[] = []
+  if (missing.includes("venue"))
+    gaps.push("No venue yet: an admin assigns your venue")
+  if (missing.includes("team") || monthly?.setupMissing.includes("team"))
+    gaps.push("No team yet: an admin assigns Front of house or Back of house")
+  if (monthly?.setupMissing.includes("target"))
+    gaps.push("No target yet: your manager sets it")
+  return gaps
 }

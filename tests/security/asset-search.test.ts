@@ -153,7 +153,7 @@ async function evidence(
 /** As the signed-in user, inside one transaction (psql as the owner). */
 function asUser(user: string, sql: string): string {
   const out = psql(`begin;
-    select set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated"}', true) is null;
+    select set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated","aal":"aal2"}', true) is null;
     ${sql};
     commit;`)
   return out.split("\n").at(-1)!.trim()
@@ -826,13 +826,23 @@ describe("asset search filters at the database (B05-06b)", () => {
           (await call(who, "asset_search_can_open", { p_asset_id: id })).data
         ).toBe(true)
     }
+    // A staff video with no label opens through no arm.
+    expect(
+      (
+        await call(f.manager, "asset_search_can_open", {
+          p_asset_id: mine.video,
+        })
+      ).data
+    ).toBe(false)
+    // A staff photo left with no label for 7 days is the manager's to label
+    // (FA-4, S3-R1 K1): it opens through the unlabelled arm.
     expect(
       (
         await call(f.manager, "asset_search_can_open", {
           p_asset_id: mine.atT0,
         })
       ).data
-    ).toBe(false)
+    ).toBe(true)
   })
 
   it("matches item and variant through menu decisions as well as labels", async () => {
@@ -930,10 +940,11 @@ const BASE_COMMIT = "7d2a783c"
 const SEARCH_MIGRATION =
   "supabase/migrations/20261113140200_media_b05m4_asset_search.sql"
 // The shipped body: the newest migration that (re)defines public.asset_search
-// (B05 follow-up 20261113150000 adds the answer-freshness filter; its gate
-// prefilter P must stay the one this file evaluates).
+// (B05 follow-up 20261113150000 adds the answer-freshness filter; S3-R1
+// 20261118120500 adds the unlabelled-rule term to P; its gate prefilter P
+// must stay the one this file evaluates).
 const SHIPPED_SEARCH_MIGRATION =
-  "supabase/migrations/20261113150000_media_b05_answer_freshness.sql"
+  "supabase/migrations/20261118120500_asset_search_unlabelled.sql"
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url))
 // The base body, frozen: the base commit is not on main after a squash merge.
 const REFERENCE_FIXTURE = fileURLToPath(
@@ -1066,7 +1077,7 @@ function compareBodies(user: string, cases: Case[], setup = ""): Diff {
     ${referenceDefinition()};
     ${HARNESS}
     ${setup}
-    select set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated"}', true) is null;
+    select set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated","aal":"aal2"}', true) is null;
     set local role authenticated;
     select json_build_object(
         'pages', coalesce(sum(w.pages), 0), 'rows', coalesce(sum(w.rows), 0),
@@ -2187,7 +2198,7 @@ ${fn.slice(at + CHUNK_MARK.length)};`
           return v_out;
         end $f$;
         grant execute on function pg_temp.reads(jsonb, integer, integer) to authenticated;
-        select set_config('request.jwt.claims', '{"sub":"${c.manager.id}","role":"authenticated"}', true) is null;
+        select set_config('request.jwt.claims', '{"sub":"${c.manager.id}","role":"authenticated","aal":"aal2"}', true) is null;
         set local role authenticated;
         select pg_temp.reads('${JSON.stringify(filters)}', ${limit}, ${pages});
         rollback;`)
@@ -2298,7 +2309,7 @@ ${fn.slice(at + CHUNK_MARK.length)};`
     const check = (who: Who, venue: string, setup = "") => {
       const out = psql(`begin;
         ${setup}
-        select set_config('request.jwt.claims', '{"sub":"${who.id}","role":"authenticated"}', true) is null;
+        select set_config('request.jwt.claims', '{"sub":"${who.id}","role":"authenticated","aal":"aal2"}', true) is null;
         select json_build_object(
           'violations', count(*) filter (where x.admitted and not x.p),
           'admitted', coalesce(json_agg(x.id) filter (where x.admitted), '[]'),
@@ -2424,7 +2435,7 @@ ${fn.slice(at + CHUNK_MARK.length)};`
       "public.task_evidence_asset(uuid)": "7f8c6a96ff4c0a9a899168f481ab42b2",
       "public.amenity_evidence_asset(uuid)": "4f82066506491c9b9b77b1dacca0a6e5",
       "private.menu_photo_unlabelled_eligible(uuid,uuid)":
-        "eab90064fdf1e0a7cce3551ec5571c43",
+        "e68bd36a75a5d69b0ef313f53829f995",
       "private.menu_photo_can_review_unlabelled()":
         "3357d2ad4db64b0b8bd1b4f124e7bdfd",
       "private.amenity_is_legacy_media(public.venue_amenity_checks,uuid)":

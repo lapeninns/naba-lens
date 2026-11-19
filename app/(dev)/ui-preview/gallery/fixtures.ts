@@ -10,6 +10,18 @@
 /** The sections of the gallery, in page order. The nav and the page share it. */
 export const GALLERY_SECTIONS = [
   {
+    id: "album",
+    title: "Album",
+    description:
+      "The Album components (docs/design-system/DESIGN.md §5), as each batch builds them. A1: the slot tile. A2: Album Home, a place and Album places.",
+  },
+  {
+    id: "manager",
+    title: "Manager Overview and Venue",
+    description:
+      "Full App v1 S2-MGR: the manager Overview's actions and panels (spec §7 M1) and the Venue hub's reviewers, To confirm and History (§7 M5), in their states.",
+  },
+  {
     id: "foundations",
     title: "Foundations",
     description:
@@ -73,6 +85,12 @@ export const GALLERY_SECTIONS = [
     description:
       "What a screen shows while it loads, when it is empty, and when it fails.",
   },
+  {
+    id: "metrics",
+    title: "Metrics",
+    description:
+      "The manager and admin metrics screens (spec §18.1): a venue's report, one category, an empty venue, the admin overview, loading and a failed read.",
+  },
 ] as const
 
 export type GallerySectionId = (typeof GALLERY_SECTIONS)[number]["id"]
@@ -85,10 +103,18 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
   {
     title: "Surfaces",
     swatches: [
-      { name: "canvas", fill: "bg-canvas", role: "The grey page" },
+      {
+        name: "canvas",
+        fill: "bg-canvas",
+        role: "v2 paper: behind everything",
+      },
       { name: "surface", fill: "bg-surface", role: "Cards, bars, sheets" },
-      { name: "surface-2", fill: "bg-surface-2", role: "Grey buttons, fields" },
-      { name: "raised", fill: "bg-raised", role: "Hover on grey" },
+      {
+        name: "surface-2",
+        fill: "bg-surface-2",
+        role: "v2 surface-sunken: empty slots, tracks",
+      },
+      { name: "raised", fill: "bg-raised", role: "v2 surface-hover" },
       {
         name: "media-placeholder",
         fill: "bg-media-placeholder",
@@ -101,11 +127,6 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
     swatches: [
       { name: "ink", fill: "bg-ink", role: "Text and icons" },
       { name: "ink-muted", fill: "bg-ink-muted", role: "Secondary text" },
-      {
-        name: "ink-subtle",
-        fill: "bg-ink-subtle",
-        role: "Separators between words",
-      },
     ],
   },
   {
@@ -150,9 +171,25 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
       { name: "ok-fg", fill: "bg-ok-fg", role: "Accepted, met: text and bar" },
       { name: "ok-bg", fill: "bg-ok-bg", role: "Its tint" },
       {
+        name: "ok-waiting",
+        fill: "bg-ok-waiting",
+        role: "v2 sky: waiting part of a bar",
+      },
+      { name: "on-ok", fill: "bg-on-ok", role: "Text on the Accepted mark" },
+      {
+        name: "ring-waiting",
+        fill: "bg-ring-waiting",
+        role: "Ring round a photo waiting for review",
+      },
+      {
+        name: "ring-retake",
+        fill: "bg-ring-retake",
+        role: "Ring round a photo that needs another",
+      },
+      {
         name: "warn-fg",
         fill: "bg-warn-fg",
-        role: "Problems and warnings: text and bar",
+        role: "v2 brass-ink: attention text",
       },
       { name: "warn-bg", fill: "bg-warn-bg", role: "Its tint" },
       {
@@ -161,6 +198,14 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
         role: "Information: text and bar",
       },
       { name: "info-bg", fill: "bg-info-bg", role: "Its tint" },
+      {
+        name: "brass",
+        fill: "bg-brass",
+        role: "v2 brass: a mark beside a word",
+      },
+      { name: "signal", fill: "bg-signal", role: "v2 problem tone, danger" },
+      { name: "on-signal", fill: "bg-on-signal", role: "Text on signal" },
+      { name: "signal-soft", fill: "bg-signal-soft", role: "Problem notice" },
       { name: "stamp-fg", fill: "bg-stamp-fg", role: "The Complete stamp" },
       { name: "hatch", fill: "bg-hatch", role: "Needs setup: hatched fill" },
       { name: "stripe", fill: "bg-stripe", role: "Submitted: striped segment" },
@@ -169,7 +214,7 @@ export const COLOUR_GROUPS: { title: string; swatches: Swatch[] }[] = [
   {
     title: "Photo surfaces",
     swatches: [
-      { name: "stage", fill: "bg-stage", role: "Camera and viewer" },
+      { name: "stage", fill: "bg-stage", role: "Behind a photo shown large" },
       { name: "on-stage", fill: "bg-on-stage", role: "Text on the stage" },
       {
         name: "on-stage-muted",
@@ -198,11 +243,6 @@ export const EDGES = [
     name: "edge-strong",
     className: "edge-strong",
     role: "A field or a grey control",
-  },
-  {
-    name: "edge-accent",
-    className: "edge-accent",
-    role: "The primary button. Shows in dark only",
   },
   {
     name: "edge-selected",

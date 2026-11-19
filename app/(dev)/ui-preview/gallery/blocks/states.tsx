@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/skeleton"
 
 /*
- * Gallery block for whole-screen states (DESIGN.md §5): what a screen shows
+ * Gallery block for whole-screen states (common-room.md §5): what a screen shows
  * in place of its content while it loads, when it has nothing, when the
  * request fails, when the address is wrong and when the person may not see
  * it. Built only from what the product uses today.

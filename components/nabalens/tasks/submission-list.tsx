@@ -15,7 +15,7 @@ export function ReviewReason({ reason }: { reason: string | null }) {
   if (!reason) return null
   return (
     <div className="rounded-control bg-warn-bg px-3 py-2.5 text-body text-ink rail-start-warn">
-      <span className="font-bold">Reason: </span>
+      <span className="font-semibold">Reason: </span>
       <span className="break-words whitespace-pre-line">{reason}</span>
     </div>
   )

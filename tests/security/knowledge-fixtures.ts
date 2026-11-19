@@ -88,9 +88,11 @@ export type World = {
   checks: Record<string, string>
 }
 
-let sharedAdmin: TestIdentity | null = null
+// The promise is shared, so concurrent world() calls make one admin (and one
+// second-factor sign-in), not one each.
+let sharedAdmin: Promise<TestIdentity> | null = null
 export async function admin() {
-  sharedAdmin ??= await createIdentity(service, {
+  sharedAdmin ??= createIdentity(service, {
     label: "knowledge-admin",
     role: "admin",
   })
@@ -385,7 +387,11 @@ export function sessionAs(
   body: string
 ): Promise<{ code: number; out: string; err: string }> {
   const url = process.env.NABALENS_TEST_DB_URL!
-  const claims = JSON.stringify({ sub: userId, role: "authenticated" })
+  const claims = JSON.stringify({
+    sub: userId,
+    role: "authenticated",
+    aal: "aal2",
+  })
   const sql = `begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '${claims}', true);
@@ -409,3 +415,29 @@ export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 /** SQL literal for a uuid array. */
 export const uuids = (ids: string[]) =>
   ids.length ? `array['${ids.join("','")}']::uuid[]` : "'{}'::uuid[]"
+
+/**
+ * S1-FACTS (AC25): guest Wi-Fi needs a venue manager's confirmation, so a
+ * staff Yes waits. Confirms a waiting finding as the venue's manager and
+ * returns the decision; a finding already in use is left as it is.
+ */
+export async function confirmWaiting(
+  w: World,
+  key: string,
+  sent: { contributionId: string; outcome: string },
+  who: TestIdentity = w.manager
+) {
+  if (sent.outcome !== "awaiting_confirmation") return null
+  return json<{ submissionId: string; slotRevision: number }>(
+    who,
+    "knowledge_decide",
+    {
+      p_target_type: "contribution",
+      p_target_id: sent.contributionId,
+      p_decision: "confirm",
+      p_slot_revision: slotRevision(w.venue, key),
+      p_idempotency_key: randomUUID(),
+      p_note: null,
+    }
+  )
+}

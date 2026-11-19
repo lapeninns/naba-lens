@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest"
 import {
   CORE_CHECK_KEYS,
   EVIDENCE_RULES,
+  evidenceSatisfies,
   LEGACY_COVERAGE_MATCHES,
   REOPEN_PRESET_LABEL,
   WIFI_KEY,
@@ -80,10 +81,31 @@ describe("amenity catalogue seed", () => {
     for (const r of rows) {
       expect(EVIDENCE_RULES).toContain(r.evidenceRule)
     }
-    expect(rows.find((r) => r.key === WIFI_KEY)?.evidenceRule).toBe("both")
+    // Catalogue version 2 (S2-INT, FA-32): the policy questions need no
+    // media; the fact alone is enough.
+    expect(rows.find((r) => r.key === WIFI_KEY)?.evidenceRule).toBe("none")
+    expect(
+      rows
+        .filter((r) => r.evidenceRule === "none")
+        .map((r) => r.key)
+        .sort()
+    ).toEqual([
+      "curbside_pickup",
+      "dogs_inside",
+      "dogs_outside",
+      "guest_wifi",
+      "live_music",
+      "pub_quiz",
+    ])
     expect(rows.find((r) => r.key === "step_free_entrance")?.evidenceRule).toBe(
       "video"
     )
+  })
+
+  it("treats none as met by any evidence, including none", () => {
+    expect(evidenceSatisfies("none", [])).toBe(true)
+    expect(evidenceSatisfies("none", ["video"])).toBe(true)
+    expect(evidenceSatisfies("photo", [])).toBe(false)
   })
 
   it("marks exactly the contract's core keys", () => {

@@ -48,10 +48,10 @@ describe("branded not-found pages", () => {
     expect(metadata.title).toBe("Page not found")
   })
 
-  it("the way back is a 52px primary button", () => {
+  it("the way back is a 48px primary button", () => {
     render(<NotFoundCard backHref="/staff/tasks" backLabel="Go to Home" />)
     const back = screen.getByRole("link", { name: "Go to Home" })
-    expect(back.className).toContain("min-h-13")
+    expect(back.className).toContain("min-h-12")
     // The screen's one blue (accent) button.
     expect(back.className).toContain("bg-accent")
   })
@@ -66,7 +66,7 @@ describe("branded not-found pages", () => {
     })
     expect(cardIn(page)).toMatchObject({
       type: NotFoundCard,
-      props: { backHref: "/staff/tasks", backLabel: "Go to Home" },
+      props: { backHref: "/staff/home", backLabel: "Go to Today" },
     })
   })
 
@@ -77,8 +77,8 @@ describe("branded not-found pages", () => {
     const page = (await TaskNotFound()) as unknown as Element
     const card = cardIn(page)
     expect(card.props).toMatchObject({
-      backHref: "/staff/tasks",
-      backLabel: "Go to Home",
+      backHref: "/staff/home",
+      backLabel: "Go to Today",
     })
     render(
       <NotFoundCard
@@ -87,16 +87,16 @@ describe("branded not-found pages", () => {
     )
     const text = document.body.textContent ?? ""
     expect(text).not.toMatch(/\btasks?\b/i)
-    expect(screen.getByRole("link", { name: "Go to Home" })).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Go to Today" })).toBeTruthy()
   })
 
-  it("a missing admin page keeps the admin navigation and goes back to Content", async () => {
+  it("a missing admin page keeps the admin navigation and goes back to Library", async () => {
     const page = (await AdminNotFound()) as unknown as Element
     expect(page.type).toBe(AppShell)
     expect(page.props).toMatchObject({ variant: "admin", userName: "Ravi" })
     expect(cardIn(page)).toMatchObject({
       type: NotFoundCard,
-      props: { backHref: "/admin", backLabel: "Go to Content" },
+      props: { backHref: "/admin", backLabel: "Go to Library" },
     })
   })
 })

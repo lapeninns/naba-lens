@@ -12,7 +12,7 @@ export default async function AdminNotFound() {
   return (
     <AppShell variant="admin" active="content" userName={admin.displayName}>
       <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
-        <NotFoundCard backHref={ROUTES.adminHome} backLabel="Go to Content" />
+        <NotFoundCard backHref={ROUTES.adminHome} backLabel="Go to Library" />
       </div>
     </AppShell>
   )

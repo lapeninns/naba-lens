@@ -75,6 +75,20 @@ export type QueueItem = {
    * example after a reload): the server may already keep or show labels.
    */
   resumed?: boolean
+  /**
+   * Stable ID of the selection (one `add` call) this file came in, sent with
+   * its reservation so the server tracks the batch (spec §12.2 step 1).
+   */
+  batchId?: string
+  /** The server found it is an exact copy of an earlier file (§12.4). */
+  duplicate?: true
+  /**
+   * Where a failed file stopped (spec §5.6, §10): "transfer" (the bytes did
+   * not all arrive: Retry sends them) or "processing" (the server had the
+   * file and could not finish it: Retry asks it again, without resending
+   * the bytes unless the server removed them). See lib/upload/states.ts.
+   */
+  failedStage?: "transfer" | "processing"
 }
 
 export type UploadContext = {
@@ -96,6 +110,10 @@ export type UploadContext = {
   onReserved?: (assetId: string, resumed?: boolean) => void
   /** The signed-in account, when the owner knows it (scopes resume keys). */
   account?: string
+  /** Stable ID of the selection the file was added in (spec §12.2). */
+  batchId?: string
+  /** The venue the file is for, sent with the reservation (AC11). */
+  venueId?: string
 }
 
 /** Mirrors `media_assets.purpose`. */
@@ -109,11 +127,35 @@ export type UploadPurpose = "general" | "amenity"
 export type Uploader = (
   file: File,
   context: UploadContext
-) => Promise<void | { assetId: string; labels?: FinaliseLabels }>
+) => Promise<void | {
+  assetId: string
+  labels?: FinaliseLabels
+  duplicate?: true
+}>
 
-export type RejectedFile = { name: string; reason: string }
+export type RejectedFile = {
+  name: string
+  reason: string
+  /** The file itself, when the queue refused it (for the owner to keep). */
+  file?: File
+  /**
+   * Refused only because the queue was full (`maxBatchFiles` waiting or in
+   * flight): the same file is taken once there is room.
+   */
+  full?: boolean
+}
 
-export type AddResult = { added: number; rejected: RejectedFile[] }
+export type AddResult = {
+  added: number
+  rejected: RejectedFile[]
+  /** The files taken, in order: each is one new queue item. */
+  addedFiles: File[]
+  /**
+   * The selection they joined (each item's `UploadContext.batchId`). With
+   * the File it names one queue item, even when the same File waits twice.
+   */
+  batchId: string
+}
 
 export type QueueSummary = {
   total: number
@@ -150,6 +192,19 @@ export class SessionExpiredError extends Error {
   constructor(message = SIGNED_OUT_MESSAGE) {
     super(message)
     this.name = "SessionExpiredError"
+  }
+}
+
+/**
+ * Thrown by an uploader before it reserves anything: the file's owner took
+ * it back (Match asks again for a photo whose venue changed before its turn,
+ * AC11). The queue drops the item without a failure, as if it were never
+ * added.
+ */
+export class UploadWithdrawnError extends Error {
+  constructor() {
+    super("withdrawn")
+    this.name = "UploadWithdrawnError"
   }
 }
 
@@ -199,6 +254,34 @@ export function guessMediaKind(file: File): MediaType | null {
   return null
 }
 
+/**
+ * Why the queue would refuse this file on its own (type, size, empty), or
+ * null when it can take it. The batch limit is the queue's, not the file's.
+ */
+export function checkFile(
+  file: File,
+  limits: Pick<UploadLimits, "maxPhotoBytes" | "maxVideoBytes">
+): RejectedFile | null {
+  const kind = guessMediaKind(file)
+  if (!kind)
+    return {
+      name: file.name,
+      reason:
+        "This file type is not supported. Use JPEG, PNG, WebP, HEIC, MP4, MOV or WebM.",
+      file,
+    }
+  const max = kind === "image" ? limits.maxPhotoBytes : limits.maxVideoBytes
+  if (file.size > max)
+    return {
+      name: file.name,
+      reason: `${kind === "image" ? "Photos" : "Videos"} can be up to ${mib(max)}.`,
+      file,
+    }
+  if (file.size === 0)
+    return { name: file.name, reason: "This file is empty.", file }
+  return null
+}
+
 function mib(bytes: number) {
   return `${Math.round(bytes / (1024 * 1024))} MB`
 }
@@ -211,6 +294,15 @@ let idCounter = 0
 function nextId() {
   idCounter += 1
   return `upload-${Date.now().toString(36)}-${idCounter}`
+}
+
+/** A batch ID the server accepts (`^[A-Za-z0-9_-]{8,128}$`). */
+export function newBatchId(): string {
+  const random =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  return `batch-${random}`
 }
 
 function errorMessage(error: unknown): string {
@@ -294,45 +386,37 @@ export class UploadQueue {
     return Math.max(1, this.limits.maxParallelUploads)
   }
 
+  /** Files waiting or in flight: what the batch limit counts. */
+  pending() {
+    return this.items.filter(
+      (i) => i.status === "selected" || ACTIVE.includes(i.status)
+    ).length
+  }
+
   /** Add files to the selection, rejecting unsupported, oversized or excess files. */
   add(files: Iterable<File>): AddResult {
     const rejected: RejectedFile[] = []
     const added: QueueItem[] = []
     // The batch limit counts files that are waiting or in flight, not finished ones.
-    let pending = this.items.filter(
-      (i) => i.status === "selected" || ACTIVE.includes(i.status)
-    ).length
+    let pending = this.pending()
+    const batchId = newBatchId()
 
     for (const file of files) {
-      const kind = guessMediaKind(file)
-      if (!kind) {
-        rejected.push({
-          name: file.name,
-          reason:
-            "This file type is not supported. Use JPEG, PNG, WebP, HEIC, MP4, MOV or WebM.",
-        })
-        continue
-      }
-      const max =
-        kind === "image" ? this.limits.maxPhotoBytes : this.limits.maxVideoBytes
-      if (file.size > max) {
-        rejected.push({
-          name: file.name,
-          reason: `${kind === "image" ? "Photos" : "Videos"} can be up to ${mib(max)}.`,
-        })
-        continue
-      }
-      if (file.size === 0) {
-        rejected.push({ name: file.name, reason: "This file is empty." })
+      const refused = checkFile(file, this.limits)
+      if (refused) {
+        rejected.push(refused)
         continue
       }
       if (pending >= this.limits.maxBatchFiles) {
         rejected.push({
           name: file.name,
           reason: `You can upload up to ${this.limits.maxBatchFiles} files at a time.`,
+          file,
+          full: true,
         })
         continue
       }
+      const kind = guessMediaKind(file)!
       pending += 1
       added.push({
         id: nextId(),
@@ -342,6 +426,7 @@ export class UploadQueue {
         progress: 0,
         error: null,
         attempts: 0,
+        batchId,
       })
     }
 
@@ -349,7 +434,12 @@ export class UploadQueue {
       this.items = [...this.items, ...added]
       this.emit()
     }
-    return { added: added.length, rejected }
+    return {
+      added: added.length,
+      rejected,
+      addedFiles: added.map((i) => i.file),
+      batchId,
+    }
   }
 
   /** Remove an item that is not currently transferring. */
@@ -416,6 +506,7 @@ export class UploadQueue {
       stopped: false,
       retryable: undefined,
       processingAt: undefined,
+      failedStage: undefined,
     })
     this.pump()
   }
@@ -474,6 +565,7 @@ export class UploadQueue {
     const context: UploadContext = {
       signal: controller.signal,
       attempt,
+      batchId: item.batchId,
       resumeToken: this.resumeTokens.get(id),
       setResumeToken: (token) => {
         if (this.runIds.has(id)) this.resumeTokens.set(id, token)
@@ -509,10 +601,20 @@ export class UploadQueue {
         status: "done",
         progress: 1,
         ...(result?.assetId ? { assetId: result.assetId } : {}),
+        ...(result?.duplicate ? { duplicate: true as const } : {}),
         ...(result?.labels ? { labels: result.labels } : {}),
       })
     } catch (error) {
       if (!current()) return
+      if (error instanceof UploadWithdrawnError) {
+        this.controllers.delete(id)
+        this.items = this.items.filter((i) => i.id !== id)
+        this.resumeTokens.delete(id)
+        this.runIds.delete(id)
+        this.emit()
+        this.pump()
+        return
+      }
       if (controller.signal.aborted) {
         this.update(id, { status: "cancelled", error: null })
       } else if (error instanceof SessionExpiredError) {
@@ -532,8 +634,15 @@ export class UploadQueue {
         this.setPause()
         this.update(id, { status: "queued", progress: 0, error: null })
       } else {
+        const code = errorDetail(error)?.code
+        const atProcessing =
+          this.items.find((i) => i.id === id)?.status === "processing" ||
+          code === "processing_failed" ||
+          code === "finalise_failed" ||
+          code === "finalise_refused"
         this.update(id, {
           status: "failed",
+          failedStage: atProcessing ? "processing" : "transfer",
           error: errorMessage(error),
           ...(isRetryable(error) ? {} : { retryable: false }),
           ...(errorDetail(error)?.code === "finalise_refused"

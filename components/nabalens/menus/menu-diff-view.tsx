@@ -15,6 +15,7 @@ import type {
   SourceMetaValue,
   UncertainMatch,
 } from "@/lib/menus/types"
+import { splitChanged } from "@/lib/menus/import"
 import { cn } from "@/lib/utils"
 
 import { StatusChip } from "../status-chip"
@@ -84,6 +85,9 @@ export function MenuDiffView({
       for (const item of s.items) map.set(item.sourceKey, item)
     return map
   }, [document])
+
+  // Spec §8 A3: changed presentations apart from other changes.
+  const split = React.useMemo(() => splitChanged(diff), [diff])
 
   const nothing =
     diff.added.length +
@@ -180,12 +184,29 @@ export function MenuDiffView({
           </DiffGroup>
         ) : null}
 
-        {diff.changed.length > 0 ? (
+        {split.presentation.length > 0 ? (
+          <DiffGroup
+            title="Changed presentation"
+            count={`${plural(split.presentation.length, "item")} · accepted photos go back for a recheck`}
+            defaultOpen
+            rows={split.presentation}
+            more={(n) => `Show ${plural(n, "more changed item")}`}
+            render={(c) => (
+              <ChangedRow
+                key={c.sourceKey}
+                change={c}
+                after={itemsByKey.get(c.sourceKey)}
+              />
+            )}
+          />
+        ) : null}
+
+        {split.other.length > 0 ? (
           <DiffGroup
             title="Changed"
-            count={plural(diff.changed.length, "item")}
+            count={`${plural(split.other.length, "item")} · photos are kept`}
             defaultOpen
-            rows={diff.changed}
+            rows={split.other}
             more={(n) => `Show ${plural(n, "more changed item")}`}
             render={(c) => (
               <ChangedRow
@@ -199,8 +220,8 @@ export function MenuDiffView({
 
         {diff.removed.length > 0 ? (
           <DiffGroup
-            title="Removed"
-            count={`${plural(diff.removed.length, "item")} · labels on them are kept`}
+            title="Proposed retirements"
+            count={`${plural(diff.removed.length, "item")} · confirmed when you activate · labels on them are kept`}
             rows={diff.removed}
             more={(n) => `Show ${plural(n, "more removed item")}`}
             render={(r) => {

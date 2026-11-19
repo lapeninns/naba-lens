@@ -19,9 +19,11 @@ import {
 import { syntheticJpeg } from "./helpers/media"
 import { psql, requireIsolatedStack } from "./helpers/stack"
 import {
+  ADMIN_LANDING,
   escape,
-  openPortfolio,
+  openMyPhotos,
   STAFF_LANDING,
+  STAFF_TABS,
   uploadSheet,
   uploadThroughDialog,
 } from "./helpers/ui"
@@ -32,7 +34,8 @@ import { signedInPage, type Person } from "./helpers/world"
  * §6.6): sign-in lands managers on /manager, wrong-role navigation, Add on
  * every page while the grant is open (B02-c, owner decision Q1/Q4) and none
  * once it ends, Overview counts against the active menu, the review journey
- * (staff upload and label → accept → menu photo → staff Our menu), relink
+ * (staff upload and label → accept → menu photo → the staff Album's Menu),
+ * relink
  * with a reason, ask for another photo, withdraw, the Unlabelled photos
  * filter, venue isolation and a revoked manager. Managers are real venue
  * manager accounts (helpers/manager-world); every decision goes through the
@@ -121,11 +124,16 @@ async function statusFilter(page: Page, name: string) {
   ).toHaveAttribute("aria-pressed", "true")
 }
 
-const staffProgress = (page: Page, covered: number) =>
-  main(page).getByText(
-    `${covered} of ${MENU_SIZE} menu items have an accepted photo.`,
-    { exact: true }
-  )
+/**
+ * The staff Album's Menu part (DESIGN.md §5d): shelves are folders, so the
+ * fixture's Starters shelf (Soup, Salad) is opened with every slot shown.
+ */
+const ALBUM_STARTERS =
+  "/staff/album/menu?kind=food&shelf=food.starters&show=all"
+
+/** A dish's slot tile on the Album's Menu, named "<dish>: <state>". */
+const albumSlot = (page: Page, dish: string) =>
+  main(page).locator(`[data-slot="slot-tile"][aria-label^="${dish}:"]`)
 
 /** Add on the phone tab bar ("Add") or the desktop header ("Add photos"). */
 const addTrigger = (page: Page) =>
@@ -192,11 +200,10 @@ test.describe("venue manager workspace (Phase 2)", () => {
     // A manager account opening staff or admin pages goes to /manager.
     for (const path of [
       "/",
-      "/staff",
-      "/staff/tasks",
-      "/staff/menu",
-      "/staff/manage",
-      "/staff/manage/review",
+      STAFF_TABS.today,
+      STAFF_TABS.album,
+      STAFF_TABS.photos,
+      STAFF_TABS.me,
       "/admin",
       "/admin/staff",
       `/admin/coverage/${w.venueA.id}/menu-photos`,
@@ -213,7 +220,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     }
     const admin = await signedInPage(browser, w.admin, view(info))
     await admin.goto("/manager")
-    await expect(admin).toHaveURL(/\/admin$/)
+    await expect(admin).toHaveURL(ADMIN_LANDING)
     note("roles", "manager (link, code), staff, admin")
   })
 
@@ -260,9 +267,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
         main(mgr).getByRole("link", { name, exact: true })
       ).toBeVisible()
     await expect(
-      main(mgr)
-        .getByRole("button", { name: "Take a photo of this dish" })
-        .first()
+      main(mgr).getByRole("button", { name: "Add photos of this dish" }).first()
     ).toBeVisible()
 
     for (const path of [
@@ -285,7 +290,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     note("overview", `0 of ${eligible} items covered; 2 photos waiting`)
   })
 
-  test("journey: staff upload and label → manager accepts → sets the menu photo → staff Our menu updates", async ({
+  test("journey: staff upload and label → manager accepts → sets the menu photo → the staff Album's Menu updates", async ({
     browser,
   }, info) => {
     const w = await provisionManagerWorld()
@@ -294,7 +299,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     // label field sits in the sheet and is sent by asset id (no Save button);
     // the row says "Saved" with the dish once the labels are on the photo.
     const staff = await signedInPage(browser, w.staffA1, view(info))
-    await openPortfolio(staff)
+    await openMyPhotos(staff)
     const photo = await syntheticJpeg(`mgr-journey-${w.tag}.jpg`)
     await uploadThroughDialog(staff, [photo], { close: false })
     const upload = uploadSheet(staff)
@@ -322,8 +327,11 @@ test.describe("venue manager workspace (Phase 2)", () => {
       `select id from public.media_assets where uploader_id = '${w.staffA1.id}'::uuid and original_filename = '${photo.name}'`
     )
     expect(first).toMatch(/^[0-9a-f-]{36}$/)
-    await staff.goto("/staff/menu")
-    await expect(staffProgress(staff, 0)).toBeVisible()
+    await staff.goto(ALBUM_STARTERS)
+    await expect(albumSlot(staff, "Soup")).toHaveAttribute(
+      "aria-label",
+      "Soup: waiting for review"
+    )
 
     // Staff 2's photo of Soup (fixture, labelled by its uploader).
     const second = await labelledPhoto(w.staffA2, w.venueA, [w.itemsA.soup], {
@@ -340,21 +348,30 @@ test.describe("venue manager workspace (Phase 2)", () => {
     ).toBeVisible()
     await evidence(mgr, "overview-before")
 
+    // Review opens one photo at a time (DESIGN.md §6.5): its large preview
+    // loads through the private preview route. The per-item decisions below
+    // are on the full list it links to.
+    const preview = mgr.waitForResponse(
+      (r) =>
+        /\/api\/menu-photos\/[0-9a-f-]{36}\/preview/.test(r.url()) &&
+        [first, second].some((id) => r.url().includes(id)) &&
+        r.request().method() === "GET"
+    )
     await navLink(mgr, /^Review/).click()
     await expect(mgr).toHaveURL(/\/manager\/review$/)
+    await expect(main(mgr).getByRole("region", { name: "Soup" })).toBeVisible()
+    expect([200, 302]).toContain((await preview).status())
+    await main(mgr)
+      .getByRole("link", { name: "See every photo as a list" })
+      .click()
+    await expect(mgr).toHaveURL(/\/manager\/review\?view=list$/)
     const one = card(mgr, "Labelled: Soup", w.staffA1)
     await expect(one).toBeVisible()
 
-    // The large preview loads through the private preview route.
-    const preview = mgr.waitForResponse(
-      (r) =>
-        r.url().includes(`/api/menu-photos/${first}/preview`) &&
-        r.request().method() === "GET"
-    )
+    // The list's large preview opens and its image loads.
     await one
       .getByRole("button", { name: `Open the photo by ${w.staffA1.name}` })
       .click()
-    expect([200, 302]).toContain((await preview).status())
     const dialog = mgr.getByRole("dialog")
     await expect
       .poll(() =>
@@ -369,19 +386,19 @@ test.describe("venue manager workspace (Phase 2)", () => {
     await mgr.keyboard.press("Escape")
     await expect(dialog).toBeHidden()
 
-    await one.getByRole("button", { name: "Accept for this item" }).click()
+    await one.getByRole("button", { name: "Approve for public use" }).click()
     await expect(
-      mgr.getByText("Accepted for Soup. Soup now has a photo.")
+      mgr.getByText("Approved for Soup. Soup now has a photo.")
     ).toBeVisible()
     expect(photoRow(first)).toBe(`${w.itemsA.soup}:accepted:staff_label`)
 
     // The second photo: accept it and make it the menu photo.
     const two = card(mgr, "Labelled: Soup", w.staffA2)
     await two
-      .getByRole("button", { name: "Accept and set as menu photo" })
+      .getByRole("button", { name: "Approve and set as menu photo" })
       .click()
     await expect(
-      mgr.getByText("Accepted for Soup. Set as the menu photo for Soup.")
+      mgr.getByText("Approved for Soup. Set as the menu photo for Soup.")
     ).toBeVisible()
     expect(preferredAsset(w.itemsA.soup)).toBe(second)
 
@@ -416,6 +433,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     await expect(
       main(mgr).getByText("0 photos waiting for a decision")
     ).toBeVisible()
+    // Said once, in Review next; the quiet card leads with the gap (S3-R5).
     await expect(
       main(mgr).getByText("Nothing waiting for review")
     ).toBeVisible()
@@ -428,18 +446,21 @@ test.describe("venue manager workspace (Phase 2)", () => {
       })
     await expect(soupRow).toContainText("Has a photo")
 
-    // Staff Our menu: 1 of 4, Soup has an accepted photo with its thumbnail.
-    await staff.goto("/staff/menu")
-    await expect(staffProgress(staff, 1)).toBeVisible()
-    const soup = main(staff).getByRole("article", { name: "Soup" })
-    await expect(soup.getByText("Has an accepted photo")).toBeVisible()
+    // The staff Album's Menu: Soup is in the album, with its menu photo.
+    await staff.goto(ALBUM_STARTERS)
+    const soup = albumSlot(staff, "Soup")
+    await expect(soup).toHaveAttribute("aria-label", "Soup: in the album")
     await expect(soup.locator("img").first()).toHaveAttribute(
       "src",
-      new RegExp(`/api/menu-photos/${escape(first)}/thumb`)
+      new RegExp(escape(first))
     )
-    await evidence(staff, "staff-our-menu-after")
+    await expect(albumSlot(staff, "Salad")).toHaveAttribute(
+      "aria-label",
+      "Salad: needed"
+    )
+    await evidence(staff, "staff-album-menu-after")
     note("totals", `before: ${before}; after: ${after}`)
-    note("staff", `Our menu before 0 of ${MENU_SIZE}, after 1 of ${MENU_SIZE}`)
+    note("staff", "Album Menu: Soup waiting for review, then in the album")
   })
 
   test("relink with a reason, ask for another photo, withdraw", async ({
@@ -451,7 +472,8 @@ test.describe("venue manager workspace (Phase 2)", () => {
       colour: "#7a4bc9",
     })
     const mgr = await signedInPage(browser, w.mgrA, view(info))
-    await mgr.goto("/manager/review")
+    // The full list (Review itself shows one photo at a time, DESIGN.md §6.5).
+    await mgr.goto("/manager/review?view=list")
 
     // Relink: the staff label is wrong; a reason is required.
     await card(mgr, "Labelled: Salad", w.staffA1)
@@ -462,7 +484,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     })
     await picker.getByRole("searchbox", { name: "Search the menu" }).fill("lag")
     await picker.getByRole("radio", { name: /^Lager/ }).check()
-    await picker.getByRole("button", { name: "Accept for Lager" }).click()
+    await picker.getByRole("button", { name: "Approve for Lager" }).click()
     await expect(picker).toBeVisible()
     await expect(
       picker.getByText("Say why the staff label is wrong.")
@@ -471,7 +493,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     await picker
       .getByRole("textbox", { name: /Why is the staff label wrong\?/ })
       .fill(`It's a pint of lager, not a salad (${w.tag})`)
-    await picker.getByRole("button", { name: "Accept for Lager" }).click()
+    await picker.getByRole("button", { name: "Approve for Lager" }).click()
     await expect(picker).toBeHidden()
     await expect(mgr.getByText("Moved to Lager and accepted.")).toBeVisible()
     expect(photoRow(wrong)).toBe(
@@ -484,7 +506,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     await expect(moved).toContainText("Matched by a reviewer")
 
     // Ask for another photo: a reason is required, then staff see it.
-    await statusFilter(mgr, "Waiting")
+    await statusFilter(mgr, "Awaiting review")
     await card(mgr, "Labelled: Pie", w.staffA2)
       .getByRole("button", { name: "Ask for another photo" })
       .click()
@@ -509,9 +531,12 @@ test.describe("venue manager workspace (Phase 2)", () => {
       `${w.itemsA.pie}:better_photo_requested:staff_label`
     )
     const staff2 = await signedInPage(browser, w.staffA2, view(info))
-    await staff2.goto("/staff")
+    // Today's retake row names the dish and the reason (DESIGN.md §5c).
+    await staff2.goto(STAFF_TABS.today)
     await expect(
-      main(staff2).getByText("Needs another photo").first()
+      main(staff2).getByRole("button", {
+        name: new RegExp(escape(`Pie: ${askReason}`)),
+      })
     ).toBeVisible()
 
     // Withdraw the relinked acceptance with a reason: Lager needs a photo again.
@@ -553,7 +578,8 @@ test.describe("venue manager workspace (Phase 2)", () => {
       colour: "#3d9c5a",
     })
     const mgr = await signedInPage(browser, w.mgrA, view(info))
-    await mgr.goto("/manager/review")
+    // The full list (Review itself shows one photo at a time, DESIGN.md §6.5).
+    await mgr.goto("/manager/review?view=list")
     await statusFilter(mgr, "Unlabelled photos")
     await expect(mgr).toHaveURL(/status=unlabelled/)
     const list = mgr.getByRole("list", { name: "Photos to review" })
@@ -567,7 +593,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     const picker = mgr.getByRole("dialog", { name: "Choose a menu item" })
     await picker.getByRole("searchbox", { name: "Search the menu" }).fill("pie")
     await picker.getByRole("radio", { name: /^Pie/ }).check()
-    await picker.getByRole("button", { name: "Accept for Pie" }).click()
+    await picker.getByRole("button", { name: "Approve for Pie" }).click()
     await expect(picker).toBeHidden()
     await expect(mgr.getByText("Moved to Pie and accepted.")).toBeVisible()
     expect(photoRow(dish)).toBe(`${w.itemsA.pie}:accepted:reviewer`)
@@ -652,7 +678,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     })
     expect(after.status()).toBe(404)
     // Still a manager account: staff pages stay closed to it.
-    await mgrA.goto("/staff/tasks")
-    await expect(mgrA).not.toHaveURL(STAFF_LANDING)
+    await mgrA.goto(STAFF_TABS.today)
+    await expect(mgrA).toHaveURL(OVERVIEW)
   })
 })

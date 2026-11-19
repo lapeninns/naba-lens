@@ -1,8 +1,12 @@
 import {
   ArrowUUpLeftIcon,
   ArrowUpIcon,
+  CameraIcon,
   CheckIcon,
+  CircleIcon,
   ClockIcon,
+  DownloadSimpleIcon,
+  GlobeIcon,
   EnvelopeSimpleIcon,
   FileTextIcon,
   ForkKnifeIcon,
@@ -16,6 +20,7 @@ import {
   UserIcon,
   UsersIcon,
   WarningCircleIcon,
+  WarningIcon,
   WrenchIcon,
   XIcon,
 } from "@phosphor-icons/react/dist/ssr"
@@ -25,50 +30,69 @@ import { cn } from "@/lib/utils"
 
 /**
  * The chip's tone: the meaning in colour, which only repeats the word.
- * Common Room draws each state in its own shape too (see CHIP_SHAPES): a
- * state never depends on telling green from red.
+ * v2 draws five tones (docs/design-system/v2/GUIDELINES.md "Status
+ * language"); these six names map onto them in V2_TONE.
  */
 export type ChipTone =
   "neutral" | "positive" | "attention" | "negative" | "pending" | "closed"
 
 /**
- * Common Room state shapes (DESIGN.md §3). pill = round, square = 4px,
- * stamp = 2px with a double border. Reserved: the filled ok square
- * (`accepted`) is Accepted's alone; the round info outline (`ready`) is
- * Ready's alone; the stamp (`complete`) is Complete's alone; the dashed
- * hatched square (`setup`) is Needs setup's and Needs verification's alone.
+ * v2's five chip looks (StatusChip, `nl-chip--*`): neutral ink on
+ * surface-sunken, progress sky, positive bottle, attention brass-ink on
+ * brass-soft, and problem, the only solid chip, on-signal on signal.
+ */
+const V2_LOOK = {
+  neutral: "bg-surface-2 text-ink",
+  progress: "bg-info-bg text-info-fg",
+  positive: "bg-ok-bg text-ok-fg",
+  attention: "bg-warn-bg text-warn-fg",
+  problem: "bg-signal text-on-signal",
+} as const
+
+export type V2Tone = keyof typeof V2_LOOK
+
+/** The v2 tone each chip tone is drawn in. */
+export const V2_TONE: Record<ChipTone, V2Tone> = {
+  neutral: "neutral",
+  closed: "neutral",
+  pending: "progress",
+  positive: "positive",
+  attention: "attention",
+  negative: "problem",
+}
+
+/**
+ * The shape names states carry (and show as `data-shape`). Since D10 every
+ * one is v2's pill in one of its five tones; the names stay so the states
+ * table and the callers that pick a shape keep working. The upload shapes
+ * are the exception v2 also makes: an upload's state is words beside the
+ * file in its tone colour, with no box (UploadRow `nl-file__state`).
  */
 export const CHIP_SHAPES = {
-  ready: "rounded-round border-info-fg text-info-fg",
-  submitted: "rounded-round border-edge-strong text-ink",
-  accepted: "rounded-square border-ok-bg bg-ok-bg text-ok-fg",
-  needs: "rounded-round border-warn-fg bg-warn-bg text-warn-fg",
-  closed: "rounded-square border-line bg-surface-2 text-ink-muted",
-  overdue: "rounded-square border-warn-fg text-warn-fg",
-  complete:
-    "rounded-stamp border-4 border-double border-stamp-fg py-px type-stamp text-stamp-fg",
-  setup:
-    "rounded-square border-2 border-dashed border-ink-muted bg-hatch text-ink",
-  na: "rounded-square border-2 border-dotted border-ink-muted text-ink-muted",
-  progress: "rounded-round border-line bg-surface-2 text-ink",
-  met: "rounded-square border-ok-fg text-ok-fg",
-  self: "rounded-square border-info-fg bg-info-bg text-info-fg",
-  present: "rounded-square border-ok-fg text-ok-fg",
-  waiting: "rounded-round border-dashed border-edge-strong text-ink",
-  neutralSquare: "rounded-square border-edge-strong text-ink",
-  menuActive: "rounded-square border-edge-strong bg-surface-2 text-ink",
-  changed:
-    "rounded-square border-edge-strong border-l-[5px] border-l-warn-fg text-ink",
-  plain: "rounded-round border-transparent bg-surface-2 text-ink",
-  /** Problem with a fill (tone-only negative): square, warn tint and edge. */
-  warnSquare: "rounded-square border-warn-fg bg-warn-bg text-warn-fg",
-  /** Upload pipeline: words in mono beside the file, no box. */
-  upload:
-    "rounded-none border-transparent px-0 font-mono font-semibold text-ink",
-  uploadMuted:
-    "rounded-none border-transparent px-0 font-mono font-semibold text-ink-muted",
-  uploadFailed:
-    "rounded-none border-transparent px-0 font-mono font-semibold text-warn-fg",
+  ready: V2_LOOK.progress,
+  submitted: V2_LOOK.progress,
+  accepted: V2_LOOK.positive,
+  needs: V2_LOOK.attention,
+  closed: V2_LOOK.neutral,
+  overdue: V2_LOOK.attention,
+  complete: V2_LOOK.positive,
+  setup: V2_LOOK.attention,
+  na: V2_LOOK.neutral,
+  progress: V2_LOOK.neutral,
+  met: V2_LOOK.positive,
+  self: V2_LOOK.attention,
+  present: V2_LOOK.positive,
+  waiting: V2_LOOK.progress,
+  neutralSquare: V2_LOOK.neutral,
+  menuActive: V2_LOOK.positive,
+  changed: V2_LOOK.attention,
+  plain: V2_LOOK.neutral,
+  /** Problem: the solid signal chip. */
+  warnSquare: V2_LOOK.problem,
+  /** Upload pipeline: words beside the file, no box. */
+  upload: "rounded-none bg-transparent px-0 text-label text-info-fg",
+  uploadMuted: "rounded-none bg-transparent px-0 text-label text-ink-muted",
+  uploadFailed: "rounded-none bg-transparent px-0 text-label text-signal",
 } as const
 
 export type ChipShape = keyof typeof CHIP_SHAPES
@@ -94,6 +118,10 @@ type ChipState = {
 /**
  * The fixed words from the system's States and words table, keyed by the
  * service's state names. Never add a synonym (Approved, Rejected, Done…).
+ * The one "Approved" is FA-7's manager and admin name for a public
+ * acceptance (`review_public`); staff see `outcome_public` instead.
+ * Every other file reads its state words from here (CHIP_STATES or
+ * chipState), never restates them.
  */
 export const CHIP_STATES = {
   // A file uploading (technical only, never an approval)
@@ -119,7 +147,7 @@ export const CHIP_STATES = {
   failed: {
     word: "Failed",
     tone: "negative",
-    icon: WarningCircleIcon,
+    icon: WarningIcon,
     shape: "uploadFailed",
   },
   cancelled: {
@@ -144,7 +172,7 @@ export const CHIP_STATES = {
   needs_another_photo: {
     word: "Needs another photo",
     tone: "attention",
-    icon: ArrowUUpLeftIcon,
+    icon: CameraIcon,
     shape: "needs",
   },
   closed: {
@@ -204,6 +232,33 @@ export const CHIP_STATES = {
   },
   read_only: {
     word: "Read-only",
+    tone: "closed",
+    icon: LockSimpleIcon,
+    shape: "closed",
+  },
+  // A venue's setup checklist item (S2-ADMIN, spec §8 A2): needs_setup or
+  // this.
+  setup_in_place: {
+    word: "In place",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "met",
+  },
+  // A venue's operating status (S2-ADMIN, spec §8 A2; FA-33)
+  venue_open: {
+    word: "Open",
+    tone: "neutral",
+    icon: CheckIcon,
+    shape: "neutralSquare",
+  },
+  venue_temporarily_closed: {
+    word: "Temporarily closed",
+    tone: "attention",
+    icon: ClockIcon,
+    shape: "overdue",
+  },
+  venue_archived: {
+    word: "Closed and archived",
     tone: "closed",
     icon: LockSimpleIcon,
     shape: "closed",
@@ -385,6 +440,292 @@ export const CHIP_STATES = {
     icon: MinusIcon,
     shape: "na",
   },
+  // S1-EXPORT (spec §10 publication states, §8 A5). Admin and manager
+  // screens only (FA-7): staff never see these words. Exported is never
+  // Published (§10 inv. 9).
+  publication_not_selected: {
+    word: "Not exported",
+    tone: "neutral",
+    shape: "plain",
+  },
+  publication_exported: {
+    word: "Exported",
+    tone: "neutral",
+    icon: DownloadSimpleIcon,
+    shape: "neutralSquare",
+  },
+  publication_queued: {
+    word: "Queued",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "waiting",
+  },
+  publication_published_confirmed: {
+    word: "Published",
+    tone: "positive",
+    icon: GlobeIcon,
+    shape: "present",
+  },
+  publication_update_pending: {
+    word: "Update pending",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "waiting",
+  },
+  publication_withdrawal_pending: {
+    word: "Withdrawal pending",
+    tone: "attention",
+    icon: ArrowUUpLeftIcon,
+    shape: "needs",
+  },
+  // One Withdrawn, one icon: the same X as outcome_withdrawn (S4-DOCS).
+  publication_withdrawn_confirmed: {
+    word: "Withdrawn",
+    tone: "closed",
+    icon: XIcon,
+    shape: "closed",
+  },
+  publication_failed_unknown: {
+    word: "Failed or unknown",
+    tone: "negative",
+    icon: WarningCircleIcon,
+    shape: "warnSquare",
+  },
+  // An export package
+  package_ready: {
+    word: "Ready to download",
+    tone: "neutral",
+    icon: DownloadSimpleIcon,
+    shape: "neutralSquare",
+  },
+  package_exported: {
+    word: "Exported",
+    tone: "neutral",
+    icon: DownloadSimpleIcon,
+    shape: "neutralSquare",
+  },
+  package_needs_rebuild: {
+    word: "Needs rebuilding",
+    tone: "attention",
+    icon: WarningCircleIcon,
+    shape: "needs",
+  },
+  package_invalidated: {
+    word: "Can't be downloaded",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  // S3-R14 (X10): why one photo in a package is no longer eligible, since
+  // the package was made (export_package_detail staleReason). Withdrawn is
+  // kept for a real withdrawal; a review or coverage change says so.
+  package_item_withdrawn: {
+    word: "Withdrawn since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_deleted: {
+    word: "Deleted since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_off_menu: {
+    word: "Off the menu since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_subject_retired: {
+    word: "Retired since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_label_changed: {
+    word: "Label changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_check_due: {
+    word: "Check due since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_fact_changed: {
+    word: "Answer changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_review_changed: {
+    word: "Review changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  package_item_changed: {
+    word: "Changed since",
+    tone: "negative",
+    icon: XIcon,
+    shape: "warnSquare",
+  },
+  // S2-METRICS (spec §18.1): a slot's state in a manager or admin report,
+  // from the one coverage rule (public.coverage_slots). Only "Covered"
+  // counts in the numerator; Not here and No photo needed leave the total.
+  coverage_covered: {
+    word: "Covered",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "present",
+  },
+  coverage_check_due: {
+    word: "Check due",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "changed",
+  },
+  coverage_pending: {
+    word: "Awaiting review",
+    tone: "pending",
+    icon: ArrowUpIcon,
+    shape: "waiting",
+  },
+  coverage_replacement_needed: {
+    word: "Another photo requested",
+    tone: "attention",
+    icon: CameraIcon,
+    shape: "needs",
+  },
+  coverage_missing: {
+    word: "Missing",
+    tone: "neutral",
+    icon: MinusIcon,
+    shape: "neutralSquare",
+  },
+  coverage_not_here: {
+    word: "Not here",
+    tone: "closed",
+    shape: "na",
+  },
+  coverage_inactive: {
+    word: "No photo needed",
+    tone: "closed",
+    icon: MinusCircleIcon,
+    shape: "closed",
+  },
+  // S2-STAFF, My uploads (spec §6 S4; FA-7): what happened to a person's
+  // own photo, in staff words. Managers see the spec's action names.
+  outcome_waiting: {
+    word: "Waiting",
+    tone: "pending",
+    icon: ArrowUpIcon,
+    shape: "waiting",
+  },
+  outcome_public: {
+    word: "In the album",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "accepted",
+  },
+  outcome_reference: {
+    word: "Kept for reference",
+    tone: "closed",
+    icon: FileTextIcon,
+    shape: "closed",
+  },
+  outcome_retake: {
+    word: "Retake",
+    tone: "attention",
+    icon: CameraIcon,
+    shape: "needs",
+  },
+  outcome_label_corrected: {
+    word: "Label corrected",
+    tone: "neutral",
+    icon: PencilSimpleIcon,
+    shape: "plain",
+  },
+  outcome_not_used: {
+    word: "Not used",
+    tone: "closed",
+    icon: MinusCircleIcon,
+    shape: "closed",
+  },
+  outcome_withdrawn: {
+    word: "Withdrawn",
+    tone: "closed",
+    icon: XIcon,
+    shape: "closed",
+  },
+  // S3-R14: a photo's review in the admin Library (FA-7: managers and
+  // admins see the spec's names). Waiting, another photo and withdrawn use
+  // waiting_for_review, coverage_replacement_needed and outcome_withdrawn.
+  review_public: {
+    word: "Approved for public use",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "present",
+  },
+  review_reference: {
+    word: "Kept as reference",
+    tone: "closed",
+    icon: FileTextIcon,
+    shape: "closed",
+  },
+  review_unreviewed: {
+    word: "Not reviewed yet",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "waiting",
+  },
+  review_not_used: {
+    word: "Not used",
+    tone: "closed",
+    icon: MinusCircleIcon,
+    shape: "closed",
+  },
+  internal_only: {
+    word: "Internal only",
+    tone: "closed",
+    icon: LockSimpleIcon,
+    shape: "closed",
+  },
+  // S2-REQ: a request's state (spec §7 M4). Manager and admin screens only;
+  // staff see the slot itself, never these words.
+  request_open: {
+    word: "Open",
+    tone: "neutral",
+    icon: TargetIcon,
+    shape: "neutralSquare",
+  },
+  request_submitted: {
+    word: "Submitted",
+    tone: "pending",
+    icon: ArrowUpIcon,
+    shape: "submitted",
+  },
+  request_completed: {
+    word: "Completed",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "met",
+  },
+  request_blocked: {
+    word: "Blocked",
+    tone: "attention",
+    icon: WarningCircleIcon,
+    shape: "needs",
+  },
+  request_cancelled: {
+    word: "Cancelled",
+    tone: "closed",
+    icon: XIcon,
+    shape: "closed",
+  },
 } as const satisfies Record<string, ChipState>
 
 export type ChipStateKey = keyof typeof CHIP_STATES
@@ -401,17 +742,39 @@ export function chipState(key: string): ChipState {
     : { word: humanise(key), tone: "neutral" }
 }
 
-// Common Room chip: 32px, 17px bold, icon + word. A long word ("Ended:
-// moved to another venue") wraps inside the chip rather than pushing a 320px
-// or zoomed page sideways. The shape class (CHIP_SHAPES) sets radius, edge,
-// fill and colour.
+// v2 chip (`nl-chip`): a 28px pill, caption type at 600, a 16px icon and the
+// word. A long word ("Ended: moved to another venue") wraps inside the chip
+// rather than pushing a 320px or zoomed page sideways. The shape class
+// (CHIP_SHAPES) sets the tone's fill and colour. The transparent border
+// draws nothing until forced colours drop the fill, when it is the chip's
+// edge.
 export const chipClassName =
-  "inline-flex max-w-full min-h-8 items-center gap-1.5 border-[1.5px] border-transparent bg-transparent py-0.5 pr-3 pl-2 text-left text-chip align-middle whitespace-normal [overflow-wrap:anywhere] [&_svg]:size-[18px] [&_svg]:shrink-0"
+  "inline-flex max-w-full min-h-7 items-center gap-1 rounded-round border border-transparent py-0.5 pr-2.5 pl-2 text-left text-chip align-middle whitespace-normal [overflow-wrap:anywhere] [&_svg]:size-4 [&_svg]:shrink-0"
+
+/**
+ * v2: every chip has an icon. A state without its own icon, or a chip
+ * redrawn in another tone, takes its tone's: a plain circle (nothing yet),
+ * the clock (waiting), the check (done), the exclamation (a person needs
+ * to act) or the triangle (a problem).
+ */
+const TONE_ICON: Record<V2Tone, Icon> = {
+  neutral: CircleIcon,
+  progress: ClockIcon,
+  positive: CheckIcon,
+  attention: WarningCircleIcon,
+  problem: WarningIcon,
+}
+
+const BOXLESS: ReadonlySet<ChipShape> = new Set([
+  "upload",
+  "uploadMuted",
+  "uploadFailed",
+])
 
 type StatusChipProps = {
   className?: string
   title?: string
-  /** Override the drawn shape (keep it to the reserved rules in §3). */
+  /** Override the drawn shape: one of the names in CHIP_SHAPES. */
   shape?: ChipShape
 } & (
   | {
@@ -437,12 +800,19 @@ export function StatusChip(props: StatusChipProps) {
     (props.tone && known && props.tone !== known.tone
       ? TONE_SHAPE[props.tone]
       : (known?.shape ?? TONE_SHAPE[tone]))
-  // The state's icon belongs to its own shape; a redrawn chip goes without.
-  const Icon = known && shape === known.shape ? known.icon : undefined
+  // The state's icon belongs to its own shape; a redrawn chip, or a state
+  // with none, takes its tone's. The box-less upload words keep their own.
+  const Icon =
+    known && shape === known.shape && known.icon
+      ? known.icon
+      : BOXLESS.has(shape)
+        ? undefined
+        : TONE_ICON[V2_TONE[tone]]
   return (
     <span
       data-slot="status-chip"
       data-tone={tone}
+      data-v2-tone={V2_TONE[tone]}
       data-shape={shape}
       data-state={props.state}
       title={props.title}
@@ -482,7 +852,7 @@ export function CountBadge({
       data-slot="count"
       data-tone={tone}
       className={cn(
-        "inline-grid h-[26px] min-w-[26px] place-items-center rounded-round px-[7px] font-mono text-mono leading-none font-bold tabular-nums",
+        "inline-grid h-[26px] min-w-[26px] place-items-center rounded-round px-[7px] font-mono text-mono leading-none font-semibold tabular-nums",
         tone === "warn" ? "bg-warn-fg text-surface" : "bg-ink text-surface",
         className
       )}

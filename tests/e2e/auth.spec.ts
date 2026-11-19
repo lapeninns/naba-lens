@@ -7,7 +7,8 @@ import {
   testEmail,
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { ADMIN_LANDING, STAFF_LANDING, STAFF_TABS } from "./helpers/ui"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 /** Polls the local Mailpit inbox for the newest sign-in link sent to `email`. */
 async function latestSignInLink(email: string): Promise<string> {
@@ -56,8 +57,8 @@ test.describe("authentication and role routing", () => {
   const admin = serviceClient()
 
   test("signed-out visitors are sent to /login", async ({ page }) => {
-    await page.goto("/staff")
-    await expect(page).toHaveURL(/\/login\?next=%2Fstaff$/)
+    await page.goto(STAFF_TABS.today)
+    await expect(page).toHaveURL(/\/login\?next=%2Fstaff%2Fhome$/)
     await page.goto("/admin")
     await expect(page).toHaveURL(/\/login\?next=%2Fadmin$/)
   })
@@ -74,7 +75,7 @@ test.describe("authentication and role routing", () => {
     expect(data.users.some((u) => u.email === email)).toBe(false)
   })
 
-  test("invited staff signs in by magic link and lands on Home", async ({
+  test("invited staff signs in by magic link and lands on Today", async ({
     page,
     baseURL,
   }) => {
@@ -89,7 +90,8 @@ test.describe("authentication and role routing", () => {
     await requestLink(page, staff.email)
     await openLink(page, await latestSignInLink(staff.email), baseURL!)
     await expect(page).toHaveURL(STAFF_LANDING)
-    await openPortfolio(page)
+    // Settings carries the person's profile (DESIGN.md §5b).
+    await page.goto("/staff/me/settings")
     await expect(
       page.getByRole("heading", { name: "TEST e2e-staff" })
     ).toBeVisible()
@@ -98,16 +100,20 @@ test.describe("authentication and role routing", () => {
     await page.goto("/admin")
     await expect(page).toHaveURL(STAFF_LANDING)
 
-    // Log out is in the AppBar from md and on Me on phones.
-    await openPortfolio(page)
-    await page.getByRole("button", { name: "Log out" }).click()
+    // Log out is in the AppBar from md and on Settings on phones (§5b).
+    await page.goto("/staff/me/settings")
+    await page
+      .getByRole("button", { name: "Log out" })
+      .filter({ visible: true })
+      .first()
+      .click()
     await expect(page).toHaveURL(/\/login\?signed_out=1$/)
     await expect(page.getByText("You have signed out.")).toBeVisible()
-    await page.goto("/staff")
-    await expect(page).toHaveURL(/\/login\?next=%2Fstaff$/)
+    await page.goto(STAFF_TABS.today)
+    await expect(page).toHaveURL(/\/login\?next=%2Fstaff%2Fhome$/)
   })
 
-  test("an admin lands on /admin", async ({ page, baseURL }) => {
+  test("an admin lands on Overview", async ({ page, baseURL }) => {
     const adminUser = await createIdentity(admin, {
       label: "e2e-admin",
       role: "admin",
@@ -115,7 +121,12 @@ test.describe("authentication and role routing", () => {
     })
     await requestLink(page, adminUser.email)
     await openLink(page, await latestSignInLink(adminUser.email), baseURL!)
-    await expect(page).toHaveURL(/\/admin$/)
+    // FA-23: an admin sets up the second step before the admin area opens.
+    await expect(page).toHaveURL(/\/auth\/mfa$/)
+    await page.goto("/admin")
+    await expect(page).toHaveURL(/\/auth\/mfa$/)
+    await passMfaIfAsked(page, adminUser.email)
+    await expect(page).toHaveURL(ADMIN_LANDING)
   })
 
   test("a reused or invalid link offers recovery", async ({
@@ -162,7 +173,7 @@ test.describe("authentication and role routing", () => {
     await expect(page).toHaveURL(STAFF_LANDING)
 
     await admin.from("profiles").update({ active: false }).eq("id", staff.id)
-    await page.goto("/staff")
+    await page.goto(STAFF_TABS.today)
     await expect(page).toHaveURL(/\/auth\/blocked$/)
     await expect(
       page.getByRole("heading", { name: "Account unavailable" })

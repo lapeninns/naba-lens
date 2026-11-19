@@ -11,6 +11,7 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 // Privacy audit R3: a signed-in account that may not see a page must get a
 // server redirect (307) before anything renders, not 200 plus a client-side
@@ -31,6 +32,8 @@ async function signedIn(browser: Browser, identity: TestIdentity) {
   )
   await page.getByRole("button", { name: "Continue" }).click()
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/confirm"))
+  // FA-23: an admin's session counts only after the second step.
+  await passMfaIfAsked(page, identity.email)
   return context
 }
 
@@ -43,7 +46,9 @@ const APP_MARKUP = [
   'href="/admin/staff"',
   ">Content<",
   'data-slot="skeleton"',
-  "Upload photos or videos",
+  "Add photos or videos",
+  // My photos' way to the older Add sheet (R15-1).
+  "Add a video",
 ]
 /** Other people's details, filled in once the identities exist. */
 const PEOPLE: string[] = []
@@ -109,7 +114,7 @@ test.describe("server-side role guards", () => {
     PEOPLE.push("TEST e2e-guard-other", "TEST e2e-guard-admin")
   })
 
-  test("staff get a 307 to Home from every admin page, with no admin markup", async ({
+  test("staff get a 307 to Today from every admin page, with no admin markup", async ({
     browser,
   }) => {
     const context = await signedIn(browser, staff)
@@ -120,17 +125,20 @@ test.describe("server-side role guards", () => {
       `/admin/staff/${other.id}`,
       `/admin/staff/${adminUser.id}`,
     ]) {
-      await expectRedirect(context.request, path, "/staff/tasks")
+      await expectRedirect(context.request, path, "/staff/home")
     }
     // Control: their own page renders.
-    const own = await context.request.get("/staff", { maxRedirects: 0 })
+    const own = await context.request.get("/staff/home", { maxRedirects: 0 })
     expect(own.status()).toBe(200)
     await context.close()
   })
 
-  test("admins get a 307 to /admin from /staff", async ({ browser }) => {
+  // K7: an admin's landing is Overview (/admin stays the Library).
+  test("admins get a 307 to /admin/overview from /staff/home", async ({
+    browser,
+  }) => {
     const context = await signedIn(browser, adminUser)
-    await expectRedirect(context.request, "/staff", "/admin")
+    await expectRedirect(context.request, "/staff/home", "/admin/overview")
     const own = await context.request.get("/admin/staff", { maxRedirects: 0 })
     expect(own.status()).toBe(200)
     await context.close()
@@ -147,7 +155,7 @@ test.describe("server-side role guards", () => {
       .eq("id", former.id)
     expect(error).toBeNull()
     for (const context of [noProfile, deactivated]) {
-      for (const path of ["/staff", "/admin", "/admin/staff"]) {
+      for (const path of ["/staff/home", "/admin", "/admin/staff"]) {
         await expectRedirect(context.request, path, "/auth/blocked")
       }
       await context.close()
@@ -156,8 +164,30 @@ test.describe("server-side role guards", () => {
 
   test("signed-out requests get a 307 to /login", async ({ browser }) => {
     const context = await browser.newContext()
-    for (const path of ["/staff", "/admin", "/admin/staff"]) {
+    for (const path of ["/staff/home", "/admin", "/admin/staff"]) {
       await expectRedirect(context.request, path, "/login")
+    }
+    await context.close()
+  })
+
+  // The retired staff URLs keep working as permanent redirects to where the
+  // screen moved (DESIGN.md §15; §5b, §5d): one check per retired route. The
+  // staff area streams (its loading.tsx), so the redirect lands in the browser
+  // after a 200 rather than as a 308: follow it as a person would.
+  test("retired staff URLs redirect to the five tabs", async ({ browser }) => {
+    const context = await signedIn(browser, staff)
+    const page = await context.newPage()
+    const placeId = "00000000-0000-4000-8000-000000000001"
+    for (const [path, to] of [
+      ["/staff", "/staff/home"],
+      ["/staff/tasks", "/staff/album"],
+      ["/staff/menu", "/staff/album/menu"],
+      [`/staff/album/${placeId}`, `/staff/album?place=${placeId}`],
+    ] as const) {
+      await page.goto(path)
+      await expect(page, path).toHaveURL(
+        (url) => url.pathname + url.search === to
+      )
     }
     await context.close()
   })

@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils"
 
 /*
- * Common Room cards (DESIGN.md §4). Purely presentational; no client hooks,
+ * Common Room cards (common-room.md §4). Purely presentational; no client hooks,
  * so they render in server and client components alike.
  */
 
@@ -101,7 +101,7 @@ type LeadCardProps = Omit<React.ComponentProps<"section">, "title"> & {
 }
 
 /**
- * The one job on a screen and its one blue action (DESIGN.md §4). At most one
+ * The one job on a screen and its one blue action (common-room.md §4). At most one
  * per screen, and none on a screen whose dock holds the primary. Keep the
  * media short so the action shows without scrolling on a 390x844 phone.
  */

@@ -47,7 +47,7 @@ insert into public.profiles (id, display_name, job_title, role, venue_id, active
   ('00000000-0000-4000-8000-0000000000b4', 'DEV FIXTURE Pilot Manager', 'DEV FIXTURE General Manager', 'staff', '00000000-0000-4000-8000-00000000a001', true);
 
 \set venue '00000000-0000-4000-8000-00000000a001'
-\set admin_claims '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}'
+\set admin_claims '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","aal":"aal2"}'
 \set staff_claims '{"sub":"00000000-0000-4000-8000-0000000000b1","role":"authenticated"}'
 \set manager_claims '{"sub":"00000000-0000-4000-8000-0000000000b4","role":"authenticated"}'
 \set source '{"kind":"json","label":"DEV FIXTURE menu.json","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","revision":null,"capturedAt":"2026-11-01T10:00:00Z","notes":null}'

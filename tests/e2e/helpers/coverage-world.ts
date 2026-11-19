@@ -80,10 +80,11 @@ export async function provisionCoverageWorld(): Promise<CoverageWorld> {
 
 /**
  * A venue manager grant held by a STAFF account, as made before venue manager
- * accounts existed. Under the transitional rule it stays in effect for the
- * legacy /staff/manage tools; grant_venue_manager now refuses staff accounts,
- * so the service role writes the rows it used to write (fixture setup only).
- * The /manager workspace uses real manager accounts (helpers/manager-world).
+ * accounts existed. Under decision D3 it makes the account a manager nowhere
+ * in the UI (the retired manage URLs redirect to /manager, which needs a
+ * manager account); grant_venue_manager now refuses staff accounts, so the
+ * service role writes the rows it used to write (fixture setup only). Manager
+ * journeys use real manager accounts (helpers/manager-world).
  */
 export async function legacyStaffGrant(
   admin: Pick<Person, "id">,
@@ -262,7 +263,7 @@ export function sendBeforeCutOver(
   const out = psql(`begin;
     alter function private.menu_section_send_closed(uuid, uuid) rename to menu_section_send_closed_held;
     create function private.menu_section_send_closed(uuid, uuid) returns boolean language sql as 'select false';
-    select set_config('request.jwt.claims', '{"sub":"${staffId}","role":"authenticated"}', true) is null;
+    select set_config('request.jwt.claims', '{"sub":"${staffId}","role":"authenticated","aal":"aal2"}', true) is null;
     select coalesce(json_agg(t), '[]') from public.submit_coverage_photos(array[${ids}], '${requirementId}'::uuid, 'pre-cut-over-${randomUUID()}') t;
     drop function private.menu_section_send_closed(uuid, uuid);
     alter function private.menu_section_send_closed_held(uuid, uuid) rename to menu_section_send_closed;

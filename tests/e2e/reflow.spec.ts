@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
-import { addJustPhotos } from "./helpers/add-entry"
+import { syntheticJpeg } from "./helpers/media"
 import {
   adminPages,
   managerPages,
@@ -95,21 +95,21 @@ for (const size of SIZES) {
     await reflow(anon, size, "/login")
   })
 
-  test(`staff pages and the Add sheet reflow at ${size.name}`, async () => {
+  test(`staff pages, Add and Match reflow at ${size.name}`, async () => {
     for (const path of staffPages(m)) await reflow(staff, size, path)
-    await reflow(staff, size, "/staff/tasks")
+    // My photos' Add a video: the upload sheet (DESIGN.md §5e).
+    await reflow(staff, size, "/staff/photos")
     await dialogReflows(
       staff,
       size,
-      "Add sheet",
+      "Upload sheet",
       () =>
-        addJustPhotos(
-          staff,
-          staff
-            .locator('[data-slot="tabbar"]')
-            .getByRole("button", { name: "Add", exact: true })
-        ),
-      staff.getByRole("dialog", { name: "Add photos" })
+        staff
+          .getByRole("main")
+          .getByRole("button", { name: "Add a video" })
+          .first()
+          .click(),
+      staff.getByRole("dialog", { name: "Add photos or videos" })
     )
     await reflow(staff, size, "/staff/tasks/guide")
     await dialogReflows(
@@ -120,21 +120,33 @@ for (const size of SIZES) {
         staff.getByRole("button", { name: "45° angle. Open example" }).click(),
       staff.getByRole("dialog", { name: "45° angle" })
     )
+    // Add: the phone's photos, then Match (DESIGN.md §6.1).
+    await reflow(staff, size, "/staff/album")
+    const photo = await syntheticJpeg(`reflow-${size.name}-${Date.now()}.jpg`)
+    const tab = staff
+      .locator('[data-slot="tabbar"], header')
+      .getByRole("button", { name: /^Add photos/ })
+      .filter({ visible: true })
+      .first()
+    const chooser = staff.waitForEvent("filechooser")
+    await tab.click()
+    await (await chooser).setFiles(photo.path)
+    await dialogReflows(
+      staff,
+      size,
+      "Match",
+      async () => undefined,
+      staff.getByRole("dialog", { name: /^Photo 1 of 1$/ })
+    )
+    // Closing sent it to Match later; let it finish before the next size
+    // navigates (a running upload holds navigation at the leave guard).
+    await expect(tab).toHaveAccessibleName("Add photos", { timeout: 60_000 })
   })
 
-  test(`manager pages and Add a checklist item reflow at ${size.name}`, async () => {
-    for (const path of managerPages(m)) await reflow(manager, size, path)
-    await reflow(manager, size, "/staff/manage/checklist")
-    await dialogReflows(
-      manager,
-      size,
-      "Add a checklist item",
-      () =>
-        manager
-          .getByRole("button", { name: "Add a venue-specific item" })
-          .click(),
-      manager.getByRole("dialog", { name: "Add a checklist item" })
-    )
+  // The /manager workspace (decision D3) has no checklist screen, so the
+  // old Add a checklist item dialog is gone with it.
+  test(`manager pages reflow at ${size.name}`, async () => {
+    for (const path of managerPages()) await reflow(manager, size, path)
   })
 
   test(`admin pages and Invite staff reflow at ${size.name}`, async () => {
@@ -149,6 +161,96 @@ for (const size of SIZES) {
     )
   })
 }
+
+/**
+ * Every staff target is 48px or more at every width (DESIGN.md §8, §11 rule
+ * 6; V2-4): v2's 40px compact size is only for manager and admin shells, so
+ * a staff page at a phone and a touch laptop (1366, past bp-desktop) has no
+ * visible control under 48px tall. Each failure names the control. Skipped:
+ * visually hidden inputs (their label is the target), focus guards and the
+ * skip link (sr-only until focused).
+ */
+async function smallTargets(page: Page) {
+  await settle(page)
+  return page.evaluate(() => {
+    const sel = [
+      "a[href]",
+      "button",
+      "input:not([type=hidden])",
+      "select",
+      "textarea",
+      "summary",
+      "[role=button]",
+      "[role=link]",
+      "[role=tab]",
+      "[role=checkbox]",
+      "[role=radio]",
+      "[role=switch]",
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(",")
+    const out: string[] = []
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+      if (el.closest("[aria-hidden=true], [inert], .sr-only")) continue
+      const r = el.getBoundingClientRect()
+      if (r.width <= 1 || r.height <= 1) continue
+      const s = getComputedStyle(el)
+      if (s.visibility === "hidden" || s.display === "none") continue
+      // A visually hidden radio or checkbox: its label is the target.
+      const target =
+        el.offsetWidth <= 1 ? (el.closest("label") ?? el) : (el as Element)
+      const box = target.getBoundingClientRect()
+      if (Math.round(box.height) < 48)
+        out.push(
+          `${target.tagName.toLowerCase()}${target.getAttribute("data-slot") ? `[data-slot=${target.getAttribute("data-slot")}]` : ""} "${(target.textContent || target.getAttribute("aria-label") || "").trim().slice(0, 30)}" ${Math.round(box.width)}x${Math.round(box.height)}`
+        )
+    }
+    return out
+  })
+}
+
+test("staff targets are 48px at 390 and 1366 (review Z1)", async () => {
+  test.setTimeout(240_000)
+  let measured = 0
+  // Album's place lens (DESIGN.md §5d): the first place Album links to.
+  await staff.setViewportSize({ width: 390, height: 844 })
+  await staff.goto("/staff/album")
+  const place = await staff
+    .locator('main a[href^="/staff/album?place="]')
+    .first()
+    .getAttribute("href", { timeout: 2_000 })
+    .catch(() => null)
+  const paths = [...staffPages(m), ...(place ? [place] : [])]
+  for (const width of [390, 1366]) {
+    await staff.setViewportSize({ width, height: 900 })
+    for (const path of paths) {
+      await staff.goto(path)
+      await expect(staff.locator("h1").first()).toBeVisible()
+      measured++
+      expect
+        .soft(await smallTargets(staff), `${path}@${width} under 48px`)
+        .toEqual([])
+    }
+  }
+  expect(measured).toBeGreaterThan(8)
+})
+
+test("the staff TabBar is --spacing-tabbar tall at 320 (review Z8)", async () => {
+  await staff.setViewportSize({ width: 320, height: 640 })
+  await staff.goto("/staff/home")
+  const bar = staff.locator('[data-slot="tabbar"]')
+  await expect(bar).toBeVisible()
+  await settle(staff)
+  const { height, token } = await bar.evaluate((el) => {
+    const probe = document.createElement("div")
+    probe.style.height = "var(--spacing-tabbar)"
+    document.body.append(probe)
+    const token = probe.getBoundingClientRect().height
+    probe.remove()
+    return { height: el.getBoundingClientRect().height, token }
+  })
+  expect(token).toBe(64)
+  expect(height).toBe(token)
+})
 
 type Mark = {
   border: boolean
@@ -256,10 +358,10 @@ test.describe("forced colours", () => {
     let buttons = 0
     let chips = 0
     const pages: [Page, string][] = [
-      [fcStaff, "/staff/tasks"],
+      [fcStaff, "/staff/home"],
       [fcStaff, `/staff/tasks/${m.taskId}`],
-      [fcManager, "/staff/manage/checklist"],
-      [fcManager, "/staff/manage/team"],
+      [fcManager, "/manager"],
+      [fcManager, "/manager/team"],
       [fcAdmin, "/admin/staff"],
       [fcAdmin, `/admin/menus/${m.world.venue1.id}`],
     ]
@@ -284,18 +386,18 @@ test.describe("forced colours", () => {
     expect(chips, "status chips measured").toBeGreaterThan(0)
   })
 
-  test("the TabBar keeps its edge, current tab and Add disc", async () => {
-    await visit(fcStaff, 390, "/staff/community")
+  test("the TabBar keeps its edge and current tab", async () => {
+    // Me is a tab (DESIGN.md §15), so one tab is current.
+    await visit(fcStaff, 390, "/staff/me")
     const bar = fcStaff.locator('[data-slot="tabbar"]')
+    const current = bar.locator('[aria-current="page"]')
+    // Measured, never vacuous: the bar has Today, Album, Add, My photos and
+    // Me, and Me is current. Add is a plain tab, with no disc to mark.
+    await expect(bar.locator("a, button")).toHaveCount(5)
+    await expect(current).toHaveCount(1)
+    await expect(bar.locator('[data-slot="album-add"]')).toHaveCount(1)
     expect(await unmarked(bar)).toEqual([])
-    expect(
-      await unmarked(bar.locator('[aria-current="page"]')),
-      "current tab"
-    ).toEqual([])
-    expect(
-      await unmarked(bar.locator('[data-slot="tabbar-disc"]')),
-      "Add disc"
-    ).toEqual([])
+    expect(await unmarked(current), "current tab").toEqual([])
   })
 
   test("a selected segment differs from the others by more than its fill", async () => {
@@ -360,7 +462,7 @@ test.describe("forced colours", () => {
       [fcAdmin, "/admin", 1280],
       [fcAdmin, "/admin/staff", 390],
       [fcStaff, "/staff/community", 390],
-      [fcManager, `/staff/manage/checklist/${m.checklistItemId}`, 1280],
+      [fcManager, "/manager/team", 1280],
     ]
     let measured = 0
     for (const [page, path, width] of pages) {

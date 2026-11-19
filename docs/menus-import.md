@@ -63,6 +63,26 @@ followed by a separator or end of file. Duplicate headers, missing required
 headers, incorrect field counts and unclosed quotes are errors. Blank records
 are skipped. A repeated section key groups rows; its name/kind must agree.
 
+Full App v1 (S1-MENUS, spec §8 A3) adds optional identity and date columns.
+`venue` (the venue's id or name) must match the venue chosen in the admin
+screen, else the file is rejected. `menu` names the draft (one value per
+file); without it the file name does. `item_id` keeps a stable existing item:
+it must be an item of the venue's current menu (else a row error) and wins
+over a match by key or name. `variant` is an alias of `variants` (use one).
+`active_from` and `active_to` are `YYYY-MM-DD` dates, one value per file; the
+preview shows them and the admin still chooses when to activate or schedule.
+Admins download a template with every column from `/admin/menus/csv-template`
+(`lib/menus/import/template.ts`).
+
+Re-importing the same file (same SHA-256) is recognised: the preview says
+when it is already the open draft or the active menu, and Create draft opens
+the existing draft instead of a copy. The preview groups changed items into
+**Changed presentation** (a rename, a move between food, drinks and other, or
+a removed option: accepted photos go back for a recheck on activation) and
+**Changed** (description, aliases, price or other source details: photos are
+kept), and lists **Proposed retirements**, which the admin must tick before
+activating or scheduling.
+
 CSV has no embedded title or comment syntax. `parseMenuFile` uses the basename
 without extension as title; standalone `parseMenuCsv` uses `Imported CSV`.
 `# title:` is not special. Issue paths use **logical record numbers**, starting

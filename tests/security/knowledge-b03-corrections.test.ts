@@ -617,7 +617,8 @@ describe("schema upgrades (§9.3)", () => {
     ).toMatchObject({ derived: 0 })
     expect(
       psql(
-        `select count(*) from public.knowledge_question_versions where upgrade_rules <> '{}'::jsonb`
+        // S1-FACTS's outdoor_seating version is the only one with a rule.
+        `select count(*) from public.knowledge_question_versions where upgrade_rules <> '{}'::jsonb and key <> 'outdoor_seating'`
       )
     ).toBe("0")
   })

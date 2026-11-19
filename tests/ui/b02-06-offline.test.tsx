@@ -108,7 +108,9 @@ describe("offline banner times", () => {
     )
     goOffline()
     expect(banner()?.textContent).not.toContain("Loaded at")
-    expect(banner()?.textContent).toMatch(/You've been offline since \d{2}:\d{2}\./)
+    expect(banner()?.textContent).toMatch(
+      /You've been offline since \d{2}:\d{2}\./
+    )
   })
 
   it("uses the time a page's own notice brings under a layout", () => {

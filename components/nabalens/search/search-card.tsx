@@ -172,7 +172,7 @@ export function SearchCard({
                   </StatusChip>
                 )}
                 {d.isPrimary ? (
-                  <span className="text-meta font-bold text-ink">
+                  <span className="text-meta font-semibold text-ink">
                     {SEARCH_COPY.menuPhoto}
                   </span>
                 ) : null}

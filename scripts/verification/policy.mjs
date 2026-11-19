@@ -1,4 +1,23 @@
 /** Verification planning is an auditable workflow, not a substitute for CI gates. */
+const requiredLocalStatuses = [
+  "fixtures-common",
+  "fixtures-chromium-1",
+  "fixtures-chromium-2",
+  "fixtures-firefox",
+  "fixtures-webkit",
+  "smoke-production-contract",
+  "result",
+]
+
+export function localGatePassed(pr) {
+  return requiredLocalStatuses.every((name) =>
+    pr.statusCheckRollup.some(
+      (check) =>
+        check.context === "local-ci/" + name && check.state === "SUCCESS"
+    )
+  )
+}
+
 export const phases = [
   "implementation",
   "integration",

@@ -42,6 +42,7 @@ import {
   saveOk,
   section,
 } from "./menus-fixtures"
+import { acceptAsset } from "./privacy-fixtures"
 
 const service = serviceClient()
 let venueA: string
@@ -154,6 +155,8 @@ beforeAll(async () => {
     catalogue: v1,
   })
   chefBPhoto = (await reserveReady(service, chefB)).id
+  // Accepted, but at another venue: chef A still never reads it (FA-20).
+  acceptAsset(chefBPhoto, admin.id)
 
   // C, while still staff: a ready photo submitted for the month, an
   // assignment, and an open reservation with a signed upload token.
@@ -374,9 +377,8 @@ describe("staff community", () => {
         p_asset_ids: [chefPhoto, chefBPhoto],
       })
     )
-    expect(readable.map((a) => a.id).sort()).toEqual(
-      [chefPhoto, chefBPhoto].sort()
-    )
+    // Own photo only: chef B's is at another venue (spec §3.3, FA-20).
+    expect(readable.map((a) => a.id).sort()).toEqual([chefPhoto])
     const page = await ok(
       chefA.client.rpc("community_media_page", { p_venue: venueA })
     )
@@ -730,7 +732,7 @@ describe("target writes", () => {
     month: string,
     source: string
   ) =>
-    psql(`select set_config('request.jwt.claims', '{"sub":"${uid}","role":"authenticated"}', false);
+    psql(`select set_config('request.jwt.claims', '{"sub":"${uid}","role":"authenticated","aal":"aal2"}', false);
 do $$ begin
   begin
     insert into public.monthly_targets (staff_id, venue_id, period_month, target_count, due_on, source)

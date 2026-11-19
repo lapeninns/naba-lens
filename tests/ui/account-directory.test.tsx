@@ -61,7 +61,7 @@ const staff = [
 ]
 
 const names = () =>
-  within(screen.getByRole("table", { name: "Staff" }))
+  within(screen.getByRole("table", { name: "People" }))
     .getAllByRole("link")
     .map((link) => link.textContent)
 
@@ -110,7 +110,7 @@ describe("Staff directory", () => {
       "Sita Gurung",
       "Tom Hughes",
     ])
-    const table = screen.getByRole("table", { name: "Staff" })
+    const table = screen.getByRole("table", { name: "People" })
     expect(within(table).getByText("priya.gurung@nabalens.test")).toBeTruthy()
     // No inline row buttons: each row's only button is its menu.
     const rows = within(table).getAllByRole("row").slice(1)
@@ -140,7 +140,7 @@ describe("Staff directory", () => {
         ],
       })
     )
-    const row = within(screen.getByRole("table", { name: "Staff" }))
+    const row = within(screen.getByRole("table", { name: "People" }))
       .getByRole("link", { name: "Dan Cooper" })
       .closest("tr")!
     expect(within(row).getByText("Venue manager")).toBeTruthy()
@@ -156,7 +156,7 @@ describe("Staff directory", () => {
         maxAvatarBytes={5 << 20}
       />
     )
-    const table = within(screen.getByRole("table", { name: "Staff" }))
+    const table = within(screen.getByRole("table", { name: "People" }))
     const row = table.getByRole("link", { name: "Mia Rai" }).closest("tr")!
     expect(within(row).getByText("Venue manager")).toBeTruthy()
     const other = table.getByRole("link", { name: "Ben Clarke" }).closest("tr")!
@@ -198,7 +198,7 @@ describe("Staff directory", () => {
 
 async function openRowMenu(name: string) {
   const user = userEvent.setup()
-  const table = screen.getByRole("table", { name: "Staff" })
+  const table = screen.getByRole("table", { name: "People" })
   await user.click(
     within(table).getByRole("button", { name: `More actions for ${name}` })
   )

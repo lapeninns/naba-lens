@@ -27,7 +27,7 @@ import {
   issueSignInLink,
   redirectOf,
 } from "./auth-support"
-import { followEmailLink } from "./auth-confirm"
+import { followEmailLink, passMfa } from "./auth-confirm"
 
 const service = serviceClient()
 
@@ -63,8 +63,12 @@ async function profile(id: string) {
   return data
 }
 
-/** Signs in through /auth/confirm; returns where "/" sends them (or the failure). */
-async function signInAndLand(email: string) {
+/**
+ * Signs in through /auth/confirm; returns where "/" sends them (or the failure).
+ * With `mfaFor` (the account id), an admin sent to the second step (FA-23)
+ * passes it, and `landed` is where "/" sends them afterwards.
+ */
+async function signInAndLand(email: string, opts: { mfaFor?: string } = {}) {
   const browser = new Browser(email)
   const link = await issueSignInLink(service, email)
   const res = await followEmailLink(browser, link)
@@ -72,6 +76,11 @@ async function signInAndLand(email: string) {
     return { browser, landed: res.location }
   }
   const root = await browser.run(() => redirectOf(RootPage))
+  if (root.location === "/auth/mfa" && opts.mfaFor) {
+    await passMfa(browser, opts.mfaFor)
+    const after = await browser.run(() => redirectOf(RootPage))
+    return { browser, landed: after.location }
+  }
   return { browser, landed: root.location }
 }
 
@@ -133,9 +142,14 @@ describe("scripts/bootstrap-admin.ts", { timeout: 90_000 }, () => {
     })
     expect(authUserCount(user.email)).toBe(1)
 
+    // FA-23: the open (aal1) session is an admin's now, so it must pass the
+    // second step before anything admin; after it, K7's home is Overview.
     const live = await before.browser.run(() => redirectOf(RootPage))
-    expect(live.location).toBe("/admin")
-    expect((await signInAndLand(user.email)).landed).toBe("/admin")
+    expect(live.location).toBe("/auth/mfa")
+    expect((await signInAndLand(user.email)).landed).toBe("/auth/mfa")
+    expect((await signInAndLand(user.email, { mfaFor: user.id })).landed).toBe(
+      "/admin/overview"
+    )
   })
 
   it("creates the profile for an invited user without one, only with --name", async () => {
@@ -164,7 +178,10 @@ describe("scripts/bootstrap-admin.ts", { timeout: 90_000 }, () => {
       active: true,
       display_name: "TEST Owner",
     })
-    expect((await signInAndLand(user.email)).landed).toBe("/admin")
+    expect((await signInAndLand(user.email)).landed).toBe("/auth/mfa")
+    expect((await signInAndLand(user.email, { mfaFor: user.id })).landed).toBe(
+      "/admin/overview"
+    )
   })
 
   it("restores a deactivated account so the new admin can actually sign in", async () => {
@@ -173,7 +190,9 @@ describe("scripts/bootstrap-admin.ts", { timeout: 90_000 }, () => {
       role: "admin",
       session: false,
     })
-    const adminBrowser = (await signInAndLand(admin.email)).browser
+    const adminBrowser = (
+      await signInAndLand(admin.email, { mfaFor: admin.id })
+    ).browser
     const user = await createIdentity(service, {
       label: "boot-former",
       role: "staff",
@@ -195,8 +214,10 @@ describe("scripts/bootstrap-admin.ts", { timeout: 90_000 }, () => {
       role: "admin",
       active: true,
     })
-    const { browser, landed } = await signInAndLand(user.email)
-    expect(landed).toBe("/admin")
+    const { browser, landed } = await signInAndLand(user.email, {
+      mfaFor: user.id,
+    })
+    expect(landed).toBe("/admin/overview")
     expect((await browser.run(getAuthState)).status).toBe("active")
   })
 })

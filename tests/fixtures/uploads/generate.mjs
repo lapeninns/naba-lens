@@ -125,10 +125,11 @@ if (!has("corrupt.jpg")) {
   )
 }
 
-// Valid JPEG followed by zero padding to 21 MiB: over the 20 MiB photo limit.
-if (!has("oversized.jpg")) {
+// Valid JPEG followed by zero padding to 26 MiB: over the 25 MiB photo limit.
+// (A file left from the old 21 MiB size is remade.)
+if (!has("oversized.jpg") || statSync(path("oversized.jpg")).size < 26 * MiB) {
   const bytes = await photo(11).jpeg().toBuffer()
-  const padded = Buffer.alloc(21 * MiB)
+  const padded = Buffer.alloc(26 * MiB)
   bytes.copy(padded)
   writeFileSync(path("oversized.jpg"), padded)
 }

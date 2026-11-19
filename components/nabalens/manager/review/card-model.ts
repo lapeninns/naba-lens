@@ -68,18 +68,19 @@ export type ReviewScopeKind = ReviewScope["kind"]
 
 /**
  * The caller's own photo, which a manager may not review. Admins may review
- * their own photos (the card still says "You").
+ * their own photos (the card still says "You"), and so may the manager of a
+ * single-reviewer venue (FA-9, S3-R1 K6).
  */
 export function ownPhotoBlocked(
   card: QueueCard,
   scopeKind: ReviewScopeKind = "manager"
 ): boolean {
-  return card.isSelf && scopeKind !== "admin"
+  return card.isSelf && scopeKind !== "admin" && !card.selfReviewAllowed
 }
 
 /**
  * The decisions a card offers, in display order (§4.5 table). A manager's own
- * photos and decided cards that left the view offer none.
+ * photos, decided cards that left the view and Needs label videos offer none.
  */
 export function availableActions(
   card: ListCard,
@@ -87,7 +88,10 @@ export function availableActions(
 ): CardAction[] {
   if (card.settled || ownPhotoBlocked(card, scopeKind)) return []
   if (card.kind === "stale") return ["assign_stale"]
-  if (card.kind === "unlabelled") return ["assign_unlabelled"]
+  if (card.kind === "unlabelled")
+    // A video can't fill a dish (assign_menu_item_photo takes images only,
+    // S3-R8 W1): its details offer Not used instead.
+    return card.mediaType === "video" ? [] : ["assign_unlabelled"]
   if (!card.item) return []
   const labelled = staffLabelled(card)
   const variantGone = card.recheckKind === "variant_removed"
@@ -107,7 +111,9 @@ export function availableActions(
   )
     out.push("set_preferred")
   if (card.state === "needs_recheck" && !variantGone) out.push("reaccept")
-  if (labelled && card.state === null) out.push("relink")
+  // S3-R13 X7: a staff label is fixed whatever was decided on it; the
+  // database withdraws that decision in the same step.
+  if (labelled) out.push("relink")
   if (
     labelled &&
     card.basis !== "reviewer" &&

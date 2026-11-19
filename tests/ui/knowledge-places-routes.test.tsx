@@ -15,6 +15,9 @@ vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`NEXT_REDIRECT ${to}`)
   },
+  permanentRedirect: (to: string) => {
+    throw new Error(`NEXT_REDIRECT ${to}`)
+  },
 }))
 
 const VENUE = { id: "9b000000-0000-4000-8000-000000000301", name: "⟨Venue⟩" }
@@ -111,7 +114,6 @@ beforeEach(() => {
 
 const pages = {
   manager: [() => ManagerPlacesPage(), "/manager/amenities"],
-  "legacy grant": [() => ManagePlacesPage(), "/staff/manage/amenities"],
   admin: [
     () => AdminPlacesPage({ params: Promise.resolve({ venueId: VENUE.id }) }),
     `/admin/coverage/${VENUE.id}/amenities`,
@@ -148,14 +150,10 @@ describe("Places pages", () => {
     expect(screen.queryByRole("button", { name: "Add place" })).toBeNull()
   })
 
-  it("a staff account without a grant gets the plain refusal", async () => {
-    access.managerAccess.mockResolvedValue({
-      ok: false,
-      viewerName: "⟨Name⟩",
-      reason: "not_manager",
-    })
-    render(<>{await resolve(await ManagePlacesPage())}</>)
-    expect(screen.getByText("not a manager")).toBeTruthy()
+  it("/staff/manage's places page redirects to /manager (decision D3)", () => {
+    expect(() => ManagePlacesPage()).toThrow(
+      "NEXT_REDIRECT /manager/amenities/places"
+    )
     expect(knowledge.listPlaces).not.toHaveBeenCalled()
   })
 })

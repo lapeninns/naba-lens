@@ -10,11 +10,12 @@ import { segmentClass } from "@/components/ui/toggle"
 import { cn } from "@/lib/utils"
 
 /*
- * Common Room segmented control (DESIGN.md §4): one choice of a few, drawn
+ * Common Room segmented control (common-room.md §4): one choice of a few, drawn
  * as a grey track with the chosen segment raised. It is a radio group (Base
  * UI RadioGroup): one tab stop, arrow keys move and choose, and with `name`
- * the value is sent with a native form. Segments are 44px (`sm`, the only
- * size) and their labels wrap rather than push the page sideways.
+ * the value is sent with a native form. Segments are 48px wherever staff
+ * work, 44px only inside a manager or admin shell (`data-density="compact"`,
+ * V2-4), and their labels wrap rather than push the page sideways.
  */
 const trackVariants = cva(
   "group/segmented min-w-0 gap-1 bg-surface-2 p-1 aria-invalid:edge-invalid",
@@ -26,7 +27,7 @@ const trackVariants = cva(
         fit: "inline-grid w-fit max-w-full auto-cols-auto grid-flow-col",
       },
       // One column where the labels are too long to sit side by side
-      // (DESIGN.md §4, the manage facts block on a phone).
+      // (common-room.md §4, the manage facts block on a phone).
       stack: {
         never: "rounded-round",
         phone: "rounded-round max-md:grid-flow-row max-md:rounded-card",
@@ -132,7 +133,7 @@ type SegmentedControlItemProps = {
 
 /*
  * A segment that is switched off keeps its label and swaps its icon for a
- * "not allowed" mark, so the state is not told by grey alone (DESIGN.md §7).
+ * "not allowed" mark, so the state is not told by grey alone (common-room.md §7).
  */
 function SegmentedControlItem({
   icon,

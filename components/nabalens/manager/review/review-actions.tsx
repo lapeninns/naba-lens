@@ -81,8 +81,11 @@ export function ReviewActions({
   const [more, setMore] = React.useState(false)
   const actions = availableActions(card, scopeKind)
   if (actions.length === 0) return null
-  const main = actions.filter((a) => !MORE_ACTIONS.includes(a))
-  const extra = actions.filter((a) => MORE_ACTIONS.includes(a))
+  // S3-R13 X7: on a decided card, Fix label sits with Withdraw.
+  const isMore = (a: CardAction) =>
+    MORE_ACTIONS.includes(a) || (a === "relink" && card.state !== null)
+  const main = actions.filter((a) => !isMore(a))
+  const extra = actions.filter(isMore)
   const direct = main.length > 0 ? main : extra
   const hidden = main.length > 0 ? extra : []
 

@@ -15,8 +15,10 @@ import { signedInPage } from "./helpers/world"
  * theme follows the system, so a dark colour scheme on the context is what a
  * user with a dark OS sees. Light is covered by responsive.spec.ts. Each
  * failure names the page, width, element and the colours axe measured. The
- * manager's month is prepared first so coverage, team, checklist and task
- * pages carry real chips; a visible closed chip is also measured on hover.
+ * venue's month is prepared first so the staff task, coverage and team pages
+ * carry real chips; a visible closed chip is also measured on hover. Staff
+ * pages are the five tabs and what they open (DESIGN.md §15); manager pages
+ * are the /manager workspace (decision D3).
  */
 
 const WIDTHS = [390, 1280] as const
@@ -63,6 +65,8 @@ async function contrast(page: Page, width: number, path: string) {
   await page.setViewportSize({ width, height: 900 })
   const res = await page.goto(path)
   expect(res?.status(), `${path} status`).toBeLessThan(400)
+  // A redirect (a retired URL, a wrong-role guard) would measure another page.
+  await expect(page).toHaveURL((url) => url.pathname === path)
   await expect(page.locator("html")).toHaveClass(/\bdark\b/)
   await expect(page.locator("h1").first()).toBeVisible()
   // A route with loading.tsx shows its skeleton (which has an h1 of its own)
@@ -122,7 +126,7 @@ for (const width of WIDTHS) {
   })
 
   test(`manager pages hold 4.5:1 in dark at ${width}px`, async () => {
-    for (const path of managerPages(m)) await contrast(manager, width, path)
+    for (const path of managerPages()) await contrast(manager, width, path)
   })
 
   test(`admin pages hold 4.5:1 in dark at ${width}px`, async () => {

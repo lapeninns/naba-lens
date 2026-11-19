@@ -5,14 +5,14 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 /*
- * One segment of a segmented control (DESIGN.md §4): muted words on the grey
+ * One segment of a segmented control (common-room.md §4): muted words on the grey
  * track, and the chosen one raised (white fill, control shadow, 1.5px strong
  * edge). The chosen state is read from `aria-checked` (a radio, in
  * SegmentedControl) or `aria-pressed` (a Toggle). Labels wrap. The 1.5px edge
  * has no recipe, so this string is written once, here, and shared.
  */
 const segmentClass =
-  "group/segment inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-round bg-transparent px-3 py-1 text-center text-label [overflow-wrap:anywhere] text-ink-muted focus-ring transition-[background-color,color,box-shadow] duration-quick outline-none not-data-disabled:hover:text-ink not-data-disabled:not-aria-checked:not-aria-pressed:hover:bg-raised not-data-disabled:not-aria-checked:not-aria-pressed:active:bg-raised aria-checked:bg-surface aria-checked:text-ink aria-checked:shadow-control aria-checked:ring-[1.5px] aria-checked:ring-edge-strong aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-control aria-pressed:ring-[1.5px] aria-pressed:ring-edge-strong data-disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5"
+  "group/segment inline-flex min-h-12 min-w-11 in-data-[density=compact]:min-h-11 items-center justify-center gap-1.5 rounded-round bg-transparent px-3 py-1 text-center text-label [overflow-wrap:anywhere] text-ink-muted focus-ring transition-[background-color,color,box-shadow] duration-quick outline-none not-data-disabled:hover:text-ink not-data-disabled:not-aria-checked:not-aria-pressed:hover:bg-raised not-data-disabled:not-aria-checked:not-aria-pressed:active:bg-raised aria-checked:bg-surface aria-checked:text-ink aria-checked:shadow-control aria-checked:ring-[1.5px] aria-checked:ring-edge-strong aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-control aria-pressed:ring-[1.5px] aria-pressed:ring-edge-strong data-disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5"
 
 /*
  * Internal. Toggle and ToggleGroup are the older multi-purpose pair, kept

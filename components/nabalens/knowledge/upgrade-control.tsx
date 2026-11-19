@@ -19,7 +19,7 @@ import type { KnowledgeResult } from "@/lib/knowledge-client/contract"
 
 import { LABEL, MUTED } from "../amenities/capture/field-parts"
 
-// The shared field recipe on native controls (DESIGN.md §4 Field).
+// The shared field recipe on native controls (common-room.md §4 Field).
 const INPUT = `block ${fieldControlVariants()}`
 
 export const UPGRADE_COPY = {

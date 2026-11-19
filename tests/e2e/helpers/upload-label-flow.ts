@@ -15,7 +15,7 @@ import {
 } from "@playwright/test"
 
 import { signIn, type Db } from "../../support/identities"
-import { addJustPhotos } from "./add-entry"
+import { meSheetButton } from "./ui"
 import { legacyStaffGrant, type CoverageWorld } from "./coverage-world"
 import { syntheticJpeg, type SourceFile } from "./media"
 import { activateMenu, ok } from "./menus"
@@ -165,12 +165,26 @@ export async function recordBudget(
 // Staff UI
 // ---------------------------------------------------------------------------
 
-/** Phone tab bar Add (its name gains ", 1 in progress" while busy). */
+/**
+ * Phone tab bar Add photos (DESIGN.md §5 Tab bar): it opens the phone's
+ * photos straight away, then Match. Its name gains ", 1 in progress" while
+ * busy.
+ */
 export const addTab = (page: Page) =>
-  page.locator('[data-slot="tabbar"]').getByRole("button", { name: /^Add/ })
+  page
+    .locator('[data-slot="tabbar"]')
+    .getByRole("button", { name: /^Add photos/ })
+
+/**
+ * Me's Add a video (its profile card's secondary button, R15-1): the Add
+ * sheet with labels, for photos and videos that aren't matched to a slot.
+ * Me's main Add photos and the Album tab go to Match instead (AL-1, S3-R12),
+ * so the label journeys start here.
+ */
+export const meAddButton = meSheetButton
 
 export const addSheet = (page: Page) =>
-  page.getByRole("dialog", { name: "Add photos" })
+  page.getByRole("dialog", { name: "Add photos", exact: true })
 
 /** The upload sheet once files are picked: "Saving 1 photo", "Saving 2 files". */
 export const savingSheet = (page: Page, title?: string) =>
@@ -212,27 +226,35 @@ export async function pickFiles(
 }
 
 /**
- * Phone Add while idle: tab, "Just photos" in the intent dialog, then
- * "Choose from your photos" in the Add sheet.
+ * Add with labels while idle: My photos' Add a video (opening My photos first
+ * when elsewhere), then "Choose from your photos" in the Add sheet. The Add
+ * tab opens Match instead (DESIGN.md §6.1), so it is not this path.
  */
 export async function addFromLibrary(
   page: Page,
   paths: string[],
   taps?: TapCounter
 ) {
-  await addJustPhotos(page, addTab(page), taps)
-  await expect(addSheet(page)).toBeVisible()
-  taps?.dialog("Add photos")
+  if (new URL(page.url()).pathname !== "/staff/photos") {
+    await page.goto("/staff/photos")
+    await expect(page).toHaveURL(/\/staff\/photos$/)
+  }
+  const trigger = meAddButton(page)
+  if (taps) await taps.tap(trigger, "Add")
+  else await trigger.click()
+  const sheet = page.getByRole("dialog", { name: "Add photos or videos" })
+  await expect(sheet).toBeVisible()
+  taps?.dialog("Add photos or videos")
   await pickFiles(
     page,
-    addSheet(page).getByRole("button", { name: /^Choose from your photos/ }),
+    sheet.getByRole("button", { name: /^Choose from your photos/ }),
     paths,
     taps
   )
-  const sheet = savingSheet(page)
-  await expect(sheet).toBeVisible()
+  const saving = savingSheet(page)
+  await expect(saving).toBeVisible()
   taps?.dialog("Saving sheet")
-  return sheet
+  return saving
 }
 
 /** Types into a menu item search and chooses the first matching option. */

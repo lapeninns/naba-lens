@@ -1,448 +1,610 @@
-# Common Room: Naba-Lens design system
+# Naba-Lens design system
 
-Version 0.4 · 15 Nov 2026 · Status: signed off on 14 Nov 2026 (decision D1 in [decisions.md](decisions.md)). It shipped to every screen on 7 Nov 2026.
+Version 2.5 · 19 Nov 2026 · Status: adopted. **The look is design system v2** (decision D10, 18 Nov 2026): its tokens in light and dark, Figtree and Fraunces type, its 21 components and the SideNav. **The behaviour and the words are Album's** (decisions D8 and D9, 17 Nov 2026; Full App v1 decisions FA-1 to FA-51 in [the Full App decisions](../plans/full-app-v1/decisions.md)): every venue is an album of slots, adding is gallery first with Match on add, the FA-7 status words, and the three staff tabs Album / Add photos / Me. Where v2 and Album disagree, D10 says which wins (§13), and each place the product keeps Album's rule is a departure from v2 in [departures.md](departures.md).
 
-Applies to every Naba-Lens surface: the staff app (phone first), the venue manager workspace (phone, tablet, desktop) and the admin desktop app.
+Applies to every Naba-Lens surface: the staff app (phone first), the venue manager screens (phone, tablet, desktop) and the admin desktop app.
 
-Sections 1 to 9 are the v0.3 text of 7 Nov 2026, unchanged apart from where they point and the goals changes of 0.4 (NabaLens v0.5, see the changelog). Sections 10 to 13 were added when the spec moved into the repo. Section numbers never change, because code comments cite them ("DESIGN.md §4").
+| Subject                                      | Where it lives                                                                                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every rule, and what each token is for       | This file                                                                                                                                   |
+| The v2 package: values, components, screens  | [v2/](v2/README.md): `GUIDELINES.md`, `SCREENS.md`, `components/<Name>/README.md`, `tokens.css` (reference only; never copied into the app) |
+| Token values in code                         | `app/globals.css` (v2's values since batch V2, under the role names of §10)                                                                 |
+| Which component plays each v2 role           | [catalogue.md](catalogue.md), section "Design system v2 (D10)"                                                                              |
+| The living reference                         | `/ui-preview/v2` (dev only): every v2 component in light and dark at phone and desktop widths                                               |
+| Why Album, and the product changes it brings | [proposals/album.md](proposals/album.md)                                                                                                    |
+| How batch V2 mapped v2 onto the app          | [V2-A report](../plans/design-v2/reports/V2-A.md) (token and component mapping)                                                             |
+| The screens that still ship Common Room      | [common-room.md](common-room.md) (frozen)                                                                                                   |
 
-| Subject                                               | Where it lives                        |
-| ----------------------------------------------------- | ------------------------------------- |
-| Token values                                          | `app/globals.css`                     |
-| State words, icons and shapes as built                | `components/nabalens/status-chip.tsx` |
-| Measured values for each component, beside what ships | [components.md](components.md)        |
-| Which components exist and how widely they are used   | [catalogue.md](catalogue.md)          |
-| Where the product differs from this spec              | [departures.md](departures.md)        |
-| The living reference                                  | `/ui-preview` (dev only)              |
+Code comments cite this file by section number ("DESIGN.md §4"). Section numbers never change; new material goes in a new section or a lettered subsection. `tests/unit/design-citations.test.ts` fails when a cited section is missing. Version 2.0 kept every Album section number and the rule each one names: §1, §2 and §4 to §7 and §9 keep Album's behaviour and words; §3, §8, §10 and §11 now state v2's visual rules; §13 to §16 are new (v2 and D10, status tones, navigation, interaction states).
 
-Names in brackets such as `UI.row()` and `.lead-card` are the builders and classes of the prototype kit this spec was written against. They are kept so the text stays as written; they are not names in this codebase. Section 10 maps the token names to the ones the code uses.
+## 1. Goal and idea
 
-## 1. Idea
+**Goal.** Every slot at every venue has an accepted photo: each dish and drink on the active menu, each amenity, each area. The system is judged by how quickly the number of empty slots falls.
 
-A staff room you already know how to use. Staff aged 40 and over scroll social feeds every day, so Naba-Lens borrows the _patterns_ of a feed: a light grey canvas, white cards, posts with a face and a name, a share box at the top, grey buttons and tabs at the bottom. The palette, type and details are Naba-Lens's own; no other company's branding is used.
+**Idea.** Every venue is an **album**. Every thing that needs a photo has a **slot** in it. Empty slots are drawn as gaps you can tap. Staff take photos with their phone's own camera whenever service allows, and add them from their gallery later.
 
-Principles:
+## 2. Principles
 
-1. **Feels familiar.** Feed, posts, share box, bottom tabs. Nothing new to learn.
-2. **One next step.** One solid blue button per screen, inside thumb reach. Everything else is a grey button or a link.
-3. **State is a word, a shape and a tone.** Never colour alone. The four core states never share a shape.
-4. **Scope is always on screen.** Every venue screen names the venue. A person's month and a venue's checklist are never added together.
-5. **Honest feedback.** Say what happened, then what to do. Nothing moves on its own except real status.
-6. **Built for a busy shift.** 17px text floor, 44px minimum targets, 52 to 60px main buttons, labels under every icon, dark mode available.
+1. **The gap is the screen.** Album (Home) opens on what is missing, drawn as empty slots and grouped by place. A count alone is never the first thing on a screen.
+2. **Gallery first.** The main action always opens the phone's photos. There is no in-app camera (§9).
+3. **Match on add.** Choose many photos at once, then tap the empty slot each one fills (D9). Nobody labels a photo after it has been sent.
+4. **Show what good looks like.** Every slot has a one-line brief. Staff read it before they add the photo; the reviewer judges against the same words.
+5. **Every photo moves the album.** A matched photo fills its slot at once as Waiting for review. Review confirms it or reopens it.
+6. **Finish lines you can reach.** A section (Desserts, Games, The garden) is a small finish line. Finishing one is marked on the page and the next nearest gap is offered.
+7. **Review in a thumb.** One photo beside its brief, Accept or Ask again with a reason, then the next.
+8. **Never lose a photo.** Uploads queue and resume. A photo that is not matched waits under Match later.
+9. **One goal on the Album screen.** The album belongs to the venue. A person's own month is on Me, and nobody is ranked against a colleague.
 
-## 2. Tokens
+v2's principles (v2 GUIDELINES, "Principles") hold beside these: the photograph is the content and the chrome is quiet (paper, surface, ink, with bottle once per view); states are honest and say exactly what has happened; never colour alone; phone first and thumb sized; no typing where a tap will do.
 
-Authored in OKLCH; hex values are sRGB fallbacks. Light is the default everywhere; dark is a user choice.
+## 3. Tokens
 
-| Token                     | Light                 | Dark                  | Use                                                   |
-| ------------------------- | --------------------- | --------------------- | ----------------------------------------------------- |
-| `--bg`                    | `#eef0f3`             | `#131415`             | Grey canvas behind the feed                           |
-| `--surface`               | `#ffffff`             | `#1f2122`             | Cards, posts, bars, sheets                            |
-| `--surface-2`             | `#e7eaed`             | `#2e3133`             | Grey buttons, fields, hover                           |
-| `--raised`                | `#d9dde0`             | `#3b3d40`             | Hover on grey                                         |
-| `--fg`                    | `#13161a`             | `#edeff0`             | Text, icons                                           |
-| `--muted`                 | `#50565c`             | `#b0b5b9`             | Secondary text                                        |
-| `--border`                | `#d5d8db`             | `#3b3d40`             | Dividers                                              |
-| `--border-strong`         | `#6f757b`             | `#7d8185`             | Empty checkboxes, field edges, neutral state outlines |
-| `--accent`                | `#0063ba`             | `#0063ba`             | Primary button fill (white text); selection marks     |
-| `--accent-hover`          | `#0052a1`             | `#0052a1`             | Primary hover                                         |
-| `--accent-text`           | `#0063ba`             | `#73b6fa`             | Active tab                                            |
-| `--accent-soft`           | `#d8eaff`             | `#1a3450`             | Selected filter, segment, side nav item, selected row |
-| `--focus`                 | `#0063ba`             | `#73b6fa`             | Focus ring                                            |
-| `--ok-fg` / `--ok-bg`     | `#005e31` / `#d5f5de` | `#86eaab` / `#123923` | Accepted, progress                                    |
-| `--warn-fg` / `--warn-bg` | `#9d2e1c` / `#ffe7df` | `#ffb49d` / `#51231d` | Needs another photo, overdue, menu changed, errors    |
-| `--info-fg` / `--info-bg` | `#005e71` / `#d9f4fb` | `#8cd8eb` / `#083740` | Ready, self-review                                    |
+The values are v2's ([v2/tokens.css](v2/tokens.css), [v2/GUIDELINES.md](v2/GUIDELINES.md) "Colour", "Type", "Space, shape and depth"). `app/globals.css` holds them in OKLCH under v2's names (`--paper`, `--bottle`, `--brass`, `--sky`, `--signal` ...) and points the role names the code uses (§10) at them, so a screen reads a role, never a v2 name. Hex below is sRGB. The app follows the phone's light or dark setting, with a choice on Me and Account (System, Light, Dark; decision D2).
 
-OKLCH sources: accent `oklch(0.5 0.16 252)`, accent-hover `oklch(0.44 0.15 252)`, bg light `oklch(0.955 0.004 250)`, surface dark `oklch(0.245 0.004 250)`. Full list, plus `--on-accent`, `--stamp-fg`, `--hatch`, `--plate`, `--scrim` and the two elevations, in `app/globals.css` (names in §10). Components bind these tokens. The only other values allowed are the camera and viewer stage (below), the avatar tint and the chip colours on a photo plate (§4); anything else is a departure to fix.
+### 3.1 Colour
 
-### Contrast (computed, WCAG 2.x)
+| Role (code)                             | v2 token         | Light                  | Dark                   | Use                                                                                        |
+| --------------------------------------- | ---------------- | ---------------------- | ---------------------- | ------------------------------------------------------------------------------------------ |
+| `canvas`                                | paper            | `#f6f3ec`              | `#121613`              | The page behind everything                                                                 |
+| `surface`                               | surface          | `#ffffff`              | `#1b201c`              | Cards, bars, sheets, with a 1px `line` outline                                             |
+| `surface-2`                             | surface-sunken   | `#ebe6da`              | `#262c27`              | Empty slots, tracks, the neutral chip, disabled controls, loading blocks                   |
+| `raised`                                | surface-hover    | `#f1ede3`              | `#232924`              | Hover and press on outlined controls and rows                                              |
+| `line`                                  | line             | `#d9d2c3`              | `#333a34`              | Hairline outlines of cards and rows; decoration only                                       |
+| `edge-strong`                           | line-strong      | `#857d6d`              | `#7f877b`              | Control borders, the dashed edge of an empty slot                                          |
+| `ink`                                   | ink              | `#1c211d`              | `#eef0ea`              | Text and icons                                                                             |
+| `ink-muted`                             | ink-muted        | `#565c54`              | `#a9b0a6`              | Secondary text, meta                                                                       |
+| `accent`, `accent-text`                 | bottle           | `#1f4d3a`              | `#7fcba4`              | The one main button; active tab, links in the chrome, the + of an empty slot               |
+| `accent-hover`                          | bottle-strong    | `#163a2b`              | `#9ad9b7`              | Main button hover and press                                                                |
+| `on-accent`                             | on-bottle        | `#ffffff`              | `#0e1f17`              | Text on the main button (never plain white in dark)                                        |
+| `accent-soft`, `ok-bg`                  | bottle-soft      | `#dcebe2`              | `#1c3a2c`              | A choice the person made, the current SideNav item; the positive chip's ground             |
+| `ok-fg`                                 | bottle           | `#1f4d3a`              | `#7fcba4`              | Positive tone: In the album, Covered; the covered part of a bar                            |
+| `brass`, `ring-retake`                  | brass            | `#b87c12`              | `#e0a640`              | Attention fills and marks beside a word; the ring round a photo that needs another         |
+| `warn-fg` / `warn-bg`                   | brass-ink / soft | `#6e4605` / `#f7e8c6`  | `#f0c67a` / `#3d2c0c`  | Attention tone: Retake, Needs checking, Needs label, reason chips                          |
+| `info-fg`, `ring-waiting`, `ok-waiting` | sky              | `#1b5584`              | `#8cc2ec`              | Progress tone: Sending, Waiting; the ring round a waiting photo; the waiting part of a bar |
+| `info-bg`                               | sky-soft         | `#dceaf5`              | `#16324a`              | Progress chip ground                                                                       |
+| `signal` / `on-signal`                  | signal           | `#b0331a` / `#ffffff`  | `#f08a6b` / `#2a0d05`  | Problem tone (the only solid chip), danger buttons, field errors                           |
+| `signal-soft`                           | signal-soft      | `#fbe4da`              | `#47190d`              | Ground behind a problem notice                                                             |
+| `focus`                                 | focus            | `#1c211d`              | `#eef0ea`              | The focus outline (ink)                                                                    |
+| `scrim`, `plate`                        | scrim            | 64% `#121613`          | 72% `#080a09`          | Behind sheets and dialogs; under text on a photo (`on-photo`)                              |
+| `hatch`                                 | line             | `#d9d2c3`              | `#333a34`              | Hatching on a Not here slot                                                                |
+| `stage`, `on-stage`                     | dark paper, ink  | `#121613`, `#eef0ea`   | the same               | Surround of a photo shown large (Match, Review, viewer), dark in both themes               |
+| `ok-half`                               | (none in v2)     | `oklch(0.82 0.06 161)` | `oklch(0.42 0.06 161)` | Admin Albums: a cell half or more filled (§6.6); the Check due ring (§4)                   |
 
-| Pair                                | Light           | Dark            |
-| ----------------------------------- | --------------- | --------------- |
-| fg on bg                            | 15.9            | 16.0            |
-| muted on surface                    | 7.4             | 7.8             |
-| muted on surface-2                  | 6.1             | 6.4             |
-| white on accent (button)            | 6.0             | 6.0             |
-| white on accent-hover               | 7.7             | 7.7             |
-| accent-text on surface (active tab) | 6.0             | 10.2            |
-| ok / warn / info text on tint       | 6.8 / 6.2 / 6.4 | 8.8 / 7.6 / 8.1 |
-| focus ring on bg (non-text)         | 5.3             | 8.6             |
-| border-strong on surface (non-text) | 4.6             | 4.1             |
+**Bottle is rationed** (v2 "Principles"). Solid `accent` fills one control per view: the main button. A choice the person made uses `accent-soft` (with an `ink` fill and a tick for a pick chip, §16), never the solid fill. The positive chip (In the album, Covered) is bottle on bottle-soft with its tick and word, never a control; the main action and In the album are told apart by form and place.
 
-**Blue is rationed.** Solid blue fills the one primary button. Lighter blue (`--accent-text`) marks the active tab only. `--accent-soft` marks a selected filter, segment, side nav item or selected row. Solid `--accent` may also mark a **selection the person made**: a ticked checkbox, a chosen radio, and the 3px ring on a picked photo tile. Blue never marks a state, progress or decoration. Progress is green because it means accepted. Hover darkens fills; text never gets lighter.
+**Brass marks attention, sky marks progress, signal marks a problem** (v2 "Colour"). None of them is decoration. The five chip tones that use them are §14.
 
-**Camera and viewer.** The in-app camera and the photo viewer's stage always use the dark token set (`data-theme="dark"` on that screen), in both themes, so the photo is judged against a dark surround and nothing glares. Their stage behind the photo is `oklch(0.12 0.005 250)` (near black). Every other screen follows the person's theme.
+### 3.2 Contrast (computed, WCAG 2.x)
 
-### Type
+| Pair                                     | Light     | Dark      |
+| ---------------------------------------- | --------- | --------- |
+| ink on canvas                            | 14.8      | 15.9      |
+| ink on surface                           | 16.3      | 14.4      |
+| ink on surface-2                         | 13.1      | 12.4      |
+| ink-muted on surface                     | 6.9       | 7.4       |
+| ink-muted on surface-2                   | 5.5       | 6.4       |
+| on-accent on accent (main button)        | 9.6       | 8.9       |
+| on-accent on accent-hover                | 12.5      | 10.6      |
+| accent-text on surface                   | 9.6       | 8.6       |
+| ok-fg on ok-bg (positive chip)           | 7.8       | 6.5       |
+| info-fg on info-bg (progress chip)       | 6.4       | 6.9       |
+| warn-fg on warn-bg (attention chip)      | 6.8       | 8.4       |
+| on-signal on signal (problem chip)       | 6.3       | 7.4       |
+| on-stage on stage                        | 15.9      | 15.9      |
+| focus on canvas (non-text)               | 14.8      | 15.9      |
+| edge-strong on surface / surface-2       | 4.1 / 3.3 | 4.5 / 3.8 |
+| brass on surface (retake ring, non-text) | 3.5       | 7.6       |
 
-| Role                         | Family                     | Size / line / weight                      |
-| ---------------------------- | -------------------------- | ----------------------------------------- |
-| Display XL                   | Figtree                    | 34 / 1.05 / 800, -0.02em                  |
-| Heading LG                   | Figtree                    | 26 / 1.15 / 750                           |
-| Heading MD, card title       | Figtree                    | 21 to 24 / 1.25 / 700                     |
-| Count                        | Figtree                    | 46 / 0.95 / 800, tabular                  |
-| Tab label                    | Figtree                    | 17 / 1.1 / 600, active 800 in accent-text |
-| Body                         | Atkinson Hyperlegible Next | 17 / 1.5 / 400 (lead 18)                  |
-| Button                       | Atkinson Hyperlegible Next | 18 / 1.2 / 700                            |
-| Meta, times, %               | Atkinson Hyperlegible Mono | 17 / 600, tabular                         |
-| Complete chip                | Figtree                    | 17 / 800 caps, +0.06em                    |
-| Complete stamp (item header) | Figtree                    | 21 / 800 caps, +0.08em                    |
+`tests/unit/token-integrity.test.ts` recomputes every pair from `app/globals.css` in both themes.
 
-Floor 17px for product text. The only exceptions are the device status bar and the 15px caption laid over a photo stand-in. Fallbacks: `system-ui, -apple-system, "Segoe UI", sans-serif`.
+### 3.3 Type
 
-### Space, shape, elevation
+Two families (v2 "Type"), loaded with `next/font/google`: **Fraunces** 600 (`display`) for names of things and big numbers, **Figtree** 400 to 700 (`sans`) for everything people read and tap. Fallbacks: Georgia, serif for Fraunces; `system-ui, -apple-system, "Segoe UI", sans-serif` for Figtree. Atkinson Hyperlegible is retired.
 
-- 4px base: `4 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 48`. Feed gutter 12, card gap 12, card padding 12 to 16.
-- Targets ≥ 44px with 8px between. Button 52, XL 60, field 56, row 64, tab 60, stepper button 48.
-- Radius: button and field 8, card, post and row 12, sheet top 16, pills (chips, filters, share box, segmented) full, square state 4, stamp 2, icon disc full.
-- Elevation by shadow: cards `0 1px 2px` at 12% plus a 4% hairline; sheets and dialogs `0 12px 28px` at 18%. Dark mode uses a faint 6% white edge instead.
-- Motion: sheets 260ms rise, press 1px, hover 150ms; reduced motion turns all of it off. A sheet that stays open while its content changes never replays its entrance and keeps its scroll position.
-- Design sizes: phone 390 × 844, narrow phone 320 wide, tablet 1024 × 768 (landscape, so the side nav applies), desktop and admin 1280 × 800.
+| v2 style | Family   | Size / line / weight      | Use                                                    | Album role names (aliases in code)                  |
+| -------- | -------- | ------------------------- | ------------------------------------------------------ | --------------------------------------------------- |
+| display  | Fraunces | 32 / 36 / 600, -0.01em    | What the screen is about, once per screen              | `type-display`, `type-page-title`, `type-count`     |
+| title    | Fraunces | 22 / 28 / 600             | Section and sheet titles                               | `type-title`, `type-section-title`                  |
+| figure   | Fraunces | 28 / 32 / 600, tabular    | Coverage counts                                        | `type-figure`                                       |
+| heading  | Figtree  | 17 / 24 / 600             | Card and row titles                                    | `text-heading`, `heading-sm`, `item-title`          |
+| body     | Figtree  | 16 / 24 / 400             | Running text, field text                               | `text-body`, `lead`, `field`                        |
+| label    | Figtree  | 15 / 20 / 600             | Buttons, tabs, pick chips, field labels, a slot's name | `text-label`, `button`                              |
+| caption  | Figtree  | 13 / 18 / 500 (chips 600) | Metadata and chips; tab labels at 600                  | `text-caption`, `meta`, `mono`, `chip`, `tab-label` |
 
-## 3. State vocabulary
+Nothing is smaller than caption (13px); staff body text is never below 16px. Times, counts and percentages in a line use Figtree with tabular lining numerals (`font-mono`); there is no third face. The section stamp keeps Fraunces caps (§5). Text reflows at 200% zoom; no text container has a fixed height.
 
-The four core states must never blur.
+### 3.4 Space, size, shape, motion
 
-| State           | Word        | Shape                                       | Tone     | Means                                                                         |
-| --------------- | ----------- | ------------------------------------------- | -------- | ----------------------------------------------------------------------------- |
-| **Ready**       | Ready       | Round pill, outline, open-dot icon          | info     | Uploaded and shared in Photos and on the profile. Says nothing about counting |
-| **Accepted**    | Accepted    | Square tag (4px), filled, tick              | ok       | Counts toward a dish, a monthly target or a checklist item                    |
-| **Complete**    | COMPLETE    | Stamp: 2px radius, 4px double border, caps  | ink (fg) | A checklist item has enough accepted photos                                   |
-| **Needs setup** | Needs setup | Square tag, 2px dashed border, hatched fill | neutral  | Missing team, target or plan. Never complete                                  |
+- Space: v2 `space-1` to `space-7` = 4, 8, 12, 16, 24, 32, 48 (Tailwind 1, 2, 3, 4, 6, 8, 12). Phone gutter and card padding 16 (`page-gutter`, `gutter`); sections 24 apart. Album grids are fluid: tiles at least `tile-min` (152px) wide, 8 between.
+- Sizes: staff actions 48 (`target-staff`: Button md and lg, fields); compact controls 44 below 1100px and 40 from 1100px (`target-compact`, managers and admins on desktop; departure V2-4); row thumbnail 56; tab bar 64 plus the safe area; SideNav 240 (`rail`); content at most 1200 (`max-w-page`); sheets and dialogs at most 480 (`max-w-dialog`).
+- Radius: 12 (`radius-md`) for buttons, fields, cards, tiles and rows; 6 for row thumbnails; 20 for sheets; full for chips and the round Add photos button; the stamp keeps 2.
+- Depth: cards and rows are flat with a 1px `line` outline. `shadow-raised` is for what floats: sheets, menus, the tab bar and sticky bars.
+- Motion: 150ms ease-out for presses and chip changes, 250ms for sheets; a slot fills in the same 150ms. Progress moves with real progress only. Reduced motion removes every transition.
+- Breakpoints: `md:` 768 (v2 `bp-tablet`: two columns where they help, sheets become dialogs), `desktop:` 1100 (v2 `bp-desktop`: SideNav for managers and admins). Design sizes: phone 390 × 844, narrow phone 320 wide, tablet 1024 × 768, desktop 1280 × 800.
 
-**Reserved shapes.** The filled ok square with a tick belongs to Accepted alone. The round outline info pill belongs to Ready alone. The double-bordered stamp belongs to Complete alone. The dashed hatched square belongs to Needs setup and Needs verification alone. No other state, tag or label may use them, even with a different word.
+## 4. Slot states
 
-Other photo states: **Submitted** (round pill, grey outline, up arrow), **Needs another photo** (round pill, warn fill and border, return arrow, always shown with the reason), **Closed** (grey square, padlock).
+A slot's state is shown by its frame, an icon and a word. Colour is never the only signal, and no two states share a frame. Since 2.0 the tile is v2's SubjectCard (§5): a 4:3 photo box, the slot's name under it, then the state mark as a v2 chip in the tone of §14. The frames are Album's and stay on top of v2's card (departure V2-13).
 
-Task and checklist states: **Overdue** (square, warn outline, clock; never blocks sending), **In progress** (round pill, neutral), **Not applicable** (dotted square, minus; stays visible with reason, not counted), **Retired** (grey square, padlock), **Needs reassignment** (square, warn outline, people), **Target met** (square, ok outline, no fill, target icon). Since 0.4, tasks, due dates and Overdue belong to service, venue-specific and amenity work only (NabaLens v0.5 rule 28). Food and drink work never shows them.
+| State                   | Frame                                      | Mark (tone, icon and word)                                                         | Counts as filled          |
+| ----------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------- | ------------------------- |
+| **Needed**              | 2px dashed `edge-strong`, on paper         | + Add in `accent-text` (the gallery, never a camera; departure V2-2)               | No                        |
+| **Sending**             | The photo, no ring                         | Progress: Sending 40% (tabular), Saved on this phone; then the receipt words below | Shown in the waiting part |
+| **Waiting for review**  | The photo, 4px `ring-waiting` (sky) inset  | Progress: ↑ Waiting                                                                | Shown in the waiting part |
+| **Needs another photo** | The photo, 4px `ring-retake` (brass) inset | Attention: ↩ Retake, with the reviewer's reason                                    | No                        |
+| **Accepted**            | The photo, no ring                         | Positive: ✓ In the album                                                           | Yes                       |
+| **Check due**           | The photo, 4px `ok-half` ring inset        | Attention: ⟲ Needs checking                                                        | Shown in the waiting part |
+| **Not here**            | 2px dotted `edge-strong`, `hatch` hatching | Not here, with the reason, on a surface plate                                      | Leaves the total          |
+| **Optional** (FA-51)    | Empty: 1px solid `edge-strong`, `surface`  | + Add, Optional; with a photo, its state                                           | Leaves the total          |
 
-Food and drink goals (0.4, NabaLens v0.5). Nobody owns a dish, and nothing about it has a due date:
+**Reserved forms.** The dashed empty frame belongs to Needed alone. The double-bordered stamp belongs to a full section alone. No other element may use them. A chip tone is not reserved: several states share a tone and are told apart by icon and word (§14), except that Needs checking (attention) and a problem (solid signal) never share one.
 
-- **Still needed** is a list heading and a count on Our menu, not a chip: the dishes on the active menu with no accepted photo, shared by everyone at the venue.
-- **Waiting for review**: a dish whose only photo waits for a decision, and the striped frame of the month. It is Submitted in staff words and takes Submitted's shape (round pill, grey outline, up arrow). The dish stays in Still needed.
-- **Being checked**: a dish whose photo is rechecked after a menu change. It takes Menu changed's shape, never the Overdue clock. The dish stays in Still needed.
-- **Needed by 30 Nov**, then **Needed**: a manager's date on one dish, written as plain meta text beside it. It is not a chip and has no warn tone, clock or late state. After the date it reads "Needed" and the dish stays first.
-- **Needs another photo** is the retake note's word, always with the reviewer's reason. It has no date. Later sets it aside on Home; it stays on Me and never comes back as a reminder.
+**Receipt words** (Full App v1, S1-UPLOAD and S2-STAFF; departures.md A-2). A photo on its way reads Saved on this phone (not yet sent), Sending (its bytes are on their way), Checking (the server has it and is preparing it), then Waiting once its slot is saved with it. Sent means it was prepared but no slot was saved with it; Couldn't finish means preparing it failed; Not sent means the transfer stopped. The words are `RECEIPT_WORDS` in `lib/upload/states.ts`. After review, a person's own photo reads In the album, Kept for reference, Retake (with the reviewer's reason), Label corrected or Not used (FA-7); the chips are `outcome_*` in `components/nabalens/status-chip.tsx`. A photo its owner withdrew before review reads Withdrawn.
 
-Menu coverage: **Menu changed** (square, neutral outline with a thick warn bar on the left, menu icon). It means a coverage decision is waiting, not a missed deadline, so it never uses the Overdue clock. The other coverage states are words in a card: "No active menu", "Menu coverage needs setup" (Needs setup tag), "Menu coverage is current".
+**Report words** (Full App v1, S2-METRICS; FA-7, FA-8). Manager and admin reports name the same slot states in the spec's words, from the same coverage rule. The chips are `coverage_*` in `CHIP_STATES` (`components/nabalens/status-chip.tsx`):
 
-Amenity facts: **Present** (square, ok outline, no fill, tick), **Not present** (grey square, minus), **Needs verification** (dashed, hatched).
+| Slot state (staff word)              | Report word             | Counted                                 |
+| ------------------------------------ | ----------------------- | --------------------------------------- |
+| Accepted (In the album)              | Covered                 | In the numerator                        |
+| Check due (Needs checking)           | Check due               | In the total, not covered               |
+| Waiting for review (Waiting)         | Awaiting review         | In the total, not covered               |
+| Needs another photo (Retake)         | Another photo requested | In the total, not covered               |
+| Needed                               | Missing                 | In the total, not covered               |
+| Not here                             | Not here                | Leaves the total                        |
+| A slot nothing needs a photo for now | No photo needed         | Leaves the total (never shown to staff) |
 
-Roles and accounts: **Self-review** (info square). Staff **Invited** (dashed round pill) / **Active** (neutral outline square, person icon) / **Inactive** (grey square, padlock). Menu **Draft** (dashed round pill) / **Active · for labelling only** (neutral grey square, menu icon) / **Retired** / **Discarded**. Grant **In effect** (neutral outline square) / **Not in effect: reason** (grey square). None of these uses the tick.
+Staff never see a report word, and a report never shows a staff-only word for a slot. Publication, package and request words are §7 (manager and admin words).
 
-Upload states, written in mono beside each file: Waiting · Uploading 42% · Processing · Uploaded · Failed · Cancelled.
+**Counts.** The album count is the number of empty slots ("41 slots still empty"; departure V2-14). Its bar is v2's CoverageMeter: Accepted (`ok-fg`, bottle), Waiting and Sending (`ok-waiting`, sky), empty (the `surface-2` track), with the numbers written under it in tabular figures ("65 in · 7 waiting · 113 in all"). Not here slots are not in the total. Check due (FA-11, Full App v1) is a filled slot whose routine or change-triggered check is due: a manager confirms it, so it sits in the waiting part and is not counted as filled. Every state comes from one coverage rule (`public.coverage_slots`).
 
-After sending, Home confirms in words: "Sent 1 photo to your month", "Sent 3 photos to Bar set-up", "Sent your new photo to your month". Keeping a photo as shared only says so: "Kept as shared only… Nothing was sent for review."
+## 5. Components
 
-Banned words: Approved, Rejected, Pending approval, Done, Published, Live. Staff screens for food and drink work also never say task, due, overdue or better photo (0.4).
+Each component is built once (catalogue: [catalogue.md](catalogue.md)) and named here. Since 2.0 each is drawn as the v2 component named in brackets ([v2/components/](v2/components/)); the catalogue's v2 table says which file plays each v2 role. What a component does and says is Album's; how it looks is v2's.
 
-## 4. Components
+- **Slot tile** (SubjectCard). A 4:3 photo box (`radius-md`), the name under it in `label`, then the state mark (§4). Needed: the dashed frame and + Add. Filled states: the photo with the state's ring. The whole tile is one target. Tapping Needed opens the gallery for that slot; tapping a filled slot opens the slot.
+- **Album count** (`display` figure and CoverageMeter). The count in `type-count`, a three-part bar, the tabular line under it. One per screen, at the top.
+- **Place chip** (PickChip). Place name and its empty count, at least 48px tall. The current place is on (`ink` fill, paper text, a tick; §16). Chips scroll sideways; the last one is never cut off without a visible edge.
+- **Retake row** (JobCard on the attention tone). Full-width row: 56px thumbnail with the retake ring, "↩ 1 retake", the reason in a few words, chevron. Shows only when there is one.
+- **Main button** (Button primary). Full width, 48px, `accent` fill, `on-accent` text, a leading icon. Always a verb plus its object or count: "Add photos from your gallery", "Add garden photos · 6 to go".
+- **Secondary button** (Button default). Outlined: `surface` with an `edge-strong` border, ink text, 48px; `raised` on hover.
+- **Brief.** One line under a slot's name: what the photo must show. Shown on the slot, in Match and in Review.
+- **Match picker.** The chosen photos as a strip (current one ringed in `accent`, v2 ThumbPick), the venue under the title ("For The Bell"), the current photo on the stage, "Which empty slot is this?", the person's recent slots (the ones matched in this visit first), suggested empty slots as dashed buttons, a search over all slots (other names and small spelling slips forgiven; a slot that already has a photo is never hidden: matched just now or waiting shows ↑, in the album or needing its check shows a photo icon, each with "another photo is welcome" in a plain edge, never the dashed frame; Not on the menu? only follows a search that found no slot), and three secondary buttons: Match later, Not for a slot, I'm not sure. Under the photo, "Same slot for the next photos too?" lists the next photos; under the picker, Add a note (collapsed).
+- **Answer pair.** For amenity slots: the guest question as the title, Yes and No as two 48px buttons. The chosen one is on, as a pick chip is (§16), never colour alone.
+- **Section stamp.** "SECTION FULL", Fraunces caps, 4px double border, 2px radius. Album's own; v2 has none.
+- **Reason chips** (PickChip in a Sheet). For Ask again: 48px pills. Choosing one sends the decision.
+- **Review bar** (DecisionBar). Ask again (secondary) and Accept (main) side by side at the bottom, on `surface` with a `line` above and `shadow-raised`.
+- **Tab bar** (TabBar). Three tabs: Album, Add photos, Me (departure V2-1). 24px icons with caption labels under them; the current tab is bottle with a bar along its top. Add photos is v2's round bottle button with the gallery icon, never a camera, and opens the gallery directly. Managers and admins: §15.
+- **Field, search field** (Field). 48px on `surface`, `edge-strong` border, label above in `label`, hint in `caption`, never a placeholder as the only label. An error thickens the border to 2px `signal` and says what to do beside it, with the triangle icon.
+- **Sheet** (Sheet). Rises from the bottom with a grip, 20px top radius, `scrim` behind it, `shadow-raised`; a dialog of at most 480px from 768px. Keeps its scroll while its content changes. On phones the safe choice comes first in reading and focus order (departure V2-5).
+- **Notice** (Notice). A soft tone ground with the tone's icon and a title; actions under the text. Page-level messages and blocked actions.
+- **Empty state** (EmptyState). No card: a 32px icon, a title and one line saying what to do.
+- **Lists and details** (ListRow, MetaList, DataTable). Rows with a 20px lead icon, a `label` title and `caption` meta; label/value pairs as a MetaList, never a hand-written `<dl>`; tables with caption headers over an `edge-strong` rule and 56px rows, scrolling inside their own box when narrow.
 
-The measured values for each component (heights, padding, radius, fill, edge, states), beside what the product ships today, are in [components.md](components.md). Which of these exist as shared components is in [catalogue.md](catalogue.md).
+## 5a. Album (Home, staff)
 
-- **Button** `.btn` + `primary | secondary | ghost | danger`, modifiers `full`, `xl`, `sm`. One enabled primary per screen. A disabled primary keeps its label, goes grey, uses `aria-disabled` and says why beside it. In a side-by-side pair the primary sits on the right (thumb side). When a pair is too narrow and stacks, grey goes above and blue below, in DOM order, so the focus order matches what people see.
-- **Icon button** `.icon-btn`, `.labelled` and `.stacked` always show text (Back, Our menu, Close).
-- **Chip** `.chip.<state>` via `UI.chip(state, text?)`. Always icon + word, in the shapes in §3.
-- **Stamp** `UI.stamp()`: the large Complete stamp on a checklist item header.
-- **Share box** `.composer` via `UI.composer()`: avatar, a pill that opens Add, and Take a photo / Choose photos. When adding is blocked (no venue, venue paused) the reason replaces the two actions. Not on Home since 0.4 (§5a): the Add tab opens capture for any photo.
-- **Post** `UI.post()`, `article.post`: avatar, name, venue and time, the photo edge to edge, then what it shows, what it was for and its state chip. No likes, comments, reactions or counts. `compact` for accepted photos in a thread and the admin library.
-- **Lead card** `UI.leadCard()`, `.lead-card`: one job and its one blue action. At most one per screen, and none on a screen whose dock holds the primary. Its media is kept short enough that the action shows without scrolling on a 390 × 844 phone.
-- **Row** `UI.row()`, `.row` (+ `warn`, `info`, `ok`): icon, two lines, chevron. The to-do rail of secondary jobs. `UI.list()` groups rows in one card.
-- **Card** `.card`, `.card.flat`. Plain grouping.
-- **Thread** `UI.thread()`: a task as a post thread. The task's own post first (what to photograph, by when, the section's shared progress), then each photo sent as a post. `UI.reason()` puts the reviewer's reason directly under the old photo as its caption, with the action below it in the same post.
-- **Progress** `UI.progress()`, `UI.frames()`, `UI.framesKey()`. One rounded segment per photo: green accepted, striped submitted, grey still needed. Always paired with the words "N of M accepted". The month's roll of frames is this component in its segments mode, not a component of its own (0.4). It has four frame states, keyed in this order: Accepted (green), Waiting for review (striped), Needs another photo (warn tint with a warn edge) and Still to take (grey).
-- **Scope label** `.scope-label`, **venue scope** `.venue-scope`, **separate note** `.separate-note`: who and where a number belongs to, and that the two counts are separate.
-- **Notice** `UI.notice(ok|info|warn, title, text, actions)`: what happened, then what to do. `warn` gets `role="alert"`, others `role="status"`. Home's sent confirmation is an ok notice.
-- **Offline banner** `.banner-off` under the status bar.
-- **Field** `UI.field()`, `.input`, `textarea.input`, `.field-err` (icon + text, never colour alone; `aria-invalid`, `aria-describedby`). Code entry is one input set in mono, digits spaced.
-- **Stepper** `- [n] +` for targets (`.a-manage-stepper`, `.a-manager-account-stepper`): 48px buttons with drawn minus and plus of equal weight, the value in mono in a labelled field, an `aria-label` on each button ("Decrease Priya Gurung"), and the error under the group. The minus and plus carry no visible word (see rationale).
-- **Icon disc** (`.a-gi-disc` and its area twins): a 52px round disc above a state heading (mail sent, link expired, could not load), neutral, ok or warn tint. Decorative: the heading carries the meaning.
-- **Step marker**: `UI.steps()` for multi-step setup ("Choose sections", "Set photos per section"), and the short two-segment "Step 1 of 2 · Your email" marker on sign in (`.a-gi-step`) where two long labels would wrap.
-- **Segmented** `UI.seg()` with `aria-pressed`. **Select pill** `UI.filters()` for filters and suggestions; selected uses accent-soft with an accent-text inset edge. Pills wrap; nothing scrolls sideways.
-- **Tile check** `UI.pick()` / `UI.picker()` for photo pickers. Ineligible photos show the reason instead of a checkbox. A picked tile gets a filled box and a 3px accent ring.
-- **Radio row** `UI.choice()`, **checkbox** `UI.check()`.
-- **Sheet** `UI.sheet()` (phone), **Dialog** `UI.dialog()` (desktop, or `phone` for a phone confirm), **Drawer** `UI.drawer()` (admin media details). All have `role="dialog"`, `aria-modal`, a label, a visible Close, a scrim that closes, and close on Escape.
-- **Tab bar** `UI.tabbar()`: staff Home · Photos · Add · Me; managers add Manage with a review count. Hidden on action screens, replaced by the **action dock** `UI.dock()` (pinned, holds the primary).
-- **Top bar** `UI.top()`: Back with label, title, venue scope.
-- **Side nav** `.side` for Manage and admin at 1024px and up. `UI.wide()`, `UI.adminShell()`, `UI.wideHead()`.
-- **Table** `UI.table()`, **Stat** `UI.stat()`, **Key values** `UI.kv()`.
-- **Menu diff tag** (`.a-admin-diff`, admin only): a neutral pill with a mono sign and a word ("+ 3 added", "~ 2 changed", "− 1 removed"); uncertain matches use the warn tint ("? 2 uncertain"). Never colour alone.
-- **Upload queue item** `UI.qItem()`: thumbnail, "Photo N", mono state, progress bar, Cancel / Retry / Undo.
-- **Camera** (`.camera`, `.a-add-cam`): dark stage, labelled shutter, a quiet list of suggested angles (current one bold with a 2px underline), "Use N" as the primary.
-- **Photo stand-in** `UI.ph()`. Prototypes never use real venue photos or stock people. A chip laid on a photo sits on a solid `--plate`, with Ready and Submitted drawn in light outline values so they read on it.
-- **Avatar** `UI.avatar(name, hue)`: initials in white on a per-person tint `oklch(0.42 0.06 hue)`. The tint only tells faces apart; it never carries a state. **Skeleton** `UI.skeleton()`: static, photo areas as flat blocks.
+Top to bottom, on a phone:
 
-Prototype only, not product: the **Controls panel** beside the playable phone and admin (`play-` and `pl-` classes in the prototype kit): role, theme, connection, scenario, flows, and a running tap counter.
+1. "The Bell album" (caption), then the album count.
+2. The retake row, when there is one.
+3. "Where are you?" and the place chips. The current place is the one the person last opened, else the place with the most empty slots.
+4. "Empty at the bar" and up to six Needed slot tiles from that place, with "All 8" to open the place.
+5. A "Match later" row with the number of unmatched photos, when there are any.
+6. An "Other jobs" row (assigned tasks, amenity checks and venue questions waiting on the person), when there are any or the count can't be read.
+7. A "Start here" row for new staff, until they dismiss the welcome or add a photo.
+8. The main button: "Add photos from your gallery".
+9. The tab bar: Album (its badge counts open retakes), Add photos, Me.
 
-## 5. Patterns
+The screen shows nothing else: no colleague feed, no personal month (it is on Me), no ranking.
 
-- **Screen anatomy (phone):** status bar → optional offline banner → top bar with venue → scroll area → tab bar or action dock.
-- **Home shows goals, not tasks (0.4),** in this order: setup notice → retake note → Our menu with what is still needed → Your month → Other jobs → From the team as posts. One main action: Reshoot when a retake note is open, else the first Still needed dish, else Open camera when the menu is complete. Food and drink work has no assignment, due date or Overdue. The full Home rules are in §5a.
-- **Goals, not tasks:** the menu belongs to the whole venue. Anyone at the venue may photograph any dish still needed, and it leaves Still needed for everyone once a photo of it is accepted. Your month is one person's goal, private to them, their venue manager and admins. No screen ranks or compares staff.
-- **After sending,** the phone returns to Home and confirms what was sent, in words, in an ok notice at the top of the feed. The photo keeps its Sent state.
-- **Task as a thread** (service, venue-specific and amenity work only): task post → your photos as posts → for Needs another photo, the old photo with the reason as its caption and the action under it.
-- **Two counts, never added:** "Your month" (person, month, venue) and "Venue progress" / "Checklist" (venue, month). Each has its own scope label and the sentence that they are counted separately.
-- **Offline:** uploads wait ("Waiting for a signal") and carry on when the signal returns. Sending to your month or a job always needs a tap ("Send when you're back online" stays disabled until then). On the admin desktop every save is disabled with the reason "You're offline"; navigation still works.
-- **Errors:** what happened, then what to do, then reassurance when true. "We couldn't reach Naba-Lens. Check your connection and try again. Nothing is sent twice."
-- **Empty states:** icon, what appears here, and how it gets there. One action at most.
-- **Loading:** skeletons in the real layout plus a status line ("Loading Home…").
-- **Destructive actions:** danger button, confirmation dialog naming the venue and the external effect, safe choice on the left.
-- **Reasons:** any change after the first (targets, not applicable, ask for another photo, revoking a grant) asks for a reason that admins can see. Suggested reasons fill the field and stay editable.
-- **Self-review:** allowed, and flagged on the photo, on the lead card, in the dialog and in the confirmation.
+**Full App v1 rows.** The step numbers above are cited in code and stay. In the shipped order, Start here (step 7) sits under the album count, so a new starter sees it first. Full App v1 adds three rows under the retake row, in this order:
 
-### 5a. Home (staff)
+- **Unfinished photos** (spec §6 S1): "3 photos didn't finish · Open them to send again. Nothing is sent twice." on `warn-bg`, for photos that stopped or failed on this phone or were picked in an earlier visit and never finished. It opens Add, which shows them first with Retry. Shown only when there are any (`components/nabalens/album/unfinished-row.tsx`).
+- **A blocked notice**, when the person cannot add photos at this venue, saying why.
+- **Asked for** (S2-REQ, FA-5, FA-50; departure A-R1): a manager's open requests, drawn as the slots themselves (§5 slot tile) with the manager's brief under each and, when dated, "Needed by 30 Nov" as meta text (then "Needed"). The person's own come first, six at most, then "n more in the album". Tapping a Needed slot opens the gallery for that slot; a request with no slot shows its subject and opens Match. Never "task", "request", a due date or Overdue (§7). The component is `AskedFor` (`components/nabalens/requests/staff-requests.tsx`).
 
-Added in 0.3.2; rewritten in 0.4 for NabaLens v0.5 ("goals, not tasks"). The staff landing page (`/staff/tasks`, "Home" on screen). The "v3" prototype of the goals canvas (15 Nov 2026) shows the model only. Its tokens and drawings are not the spec: tokens come from §2 and components from §4.
+Requests never change the album count.
 
-Home answers three questions: what does the venue still need, how is my month going, and has anyone asked me for another photo. It shows no assignment, due date or Overdue for food and drink work (v0.5 rule 21).
+## 5b. Me (staff)
 
-Order, top to bottom. A block with nothing true to say is left out, never shown empty.
+Me is the person's account hub: one screen of rows, each opening the page that does that job (D17). Their photos are the My photos tab (§5e, D18), not a row here. Every job has one home; nothing on Me repeats another page. Top to bottom, on a phone:
 
-1. **Top bar:** wordmark, the venue as a grey pill, the person's avatar linking to Me.
-2. **Sent notice**, only after a send: an ok notice in the words of §3 ("Sent your new photo to your month."), then who reviews it next. It stays until closed or the page is left.
-3. **Greeting:** the date ("Saturday 14 Nov 2026") above "Good evening, Priya", Heading LG. "Welcome, Priya" until the first photo.
-4. **Setup notice**, only when the venue, team or name is missing: what is missing and who fixes it. Nothing on Home then says "complete", and no action leads to a camera that cannot save.
-5. **Start here**, for a new starter only: a row to the welcome guide (`/staff/tasks/welcome`).
-6. **Retake note**, when a reviewer asked for another photo: the old photo with the Needs another photo chip on the plate, the reviewer's reason in their words, then Later (grey) and Reshoot (blue). Reshoot opens the camera with the dish already labelled. Later hides the note from Home, on every device. The note stays on Me and clears when a new photo of the dish is accepted. It has no date and is never repeated or escalated. Its photo is 2:1 at most, so Reshoot shows without scrolling at 390 × 844.
-7. **Photos to review**, for a staff account with a legacy reviewer grant only: one row with the count.
-8. **Our menu:** "N of M dishes at The Railway have a photo", an ok bar, and "Counted for the venue, separately from your month." Under it, **Still needed**: up to four dish rows, then "See all N" to `/staff/menu?filter=gaps`. Each row offers Take a photo and Choose from photos, with the dish already labelled. A row carries Waiting for review or Being checked (§3) when that applies, and stays listed. A dish with a needed by date comes first, with the date as meta text; after the date it reads "Needed" (§3). Then menu order. When every dish has a photo, the block says so and Open camera is the main action.
-9. **Your month:** its own card with the scope label "You · November 2026 · The Railway", "N of M accepted" in mono, and Progress segments with the four frame states and their key (§4). The sentence under it says what counts: "Accepted photos you labelled — dishes, drinks and venue areas — and photos you sent to the month, count." Never "any photo counts". It shows no due date and no Overdue; the month ends with the London calendar month. Before a target exists, the card shows Needs setup and what is still missing, and says nothing is the person's to do.
-10. **Other jobs**, only when the person has service, venue-specific or amenity work: one row linking to the list of those jobs. Due dates and Overdue stay on that list (rule 28).
-11. **From the team:** posts (§4), newest first, then "See more in Photos". Target met adds nothing here: no collage, badge or other celebration (§8).
+1. **The profile card** (`ProfileHeader`): face, name, role and venue. Edit profile is on Settings.
+2. **Unfinished photos** (`UnfinishedRow`), when there are any.
+3. **Your month**: "6 of 10 this month", or "Not set up yet" → `/staff/tasks/month`. Never compared with a colleague's (§9).
+4. **Notices**, with the unread count → `/staff/notifications`.
+5. **Manage The Bell** (managers only) and **Other jobs** (when there are any).
+6. **Your venue**: Colleagues' photos (`/staff/community`) and People (`/staff/people`).
+7. **Settings** (`/staff/me/settings`) and **Help** (`/staff/me/help`).
+8. Log out (phones; from md it is in the AppBar).
 
-**One main action.** Home has one solid blue button, the first that applies:
+Add photos is the tab (§5 Tab bar), not a button on Me; Album's Menu is the menu (§5d), not a link here.
 
-| When                             | The blue button                             |
-| -------------------------------- | ------------------------------------------- |
-| A retake note is open            | Reshoot, in the retake note                 |
-| A dish is still needed           | Take a photo, on the first Still needed row |
-| Every dish has a photo           | Open camera, in Our menu                    |
-| No venue, or setup is incomplete | None                                        |
+**Settings** (`/staff/me/settings`): Edit profile (name and photo), Work details (`/staff/profile`), Your venues with the venue switcher (FA-22), Add to home screen (FA-53), Appearance (System, Light, Dark) and Log out.
 
-Every other action on Home is grey or a link. There is no share box on Home: the Add tab opens capture for any photo. The Home tab badge counts the cards on Home that ask the person to act, never dishes.
+**Help** (`/staff/me/help`): How Naba-Lens works, the Photo guide, If you can't add photos (spec §6 S5) and Your managers.
 
-The tab bar is the shipped five (Home, Photos, Add, People, Me; departure N2). Add is a grey pill around the plus, never blue, so Home's main action stays the only solid blue on Home.
+The older blocks (Needs labels, accepted photos, My contributions and the media gallery; departure A-S2) are gone from Me in the tray shell: each repeated Your photos. The legacy `/staff` page keeps them until it is retired.
 
-## 6. Voice
+**Notices** (FA-10) are an inbox page, `/staff/notifications`, reached from Me: newest first, each with what happened and a link to it, then what to be told about. An unread notice puts a count badge on the Me tab. There are no toasts and no push (§6.7, FA-43). The component is `components/nabalens/me/notices-inbox.tsx`.
 
-British English, sentence case, digits, correct plurals ("1 photo", "3 of 5 accepted"). UK dates in Europe/London: "2 Nov 2026", "2 Nov 2026, 14:06", "Needed by 30 Nov". No exclamation marks, no emoji. Never imply that uploading publishes anything, or that a label is allergen information. Never invent numbers: every count on screen comes from the data.
+**Slot page** (`/staff/album/slot/[kind]/[slotId]`): the slot's photo when it is in the album or due a check, its brief, its state word, "n waiting" when colleagues' photos wait (never the photos themselves, FA-20), Add photos for the slot and Report a change.
 
-Food and drink work (0.4, NabaLens v0.5) is a shared goal, so its words are the goal's words: "Our menu", "Still needed", "Your month", "Waiting for review", "Needs another photo", "Needed by 30 Nov", then "Needed". Staff screens for it never say task, due, overdue or better photo, and never rank or compare staff. "Due 30 Nov 2026" and Overdue stay on service, venue-specific and amenity work. Month copy says "Accepted photos you labelled — dishes, drinks and venue areas — and photos you sent to the month, count", never "any photo counts".
+## 5c. Home (staff): a reminder to add photos
 
-## 7. Accessibility
+Home **reminds the person to add photos** and shows what happened to the ones they sent (D15). It never chooses which dish, drink or space to photograph: Album is where slots are browsed, and only a person (a reviewer's retake, a manager's request) ever names one. It is the landing tab of the three-tab staff shell (§6.1a MT-4, `/staff/home`). Top to bottom, on a phone:
 
-- WCAG 2.2 AA: text 4.5:1, large text and icons 3:1 (see contrast table).
-- Focus: 3px `--focus` outline, 2px offset, on every interactive element, in both themes.
-- Real `<button>` and `<a>`; dialogs have `aria-modal` and a label; status changes use `role="status"` or `aria-live`.
-- Focus order follows the visual order: never reorder controls with CSS alone. A disabled control uses `aria-disabled`, stays in the focus order and says why it is unavailable.
-- Text 17px or larger; targets 44px or larger; main buttons 52 to 60px; labels under every icon.
-- No swipe-only or long-press-only actions. Nothing moves on its own.
-- Text survives 200% zoom; no horizontal scroll from 320px.
+1. **Start here**, for a new starter (as §5a step 7).
+2. **Unfinished photos** (`UnfinishedRow`), when there are any.
+3. **The retake row** (§5a step 2), when the person has retakes: named by the reviewer, not by Home.
+4. **Asked for** (§5a, S2-REQ), when a manager has open requests: named by the manager, not by Home.
+5. **The reminder** (the page title and the main button, in one card). The title and line follow when the person last added photos at this venue:
+   - none yet: "Add your first photos" · "Dishes, drinks and corners of the venue you took on shift. Pick them from your gallery."
+   - some today: "Got more from today?" · "You've added 3 photos today."
+   - earlier: "Got photos from today?" · "Your last photos were yesterday." or "… 3 days ago."
+   - can't be read: "Got photos from today?" with no line.
+     Under it, "237 slots still empty at The Bell" (V2-14) when the album can be read, then **Add photos** (`AlbumAddTrigger`, the same button as the tab, §6.1): the gallery for many photos, then Match. When the person cannot add photos at this venue, the blocked notice says why in place of the button. The card names no slot.
+6. **Match later** and **Other jobs** rows, when there are any.
+7. **Recent activity**: the person's six newest photos at this venue, each with its thumbnail, slot names (or "With your manager", "Shared photo", "Photo without a slot"), sent and taken dates and its outcome chip (§4, FA-7), and "See all" to My photos (§5e). Empty: "Photos you send to this venue will appear here." Can't be read: "Recent activity couldn't be loaded. Reload to try again."
 
-## 8. Not in this system
+The screen shows nothing else: no list of slots to fill, no month card (the header carries the month's line when a target is set, §6.1a MT-6; the card is on Me), no feed of colleagues, no ranking (§9) and no setup notice the person cannot act on themselves. "Today" is the venue's calendar day.
 
-Likes, comments, stories, reactions, leaderboards, scores, gradients beyond functional striping and hatching, glassmorphism, decorative illustration, celebration effects. No third-party logos, brand colours or icon sets: the look is familiar, not borrowed.
+The page is `app/staff/home/page.tsx`; the reminder is `AddReminder` and the list `RecentActivity`, both in `components/nabalens/home/`; the reminder's words come from `addReminder` in `lib/staff/home.ts`.
 
-## 9. Changes from v0.2
+## 5d. Album (staff): Menu, Amenities and Spaces
 
-- **Reserved shapes** (§3): the filled ok square with a tick is Accepted's alone. Target met, Present, account Active, grant In effect and menu Active · for labelling only get their own shapes. In v0.2 Target met was "square, ok fill", the same shape as Accepted.
-- **Menu changed** added as a state (§3) with its own shape, never the Overdue clock.
-- **Selection marks** may use solid accent (§2): ticked checkbox, chosen radio, the 3px ring on a picked tile. Selected rows use accent-soft.
-- **Camera and viewer** always use the dark token set (§2).
-- **Allowed raw values** listed (§2, §4): the camera and viewer stage, the avatar tint, chips on a photo plate. Anything else is a departure.
-- **Complete chip** set at 17px, not 16px, to meet the floor (§2 type). The large stamp is listed.
-- **Design sizes** stated (§2): tablet is 1024 × 768 landscape.
-- **New components** (§4): stepper, icon disc, sign-in step marker, menu diff tag, camera; the post, lead card, thread and Home confirmation described in full; the Controls panel marked as prototype only.
-- **Button pairs** (§4): when a pair stacks, grey above, blue below, in DOM order.
-- **Lead card** (§4): its action must show without scrolling at 390 × 844.
-- **Patterns** (§5): return to Home with a confirmation after sending; the manager's coverage row on Home; offline rules for sending and admin saves; self-review flagging.
-- **Accessibility** (§7) strengthened: focus order follows visual order; disabled controls stay focusable and say why.
-- **Motion** (§2): a sheet that stays open never replays its entrance.
+Album is the whole venue to browse (D16). It opens on three **parts**, the way Google Business Profile groups a venue's photos (food and drink, amenities, the place itself), and each part narrows in steps, so no screen is a list of a hundred slots:
+
+| Level   | What it is                           | Example    | Where it comes from                                                                        |
+| ------- | ------------------------------------ | ---------- | ------------------------------------------------------------------------------------------ |
+| Part    | Menu, Amenities or Spaces            | Menu       | The type of each slot (FA-6): Food and Drinks are Menu; Facilities and Other are Amenities |
+| Type    | Within Menu only: Food or Drinks     | Drinks     | The coverage rule's category                                                               |
+| Shelf   | A family of sections                 | Spirits    | Naba-Lens's fixed shelf set; each section suggested from its name, a manager can move it   |
+| Section | The menu section or amenity category | Gin        | The active menu, or the amenity catalogue                                                  |
+| Slot    | One dish, drink, amenity or area     | Hendrick's | As §4                                                                                      |
+
+**Amenities** holds every venue feature a photo can show, grouped like Google's attributes (Accessibility, Arrival, Family, Pets, Outdoor, Games, Entertainment, Facilities, Connectivity, Service). Attributes a photo cannot show (payments, crowd, planning) are facts in venue knowledge, never slots. A new photographable feature is a row in the amenity catalogue, not code. **Spaces** holds the venue's areas (the bar, the kitchen pass, the garden), one slot each, with no shelves.
+
+**The shelf set.** Fixed in `SHELVES` (`lib/album/shelves.ts`); a venue never adds one. Each type ends with a "More" shelf that takes any section no rule fits, so nothing is lost.
+
+| Type       | Shelves, in order                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| Food       | Starters & small plates · Mains · Rice, breads & sides · Specials · Kids · Desserts · More food  |
+| Drinks     | Beer & cider · Wine & fizz · Spirits · Cocktails & jugs · Soft & hot drinks · More drinks        |
+| Spaces     | One shelf, The venue: the areas themselves                                                       |
+| Facilities | One shelf per amenity catalogue category (Accessibility, Outdoor, Family, Pets, Games…), by name |
+| Other      | One shelf, Other                                                                                 |
+
+A section's suggested shelf comes from words in its name ("Gin", "Red Wine", "Naans"). The narrower shelves are checked first (Kids and Desserts before Mains, Cocktails before Spirits), so "Kids burgers" is Kids and "Gin cocktails" is Cocktails; a section whose name fits none goes on More. A manager's choice (`album_shelves`, set on `/manager/album`) always wins over the suggestion. Code never lists menu items or section names: the rules match words, and a venue whose words differ is fixed by its manager.
+
+**Place is a lens.** "Where are you?" (All places, then each place with its empty count) filters every Album screen to the slots photographed there (§5a step 3, `album_places`). The chosen place is remembered on the phone (AL-2) and kept in the URL (`?place=`).
+
+**Album landing** (`/staff/album`), top to bottom on a phone:
+
+1. "The Bell album" (title) and "237 slots still empty" (V2-14).
+2. Search (`AlbumSearch`, §6.1a MT-1): any slot by name, with its place and section; results only once something is typed.
+3. "Where are you?": the place lens.
+4. One card per part, in the order Menu, Amenities, Spaces (under a place, only parts with slots there; on All places an empty part says "Nothing to photograph here yet."): its name, "235 still empty of 243", its bar (§13 CoverageMeter), up to four accepted photos as a strip, and links into it with their empty counts (Menu: Food and Drinks; Amenities: its shelves; Spaces: none). A part with every slot filled reads "All in". The card opens the part.
+5. Match later, when there are any (§5a step 5).
+
+**A part** (`/staff/album/menu`, `/staff/album/amenities`, `/staff/album/spaces`), top to bottom:
+
+1. "← Album", then the part's name with "124 still empty of 124" beside it.
+2. Menu only: the Food | Drinks switch (`SegmentedControl`) with each one's empty count (`?kind=food|drinks`; default Food, or Drinks when Food has no slots).
+3. One filter row: a **Filter** button with the number of filters changed from the default, the line "All · Bar" saying what is shown, and Clear when anything is changed. Filter opens a sheet (§5 Sheet) with Show (Needed, Waiting, In the album, Retake or needs checking, All; `ALBUM_SHOWS`, `?show=`) and Where are you? (the place lens, `?place=`); each choice applies at once and Done closes it. An open shelf shows All by default. A part with no slots has no filter row.
+4. **Folders**: each shelf as a card, two across on a phone: a 2×2 cover of its accepted photos (with none yet, a dashed frame with the gallery icon and "30 to add"), its name with a tick when every slot is in, and "20 of 43 in · 16 empty". The card opens the shelf (`?shelf=`). A part with one shelf (Spaces) skips the folders and opens on it. The folders have no Show filter; the place lens still applies.
+5. **An open shelf**: "← Menu · Food", the shelf's name and its count; the filter row (Show opens on All here, photos and gaps together); a sticky jump bar of its sections with their empty counts, the one in view marked (`aria-current`) and scrolled into view; then each section: its name (h2), "2 of 9" and, when every slot is filled, a Done mark (§2 principle 6), over three-up slot tiles (§5 slot tile). A shelf with one section leaves its heading to screen readers. A filter that empties a section leaves it out.
+6. The main button: Add photos from your gallery, for Match (§6.1).
+
+**Words.** Part, type, shelf and section names are shown as they are; the levels themselves are never named on screen ("part" and "shelf" are words for this spec and for managers). Counts are remaining ("still empty") for staff (V2-14).
+
+**States.** No slots under the lens: "Nothing at the bar yet. Choose All places." Album can't be read: the problem notice with the message, and Add photos still works. Shelves can't be read (or the migration is not applied): suggestions only, with no notice to staff.
+
+The model is `buildShelves` and `ALBUM_PARTS` in `lib/album/shelves.ts`; the screens are `AlbumLanding` and `AlbumPart` in `components/nabalens/album/`; a manager moves a section on `/manager/album` (`AlbumPlacesForm`, Shelf in Album).
+
+## 5e. My photos (staff)
+
+A tab (§15, D18): everything the person has sent and what happened to it, photo first (D19). Its tab counts open retakes. Three ideas: **one inbox** for whatever needs the person, **a grid by day** for everything else, and **details on tap**.
+
+**My photos** (`/staff/photos`), top to bottom on a phone:
+
+1. Add a video on the right (R15-1, departure A-D2; the older Add sheet for video and files Match does not take, gallery only). The bar above says My photos.
+2. The summary line: "42 sent · 30 in the album · 9 waiting" (only the parts that are not zero).
+3. **Needs you · 3**, when anything needs the person, one row each with its own button, newest first:
+   - a retake: the slot's name, "Retake: " and the reviewer's reason, **Retake** (opens the slot, §5b slot page);
+   - no slot yet (not "I'm not sure", which is the manager's job): "Which dish or space is this?", **Choose** (opens the photo, where Change slot is);
+   - couldn't finish: "Didn't finish. Add it again from your gallery.", **Add again** (the gallery, then Match);
+   - labels the server kept but could not add (`NeedsAttention`, without its own heading): Fix labels or Discard labels.
+4. **Sending 2 photos…**, a thin row while uploads from this phone are on their way (the receipt words, §4). Never a filter.
+5. The filter: All · Waiting · In the album (`SegmentedControl`, `?show=`). All by default. Waiting is anything a reviewer has not decided, sending included; In the album is accepted for public use or kept for reference.
+6. **The grid**: three-up square photos grouped by the day they were sent ("Today", "Yesterday", "Tue 17 Nov", in the venue's calendar), newest first. Each photo carries one small mark in its corner: a tick (in the album), a clock (waiting), an exclamation (needs you) or none (not used, withdrawn). A video shows its film icon. Under the grid, "Show more" while there are older photos (§7, never infinite scroll).
+7. Empty: "Photos you add appear here, newest first." with Add photos.
+
+**One photo** (`/staff/photos/[assetId]`): "← My photos", the photo large (`/api/media/[id]/preview`), the slot names with each one's state chip (§4, FA-7), the reviewer's reason on a retake, the venue when it is not the current one, sent and taken dates, "Already sent before: it doesn't count twice" (FA-35), then every action the photo allows as full-width buttons: Retake, Change slot (the §5 Match picker), Fix date taken, Ask for a correction, Ask to remove (FA-21) and Withdraw (last, destructive). After Withdraw the page says so and links back. A photo that is not the person's, or no longer exists, is not found.
+
+The words are Album's (§7). Nothing on My photos ranks the person or compares them with a colleague (§9).
+
+The screen is `MyPhotos` (`components/nabalens/me/my-photos.tsx`); the rules (needs you, state, day groups, filter) are `lib/staff/my-photos.ts`; one photo reuses `MyUploads` in its detail layout, so every action and dialog has one implementation.
+
+## 6. Patterns
+
+### 6.1 Adding photos
+
+1. The person taps Add photos (tab or main button) or a Needed slot.
+2. The phone's photo picker opens. From the tab they may choose up to 20; from a slot, one.
+3. From a slot, the photo goes straight to that slot. From the tab, Match opens.
+4. Match shows one photo at a time. Suggestions are the empty slots of the current place, then of the place where the person last matched. Capture time orders the photos; location in the photo is never read.
+5. Each tap fills a slot (Sending 40%, then Checking, then Waiting, each on the end's row with Retry when a photo did not send) and moves to the next photo. The next photo of the same dish is one tap under Recent, wherever it sits in the strip. Match later keeps the photo unmatched on the phone and on Home. Not for a slot sends it as a shared photo with no slot. I'm not sure sends it to the manager, who chooses the slot (FA-4). A run of one subject takes one answer: tap the last photo of the run under "Same slot for the next photos too?" (or All N left), then the slot; nothing is grouped until the person says so. A dark, blurred or small photo gets a one-line hint under the stage that never stops the send.
+6. At the end: "5 slots filled", the venue and photo count, what happens next, and See the album.
+
+### 6.1a Batch Match phone preview
+
+Local trial of the two routes. Enable it in development with
+`NEXT_PUBLIC_NABALENS_UPLOAD_TRAY=1`.
+
+- **MT-1**. Search the active venue's slots on Album. Results show place,
+  section, item, and state. Tapping a Needed result uses that slot's Add action.
+- **MT-2**. Add photos opens the native picker. Match shows the whole
+  selection in a two-column tray, with every photo initially unselected.
+  Select one or more, choose a slot, and review the assigned groups before
+  Send. Ask my manager and Not for a slot use their existing destinations.
+  The chooser carries a missing search name to the manager as a note.
+- **MT-3**. A known slot accepts multiple photos with one gallery pick.
+  Both routes show a receipt with one row per file and Retry on recoverable
+  failures. Count files already sent for review separately from those still
+  sending. Match later continues to keep unassigned photos.
+- **MT-4**. Preview sign-in lands on **Home** (`/staff/home`), which shows
+  what to photograph next (§5c, D15).
+  The bottom bar is Today, Album, Add, My photos and Me (§15). Each
+  tab has a real URL and the current tab is labelled as the current page.
+- **MT-5**. **Album** (`/staff/album`) opens on searchable, grouped slot
+  rows. The known-slot receipt links to the slot's own page, which shows
+  the brief and the staff member's submissions for that slot.
+- **MT-6**. **Me** (`/staff/me`) starts with your month and your own
+  submissions, followed by your profile and account. The three main
+  screens show the venue and current section in the mobile header and,
+  when set, the month's goal summary links to its details.
+
+In the tray, assignments are drafts until Send. The existing upload queue
+sends the files and their matches together. Each slot-first pick already has
+its destination so it starts sending when the gallery returns.
+
+### 6.2 A place
+
+Every slot in one place, by section (for the bar: Drinks on the menu, Games and amenities, The space), each section with its "9 of 14" count. The main button adds photos for the place's empty slots.
+
+### 6.3 Amenity slots
+
+The guest question comes first. Yes asks for the evidence the catalogue requires (photo, video or both) with the brief. No marks the slot Not here and says that the manager sees the answer.
+
+### 6.4 Finishing a section
+
+When the last slot of a section is accepted, the next visit to that place shows the stamp, the section's photos and who added them, the new album count and the nearest next gap as the main button.
+
+### 6.5 Review
+
+The queue count is the page title. One photo on the stage with its name, brief, author, time and place. Accept moves to the next. Ask again shows reason chips; choosing one sends the decision and moves on. Nobody reviews their own photo.
+
+### 6.6 Admin albums
+
+Venues down, sections across (Food, Drinks, Amenities, Areas), each cell "filled of total" with a tint that darkens as it fills. Under it, the biggest gaps. Tables scroll inside their box on a narrow screen.
+
+### 6.7 Feedback
+
+Feedback is written on the page, in the place the person is looking: the slot changes, the count moves, Match ends with a summary. There are no toasts: v2's Toast is built (`components/nabalens/toast.tsx`) so its look is ready, but no screen shows one (departure V2-11). An error says what happened and what to do, beside what failed, and keeps whatever the person chose.
+
+### 6.8 Offline
+
+When the signal drops, matched photos show "Saved on this phone" on their slots and send when it returns. Nothing asks the person to wait.
+
+## 6a. Manager screens
+
+The manager workspace (Full App v1, spec §7) draws in the §3 tokens and §5 components on phone, tablet and desktop. It shows counts as "n of N" with the percentage as secondary text (FA-8; departure A-M2) and uses the spec's names for review actions, requests and publication (FA-7; §7).
+
+- **Navigation.** Five tabs: Overview, Review (its badge counts photos waiting), Album, Requests, Venue. Add sits in the header on phones and as "Add photos" from md (departure A-M1). On phones the five tabs are v2's TabBar with 13px caption labels at every width; from 768px a row of section tabs under the header; from 1100px v2's SideNav (§15). Metrics, Team and Search have no tab and are linked from Overview.
+- **Overview** (spec §7 M1). "Do next" first: "Review next · n photos waiting" is the one main button, then the spec's other actions as rows: Check venue details, Request missing photos and Resolve outdated public content (`lib/manager/overview.ts`). To confirm, Needs labels and publication issues are rows of their own with their counts. Then "Collecting and reviewing" (Still to collect and Waiting for your review, two separate counts that are never added), Coverage by category ("18 of 24" per Food, Drinks, Spaces, Facilities and Other, and confirmed facts), This venue (active menu with its monthly Still right, main and backup reviewers), then rows to Requests, Team and Metrics.
+- **Review** (spec §7 M2, M3). The bare page is Review in a thumb (§6.5): Accept and Ask again. A filter or `?view=list` opens the full queue, oldest first, with Needs label photos in the main queue (FA-4), filters for category, contributor, section, age, possible duplicate, needed-by and media type, and a batch of at most 24. The photo detail (`/manager/review/photo/[assetId]`) shows the subject, the other photos sent with it, the album's public photos for each slot, provenance, flags (Needs label, Possible duplicate, Small) and history, and acts with the spec's names: Approve for public use, Keep as reference, Ask for another photo (reason chips, §5), Fix label, Mark duplicate, Not used, Withdraw (departure A-REV-1). Nobody decides on their own photo, except at a venue an admin marked single-reviewer (FA-9; departure A-REV-2).
+- **Requests** (`/manager/requests`, spec §7 M4; FA-5). Open requests first, Blocked, Open and Submitted, by priority and date, each with its kind, slot or subject, person and state chip (`request_*`). New request starts from a slot or as a New brief. A request on a slot has "Needed by" and never reads Overdue; only a New brief or a shot list has a due date. Shot lists show "n of N completed". Cancel always asks for a reason. Staff see requests only as Asked for (§5a).
+- **Metrics** (`/manager/metrics`, spec §18; AC39). Period and category filters, then coverage as "n of N" per category, review delay (median and 90th percentile), label corrections, the Needs label backlog, useful contributions, content use and reliability. "How this is counted" lists every slot with its report word (§4). No number about one named person (§9).
+- **Venue** holds To confirm (facts and space photos due a check, with Still right), Reported changes, history, menus, specials, reviewers, team and exports. **Reported changes** (`/manager/venue/reports`) lists staff reports on a slot and photo correction requests, oldest first: what it is about (linked), kind and reason, the staff note, who and when, then Dealt with or Dismiss, each with an optional note.
+
+## 6b. Admin screens
+
+The admin app (Full App v1, spec §8) is desktop first and works at 320px. Every list puts what is blocked or failing first (§11 rule 3) and every number links to the records behind it.
+
+- **Navigation.** Seven sections in the spec's order, kept in `ADMIN_NAV` (`components/nabalens/app-shell.tsx`): Overview, Venues, Menus & catalog, Library, Publishing, People, Settings & activity. From 1100px v2's SideNav lists all seven with the short labels Menus and Settings (§15); from lg to 1100px the top bar shows them; below lg the tab bar shows Overview, Venues, Library and More. **More** (`/admin/more`) lists all seven by their full names, each with a one-line description, as link rows (v2 ListRow; departure A-ADMIN-1). Coverage, Albums and Metrics light up Overview.
+- **Overview** (spec §8 A1). Monitoring exceptions and venues needing attention first, then each venue's coverage by category, confirmed facts, Needs label backlog, oldest waiting review, checks due and publication errors as "n of N" or counts. Filters (venue, categories, menu, month) live in the URL. A failed monitoring read is a notice in its place, never a failed page. Admin albums (§6.6) and Metrics (the §6a report across venues) open from here.
+- **Venues** (spec §8 A2). Venues whose setup is not complete first, then the rest by name; archived venues on request. A venue's page: Setup checklist first, then Reviewers (the main reviewer, and the single-reviewer setting with the decisions people made on their own photos for spot checks, FA-9), Name and location (with timezone), Menus, What this venue collects (templates and scope, with an impact preview before a required reason) and Status (archive and restore, each with a reason and an impact preview).
+- **Library** (spec §8 A4). Every photo and video across the group, with search, filters, collections, tags, compare and removal requests. Library state words live in `lib/library/model.ts` (departure A-LIB-1). An asset's page offers **Suspend from use**: a confirm dialog with a required reason that withdraws the photo and every approval it holds, so each slot it filled counts only its other photos. Restore never brings approvals back.
+- **Publishing** (spec §8 A5, §10). What needs following up first, then export packages and manual Published records, in publication words (§7; departure A-E1). Exported is never Published.
+- **People** (spec §8 A6). Invites, per-venue roles (FA-22), admins and MFA resets (FA-23).
+- **Settings & activity** (spec §8 A7). Settings: what needs attention first, then operations, Rules for every venue, media limits, categories and integrations. **Activity** (`/admin/activity`): who changed what, where, when and why, newest first, filtered by venue, kind of change and person with a plain form that works without JavaScript.
+
+## 7. Words
+
+British English, sentence case, no exclamation marks, no "please", "oops" or "successfully".
+
+| Use                           | Not                                    |
+| ----------------------------- | -------------------------------------- |
+| Album, slot, place            | Task, requirement, checklist, coverage |
+| Add photos                    | Upload, take a photo, capture          |
+| Which empty slot is this?     | Label this photo                       |
+| Match later, Not for a slot   | Skip, discard                          |
+| Waiting, Retake, In the album | Pending, rejected, approved, published |
+| Accept, Ask again             | Approve, reject                        |
+| Not here                      | N/A, not applicable                    |
+| 41 slots still empty          | 64% complete                           |
+
+**Manager and admin words** (FA-7). Managers and admins see the spec's names where Album's would hide a distinction they act on. The words are in `CHIP_STATES` and are never shown on a staff screen:
+
+- Review actions on the photo detail: Approve for public use, Keep as reference, Ask for another photo, Fix label, Not used (Review in a thumb keeps Accept and Ask again; departure A-REV-1).
+- Report words for slots: §4.
+- Requests (`request_*`): Missing photo, Replacement, Optional angle, Fact confirmation, Campaign; Open, Submitted, Completed, Blocked, Cancelled (departure A-R2).
+- Publication (`publication_*`): Not exported, Exported, Queued, Published, Update pending, Withdrawal pending, Withdrawn, Failed or unknown. Packages (`package_*`): Ready to download, Exported, Needs rebuilding, Can't be downloaded. Internal only marks a file in an internal package (FA-46). See departure A-E1.
+
+Staff screens show no due date and no Overdue for food, drink, amenity or area slots. A manager's "Needed by 30 Nov" is plain meta text and orders the slots; after the date it reads "Needed".
+
+## 8. Accessibility
+
+- WCAG 2.2 A and AA on every screen, both themes. Text 4.5:1; borders, icons, focus rings and large text 3:1 (§3.2).
+- State is never colour alone (§4, §14). Every icon has a visible label or an `aria-label`; an icon never stands alone as a status.
+- Targets: every staff action is 48px or more (`target-staff`). Compact controls (Button and PickChip `sm`) are 44px below 1100px and v2's 40px (`target-compact`) from 1100px, where managers and admins work with a pointer (departure V2-4). The platform's own picker is exempt.
+- Focus is a 2px solid `focus` outline (ink) offset 2px, inset on rows and tiles whose parent clips, on every interactive element. It is never removed and never hidden by a sticky bar.
+- A control that is off uses `aria-disabled`, stays in the focus order and has its reason beside it; prefer hiding an action the person may not take and explaining a blocked one with a Notice.
+- Real elements: `<button>`, `<a href>`, `<input>` with `<label>`, `<table>`. Upload progress and results are announced in a polite live region without moving focus.
+- Reflows at 320px and 200% zoom with no sideways scroll except inside a table's own box. Text containers never have a fixed height.
+- Reduced motion removes every transition. Forced colours keep every frame, chip edge and focus outline visible.
+- Tested on Safari for iPhone as well as Chromium, since most staff use iPhones.
+
+## 9. Not in this system
+
+- An in-app camera, a shutter, or a camera tab. The phone's own camera is used (§2).
+- Labelling a photo after it has been sent.
+- Toasts and snackbars shown to anyone (v2's Toast is built but unused; departure V2-11).
+- A camera icon on an empty slot, or Take photo, Record video and Submit steps (v2's Upload sheet; departures V2-2, V2-9).
+- Leaderboards, rankings or comparisons between staff.
+- Due dates or overdue states for slots.
+- Reading location from photos.
 
 ## 10. Names in code
 
-Sections 1 to 9 keep the names of the prototype kit (`--bg`, `--fg`, `--border-strong`). The code uses one public set of names, decided as D7 in [decisions.md](decisions.md) and shipped in Batch 1 on 14 Nov 2026. This section is the map from one to the other. `app/globals.css` holds the values; when this section and that file disagree, the file is right and this section needs fixing.
+`app/globals.css` has four tiers (its header says so): v2's values under v2's names (tier 1), the role names the code uses pointing at them (tier 2), `@theme` turning each role into utilities (tier 3), and recipes (tier 4). Application code uses only tier 3 and tier 4 names; of v2's own names only `brass`, `signal`, `on-signal` and `signal-soft` have utilities, because no role covers them. Utilities are the token after a Tailwind prefix: `bg-canvas`, `text-ink-muted`, `inset-ring-ring-retake`. The full v2-to-role table is in the [V2-A report](../plans/design-v2/reports/V2-A.md) ("Token mapping").
 
-The file has three tiers. Values are custom properties on `:root` (light) and `.dark`. Tokens bind a role name to a value in `@theme`, and Tailwind turns each into utilities (`bg-surface`, `text-ink`, `gap-gutter`). Recipes are `@utility` rules for anything that needs more than one property (`edge-strong`, `focus-ring`, `type-page-title`). Application code uses token and recipe names only. `tests/unit/token-discipline.test.ts` fails on a raw colour, a removed name or a shadcn slot name, and `tests/unit/token-integrity.test.ts` recomputes the contrast of each pair below.
+| §3 role                   | Custom property                                                               | v2 value                        | Note                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------- |
+| canvas … raised           | `--canvas`, `--surface`, `--surface-2`, `--raised`                            | paper, surface, sunken, hover   | `media-placeholder` is `surface-2` too                                     |
+| ink, ink-muted            | `--ink`, `--ink-muted`                                                        | ink, ink-muted                  | `--ink-subtle` is retired                                                  |
+| line                      | `--line`                                                                      | line                            | Decoration only                                                            |
+| edge                      | `--edge-strong`                                                               | line-strong                     | Name kept: the `edge` utility is the hairline recipe                       |
+| accent …                  | `--accent`, `--accent-hover`, `--accent-text`, `--accent-soft`, `--on-accent` | bottle family                   | `accent-edge` retired: v2's dark bottle is light, its fill is the boundary |
+| select                    | `--select`, `--on-select`                                                     | bottle, on-bottle               | A ticked box, a chosen radio, a picked tile's ring                         |
+| focus                     | `--focus`                                                                     | focus (ink)                     | Drawn with the `focus-ring` recipes                                        |
+| ok                        | `--ok-fg`, `--ok-bg`, `--ok-waiting`, `--ok-half`, `--on-ok`                  | bottle, bottle-soft, sky, (own) | Positive tone; `ok-waiting` is the pending bar segment                     |
+| warn                      | `--warn-fg`, `--warn-bg`                                                      | brass-ink, brass-soft           | Attention tone                                                             |
+| info                      | `--info-fg`, `--info-bg`                                                      | sky, sky-soft                   | Progress tone                                                              |
+| signal                    | `--signal`, `--on-signal`, `--signal-soft`                                    | signal family                   | Problem tone; `edge-invalid`; shadcn `destructive`                         |
+| ring-retake, ring-waiting | `--ring-retake`, `--ring-waiting`                                             | brass, sky                      | Drawn with the `slot-ring-*` recipes                                       |
+| hatch                     | `--hatch`                                                                     | line                            | `bg-hatch` is the recipe that draws the hatching                           |
+| stage, on-stage           | `--stage`, `--on-stage`, `--on-stage-muted`                                   | dark paper, ink, ink-muted      | The same in both themes                                                    |
+| scrim                     | `--scrim`, `--plate`, `--on-photo`                                            | scrim, on-photo                 | `plate` sits under text on a photo                                         |
+| elevation                 | `--elevation-card`, `--elevation-float`, `--elevation-bar`                    | line outline, shadow-raised     | `shadow-card`, `shadow-float`, `shadow-bar`                                |
 
-### Colour
+Recipes: `slot-needed` (2px dashed `edge-strong`), `slot-not-here` (2px dotted, with `bg-hatch`), `slot-ring-waiting`, `slot-ring-retake` and `slot-ring-check` (4px inset rings), `edge`, `edge-strong`, `edge-selected`, `edge-invalid`, `ring-selected` (3px bottle, ThumbPick), `focus-ring`, `focus-ring-inset`, `focus-ring-within`. Type: `type-display`, `type-title`, `type-figure` and the Album aliases of §3.3. Fonts: `next/font` sets `--font-figtree` and `--font-fraunces` (with the `opsz` axis) on `<html>`; `font-mono` is Figtree with `tnum lnum`. Radius: `square` 6, `control` and `card` 12, `sheet` 20, `round`, `stamp` 2. Sizes: `tabbar`, `tile-min`, `rail`; breakpoint `desktop:` (1100px). The theme switch is next-themes' `.dark` class on `<html>`, which is v2's `data-theme="dark"` under another name.
 
-Light and dark are the values in `app/globals.css`. The utility is the token name after a Tailwind prefix: `bg-canvas`, `text-ink-muted`, `border-line`.
-
-| Spec token        | Light                        | Dark                         | Custom property    | Token (utility stem) | Value matches spec?                                                                                                |
-| ----------------- | ---------------------------- | ---------------------------- | ------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `--bg`            | `oklch(0.955 0.004 250)`     | `oklch(0.19 0.003 250)`      | `--canvas`         | `canvas`             | Yes (name differs)                                                                                                 |
-| `--surface`       | `oklch(1 0 0)`               | `oklch(0.245 0.004 250)`     | `--surface`        | `surface`            | Yes                                                                                                                |
-| `--surface-2`     | `oklch(0.935 0.005 250)`     | `oklch(0.31 0.005 250)`      | `--surface-2`      | `surface-2`          | Yes                                                                                                                |
-| `--raised`        | `oklch(0.895 0.006 250)`     | `oklch(0.36 0.006 250)`      | `--raised`         | `raised`             | Yes                                                                                                                |
-| `--fg`            | `oklch(0.2 0.01 250)`        | `oklch(0.95 0.003 250)`      | `--ink`            | `ink`                | Yes (name differs)                                                                                                 |
-| `--muted`         | `oklch(0.45 0.012 250)`      | `oklch(0.77 0.008 250)`      | `--ink-muted`      | `ink-muted`          | Yes (name differs). The repo's `--muted` is a private shadcn slot for the grey fill, not this token                |
-| `--border`        | `oklch(0.88 0.006 250)`      | `oklch(0.36 0.005 250)`      | `--line`           | `line`               | Yes (name differs). A bare `border` also takes this colour from the base layer                                     |
-| `--border-strong` | `oklch(0.56 0.012 250)`      | `oklch(0.65 0.008 250)`      | `--edge-strong`    | `edge-strong`        | Light yes. Dark is lifted from 0.6 to 0.65 so a field's edge holds 3:1 on `surface-2` (strategy.md section 5.2)    |
-| `--accent`        | `oklch(0.5 0.16 252)`        | `oklch(0.5 0.16 252)`        | `--accent`         | `accent`             | Yes                                                                                                                |
-| `--accent-hover`  | `oklch(0.44 0.15 252)`       | `oklch(0.44 0.15 252)`       | `--accent-hover`   | `accent-hover`       | Yes                                                                                                                |
-| `--on-accent`     | `oklch(1 0 0)`               | `oklch(1 0 0)`               | `--on-accent`      | `on-accent`          | Yes                                                                                                                |
-| `--accent-text`   | `oklch(0.5 0.16 252)`        | `oklch(0.76 0.12 250)`       | `--accent-text`    | `accent-text`        | Yes                                                                                                                |
-| `--accent-soft`   | `oklch(0.93 0.035 252)`      | `oklch(0.32 0.06 252)`       | `--accent-soft`    | `accent-soft`        | Yes                                                                                                                |
-| `--focus`         | `oklch(0.5 0.16 252)`        | `oklch(0.76 0.12 250)`       | `--focus`          | `focus`              | Yes. Drawn with the `focus-ring` recipes, not with `outline-focus` by hand                                         |
-| `--select`        | accent                       | accent-text                  | `--select`         | `select`             | Yes                                                                                                                |
-| `--on-select`     | on-accent                    | surface                      | `--on-select`      | `on-select`          | Yes                                                                                                                |
-| `--ok-fg`         | `oklch(0.42 0.11 155)`       | `oklch(0.86 0.13 155)`       | `--ok-fg`          | `ok-fg`              | Yes                                                                                                                |
-| `--ok-bg`         | `oklch(0.94 0.045 155)`      | `oklch(0.31 0.06 155)`       | `--ok-bg`          | `ok-bg`              | Yes                                                                                                                |
-| `--warn-fg`       | `oklch(0.47 0.15 32)`        | `oklch(0.85 0.11 35)`        | `--warn-fg`        | `warn-fg`            | Yes                                                                                                                |
-| `--warn-bg`       | `oklch(0.95 0.035 35)`       | `oklch(0.32 0.07 30)`        | `--warn-bg`        | `warn-bg`            | Yes                                                                                                                |
-| `--info-fg`       | `oklch(0.44 0.09 215)`       | `oklch(0.84 0.08 215)`       | `--info-fg`        | `info-fg`            | Yes                                                                                                                |
-| `--info-bg`       | `oklch(0.95 0.03 215)`       | `oklch(0.31 0.05 215)`       | `--info-bg`        | `info-bg`            | Yes                                                                                                                |
-| `--stamp-fg`      | `oklch(0.2 0.01 250)`        | `oklch(0.95 0.003 250)`      | `--stamp-fg`       | `stamp-fg`           | Yes                                                                                                                |
-| `--hatch`         | `oklch(0.88 0.006 250)`      | `oklch(0.38 0.005 250)`      | `--hatch`          | `hatch`              | Yes. `bg-hatch` is a recipe that draws the hatching, not a plain fill                                              |
-| `--shell`         | `oklch(0.9 0.005 250)`       | `oklch(0.13 0.003 250)`      | none               | none                 | Not in the repo: it is the prototype's canvas behind device frames                                                 |
-| `--plate`         | `oklch(0.15 0.01 250 / .86)` | `oklch(0.12 0.005 250 / .9)` | `--plate`          | `plate`              | Yes                                                                                                                |
-| `--scrim`         | `oklch(0.15 0.01 250 / .5)`  | `oklch(0 0 0 / .6)`          | `--scrim`          | `scrim`              | Yes                                                                                                                |
-| repo only         | `oklch(0.12 0.005 250)`      | same in both themes          | `--stage`          | `stage`              | Matches the raw camera and viewer stage value in §2                                                                |
-| repo only         | `oklch(0.97 0 0)`            | same in both themes          | `--on-stage`       | `on-stage`           | No spec counterpart: text and icons on the stage                                                                   |
-| repo only         | `oklch(0.78 0.005 250)`      | same in both themes          | `--on-stage-muted` | `on-stage-muted`     | No spec counterpart: secondary text on the stage                                                                   |
-| repo only         | `oklch(0.49 0.012 250)`      | `oklch(0.7 0.008 250)`       | `--ink-subtle`     | `ink-subtle`         | No spec counterpart: tertiary text                                                                                 |
-| repo only         | see-through                  | accent-text                  | `--accent-edge`    | `accent-edge`        | No spec counterpart: the primary button's 1px edge. It shows in dark only, where the fill alone is 2.7:1 on a card |
-| repo only         | surface-2                    | surface-2                    | none               | `media-placeholder`  | No spec counterpart: the fill behind a photo before it loads                                                       |
-| repo only         | `oklch(0.42 0.06 hue)`       | same in both themes          | none               | `avatar-fill`        | The avatar tint of §2. The avatar sets the hue (`--ah`); `on-avatar` is the initials on it                         |
-
-Names that no longer exist. Each was a second name for a value in the table and was removed in Batch 1: `bg`, `paper`, `panel`, `well`, `fill-hover`, `fill-press`, `fg`, `fg-muted`, `border-strong`, `line-control`, `positive*`, `attention*`, `negative*`, `warning*`, `info` and `info-surface`, `viewer`, `on-viewer*`, `tile-badge` and `on-tile-badge`.
-
-The shadcn slot names (`--background`, `--foreground`, `--card`, `--popover`, `--primary`, `--secondary`, `--muted`, `--destructive`, `--border`, `--input`, `--ring` and their `-foreground` pairs) are private. They are plain custom properties so that what `shadcn add` writes still resolves. They have no utilities, so `bg-background` and `text-muted-foreground` draw nothing, and the discipline test forbids them and their `var()` forms.
-
-### Type
-
-Sizes in px; the repo stores them in rem (17px = 1.0625rem). Families: display `Figtree` (`font-display`); body `Atkinson Hyperlegible Next` (`font-sans`); mono `Atkinson Hyperlegible Mono` (`font-mono`), loaded through next/font variables in `app/layout.tsx`.
-
-A role sets size, line height and weight together. Body roles are `text-*` tokens. A Tailwind text token cannot set a family, so each Figtree role also has a `type-*` recipe that adds the family; use the recipe for headings, counts and tab labels.
-
-| Spec role                                               | Spec size / line / weight / family                 | Name in code                            | Same?                                                                                                                           |
-| ------------------------------------------------------- | -------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Display XL (`.h-xl`)                                    | 34 / 1.05 / 800, -0.02em, Figtree                  | `type-display`                          | Yes                                                                                                                             |
-| Heading LG (`.h-lg`, `.profile-head h1`)                | 26 / 1.15 / 750, -0.01em, Figtree                  | `type-page-title`                       | Yes, at every width                                                                                                             |
-| Top bar title (`.topbar .ttl h1`)                       | 24 / 1.15 / 800, -0.01em, Figtree                  | `type-page-title`                       | No: 26 / 1.15 / 750. The role was folded into the page title in Batch 1                                                         |
-| Heading MD (`.h-md`, `.sec-head h2, h3`, table caption) | 21 / 1.25 / 700, Figtree                           | `type-section-title`                    | Yes                                                                                                                             |
-| Card title (`.lead-card h2, h3`, `.ticket h3`)          | 24 / 1.15 / 750, -0.01em, Figtree                  | `type-section-title`                    | No: 21 / 1.25 / 700, no letter spacing. Inside §2's "21 to 24" for a card title; the role was folded into Heading MD in Batch 1 |
-| Heading SM (`.h-sm`)                                    | 19 / 1.3 / 700, Figtree                            | `type-heading-sm`                       | Yes                                                                                                                             |
-| Count (`.counter .big`)                                 | 46 / 0.95 / 800, -0.03em, tabular, Figtree         | `type-count`                            | Yes (add `tabular-nums`)                                                                                                        |
-| Count unit (`.counter .big small`)                      | 21 / 1 / 700, muted, Figtree                       | none                                    | No role                                                                                                                         |
-| Stat number (`.stat .n`)                                | 40 / 1 / 800, -0.02em, tabular, Figtree            | none                                    | No role                                                                                                                         |
-| Tab label (`.tab`)                                      | 17 / 1.1 / 600, active 800 in accent-text, Figtree | `type-tab-label`                        | Yes (the active weight is set in the component)                                                                                 |
-| Body (`.app`, `.wide`)                                  | 17 / 1.5 / 400, body                               | `text-body`                             | Yes                                                                                                                             |
-| Lead (`.lead`)                                          | 18 / 1.5, body                                     | `text-lead`                             | Yes                                                                                                                             |
-| Button (`.btn`)                                         | 18 / 1.2 / 700, body; `xl` 19px, `sm` 17px         | `text-button`                           | Yes for the default. The 19px XL size is written by hand in `components/ui/button.tsx`; small buttons use `text-label`          |
-| Row title (`.row .row-main strong`)                     | 18 / 1.3 / 700, body                               | `text-item-title`                       | Yes                                                                                                                             |
-| Field label (`.field label`)                            | weight 700; size and line inherit (17 / 1.5), body | `text-label` (17 / 1.3 / 700)           | Size and weight yes; line height differs                                                                                        |
-| Field text (`.input`)                                   | 18, line not specified, body                       | `text-field` (18 / 1.3 / 400)           | Size yes                                                                                                                        |
-| Meta (`.meta`)                                          | 17, muted; line inherits 1.5                       | `text-meta` (17 / 1.35)                 | Size yes; line height differs. Add `text-ink-muted`                                                                             |
-| Venue scope (`.venue-scope`)                            | 17 / 1.3 / 500, muted, body                        | none                                    | No role                                                                                                                         |
-| Meta, times, % (mono: `.scope-label`, `.q-state`)       | 17 / 1.3 or 1.2 / 600, tabular, mono               | `text-mono` with `font-mono` (17 / 1.3) | Size and line yes; the role sets no weight                                                                                      |
-| State chip (`.chip`)                                    | 17 / 1.2 / 700, body                               | `text-chip`                             | Yes                                                                                                                             |
-| Complete chip (`.chip.complete`)                        | 17 / 1.2 / 800, caps, +0.06em, Figtree             | `type-stamp` beside `text-chip`         | Yes. `type-stamp` sets the lettering only; the chip gives the size                                                              |
-| Complete stamp (`.stamp`)                               | 21 / 1.1 / 800, caps, +0.08em, Figtree             | none                                    | No role                                                                                                                         |
-| Kicker (`.kicker`), table head                          | 17 / 1.2 (table head 1.3) / 600, body, muted       | none                                    | No role                                                                                                                         |
-| Quote, reviewer's reason (`.quote`, `.reason-text`)     | 18 / 1.45 / 700, body                              | none                                    | No role                                                                                                                         |
-| Brand mark (`.brand-mark`)                              | 30 / 1 / 800, -0.02em, Figtree (24px in a top bar) | none                                    | No role. The shells write the 24px wordmark by hand; first run and the error screen use `type-page-title`                       |
-| Caption on a photo (`.ph-tag`)                          | 15 / 1.25 / 500, body                              | `text-caption` (15 / 1.25)              | Size and line yes; the role sets no weight                                                                                      |
-
-`text-xs`, `text-sm` and `text-base` are Tailwind's names lifted to 17px as a guard. They are not roles and the discipline test forbids them in source.
-
-Names that no longer exist: the seven `-touch` names (each repeated the role it was paired with), `text-body-sm` (use `text-body`; line height 1.45 became 1.5), `text-meta-strong` (use `text-label`), `text-count-sm`, `text-card-title`, `text-page-title-compact`, `font-heading` and the `wdth-*` utilities.
-
-Three of these changed what a screen draws, and are the type changes of Batch 1: seven card titles went from 24 / 1.15 / 750 to 21 / 1.25 / 700; nine headings (the sign-in title, the Naba-Lens wordmark on first run, on its loading screen and on the error screen, the task and profile names, and three in the dev preview) went from 24 to 26; and each place that used `text-body-sm` gained 0.05 of line height.
-
-### Radius, edges, elevation, motion, sizes
-
-| Spec token and value                                                                                                                                                | Name in code and value                                                                                                                                                                      | Same?                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `--r-ctl` 8px (control: button, field)                                                                                                                              | `--radius-control` 0.5rem, `rounded-control`                                                                                                                                                | Yes                                                   |
-| `--r-card` 12px (card, post, row)                                                                                                                                   | `--radius-card` 0.75rem, `rounded-card`                                                                                                                                                     | Yes                                                   |
-| `--r-sheet` 16px (sheet top, dialog)                                                                                                                                | `--radius-sheet` 1rem, `rounded-sheet`                                                                                                                                                      | Yes                                                   |
-| `--r-square` 4px (square state)                                                                                                                                     | `--radius-square` 0.25rem, `rounded-square`                                                                                                                                                 | Yes                                                   |
-| `--r-stamp` 2px (stamp)                                                                                                                                             | `--radius-stamp` 2px, `rounded-stamp`                                                                                                                                                       | Yes                                                   |
-| Pills: literal `999px` (no token)                                                                                                                                   | `--radius-round` 9999px, `rounded-round`                                                                                                                                                    | Same effect, different literal                        |
-| Field and grey control boundary: 1px border-strong                                                                                                                  | `edge-strong` (1px inset); also `edge` (1px `line`), `edge-selected` (1.5px accent-text), `edge-invalid` (2px warn-fg), `edge-accent` (the primary button) and `ring-selected` (3px select) | Yes. Edges are drawn inside the box and take no space |
-| Tone bar on a card or notice: 4px                                                                                                                                   | `rail-start-ok`, `rail-start-warn`, `rail-start-info`; along the top of a lead card `rail-top-ok`, `rail-top-warn`, `rail-top-info`                                                         | Yes                                                   |
-| Focus outline: 3px solid focus, 2px offset, 6px radius (offset -3px inside lists, posts and the lead card)                                                          | `focus-ring` (3px, 2px offset), `focus-ring-inset` (-3px offset), `focus-ring-within` (a wrapper whose child holds focus). The base layer gives every outline the full focus colour         | Width, colour and offset yes; no radius               |
-| `--shadow` light `0 1px 2px oklch(0.2 0.01 250 / .12), 0 0 0 1px oklch(0.2 0.01 250 / .04)`; dark `0 0 0 1px oklch(1 0 0 / .06)`                                    | `--elevation-card`, used as `shadow-card`                                                                                                                                                   | Yes                                                   |
-| `--shadow-lg` light `0 12px 28px oklch(0.2 0.01 250 / .18), 0 2px 4px oklch(0.2 0.01 250 / .1)`; dark `0 12px 28px oklch(0 0 0 / .5), 0 0 0 1px oklch(1 0 0 / .08)` | `--elevation-float`, used as `shadow-float`                                                                                                                                                 | Yes                                                   |
-| not specified                                                                                                                                                       | `--elevation-control`, used as `shadow-control`: a raised segment or switch thumb                                                                                                           | Repo only                                             |
-| not specified                                                                                                                                                       | `--elevation-bar`, used as `shadow-bar`: the hairline above a bottom bar                                                                                                                    | Repo only                                             |
-| `--ease` `cubic-bezier(.22,1,.36,1)`                                                                                                                                | `--ease-out`, used as `ease-out`; also the default for a bare `transition-*` utility                                                                                                        | Yes                                                   |
-| Sheet rise and drawer slide: 260ms, from 24px offset and 40% opacity                                                                                                | `--transition-duration-sheet` 260ms, `duration-sheet`                                                                                                                                       | Yes (duration)                                        |
-| Dialog fade: 200ms                                                                                                                                                  | none                                                                                                                                                                                        | No token                                              |
-| Hover (button background): 150ms                                                                                                                                    | `--transition-duration-quick` 150ms, `duration-quick`; also the default for a bare `transition-*` utility                                                                                   | Yes                                                   |
-| Press: 1px down, transform 100ms                                                                                                                                    | none                                                                                                                                                                                        | No token                                              |
-| not specified                                                                                                                                                       | `--transition-duration-move` 180ms, `duration-move` (disclosure, reorder)                                                                                                                   | Repo only                                             |
-| Reduced motion: `transition: none`, `animation: none`, `scroll-behavior: auto`, no press movement                                                                   | Animation and transition durations forced to 0s, one iteration                                                                                                                              | Same intent                                           |
-| `--gutter` 12px (feed gutter and card gap)                                                                                                                          | `--spacing-gutter` 0.75rem, `gap-gutter`; `--spacing-page-gutter` 0.75rem, `px-page-gutter` (full bleed is `-mx-page-gutter`)                                                               | Yes                                                   |
-| Tab 60px high                                                                                                                                                       | `--spacing-tabbar` 4rem, `min-h-tabbar`                                                                                                                                                     | No: 64px, the tab's 60px plus 4px                     |
-| Dialog width 560px (`--dw` default)                                                                                                                                 | `--container-dialog` 35rem, `max-w-dialog`                                                                                                                                                  | Yes                                                   |
-| Target 44px, button 52px, XL button 60px, small button 44px, field 56px, row 64px, icon button 48px, stepper button 48px, chip 32px                                 | none (set per component)                                                                                                                                                                    | No token                                              |
-| Drawer 480px (`--drw` default), side nav 264px, phone dialog 358px                                                                                                  | none                                                                                                                                                                                        | No token                                              |
-| not specified                                                                                                                                                       | Page widths `max-w-feed` 37.5rem, `max-w-reading` 40rem, `max-w-page` 75rem, `max-w-dialog-wide` 47.5rem; the narrowest photo tile `--spacing-tile-min` 10rem, with `grid-cols-tiles`       | Repo only                                             |
-| not specified                                                                                                                                                       | Container-query sizes `compact` 32.5rem, `regular` 36rem, `wide` 40rem (`@compact:`, `@max-compact:`)                                                                                       | Repo only                                             |
-| not specified                                                                                                                                                       | Layers, lowest first: `z-local` 10, `z-sticky` 20, `z-dock` 30, `z-nav` 40, `z-overlay` 50                                                                                                  | Repo only                                             |
-| not specified                                                                                                                                                       | Safe areas: `body` pads for the notch at the sides; `w-safe` keeps a fixed sheet or dialog clear of it; bottom bars add `env(safe-area-inset-bottom)`                                       | Repo only                                             |
-
-Names that no longer exist: the radius aliases `panel`, `touch`, `chip` and `print`; the overrides of Tailwind's `rounded-sm` to `rounded-4xl` (the stock steps are forbidden in source); `shadow-overlay` and `shadow-sheet`; `--gutter`, `--page-gutter`, `--size-*` and `--duration-*` (each now has a utility, so the `gap-(--gutter)` form is gone); and `--ease-in`.
+Still to remove once no screen uses them: `stamp-fg`, `bg-stripe` and the `rail-*` recipes (v2 Notice has no rail). `tests/unit/token-integrity.test.ts` recomputes every contrast pair in §3.2 from the sheet; `tests/unit/token-discipline.test.ts` keeps raw colours and off-scale values out of source.
 
 ## 11. Rules every screen meets
 
-A review checklist. It restates §1 to §8 as ten rules a screen either meets or does not.
+1. It names the venue.
+2. It has at most one main button, and it is a verb plus its object.
+3. Its first content is what is missing or waiting, not a total.
+4. Adding a photo is one tap away from it, and opens the gallery.
+5. Every slot shown has its state frame, icon and word.
+6. Every staff target is 48px or more (compact controls: §8), staff body text is 16px or more, and nothing is smaller than the 13px caption (§3.3).
+7. It works at 320px, at 200% zoom, in dark, with reduced motion and in forced colours.
+8. It uses only §3 tokens and §5 components, drawn as their v2 components (catalogue.md). A deliberate exception is recorded in [departures.md](departures.md).
+9. It has one `display` style, for what the screen is about, and at most one bottle-filled control (§3.1).
 
-1. Home shows goals, not tasks: a retake note when one exists, then Our menu with what is still needed, then Your month, then Other jobs when there are any, then colleague photos as posts (§5a). It has one main action: Reshoot, else the first Still needed dish, else Open camera. No assignment, due date or Overdue for food and drink work. No likes, comments, reactions, stories, leaderboards, scores or comparisons between staff.
-2. Exactly one solid blue primary button per screen (in the lead card, the action dock or a form). Everything else is a grey (secondary) button, a ghost button, a danger button or a link. Light blue is only for the active tab; accent-soft is only for a selected filter, segment or side nav item.
-3. Four states are distinct by word, shape and tone: Ready, Accepted, COMPLETE and Needs setup, each drawn as its state chip. Needs another photo always shows its reason.
-4. Words: Submitted, Accepted, Needs another photo, Closed. Upload states: Waiting, Uploading 42%, Processing, Uploaded, Failed, Cancelled. Never Approved, Rejected, Pending approval, Done, Published or Live, as whole words anywhere on a screen, so no "Done" button either.
-5. Every venue-specific screen names the venue (in the top bar, in the side nav on wide screens, or in the page head's scope line). Managers act only on their own venue. Self-review is allowed and always flagged, with the Self-review chip and an info notice.
-6. Staff and manager screens never show email addresses, original file names or "Download original". Those appear on admin screens only.
-7. Overdue never blocks sending, and only service, venue-specific and amenity work can be Overdue. Food and drink work has no due date, and a needed by date is never shown as late. Not applicable stays visible and is not counted. Videos do not count toward a dish, a month or a task. Uploading is not publishing; a label is not allergen information.
-8. British English, sentence case, digits and correct plurals. Dates read "2 Nov 2026", "2 Nov 2026, 14:06", "Needed by 30 Nov" ("Due 30 Nov 2026" on non-menu work only). Staff copy for food and drink work never says task, due, overdue or better photo. Errors say what happened, then what to do. No emoji, no exclamation marks, no celebration, no invented statistics.
-9. Text is 17px or larger (the device status bar and 15px photo captions excepted). Targets are 44px or larger. Main buttons are 52 to 60px (60px on phones). Labels sit under icons. Controls are real links and buttons. Dialogs use the shared sheet, dialog and drawer components. Status changes use `role="status"` or `aria-live`. Nothing is swipe-only or long-press-only; nothing moves on its own. No horizontal scroll at 320px: test every dense screen at 320px wide.
-10. Prototype photos are drawn stand-ins only. No other company's logo, colour or icon set.
+## 12. Sources and history
 
-Rule 4's ban on a "Done" button is decision D5. Rules 1, 7 and 8 follow NabaLens v0.5 since 0.4.
+### Delivery
 
-### How the rules are checked
+| Batch | What                                                                                                                         | Status                    |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| A0    | This spec; Common Room frozen as `common-room.md`; citations repointed                                                       | 17 Nov 2026               |
+| A1    | Tokens, fonts, slot tile, token tests                                                                                        | 17 Nov 2026               |
+| A2    | Album (Home) and place screens over a slot read model                                                                        | 17 Nov 2026               |
+| A3    | Adding from the gallery, Match, Match later                                                                                  | 17 Nov 2026               |
+| A4    | Review and admin albums                                                                                                      | 17 Nov 2026               |
+| A5    | Album is Home; gallery only; old Home layouts retired                                                                        | 17 Nov 2026               |
+| V2    | Design system v2's look (D10): tokens, fonts, 21 components, SideNav, then every screen ([plan](../plans/design-v2/plan.md)) | 18 Nov 2026 (in progress) |
 
-The prototype folder had a script that tested every frame. The table lists each of its checks and what tests the same thing in this repo today.
+### Superseded
 
-| Check                   | What it tests and the threshold                                                                                                                                                                         | Repo equivalent                                                                                                                                                                                                                                                                                                              |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Console and page errors | Any console message of type error, any uncaught page error, or a failed page load                                                                                                                       | None general. `tests/e2e/security-headers.spec.ts` listens to the console for Content Security Policy messages only                                                                                                                                                                                                          |
-| Failed frames           | A frame whose screen function threw (a red `pre` holding the error)                                                                                                                                     | None (prototype only)                                                                                                                                                                                                                                                                                                        |
-| Goal words (0.4)        | Staff copy for food and drink work says no task, due, overdue or better photo                                                                                                                           | `tests/unit/staff-copy-guard.test.ts` reads the string literals and JSX text of staff Home, `/staff/menu`, month, welcome, Me and `menu-photos`. Non-menu task screens are on its allow-list; files still being rebuilt are on a pending list that only shrinks                                                              |
-| Banned words            | Frame text contains Approved, Rejected, Pending approval, Done, Published or Live as a whole word (case sensitive)                                                                                      | None for on-screen copy. `tests/unit/scope-guard.test.ts` bans approval-workflow terms (`/approv/i`) and other out-of-scope features in application source, not these six words in rendered text                                                                                                                             |
-| Text under 17px         | Computed font size below 17px on any visible text node; skips `.status-bar`, `[aria-hidden="true"]`, `.ph`, `.ph-tag`, `.ph-state`, `.ph-video`, `.sr-only`, `.visually-hidden`                         | None found in `tests/`                                                                                                                                                                                                                                                                                                       |
-| Targets under 44px      | `a, button, input, select, textarea, [role=button], [tabindex="0"]` with width or height below 44px; skips hidden and `aria-hidden` elements, checkboxes, radios and `.link-inline`                     | `tests/e2e/visual.spec.ts` (`smallTouchTargets`, 44 × 44 CSS px at phone widths, 480px and under; run by `pnpm test:visual`). Single-control height checks in `tests/e2e/better-photo.spec.ts`, `tests/e2e/staff-accounts.spec.ts`, `tests/e2e/menus-responsive.spec.ts`                                                     |
-| Overflow at 320px       | In frames 330px wide or less, the scroll area's `scrollWidth` exceeds `clientWidth` by more than 1px                                                                                                    | `tests/e2e/reflow.spec.ts` (320 × 640 and 640 × 400) using `tests/e2e/helpers/overflow.ts`; also `tests/e2e/visual.spec.ts` at 360px and wider                                                                                                                                                                               |
-| Staff leaks             | In non-admin frames: an email address (other than `name@example.com`), a file name ending `jpg, jpeg, png, heic, mov, mp4`, or the words "Download original" (file name and phrase matched in any case) | Per component, not across every screen: `tests/ui/people.test.tsx` (no `@`, `.jpg` or "Download original"), `tests/ui/media-viewer-colleague.test.tsx` (file names in the viewer), `tests/ui/library-gallery.test.tsx` (no file name in dialogs), `tests/ui/components.test.tsx` (no file name, no "Download original" link) |
+- **Album's look** (versions 1.0 to 1.7: warm paper, the Album greens and orange retake, Atkinson Hyperlegible, 64px main buttons, the 17px text floor, the filled Accepted square tag, 3px focus ring). Replaced by v2's (decision D10, version 2.0). Album's behaviour and words stay.
 
-Not checked anywhere yet: the banned words in rendered copy, the 17px floor, and one primary per screen. These are tasks DS-101 and DS-405 in [strategy.md](strategy.md).
-
-## 12. Component values
-
-[components.md](components.md) gives one table per component in §4: each property, the value this spec sets, the value the product ships, and whether they agree. Use it when building or changing a component. Where the two columns differ, the difference is either listed in [departures.md](departures.md) or is a defect.
-
-## 13. Sources and history
-
-### Superseded sources
-
-Do not take tokens or rules from these. They are history.
-
-| Source                                                          | What it was                                                                                                                                                                                                                       | Superseded by                                                                                      |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `research/naba-lens-common-room-2026-11-07/` (outside the repo) | The folder this spec was written in: `DESIGN.md` v0.3, the prototype CSS (`pass-rail.css`, `common-room.css`), `CONTRACT.md`, prototype screens, `rationale.html` and a checker script. Some of its files are still labelled v0.2 | This folder. Its open departures were carried into [departures.md](departures.md)                  |
-| Pass Rail (`DESIGN-v1-pass-rail.md`, same folder)               | Version 1 of the design language                                                                                                                                                                                                  | Common Room v0.2, 7 Nov 2026                                                                       |
-| The claude.ai "Naba-Lens" Design System artifact (2 Nov 2026)   | The token set and brand book that PR #14 was built from (Archivo and Besley)                                                                                                                                                      | Common Room, PR #20                                                                                |
-| The Home prototype canvases (2 Nov and 9 Nov 2026)              | Explorations of the staff Home page. The 9 Nov canvas proposed a photo-first order that differed from §5, used real dish photos and drew chips in shapes §3 reserves                                                              | §5a (0.3.2), drawn on the "v3 · Spec v0.3.1" page of the 9 Nov canvas. Pages v1 and v2 are history |
+- **Common Room** (v0.4, 15 Nov 2026), frozen in [common-room.md](common-room.md). Replaced by decision D8. Its rules apply to the screens that still ship it and to nothing new.
+- **Inn** (17 Nov 2026), the first proposal of the same day: a new look on Common Room's rules. Folded into Album, which kept its look and dropped the rest.
 
 ### Changelog
 
-- **0.4 · 15 Nov 2026.** Goals, not tasks (NabaLens v0.5; `docs/plans/goals-not-tasks.md` G-5). §3: Accepted counts toward a dish, a month or a checklist item; tasks, due dates and Overdue are for service, venue-specific and amenity work only; new goal words Still needed, Waiting for review (Submitted's shape), Being checked (Menu changed's shape) and Needed by / Needed (meta text, never a chip); task, due, overdue and better photo banned from staff food and drink copy. §4: the month roll is Progress segments with four frame states; the share box leaves Home. §5: Home shows goals in a new order, with one main action; the task thread is for non-menu work. §5a rewritten: setup notice, retake note with Later, Our menu with up to four Still needed rows, Your month, Other jobs, From the team. §6: the goal words, and "Needed by 30 Nov" in place of "Due 30 Nov 2026". §11 rules 1, 7 and 8 follow, and the goal words are checked by `staff-copy-guard.test.ts`. Code may cite "§5a". No token changed.
+- **2.5** (19 Nov 2026, decision D19): §5e rewritten: My photos as one Needs you inbox, a three-up grid by day with All, Waiting and In the album, and a page per photo (`/staff/photos/[assetId]`) holding every action. No section was renumbered.
+- **2.4** (19 Nov 2026, decision D18): five staff tabs, Today, Album, Add, My photos and Me (§15). New §5e, My photos at `/staff/photos` (moved from Me); its tab counts retakes. No section was renumbered.
+- **2.3** (19 Nov 2026, decision D17): §5b, Me as a hub of rows with Your photos, Settings and Help on their own routes (`/staff/me/photos`, `/staff/me/settings`, `/staff/me/help`); the repeated photo lists and the Add photos buttons leave Me. No section was renumbered.
+- **2.2** (18 Nov 2026, decision D16): new §5d, Album as three parts (Menu, Amenities, Spaces), then Food or Drinks in Menu, shelves and sections, with place as a lens. The fixed shelf set lives in `lib/album/shelves.ts`; a manager can move a section to another shelf (`album_shelves`). No section was renumbered.
+- **2.1** (18 Nov 2026, decision D15): new §5c, staff Home as **a reminder to add photos**: a card whose words follow when the person last added photos, the main button, and their recent activity. Home never chooses a slot to photograph; retakes and requests (named by a person) keep their rows. The month card leaves Home. No section was renumbered.
+- **2.0** (18 Nov 2026, batch V2, decision D10): the look becomes design system v2 ([v2/](v2/README.md)). §3 is v2's colours, contrast, type (Figtree and Fraunces), space, size, shape and motion; §4's frames take v2 colours, its marks become v2 chips under the name and the filled Accepted square tag is retired; §5 names the v2 component each Album component is drawn as and adds Notice, Empty state and lists; §6.7 and §9 note v2's Toast is built but unused; §6a and §6b move manager and admin navigation to v2's TabBar and SideNav (departure A-R5-1 retired); §8 is v2's accessibility (2px ink focus outline, 48px staff and 40px compact desktop targets, 16px body and 13px floor); §10 maps the roles onto v2's values; §11 rule 6 changes with the type floor and rule 9 is new. New §13 (v2 and D10), §14 (status tones), §15 (navigation) and §16 (interaction states). Every Album section number and the rule it names is kept; D10's kept rules are departures V2-1 to V2-14.
 
-- **0.3.2 · 14 Nov 2026.** Added §5a Home (staff): the order, the lead card table and what each block says. §5's Home line now names Our menu and the "your month" lead, and points to §5a; rule 1 in §11 follows. No token changed.
-- **0.3.1, Batch 1 · 14 Nov 2026.** §10 rewritten to the names that shipped with the Batch 1 foundations (decision D7). No rule in §1 to §9 changed. Two values now differ from §2 and are recorded in §10: the dark `--border-strong` is lighter, and the primary button has a 1px edge in dark.
-- **0.3.1 · 14 Nov 2026.** Moved into the repo. No rule changed. The header now points at in-repo sources; §10 to §13 added (names in code, rules every screen meets, component values, sources). Component values were read out of the two prototype stylesheets into [components.md](components.md) so the spec no longer depends on files outside git.
-- **0.3 · 7 Nov 2026.** See §9.
+- **1.7** (18 Nov 2026, Full App v1 S5-PACKAGED): §4 gains **Optional** (FA-51): a packaged item without Photo wanted is listed and takes photos but leaves every count and is never empty. Its empty tile has a solid `edge-strong` line (the dashed frame stays Needed's alone) and the word Optional (`OPTIONAL_SLOT_WORD` in `lib/album/model.ts`); with a photo it shows that photo's state. Its slot page says "Optional: a photo is welcome, but none is needed."; Match finds it by search ("Optional · a photo is welcome") and never suggests it. Reports name it **No photo needed** (the rule's `inactive`).
+- **1.6** (18 Nov 2026, Full App v1 S3-R14): a place's Needs updating filter (spec §6 S3) reads **Retake or needs checking**, the words of the tiles it shows (`SLOT_MARK_WORDS` in `lib/album/model.ts`, drawn by the slot tile). Withdrawn is one chip look everywhere (X icon).
+- **1.5** (18 Nov 2026, Full App v1 S4-DOCS): §4 gains the report words (`coverage_*`) and Withdrawn; §5a lists the Full App rows (Unfinished photos, the blocked notice, Asked for) and where Start here sits; new §5b (Me: Your photos, Your month, Help and account, Notices, the slot page), §6a (manager screens: navigation, Overview, Review, Requests, Metrics, Venue and Reported changes) and §6b (admin screens: `ADMIN_NAV` and More, Overview, Venues, Library and Suspend from use, Publishing, People, Settings & activity); §7 gains the manager and admin words; §10 gains `slot-ring-check`. No section was renumbered.
+
+- **1.4** (18 Nov 2026, Full App v1 S2-STAFF): §4 gains the receipt words (Checking, Sent, Couldn't finish) and the staff outcome words. A place screen filters by category and by Needed, Waiting, In the album, Needs updating and All (`?show=`, `?cat=`); filled dish and place tiles open a slot page (`/staff/album/slot/[kind]/[slotId]`) with Report a change. Me opens with My uploads and adds Help and account.
+- **1.3** (17 Nov 2026): batches A3 to A5 built (docs/plans/album-a3-a5.md, tasks AL-1 to AL-8, release reviews and repair R-1 to R-4):
+  - A3: Match on add (§6.1) with an outbox that feeds the upload queue, Match later (`/staff/album/match-later`), the three-tab shell, Your month on Me, the remembered place.
+  - A4: one-line briefs per section and dish (`20261117130000_album_briefs.sql`), Review one photo at a time with reason chips (§6.5), admin Albums (`/admin/albums`, `20261117140000_album_admin.sql`, new `ok-half` token), slot photos staff can see (`20261117150000_album_slot_photos.sql`, `/api/album/[assetId]/thumb`).
+  - A5: Album is the only staff Home (the goals, B01 and B02 layouts and `NABALENS_HOME_LAYOUT` are gone), no in-app camera anywhere for staff, §7 words on staff screens. §5a gains the Other jobs and Start here rows. Remaining Common Room screens and tokens (`info-*`, `stamp-fg`, rails) stay until a later batch.
+- **1.0** (17 Nov 2026): Album adopted (D8, D9). Written from the prototype canvas and [proposals/album.md](proposals/album.md).
+- **1.2** (17 Nov 2026): batch A2 built: places for menu sections and amenity categories (`supabase/migrations/20261117120000_album_places.sql`, set at `/manager/album`), the slot read model (`lib/album/model.ts`, `lib/server/album.ts`), Album Home and `/staff/album/[placeId]`. Album Home is opt-in per venue with `NABALENS_HOME_LAYOUT=album` or `NABALENS_HOME_LAYOUT_ALBUM_VENUES` until A5. Amenity and area slots show no thumbnail yet: staff cannot open a colleague's amenity or area photo today.
+- **1.1** (17 Nov 2026): batch A1 built. §10 now maps every token to its name in code; `ink-subtle` darkened to #616559 to hold 4.5:1 on `surface-2`.
+
+## 13. Design system v2 and D10
+
+Design system v2 is the owner's package of 18 Nov 2026, kept unchanged in [v2/](v2/README.md). Decision D10 adopts its **visual system** in full and keeps **Album's behaviour and words**. Where they disagree:
+
+| Subject                | v2 says                                                           | The product does (D10)                                                                                          | Departure |
+| ---------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------- |
+| Tokens, light and dark | `tokens.css`                                                      | v2 (§3, §10)                                                                                                    | none      |
+| Type                   | Figtree body, Fraunces display                                    | v2 (§3.3)                                                                                                       | none      |
+| Components             | 21 `nl-` components                                               | v2's look, built as Tailwind utilities on the tokens in the existing React components (catalogue.md)            | none      |
+| Manager and admin nav  | SideNav from 1100px, TabBar on phones                             | v2 (§15)                                                                                                        | none      |
+| Staff add flow         | Upload sheet: Take photo, Record video, Choose from phone; Submit | Gallery-first Add photos, Match on add, no in-app camera, no Submit (§2, §6.1, D9, FA-1, FA-2)                  | V2-9      |
+| Staff words            | Upload, Take photo, Choose from phone, Submit                     | Album's words (§7)                                                                                              | V2-10     |
+| Status words           | v2's status table                                                 | FA-7 words in `status-chip.tsx`, each drawn in one of v2's five tones (§14)                                     | V2-3      |
+| Staff tabs             | Home / Upload / Album / My uploads                                | Album / Add photos / Me, drawn as v2's TabBar (§5)                                                              | V2-1      |
+| Empty slot             | Dashed outline with the camera icon                               | Dashed outline with + Add (the gallery)                                                                         | V2-2      |
+| Toast                  | "Sent for review" after sending                                   | Built, never shown; feedback is written on the page (§6.7)                                                      | V2-11     |
+| Icons                  | Lucide stand-in, 1.75 stroke                                      | Phosphor, with v2's sizes and fixed meanings                                                                    | V2-8      |
+| Numbers                | "30/40, 75% covered"                                              | Staff see the remaining count ("41 slots still empty"); managers and admins "n of N" with the percentage (FA-8) | V2-14     |
+
+Everything else in v2 GUIDELINES (voice beyond the words above, colour, type, space, photography, layout, states, accessibility) applies as written. The package's own setup steps (copy `tokens.css` and `components.css`, keep `nl-` class names) do not: the values live in `app/globals.css` and the components are the app's own (AGENTS.md "UI changes").
+
+## 14. Status tones
+
+Every state is a chip with a tone, an icon and a word (v2 "Status language"). The words are Album's and Full App's (FA-7), kept in `CHIP_STATES` in `components/nabalens/status-chip.tsx`; the tone each is drawn in is `V2_TONE` in the same file. Do not restate either elsewhere.
+
+| v2 tone   | Look                           | Means                                    | Examples of the words drawn in it                                                                                    |
+| --------- | ------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Neutral   | `ink` on `surface-2`           | Nothing has happened yet, or out of play | Missing, Not here, No photo needed, Needs labels, Kept for reference, Label corrected, Not used, Withdrawn, Exported |
+| Progress  | `info-fg` on `info-bg` (sky)   | Moving without the reader's help         | Waiting, Waiting for review, Awaiting review, Submitted, Queued, Update pending                                      |
+| Positive  | `ok-fg` on `ok-bg` (bottle)    | Done and current                         | In the album, Covered, Approved for public use, Published, Completed                                                 |
+| Attention | `warn-fg` on `warn-bg` (brass) | A person needs to do something           | Retake, Needs checking, Check due, Another photo requested, Needs attention, Withdrawal pending, Blocked             |
+| Problem   | `on-signal` on solid `signal`  | Something is wrong now                   | Failed or unknown, Can't be downloaded, and the package photo words (Withdrawn since, Changed since …)               |
+
+The chip's look follows its shape in `CHIP_SHAPES`, each of which is one of the five tones; where FA-7 puts a word in a different tone from v2's table (Needs labels and Label corrected are neutral, not attention), FA-7 stands (departure V2-3).
+
+- The chip is v2's 28px pill with a 16px icon and a `caption` word at 600. Every chip has an icon; a state with no icon of its own takes its tone's icon. Problem is the only solid chip.
+- An upload's state is words beside the file in its tone colour with no box (UploadRow), as v2 draws it: progress for a file on its way, `signal` for a failure. The slot tile draws Sending and Saved on this phone (§4 receipt words) in the progress tone.
+- Kept for reference is neutral so it never looks like it closed a public-photo slot. Needs checking and a problem never share a tone.
+- Fixed icon meanings (v2 "Iconography"): check = done, clock = waiting, dashed circle = missing, question mark = not sure or needs label, triangle = problem, camera = retake mark only (never an action that opens a camera), circular arrow = retry.
+
+## 15. Navigation
+
+- **Staff** (phone first, one column at every width, centred on larger screens): v2's TabBar with Album, Add photos and Me (§5 Tab bar). In the photo preview shell (§6.1a, D18) it is five tabs: **Today** (`/staff/home`, §5c), **Album** (§5d), **Add** in the middle (the gallery, then Match; `AlbumAddTrigger`, announced as Add photos), **My photos** (`/staff/photos`, §5e; its count is open retakes) and **Me** (§5b; its count is unread notices). Five is the most: Notices badges Me and People is on Me. From 768px the same places are links in the top bar, with Add photos as a button.
+- **Managers**: on phones v2's TabBar with the five tabs of §6a; from 768px the section tabs (v2 Tabs) under the header; from 1100px v2's **SideNav**: a 240px rail on `surface` fixed to the left with "Naba-Lens" in `title` at the top, one level of items, the current item `accent-soft` with bottle text and `aria-current="page"`, and Review's count beside it. The content column is padded by the rail's width.
+- **Admins**: below lg the tab bar with Overview, Venues, Library and More; from lg to 1100px the top bar with all seven sections; from 1100px the SideNav with all seven (§6b, departure A-ADMIN-1).
+- **Tabs** inside a page (SectionTabs): `label` type, the current one in ink with a 3px bottle bar under it.
+- **VenueBar**: v2 puts the active venue on every capture and review screen. The component is built (`components/nabalens/venue-bar.tsx`); screens adopt it in batch V2 (departure V2-12). Until then rule 1 of §11 is met by the page header.
+- Sticky bars (TabBar, DecisionBar) respect the safe-area insets and carry `shadow-raised`.
+
+## 16. Interaction states
+
+Every interactive component has these states (v2 "States"); build all of them.
+
+- **Hover and pressed:** outlined controls and rows take `raised`; the main button takes `accent-hover`.
+- **Focus:** the 2px `focus` outline offset 2px (§8). Never removed.
+- **Selected:** an `ink` fill with paper text and a tick (PickChip; departure V2-6), or a 3px bottle ring with a check on a round scrim plate (ThumbPick). Never colour alone.
+- **Disabled:** `surface-2` ground, `line` border, `ink-muted` text, with `aria-disabled` (§8).
+- **Busy:** the button keeps its label and sets `aria-busy="true"`; progress shows where the work is (UploadRow, the slot tile), never a full-screen spinner.
+- **Loading:** `surface-2` blocks in the shape of the content.
+- **Empty:** EmptyState (§5).
+- **Error:** inline, beside the cause, saying what to do next: Field errors for input, a Notice for the page, the row for a file (§6.7).

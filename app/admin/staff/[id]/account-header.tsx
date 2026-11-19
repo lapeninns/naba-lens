@@ -13,6 +13,7 @@ import {
   type Option,
   type StaffMember,
 } from "@/components/nabalens"
+import { MetaList } from "@/components/nabalens/meta-list"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -96,7 +97,7 @@ function GrantDetail({
       None. Give venue access on{" "}
       <Link
         href="/admin/coverage/managers"
-        className="font-bold text-ink underline underline-offset-4"
+        className="font-semibold text-ink underline underline-offset-4"
       >
         Venue managers
       </Link>
@@ -276,46 +277,42 @@ export function AccountHeader({
             <h2 id="account-heading" className="type-section-title text-ink">
               Account
             </h2>
-            <dl className="grid gap-3 text-body [&_dd]:font-bold">
-              {member.email ? (
-                <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
-                  <dt className="text-meta text-ink-muted">Email</dt>
-                  <dd className="font-mono break-all">{member.email}</dd>
-                </div>
-              ) : null}
-              <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
-                <dt className="text-meta text-ink-muted">Status</dt>
-                <dd>
-                  <StaffStatusBadge status={member.status} />
-                </dd>
-              </div>
-              <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
-                <dt className="text-meta text-ink-muted">Venue</dt>
-                <dd>{venueName ?? "No venue"}</dd>
-              </div>
-              <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
-                <dt className="text-meta text-ink-muted">Team</dt>
-                <dd>
-                  <TeamLabel department={member.department} />
-                </dd>
-              </div>
-              <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
-                <dt className="text-meta text-ink-muted">Job title</dt>
-                <dd>{member.jobTitle ?? "None"}</dd>
-              </div>
-              <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
-                <dt className="text-meta text-ink-muted">
-                  Venue manager grant
-                </dt>
-                <dd>
-                  <GrantDetail
-                    grant={grant}
-                    inactive={inactive}
-                    managerAccount={managerAccount}
-                  />
-                </dd>
-              </div>
-            </dl>
+            <MetaList
+              items={[
+                ...(member.email
+                  ? [
+                      {
+                        label: "Email",
+                        value: (
+                          <span className="font-mono break-all">
+                            {member.email}
+                          </span>
+                        ),
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Status",
+                  value: <StaffStatusBadge status={member.status} />,
+                },
+                { label: "Venue", value: venueName ?? "No venue" },
+                {
+                  label: "Team",
+                  value: <TeamLabel department={member.department} />,
+                },
+                { label: "Job title", value: member.jobTitle ?? "None" },
+                {
+                  label: "Venue manager grant",
+                  value: (
+                    <GrantDetail
+                      grant={grant}
+                      inactive={inactive}
+                      managerAccount={managerAccount}
+                    />
+                  ),
+                },
+              ]}
+            />
           </section>
           {accountType}
           {month}

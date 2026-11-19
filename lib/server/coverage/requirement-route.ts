@@ -45,9 +45,12 @@ export async function getMyRequirementRoute(
   }
 }
 
-/** Our menu at the section's Still needed dishes (or every section). */
+/**
+ * Album's Menu at the section's Needed dishes (or every section). Album
+ * opens the section's shelf at that section (DESIGN.md §5d, D16).
+ */
 export function menuSectionHref(menuSectionId: string | null): string {
   return menuSectionId
-    ? `/staff/menu?section=${menuSectionId}&filter=gaps`
-    : "/staff/menu?filter=gaps"
+    ? `/staff/album/menu?section=${encodeURIComponent(menuSectionId)}&show=needed`
+    : "/staff/album/menu?show=needed"
 }

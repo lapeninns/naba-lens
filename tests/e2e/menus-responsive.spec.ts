@@ -14,10 +14,12 @@ import {
 
 import { supportedMp4, syntheticJpeg } from "./helpers/media"
 import { requireIsolatedStack } from "./helpers/stack"
+import { myPhotoTile } from "./helpers/s3-upload"
 import {
   chooseOption,
-  portfolioList,
-  staffTile,
+  libraryList,
+  openMyPhotos,
+  tile as libraryTile,
   uploadSheet,
   uploadThroughDialog,
 } from "./helpers/ui"
@@ -34,7 +36,9 @@ import {
  * horizontal overflow, axe (WCAG 2.x A/AA) without serious/critical findings,
  * the admin nav reachable at phone widths, and a full-page screenshot in
  * .artifacts/screenshots/menus/ (override with QA_SHOTS_DIR) for visual review.
- * Plus keyboard-only label editing and a touch (Pixel 7 emulation) label flow.
+ * Plus keyboard-only label editing (the admin library's label editor: staff
+ * label in the Add sheet only, since My photos replaced Me's portfolio and
+ * its viewer, DESIGN.md §5e) and a touch (Pixel 7 emulation) label flow.
  */
 
 test.beforeAll(() => requireIsolatedStack())
@@ -188,9 +192,19 @@ for (const width of WIDTHS) {
     await expect(
       page.getByRole("heading", { level: 1, name: "Menus" })
     ).toBeVisible()
-    const nav = page.getByRole("navigation", { name: "Admin" })
-    for (const name of ["Content", "Staff", "Menus"]) {
-      const box = await nav.getByRole("link", { name }).boundingBox()
+    // S2-ADMIN nav: the app bar (lg and up) names every section; below lg the
+    // tab bar shows Overview, Venues, Library and More (Menus is under More).
+    const wide = width >= 1024
+    const nav = page
+      .getByRole("navigation", { name: "Admin" })
+      .filter({ visible: true })
+    const names = wide
+      ? ["Library", "People", "Menus"]
+      : ["Overview", "Venues", "Library", "More"]
+    for (const name of names) {
+      const box = await nav
+        .getByRole("link", { name, exact: true })
+        .boundingBox()
       expect.soft(box, `nav ${name}@${width}`).not.toBeNull()
       if (box) {
         expect
@@ -204,11 +218,20 @@ for (const width of WIDTHS) {
     }
     await check(page, width, "menus-venues")
 
-    await nav.getByRole("link", { name: "Content" }).click()
+    // The Library section's page is still titled Content.
+    await nav.getByRole("link", { name: "Library", exact: true }).click()
     await expect(
-      page.getByRole("heading", { level: 1, name: "Content" })
+      page.getByRole("heading", { level: 1, name: "Library" })
     ).toBeVisible()
-    await nav.getByRole("link", { name: "Menus" }).click()
+    if (wide) {
+      await nav.getByRole("link", { name: "Menus", exact: true }).click()
+    } else {
+      await nav.getByRole("link", { name: "More", exact: true }).click()
+      await page
+        .getByRole("main")
+        .getByRole("link", { name: /^Menus & catalog/ })
+        .click()
+    }
     await expect(
       page.getByRole("heading", { level: 1, name: "Menus" })
     ).toBeVisible()
@@ -251,37 +274,13 @@ for (const width of WIDTHS) {
     await page.context().close()
   })
 
-  test(`staff label editors at ${width}px`, async ({ browser }) => {
+  test(`staff label sheet at ${width}px`, async ({ browser }) => {
     test.setTimeout(180_000)
     const page = await at(browser, world.staffA, width)
-    await page.goto("/staff")
-    await (
-      await staffTile(portfolioList(page), `qa-rsp-${world.tag}-01.jpg`)
-    ).click()
-    await page
-      .getByRole("dialog")
-      .first()
-      .getByRole("button", { name: /^(Add|Edit) labels$/ })
-      .click()
-    const single = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
-    await single
-      .getByRole("combobox", { name: /^Menu item at / })
-      .fill("chicken")
-    await expect(
-      single.getByRole("listbox", { name: "Matching menu items" })
-    ).toBeVisible()
-    await check(page, width, "label-editor-single-search", single)
-    await single.getByRole("combobox", { name: /^Menu item at / }).fill("")
-    await single.getByRole("button", { name: "Item not on the menu?" }).click()
-    await check(page, width, "label-editor-single-missing", single)
-    await page.keyboard.press("Escape")
-    const discard = page.getByRole("alertdialog")
-    if (await discard.isVisible())
-      await discard.getByRole("button", { name: /^Discard/ }).click()
-
+    // My photos' Add a video opens the sheet with labels (DESIGN.md §5e).
+    await openMyPhotos(page)
     const photo = await syntheticJpeg(`qa-rsp-up-${width}-${world.tag}.jpg`)
     const video = supportedMp4(`qa-rsp-up-${width}-${world.tag}.mp4`)
-    await page.keyboard.press("Escape")
     // The batch labels live in the "Saving 2 files" sheet itself.
     await uploadThroughDialog(page, [photo, video], { close: false })
     const batch = uploadSheet(page)
@@ -331,10 +330,11 @@ test("keyboard only: open the editor, pick an item, a content type, a note, save
   browser,
 }) => {
   test.setTimeout(120_000)
-  const page = await at(browser, world.staffA, 390)
-  await page.goto("/staff")
-  const tile = await staffTile(
-    portfolioList(page),
+  const page = await at(browser, world.adminA, 390)
+  await page.goto(`/admin?staff=${world.staffA.id}`)
+  const tile = libraryTile(
+    libraryList(page),
+    "Photo",
     `qa-rsp-${world.tag}-02.jpg`
   )
   await tile.focus()
@@ -390,7 +390,7 @@ test("touch (Pixel 7 emulation): upload, label with taps, labels persist", async
   const { defaultBrowserType: _ignored, ...pixel } = devices["Pixel 7"]
   void _ignored
   const page = await signedInPage(browser, world.staffA, pixel)
-  await page.goto("/staff")
+  await openMyPhotos(page)
   const photo = await syntheticJpeg(`qa-touch-${world.tag}.jpg`)
   await uploadThroughDialog(page, [photo], { close: false })
   // Labels in the sheet itself: the content type under "More details" first,
@@ -417,10 +417,11 @@ test("touch (Pixel 7 emulation): upload, label with taps, labels persist", async
   await expect(editor.getByRole("status")).toHaveText("1 saved")
   await editor.getByRole("button", { name: "Done" }).tap()
   await expect(editor).toBeHidden()
+  // After a reload My photos names the photo by its dish slot (§5e).
   await page.reload()
-  await expect(
-    await staffTile(portfolioList(page), photo.name)
-  ).toHaveAccessibleName(/, 2 labels$/)
+  await expect(await myPhotoTile(page, photo.name)).toHaveAccessibleName(
+    /^Garlic Mushroom, /
+  )
   await page.context().close()
 })
 

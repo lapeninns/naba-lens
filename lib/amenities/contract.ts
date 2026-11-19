@@ -11,7 +11,18 @@
 
 // ---- Enums ------------------------------------------------------------------
 
-export const EVIDENCE_RULES = ["photo", "video", "either", "both"] as const
+/**
+ * `none`: media is optional for any answer (catalogue version 2, FA-32): a
+ * policy question whose confirmed answer is enough (Wi-Fi, dogs, live music,
+ * quiz, kerbside collection).
+ */
+export const EVIDENCE_RULES = [
+  "photo",
+  "video",
+  "either",
+  "both",
+  "none",
+] as const
 export type EvidenceRule = (typeof EVIDENCE_RULES)[number]
 
 export const CHECK_STATUSES = ["active", "archived"] as const
@@ -122,7 +133,8 @@ export type WifiMetadata = {
 
 /**
  * Yes must satisfy the rule; No / Not applicable need a reason and evidence is
- * optional. `both` needs at least one photo AND one video.
+ * optional. `both` needs at least one photo AND one video; `none` needs
+ * nothing.
  */
 export function evidenceSatisfies(
   rule: EvidenceRule,
@@ -139,6 +151,8 @@ export function evidenceSatisfies(
       return photo || video
     case "both":
       return photo && video
+    case "none":
+      return true
   }
 }
 
@@ -160,6 +174,7 @@ export const EVIDENCE_RULE_LABEL: Record<EvidenceRule, string> = {
   video: "Video",
   either: "Photo or video",
   both: "Photo and video",
+  none: "None needed",
 }
 export const REOPEN_PRESET_LABEL: Record<ReopenPreset, string> = {
   credentials_visible: "Password or QR visible",

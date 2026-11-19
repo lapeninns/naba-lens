@@ -109,12 +109,15 @@ describe("MenuDiffView", () => {
     expect(count("uncertain")).toBe("2 uncertain")
     expect(count("unchanged")).toBe("40 unchanged")
 
-    const changed = screen.getByRole("region", { name: "Changed" })
+    // A rename sends accepted photos to a recheck (spec §8 A3).
+    const changed = screen.getByRole("region", { name: "Changed presentation" })
     const text = changed.textContent?.replace(/\s+/g, " ")
     expect(text).toContain("Name Curry changed to Lamb curry")
     expect(text).toContain("Variants Veg changed to Veg, Lamb")
 
-    const removed = screen.getByRole("region", { name: "Removed" })
+    const removed = screen.getByRole("region", {
+      name: "Proposed retirements",
+    })
     expect(removed.textContent).toContain(
       "3 labelled photos/videos keep this item"
     )

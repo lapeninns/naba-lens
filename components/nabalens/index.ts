@@ -44,8 +44,12 @@ export * from "./menus"
 // v0.3 media labels (packet G)
 export * from "./labels"
 
-// Common Room building blocks (DESIGN.md v0.3); also importable from
+// Common Room building blocks (common-room.md v0.3); also importable from
 // "@/components/nabalens/common-room".
 export * from "./common-room"
 export { Notice, type NoticeTone } from "./notice"
 export { StatusChip, CountBadge, CHIP_STATES, CHIP_SHAPES } from "./status-chip"
+export { SideNav, type SideNavItem } from "./side-nav"
+export { MetaList, type MetaItem } from "./meta-list"
+export { VenueBar } from "./venue-bar"
+export { Toast } from "./toast"

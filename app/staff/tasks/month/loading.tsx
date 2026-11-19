@@ -7,7 +7,7 @@ export default function MonthLoading() {
     <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader
         title="Monthly photos"
-        summary="Accepted photos count toward your target. Each photo counts for the month its upload started."
+        summary="Accepted photos count toward your target. Each photo counts for the month it was added."
       />
       <SkeletonRegion
         label="Loading your month…"

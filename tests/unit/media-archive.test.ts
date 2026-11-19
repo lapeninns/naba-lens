@@ -137,7 +137,7 @@ describe("durable original retention", () => {
   it("refuses oversized media before fetching it", async () => {
     const h = harness()
     await expect(
-      archiveOriginal({ ...source, sizeBytes: 201 * 1024 * 1024 }, h.deps)
+      archiveOriginal({ ...source, sizeBytes: 251 * 1024 * 1024 }, h.deps)
     ).rejects.toThrow("invalid_size")
     expect(h.deps.prepare).not.toHaveBeenCalled()
   })
@@ -208,6 +208,30 @@ describe("archive deployment boundary", () => {
     expect(() =>
       readArchiveConfig({ ...hosted, NABALENS_ENVIRONMENT: "unknown" })
     ).toThrow("environment_not_configured")
+  })
+  it("allows archival to be disabled only for the configured local phone server", () => {
+    const phone = {
+      NODE_ENV: "development",
+      NEXT_PUBLIC_SUPABASE_URL: "http://192.168.1.128:61521",
+      NABALENS_PHONE_HOST: "192.168.1.128",
+      MEDIA_ARCHIVE_MODE: "disabled",
+    }
+    expect(readArchiveConfig(phone)).toBeNull()
+    for (const overrides of [
+      { NODE_ENV: "production" },
+      { VERCEL_ENV: "preview" },
+      { NABALENS_PHONE_HOST: "192.168.1.129" },
+      { NABALENS_ENVIRONMENT: "staging" },
+      { MEDIA_ARCHIVE_MODE: undefined },
+      {
+        NEXT_PUBLIC_SUPABASE_URL: "http://8.8.8.8:61521",
+        NABALENS_PHONE_HOST: "8.8.8.8",
+      },
+    ]) {
+      expect(() => readArchiveConfig({ ...phone, ...overrides })).toThrow(
+        "environment_not_configured"
+      )
+    }
   })
   it("allows explicitly disabled staging even on its Vercel production target", () => {
     expect(

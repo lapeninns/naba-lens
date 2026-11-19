@@ -70,10 +70,11 @@ const VARIANTS = [
 
 /** The min-height utility each size word stands for. */
 const HEIGHT = {
-  /** Buttons and rows of buttons: 44 / 52 / 60px. */
-  control: { sm: "min-h-11", md: "min-h-13", lg: "min-h-15" },
-  /** Fields and option rows: 44 / 56 / 60px. */
-  field: { sm: "min-h-11", md: "min-h-14", lg: "min-h-15" },
+  /** Buttons and rows of buttons: 48px (v2 target-staff); sm is v2's
+   *  compact 44/40px only inside a manager or admin shell (V2-4). */
+  control: { sm: "min-h-12", md: "min-h-12", lg: "min-h-12" },
+  /** Fields and option rows: 44 / 48 / 48px (v2 Field). */
+  field: { sm: "min-h-11", md: "min-h-12", lg: "min-h-12" },
 } as const
 
 type Row = {
@@ -403,7 +404,7 @@ const ROWS: Row[] = [
     render: (p) => (
       <Progress value={40} aria-label="Uploading" {...(p as object)} />
     ),
-    sizes: ["sm", "md"],
+    sizes: ["sm", "md", "lg"],
     tone: "neutral",
   },
   {
@@ -523,7 +524,7 @@ const OFF_CONTRACT: Record<
         "item-title",
       ],
       reason:
-        "A heading's size is a type role from DESIGN.md §2, not a control height.",
+        "A heading's size is a type role from common-room.md §2, not a control height.",
     },
   },
   "field.tsx": {
@@ -564,9 +565,10 @@ const OFF_CONTRACT: Record<
 const SIZE_IS_NOT_A_HEIGHT: Record<string, string> = {
   "avatar.tsx": "A picture's diameter: 36, 44 and 84px.",
   "spinner.tsx": "A glyph's size beside words: 18, 20 and 24px.",
-  "progress.tsx": "The bar's thickness (8 and 12px); a bar is not a control.",
+  "progress.tsx":
+    "A bar's thickness: segments 8 and 12px, the plain bar 6px, lg 12px (v2 CoverageMeter); a bar is not a control.",
   "switch.tsx":
-    "One size, reported as md: a 32px track inside a 44px target (DESIGN.md §2).",
+    "One size, reported as md: a 32px track inside a 44px target (common-room.md §2).",
   "sheet-recipe.ts": "Sheet widths; a sheet is a layout, not a control.",
   "textarea.tsx":
     "One size: the md field recipe grown to several lines (120px at least).",
@@ -779,7 +781,7 @@ describe("primitive contract", () => {
         ["icon", "icon-lg", "lg", "md", "sm"].sort()
       )
       expect([...found["spinner.tsx"].size].sort()).toEqual(["lg", "md", "sm"])
-      expect([...found["progress.tsx"].size].sort()).toEqual(["md", "sm"])
+      expect([...found["progress.tsx"].size].sort()).toEqual(["lg", "md", "sm"])
       expect([...found["switch.tsx"].size]).toEqual(["md"])
       expect([...found["dropdown-menu.tsx"].variant]).toEqual(["danger"])
       expect(found["progress.tsx"].tone.has("ok")).toBe(true)

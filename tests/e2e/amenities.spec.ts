@@ -23,7 +23,6 @@ import {
   eventKinds,
   expectRefused,
   expectSubmitRefused,
-  legacyManagerGrant,
   londonToday,
   provisionAmenitiesWorld,
   question,
@@ -51,20 +50,18 @@ import { signedInPage, type Person } from "./helpers/world"
  * Amenity checks in the built app (plan release criteria 3 and 4): admin
  * enable, manager add/assign/reopen/archive/restore and Capture myself, staff
  * capture against each evidence rule. Managers are venue manager accounts
- * working in the /manager workspace (the same screens as /staff/manage); one
- * journey covers a staff account with a pre-existing (transitional) grant,
- * which keeps /staff/manage. People act through the pages. Setup that a test
- * does not assert runs in the actor's own database session; the service role
- * only seeds people, grants made before manager accounts and media, and reads
- * state to confirm what the pages did.
+ * working in the /manager workspace (decision D3: a staff account never
+ * manages, whatever grant it holds). People act through the pages. Setup that
+ * a test does not assert runs in the actor's own database session; the
+ * service role only seeds people and media, and reads state to confirm what
+ * the pages did.
  */
 
 const MANAGER = amenityHrefs("/manager")
-const LEGACY_MANAGE = amenityHrefs("/staff/manage")
 const adminHrefs = (w: AmenitiesWorld) =>
   amenityHrefs(`/admin/coverage/${w.venueA.id}`)
 
-/** Staff land on Home and start the assigned check from Other jobs. */
+/** Staff land on Today and start the assigned check from Other jobs (DESIGN.md §5c). */
 async function openStaffCheck(page: Page, key: string, id: string) {
   await expect(page).toHaveURL(STAFF_LANDING)
   await startOtherJobsCheck(page, question(key), id)
@@ -202,7 +199,7 @@ test.describe("amenity checks", () => {
     })
     expect(currentSubmission(id).assets).toEqual([photo])
 
-    // Complete checks leave Other jobs (and were never on goal-led Home).
+    // Complete checks leave Other jobs (and were never on Today).
     await staff.goto(OTHER_JOBS_PATH)
     await expect(
       staff.getByRole("heading", { level: 1, name: "Other jobs" })
@@ -259,7 +256,12 @@ test.describe("amenity checks", () => {
     expect([200, 206, 302]).toContain(stream.status())
   })
 
-  test("Wi-Fi needs a photo, a video and the redaction tick, and records the test notes internally", async ({
+  // FA-32 / FA-47 (catalogue version 2, 20261118109300): guest Wi-Fi is a
+  // policy question, so its evidence rule is `none` and a Yes needs no photo
+  // or video. A Yes still needs the test notes and the redaction tick, and
+  // media that is sent is kept with the answer. (Before S2-INT this test
+  // required a photo and a video; that rule was changed on purpose.)
+  test("Wi-Fi needs the test notes and the redaction tick, not a photo or video, and records the test notes internally", async ({
     browser,
   }) => {
     const w = await provisionAmenitiesWorld()
@@ -282,29 +284,20 @@ test.describe("amenity checks", () => {
     await form.wifi.download.fill(String(wifi.downloadMbps))
     await form.wifi.upload.fill(String(wifi.uploadMbps))
 
-    // Photo only, even with the tick.
+    // A photo and a video without the tick.
     await form.attach(photo)
-    await form.redaction.check()
-    await expectSubmitRefused(staff, id)
-    // Video only.
-    await form.detach(photo)
     await form.attach(video)
-    await expectSubmitRefused(staff, id)
-    // Photo and video without the tick.
-    await form.attach(photo)
     if (await form.redaction.isChecked()) await form.redaction.uncheck()
     await expectSubmitRefused(staff, id)
 
     const db = await sessionOf(w.staffA)
     const metadata = { ...wifi }
+    // No media is not a reason to refuse (rule `none`); the tick is.
     await expectRefused(
       db,
       "amenity_submit_finding",
-      submitArgs(id, "yes", [photo], {
-        p_internal_metadata: metadata,
-        p_redaction_confirmed: true,
-      }),
-      "evidence_rule_unmet"
+      submitArgs(id, "yes", [], { p_internal_metadata: metadata }),
+      "redaction_not_confirmed"
     )
     await expectRefused(
       db,
@@ -315,7 +308,7 @@ test.describe("amenity checks", () => {
     await expectRefused(
       db,
       "amenity_submit_finding",
-      submitArgs(id, "yes", [photo, video], { p_redaction_confirmed: true }),
+      submitArgs(id, "yes", [photo], { p_redaction_confirmed: true }),
       "invalid_wifi_metadata"
     )
     expect(checkState(id)).toMatchObject({
@@ -323,10 +316,12 @@ test.describe("amenity checks", () => {
       submissions: 0,
     })
 
+    // A photo alone is enough media, with the notes and the tick.
+    await form.detach(video)
     await form.redaction.check()
     await submitAndComplete(staff, id)
     const current = currentSubmission(id)
-    expect([...current.assets].sort()).toEqual([photo, video].sort())
+    expect(current.assets).toEqual([photo])
     expect(current.metadata).toMatchObject(wifi)
 
     // Internal notes: the venue manager sees them on the check page.
@@ -522,8 +517,18 @@ test.describe("amenity checks", () => {
 
     const manager = await signedInPage(browser, w.managerA)
     await manager.goto(MANAGER.check(id))
-    // Archive and Restore act at once; there is no confirmation dialog.
+    // S2-MGR (AC29): Archive and Restore ask for a reason, kept in the
+    // venue's history.
     await manager
+      .getByRole("button", { name: UI_TEXT.archive, exact: true })
+      .click()
+    const archiveDialog = manager.getByRole("dialog", {
+      name: "Archive this check as not here?",
+    })
+    await archiveDialog
+      .getByLabel("Reason")
+      .fill(`No darts board any more ${w.tag}`)
+    await archiveDialog
       .getByRole("button", { name: UI_TEXT.archive, exact: true })
       .click()
     await expect.poll(() => checkState(id).status).toBe("archived")
@@ -537,6 +542,13 @@ test.describe("amenity checks", () => {
     await archived.getByRole("link", { name: question("darts") }).click()
     await expect(manager).toHaveURL(new RegExp(`${escape(MANAGER.check(id))}$`))
     await manager
+      .getByRole("button", { name: UI_TEXT.restore, exact: true })
+      .click()
+    const restoreDialog = manager.getByRole("dialog", {
+      name: "Restore this check?",
+    })
+    await restoreDialog.getByLabel("Reason").fill(`The board is back ${w.tag}`)
+    await restoreDialog
       .getByRole("button", { name: UI_TEXT.restore, exact: true })
       .click()
     await expect.poll(() => checkState(id).status).toBe("active")
@@ -615,36 +627,5 @@ test.describe("amenity checks", () => {
     for (const key of ["darts", ...CORE_CHECK_KEYS]) {
       await expect(admin.getByText(question(key))).toHaveCount(0)
     }
-  })
-
-  test("transitional: a staff account with a pre-existing grant still manages Amenities at /staff/manage", async ({
-    browser,
-  }) => {
-    const w = await provisionAmenitiesWorld()
-    await amenityOk(await sessionOf(w.admin), "amenity_enable_venue", {
-      p_venue_id: w.venueA.id,
-    })
-    // A grant made before manager accounts existed, held by a staff account.
-    await legacyManagerGrant(w, w.staffA2, w.venueA)
-
-    const legacy = await signedInPage(browser, w.staffA2)
-    await legacy.goto(LEGACY_MANAGE.list)
-    await expect(legacy).toHaveURL(new RegExp(`${escape(LEGACY_MANAGE.list)}$`))
-    for (const q of CORE_QUESTIONS) {
-      await expect(legacy.getByRole("link", { name: q })).toBeVisible()
-    }
-    await expect(
-      legacy.getByRole("button", { name: UI_TEXT.enable })
-    ).toHaveCount(0)
-
-    const id = checkId(w.venueA, "guest_toilets")
-    await legacy.getByRole("link", { name: question("guest_toilets") }).click()
-    await expect(legacy).toHaveURL(
-      new RegExp(`${escape(LEGACY_MANAGE.check(id))}$`)
-    )
-    await chooseOption(legacy, legacy, "Assignee", assigneeOption(w.staffA))
-    await legacy.getByRole("button", { name: UI_TEXT.assign }).click()
-    await expect.poll(() => checkState(id).assignee).toBe(w.staffA.id)
-    expect(eventKinds(id)).toEqual(expect.arrayContaining(["assigned"]))
   })
 })

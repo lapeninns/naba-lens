@@ -182,13 +182,13 @@ describe("Our menu (staff)", () => {
     expect(within(salad).getByText("2 accepted photos")).toBeTruthy()
   })
 
-  it("opens the camera with the dish applied as a label", async () => {
+  it("opens the phone's photos with the dish applied as a label (gallery first, DESIGN.md §2)", async () => {
     const user = userEvent.setup()
     const openAdd = vi.fn()
     renderScreen({}, openAdd)
     const soup = screen.getByRole("article", { name: "Soup" })
     const button = within(soup).getByRole("button", {
-      name: "Take a photo of this dish",
+      name: "Add photos of this dish",
     })
     // The dish's name describes the button, so each row's button is distinct.
     expect(button.getAttribute("aria-describedby")).toBeTruthy()
@@ -199,7 +199,7 @@ describe("Our menu (staff)", () => {
     await user.click(button)
     expect(openAdd).toHaveBeenCalledTimes(1)
     expect(openAdd).toHaveBeenCalledWith({
-      source: "camera",
+      source: "library",
       imagesOnly: true,
       preset: {
         itemId: ITEMS[0].itemId,
@@ -207,7 +207,7 @@ describe("Our menu (staff)", () => {
         itemName: "Soup",
         variantName: null,
       },
-      // B02-05: the guidance step before the camera, where the entry is on.
+      // B02-05: the guidance step before the picker, where the entry is on.
     })
   })
 
@@ -215,15 +215,12 @@ describe("Our menu (staff)", () => {
     const openAdd = vi.fn()
     renderScreen({ canAdd: false }, openAdd)
     expect(
-      screen.queryByRole("button", { name: "Take a photo of this dish" })
-    ).toBeNull()
-    expect(
-      screen.queryByRole("button", { name: "Choose from photos" })
+      screen.queryByRole("button", { name: "Add photos of this dish" })
     ).toBeNull()
     cleanup()
     renderScreen({ canAdd: true })
     expect(
-      screen.queryByRole("button", { name: "Take a photo of this dish" })
+      screen.queryByRole("button", { name: "Add photos of this dish" })
     ).toBeNull()
   })
 

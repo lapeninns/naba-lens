@@ -75,7 +75,7 @@ describe("S12 photo viewer", () => {
   })
 
   // DOM order is the order seen: stacked on a phone the primary is at the
-  // bottom, side by side it is on the right (DESIGN.md §4).
+  // bottom, side by side it is on the right (common-room.md §4).
   it("orders the admin actions with Download original, the primary, last", () => {
     render(
       <MediaViewer

@@ -18,10 +18,12 @@ import {
   uploadAs,
 } from "../integration/gaps-support"
 import { actorFor, syntheticJpeg } from "../slice/media-actor"
+import { myPhotoTile, openMe } from "./helpers/s4-photos"
 import {
-  openPortfolio,
+  ADMIN_LANDING,
+  myPhotos,
+  openMyPhotos,
   STAFF_LANDING,
-  staffTile,
   uploadSheet,
 } from "./helpers/ui"
 import {
@@ -30,6 +32,8 @@ import {
   signIn as signInApi,
   type TestIdentity,
 } from "../support/identities"
+import { acceptPlacePhoto } from "./helpers/accepted"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 /**
  * Acceptance gaps in the real app (next dev + local Supabase):
@@ -37,8 +41,8 @@ import {
  * - Library refresh on focus/visibility, besides the 15 s interval.
  * - GAP-12: staff at a deactivated venue: no Upload, setup message; admin still
  *   sees the retained media.
- * - GAP-11 over real HTTP: cross-staff portfolio reads, admin page redirect,
- *   private no-store headers.
+ * - GAP-11 over real HTTP: colleagues' photos, admin page redirect, private
+ *   no-store headers.
  */
 
 const admin = serviceClient()
@@ -64,6 +68,8 @@ async function signIn(
   )
   // Opening the link never uses it (mail scanners prefetch); Continue does.
   await page.getByRole("button", { name: "Continue" }).click()
+  // FA-23: an admin passes the TOTP second step.
+  await passMfaIfAsked(page, identity.email)
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/confirm"))
   return page
 }
@@ -109,7 +115,8 @@ test.describe("GAP-19: leave warning during an active upload", () => {
 
     const page = await signIn(browser, staff, baseURL!)
     await expect(page).toHaveURL(STAFF_LANDING)
-    await openPortfolio(page)
+    // My photos holds Add a video, the upload sheet (DESIGN.md §5e).
+    await openMyPhotos(page)
 
     const dialogs: string[] = []
     const onDialog = (dialog: Dialog) => {
@@ -121,8 +128,7 @@ test.describe("GAP-19: leave warning during an active upload", () => {
 
     // Idle: leaving needs no confirmation. (A click first, so Chromium's
     // user-activation requirement for beforeunload is met in both cases.)
-    await page.getByRole("button", { name: "Edit profile" }).click()
-    await page.keyboard.press("Escape")
+    await myPhotos(page).click({ position: { x: 2, y: 2 } })
     const idleProbe = await page.evaluate(() => {
       const event = new Event("beforeunload", { cancelable: true })
       window.dispatchEvent(event)
@@ -144,10 +150,7 @@ test.describe("GAP-19: leave warning during an active upload", () => {
       hold
     )
 
-    await page
-      .getByRole("button", { name: "Upload photos or videos" })
-      .first()
-      .click()
+    await page.getByRole("button", { name: "Add a video" }).first().click()
     const dialog = uploadSheet(page)
     // The upload starts as soon as the file is picked (the hold is already in
     // place, so the transfer stays in flight).
@@ -162,8 +165,8 @@ test.describe("GAP-19: leave warning during an active upload", () => {
     await expect
       .poll(() => dialogs, { timeout: 10_000 })
       .toContain("beforeunload")
-    // Dismissed: still on the portfolio with the upload running.
-    await expect(page).toHaveURL(/\/staff$/)
+    // Dismissed: still on My photos with the upload running.
+    await expect(page).toHaveURL(/\/staff\/photos$/)
     await expect(dialog).toBeVisible()
 
     // Let it finish; then leaving is silent.
@@ -198,7 +201,7 @@ test.describe("admin library refreshes on focus", () => {
       session: false,
     })
     const page = await signIn(browser, adminUser, baseURL!)
-    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page).toHaveURL(ADMIN_LANDING)
 
     // Take manual control of the 15 s foreground timer so only the event under
     // test can refresh the gallery. Every other interval runs normally.
@@ -292,19 +295,17 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
 
     const staffPage = await signIn(browser, staff, baseURL!)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
-    await openPortfolio(staffPage)
+    // My photos says why and offers no Add a video (DESIGN.md §5e).
+    await openMyPhotos(staffPage)
     await expect(
-      staffPage.getByRole("status").filter({ hasText: /not taking uploads/ })
+      staffPage.getByRole("status").filter({ hasText: /isn't taking photos/ })
     ).toBeVisible()
     await expect(
-      staffPage.getByRole("button", { name: /Upload photos or videos/ })
+      staffPage.getByRole("button", { name: "Add a video" })
     ).toHaveCount(0)
     // Their own retained media is still listed for them.
     await expect(
-      await staffTile(
-        staffPage.getByRole("list", { name: "Your portfolio" }),
-        "before-pause.jpg"
-      )
+      await myPhotoTile(staffPage, "before-pause.jpg", staff.id)
     ).toBeVisible()
 
     const adminPage = await signIn(browser, adminUser, baseURL!)
@@ -343,6 +344,8 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
       session: false,
     })
     const photoA = await readyPhoto(staffA, "private-dish.jpg")
+    // FA-20: colleagues see a photo only once it is accepted.
+    acceptPlacePhoto(photoA, adminUser.id)
 
     const pageA = await signIn(browser, staffA, baseURL!)
     const pageB = await signIn(browser, staffB, baseURL!)
@@ -407,57 +410,67 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
     // carrying a client-side redirect.
     const html = await portfolio.text()
     expect(portfolio.status()).toBe(307)
-    expect(portfolio.headers()["location"]).toMatch(/\/staff\/tasks$/)
+    expect(portfolio.headers()["location"]).toMatch(/\/staff\/home$/)
     expect(html).not.toContain('data-slot="skeleton"')
     expect(html).not.toContain("TEST e2e-gaps-http-a")
     expect(html).not.toContain(photoA)
     expect(await portfolio.text()).not.toContain("private-dish")
     await pageB.goto(`/admin/staff/${staffA.id}`)
     await expect(pageB).toHaveURL(STAFF_LANDING)
+    await expect(pageB.getByText("TEST e2e-gaps-http-a")).toHaveCount(0)
     await expect(pageB.getByText("private-dish.jpg")).toHaveCount(0)
-    // Staff Home shows colleagues' photos from across the organisation
-    // ("From your colleagues"), a permitted community read. A's name may
-    // appear there and nowhere else, with no management or download controls.
-    const colleagues = pageB.getByRole("region", {
-      name: "From your colleagues",
-    })
+
+    // Me links to the community feed (Colleagues' photos, DESIGN.md §5b).
+    // A's name belongs in the feed attribution, with no management or
+    // original download controls.
+    await openMe(pageB)
+    await pageB.getByRole("link", { name: /^Colleagues' photos/ }).click()
+    await expect(pageB).toHaveURL(/\/staff\/community$/)
+    const feedLabel = "Organization portfolio"
+    const colleagues = pageB.getByRole("list", { name: feedLabel })
     await expect(
       colleagues.getByText("TEST e2e-gaps-http-a").first()
     ).toBeVisible()
     await expect
       .poll(() =>
-        pageB.evaluate((name) => {
-          const walker = document.createTreeWalker(
-            document.body,
-            NodeFilter.SHOW_TEXT
-          )
-          const outside: string[] = []
-          for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-            if (!n.textContent?.includes(name)) continue
-            const parent = n.parentElement
-            if (parent?.closest('[aria-labelledby="colleagues-heading"]'))
-              continue
-            // The RSC payload carries the colleagues section's props; it is
-            // never rendered. Any other script still counts.
-            if (
-              parent?.tagName === "SCRIPT" &&
-              n.textContent.trimStart().startsWith("self.__next_f")
+        pageB.evaluate(
+          ({ name, feedLabel }) => {
+            const walker = document.createTreeWalker(
+              document.body,
+              NodeFilter.SHOW_TEXT
             )
-              continue
-            const path: string[] = []
-            for (let a = parent; a && a !== document.body; a = a.parentElement)
-              path.unshift(
-                a.tagName.toLowerCase() +
-                  (a.getAttribute("aria-label")
-                    ? `[aria-label="${a.getAttribute("aria-label")}"]`
-                    : a.getAttribute("data-slot")
-                      ? `[data-slot=${a.getAttribute("data-slot")}]`
-                      : "")
+            const outside: string[] = []
+            for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+              if (!n.textContent?.includes(name)) continue
+              const parent = n.parentElement
+              if (parent?.closest(`ul[aria-label="${feedLabel}"]`)) continue
+              // The RSC payload carries the feed's props; it is
+              // never rendered. Any other script still counts.
+              if (
+                parent?.tagName === "SCRIPT" &&
+                n.textContent.trimStart().startsWith("self.__next_f")
               )
-            outside.push(path.join(" > "))
-          }
-          return outside
-        }, "TEST e2e-gaps-http-a")
+                continue
+              const path: string[] = []
+              for (
+                let a = parent;
+                a && a !== document.body;
+                a = a.parentElement
+              )
+                path.unshift(
+                  a.tagName.toLowerCase() +
+                    (a.getAttribute("aria-label")
+                      ? `[aria-label="${a.getAttribute("aria-label")}"]`
+                      : a.getAttribute("data-slot")
+                        ? `[data-slot=${a.getAttribute("data-slot")}]`
+                        : "")
+                )
+              outside.push(path.join(" > "))
+            }
+            return outside
+          },
+          { name: "TEST e2e-gaps-http-a", feedLabel }
+        )
       )
       .toEqual([])
     await expect(
@@ -465,16 +478,16 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
         'a[href*="/download"], a[href^="/admin"], [role="menuitem"]'
       )
     ).toHaveCount(0)
-    // The raw Home HTML, including the RSC payload the check above skips,
-    // carries no original file name, download route or admin portfolio link.
+    // The Photos response, including the RSC payload, carries no original
+    // file name, download route or admin portfolio link.
     // (Thumb URLs legitimately contain A's media id.)
-    const home = await (await pageB.request.get("/staff/tasks")).text()
-    // Not vacuous: this is Home with the colleagues payload, not an error page,
-    // redirect body or empty response.
-    expect(home).toContain("TEST e2e-gaps-http-a")
-    expect(home).not.toContain("private-dish")
-    expect(home).not.toContain(`/api/media/${photoA}/download`)
-    expect(home).not.toContain("/admin/staff/")
+    const feedResponse = await pageB.request.get("/staff/community")
+    expect(feedResponse.ok()).toBe(true)
+    const feed = await feedResponse.text()
+    expect(feed).toContain("TEST e2e-gaps-http-a")
+    expect(feed).not.toContain("private-dish")
+    expect(feed).not.toContain(`/api/media/${photoA}/download`)
+    expect(feed).not.toContain("/admin/staff/")
 
     // Allowed reads carry private, no-store headers and nosniff.
     const allowed: [Page, string, number][] = [

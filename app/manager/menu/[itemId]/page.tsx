@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation"
 
+import { setAlbumBriefAction } from "@/app/manager/album/actions"
+import { DishBrief } from "@/components/nabalens/album/dish-brief"
 import { ItemDetail } from "@/components/nabalens/manager/menu/item-detail"
 import { NeededByControl } from "@/components/nabalens/manager/menu/needed-by-control"
 import { ItemWaiting } from "@/components/nabalens/manager/menu/item-waiting"
@@ -11,6 +13,8 @@ import {
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
 import { requireManagerVenue } from "@/lib/auth/manager"
+import { getDishBriefs } from "@/lib/server/album"
+import { getOfferingStates, getPackaging } from "@/lib/server/menus/local"
 import { isUuid } from "@/lib/server/coverage/validate"
 import {
   getManagerItem,
@@ -26,6 +30,15 @@ import {
   setMenuItemNeededByAction,
 } from "../../actions"
 import { failedRead } from "../../load-overview"
+import { OfferingControls } from "../_components/offering-controls"
+import { PackagingControl } from "@/components/nabalens/manager/menu/packaging-control"
+import {
+  presentationChangedAction,
+  requestChangeAction,
+  setAvailabilityAction,
+  setDisplayNameAction,
+  setPackagingAction,
+} from "../local-actions"
 
 export const metadata = { title: "Menu item" }
 
@@ -54,14 +67,21 @@ export default async function ManagerMenuItemPage({
       : `${managerHrefs.item(itemId)}?${new URLSearchParams({ from: back.slice(query + 1) })}`
   const scope = await getManagerPhotoCtx()
   if (!scope.ok) failedRead(scope.code, undefined, here)
-  const [read, history] = await Promise.all([
+  const [read, history, offering, packaging] = await Promise.all([
     getManagerItem(scope.ctx, itemId),
     listItemEvents(scope.ctx, { itemId }),
+    getOfferingStates(scope.ctx.actor, scope.ctx.venueId),
+    getPackaging(scope.ctx.actor, scope.ctx.venueId),
   ])
   if (!read.ok) failedRead(read.code, undefined, here)
   const { detail } = read
   if (!detail) notFound()
 
+  // Album AL-4: the dish's brief and its section's (DESIGN.md §5 Brief).
+  const briefs = await getDishBriefs(scope.ctx.actor, scope.ctx.venueId, {
+    itemId: detail.item.itemId,
+    sectionId: detail.item.section.id,
+  })
   const now = new Date().toISOString()
   return (
     <>
@@ -77,17 +97,65 @@ export default async function ManagerMenuItemPage({
         }
         loadEvents={loadItemEventsAction}
         neededBy={
-          <NeededByControl
-            item={{
-              itemId: detail.item.itemId,
-              name: detail.item.name,
-              covered: detail.item.status === "covered",
-              neededBy: detail.item.neededBy ?? null,
-            }}
-            {...neededByBounds()}
-            setAction={setMenuItemNeededByAction}
-            clearAction={clearMenuItemNeededByAction}
-          />
+          <>
+            <NeededByControl
+              item={{
+                itemId: detail.item.itemId,
+                name: detail.item.name,
+                covered: detail.item.status === "covered",
+                neededBy: detail.item.neededBy ?? null,
+              }}
+              {...neededByBounds()}
+              setAction={setMenuItemNeededByAction}
+              clearAction={clearMenuItemNeededByAction}
+            />
+            {offering.ok ? (
+              <OfferingControls
+                itemId={detail.item.itemId}
+                menuName={detail.item.name}
+                state={
+                  offering.states[detail.item.itemId] ?? {
+                    available: true,
+                    unavailableUntil: null,
+                    unavailableReason: null,
+                    displayName: null,
+                  }
+                }
+                today={neededByBounds().today}
+                actions={{
+                  setAvailability: setAvailabilityAction,
+                  setDisplayName: setDisplayNameAction,
+                  presentationChanged: presentationChangedAction,
+                  requestChange: requestChangeAction,
+                }}
+              />
+            ) : null}
+            {/* FA-51: Packaged and Photo wanted (spec §4.2). */}
+            {packaging.ok ? (
+              <PackagingControl
+                itemId={detail.item.itemId}
+                name={detail.item.name}
+                value={
+                  packaging.items.find(
+                    (i) => i.itemId === detail.item.itemId
+                  ) ?? { packaged: false, photoWanted: false }
+                }
+                setAction={setPackagingAction}
+              />
+            ) : null}
+            {briefs ? (
+              <DishBrief
+                itemId={detail.item.itemId}
+                name={detail.item.name}
+                brief={briefs.own}
+                section={{
+                  name: detail.item.section.name,
+                  brief: briefs.section,
+                }}
+                setAction={setAlbumBriefAction}
+              />
+            ) : null}
+          </>
         }
         waiting={
           detail.waiting.items.length > 0 ? (

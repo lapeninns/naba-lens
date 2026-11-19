@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+
+import { cn } from "@/lib/utils"
 import { ImageIcon, VideoCameraIcon } from "@phosphor-icons/react"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
@@ -249,7 +251,19 @@ export function NeedsAttention({
   onFixed,
   onDiscarded,
   api = API,
+  heading = ATTENTION_COPY.heading,
+  bare = false,
 }: {
+  /**
+   * Inside My photos' Needs you list (DESIGN.md §5e): the heading is for
+   * screen readers only and the intro is left out.
+   */
+  bare?: boolean
+  /**
+   * The block's title. My photos (DESIGN.md §5e) says "Labels not saved",
+   * since its list already has a Needs attention filter.
+   */
+  heading?: string
   refreshSignal?: number
   /** Labels are on these photos now: refresh the gallery. */
   onFixed?: (assetIds: string[]) => void
@@ -505,9 +519,12 @@ export function NeedsAttention({
           ref={headingRef}
           id="needs-attention-heading"
           tabIndex={-1}
-          className="flex items-center gap-2 type-section-title text-ink outline-none"
+          className={cn(
+            "flex items-center gap-2 type-section-title text-ink outline-none",
+            bare && "sr-only"
+          )}
         >
-          {ATTENTION_COPY.heading}
+          {heading}
           {shown.length > 0 ? (
             <CountBadge
               count={shown.length}
@@ -515,7 +532,7 @@ export function NeedsAttention({
             />
           ) : null}
         </h2>
-        {shown.length > 0 ? (
+        {shown.length > 0 && !bare ? (
           <p className="text-body text-ink-muted">{ATTENTION_COPY.intro}</p>
         ) : null}
         <p role="status" className="text-body text-ink empty:hidden">

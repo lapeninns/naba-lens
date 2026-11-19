@@ -1,3 +1,4 @@
+import { newIdempotencyKey } from "@/lib/browser/random-id"
 import {
   GROUP_LIMITS,
   type ContributionGroupReplaceResult,
@@ -104,7 +105,7 @@ export function sessionSetKeys(): SetKeyStore {
   return {
     keyFor(scope) {
       const known = memory.get(scope) ?? readStore()[scope]
-      const key = known ?? crypto.randomUUID()
+      const key = known ?? newIdempotencyKey()
       memory.set(scope, key)
       if (!known) writeStore({ ...readStore(), [scope]: key })
       return key

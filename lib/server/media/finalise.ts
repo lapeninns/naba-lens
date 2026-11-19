@@ -1,6 +1,16 @@
-import { maxBytesFor, MEDIA_LIMITS } from "@/lib/config/media"
+import { createHash } from "node:crypto"
+
+import {
+  maxBytesFor,
+  MEDIA_LIMITS,
+  MEDIA_PIPELINE_VERSION,
+} from "@/lib/config/media"
 import { mediaObjectKeys, STORAGE_BUCKETS } from "@/lib/config/storage"
-import { sniffMedia, validateMedia } from "@/lib/media"
+import { imageSize, sniffMedia, validateMedia } from "@/lib/media"
+import {
+  imageCaptureTime,
+  quickTimeCaptureTime,
+} from "@/lib/media/capture-time"
 import {
   EMPTY_LABEL_SUMMARY,
   type MediaLabelSummary,
@@ -8,7 +18,6 @@ import {
 } from "@/lib/menus/types"
 import { ensureMediaOriginalArchived } from "@/lib/server/archive"
 import { labelSaveMessage, tryLoadLabelSummaries } from "@/lib/server/labels"
-import { knowledgeRpc } from "@/lib/server/knowledge/rpc"
 import { touchMediaReservation } from "@/lib/server/lifecycle/cleanup"
 
 import { validationMessage } from "./errors"
@@ -32,7 +41,16 @@ export type FinaliseLabels =
  * finalise, or an existing needs_attention draft on an already-ready asset.
  */
 export type FinaliseResponse =
-  | { state: "ready"; labels?: FinaliseLabels }
+  | {
+      state: "ready"
+      labels?: FinaliseLabels
+      /**
+       * An exact copy (same SHA-256) of an earlier photo or video at the same
+       * venue (spec §12.4). It is kept, but earns no contribution credit.
+       * Only on the finalise that made the asset ready.
+       */
+      duplicate?: true
+    }
   | { state: "failed"; error: string }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -73,6 +91,7 @@ type AssetRow = {
   id: string
   uploader_id: string
   venue_id: string
+  uploader_role: string | null
   original_path: string
   original_filename: string
   media_type: "image" | "video"
@@ -95,7 +114,7 @@ async function readOwnAsset(actor: MediaActor, assetId: string) {
   const { data, error } = await actor.db
     .from("media_assets")
     .select(
-      "id, uploader_id, venue_id, original_path, original_filename, media_type, upload_state, client_upload_key, size_bytes, updated_at"
+      "id, uploader_id, venue_id, uploader_role, original_path, original_filename, media_type, upload_state, client_upload_key, size_bytes, updated_at"
     )
     .eq("id", assetId)
     .eq("uploader_id", actor.profile.id)
@@ -161,6 +180,10 @@ type Validation =
       durationSeconds?: number
       preview?: Uint8Array
       thumb?: Uint8Array
+      /** SHA-256 of the original, when this step already had its bytes. */
+      sha256?: string
+      /** When it was taken, from the file's own metadata; null: unknown. */
+      capturedAt: Date | null
     }
   | { ok: false; error: string }
 
@@ -190,8 +213,16 @@ async function validateStored(
     if (size > MEDIA_LIMITS.maxPhotoBytes) {
       return { ok: false, error: "file_too_large" }
     }
-    const bytes = await source.read(0, size)
+    const [bytes, venue] = await Promise.all([
+      source.read(0, size),
+      actor.service
+        .from("venues")
+        .select("timezone")
+        .eq("id", row.venue_id)
+        .single(),
+    ])
     if (bytes.byteLength !== size) return { ok: false, error: "size_mismatch" }
+    if (venue.error) throw new Error("asset_venue_timezone")
     for (let attempt = 0; ; attempt++) {
       const result = await validateMedia({
         bytes,
@@ -211,6 +242,10 @@ async function validateStored(
           height: result.height,
           preview: result.preview,
           thumb: result.thumb,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+          capturedAt: imageCaptureTime(bytes, {
+            timeZone: venue.data.timezone,
+          }),
         }
       }
       if (attempt >= BUSY_RETRIES) return result
@@ -229,45 +264,184 @@ async function validateStored(
   })
   if (!result.ok) return result
   if (result.kind !== "video") return { ok: false, error: "type_mismatch" }
+  const durationSeconds =
+    "durationSeconds" in result ? result.durationSeconds : undefined
+  if (tooLong(durationSeconds)) return { ok: false, error: "video_too_long" }
   return {
     ok: true,
     mime: result.mime,
     size,
     width: "width" in result ? result.width : undefined,
     height: "height" in result ? result.height : undefined,
-    durationSeconds:
-      "durationSeconds" in result ? result.durationSeconds : undefined,
+    durationSeconds,
+    capturedAt: quickTimeCaptureTime(
+      "creationTime" in result ? result.creationTime : undefined
+    ),
   }
 }
 
 /**
- * A manager account finishes an upload only while it still manages the
- * upload's venue (B02-c), as the storage write trigger requires; null when
- * it may.
+ * Over the video length limit (spec §12.1). Half a second of slack: a phone's
+ * one-minute clip is often a few hundredths over. Unknown length (fragmented
+ * MP4): held to the byte limit only.
  */
-async function managerUploadEnded(
+export function tooLong(durationSeconds: number | undefined): boolean {
+  return (
+    durationSeconds !== undefined &&
+    durationSeconds > MEDIA_LIMITS.maxVideoSeconds + 0.5
+  )
+}
+
+/** Range reads of this size when hashing a stored original. */
+const HASH_CHUNK_BYTES = 8 * 1024 * 1024
+
+/**
+ * SHA-256 of the stored original (FA-35). Reuses the archive's receipt when
+ * archiving already read the file; otherwise streams it in range reads.
+ */
+async function originalSha256(
+  actor: MediaActor,
+  row: AssetRow,
+  size: number
+): Promise<string> {
+  const { data, error } = await actor.service
+    .from("media_archive_receipts")
+    .select("sha256")
+    .eq("asset_id", row.id)
+    .eq("size_bytes", size)
+    .limit(1)
+    .maybeSingle()
+  if (!error && data?.sha256) return data.sha256
+  const source = mediaRangeSource(actor.storage, row.original_path, size)
+  const hash = createHash("sha256")
+  for (let offset = 0; offset < size; offset += HASH_CHUNK_BYTES) {
+    const length = Math.min(HASH_CHUNK_BYTES, size - offset)
+    const chunk = await source.read(offset, length)
+    if (chunk.byteLength !== length) throw new Error("hash_short_read")
+    hash.update(chunk)
+  }
+  return hash.digest("hex")
+}
+
+/**
+ * One media_renditions row per derivative written (spec §12.3). Also used by
+ * the legacy import (scripts/import), which has only the service role.
+ */
+export async function recordRenditions(
+  actor: Pick<MediaActor, "service">,
+  assetId: string,
+  keys: ReturnType<typeof mediaObjectKeys>,
+  preview: Uint8Array,
+  thumb: Uint8Array
+) {
+  const [previewSize, thumbSize] = await Promise.all([
+    imageSize(preview),
+    imageSize(thumb),
+  ])
+  const settings = (maxEdge: number) => ({
+    format: "webp",
+    fit: "inside",
+    maxEdgePx: maxEdge,
+    withoutEnlargement: true,
+    orientation: "exif-applied",
+    metadata: "stripped",
+  })
+  const { error } = await actor.service.from("media_renditions").upsert(
+    [
+      {
+        asset_id: assetId,
+        kind: "preview",
+        object_key: keys.preview,
+        mime_type: "image/webp",
+        width: previewSize?.width ?? null,
+        height: previewSize?.height ?? null,
+        pipeline_version: MEDIA_PIPELINE_VERSION,
+        settings: settings(MEDIA_LIMITS.previewPixels),
+      },
+      {
+        asset_id: assetId,
+        kind: "thumbnail",
+        object_key: keys.thumbnail,
+        mime_type: "image/webp",
+        width: thumbSize?.width ?? null,
+        height: thumbSize?.height ?? null,
+        pipeline_version: MEDIA_PIPELINE_VERSION,
+        settings: settings(MEDIA_LIMITS.thumbnailPixels),
+      },
+    ],
+    { onConflict: "asset_id,kind" }
+  )
+  if (error) throw new Error("rendition_record")
+}
+
+const ACCESS_ENDED: Outcome<never> = {
+  ok: false,
+  status: 403,
+  message:
+    "You can no longer add photos at this venue, so this upload can't be finished.",
+}
+
+const CHECK_FAILED: Outcome<never> = {
+  ok: false,
+  status: 503,
+  message: "Could not check this file right now. Try again.",
+}
+
+const MANAGER_ENDED: Outcome<never> = {
+  ok: false,
+  status: 403,
+  message:
+    "Your venue manager access has ended, so this upload can't be finished.",
+}
+
+/**
+ * The role the caller holds at `venueId` through an open membership (any of
+ * their venues, not only the active one); null when none; undefined when it
+ * could not be read.
+ */
+async function roleAtVenue(
   actor: MediaActor,
   venueId: string
+): Promise<string | null | undefined> {
+  const { data, error } = await actor.db.rpc("my_venue_memberships")
+  if (error) return undefined
+  const rows = (data ?? []) as { venue_id: string; role: string | null }[]
+  return rows.find((row) => row.venue_id === venueId)?.role ?? null
+}
+
+/**
+ * Whether the caller may still finish an upload reserved at `row.venue_id`
+ * (null when they may). K2, review R10: the same rule as the storage write
+ * trigger and complete_media_finalise (private.media_upload_venue_allowed,
+ * 20261118109200): keyed on the role held at the upload's venue, not on the
+ * active venue, so switching to another of one's venues never ends an upload
+ * in flight; ending the membership does (AC12). A manager-era reservation
+ * needs the manager role there; a staff-era one an open staff membership
+ * there (or, for a legacy account, working there now). The database checks
+ * again under the row lock.
+ */
+async function uploadAccessEnded(
+  actor: MediaActor,
+  row: Pick<AssetRow, "venue_id" | "uploader_role">
 ): Promise<Outcome<never> | null> {
-  const { data, error } = await knowledgeRpc(
-    actor.db,
-    "my_venue_capabilities",
-    { p_venue_id: null }
-  )
-  if (error)
-    return {
-      ok: false,
-      status: 503,
-      message: "Could not check this file right now. Try again.",
-    }
-  return data?.canUpload && data.venueId === venueId
-    ? null
-    : {
-        ok: false,
-        status: 403,
-        message:
-          "Your venue manager access has ended, so this upload can't be finished.",
-      }
+  if (actor.profile.role === "admin") return null
+  const managerEra =
+    row.uploader_role === "manager" ||
+    (row.uploader_role === null && actor.profile.role === "manager")
+  if (managerEra) {
+    const role = await roleAtVenue(actor, row.venue_id)
+    if (role === undefined) return CHECK_FAILED
+    return role === "manager"
+      ? null
+      : actor.profile.role === "manager"
+        ? MANAGER_ENDED
+        : ACCESS_ENDED
+  }
+  if (actor.profile.venueId === row.venue_id && actor.profile.role === "staff")
+    return null
+  const role = await roleAtVenue(actor, row.venue_id)
+  if (role === undefined) return CHECK_FAILED
+  return role === "staff" ? null : ACCESS_ENDED
 }
 
 /**
@@ -298,10 +472,11 @@ export async function finaliseAsset(
     return notFound
   }
   if (row.upload_state === "ready") return readyWithAttention(actor, row.id)
-  if (actor.profile.role === "manager") {
-    const ended = await managerUploadEnded(actor, row.venue_id)
-    if (ended) return ended
-  }
+  // Only while the caller still holds a role at the upload's venue (spec
+  // §12.4, AC12, R10); complete_media_finalise checks the same rule under
+  // the row lock.
+  const ended = await uploadAccessEnded(actor, row)
+  if (ended) return ended
 
   // Finalise begins: record upload activity for cleanup (lifecycle's
   // recordUploadActivity). Skipped for `processing`, which cleanup never
@@ -391,6 +566,7 @@ export async function finaliseAsset(
   const keys = mediaObjectKeys(row.uploader_id, row.id, "bin")
   let derivatives = false
   let completed: CompleteRow
+  let accessEnded = false
   try {
     // A successful upload must have a verified durable original + attribution
     // receipt before it can become ready. Archival failure remains retryable.
@@ -413,8 +589,17 @@ export async function finaliseAsset(
         })
         if (error) throw new Error("derivative_upload")
       }
+      await recordRenditions(
+        actor,
+        row.id,
+        keys,
+        validation.preview,
+        validation.thumb
+      )
       derivatives = true
     }
+    const contentSha256 =
+      validation.sha256 ?? (await originalSha256(actor, row, validation.size))
 
     // `ready` (compare-and-set on processing) and any labels stored while the
     // file uploaded, applied as the uploader, in one transaction: a label POST
@@ -432,11 +617,17 @@ export async function finaliseAsset(
           : Math.round(validation.durationSeconds * 1000) / 1000,
       p_preview_path: derivatives ? keys.preview : undefined,
       p_thumbnail_path: derivatives ? keys.thumbnail : undefined,
+      p_content_sha256: contentSha256,
+      p_captured_at: validation.capturedAt?.toISOString(),
     })
+    if (error?.message?.includes("upload_access_ended")) accessEnded = true
     if (error || !data?.[0]) throw new Error("asset_ready_update")
     completed = data[0] as CompleteRow
   } catch {
     await setState(actor, row.id, ["processing"], "failed").catch(() => {})
+    // Access ended while it was processing: the bytes stay private (only the
+    // uploader's own row, never ready) until the 24 h cleanup.
+    if (accessEnded) return ACCESS_ENDED
     return {
       ok: false,
       status: 503,
@@ -446,9 +637,12 @@ export async function finaliseAsset(
 
   if (!completed.became_ready) return settleLostClaim(actor, row, keys)
   const labels = await completedLabels(actor, row.id, completed)
-  return labels
-    ? { ok: true, state: "ready", labels }
-    : { ok: true, state: "ready" }
+  return {
+    ok: true,
+    state: "ready",
+    ...(labels ? { labels } : {}),
+    ...(completed.duplicate_of_asset_id ? { duplicate: true as const } : {}),
+  }
 }
 
 /** One row of complete_media_finalise (nulls as the database sends them). */
@@ -458,6 +652,8 @@ type CompleteRow = {
   labels_code: string | null
   labels_revision: number | null
   labels_has_labels: boolean | null
+  /** An earlier live ready asset at the venue with the same bytes. */
+  duplicate_of_asset_id?: string | null
 }
 
 const LABEL_CODES: readonly SaveLabelsErrorCode[] = [

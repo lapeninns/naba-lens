@@ -12,9 +12,7 @@ export default function StaffError({ retry }: { retry: () => void }) {
         <IconDisc tone="warn">
           <WarningIcon />
         </IconDisc>
-        <h1 className="type-section-title text-ink">
-          Your portfolio could not load
-        </h1>
+        <h1 className="type-section-title text-ink">Me could not load</h1>
         <p className="text-body text-ink-muted">
           Check your connection and try again.
         </p>

@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils"
 
 /**
- * A placeholder in the exact shape of what is loading (DESIGN.md §4): `tile`
+ * A placeholder in the exact shape of what is loading (common-room.md §4): `tile`
  * (square photo), `photo` (4:3, square corners), `av` (avatar), `line`
  * (18px), `line-short` (18px, 55% wide), `title` (28px) or `button` (52px).
  * Flat `surface-2` blocks in the real layout; Common Room skeletons never
@@ -61,7 +61,7 @@ function SkeletonRegion({
 }
 
 /*
- * Named recipes for the layouts that loading files draw (DESIGN.md §5): the
+ * Named recipes for the layouts that loading files draw (common-room.md §5): the
  * skeleton stands where the content will be, in the same card and gaps. Each
  * is its own SkeletonRegion, so `label` is required ("Loading photos…").
  */

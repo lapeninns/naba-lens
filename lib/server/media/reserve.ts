@@ -1,4 +1,5 @@
 import { uploadBlockReason } from "@/lib/auth/profile"
+import { isUuid } from "@/lib/server/accounts/validation"
 import { maxBytesFor, MEDIA_LIMITS } from "@/lib/config/media"
 import { STORAGE_BUCKETS } from "@/lib/config/storage"
 
@@ -22,6 +23,17 @@ export type ReserveRequest = {
    * new reservation.
    */
   purpose?: MediaPurpose
+  /**
+   * The client's stable batch ID (spec §12.2 step 1). Stored by the first
+   * reservation for this key; a retry keeps the first one.
+   */
+  batchId?: string
+  /**
+   * The venue the person chose this file for (AC11). Staff and managers may
+   * only name their active venue: another is refused (wrong_venue) rather
+   * than reserved at whichever venue is active when the file's turn comes.
+   */
+  venueId?: string
 }
 
 /**
@@ -129,6 +141,13 @@ export async function reserveAsset(
   if (input.mediaType !== "image" && input.mediaType !== "video") {
     return invalid("Choose a photo or a video.")
   }
+  const batchId = input.batchId ?? null
+  const venueId = isUuid(input.venueId) ? input.venueId : null
+  if (input.venueId !== undefined && venueId === null)
+    return invalid("Choose the venue again.")
+  if (batchId !== null && !UPLOAD_KEY_PATTERN.test(String(batchId))) {
+    return invalid("This upload request is invalid.")
+  }
   const purpose = input.purpose ?? "general"
   if (purpose !== "general" && purpose !== "amenity") {
     return invalid("This upload request is invalid.")
@@ -163,6 +182,8 @@ export async function reserveAsset(
     p_size_bytes: size,
     p_client_upload_key: input.idempotencyKey,
     p_purpose: purpose,
+    ...(batchId ? { p_client_batch_id: batchId } : {}),
+    ...(venueId ? { p_venue_id: venueId } : {}),
   })
   if (error) return rpcFailure(error)
   const row = data?.[0]

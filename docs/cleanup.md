@@ -2,11 +2,20 @@
 
 Spec v0.2 §5 (abandoned uploads) and §7 (removal and account lifecycle).
 
-> **Status: nothing is scheduled or deployed.** The cleanup runner, endpoint and
-> script exist and are tested against a local stack. Until one of the scheduling
-> options below is set up in the deployed environment, removed media stays hidden
-> but its bytes are only deleted when a removal's own storage call succeeds, and
-> abandoned uploads are not cleaned. Check this at release (spec §11).
+> **Status (Full App v1, S1-OPS, 18 Nov 2026):** `vercel.json` schedules the
+> endpoint hourly (Vercel Cron, `CLEANUP_SECRET` equal to `CRON_SECRET`). Whether
+> it runs in a deployed environment still depends on that secret being set:
+> Settings › Integrations shows "Scheduled jobs: Set up" when it is, and
+> Settings › Operations shows each run (`ops_job_runs`, job `media_cleanup`).
+>
+> **Orphan window (spec §16).** The scheduled run abandons unfinished and failed
+> uploads after the admin's **orphan window** (Settings, default **7 days**,
+> 1 to 30), read from `ops_settings.orphan_cleanup_days` by
+> `lib/server/ops/cleanup-window.ts`. If that read fails it uses 7 days, never
+> less. `runMediaCleanup` called directly (tests, `pnpm cleanup`) keeps the
+> 24-hour `MEDIA_LIMITS` window unless `abandonedAfter` is passed. Ready
+> uploads, and so every labelled, accepted or otherwise referenced asset, are
+> never abandoned; approved media is never deleted to save space.
 
 ## Removing an asset
 
@@ -118,7 +127,7 @@ removes the object.
 
 Hourly is plenty for a 24-hour window. Running more often is harmless.
 
-## Scheduling options (none configured)
+## Scheduling options
 
 ### Supabase pg_cron + pg_net
 
@@ -157,7 +166,7 @@ secret are per environment.
 Vercel Cron sends a **GET** request with `Authorization: Bearer $CRON_SECRET`. The
 endpoint accepts that GET with the same secret check, so using Vercel Cron needs
 only `CLEANUP_SECRET` equal to `CRON_SECRET` and a `crons` entry in `vercel.json`.
-Check the plan's cron frequency limits. Not done in this MVP.
+Check the plan's cron frequency limits. Configured in `vercel.json` (`17 * * * *`).
 
 ### Any external scheduler or an operator
 

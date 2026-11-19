@@ -37,7 +37,7 @@ import {
   SOURCE_KIND_LABEL,
 } from "./reconcile-copy"
 
-// The shared field recipe on native controls (DESIGN.md §4 Field).
+// The shared field recipe on native controls (common-room.md §4 Field).
 const INPUT = `block ${fieldControlVariants()}`
 const ROW =
   "flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink focus-ring-within"

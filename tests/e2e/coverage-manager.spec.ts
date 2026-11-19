@@ -16,8 +16,9 @@ import {
   seedImages,
   type CoverageWorld,
 } from "./helpers/coverage-world"
+import { convertToManager } from "./helpers/manager-world"
 import { provisioner, psql } from "./helpers/stack"
-import { escape, STAFF_LANDING } from "./helpers/ui"
+import { escape, STAFF_LANDING, STAFF_TABS } from "./helpers/ui"
 import { signedInPage, type Person } from "./helpers/world"
 
 /**
@@ -25,6 +26,13 @@ import { signedInPage, type Person } from "./helpers/world"
  * AC-07, AC-08, AC-09/16 retries, AC-22, AC-23, AC-28; R-M1..R-M7, R-A1,
  * R-A2). Admin and manager act only through the pages; the service role only
  * seeds photos, and the photos are sent by their authors' own sessions.
+ *
+ * Decision D3 retired the staff-side Manage (DESIGN.md §15): venue managers
+ * are manager accounts working in /manager, which has no coverage review,
+ * checklist or coverage menu screen. Those screens now open only from the
+ * admin's venue coverage (/admin/coverage/[venueId]/...), so the review,
+ * target, checklist and menu journeys run there; the manager account's
+ * denials and revoke run against /manager.
  */
 
 type RpcResult<T> = {
@@ -65,12 +73,12 @@ const itemState = (itemId: string) =>
   )
 
 /**
- * The manager holds a legacy, staff-held grant (fixture: new grants go to
- * venue manager accounts only, which use /manager, not /staff/manage). The
- * admin sees it in effect on the managers page, labelled as a legacy grant.
+ * The manager is a venue manager account (convert_account_to_manager, as the
+ * admin). The admin sees the grant in effect on the managers page.
  */
-async function grantLegacy(admin: Page, w: CoverageWorld) {
-  await legacyStaffGrant(w.admin, w.manager, w.venue1)
+async function makeManager(admin: Page, w: CoverageWorld) {
+  const adminDb: Db = await signIn(provisioner(), w.admin.email)
+  await convertToManager(adminDb, w.manager, w.venue1)
   await admin.goto("/admin/coverage/managers")
   const row = admin
     .getByRole("table", { name: "Current grants" })
@@ -79,40 +87,39 @@ async function grantLegacy(admin: Page, w: CoverageWorld) {
   await expect(row).toContainText(w.venue1.name)
   // A grant that is not in effect carries a "Not in effect: …" chip.
   await expect(row).not.toContainText("Not in effect")
-  await expect(row).toContainText("Legacy staff grant")
+  await expect(row).not.toContainText("Legacy staff grant")
   await expect(
     row.getByRole("button", { name: `More actions for ${w.manager.name}` })
   ).toBeVisible()
 }
+
+/** The admin's venue coverage pages for venue 1. */
+const venuePath = (w: CoverageWorld, section: string) =>
+  `/admin/coverage/${w.venue1.id}/${section}`
 
 async function reviewJourney(
   browser: Browser,
   w: CoverageWorld,
   context: BrowserContextOptions = {}
 ) {
-  const items = await sendMonthlyPhotos([w.staffA, w.staffB, w.manager], w)
-  const admin = await signedInPage(browser, w.admin, context)
-  await grantLegacy(admin, w)
-
-  const manager = await signedInPage(browser, w.manager, context)
-  await expect(manager).toHaveURL(STAFF_LANDING)
-  await manager.goto("/staff/manage/review")
-  await expect(manager).toHaveURL(/\/staff\/manage\/review$/)
+  const items = await sendMonthlyPhotos([w.staffA, w.staffB], w)
+  const admin = await signedInPage(browser, w.admin)
+  await admin.goto(venuePath(w, "review"))
   const card = (person: Person) =>
-    manager.getByRole("article", {
+    admin.getByRole("article", {
       name: `Monthly photo: photo by ${person.name}`,
     })
 
-  // Accept a colleague's photo.
+  // Accept one photo.
   await card(w.staffB).getByRole("button", { name: "Accept" }).click()
-  await expect(manager.getByText(/^Accepted\. It counts for /)).toBeVisible()
+  await expect(admin.getByText(/^Accepted\. It counts for /)).toBeVisible()
   expect(itemState(items[w.staffB.id]!)).toBe("accepted:false")
 
   // "Needs another photo" needs a reason; without one nothing is saved.
   await card(w.staffA)
     .getByRole("button", { name: "Ask for another photo" })
     .click()
-  const ask = manager.getByRole("dialog", { name: "Ask for another photo" })
+  const ask = admin.getByRole("dialog", { name: "Ask for another photo" })
   await ask.getByRole("button", { name: "Ask for another photo" }).click()
   await expect(ask).toBeVisible()
   await expect(ask.getByLabel("Reason")).toHaveAttribute("aria-invalid", "true")
@@ -122,48 +129,34 @@ async function reviewJourney(
   await ask.getByRole("button", { name: "Ask for another photo" }).click()
   await expect(ask).toBeHidden()
   await expect(
-    manager.getByText(`Asked ${w.staffA.name.split(" ")[0]} for another photo.`)
+    admin.getByText(`Asked ${w.staffA.name.split(" ")[0]} for another photo.`)
   ).toBeVisible()
   expect(itemState(items[w.staffA.id]!)).toBe("needs_another_photo:false")
 
-  // The manager's own photo: allowed, recorded as self-review.
-  await card(w.manager).getByRole("button", { name: "Accept" }).click()
-  await expect(
-    manager.getByText(
-      /^Accepted\. It counts for .+ Recorded as a self-review\.$/
-    )
-  ).toBeVisible()
-  expect(itemState(items[w.manager.id]!)).toBe("accepted:true")
-
-  // Staff A sees the reason in Home's retake note (G-3); the admin sees the
-  // self-review.
+  // Staff A sees the reason on Your month, the Me row (DESIGN.md §5b).
   const staffA = await signedInPage(browser, w.staffA, context)
+  await staffA.goto(STAFF_TABS.me)
+  await staffA.locator('[data-slot="me-month"]').click()
+  await expect(staffA).toHaveURL(/\/staff\/tasks\/month$/)
   await expect(
     staffA
-      .getByRole("region", { name: "Needs another photo" })
+      .getByRole("region", { name: "What your reviewer asked for" })
       .getByText(reason)
   ).toBeVisible()
-  await admin.goto("/admin/coverage")
-  await expect(
-    admin
-      .getByRole("list", { name: "Self-reviews" })
-      .getByRole("listitem")
-      .filter({ hasText: w.manager.name })
-  ).toBeVisible()
 
-  for (const page of [admin, manager, staffA]) await page.context().close()
+  for (const page of [admin, staffA]) await page.context().close()
 }
 
 test.describe("coverage: manager and admin journeys (WS5)", () => {
   test.setTimeout(240_000)
 
-  test("desktop: a legacy staff-held grant is in effect; the manager reviews, asks for another photo with a reason and self-reviews", async ({
+  test("desktop: the admin accepts a monthly photo and asks for another with a reason; the author reads it on Your month", async ({
     browser,
   }) => {
     await reviewJourney(browser, await provisionCoverageWorld())
   })
 
-  test("phone (Pixel 7): the same review journey at phone width", async ({
+  test("phone (Pixel 7): the author reads the reason on Your month at phone width", async ({
     browser,
   }) => {
     await reviewJourney(
@@ -173,25 +166,25 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     )
   })
 
-  test("targets need a reason to change; a checklist item whose save answer was lost is created once; denials and revoke apply at once", async ({
+  test("targets need a reason to change; a checklist item whose save answer was lost is created once; a manager account's denials and revoke apply at once", async ({
     browser,
   }) => {
     const w = await provisionCoverageWorld()
     const admin = await signedInPage(browser, w.admin)
-    await grantLegacy(admin, w)
+    await makeManager(admin, w)
     const manager = await signedInPage(browser, w.manager)
 
-    // Team: a first target needs no reason; changing it does.
-    await manager.goto("/staff/manage/team")
+    // Team (admin venue coverage): a first target needs no reason; changing it does.
+    await admin.goto(venuePath(w, "team"))
     const target = () =>
       psql(
         `select coalesce(string_agg(target_count::text || ':' || source, ','), '') from public.monthly_targets where staff_id = '${w.staffB.id}'::uuid and venue_id = '${w.venue1.id}'::uuid`
       )
-    const targetBox = manager.getByRole("textbox", {
+    const targetBox = admin.getByRole("textbox", {
       name: `${w.staffB.name}'s photo target`,
     })
-    const targetReason = manager.getByLabel(/^Reason for changing .+'s target$/)
-    const saveTargets = manager.getByRole("button", { name: "Save targets" })
+    const targetReason = admin.getByLabel(/^Reason for changing .+'s target$/)
+    const saveTargets = admin.getByRole("button", { name: "Save targets" })
     await targetBox.fill("4")
     await expect(targetReason).toHaveCount(0)
     await saveTargets.click()
@@ -211,16 +204,17 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
 
     // Checklist: the first save's answer is lost on the way back; the
     // retry reuses the request id and opens the one item that exists.
-    await manager.goto("/staff/manage/checklist")
-    await manager
+    await admin.goto(venuePath(w, "checklist"))
+    await admin
       .getByRole("button", { name: "Add a venue-specific item" })
       .click()
-    const add = manager.getByRole("dialog", { name: "Add a checklist item" })
+    const add = admin.getByRole("dialog", { name: "Add a checklist item" })
     const title = `WS5 cellar door ${w.tag}`
     await add.getByLabel("Title").fill(title)
     await add.getByLabel("Photo target").fill("2")
     let dropped = 0
-    await manager.route("**/staff/manage/checklist**", async (route) => {
+    const checklistGlob = `**${venuePath(w, "checklist")}**`
+    await admin.route(checklistGlob, async (route) => {
       const req = route.request()
       if (req.method() === "POST" && req.headers()["next-action"] && !dropped) {
         dropped++
@@ -233,57 +227,25 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     await expect.poll(() => dropped).toBe(1)
     await expect(add.getByRole("alert")).toBeVisible()
     await add.getByRole("button", { name: "Add item" }).click()
-    await expect(manager).toHaveURL(
-      /\/staff\/manage\/checklist\/[0-9a-f-]{36}$/
+    await expect(admin).toHaveURL(
+      new RegExp(`${escape(venuePath(w, "checklist"))}/[0-9a-f-]{36}$`)
     )
-    await manager.unroute("**/staff/manage/checklist**")
+    await admin.unroute(checklistGlob)
     expect(
       psql(
         `select count(*) from public.coverage_requirements where venue_id = '${w.venue1.id}'::uuid and title = '${title}'`
       )
     ).toBe("1")
 
-    // Denials: no admin pages, no other venue's items.
-    const service = provisioner()
-    const adminDb: Db = await signIn(service, w.admin.email)
-    const [other] = await ok(
-      adminDb.rpc("save_coverage_requirement", {
-        p_venue_id: w.venue2.id,
-        p_requirement_id: null as never,
-        p_expected_revision: null as never,
-        p_kind: "venue_specific",
-        p_title: `WS5 other venue item ${w.tag}`,
-        p_guidance: null as never,
-        p_photo_target: 1,
-        p_due_on: null as never,
-        p_client_request_key: key(),
-      })
-    )
+    // Denials: no admin pages; staff of another venue have no workspace.
     await manager.goto("/admin/coverage")
-    await expect(manager).toHaveURL(STAFF_LANDING)
-    // The loading boundary streams first, so not-found arrives as the staff
-    // not-found screen (noindex) under a 200: assert that and no leak.
-    const otherTitle = `WS5 other venue item ${w.tag}`
-    for (const id of [other!.requirement_id, randomUUID(), "not-a-uuid"]) {
-      const res = await manager.goto(`/staff/manage/checklist/${id}`)
-      expect([200, 404], id).toContain(res?.status())
-      await expect(
-        manager.getByRole("heading", { name: "We can't find that page" })
-      ).toBeVisible()
-      await expect(
-        manager.locator('meta[name="robots"]').first()
-      ).toHaveAttribute("content", "noindex")
-      expect(await manager.content(), id).not.toContain(otherTitle)
-    }
+    await expect(manager).toHaveURL(/\/manager$/)
+    await manager.goto(venuePath(w, "checklist"))
+    await expect(manager).toHaveURL(/\/manager$/)
     const staffC = await signedInPage(browser, w.staffC)
-    await expect(staffC.locator('a[href="/staff/manage"]')).toHaveCount(0)
-    await staffC.goto("/staff/manage")
-    await expect(
-      staffC.getByRole("heading", { name: "Manage isn't available" })
-    ).toBeVisible()
-    await expect(
-      staffC.getByRole("main").getByText("Manage is for venue managers.")
-    ).toBeVisible()
+    await expect(staffC.locator('a[href="/manager"]')).toHaveCount(0)
+    await staffC.goto("/manager")
+    await expect(staffC).toHaveURL(STAFF_LANDING)
 
     // Revoked in the admin UI: the manager's next page load is refused.
     await admin.goto("/admin/coverage/managers")
@@ -295,11 +257,14 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     await revoke.getByLabel("Reason").fill("WS5: revoke check")
     await revoke.getByRole("button", { name: "Revoke grant" }).click()
     await expect(revoke).toBeHidden()
-    await manager.goto("/staff/manage/review")
+    await manager.goto("/manager/review")
     await expect(
-      manager.getByRole("heading", { name: "Manage isn't available" })
+      manager.getByRole("heading", {
+        level: 1,
+        name: "Venue access unavailable",
+      })
     ).toBeVisible()
-    await expect(manager.locator('a[href="/staff/manage"]')).toHaveCount(0)
+    await expect(manager.locator("body")).not.toContainText(w.staffA.name)
 
     for (const page of [admin, manager, staffC]) await page.context().close()
   })
@@ -413,21 +378,26 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
       })
     )
     await ok(
-      adminDb.rpc("activate_menu_version", {
+      adminDb.rpc("activate_menu_version_confirmed", {
         p_version_id: draft as string,
         p_expected_revision: Number(
           psql(
             `select revision from public.menu_versions where id = '${draft}'::uuid`
           )
         ),
+        // AC28: confirm exactly the items this activation retires.
+        p_retirements: Number(
+          psql(`select private.menu_retired_count('${draft}'::uuid)`)
+        ),
       })
     )
     await sendMonthlyPhotos([w.staffB], w)
     await seedImages(w.staffA, w.venue1, 1, { colour: "#4b7bc9" })
 
-    // Admin: grant, then prepare this month for every venue.
+    // Admin: a manager account for venue 1, then prepare this month for
+    // every venue.
     const admin = await signedInPage(browser, w.admin)
-    await grantLegacy(admin, w)
+    await makeManager(admin, w)
     await admin.goto("/admin/coverage")
     // "Prepare again" once every venue is prepared; both run for all venues.
     await admin
@@ -450,24 +420,25 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
       )
     ).toBeGreaterThan(0)
 
-    // The manager has no admin coverage pages, for any venue.
+    // The manager account has no admin coverage pages, for any venue.
     const manager = await signedInPage(browser, w.manager)
     for (const venue of [w.venue2, w.venue1]) {
       await manager.goto(`/admin/coverage/${venue.id}`)
-      await expect(manager, venue.name).toHaveURL(STAFF_LANDING)
+      await expect(manager, venue.name).toHaveURL(/\/manager$/)
     }
+    await manager.context().close()
 
     // An evidence link that has expired is re-signed once and loads.
     let expired = 0
-    await manager.route("**/api/coverage/evidence/**/thumb*", async (route) => {
+    await admin.route("**/api/coverage/evidence/**/thumb*", async (route) => {
       if (!expired && !route.request().url().includes("r=")) {
         expired++
         return route.fulfill({ status: 404, body: "" })
       }
       return route.continue()
     })
-    await manager.goto("/staff/manage/review")
-    const evidenceImage = manager
+    await admin.goto(venuePath(w, "review"))
+    const evidenceImage = admin
       .getByRole("article", {
         name: `Monthly photo: photo by ${w.staffB.name}`,
       })
@@ -482,47 +453,45 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
       )
       .toBe(true)
     expect(expired).toBe(1)
-    await manager.unroute("**/api/coverage/evidence/**/thumb*")
+    await admin.unroute("**/api/coverage/evidence/**/thumb*")
 
     const status = (id: string) =>
       psql(
         `select status from public.coverage_requirements where id = '${id}'::uuid`
       )
     const openItem = async (list: string) => {
-      await manager.goto("/staff/manage/checklist")
-      await manager
+      await admin.goto(venuePath(w, "checklist"))
+      await admin
         .getByRole("list", { name: list })
         .getByRole("link")
         .first()
         .click()
-      await expect(manager).toHaveURL(
-        /\/staff\/manage\/checklist\/[0-9a-f-]{36}$/
+      await expect(admin).toHaveURL(
+        new RegExp(`${escape(venuePath(w, "checklist"))}/[0-9a-f-]{36}$`)
       )
-      return new URL(manager.url()).pathname.split("/").pop()!
+      return new URL(admin.url()).pathname.split("/").pop()!
     }
 
     // A prepared service item: confirm, assign, attach an existing photo.
     const serviceId = await openItem("Venue and service areas")
     expect(status(serviceId)).toBe("needs_setup")
-    await manager.getByRole("button", { name: "Save and confirm" }).click()
+    await admin.getByRole("button", { name: "Save and confirm" }).click()
     await expect(
-      manager.getByText(/It now counts toward venue coverage\.$/)
+      admin.getByText(/It now counts toward venue coverage\.$/)
     ).toBeVisible()
     expect(status(serviceId)).toBe("active")
-    await manager
+    await admin
       .getByRole("checkbox", { name: new RegExp(escape(w.staffB.name)) })
       .check()
-    await manager.getByRole("button", { name: "Save changes" }).click()
-    await expect(manager.getByText("Saved. 1 person assigned.")).toBeVisible()
+    await admin.getByRole("button", { name: "Save changes" }).click()
+    await expect(admin.getByText("Saved. 1 person assigned.")).toBeVisible()
     expect(
       psql(
         `select coalesce(string_agg(staff_id::text, ','), '') from public.coverage_requirement_assignees where requirement_id = '${serviceId}'::uuid and ended_at is null`
       )
     ).toBe(w.staffB.id)
-    await manager
-      .getByRole("button", { name: "Attach existing photos" })
-      .click()
-    const attach = manager.getByRole("dialog")
+    await admin.getByRole("button", { name: "Attach existing photos" }).click()
+    const attach = admin.getByRole("dialog")
     await expect(
       attach.getByRole("list", { name: "Venue photos" })
     ).toBeVisible()
@@ -533,7 +502,7 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     await attach.getByRole("button", { name: /^Attach 1 photo/ }).click()
     await expect(attach).toBeHidden()
     await expect(
-      manager.getByText("Attached", { exact: true }).first()
+      admin.getByText("Attached", { exact: true }).first()
     ).toBeVisible()
     expect(
       psql(
@@ -543,20 +512,20 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
 
     // An amenity with unknown presence cannot be confirmed until it is checked.
     const amenityId = await openItem("Amenities")
-    const confirm = manager.getByRole("button", { name: "Save and confirm" })
+    const confirm = admin.getByRole("button", { name: "Save and confirm" })
     await expect(confirm).toBeDisabled()
     await expect(
-      manager.getByText("Can't confirm yet: Needs verification.")
+      admin.getByText("Can't confirm yet: Needs verification.")
     ).toBeVisible()
-    await manager.getByRole("button", { name: "Record facts" }).click()
-    const facts = manager.getByRole("dialog")
+    await admin.getByRole("button", { name: "Record facts" }).click()
+    const facts = admin.getByRole("dialog")
     await facts.getByRole("radio", { name: /^Present/ }).click()
     await facts
       .getByRole("checkbox", { name: /I have checked this at the venue/ })
       .check()
     await facts.getByRole("button", { name: "Save facts" }).click()
     await expect(
-      manager.getByText("Facts saved: Present. You can confirm the item now.")
+      admin.getByText("Facts saved: Present. You can confirm the item now.")
     ).toBeVisible()
     await expect(facts).toBeHidden()
     await expect(confirm).toBeEnabled()
@@ -568,16 +537,16 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     expect(status(amenityId)).toBe("needs_setup")
 
     // Menu: start from the active menu; the plan stays a draft to set up.
-    await manager.goto("/staff/manage/menu")
-    await manager.getByRole("button", { name: "Start from this menu" }).click()
+    await admin.goto(venuePath(w, "menu"))
+    await admin.getByRole("button", { name: "Start from this menu" }).click()
     await expect(
-      manager.getByText("Menu sections added. Set each one up, then confirm.")
+      admin.getByText("Menu sections added. Set each one up, then confirm.")
     ).toBeVisible()
     await expect(
-      manager.getByRole("heading", { name: "New menu plan (not confirmed)" })
+      admin.getByRole("heading", { name: "New menu plan (not confirmed)" })
     ).toBeVisible()
     await expect(
-      manager.getByRole("button", { name: "Confirm menu coverage" })
+      admin.getByRole("button", { name: "Confirm menu coverage" })
     ).toBeDisabled()
     expect(
       psql(
@@ -590,6 +559,6 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
       )
     ).toBe("2")
 
-    for (const page of [admin, manager]) await page.context().close()
+    await admin.context().close()
   })
 })

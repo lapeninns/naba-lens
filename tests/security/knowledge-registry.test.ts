@@ -33,11 +33,17 @@ describe("version 1 restates today (no behaviour change)", () => {
       q(`select json_build_object(
         'catalogue', (select count(*) from public.amenity_catalogue),
         'questions', (select count(*) from public.knowledge_questions),
-        'versions', (select count(*) from public.knowledge_question_versions),
+        'versions', (select count(*) from public.knowledge_question_versions where version = 1),
         'mismatched', (select count(*) from public.amenity_catalogue c
           left join public.knowledge_question_versions v on v.key = c.key and v.version = 1
-          where v.key is null or v.catalogue_version <> c.catalogue_version
-            or v.evidence_rule <> c.evidence_rule
+          -- Catalogue version 2 (S2-INT) moved six evidence rules; version 1
+          -- restates catalogue version 1.
+          where v.key is null or v.catalogue_version <> 1
+            or v.evidence_rule <> case c.key
+              when 'live_music' then 'either' when 'pub_quiz' then 'photo'
+              when 'guest_wifi' then 'both' when 'dogs_inside' then 'photo'
+              when 'dogs_outside' then 'photo' when 'curbside_pickup' then 'video'
+              else c.evidence_rule end
             or v.guidance ->> 'question' <> c.question
             or v.guidance ->> 'captureBrief' <> c.capture_brief))`)
     ).toEqual({ catalogue: 39, questions: 39, versions: 39, mismatched: 0 })
@@ -153,7 +159,9 @@ describe("tables", () => {
       psql(
         `select count(*) from public.knowledge_question_versions where key = 'darts' and lifecycle = 'supported'`
       )
-    ).toBe("1")
+      // Version 1, the S1-FACTS check-date version and the S3-R2 rule
+      // version (D4: every catalogue question has a knowledge rule).
+    ).toBe("3")
   })
 })
 
@@ -166,8 +174,9 @@ describe("reads", () => {
       })
       expect(question).toMatchObject({
         key: "step_free_entrance",
-        version: 1,
-        latestVersion: 1,
+        // S1-FACTS version 2 names the 90-day check-date rules.
+        version: 2,
+        latestVersion: 2,
         ruleVersion: 1,
         confirmation: "venue_manager",
         selfConfirmationAllowed: true,
@@ -188,7 +197,8 @@ describe("reads", () => {
     await refused(
       w.staffA,
       "knowledge_question",
-      { p_key: "darts", p_version: 2 },
+      // darts has versions 1 to 3 (S3-R2 added its rule version).
+      { p_key: "darts", p_version: 4 },
       "knowledge_question_not_found",
       "P0002"
     )

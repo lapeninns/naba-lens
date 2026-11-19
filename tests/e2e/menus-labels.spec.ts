@@ -19,15 +19,20 @@ import {
 } from "./helpers/media"
 import { provisioner, psql, requireIsolatedStack } from "./helpers/stack"
 import {
+  myPhotoTile,
+  myPhotoTileById,
+  myPhotoTiles,
+  openPhotoPage,
+} from "./helpers/s3-upload"
+import {
   chooseOption,
   escape,
   libraryList,
-  portfolioList,
+  openMyPhotos,
   savingTitle,
-  staffTile,
+  tile,
   uploadSheet,
   uploadThroughDialog,
-  openPortfolio,
 } from "./helpers/ui"
 import {
   provisionWorld,
@@ -73,9 +78,7 @@ test.afterEach(async ({ browser }, testInfo) => {
 const fixture = (name: string) =>
   fileURLToPath(new URL(`../fixtures/menus/${name}`, import.meta.url))
 const RAILWAY = fixture("the-railway.food.json")
-const PRINCE = fixture("the-prince-of-wales.food.json")
 const RAILWAY_TITLE = "The Railway food (DEV FIXTURE)"
-const PRINCE_TITLE = "The Prince of Wales food (DEV FIXTURE)"
 
 const sql = (v: string) => `'${v.replace(/'/g, "''")}'`
 const activeVersionId = (venueId: string) =>
@@ -176,9 +179,20 @@ async function withRailway(
 const tileName = (kind: "Photo" | "Video", file: string) =>
   new RegExp(`^${kind}, ${escape(file)}`)
 
-async function openOwn(page: Page, file: string) {
-  await (await staffTile(portfolioList(page), file)).click()
-  const viewer = page.getByRole("dialog").first()
+/**
+ * Opens a staff member's file in the admin library viewer, where labels are
+ * shown now: staff no longer have a viewer of their own photos (My photos
+ * replaced Me's portfolio, DESIGN.md §5e).
+ */
+async function openInLibrary(
+  admin: Page,
+  staffId: string,
+  kind: "Photo" | "Video",
+  file: string
+) {
+  await admin.goto(`/admin?staff=${staffId}`)
+  await tile(libraryList(admin), kind, file).click()
+  const viewer = admin.getByRole("dialog").first()
   await expect(viewer.getByRole("region", { name: "Labels" })).toBeVisible()
   return viewer
 }
@@ -206,15 +220,12 @@ const tileLabels = (list: Locator) =>
     .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label") ?? ""))
 
 /**
- * Opens the upload sheet from My portfolio and picks the files: they start
+ * Opens the upload sheet from My photos' Add a video and picks the files: they start
  * saving at once, and the sheet becomes "Saving N photos/files" with the
  * optional labels ("What's in these photos?") inline.
  */
 async function pickInSheet(page: Page, files: SourceFile[]) {
-  await page
-    .getByRole("button", { name: "Upload photos or videos" })
-    .first()
-    .click()
+  await page.getByRole("button", { name: "Add a video" }).first().click()
   const sheet = uploadSheet(page)
   await expect(sheet).toBeVisible()
   await sheet
@@ -233,13 +244,13 @@ async function pickInSheet(page: Page, files: SourceFile[]) {
 async function holdFinalise(page: Page) {
   let open!: () => void
   const held = new Promise<void>((resolve) => (open = resolve))
-  await page.route("**/staff", async (route) => {
+  await page.route("**/staff/photos", async (route) => {
     if (isFinalise(route.request())) await held
     await route.continue()
   })
   return {
     release: () => open(),
-    stop: () => page.unroute("**/staff"),
+    stop: () => page.unroute("**/staff/photos"),
   }
 }
 
@@ -248,9 +259,9 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
 }) => {
   test.setTimeout(240_000)
   const world = await provisionWorld()
-  await withRailway(browser, world)
+  const admin = await withRailway(browser, world)
   const staff = await signedInPage(browser, world.staffA)
-  await openPortfolio(staff)
+  await openMyPhotos(staff)
   const photo = await syntheticJpeg(`qa-batch-photo-${world.tag}.jpg`)
   const video = supportedMp4(`qa-batch-video-${world.tag}.mp4`)
   const note = `QA common note ${world.tag}`
@@ -376,16 +387,13 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
   })
 
   await test.step("reload: both files keep exactly what was saved", async () => {
-    await staff.goto("/staff")
-    const list = portfolioList(staff)
-    await expect(await staffTile(list, photo.name)).toHaveAccessibleName(
-      /, 3 labels$/
-    )
-    await expect(await staffTile(list, video.name)).toHaveAccessibleName(
-      /, 3 labels$/
-    )
+    // My photos lists both; the labels themselves show in the library viewer.
+    await staff.reload()
+    await expect(myPhotoTiles(staff)).toHaveCount(2)
+    await expect(await myPhotoTile(staff, photo.name)).toBeVisible()
+    await expect(await myPhotoTile(staff, video.name)).toBeVisible()
 
-    const p = await openOwn(staff, photo.name)
+    const p = await openInLibrary(admin, world.staffA.id, "Photo", photo.name)
     const pl = p.getByRole("region", { name: "Labels" })
     await expect(
       pl.getByRole("list", { name: "Menu items" }).getByRole("listitem")
@@ -400,9 +408,9 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
       pl.getByRole("list", { name: "Content types" }).getByRole("listitem")
     ).toHaveText(["Finished dish"])
     await expect(pl).toContainText(note)
-    await staff.keyboard.press("Escape")
+    await admin.keyboard.press("Escape")
 
-    const v = await openOwn(staff, video.name)
+    const v = await openInLibrary(admin, world.staffA.id, "Video", video.name)
     const vl = v.getByRole("region", { name: "Labels" })
     await expect(
       vl.getByRole("list", { name: "Menu items" }).getByRole("listitem")
@@ -422,14 +430,14 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
   ).toBe("2/2/1")
 })
 
-test("row 6: skip labelling at upload, label later from the viewer; the asset is in the admin library either way", async ({
+test("row 6: skip labelling at upload; the asset is in the admin library either way", async ({
   browser,
 }) => {
   test.setTimeout(180_000)
   const world = await provisionWorld()
   const admin = await withRailway(browser, world)
   const staff = await signedInPage(browser, world.staffA)
-  await openPortfolio(staff)
+  await openMyPhotos(staff)
   const photo = await syntheticJpeg(`qa-later-${world.tag}.jpg`)
 
   // Labels are offered in the sheet ("What's in these photos?") but optional:
@@ -445,67 +453,51 @@ test("row 6: skip labelling at upload, label later from the viewer; the asset is
   await upload.getByRole("button", { name: "Done" }).click()
   await expect(upload).toBeHidden()
 
-  await expect(
-    await staffTile(portfolioList(staff), photo.name)
-  ).toHaveAccessibleName(/, Needs labels$/)
+  // With no label it has no slot yet: My photos asks which dish it is.
+  await expect(await myPhotoTile(staff, photo.name)).toHaveAccessibleName(
+    "No slot yet, Needs you"
+  )
   await admin.goto("/admin")
   await expect(
     libraryList(admin).getByRole("button", {
       name: tileName("Photo", photo.name),
     })
   ).toBeVisible()
-
-  const viewer = await openOwn(staff, photo.name)
-  await expect(viewer.getByRole("region", { name: "Labels" })).toContainText(
-    "None yet. Labels are optional."
-  )
-  const later = await openEditorFromViewer(staff, viewer)
-  await pick(later, /^Menu item at /, "sherpali", /^Sherpali Chicken/)
-  const which = later.getByRole("group", { name: /^Which Sherpali Chicken\?/ })
-  if (await which.isVisible())
-    await which.getByRole("button", { name: "Not specified" }).click()
-  await later.getByRole("button", { name: "Plating" }).click()
-  await later.getByRole("button", { name: /^Save labels/ }).click()
-  await expect(later).toBeHidden()
-  const labels = viewer.getByRole("region", { name: "Labels" })
-  await expect(labels.getByRole("list", { name: "Menu items" })).toContainText(
-    "Sherpali Chicken"
-  )
-  await expect(labels.getByRole("list", { name: "Content types" })).toHaveText(
-    "Plating"
-  )
-  await staff.keyboard.press("Escape")
-  await staff.reload()
-  await expect(
-    await staffTile(portfolioList(staff), photo.name)
-  ).toHaveAccessibleName(/, 2 labels$/)
 })
 
-test("row 8: missing-item suggestion reaches the admin; catalogue changed while editing is recoverable", async ({
+test("row 8: a missing-item suggestion from the Add sheet reaches the admin", async ({
   browser,
 }) => {
   test.setTimeout(240_000)
   const world = await provisionWorld()
   const admin = await withRailway(browser, world)
-  const prefix = `qa-miss-${world.tag}`
-  await seedReadyAssets(world.staffA.id, world.venue1.id, 2, "image", prefix)
   const staff = await signedInPage(browser, world.staffA)
   const missing = `QA lamb shank special ${world.tag}`
 
-  await test.step("staff suggests an item not on the menu", async () => {
-    await staff.goto("/staff")
-    const viewer = await openOwn(staff, `${prefix}-01.jpg`)
-    const editor = await openEditorFromViewer(staff, viewer)
-    await editor.getByRole("button", { name: "Item not on the menu?" }).click()
-    await editor
-      .getByRole("textbox", { name: "Missing menu item" })
+  await test.step("staff suggests an item not on the menu in the Add sheet", async () => {
+    await openMyPhotos(staff)
+    const photo = await syntheticJpeg(`qa-miss-${world.tag}.jpg`)
+    const sheet = await pickInSheet(staff, [photo])
+    // A suggestion belongs to one file: it is under the photo's Adjust.
+    await sheet.getByRole("button", { name: /^Adjust labels for / }).click()
+    await sheet.getByRole("button", { name: /^Item not on the menu\?/ }).click()
+    await sheet
+      .getByRole("textbox", { name: /^Missing menu item/ })
       .fill(missing)
-    await editor.getByRole("button", { name: /^Save labels/ }).click()
-    await expect(editor).toBeHidden()
-    await expect(viewer.getByRole("region", { name: "Labels" })).toContainText(
-      `Suggested missing item: ${missing}`
-    )
-    await staff.keyboard.press("Escape")
+    await expect
+      .poll(
+        () =>
+          psql(
+            `select count(*) from public.menu_item_suggestions where suggested_name = ${sql(missing)}`
+          ),
+        { timeout: 60_000 }
+      )
+      .toBe("1")
+    await expect(sheet.getByRole("status")).toHaveText("1 saved", {
+      timeout: 60_000,
+    })
+    await sheet.getByRole("button", { name: "Done" }).click()
+    await expect(sheet).toBeHidden()
   })
 
   await test.step("admin sees it on the venue's Menus page and links it to an item", async () => {
@@ -545,64 +537,9 @@ test("row 8: missing-item suggestion reaches the admin; catalogue changed while 
       )
     ).toBe("resolved")
   })
-
-  await test.step("a new menu is activated while staff are editing: recoverable, nothing lost", async () => {
-    await staff.goto("/staff")
-    const viewer = await openOwn(staff, `${prefix}-02.jpg`)
-    const editor = await openEditorFromViewer(staff, viewer)
-    await pick(
-      editor,
-      /^Menu item at /,
-      "onion bhaji",
-      /^Onion Bhaji Appetisers/
-    )
-    await editor.getByRole("button", { name: "Kitchen" }).click()
-
-    // Another page: a new version of the same menu becomes active.
-    await admin.goto(`/admin/menus/${world.venue1.id}`)
-    await admin
-      .getByRole("button", { name: "Start a draft from the active menu" })
-      .click()
-    await admin.waitForURL(/\/admin\/menus\/versions\//)
-    await admin.getByRole("button", { name: "Activate for labelling" }).click()
-    await admin
-      .getByRole("alertdialog")
-      .getByRole("button", { name: "Activate for labelling" })
-      .click()
-    await expectActive(admin, /^More actions for /)
-
-    await editor.getByRole("button", { name: /^Save labels/ }).click()
-    await expect(editor).toContainText(
-      "The menu for this venue was updated while you were editing"
-    )
-    // Nothing was saved and the choices are still on screen.
-    expect(
-      psql(`select count(*) from public.media_labels l join public.media_assets a on a.id = l.asset_id
-        where a.original_filename = ${sql(`${prefix}-02.jpg`)}`)
-    ).toBe("0")
-    await expect(
-      editor.getByRole("list", { name: /^Selected menu items/ })
-    ).toContainText("Onion Bhaji")
-    await editor.getByRole("button", { name: "Reload the menu" }).click()
-    // Save only once the reloaded menu is back (saving earlier is refused
-    // again, recoverably, because it still names the old menu version).
-    await expect(editor.getByText("Loading the menu…")).toHaveCount(0)
-    await expect(
-      editor.getByRole("combobox", { name: /^Menu item at / })
-    ).toBeVisible()
-    await editor.getByRole("button", { name: /^Save labels/ }).click()
-    await expect(editor).toBeHidden()
-    const labels = viewer.getByRole("region", { name: "Labels" })
-    await expect(
-      labels.getByRole("list", { name: "Menu items" })
-    ).toContainText("Onion Bhaji")
-    await expect(
-      labels.getByRole("list", { name: "Content types" })
-    ).toHaveText("Kitchen")
-  })
 })
 
-test("row 9: staff B cannot label staff A's asset, even by rewriting the Server Function call", async ({
+test("row 9: staff B never sees or labels staff A's asset (My photos, RPC)", async ({
   browser,
 }) => {
   test.setTimeout(180_000)
@@ -624,52 +561,15 @@ test("row 9: staff B cannot label staff A's asset, even by rewriting the Server 
   )
   const staffB = await signedInPage(browser, world.staffB)
 
-  await test.step("UI: staff B's portfolio never lists A's file", async () => {
-    await staffB.goto("/staff")
-    await expect(portfolioList(staffB).getByRole("button")).toHaveCount(1)
-    await expect(
-      await staffTile(portfolioList(staffB), `qa-own-a-${world.tag}-01.jpg`)
-    ).toHaveCount(0)
-  })
-
-  await test.step("Server Function: B's save rewritten to A's asset id is refused", async () => {
-    const viewer = await openOwn(staffB, `qa-own-b-${world.tag}-01.jpg`)
-    const editor = await openEditorFromViewer(staffB, viewer)
-    await pick(
-      editor,
-      /^Menu item at /,
-      "onion bhaji",
-      /^Onion Bhaji Appetisers/
-    )
-    let rewritten = 0
-    await staffB.route("**/*", async (route) => {
-      const req = route.request()
-      const body = req.postData()
-      if (
-        req.method() === "POST" &&
-        req.headers()["next-action"] &&
-        body?.includes(assetB)
-      ) {
-        rewritten++
-        return route.continue({ postData: body.replaceAll(assetB, assetA) })
-      }
-      return route.continue()
-    })
-    await editor.getByRole("button", { name: /^Save labels/ }).click()
-    await expect.poll(() => rewritten).toBeGreaterThan(0)
-    await expect(
-      editor
-        .getByText(
-          /not saved|could not be saved|couldn't be saved|not confirmed/i
-        )
-        .first()
-    ).toBeVisible()
-    await staffB.unroute("**/*")
-    expect(
-      psql(
-        `select count(*) from public.media_labels where asset_id in (${sql(assetA)}, ${sql(assetB)})`
-      )
-    ).toBe("0")
+  await test.step("UI: staff B's My photos never lists A's file", async () => {
+    await openMyPhotos(staffB)
+    await expect(myPhotoTiles(staffB)).toHaveCount(1)
+    await expect(myPhotoTileById(staffB, assetB!)).toBeVisible()
+    await expect(myPhotoTileById(staffB, assetA!)).toHaveCount(0)
+    // A's photo page is not found for B: nothing of A's photo renders.
+    await staffB.goto(`/staff/photos/${assetA}`)
+    await expect(staffB.locator('[data-slot="my-upload-row"]')).toHaveCount(0)
+    await expect(staffB.locator(`[data-asset="${assetA}"]`)).toHaveCount(0)
   })
 
   await test.step("RPC as staff B (own session) on A's asset: refused", async () => {
@@ -723,88 +623,6 @@ test("row 9: staff B cannot label staff A's asset, even by rewriting the Server 
       )
     ).toBe("0")
   })
-})
-
-test("row 11: a transferred staff member labels an older asset with the old venue's menu", async ({
-  browser,
-}) => {
-  test.setTimeout(240_000)
-  const world = await provisionWorld()
-  const admin = await withRailway(browser, world)
-  await importAndActivate(admin, world.venue2, PRINCE, PRINCE_TITLE)
-  const [oldAsset] = await seedReadyAssets(
-    world.staffA.id,
-    world.venue1.id,
-    1,
-    "image",
-    `qa-old-${world.tag}`
-  )
-  const { error } = await provisioner()
-    .from("profiles")
-    .update({ venue_id: world.venue2.id })
-    .eq("id", world.staffA.id)
-  if (error) throw error
-  await seedReadyAssets(
-    world.staffA.id,
-    world.venue2.id,
-    1,
-    "image",
-    `qa-new-${world.tag}`
-  )
-
-  const staff = await signedInPage(browser, world.staffA)
-  await staff.goto("/staff")
-  await expect(
-    staff.getByText(world.venue2.name, { exact: false }).first()
-  ).toBeVisible()
-
-  const oldViewer = await openOwn(staff, `qa-old-${world.tag}-01.jpg`)
-  const oldEditor = await openEditorFromViewer(staff, oldViewer)
-  await expect(
-    oldEditor.getByRole("combobox", {
-      name: `Menu item at ${world.venue1.name}`,
-    })
-  ).toBeVisible()
-  await oldEditor
-    .getByRole("combobox", { name: /^Menu item at / })
-    .fill("Stuffed Tandoori")
-  await expect(
-    oldEditor
-      .getByText(`Nothing on ${world.venue1.name}'s menu matches`, {
-        exact: false,
-      })
-      .first()
-  ).toBeVisible()
-  await pick(oldEditor, /^Menu item at /, "sherpali", /^Sherpali Chicken/)
-  const which = oldEditor.getByRole("group", {
-    name: /^Which Sherpali Chicken\?/,
-  })
-  if (await which.isVisible())
-    await which.getByRole("button", { name: "Not specified" }).click()
-  await oldEditor.getByRole("button", { name: /^Save labels/ }).click()
-  await expect(oldEditor).toBeHidden()
-  await expect(
-    oldViewer.getByRole("list", { name: "Menu items" })
-  ).toContainText("Sherpali Chicken")
-  expect(
-    psql(`select distinct i.venue_id from public.media_label_items li join public.menu_items i on i.id = li.item_id
-      where li.asset_id = ${sql(oldAsset)}`)
-  ).toBe(world.venue1.id)
-  await staff.keyboard.press("Escape")
-
-  const newViewer = await openOwn(staff, `qa-new-${world.tag}-01.jpg`)
-  const newEditor = await openEditorFromViewer(staff, newViewer)
-  await expect(
-    newEditor.getByRole("combobox", {
-      name: `Menu item at ${world.venue2.name}`,
-    })
-  ).toBeVisible()
-  await newEditor
-    .getByRole("combobox", { name: /^Menu item at / })
-    .fill("Stuffed Tandoori")
-  await expect(
-    newEditor.getByRole("option", { name: /^Stuffed Tandoori Mushroom/ })
-  ).toBeVisible()
 })
 
 test("rows 12+13: label filters combine with venue/staff/type, search and dates; stable pages; admin correction; original bytes", async ({
@@ -890,6 +708,13 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
   psql(`set session_replication_role = replica; update public.media_assets set created_at = now() - interval '10 days',
     use_baseline = case when now() - interval '10 days' < (select s.cutover_at from private.media_use_settings s) then 'legacy_unknown' else use_baseline end
     where id in (${sql(aImg[28])}, ${sql(aImg[29])})`)
+  // The other unlabelled uploads (img 27, 28 and video 03) have waited 8
+  // days: an admin's Needs labels is the one unlabelled rule (S3-R1 K1,
+  // FA-4), where an upload with no label counts only after 7 days in Match
+  // later. 8, not 10, so the date filter below still selects only 29 and 30.
+  psql(`set session_replication_role = replica; update public.media_assets set created_at = now() - interval '8 days',
+    use_baseline = case when now() - interval '8 days' < (select s.cutover_at from private.media_use_settings s) then 'legacy_unknown' else use_baseline end
+    where id in (${sql(aImg[26])}, ${sql(aImg[27])}, ${sql(aVid[2])})`)
   const tenDaysAgo = psql(
     `select to_char((now() - interval '10 days') at time zone 'Europe/London', 'YYYY-MM-DD')`
   )
@@ -1048,21 +873,20 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
       psql(`select e.actor_id = ${sql(world.adminA.id)} from public.media_label_events e
         where e.asset_id = ${sql(bImg[0])} order by e.id desc limit 1`)
     ).toBe("t")
+    // Staff B's own photo page names the corrected dish (DESIGN.md §5e).
     const staffB = await signedInPage(browser, world.staffB)
-    await staffB.goto("/staff")
-    const own = await openOwn(staffB, `qa-lib-b-img-${t}-01.jpg`)
-    await expect(own.getByRole("list", { name: "Menu items" })).toContainText(
-      "Onion Bhaji"
-    )
-    await expect(
-      own.getByRole("list", { name: "Menu items" })
-    ).not.toContainText("Momo")
+    await openPhotoPage(staffB, bImg[0]!)
+    const title = staffB
+      .locator('[data-slot="my-upload-row"]')
+      .getByRole("heading", { level: 2 })
+    await expect(title).toContainText("Onion Bhaji")
+    await expect(title).not.toContainText("Momo")
     await staffB.context().close()
   })
 
   await test.step("a labelled real upload still downloads byte-identical", async () => {
     const staff = await signedInPage(browser, world.staffA)
-    await openPortfolio(staff)
+    await openMyPhotos(staff)
     const photo = await syntheticJpeg(`qa-bytes-${t}.jpg`)
     await uploadThroughDialog(staff, [photo], { close: false })
     // Label it in the sheet: content types are under "More details", and the

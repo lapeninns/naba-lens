@@ -796,19 +796,22 @@ describe("late and hung journal operations (L2)", () => {
     for (let t = 0; t < maxMs && !(await done()); t += 100) await tick(100)
   }
 
-  const delayedPick = (
-    session: CaptureSession,
-    ms: number
-  ): CaptureSession => ({
-    ...session,
-    journal: {
-      ...session.journal,
-      pick: (input) =>
-        new Promise((resolve) =>
-          setTimeout(() => resolve(session.journal.pick(input)), ms)
-        ),
-    },
-  })
+  function delayedPick(session: CaptureSession, ms: number) {
+    const { promise: started, resolve: markStarted } =
+      Promise.withResolvers<void>()
+    const delayed: CaptureSession = {
+      ...session,
+      journal: {
+        ...session.journal,
+        pick: (input) =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(session.journal.pick(input)), ms)
+            markStarted()
+          }),
+      },
+    }
+    return { session: delayed, started }
+  }
 
   /** An upload that reserves, sends half, then waits for `release`. */
   function gatedUpload(result: Omit<UploadResult, "assetId">) {
@@ -829,12 +832,16 @@ describe("late and hung journal operations (L2)", () => {
       const { s, backend } = sessions()
       const session = (await s.get("user-1"))!
       const up = gatedUpload({ state: "ready" })
+      const pick = delayedPick(session, JOURNAL_DEADLINE_MS + 1000)
       const upload = toQueueUploader(up.fn, {
         keys: memKeys(),
-        capture: async () => delayedPick(session, JOURNAL_DEADLINE_MS + 1000),
+        capture: async () => pick.session,
       })
       const run = upload(photo(1000), context())
-      await tick(JOURNAL_DEADLINE_MS + 1500)
+      await pick.started
+      await tickUntil(
+        async () => (await backend.getAll())[0]?.transferredBytes === 500
+      )
       // Still running: the entry is there, caught up with the upload.
       expect(await backend.getAll()).toMatchObject([
         { state: "transferring", assetId: "asset-1", transferredBytes: 500 },
@@ -870,16 +877,20 @@ describe("late and hung journal operations (L2)", () => {
         state: "failed",
         error: { code: "transfer_failed", message: "x", retryable: true },
       })
+      const pick = delayedPick(session, JOURNAL_DEADLINE_MS + 1000)
       const upload = toQueueUploader(up.fn, {
         keys,
-        capture: async () => delayedPick(session, JOURNAL_DEADLINE_MS + 1000),
+        capture: async () => pick.session,
       })
       const run = upload(file, context()).catch(() => {})
       // The upload ends before the pick answers.
       up.release()
-      await tick(JOURNAL_DEADLINE_MS + 1500)
+      await pick.started
+      await tick(JOURNAL_DEADLINE_MS)
       await run
-      await tick(10)
+      await tickUntil(
+        async () => (await backend.getAll())[0]?.state === "failed"
+      )
       expect(await backend.getAll()).toMatchObject([
         {
           id: earlier.id,
@@ -906,19 +917,24 @@ describe("late and hung journal operations (L2)", () => {
   function slowBackend() {
     const base = memoryJournalBackend()
     const log: string[] = []
-    let next: number | null = null
+    let next: { ms: number; started: () => void } | null = null
     return {
       log,
-      slowNext: (ms: number) => void (next = ms),
+      slowNext(ms: number) {
+        const { promise, resolve } = Promise.withResolvers<void>()
+        next = { ms, started: resolve }
+        return promise
+      },
       getAll: () => base.getAll(),
       delete: (id: string) => base.delete(id),
       clear: () => base.clear(),
       put: async (e: JournalEntry) => {
-        const ms = next
+        const delay = next
         next = null
         log.push(`start:${e.groupKey ?? e.state}`)
-        if (ms === Infinity) return new Promise<void>(() => {})
-        if (ms) await new Promise((r) => setTimeout(r, ms))
+        delay?.started()
+        if (delay?.ms === Infinity) return new Promise<void>(() => {})
+        if (delay?.ms) await new Promise((r) => setTimeout(r, delay.ms))
         await base.put(e)
         log.push(`end:${e.groupKey ?? e.state}`)
       },
@@ -1024,10 +1040,12 @@ describe("late and hung journal operations (L2)", () => {
         capture: s.get,
       })
       await s.get("user-1")
-      raw.slowNext(3000)
+      const pickStarted = raw.slowNext(3000)
       const run = upload(photo(1000), context()).catch(() => {})
-      await tick(3500)
-      await tickUntil(async () => (await raw.getAll()).length > 0)
+      await pickStarted
+      await tickUntil(
+        async () => (await raw.getAll())[0]?.state === "transferring"
+      )
       expect(await raw.getAll()).toMatchObject([
         { state: "transferring", assetId: "asset-1" },
       ])

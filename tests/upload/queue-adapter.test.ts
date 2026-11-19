@@ -5,6 +5,7 @@ import {
   expect,
   expectTypeOf,
   it,
+  vi,
 } from "vitest"
 
 import {
@@ -83,6 +84,33 @@ describe("toQueueUploader against the ui queue contract", () => {
     // Assignable where the ui expects it, e.g. UploadDialog's `upload` prop.
     const injected: ui.Uploader = queueUploader()
     expect(typeof injected).toBe("function")
+  })
+
+  it("starts an upload when the browser exposes getRandomValues only", async () => {
+    const browserCrypto = globalThis.crypto
+    vi.stubGlobal("crypto", {
+      getRandomValues: browserCrypto.getRandomValues.bind(browserCrypto),
+    })
+    try {
+      const upload = vi.fn(async () => ({
+        assetId: "asset-1",
+        state: "ready" as const,
+      }))
+      const item = ui.createQueueItemDriver(toQueueUploader(upload), photo())
+      await item.run()
+
+      expect(item.status).toBe("done")
+      expect(upload).toHaveBeenCalledWith(
+        expect.any(File),
+        expect.objectContaining({
+          idempotencyKey: expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+          ),
+        })
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it("reports progress, switches to processing and resolves when ready", async () => {

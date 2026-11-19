@@ -11,14 +11,12 @@ import {
   EMPTY_LABEL_SUMMARY,
   isContentType,
   LABEL_LIMITS,
-  type CatalogueSection,
   type ContentType,
   type LabelCatalogue,
   type LabelEditorAsset,
   type LabelItemRef,
   type MediaLabelItemView,
   type MediaLabelSummary,
-  type MenuSectionKind,
   type PendingLabelItem,
   type SaveLabelsErrorCode,
   type SaveLabelsInput,
@@ -71,192 +69,24 @@ function logFailure(where: string, error: unknown) {
 // Catalogue
 // ---------------------------------------------------------------------------
 
-type EntryRow = {
-  section_id: string
-  item_id: string
-  name: string
-  description: string | null
-  aliases: string[]
-  position: number
-  menu_entry_variants: { variant_id: string; name: string; position: number }[]
-}
-
-type SectionRow = {
-  id: string
-  slug: string
-  name: string
-  kind: string
-  position: number
-}
-
-/** PostgREST answers at most `max_rows` (1000) rows per request. */
-const ENTRY_PAGE = 1000
-
-const byPosition = (a: { position: number }, b: { position: number }) =>
-  a.position - b.position
-
 /**
- * Item ids of the version's entries whose item is archived, paged in a total
- * order. Read on its own rather than embedded in every entry: staff RLS on
- * menu_items runs a lookup per row that survives the other filters, and with
- * the archived filter applied first only archived items pay it, not the whole
- * menu.
- */
-async function readArchivedEntryItemIds(actor: MediaActor, versionId: string) {
-  const ids = new Set<string>()
-  for (let from = 0; ; from += ENTRY_PAGE) {
-    const page = await actor.db
-      .from("menu_entries")
-      .select("item_id, item:menu_items!inner(archived_at)")
-      .eq("version_id", versionId)
-      .not("item.archived_at", "is", null)
-      .order("item_id")
-      .range(from, from + ENTRY_PAGE - 1)
-    if (page.error) return { error: page.error }
-    for (const row of page.data) ids.add(row.item_id)
-    if (page.data.length < ENTRY_PAGE) return { ids }
-  }
-}
-
-/**
- * The active catalogue of `venueId` for labelling. Staff: only venues they may
- * label (current venue or a venue of one of their own assets); admin: any.
- * Another venue looks like an unknown one (404). `status: "none"` when the
- * venue has no active version. Archived items are omitted; sections, items and
- * variants come in menu order.
+ * Current offerings for the asset's upload-time venue. The database checks
+ * venue access and returns the active menu and running specials together.
  */
 export async function getLabellingCatalogue(
   actor: MediaActor,
   venueId: string
 ): Promise<Outcome<{ catalogue: LabelCatalogue }>> {
   if (!isUuid(venueId)) return notFound
-
-  const venueRead = await actor.db
-    .from("venues")
-    .select("id, name")
-    .eq("id", venueId)
-    .maybeSingle()
-  if (venueRead.error) {
-    logFailure("venue read", venueRead.error)
+  const { data, error } = await actor.db.rpc("menu_label_catalogue", {
+    p_venue_id: venueId,
+  })
+  if (error) {
+    logFailure("catalogue read", error)
     return unavailable
   }
-  if (!venueRead.data) return notFound
-  const venueName = venueRead.data.name
-
-  // Mirrors private.staff_can_label_venue: RLS would only hide the menu, which
-  // would look like "no menu" rather than "not yours".
-  if (actor.profile.role !== "admin" && actor.profile.venueId !== venueId) {
-    const own = await actor.db
-      .from("media_assets")
-      .select("id")
-      .eq("uploader_id", actor.profile.id)
-      .eq("venue_id", venueId)
-      .is("deleted_at", null)
-      .limit(1)
-    if (own.error) {
-      logFailure("venue access read", own.error)
-      return unavailable
-    }
-    if (own.data.length === 0) return notFound
-  }
-
-  const versionRead = await actor.db
-    .from("menu_versions")
-    .select("id, title, activated_at")
-    .eq("venue_id", venueId)
-    .eq("status", "active")
-    .maybeSingle()
-  if (versionRead.error) {
-    logFailure("active version read", versionRead.error)
-    return unavailable
-  }
-  const version = versionRead.data
-  if (!version) {
-    return { ok: true, catalogue: { status: "none", venueId, venueName } }
-  }
-
-  const sectionsRead = await actor.db
-    .from("menu_sections")
-    .select("id, slug, name, kind, position")
-    .eq("version_id", version.id)
-    .order("position")
-  if (sectionsRead.error) {
-    logFailure("catalogue read", sectionsRead.error)
-    return unavailable
-  }
-
-  const archivedRead = readArchivedEntryItemIds(actor, version.id)
-
-  // Entries are paged in a total order: a menu may hold up to 2000 items, and a
-  // single embedded read would stop silently at max_rows (final review I-3).
-  const entries: EntryRow[] = []
-  for (let from = 0; ; from += ENTRY_PAGE) {
-    const page = await actor.db
-      .from("menu_entries")
-      .select(
-        "section_id, item_id, name, description, aliases, position, menu_entry_variants(variant_id, name, position)"
-      )
-      .eq("version_id", version.id)
-      .order("section_id")
-      .order("position")
-      .order("item_id")
-      .range(from, from + ENTRY_PAGE - 1)
-    if (page.error) {
-      logFailure("catalogue read", page.error)
-      return unavailable
-    }
-    const rows = page.data as unknown as EntryRow[]
-    entries.push(...rows)
-    if (rows.length < ENTRY_PAGE) break
-  }
-  const archived = await archivedRead
-  if (archived.error) {
-    logFailure("catalogue read", archived.error)
-    return unavailable
-  }
-  const archivedIds = archived.ids
-  const bySection = new Map<string, EntryRow[]>()
-  for (const entry of entries) {
-    const list = bySection.get(entry.section_id) ?? []
-    list.push(entry)
-    bySection.set(entry.section_id, list)
-  }
-
-  const sections: CatalogueSection[] = (
-    sectionsRead.data as unknown as SectionRow[]
-  )
-    .sort(byPosition)
-    .map((s) => ({
-      id: s.id,
-      slug: s.slug,
-      name: s.name,
-      kind: s.kind as MenuSectionKind,
-      items: [...(bySection.get(s.id) ?? [])]
-        .filter((e) => !archivedIds.has(e.item_id))
-        .sort(byPosition)
-        .map((e) => ({
-          itemId: e.item_id,
-          name: e.name,
-          description: e.description,
-          aliases: e.aliases ?? [],
-          variants: [...e.menu_entry_variants]
-            .sort(byPosition)
-            .map((v) => ({ variantId: v.variant_id, name: v.name })),
-        })),
-    }))
-
-  return {
-    ok: true,
-    catalogue: {
-      status: "active",
-      venueId,
-      venueName,
-      versionId: version.id,
-      versionTitle: version.title,
-      activatedAt: version.activated_at,
-      sections,
-    },
-  }
+  if (!data) return notFound
+  return { ok: true, catalogue: data as LabelCatalogue }
 }
 
 // ---------------------------------------------------------------------------

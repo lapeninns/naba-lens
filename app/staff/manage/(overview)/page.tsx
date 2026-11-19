@@ -1,14 +1,9 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { managerAccess } from "@/app/staff/manage/_shared/context"
-import { NotManagerPage } from "@/app/staff/manage/_shared/frame"
-import { OverviewScreen } from "@/app/staff/manage/_shared/screens"
-
-export const metadata: Metadata = { title: "Manage" }
-
-/** Venue manager tools for the manager's own current venue. */
-export default async function ManagePage() {
-  const access = await managerAccess()
-  if (!access.ok) return <NotManagerPage viewerName={access.viewerName} />
-  return <OverviewScreen ctx={access.ctx} />
+/**
+ * Retired (decision D3; DESIGN.md §15): venue managers work in /manager.
+ * The old URL keeps working as a redirect.
+ */
+export default function RetiredManagePage() {
+  permanentRedirect("/manager")
 }

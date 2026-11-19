@@ -113,7 +113,7 @@ describe("menu-section task pages (G-4)", () => {
     setup("menu_section")
     const mine = assignment()
     expect(await redirectOf(visit(mine.requirement.id))).toBe(
-      `/staff/menu?section=${SECTION}&filter=gaps`
+      `/staff/album/menu?section=${SECTION}&show=needed`
     )
     expect(route.getMyRequirementRoute).toHaveBeenCalledWith(
       expect.anything(),
@@ -136,7 +136,7 @@ describe("menu-section task pages (G-4)", () => {
     setup("menu_section", mine)
     expect(
       await redirectOf(visit(mine.requirement.id, { replaces: answered.id }))
-    ).toBe(`/staff/menu?section=${SECTION}&filter=gaps`)
+    ).toBe(`/staff/album/menu?section=${SECTION}&show=needed`)
   })
 
   it("still serve an open request sent before the cut-over, without task words", async () => {

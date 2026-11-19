@@ -4,17 +4,21 @@ import { join } from "node:path"
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
+import { assetNamed } from "./helpers/full-app"
 import { supportedMp4, syntheticJpeg, type SourceFile } from "./helpers/media"
 import { appBarFit, horizontalOverflow } from "./helpers/overflow"
 import {
+  ADMIN_LANDING,
   libraryList,
-  portfolioList,
-  staffTile,
+  myPhotoLink,
+  myPhotos,
+  openMyPhotos,
+  photoPagePath,
+  STAFF_LANDING,
+  STAFF_TABS,
   tile,
   uploadSheet,
   uploadThroughDialog,
-  openPortfolio,
-  STAFF_LANDING,
 } from "./helpers/ui"
 import { provisionWorld, signedInPage, type World } from "./helpers/world"
 
@@ -23,7 +27,10 @@ import { provisionWorld, signedInPage, type World } from "./helpers/world"
  * screen and dialog at 360/390/768/1280/1440 CSS px. Each state must have no
  * horizontal overflow, its primary action visible inside the viewport, and zero
  * serious/critical axe-core violations. Screenshots go to .artifacts/screenshots
- * (gitignored) for human review; a JSON summary sits next to them.
+ * (gitignored) for human review; a JSON summary sits next to them. Staff
+ * screens are My photos with its Add a video sheet, a photo's own page with
+ * Withdraw (DESIGN.md §5e) and Settings with Edit profile (§5b); Me's old
+ * portfolio grid and its lightbox are gone.
  */
 
 const WIDTHS = [360, 390, 768, 1280, 1440] as const
@@ -50,6 +57,7 @@ let staff: Page
 let admin: Page
 let anon: Page
 let jpeg: SourceFile
+let jpegId: string
 let mp4: SourceFile
 const findings: Finding[] = []
 
@@ -60,10 +68,12 @@ test.beforeAll(async ({ browser }) => {
   mp4 = supportedMp4(`viewport-${world.tag}.mp4`)
   staff = await signedInPage(browser, world.staffA)
   await expect(staff).toHaveURL(STAFF_LANDING)
-  await openPortfolio(staff)
+  await openMyPhotos(staff)
   await uploadThroughDialog(staff, [jpeg, mp4])
+  jpegId = await assetNamed(jpeg.name)
   admin = await signedInPage(browser, world.adminA)
-  await expect(admin).toHaveURL(/\/admin$/)
+  await expect(admin).toHaveURL(ADMIN_LANDING)
+  await admin.goto("/admin")
   anon = await (await browser.newContext()).newPage()
 })
 
@@ -189,19 +199,16 @@ for (const width of WIDTHS) {
       anon.getByRole("button", { name: "Send a new link" })
     )
 
-    // --- /staff and its dialogs
-    await staff.goto("/staff")
-    const portfolio = portfolioList(staff)
-    const ownPhoto = await staffTile(portfolio, jpeg.name)
+    // --- My photos and its Add a video sheet (DESIGN.md §5e)
+    await staff.goto(STAFF_TABS.photos)
+    const ownPhoto = myPhotoLink(myPhotos(staff), jpegId)
     await expect(ownPhoto).toBeVisible()
-    const upload = staff
-      .getByRole("button", { name: "Upload photos or videos" })
-      .first()
-    await check(staff, width, "staff-portfolio", upload)
+    const upload = staff.getByRole("button", { name: "Add a video" }).first()
+    await check(staff, width, "staff-my-photos", upload)
 
     await upload.click()
     const uploadDialog = uploadSheet(staff)
-    await expect(uploadDialog).toHaveAccessibleName("Upload photos or videos")
+    await expect(uploadDialog).toHaveAccessibleName("Add photos or videos")
     await check(
       staff,
       width,
@@ -229,6 +236,27 @@ for (const width of WIDTHS) {
     await uploadDialog.getByRole("button", { name: "Done" }).click()
     await expect(uploadDialog).toBeHidden()
 
+    // --- A photo's own page and its Withdraw confirmation (§5e "One photo")
+    await ownPhoto.click()
+    await expect(staff).toHaveURL(new RegExp(`${photoPagePath(jpegId)}$`))
+    const withdraw = staff
+      .getByRole("main")
+      .getByRole("button", { name: "Withdraw" })
+    await check(staff, width, "staff-photo-page", withdraw)
+    await withdraw.click()
+    const confirm = staff.getByRole("alertdialog")
+    await check(
+      staff,
+      width,
+      "staff-withdraw-confirm",
+      confirm.getByRole("button", { name: "Withdraw" }),
+      confirm
+    )
+    await confirm.getByRole("button", { name: "Keep it" }).click()
+    await expect(confirm).toBeHidden()
+
+    // --- Settings and its Edit profile dialog (§5b)
+    await staff.goto("/staff/me/settings")
     await staff.getByRole("button", { name: "Edit profile" }).click()
     const edit = staff.getByRole("dialog")
     await check(
@@ -238,34 +266,6 @@ for (const width of WIDTHS) {
       edit.getByRole("button", { name: /^Save/ }),
       edit
     )
-    await closeDialog(staff)
-
-    await ownPhoto.click()
-    const viewer = staff.getByRole("dialog")
-    await check(
-      staff,
-      width,
-      "staff-viewer-photo",
-      viewer.getByRole("button", { name: "Delete" }),
-      viewer
-    )
-    await viewer.getByRole("button", { name: "Delete" }).click()
-    const confirm = staff.getByRole("alertdialog")
-    // HM-04: Delete holds as "Checking…" while the delete impact is read,
-    // then reads Delete, or Delete anyway when the photo is venue evidence.
-    await expect(
-      confirm.getByRole("button", { name: "Checking…" })
-    ).toHaveCount(0)
-    await check(
-      staff,
-      width,
-      "staff-delete-confirm",
-      confirm.getByRole("button", { name: /^Delete( anyway)?$/ }),
-      confirm
-    )
-    await confirm
-      .getByRole("button", { name: /^Keep (photo|video|file)$/ })
-      .click()
     await closeDialog(staff)
 
     // --- /admin library, filters and viewer
@@ -357,8 +357,15 @@ for (const width of WIDTHS) {
   })
 }
 
-/** Presses Tab until the focused element's accessible name matches. */
-async function tabTo(page: Page, name: RegExp, max = 60) {
+/**
+ * Presses Tab until the focused element's accessible name matches `name`, or
+ * (a function) until it holds for the focused element.
+ */
+async function tabTo(
+  page: Page,
+  name: RegExp | ((el: { name: string; href: string | null }) => boolean),
+  max = 60
+) {
   const visited: string[] = []
   for (let i = 0; i < max; i++) {
     await page.keyboard.press("Tab")
@@ -375,24 +382,28 @@ async function tabTo(page: Page, name: RegExp, max = 60) {
     )
     const focused = await page.evaluate(() => {
       const el = document.activeElement as HTMLElement | null
-      return (el?.getAttribute("aria-label") ?? el?.innerText ?? "").trim()
+      return {
+        name: (el?.getAttribute("aria-label") ?? el?.innerText ?? "").trim(),
+        href: el?.getAttribute("href") ?? null,
+      }
     })
-    visited.push(focused)
-    if (name.test(focused)) return
+    visited.push(focused.name)
+    if (typeof name === "function" ? name(focused) : name.test(focused.name))
+      return
   }
   throw new Error(
     `Tab never reached ${name}; focus went: ${[...new Set(visited)].join(" | ")}`
   )
 }
 
-test("keyboard only: upload, open the viewer, download", async () => {
+test("keyboard only: upload, open the photo's page, download", async () => {
   test.setTimeout(120_000)
   const extra = await syntheticJpeg(`keyboard-${world.tag}.jpg`)
   await staff.setViewportSize({ width: 390, height: 800 })
-  await staff.goto("/staff")
+  await staff.goto(STAFF_TABS.photos)
   // Wait for the streamed page, not just the load event, before tabbing.
-  await expect(portfolioList(staff)).toBeVisible()
-  await tabTo(staff, /^Upload photos or videos$/)
+  await expect(myPhotos(staff)).toBeVisible()
+  await tabTo(staff, /^Add a video$/)
   await staff.keyboard.press("Enter")
   const dialog = uploadSheet(staff)
   await expect(dialog).toBeVisible()
@@ -416,21 +427,16 @@ test("keyboard only: upload, open the viewer, download", async () => {
   await staff.keyboard.press("Enter")
   await expect(dialog).toBeHidden()
 
-  // Viewer: open from the grid, focus is trapped in it, Escape returns focus.
-  const keyboardTile = await staffTile(portfolioList(staff), extra.name)
-  await expect(keyboardTile).toBeVisible()
-  // Staff tile names carry no file name; the newest upload is the first tile,
-  // and focus returning to `keyboardTile` below proves it was the one opened.
-  await tabTo(staff, /^Photo, uploaded /)
+  // The photo's own page: every My photos tile is a link to it (§5e).
+  const extraId = await assetNamed(extra.name)
+  await staff.reload()
+  await expect(myPhotoLink(myPhotos(staff), extraId)).toBeVisible()
+  await tabTo(staff, ({ href }) => href === photoPagePath(extraId))
   await staff.keyboard.press("Enter")
-  const viewer = staff.getByRole("dialog")
-  await expect(viewer).toBeVisible()
-  await expect
-    .poll(() => viewer.evaluate((el) => el.contains(document.activeElement)))
-    .toBe(true)
-  await staff.keyboard.press("Escape")
-  await expect(viewer).toBeHidden()
-  await expect(keyboardTile).toBeFocused()
+  await expect(staff).toHaveURL(new RegExp(`${photoPagePath(extraId)}$`))
+  await expect(
+    staff.getByRole("main").getByRole("button", { name: "Withdraw" })
+  ).toBeVisible()
 
   // Admin: reach a tile and download its original with the keyboard only.
   await admin.setViewportSize({ width: 1280, height: 900 })

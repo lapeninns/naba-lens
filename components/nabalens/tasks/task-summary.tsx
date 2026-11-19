@@ -23,7 +23,7 @@ import { plural, requirementKindLabel } from "./copy"
 import { DueLine } from "./status-badges"
 import type { MyAssignment, RequirementKind } from "./types"
 
-/** Back link to Home, sized for touch (the thread's "‹ Home"). */
+/** Back link to Home, a 48px staff target (the thread's "‹ Home"). */
 export function BackToTasks({
   href,
   label = "Home",
@@ -35,7 +35,7 @@ export function BackToTasks({
   return (
     <Link
       href={href}
-      className="-ml-1 inline-flex min-h-11 items-center gap-1.5 self-start rounded-control px-1 text-label text-ink focus-ring outline-none hover:underline"
+      className="-ml-1 inline-flex min-h-12 items-center gap-1.5 self-start rounded-control px-1 text-label text-ink focus-ring outline-none hover:underline"
     >
       <CaretLeftIcon className="size-5" weight="bold" aria-hidden />
       {label}
@@ -51,7 +51,7 @@ const KIND_ICON: Record<RequirementKind, React.ReactNode> = {
   service: <CalendarBlankIcon />,
 }
 
-/** A sentence inside the task post: an icon and the words (DESIGN.md §5). */
+/** A sentence inside the task post: an icon and the words (common-room.md §5). */
 function Flag({
   tone = "neutral",
   icon,

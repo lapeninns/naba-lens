@@ -82,7 +82,7 @@ export function GuideViewer({
         }}
         className={cn(
           // Examples always sit on the dark viewer ground, in both themes;
-          // `dark` gives everything inside the dark tokens (DESIGN.md §2).
+          // `dark` gives everything inside the dark tokens (common-room.md §2).
           "dark flex flex-col gap-0 bg-stage p-0 pt-0 pb-0 text-on-stage before:hidden",
           "max-md:top-0 max-md:max-h-dvh max-md:min-h-dvh max-md:rounded-none",
           "md:max-h-[calc(100dvh-3rem)] md:max-w-[min(56rem,calc(100vw-3rem))] md:p-0"

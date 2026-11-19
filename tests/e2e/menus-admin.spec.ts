@@ -5,7 +5,13 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { signIn } from "../support/identities"
 import { provisioner, psql, requireIsolatedStack } from "./helpers/stack"
-import { escape, staffTile } from "./helpers/ui"
+import { syntheticJpeg } from "./helpers/media"
+import { escape } from "./helpers/ui"
+import {
+  addFromLibrary,
+  assetIdFor,
+  doneButton,
+} from "./helpers/upload-label-flow"
 import {
   provisionWorld,
   seedReadyAssets,
@@ -137,6 +143,11 @@ async function activateOpenDraft(page: Page) {
   await expect(dialog).toContainText(
     "Active means available for labelling, nothing more."
   )
+  // R15: dishes leaving the menu are retired only when confirmed here.
+  const retire = dialog.getByText(
+    /^Retire (it|them) from current coverage\. Photos and history are kept\.$/
+  )
+  if (await retire.count()) await retire.click()
   await dialog.getByRole("button", { name: "Activate for labelling" }).click()
   await expect(dialog).toBeHidden()
   await expect(
@@ -174,20 +185,34 @@ async function importAndActivate(
   await activateOpenDraft(page)
 }
 
-/** Staff: open one of their own photos and its label editor. */
-async function openOwnLabelEditor(page: Page, fileName: string) {
-  await page.goto("/staff")
-  await (
-    await staffTile(
-      page.getByRole("list", { name: "Your portfolio" }),
-      fileName
-    )
-  ).click()
-  const viewer = page.getByRole("dialog").first()
-  await viewer.getByRole("button", { name: /^(Add|Edit) labels$/ }).click()
-  const editor = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
-  await expect(editor).toBeVisible()
-  return editor
+/**
+ * Staff: the label fields for a photo they add. Staff label photos as they
+ * add them, in My photos' Add a video sheet (DESIGN.md §5e): pick one new
+ * photo, then Adjust its labels. The per-photo label editor went with Me's
+ * portfolio, so the staff menu search is proved here. Returns the sheet and
+ * the new photo's file name.
+ */
+async function openStaffLabels(page: Page, name: string) {
+  // A fresh load: the sheet reads the venue's menu as the page loads.
+  await page.goto("/staff/photos")
+  const photo = await syntheticJpeg(`${name}.jpg`)
+  const sheet = await addFromLibrary(page, [photo.path])
+  await expect(sheet.getByRole("status")).toHaveText("1 saved", {
+    timeout: 90_000,
+  })
+  const adjust = sheet.getByRole("button", {
+    name: "Adjust labels for photo 1",
+  })
+  if ((await adjust.getAttribute("aria-expanded")) !== "true")
+    await adjust.click()
+  await expect(adjust).toHaveAttribute("aria-expanded", "true")
+  return { editor: sheet, fileName: photo.name }
+}
+
+/** Closes the Add sheet with Done (labels chosen in it are kept). */
+async function closeStaffLabels(editor: Locator) {
+  await doneButton(editor).click()
+  await expect(editor).toBeHidden()
 }
 
 async function searchMenu(editor: Locator, query: string) {
@@ -199,22 +224,6 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
 }) => {
   test.setTimeout(240_000)
   const world = await provisionWorld()
-  const [assetA] = await seedReadyAssets(
-    world.staffA.id,
-    world.venue1.id,
-    1,
-    "image",
-    `qa-sep-a-${world.tag}`
-  )
-  await seedReadyAssets(
-    world.staffC.id,
-    world.venue2.id,
-    1,
-    "image",
-    `qa-sep-c-${world.tag}`
-  )
-  const fileA = `qa-sep-a-${world.tag}-01.jpg`
-  const fileC = `qa-sep-c-${world.tag}-01.jpg`
   const admin = await signedInPage(browser, world.adminA)
   const staffA = await signedInPage(browser, world.staffA)
   const staffC = await signedInPage(browser, world.staffC)
@@ -260,7 +269,10 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
   })
 
   await test.step("draft only: staff A still has no menu to label with", async () => {
-    const editor = await openOwnLabelEditor(staffA, fileA)
+    const { editor } = await openStaffLabels(
+      staffA,
+      `qa-sep-draft-${world.tag}`
+    )
     await expect(editor).toContainText(
       `${world.venue1.name} has no active menu yet`
     )
@@ -270,7 +282,7 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
     await expect(
       editor.getByRole("button", { name: "Finished dish" })
     ).toBeVisible()
-    await staffA.keyboard.press("Escape")
+    await closeStaffLabels(editor)
   })
 
   await test.step("activate The Railway; import + activate Prince of Wales at venue 2", async () => {
@@ -290,8 +302,12 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
     ).toContainText(PRINCE_TITLE)
   })
 
-  await test.step("venue separation in the staff label editor", async () => {
-    const a = await openOwnLabelEditor(staffA, fileA)
+  let assetA = ""
+  await test.step("venue separation in the staff label fields", async () => {
+    const { editor: a, fileName: fileA } = await openStaffLabels(
+      staffA,
+      `qa-sep-a-${world.tag}`
+    )
     // Names unique to each venue's file (The Railway also lists some Prince
     // of Wales dishes under its own "Sister Pub Specials").
     await searchMenu(a, "Sherpali")
@@ -310,13 +326,16 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
       1
     )
     await a.getByRole("option", { name: /^Onion Bhaji Appetisers/ }).click()
-    await a.getByRole("button", { name: /^Save labels/ }).click()
-    await expect(a).toBeHidden()
-    await expect(
-      staffA.getByRole("dialog").getByRole("list", { name: "Menu items" })
-    ).toContainText("Onion Bhaji")
+    await closeStaffLabels(a)
+    assetA = await assetIdFor(fileA)
+    await expect
+      .poll(() =>
+        psql(`select coalesce(string_agg(item_name, ','), '')
+          from public.media_label_items where asset_id = ${sql(assetA)}`)
+      )
+      .toMatch(/^Onion Bhaji/)
 
-    const c = await openOwnLabelEditor(staffC, fileC)
+    const { editor: c } = await openStaffLabels(staffC, `qa-sep-c-${world.tag}`)
     await searchMenu(c, "Stuffed Tandoori")
     await expect(
       c.getByRole("option", { name: /^Stuffed Tandoori Mushroom/ })
@@ -325,6 +344,7 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
     await expect(
       c.getByText(`Nothing on ${world.venue2.name}'s menu matches "Sherpali".`)
     ).toBeVisible()
+    await closeStaffLabels(c)
   })
 
   await test.step("DB: the saved label item belongs to the asset's venue", async () => {
@@ -423,10 +443,18 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
     await expect(
       preview.getByRole("region", { name: "Needs a decision" })
     ).toContainText("1 item · decide before activating")
+    // A rename is a presentation change, its own group now (S2-INT); a
+    // category move stays under Changed. Retirements are proposed and
+    // confirmed at activation (R15).
     await expect(
-      preview.getByRole("region", { name: "Changed" })
-    ).toContainText("2 items")
-    await expect(preview.getByRole("region", { name: "Removed" })).toBeVisible()
+      preview.getByRole("region", { name: "Changed", exact: true })
+    ).toContainText("1 item")
+    await expect(
+      preview.getByRole("region", { name: "Changed presentation" })
+    ).toContainText("Onion Bhaji Tower")
+    await expect(
+      preview.getByRole("region", { name: "Proposed retirements" })
+    ).toBeVisible()
     await expect(preview.getByRole("region", { name: "Added" })).toHaveCount(0)
     await expect(preview).toContainText("Onion Bhaji Tower")
     await expect(preview).toContainText("Spring Roll")
@@ -521,11 +549,12 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
       labels.getByRole("listitem").filter({ hasText: "Momo" })
     ).toContainText("Archived")
     const staff = await signedInPage(browser, world.staffA)
-    const editor = await openOwnLabelEditor(staff, file(1))
+    const { editor } = await openStaffLabels(staff, `qa-archived-${world.tag}`)
     await searchMenu(editor, "Momo")
     await expect(
       editor.getByText(`Nothing on ${world.venue1.name}'s menu matches "Momo".`)
     ).toBeVisible()
+    await closeStaffLabels(editor)
     await staff.context().close()
   })
 
@@ -548,12 +577,12 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
     ).toContainText("Retired")
 
     const staff = await signedInPage(browser, world.staffA)
-    const editor = await openOwnLabelEditor(staff, file(1))
+    const { editor } = await openStaffLabels(staff, `qa-retired-${world.tag}`)
     await expect(editor).toContainText(`${venue.name} has no active menu yet`)
     await expect(
       editor.getByRole("button", { name: "Preparation" }).first()
     ).toBeVisible()
-    await staff.keyboard.press("Escape")
+    await closeStaffLabels(editor)
     await staff.context().close()
 
     const renamed = await viewerLabels(1)

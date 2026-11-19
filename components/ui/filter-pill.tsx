@@ -6,31 +6,44 @@ import { cva } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 /*
- * Common Room select pill (DESIGN.md §4, filters): grey, and when it is on,
- * accent-soft with the selected edge and a tick, so the state is never told
- * by colour alone. Text stays ink. Pills are 44px (`sm`, the only size);
- * a long label wraps inside its pill and a row of pills wraps too, so
- * nothing scrolls sideways.
+ * v2 PickChip (`nl-pick`, D10): a surface pill with a 1px line-strong edge,
+ * and when it is on, an ink fill with paper text and a tick, so the state is
+ * never told by colour alone. Pills are 48px wherever staff work (DESIGN.md
+ * §5 asks the Album place chip for 48px); only inside a manager or admin
+ * shell (`data-density="compact"`) are they 44px on touch widths and v2's
+ * 40px (target-compact) from bp-desktop (departure V2-4). A long label wraps inside its pill and
+ * a row of pills wraps too, so nothing scrolls sideways.
  *
  * Two modes. With `href` it is a link for filters kept in the URL, and the
  * one that is on says so with `aria-current`. Without `href` it is a button
  * with `aria-pressed` for filters kept on the page.
  */
 const pillVariants = cva(
-  "group/pill inline-flex min-h-11 max-w-full min-w-11 items-center gap-1.5 rounded-round px-3.5 py-1.5 text-start text-label [overflow-wrap:anywhere] focus-ring transition-[background-color,box-shadow,color] duration-quick outline-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5",
+  "group/pill inline-flex min-h-12 max-w-full min-w-11 items-center gap-2 rounded-round px-4 py-1.5 text-start text-label [overflow-wrap:anywhere] focus-ring transition-[background-color,box-shadow,color] duration-quick outline-none in-data-[density=compact]:min-h-11 desktop:in-data-[density=compact]:min-h-10 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5",
   {
     variants: {
       selected: {
-        true: "bg-accent-soft edge-selected",
-        false: "bg-surface-2",
+        true: "bg-ink text-canvas",
+        false: "bg-surface edge-strong",
       },
-      // Switched off: grey, label kept, a hairline and a "not allowed" mark.
+      // Switched off: sunken, label kept, a hairline and a "not allowed" mark.
       blocked: {
         true: "cursor-not-allowed text-ink-muted",
-        false: "text-ink hover:bg-raised active:bg-raised",
+        false: "",
       },
     },
-    compoundVariants: [{ selected: false, blocked: true, className: "edge" }],
+    compoundVariants: [
+      {
+        selected: false,
+        blocked: true,
+        className: "bg-surface-2 edge",
+      },
+      {
+        selected: false,
+        blocked: false,
+        className: "text-ink hover:bg-raised active:bg-raised",
+      },
+    ],
     defaultVariants: { selected: false, blocked: false },
   }
 )
@@ -134,7 +147,10 @@ function FilterPill(props: FilterPillProps) {
           {/* A space, so the name reads "Waiting 12" and not "Waiting12". */}{" "}
           <span
             data-slot="filter-pill-count"
-            className="font-mono text-mono font-normal text-ink-muted"
+            className={cn(
+              "font-mono text-label font-medium",
+              on ? "text-canvas" : "text-ink-muted"
+            )}
           >
             {count}
           </span>
@@ -238,7 +254,7 @@ type PillGroupProps = Omit<
 }
 
 /*
- * A named row of pills (DESIGN.md §4): 8px apart, wrapping onto new lines,
+ * A named row of pills (common-room.md §4): 8px apart, wrapping onto new lines,
  * never a sideways scroller. Name it with `label`, or with `aria-labelledby`
  * when the name is on screen.
  */

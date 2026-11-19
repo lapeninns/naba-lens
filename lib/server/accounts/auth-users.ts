@@ -87,9 +87,10 @@ export async function findAuthUserByEmail(
 }
 
 /**
- * Marks auth users created by `inviteStaff`. Provenance only, never used for
- * authorisation: it lets a retry adopt an account left without a profile by an
- * earlier, interrupted invitation instead of failing as a duplicate.
+ * Marks auth users created by `inviteStaff` and `inviteStaffToVenue`. It never
+ * grants anything: it lets a retry adopt an account left without a profile by
+ * an earlier, interrupted invitation, and `manager_invite_staff` only creates a
+ * profile for a marked user (it narrows, never widens, what a manager can do).
  */
 export const INVITE_METADATA_KEY = "nabalens_invite"
 

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-// Photo library first, one global queue: openAdd({ source }) clicks Add's own
-// hidden input inside the click handler, the library input takes several
-// files without capture, the camera input captures, a cancelled picker does
+// Gallery first, one global queue: openAdd({ source }) clicks Add's own
+// hidden input inside the click handler, the gallery input takes several
+// files without capture, Add has no camera input at all (DESIGN.md §9: an
+// old "camera" source opens the gallery too), a cancelled picker does
 // nothing, picked files start uploading at once in the "Saving N photos"
 // sheet, Our menu's dish is applied (and sent by asset ID) unless removed,
 // and a task screen hears each of its photos as soon as that one is ready.
@@ -204,7 +205,7 @@ describe("photo source contract", () => {
 })
 
 describe("openAdd({ source })", () => {
-  it("clicks Add's own hidden input synchronously, with no sheet", () => {
+  it("clicks Add's own hidden gallery input synchronously, with no sheet and no camera", () => {
     host(
       <>
         <Opener label="Library" opts={{ source: "library" }} />
@@ -212,20 +213,19 @@ describe("openAdd({ source })", () => {
       </>
     )
     const library = input("library")
-    const camera = input("camera")
     expect(library.multiple).toBe(true)
     expect(library.hasAttribute("capture")).toBe(false)
-    expect(camera.multiple).toBe(false)
-    expect(camera.getAttribute("capture")).toBe("environment")
+    // Add has no camera input and nothing with `capture` (DESIGN.md §9).
+    expect(input("camera")).toBeNull()
+    expect(document.querySelector("input[capture]")).toBeNull()
 
     const libraryClick = vi.spyOn(library, "click")
-    const cameraClick = vi.spyOn(camera, "click")
     // fireEvent: the click must happen inside the handler, not after it.
     fireEvent.click(screen.getByRole("button", { name: "Library" }))
     expect(libraryClick).toHaveBeenCalledTimes(1)
-    expect(cameraClick).not.toHaveBeenCalled()
+    // An old "camera" source opens the gallery.
     fireEvent.click(screen.getByRole("button", { name: "Camera" }))
-    expect(cameraClick).toHaveBeenCalledTimes(1)
+    expect(libraryClick).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole("dialog")).toBeNull()
   })
 
@@ -275,7 +275,7 @@ describe("openAdd({ source })", () => {
 })
 
 describe("Add sheet (phones)", () => {
-  it("offers the library first with the batch limit, and no task step", () => {
+  it("offers the gallery with the batch limit, no camera and no task step", () => {
     render(
       <AddSheet
         open
@@ -291,7 +291,9 @@ describe("Add sheet (phones)", () => {
       .map((b) => b.textContent)
     expect(options[0]).toContain(LIBRARY_LABEL)
     expect(options[0]).toContain("Up to 7 at a time")
-    expect(options[1]).toContain(CAMERA_LABEL)
+    expect(dialog.textContent).not.toContain(CAMERA_LABEL)
+    expect(dialog.textContent).not.toMatch(/camera/i)
+    expect(document.querySelector("input[capture]")).toBeNull()
     expect(dialog.textContent).not.toMatch(/straight away|choose a task/)
     expect(dialog.textContent).toContain(
       "Photos start saving as soon as you pick them."
@@ -318,7 +320,7 @@ describe("Add sheet (phones)", () => {
     host(<Opener opts={{ dialog: true }} />)
     await user.click(screen.getByRole("button", { name: "Open" }))
     expect(
-      screen.getByRole("dialog", { name: "Upload photos or videos" })
+      screen.getByRole("dialog", { name: "Add photos or videos" })
     ).toBeTruthy()
   })
 })
@@ -369,24 +371,24 @@ const fileRow = (name: string) =>
     .find((li) => li.textContent?.includes(name))!
 
 describe("Our menu: the dish is applied by default", () => {
-  it("takes a photo of the dish, sends the dish by asset ID and says Saved once it is on the photo", async () => {
+  it("adds a photo of the dish from the gallery, sends the dish by asset ID and says Saved once it is on the photo", async () => {
     const user = userEvent.setup()
     const { find } = holdUploads()
     host(
       <Opener
-        label="Take a photo of this dish"
+        label="Add a photo of this dish"
         opts={{ source: "camera", imagesOnly: true, preset }}
       />
     )
-    const camera = input("camera")
-    const cameraClick = vi.spyOn(camera, "click")
+    const gallery = input("library")
+    const galleryClick = vi.spyOn(gallery, "click")
     fireEvent.click(
-      screen.getByRole("button", { name: "Take a photo of this dish" })
+      screen.getByRole("button", { name: "Add a photo of this dish" })
     )
-    expect(cameraClick).toHaveBeenCalledTimes(1)
-    expect(camera.getAttribute("capture")).toBe("environment")
-    expect(camera.accept).toBe("image/*")
-    await user.upload(camera, [jpeg("dish.jpg")])
+    expect(galleryClick).toHaveBeenCalledTimes(1)
+    expect(gallery.hasAttribute("capture")).toBe(false)
+    expect(gallery.accept).not.toMatch(/video/)
+    await user.upload(gallery, [jpeg("dish.jpg")])
 
     const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
     await waitFor(() => expect(api.posted).toHaveLength(1))

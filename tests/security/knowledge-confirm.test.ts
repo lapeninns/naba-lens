@@ -22,6 +22,7 @@ import {
   world,
   type World,
 } from "./knowledge-fixtures"
+import { setApplicability } from "./amenity-applicability"
 
 const contribution = (id: string) => ({ type: "contribution" as const, id })
 const submission = (id: string) => ({ type: "submission" as const, id })
@@ -165,10 +166,15 @@ describe("confirmation (T5)", () => {
       confirmation_self: true,
     })
 
-    // A rule that forbids self-confirmation (test fixture key).
+    // A rule that forbids self-confirmation (test fixture key). Every
+    // catalogue question has a rule since S3-R2 (D4), so this adds a newer
+    // version once; the highest version is in force.
     psql(`insert into public.knowledge_question_rules (question_key, rule_version, confirmation, self_confirmation_allowed, unassigned_auto_complete)
-      select 'high_chairs', 1, 'venue_manager', false, false
-      where not exists (select 1 from public.knowledge_question_rules where question_key = 'high_chairs')`)
+      select 'high_chairs', coalesce(max(r.rule_version), 0) + 1, 'venue_manager', false, false
+      from public.knowledge_question_rules r where r.question_key = 'high_chairs'
+      having not coalesce(bool_or(r.confirmation = 'venue_manager' and not r.self_confirmation_allowed
+        and r.rule_version = (select max(x.rule_version) from public.knowledge_question_rules x
+          where x.question_key = 'high_chairs')), false)`)
     await json(w.admin, "knowledge_set_working_list", {
       p_venue_id: w.venue,
       p_keys: ["high_chairs"],
@@ -386,7 +392,8 @@ describe("eligibility changes (T8)", () => {
     await submit(w.staffA, w, "guest_toilets", { answer: "no" })
     const check = w.checks.guest_toilets!
     await ok(
-      w.manager.client.rpc("amenity_archive_check", {
+      // S2-MGR: core questions are archived by an admin, with a reason.
+      setApplicability(w.admin.client, "archive", {
         p_check_id: check,
         p_revision: count(
           `select revision from public.venue_amenity_checks where id = '${check}'`
@@ -406,7 +413,8 @@ describe("eligibility changes (T8)", () => {
     })
     const check = w.checks.step_free_entrance!
     await ok(
-      w.manager.client.rpc("amenity_archive_check", {
+      // S2-MGR: core questions are archived by an admin, with a reason.
+      setApplicability(w.admin.client, "archive", {
         p_check_id: check,
         p_revision: count(
           `select revision from public.venue_amenity_checks where id = '${check}'`

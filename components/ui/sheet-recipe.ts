@@ -1,8 +1,9 @@
 import { cva, type VariantProps } from "class-variance-authority"
 
 /*
- * One recipe for every overlay (DESIGN.md §4, Sheet and Dialog): a sheet
- * that rises from the bottom edge on phones and a centred dialog from md.
+ * One recipe for every overlay (v2 Sheet, `nl-sheet` and `nl-sheet--dialog`;
+ * D10): a bottom sheet on scrim on phones, with a grip and 20px top
+ * corners, and a centred dialog with 20px corners from md (bp-tablet).
  * Dialog and AlertDialog both draw from it, so the two cannot drift apart.
  * Width and height belong here: ask for a `size`, do not pass a class.
  */
@@ -11,17 +12,19 @@ import { cva, type VariantProps } from "class-variance-authority"
 export const sheetBackdrop =
   "fixed inset-0 isolate z-overlay bg-scrim duration-sheet data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
 
-// 16px between parts. 8px above the grip, 16px sides, 28px below plus the
-// home indicator; 24px all round from md, where nothing sits under the dialog.
+// v2 sheet padding: 12px above the grip, 16px sides, 24px below plus the
+// home indicator; v2's dialog is 24px all round from md, where nothing sits
+// under it. 16px between parts.
 const PADDED =
-  "gap-4 px-4 pt-2 pb-[calc(1.75rem+env(safe-area-inset-bottom,0px))] md:p-6"
-// The 44 x 5px grip, drawn as the popup's first grid row. Decoration only,
-// so it is a pseudo-element and needs no aria-hidden.
+  "gap-4 px-4 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] md:p-6"
+// v2's 40 x 4px grip in line-strong, drawn as the popup's first grid row.
+// Decoration only, so it is a pseudo-element and needs no aria-hidden.
 const GRIP =
-  "before:-mb-1 before:h-[5px] before:w-11 before:justify-self-center before:rounded-round before:bg-edge-strong before:content-[''] md:before:hidden"
+  "before:h-1 before:w-10 before:justify-self-center before:rounded-round before:bg-edge-strong before:content-[''] md:before:hidden"
 
 /*
- * The popup. Sizes: `sm` is a confirm (440px), `md` the default (560px),
+ * The popup. Sizes: `sm` is a confirm (440px), `md` the default (v2
+ * sheet-max, 480px),
  * `wide` a two-column form (760px) and `viewer` a photo or guide viewer:
  * the whole screen on a phone, large from md, with no padding or grip.
  * w-safe keeps a sheet clear of the notch when the phone is on its side.
@@ -59,7 +62,7 @@ export const sheetFooter = cva(
   {
     variants: {
       sticky: {
-        true: "sticky bottom-0 z-local -mx-4 -mb-[calc(1.75rem+env(safe-area-inset-bottom,0px))] px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] shadow-bar group-data-[size=viewer]/sheet:mx-0 group-data-[size=viewer]/sheet:mb-0 md:-mx-6 md:-mb-6 md:px-6 md:pb-6 md:group-data-[size=viewer]/sheet:mx-0 md:group-data-[size=viewer]/sheet:mb-0",
+        true: "sticky bottom-0 z-local -mx-4 -mb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] shadow-bar group-data-[size=viewer]/sheet:mx-0 group-data-[size=viewer]/sheet:mb-0 md:-mx-6 md:-mb-6 md:px-6 md:pb-6 md:group-data-[size=viewer]/sheet:mx-0 md:group-data-[size=viewer]/sheet:mb-0",
         false: "",
       },
     },

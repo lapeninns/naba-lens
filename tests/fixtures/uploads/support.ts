@@ -8,11 +8,12 @@ import {
   type Request,
 } from "@playwright/test"
 
+import { myPhotoTile } from "../../e2e/helpers/s4-photos"
 import { provisioner } from "../../e2e/helpers/stack"
 import {
   STAFF_LANDING,
-  openPortfolio,
-  staffTile,
+  meSheetButton,
+  openMyPhotos,
   uploadSheet,
 } from "../../e2e/helpers/ui"
 import {
@@ -54,12 +55,15 @@ export function fixtureFile(name: string): string {
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/** One unique world; the staff member of venue one uploads from their portfolio. */
+/**
+ * One unique world; the staff member of venue one uploads from My photos,
+ * where "Add a video" opens the upload sheet (DESIGN.md §5e).
+ */
 export async function stage(browser: Browser, baseURL: string) {
   const world = await provisionWorld()
   const page = await signedInPage(browser, world.staffA, { baseURL })
   await expect(page).toHaveURL(STAFF_LANDING)
-  await openPortfolio(page)
+  await openMyPhotos(page)
   return { world, staff: world.staffA, page }
 }
 
@@ -107,15 +111,12 @@ export async function objectsOf(uploaderId: string, assetId: string) {
 }
 
 /**
- * Opens the upload sheet from My portfolio. Its name changes from "Upload
- * photos or videos" to "Saving N photos" once files are picked, so the locator
- * matches both (and a queue Add reopens while files are still waiting).
+ * Opens the upload sheet from My photos' Add a video (R15-1). Its name changes from
+ * "Add photos or videos" to "Saving N photos" once files are picked, so the
+ * locator matches both (and a queue Add reopens while files are still waiting).
  */
 export async function openUploadDialog(page: Page) {
-  await page
-    .getByRole("button", { name: "Upload photos or videos" })
-    .first()
-    .click()
+  await meSheetButton(page).click()
   const dialog = uploadSheet(page)
   await expect(dialog).toBeVisible()
   return dialog
@@ -161,30 +162,13 @@ export async function expectSummary(
   }
 }
 
-export const portfolio = (page: Page) =>
-  page.getByRole("list", { name: "Your portfolio" })
-
 /**
- * A portfolio tile by file name; `state` is the suffix of its accessible name.
- * Staff tile names carry no file name, so the tile is found by the media id of
- * the uploader's newest asset with that name.
+ * A My photos grid tile by file name: the uploader's newest live asset with
+ * that name (tile names carry no file name). What state the upload is in is
+ * on the photo's own page: `expectPhotoState` (tests/e2e/helpers/s4-photos).
  */
-export async function tileOf(
-  page: Page,
-  uploaderId: string,
-  fileName: string,
-  // "Stopped": uploading on the server and not held by this tab (B02 UP-01),
-  // which is how any reload or other device sees an unfinished transfer.
-  state?: "Uploading" | "Stopped" | "Processing" | "Failed" | "ready"
-) {
-  const tile = await staffTile(portfolio(page), fileName, uploaderId)
-  if (state === undefined) return tile
-  const name =
-    state === "ready"
-      ? /^(Photo|Video), uploaded (?!.*, (Uploading|Stopped|Processing|Failed)(,|$))/
-      : new RegExp(`^(Photo|Video), uploaded [^,]+, ${state}$`)
-  return tile.and(page.getByRole("button", { name }))
-}
+export const tileOf = (page: Page, uploaderId: string, fileName: string) =>
+  myPhotoTile(page, fileName, uploaderId)
 
 /** Storage upload requests of a page and the bytes the server received. */
 export function watchStorage(page: Page) {

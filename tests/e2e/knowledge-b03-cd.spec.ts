@@ -47,6 +47,7 @@ import {
   openOtherJobs,
   OTHER_JOBS_PATH,
   STAFF_LANDING,
+  STAFF_TABS,
 } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
@@ -529,9 +530,13 @@ test.describe("B03 browser charters C and D", () => {
           closedDecisionId: null,
         }),
       ])
-    await rpcOk(managerDb, "amenity_archive_check", {
+    // S2-MGR: archiving needs a reason (amenity_check_set_applicability).
+    await rpcOk(managerDb, "amenity_check_set_applicability", {
       p_check_id: id.archived,
+      p_applicable: false,
+      p_reason: "DEV-FIXTURE not here",
       p_revision: checkRevision(id.archived),
+      p_idempotency_key: randomUUID(),
     })
     const [staleTask] = tasksOf(id.stale)
     const [laterTask] = tasksOf(id.later)
@@ -745,7 +750,7 @@ test.describe("B03 browser charters C and D", () => {
     expect(tasksOf(id.stopped)).toEqual(stopTasksBefore)
 
     // ---- Staff A (assigned), 390: Other jobs, then Send leaves the task open --
-    // Goal-led Home has no To do: the assigned recheck is one tap away, on
+    // Today (DESIGN.md §5c) has no To do: the assigned recheck is one tap away, on
     // Other jobs (decision 10), with its cause (B03-e §6.2).
     const staff = await signedInPage(browser, w.staffA, PHONE)
     await expect(staff).toHaveURL(STAFF_LANDING)
@@ -1225,7 +1230,7 @@ test.describe("B03 browser charters C and D", () => {
     // ---- Manager and staff sessions are refused the admin route -------------
     for (const [who, home] of [
       [w.managerA, "/manager"],
-      [w.staffA, "/staff/tasks"],
+      [w.staffA, STAFF_TABS.today],
     ] as const) {
       const page = await signedInPage(browser, who, DESKTOP)
       const url = `${CHECK_DATES}?key=${q1}`

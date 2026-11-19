@@ -15,8 +15,10 @@ import {
 import {
   CoverageNotice,
   CoverageSection,
+  ReasonDialog,
   ReasonField,
 } from "@/components/nabalens/coverage"
+import { REPORTED } from "@/components/nabalens/coverage/use-coverage-action"
 import { Notice } from "@/components/nabalens/notice"
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { useStillWaiting } from "@/components/nabalens/use-still-waiting"
@@ -110,16 +112,20 @@ export type CheckDetailHandlers = {
       revision: number
     }>
   ) => Promise<RevisionResult>
+  /** Not here, with a reason (S2-MGR, AC29). */
   archive: (
     input: Keyed<{
       checkId: string
       revision: number
+      reason: string
     }>
   ) => Promise<RevisionResult>
+  /** Here again, with a reason (S2-MGR, AC29). */
   restore: (
     input: Keyed<{
       checkId: string
       revision: number
+      reason: string
     }>
   ) => Promise<RevisionResult>
   reopen: (
@@ -267,6 +273,10 @@ export function AmenityCheckDetail({
       setNotes(savedNotes)
   }
   const [reopenOpen, setReopenOpen] = React.useState(false)
+  // S2-MGR: archive and restore ask for the reason first (AC29).
+  const [scopeOpen, setScopeOpen] = React.useState<
+    "archive" | "restore" | null
+  >(null)
   // The write in flight, so only its button says it is saving.
   const [busy, setBusy] = React.useState<Write | null>(null)
   const still = useStillWaiting(busy !== null)
@@ -346,6 +356,32 @@ export function AmenityCheckDetail({
       "Notes saved."
     )
     if (result.ok) writeNotesDraft(check.id, null)
+  }
+
+  async function changeApplicability(
+    key: "archive" | "restore",
+    reason: string
+  ) {
+    const result = await write(
+      key,
+      { checkId: check.id, revision, reason },
+      handlers[key],
+      key === "archive"
+        ? "Archived. Restore it from the Archived list at any time."
+        : "Restored."
+    )
+    if (result.ok) return { ok: true as const }
+    // A reason the server refused stays in the dialog; any other failure
+    // closes it and is said in the page's notice, like Reopen.
+    const reasonError =
+      "fieldErrors" in result ? result.fieldErrors?.reason : undefined
+    if (reasonError)
+      return {
+        ok: false as const,
+        error: result.message,
+        fieldError: reasonError,
+      }
+    return REPORTED
   }
 
   async function reopen(input: {
@@ -616,14 +652,7 @@ export function AmenityCheckDetail({
           {permissions.canArchive && active ? (
             <Button
               variant="secondary"
-              onClick={() =>
-                write(
-                  "archive",
-                  { checkId: check.id, revision },
-                  handlers.archive,
-                  "Archived. Restore it from the Archived list at any time."
-                )
-              }
+              onClick={() => setScopeOpen("archive")}
               disabled={action.pending}
               loading={busy === "archive"}
               loadingLabel={SAVING}
@@ -635,14 +664,7 @@ export function AmenityCheckDetail({
           {permissions.canRestore && !active ? (
             <Button
               variant="secondary"
-              onClick={() =>
-                write(
-                  "restore",
-                  { checkId: check.id, revision },
-                  handlers.restore,
-                  "Restored."
-                )
-              }
+              onClick={() => setScopeOpen("restore")}
               disabled={action.pending}
               loading={busy === "restore"}
               loadingLabel={SAVING}
@@ -854,6 +876,33 @@ export function AmenityCheckDetail({
         currentNotConfirmed={notConfirmed}
       />
       <EventHistory events={detail.events} people={people} />
+
+      <ReasonDialog
+        open={scopeOpen !== null}
+        onOpenChange={(open) => {
+          if (!open) setScopeOpen(null)
+        }}
+        title={
+          scopeOpen === "restore"
+            ? "Restore this check?"
+            : "Archive this check as not here?"
+        }
+        description={
+          scopeOpen === "restore"
+            ? "It comes back for staff and in the counts. The reason is kept in the venue's history."
+            : "It is hidden from staff and the counts, and its history is kept. The reason is kept in the venue's history."
+        }
+        label="Reason"
+        confirmLabel={
+          scopeOpen === "restore" ? UI_TEXT.restore : UI_TEXT.archive
+        }
+        pendingLabel={SAVING}
+        onConfirm={(reason) =>
+          changeApplicability(scopeOpen ?? "archive", reason)
+        }
+        // A failure is said in the page's notice, which takes focus.
+        reportFocus={() => noticeRef.current}
+      />
 
       {canReopen ? (
         <ReopenDialog

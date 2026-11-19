@@ -1,5 +1,6 @@
 import type { NextConfig } from "next"
 import { getLoginCaptchaConfig } from "./lib/auth/captcha"
+import { RETIRED_MANAGE_REDIRECTS } from "./lib/config/retired-manage-routes"
 
 /**
  * Baseline security headers (docs/reviews/wave3-review.md finding 7). The CSP is
@@ -16,6 +17,7 @@ import { getLoginCaptchaConfig } from "./lib/auth/captcha"
  * Configured Turnstile adds only its documented script/frame origin.
  */
 const isDev = process.env.NODE_ENV === "development"
+const phoneHost = process.env.NABALENS_PHONE_HOST
 
 function supabaseOrigin(): string | null {
   const raw = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -98,6 +100,10 @@ const GUIDE_IMAGES_CACHE = {
 }
 
 const nextConfig: NextConfig = {
+  // Opt these files into routing only in development. The fixture sign-in
+  // page and its Server Action must have no production route or action entry.
+  ...(isDev && { pageExtensions: ["dev.tsx", "tsx", "ts", "jsx", "js"] }),
+  ...(isDev && phoneHost && { allowedDevOrigins: [phoneHost] }),
   // Next 16 development logs include Server Function arguments by default.
   // Sign-in arguments contain single-use CAPTCHA tokens and email addresses.
   logging: { serverFunctions: false },
@@ -108,6 +114,9 @@ const nextConfig: NextConfig = {
       // input; the default 1 MB rejected valid large drafts (final review I-2).
       bodySizeLimit: "4mb",
     },
+  },
+  async redirects() {
+    return [...RETIRED_MANAGE_REDIRECTS]
   },
   async headers() {
     return [

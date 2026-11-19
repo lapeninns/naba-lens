@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CameraIcon } from "@phosphor-icons/react/dist/ssr"
+import { ArrowUUpLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { Notice } from "@/components/nabalens/notice"
 import { ProfileAvatar } from "@/components/nabalens/profile-avatar"
@@ -86,7 +86,9 @@ export function ReplacementNote({
         {/* A 12rem basis wraps the chip under the name on phones instead of
             squeezing the name into a one-word column. */}
         <div className="grid min-w-0 flex-[1_1_12rem] leading-snug">
-          <p className="font-bold [overflow-wrap:anywhere] text-ink">{name}</p>
+          <p className="font-semibold [overflow-wrap:anywhere] text-ink">
+            {name}
+          </p>
           {decision ? (
             <p className="text-meta text-ink-muted">
               Asked for another photo · {formatDate(decision.decidedAt)}
@@ -107,7 +109,7 @@ export function ReplacementNote({
         </p>
       </div>
       <div className="grid gap-1.5 rounded-control bg-warn-bg p-3 rail-start-warn">
-        <p className="text-lead font-bold text-ink">
+        <p className="text-lead font-semibold text-ink">
           <span className="sr-only">Reason: </span>
           <span className="break-words whitespace-pre-line">{reason}</span>
         </p>
@@ -121,7 +123,7 @@ export function ReplacementNote({
         </p>
       ) : null}
       {closed ? null : (
-        <p className="text-body font-bold text-ink">
+        <p className="text-body font-semibold text-ink">
           The photos you send now replace this one.
         </p>
       )}
@@ -278,7 +280,7 @@ export function NeedsAnotherPhotoList({
                       className: "w-full sm:w-auto sm:justify-self-start",
                     })}
                   >
-                    <CameraIcon data-icon="inline-start" aria-hidden />
+                    <ArrowUUpLeftIcon data-icon="inline-start" aria-hidden />
                     Send another photo
                   </Link>
                 ) : null}

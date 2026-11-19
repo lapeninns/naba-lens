@@ -307,13 +307,13 @@ export function SearchResults({
       </ul>
       <div className="flex flex-col items-center gap-2 py-2">
         {more === "failed" ? (
-          <p className="text-body font-bold text-warn-fg">
+          <p className="text-body font-semibold text-warn-fg">
             {SEARCH_COPY.moreFailed}
           </p>
         ) : null}
         {more === "expired" ? (
           <>
-            <p className="text-body font-bold text-warn-fg">
+            <p className="text-body font-semibold text-warn-fg">
               {SEARCH_COPY.expired}
             </p>
             <Button
@@ -328,7 +328,7 @@ export function SearchResults({
           </>
         ) : more === "signed_out" ? (
           <>
-            <p className="text-body font-bold text-warn-fg">
+            <p className="text-body font-semibold text-warn-fg">
               {SEARCH_COPY.signedOut}
             </p>
             <Link

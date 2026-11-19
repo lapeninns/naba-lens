@@ -4,6 +4,8 @@
 // and Client Components.
 
 import { plural } from "@/components/nabalens/coverage/copy"
+import { INBOX_COPY } from "@/components/nabalens/manager/review/inbox-copy"
+import { CHIP_STATES } from "@/components/nabalens/status-chip"
 
 import { dayLabel } from "@/lib/server/coverage/time"
 import type { ItemPhotoState, NeededBy } from "@/lib/server/coverage/types"
@@ -21,10 +23,11 @@ export const OUR_MENU_COPY = {
   needsVenue: "You need to be assigned to a venue first",
   needsVenueText:
     "An admin can add you to your venue. Then its menu appears here.",
-  /** Primary: opens the camera with the dish applied as a label. */
-  takePhoto: "Take a photo of this dish",
-  /** Secondary: the photo library, the dish applied the same way. */
-  choosePhoto: "Choose from photos",
+  /**
+   * Opens the phone's photos with the dish applied as a label (gallery
+   * first, DESIGN.md §2; there is no in-app camera, §9).
+   */
+  addPhotos: "Add photos of this dish",
   gaps: "Still needs a photo",
   allDishes: "All dishes",
   allSections: "All sections",
@@ -51,15 +54,16 @@ export const OUR_MENU_COPY = {
 export const ITEM_REVIEW_COPY = {
   title: "Our menu",
   summary:
-    "Labelled photos waiting for a decision, oldest first. Accepting a photo for a dish counts it for Our menu; it's already shared in Photos either way.",
+    "Labelled photos waiting for a decision, oldest first. Accepting a photo for a dish counts it for Our menu and shares it with colleagues in Photos.",
   labellingNote:
-    "Only photos labelled with a dish appear here. Unlabelled photos need labelling by their uploader first; managers can't label a colleague's photo.",
+    "Only photos labelled with a dish appear here. Unlabelled photos need labelling by whoever added them first; managers can't label a colleague's photo.",
   toReview: "To review",
   allDishes: "All dishes",
   emptyQueue:
     "Nothing to review. Labelled photos appear here once they're ready.",
   emptyItem: "No labelled photos of this dish yet.",
-  accept: "Accept for this dish",
+  // S3-R13: the manager review words (INBOX_COPY.publicUse, status-chip.tsx).
+  accept: INBOX_COPY.publicUse.action,
   makePrimaryOnAccept: "Use as the dish's main photo",
   /** A reviewer's "needs another photo" decision (v0.5 §2 Retake note). */
   askBetter: "Ask for another photo",
@@ -70,9 +74,9 @@ export const ITEM_REVIEW_COPY = {
   makePrimary: "Make main photo",
   primary: "Main photo",
   accepted: "Accepted for menu use",
-  betterRequested: "Needs another photo",
+  betterRequested: CHIP_STATES.coverage_replacement_needed.word,
   recheck: "Check after a menu change",
-  waiting: "Waiting for a decision",
+  waiting: CHIP_STATES.coverage_pending.word,
   variantRemoved:
     "This option is no longer on the menu, so the photo can't be accepted for it again. Undo the acceptance to clear the check.",
   variantGone: "No longer on the menu",

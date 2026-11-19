@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto"
 import { expect } from "@playwright/test"
 
 import { signIn } from "../../support/identities"
+import { convertToManager } from "./manager-world"
 import {
-  legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
   type CoverageWorld,
@@ -13,8 +13,12 @@ import { activateMenu, createMenuDraft, ok } from "./menus"
 import { provisioner, psql } from "./stack"
 
 /**
- * A coverage world whose manager holds a (legacy, staff-held) venue grant and has prepared the
- * month, so coverage, team, checklist and task pages carry real chips; plus a
+ * A coverage world whose manager is a venue manager ACCOUNT (converted by the
+ * admin, so it holds an effective grant and uses /manager, decision D3) and has
+ * a prepared month. The admin, who may manage every venue, prepares the
+ * month and saves the staff task before the manager is converted: a manager
+ * account makes no legacy coverage writes (`deny_manager_coverage_writes`).
+ * So coverage, team, checklist and task pages carry real chips; plus a
  * staff task, an active menu and a draft for the editor.
  */
 export type ManagedWorld = {
@@ -31,9 +35,7 @@ export async function provisionManagedWorld(
   await seedImages(world.staffA, world.venue1, 3, { prefix: `${label}-a` })
   await seedImages(world.staffB, world.venue1, 2, { prefix: `${label}-b` })
 
-  const service = provisioner()
-  const adminDb = await signIn(service, world.admin.email)
-  const managerDb = await signIn(service, world.manager.email)
+  const adminDb = await signIn(provisioner(), world.admin.email)
   await activateMenu(
     adminDb,
     await createMenuDraft(adminDb, world.venue1.id, `${label} menu`)
@@ -43,9 +45,8 @@ export async function provisionManagedWorld(
     world.venue1.id,
     `${label} menu draft`
   )
-  await legacyStaffGrant(world.admin, world.manager, world.venue1)
   await ok(
-    managerDb.rpc("prepare_coverage_month", { p_venue_id: world.venue1.id })
+    adminDb.rpc("prepare_coverage_month", { p_venue_id: world.venue1.id })
   )
   const checklistItemId = psql(
     `select id from public.coverage_requirements where venue_id = '${world.venue1.id}'::uuid and status = 'needs_setup' order by title limit 1`
@@ -54,7 +55,7 @@ export async function provisionManagedWorld(
     /^[0-9a-f-]{36}$/
   )
   const [task] = await ok(
-    managerDb.rpc("save_coverage_requirement", {
+    adminDb.rpc("save_coverage_requirement", {
       p_venue_id: world.venue1.id,
       p_requirement_id: null as never,
       p_expected_revision: null as never,
@@ -68,32 +69,38 @@ export async function provisionManagedWorld(
   )
   const taskId = (task as { requirement_id: string }).requirement_id
   await ok(
-    managerDb.rpc("set_coverage_requirement_assignees", {
+    adminDb.rpc("set_coverage_requirement_assignees", {
       p_requirement_id: taskId,
       p_staff_ids: [world.staffA.id],
     })
   )
+  await convertToManager(adminDb, world.manager, world.venue1)
   return { world, checklistItemId, taskId, draftId }
 }
 
 export const staffPages = (m: ManagedWorld) => [
-  "/staff/tasks",
+  "/staff/home",
+  "/staff/album",
+  "/staff/album/menu",
+  "/staff/photos",
+  "/staff/me",
+  "/staff/me/settings",
   `/staff/tasks/${m.taskId}`,
   "/staff/tasks/month",
   "/staff/tasks/guide",
-  "/staff",
   "/staff/community",
   "/staff/people",
   `/staff/people/${m.world.staffB.id}`,
 ]
 
-export const managerPages = (m: ManagedWorld) => [
-  "/staff/manage",
-  "/staff/manage/team",
-  "/staff/manage/checklist",
-  `/staff/manage/checklist/${m.checklistItemId}`,
-  "/staff/manage/review",
-  "/staff/manage/menu",
+/** The venue manager workspace (/manager, decision D3). */
+export const managerPages = () => [
+  "/manager",
+  "/manager/team",
+  "/manager/review",
+  "/manager/menu",
+  "/manager/requests",
+  "/manager/album",
 ]
 
 export const adminPages = (m: ManagedWorld) => [

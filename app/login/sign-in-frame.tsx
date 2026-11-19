@@ -5,18 +5,18 @@ import { cn } from "@/lib/utils"
  * "use client": server pages render these, and the confirm page builds its form
  * from the class names directly.
  *
- * Common Room: the wordmark sits on the grey canvas (left on phones, centred
- * from md) and each step is one white card holding the screen's one blue
- * button.
+ * v2 (D10): the "Naba-Lens" wordmark in display sits on paper (left on
+ * phones, centred from md) and is the screen's one display style; each step
+ * is one flat surface card with a line outline, its heading in title type,
+ * holding the screen's one primary (bottle) button.
  */
 
-/** One white card on the grey canvas: 12px radius, 16px padding, soft shadow. */
+/** One surface card on paper: 12px radius, 16px padding, line outline. */
 export const SIGN_IN_CARD =
   "grid w-full min-w-0 gap-5 rounded-card bg-surface p-4 text-ink shadow-card md:p-6"
-export const SIGN_IN_TITLE =
-  "type-page-title text-balance text-ink outline-none"
+export const SIGN_IN_TITLE = "type-title text-balance text-ink outline-none"
 export const SIGN_IN_TEXT =
-  "text-body text-pretty text-ink-muted [&_strong]:font-bold [&_strong]:[overflow-wrap:anywhere] [&_strong]:text-ink"
+  "text-body text-pretty text-ink-muted [&_strong]:font-semibold [&_strong]:[overflow-wrap:anywhere] [&_strong]:text-ink"
 
 export function SignInPage({ children }: { children: React.ReactNode }) {
   return (

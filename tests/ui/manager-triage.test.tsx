@@ -27,10 +27,7 @@ import {
   ReviewKindFilter,
 } from "@/components/nabalens/manager/review/triage-views"
 import type { ToConfirmRow } from "@/lib/knowledge-client/contract"
-import type {
-  ManagerOverview,
-  QueueCard,
-} from "@/lib/server/menu-photos/types"
+import type { ManagerOverview, QueueCard } from "@/lib/server/menu-photos/types"
 import type { TriageRow } from "@/lib/work-client/contract"
 import { mergeByWaiting } from "@/lib/work-client/triage"
 
@@ -164,9 +161,7 @@ describe("manager Overview with triage on", () => {
         triage={<TriageCard rows={ROWS} hrefs={HREFS} />}
       />
     )
-    expect(
-      screen.getByRole("region", { name: TRIAGE_COPY.title })
-    ).toBeTruthy()
+    expect(screen.getByRole("region", { name: TRIAGE_COPY.title })).toBeTruthy()
     expect(container.querySelector('[data-tally="confirm"]')).toBeNull()
     expect(container.querySelector('[data-tally="own"]')).toBeNull()
     expect(
@@ -200,9 +195,9 @@ describe("venue tools To confirm badge (F7)", () => {
     render(
       <ManageNav basePath="/staff/manage" active="overview" confirmCount={0} />
     )
-    expect(screen.getByRole("link", { name: /Amenities/ }).textContent).not.toContain(
-      TO_CONFIRM_COPY.badge(0)
-    )
+    expect(
+      screen.getByRole("link", { name: /Amenities/ }).textContent
+    ).not.toContain(TO_CONFIRM_COPY.badge(0))
   })
 })
 
@@ -320,9 +315,9 @@ describe("Review: All", () => {
       false
     )
     render(<AllView entries={merged.entries} heldBack={merged.heldBack} />)
-    const items = within(screen.getByRole("list", { name: "All" })).getAllByRole(
-      "listitem"
-    )
+    const items = within(
+      screen.getByRole("list", { name: "All" })
+    ).getAllByRole("listitem")
     expect(items.map((i) => i.getAttribute("data-entry"))).toEqual([
       "photo",
       "finding",

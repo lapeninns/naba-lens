@@ -1881,7 +1881,11 @@ export function CaptureForm({
   const missing = missingEvidenceText(rule, kinds)
   const canUpload = upload !== null
   const yesRefused =
-    uploadRefused && !canUpload && assets.length === 0 && !listError
+    rule !== "none" &&
+    uploadRefused &&
+    !canUpload &&
+    assets.length === 0 &&
+    !listError
       ? yesRefusedLine(rule)
       : null
   const today = londonToday()
@@ -2313,6 +2317,8 @@ export function CaptureForm({
               // Submit is the screen's only primary (CA-23).
               libraryVariant="secondary"
               disabled={locked}
+              // Gallery first: no in-app camera (DESIGN.md §2, §9).
+              cameraHidden
               onChoose={choose}
             />
             <p className={MUTED}>

@@ -1,5 +1,12 @@
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import {
+  EXTRA_PARAMS,
+  NO_EXTRA_FILTERS,
+  type ExtraParam,
+  parseExtraFilters,
+  type LibraryExtraFilters,
+} from "@/lib/library/model"
+import {
   EMPTY_LABEL_SUMMARY,
   isContentType,
   type LibraryLabelFilters,
@@ -50,11 +57,15 @@ export function decodeCursor(
 }
 
 /**
- * Every admin library filter: the v0.2 venue/staff/type plus the v0.3 label
- * filters. `listLibrary` also accepts the plain `LibraryFilters`, so callers
- * that only filter by staff (the admin portfolio) stay unchanged.
+ * Every admin library filter: the v0.2 venue/staff/type, the v0.3 label
+ * filters and the A4 filters (S2-LIBRARY: withdrawn, review state, capture
+ * dates, orientation, request, collection, destination, tag). `listLibrary`
+ * also accepts the plain `LibraryFilters`, so callers that only filter by
+ * staff (the admin portfolio) stay unchanged.
  */
-export type AdminLibraryFilters = LibraryFilters & LibraryLabelFilters
+export type AdminLibraryFilters = LibraryFilters &
+  LibraryLabelFilters &
+  Partial<LibraryExtraFilters>
 
 /** The URL search params of /admin and /api/library, in canonical order. */
 export const LIBRARY_PARAMS = [
@@ -123,7 +134,7 @@ function searchText(value: unknown): string | null {
  */
 export function parseLibraryFilters(
   input: Partial<Record<LibraryParam, unknown>>
-): AdminLibraryFilters {
+): LibraryFilters & LibraryLabelFilters {
   const one = (v: unknown) => (Array.isArray(v) ? v[0] : v)
   const uuid = (v: unknown) => {
     const value = one(v)
@@ -157,6 +168,19 @@ export function parseLibraryFilters(
     to,
   }
 }
+
+/**
+ * parseLibraryFilters plus the A4 filters (S2-LIBRARY), for /admin and
+ * /api/library. Same rules: never throws, an invalid value is ignored.
+ */
+export function parseAdminLibraryFilters(
+  input: Partial<Record<LibraryParam | ExtraParam, unknown>>
+): AdminLibraryFilters & LibraryExtraFilters {
+  return { ...parseLibraryFilters(input), ...parseExtraFilters(input) }
+}
+
+/** Every URL param /admin and /api/library read, in canonical order. */
+export const ADMIN_LIBRARY_PARAMS = [...LIBRARY_PARAMS, ...EXTRA_PARAMS]
 
 const LONDON = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/London",
@@ -341,10 +365,14 @@ function base(db: Db) {
   return db.from("media_assets").select(SELECT).is("deleted_at", null)
 }
 
-/** The staff member's own portfolio: every technical state, newest first. */
+/**
+ * The staff member's own portfolio: every technical state, newest first.
+ * `venueId` keeps only the photos uploaded to that venue (Match later, V9).
+ */
 export function listOwnMedia(
   actor: MediaActor,
-  cursor?: string | null
+  cursor?: string | null,
+  { venueId }: { venueId?: string } = {}
 ): Promise<Outcome<MediaPage>> {
   if (actor.profile.role !== "staff") {
     return Promise.resolve({ ok: false, status: 403, message: "Staff only." })
@@ -353,6 +381,7 @@ export function listOwnMedia(
     actor,
     (after, limit) => {
       let query = base(actor.db).eq("uploader_id", actor.profile.id)
+      if (venueId) query = query.eq("venue_id", venueId)
       if (after) {
         query = query.or(
           `created_at.lt."${after.createdAt}",and(created_at.eq."${after.createdAt}",id.lt.${after.id})`
@@ -419,14 +448,17 @@ export function hasLabelPredicates(filters: Partial<LibraryLabelFilters>) {
  */
 export function listLibrary(
   actor: MediaActor,
-  filters: LibraryFilters & Partial<LibraryLabelFilters>,
+  filters: LibraryFilters &
+    Partial<LibraryLabelFilters> &
+    Partial<LibraryExtraFilters>,
   cursor?: string | null
 ): Promise<Outcome<MediaPage>> {
   if (actor.profile.role !== "admin") {
     return Promise.resolve({ ok: false, status: 403, message: "Admin only." })
   }
-  const label = { ...NO_LABEL_FILTERS, ...filters }
+  const label = { ...NO_LABEL_FILTERS, ...NO_EXTRA_FILTERS, ...filters }
   const range = londonDayRange(label.from, label.to)
+  const shot = londonDayRange(label.capturedFrom, label.capturedTo)
   return page(
     actor,
     (after, limit) =>
@@ -443,6 +475,22 @@ export function listLibrary(
           ...(label.contentType ? { p_content_type: label.contentType } : {}),
           ...(label.labelState ? { p_label_state: label.labelState } : {}),
           ...(label.query ? { p_query: label.query } : {}),
+          // A4 filters (S2-LIBRARY). Withdrawn records are left out by default.
+          ...(label.withdrawn !== "active"
+            ? { p_withdrawn: label.withdrawn }
+            : {}),
+          ...(label.review ? { p_review: label.review } : {}),
+          ...(shot.start ? { p_captured_from: shot.start } : {}),
+          ...(shot.end ? { p_captured_to: shot.end } : {}),
+          ...(label.orientation ? { p_orientation: label.orientation } : {}),
+          ...(label.requestId ? { p_request: label.requestId } : {}),
+          ...(label.collectionId ? { p_collection: label.collectionId } : {}),
+          ...(label.destinationId
+            ? { p_destination: label.destinationId }
+            : {}),
+          ...(label.tagId ? { p_tag: label.tagId } : {}),
+          // S5-IMPORT (FA-54): one legacy import batch.
+          ...(label.importId ? { p_import: label.importId } : {}),
           ...(after
             ? { p_after_created_at: after.createdAt, p_after_id: after.id }
             : {}),

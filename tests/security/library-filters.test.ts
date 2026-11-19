@@ -299,6 +299,11 @@ beforeAll(async () => {
     a[key] = await labelled(staffA, { types: ["team"] })
   }
   // Around the end of BST on Sunday 2026-10-25 (London days in comments).
+  // K1 (S3-R1): an upload with no label saved is unlabelled for admins only
+  // once it is 7 days old; before that it stays with its person (FA-4).
+  const eightDaysAgo = new Date(Date.now() - 8 * 86_400_000).toISOString()
+  setCreatedAt(a.a5, eightDaysAgo)
+  setCreatedAt(a.a6, eightDaysAgo)
   setCreatedAt(a.d1, "2026-10-24T22:59:59.999Z") // 24th 23:59:59.999 BST
   setCreatedAt(a.d2, "2026-10-24T23:00:00.000Z") // 25th 00:00 BST
   setCreatedAt(a.d3, "2026-10-25T23:59:59.999Z") // 25th 23:59:59.999 GMT

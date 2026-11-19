@@ -14,7 +14,11 @@
 // (role 'manager') reads nothing from the community functions or the
 // /api/media colleague path at all (20261107100200_manager_staff_denials.sql),
 // so amenity evidence stays out of community for it too; the staff account
-// with a pre-existing grant (transitional rule) reads like a colleague. Real
+// with a pre-existing grant (transitional rule) reads like a colleague, and
+// as the venue's manager also sees its unreviewed media. Since S1-PRIVACY
+// (FA-20) a colleague reads only accepted media at their own venue, so the
+// shared assets below are accepted first and a colleague at another venue
+// reads none of them. Real
 // signed-in identities; the service role only builds fixtures and reads state
 // back.
 import { randomUUID } from "node:crypto"
@@ -38,6 +42,7 @@ import {
   makeManager,
   ok,
 } from "./coverage-fixtures"
+import { acceptAsset } from "./privacy-fixtures"
 
 const service = serviceClient()
 
@@ -255,6 +260,10 @@ beforeAll(async () => {
   if (count !== 2) throw new Error("legacy evidence was not attached")
 
   // An amenity-purpose photo that is also a Coverage submission item.
+  // FA-20: colleagues see these only once accepted.
+  acceptAsset(general, admin.id)
+  acceptAsset(legacyItem, admin.id)
+
   amenityInCoverage = await readyAsset(amenityCoverageAuthor, "amenity")
   const { data: inCoverage, error: inCoverageError } = await service
     .from("media_assets")
@@ -371,10 +380,14 @@ describe("media_assets.purpose", () => {
 describe("community reads", () => {
   const all = () => [amenitySubmitted, amenityLoose, generalSubmitted, general]
 
-  it("community_readable_assets: colleagues at the same and another venue get only the general asset", async () => {
-    for (const who of [sameVenue, otherVenue, legacyManager]) {
+  it("community_readable_assets: colleagues at the same venue get only the general asset", async () => {
+    for (const who of [sameVenue, legacyManager]) {
       expect(await readable(who, all())).toEqual([general])
     }
+  })
+
+  it("community_readable_assets: colleagues at another venue get nothing (FA-20)", async () => {
+    expect(await readable(otherVenue, all())).toEqual([])
   })
 
   it("community_readable_assets: the uploader and admins still get every asset", async () => {
@@ -384,9 +397,10 @@ describe("community reads", () => {
   })
 
   it("community_media_page leaves amenity evidence out of the feed for everyone", async () => {
-    for (const who of [sameVenue, otherVenue, uploader, admin]) {
+    for (const who of [sameVenue, uploader, admin]) {
       expect(await feed(who)).toEqual([general])
     }
+    expect(await feed(otherVenue)).toEqual([])
   })
 
   it("community_readable_assets: a general own upload is hidden once attached to a submission", async () => {
@@ -414,14 +428,17 @@ describe("community reads", () => {
   })
 
   it("community_members counts only community-visible media", async () => {
-    for (const who of [sameVenue, otherVenue]) {
+    for (const [who, count] of [
+      [sameVenue, 1],
+      [otherVenue, 0],
+    ] as const) {
       const [member] = await ok(
         who.client.rpc("community_members", {
           p_member: uploader.id,
           p_limit: 1,
         })
       )
-      expect(Number(member!.media_count)).toBe(1)
+      expect(Number(member!.media_count)).toBe(count)
     }
   })
 })
@@ -429,14 +446,15 @@ describe("community reads", () => {
 describe("legacy Coverage media attached as amenity evidence", () => {
   const legacy = () => [legacyFact, legacyItem].sort()
 
-  it("community_readable_assets: still readable by same-org colleagues, as before", async () => {
-    for (const who of [sameVenue, otherVenue, legacyManager, uploader]) {
+  it("community_readable_assets: still readable by colleagues at the venue once accepted", async () => {
+    for (const who of [sameVenue, legacyManager, uploader]) {
       expect(await readable(who, legacy())).toEqual(legacy())
     }
+    expect(await readable(otherVenue, legacy())).toEqual([])
   })
 
   it("stays in the community feed and the author's media count", async () => {
-    for (const who of [sameVenue, otherVenue]) {
+    for (const who of [sameVenue]) {
       const page = (
         await ok(
           who.client.rpc("community_media_page", {
@@ -456,25 +474,23 @@ describe("legacy Coverage media attached as amenity evidence", () => {
     }
   })
 
-  it("is served by the /api/media gate to colleagues", async () => {
-    for (const who of [sameVenue, otherVenue]) {
-      for (const id of legacy()) expect(await mediaGate(who, id)).toBe(200)
+  it("is served by the /api/media gate to colleagues at the venue", async () => {
+    for (const id of legacy()) {
+      expect(await mediaGate(sameVenue, id)).toBe(200)
+      expect(await mediaGate(otherVenue, id)).toBe(404)
     }
   })
 })
 
 describe("amenity-purpose photo used as Coverage media", () => {
-  it("community_readable_assets: stays readable to the transitional staff manager and colleagues", async () => {
-    for (const who of [
-      legacyManager,
-      sameVenue,
-      admin,
-      amenityCoverageAuthor,
-    ]) {
+  it("community_readable_assets: stays readable to the transitional staff manager, not to colleagues before review", async () => {
+    for (const who of [legacyManager, admin, amenityCoverageAuthor]) {
       expect(await readable(who, [amenityInCoverage])).toEqual([
         amenityInCoverage,
       ])
     }
+    // FA-20: a waiting Coverage send is not a colleague's to see.
+    expect(await readable(sameVenue, [amenityInCoverage])).toEqual([])
   })
 
   it("is served by the /api/media gate to the transitional staff manager", async () => {
@@ -520,8 +536,9 @@ describe("/api/media/[id]/* gate (getReadableAsset)", () => {
       for (const id of [amenitySubmitted, amenityLoose, generalSubmitted]) {
         expect(await mediaGate(who, id)).toBe(404)
       }
-      expect(await mediaGate(who, general)).toBe(200)
     }
+    expect(await mediaGate(sameVenue, general)).toBe(200)
+    expect(await mediaGate(otherVenue, general)).toBe(404)
   })
 
   it("still serves the uploader and admins", async () => {

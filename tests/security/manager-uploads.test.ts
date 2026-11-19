@@ -39,6 +39,7 @@ import {
   section,
   type CatalogueRow,
 } from "./menus-fixtures"
+import { acceptAsset } from "./privacy-fixtures"
 
 type Reserved = {
   id: string
@@ -195,7 +196,7 @@ describe("uploads (W3)", () => {
     expect(stray.error).not.toBeNull()
   })
 
-  it("leaves staff, staff with a grant and admins as they were", async () => {
+  it("leaves staff and staff with a grant as they were; an admin names the venue", async () => {
     for (const who of [w.staffA, w.staffManager]) {
       const r = await reserveAs(who)
       expect(r.venue_id).toBe(w.venue)
@@ -211,8 +212,10 @@ describe("uploads (W3)", () => {
         p_size_bytes: 4,
         p_client_upload_key: randomUUID(),
       },
-      "not_active_staff",
-      "42501"
+      // S2-INT (spec §3.3): an admin may upload to any active venue, but
+      // must name it; with none named nothing is reserved.
+      "venue_required",
+      "22023"
     )
   })
 
@@ -765,6 +768,11 @@ describe("visibility", () => {
     const v = await world("mgr-upload-convert")
     const mine = await readyUpload(v.manager)
     const colleague = await readyUpload(v.staffB)
+    // FA-20: a colleague's photo reads once accepted. The manager-era upload
+    // is accepted too, so only the M1 rule (uploader_role) keeps it out
+    // (S2-FIX R27: 20261118107000 had dropped it).
+    acceptAsset(colleague, v.admin.id)
+    acceptAsset(mine, v.admin.id)
     await ok(
       v.admin.client.rpc("convert_manager_to_staff", {
         p_profile_id: v.manager.id,

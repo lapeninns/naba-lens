@@ -4,12 +4,15 @@ import { notFound } from "next/navigation"
 
 import { ThemeSetting } from "@/components/nabalens/theme-setting"
 
+import { AlbumBlock } from "./blocks/album"
 import { ButtonBlock } from "./blocks/button"
+import { ManagerVenueBlock } from "./blocks/manager-venue"
 import { ChoiceBlock } from "./blocks/choice"
 import { ComboboxBlock } from "./blocks/combobox"
 import { DisplayBlock } from "./blocks/display"
 import { FieldsBlock } from "./blocks/fields"
 import { FoundationsBlock } from "./blocks/foundations"
+import { MetricsBlock } from "./blocks/metrics"
 import { OtherBlock } from "./blocks/other"
 import { OverlaysBlock } from "./blocks/overlays"
 import { PatternsBlock } from "./blocks/patterns"
@@ -24,6 +27,8 @@ export const metadata: Metadata = {
 }
 
 const BLOCKS: Record<GallerySectionId, React.ComponentType> = {
+  album: AlbumBlock,
+  manager: ManagerVenueBlock,
   foundations: FoundationsBlock,
   button: ButtonBlock,
   fields: FieldsBlock,
@@ -35,6 +40,7 @@ const BLOCKS: Record<GallerySectionId, React.ComponentType> = {
   other: OtherBlock,
   patterns: PatternsBlock,
   states: StatesBlock,
+  metrics: MetricsBlock,
 }
 
 /**

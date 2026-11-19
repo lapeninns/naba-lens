@@ -29,7 +29,7 @@ type PostProps = Omit<React.ComponentProps<"article">, "title"> & {
 }
 
 /**
- * A colleague's photo as a post (DESIGN.md §4): avatar, name, venue and time,
+ * A colleague's photo as a post (common-room.md §4): avatar, name, venue and time,
  * the photo edge to edge, then what it shows (children), its state chip.
  * No likes, comments, reactions or counts. Presentational only.
  */

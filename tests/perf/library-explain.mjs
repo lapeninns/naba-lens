@@ -29,7 +29,7 @@ const { dbUrl } = requireWorkstreamStack()
 const t = pickTargets(dbUrl)
 const q = (s) => `'${String(s).replace(/'/g, "''")}'`
 const claims = (id) =>
-  `{"sub":"${id}","role":"authenticated","aud":"authenticated"}`
+  `{"sub":"${id}","role":"authenticated","aud":"authenticated","aal":"aal2"}`
 
 const SIGNATURE =
   "public.library_page(uuid,uuid,public.media_type,timestamptz,timestamptz,uuid,uuid,text,text,text,text,timestamptz,uuid,integer,integer)"

@@ -5,7 +5,7 @@ import * as React from "react"
 import Link from "next/link"
 import {
   ArrowCounterClockwiseIcon,
-  CameraRotateIcon,
+  ArrowUUpLeftIcon,
   CheckIcon,
   StarIcon,
 } from "@phosphor-icons/react"
@@ -45,6 +45,8 @@ import type {
   ReviewedItemPhoto,
   WithdrawnItemPhoto,
 } from "@/lib/server/coverage/types"
+
+import { INBOX_COPY } from "@/components/nabalens/manager/review/inbox-copy"
 
 import { ITEM_PHOTO_STATE_LABEL, ITEM_REVIEW_COPY, waitingFor } from "./copy"
 
@@ -284,7 +286,7 @@ export function ItemPhotoReview({
               ? { ...c, photo: { ...c.photo, isPrimary: false } }
               : c
         )
-        return `Accepted for ${candidate.item.name}.${photo.isPrimary ? " It's the main photo." : ""}${photo.selfReview ? " Recorded as a self-review." : ""}`
+        return `${INBOX_COPY.publicUse.doneShort(candidate.item.name)}${photo.isPrimary ? " It's the main photo." : ""}${photo.selfReview ? " Recorded as a self-review." : ""}`
       }
     )
   }
@@ -560,7 +562,7 @@ export function ItemPhotoReview({
           dialog?.kind === "undo" ? (
             <ArrowCounterClockwiseIcon data-icon="inline-start" aria-hidden />
           ) : (
-            <CameraRotateIcon data-icon="inline-start" aria-hidden />
+            <ArrowUUpLeftIcon data-icon="inline-start" aria-hidden />
           )
         }
         destructive={dialog?.kind === "undo"}
@@ -587,7 +589,7 @@ export function ItemPhotoReview({
               </strong>
               <br />
               <span className="text-ink-muted">
-                {subject.self ? "You" : subject.uploader.displayName} · uploaded{" "}
+                {subject.self ? "You" : subject.uploader.displayName} · added{" "}
                 {formatDateTime(subject.uploadedAt)}
               </span>
             </p>
@@ -686,7 +688,7 @@ function CandidateCard({
             </dd>
           </div>
           <div className="flex flex-wrap gap-x-2">
-            <dt className="text-ink-muted">Uploaded at</dt>
+            <dt className="text-ink-muted">Added at</dt>
             <dd className="font-bold [overflow-wrap:anywhere] text-ink">
               {venueName}
             </dd>
@@ -705,7 +707,7 @@ function CandidateCard({
               ) : null}
             </span>
             <span className="text-meta text-ink-muted tabular-nums">
-              Uploaded {formatDateTime(candidate.uploadedAt)}
+              Added {formatDateTime(candidate.uploadedAt)}
               {waited ? ` · waiting ${waited}` : null}
             </span>
           </span>
@@ -788,7 +790,7 @@ function CandidateActions({
         ) : null}
         {askable ? (
           <Button variant="secondary" disabled={busy} onClick={onAskBetter}>
-            <CameraRotateIcon data-icon="inline-start" aria-hidden />
+            <ArrowUUpLeftIcon data-icon="inline-start" aria-hidden />
             {ITEM_REVIEW_COPY.askBetter}
           </Button>
         ) : null}

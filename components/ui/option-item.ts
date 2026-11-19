@@ -1,6 +1,6 @@
 /*
  * Keyboard focus on an option in a popup list (menu item, select option):
- * the project's focus outline (DESIGN.md §7), inset because the popup
+ * the project's focus outline (common-room.md §7), inset because the popup
  * scrolls and so clips anything drawn outside an item. The focus tint alone
  * is about 1.2:1 against the popup, below WCAG 1.4.11's 3:1.
  */

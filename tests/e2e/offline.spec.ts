@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { STAFF_LANDING } from "./helpers/ui"
+import { ADMIN_LANDING, STAFF_LANDING } from "./helpers/ui"
 import { provisionWorld, signedInPage, type World } from "./helpers/world"
 
 /**
@@ -24,7 +24,8 @@ test.beforeAll(async ({ browser }) => {
   staff = await signedInPage(browser, world.staffA)
   await expect(staff).toHaveURL(STAFF_LANDING)
   admin = await signedInPage(browser, world.adminA)
-  await expect(admin).toHaveURL(/\/admin$/)
+  await expect(admin).toHaveURL(ADMIN_LANDING)
+  await admin.goto("/admin")
 })
 
 test.afterAll(async () => {
@@ -104,10 +105,11 @@ async function offlineRoundTrip(
   await expect(offlineAlerts(page)).toHaveCount(0)
 }
 
+// Settings (DESIGN.md §5b) holds Edit profile, the staff page's own dialog.
 test("staff list page: the shell shows the offline notice", async () => {
   await offlineRoundTrip(
     staff,
-    "/staff",
+    "/staff/me/settings",
     /./,
     "shell",
     dialogAnswers("Edit profile")
@@ -118,11 +120,11 @@ test("admin list page: the shell shows the offline notice", async () => {
   await offlineRoundTrip(admin, "/admin", /./, "shell", moreFiltersAnswers)
 })
 
-test("admin Staff keeps its own notice and shows exactly one", async () => {
+test("admin People keeps its own notice and shows exactly one", async () => {
   await offlineRoundTrip(
     admin,
     "/admin/staff",
-    /^Staff$/,
+    /^People$/,
     "page",
     dialogAnswers("Invite staff")
   )

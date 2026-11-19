@@ -1,7 +1,10 @@
 "use server"
 
 import { getMediaActor } from "@/lib/server/media/context"
-import { listLibrary, parseLibraryFilters } from "@/lib/server/media/library"
+import {
+  listLibrary,
+  parseAdminLibraryFilters,
+} from "@/lib/server/media/library"
 import type { MediaPage } from "@/lib/server/media/types"
 
 import type { LibrarySearchParams } from "./library-search"
@@ -14,7 +17,7 @@ export type LibraryPageResult =
  * /admin: `venue`, `staff`, `type`, `item`, `variant`, `category`, `content`,
  * `labels`, `q`, `from`, `to`). Without a cursor it returns a fresh first
  * page. The admin portfolio (/admin/staff/[id]) calls it with `{ staff: id }`.
- * Untrusted input: invalid values are ignored by parseLibraryFilters.
+ * Untrusted input: invalid values are ignored by parseAdminLibraryFilters.
  */
 export async function loadLibraryPage(
   filters: LibrarySearchParams,
@@ -24,7 +27,7 @@ export async function loadLibraryPage(
   if (!auth.ok) return { ok: false, message: auth.message }
   const result = await listLibrary(
     auth.actor,
-    parseLibraryFilters(
+    parseAdminLibraryFilters(
       typeof filters === "object" && filters !== null ? filters : {}
     ),
     cursor

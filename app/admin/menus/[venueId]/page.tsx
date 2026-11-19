@@ -18,6 +18,14 @@ import {
 } from "@/components/nabalens"
 import { ErrorState, ERROR_COPY } from "@/components/nabalens/error-state"
 import { PageHeader } from "@/components/nabalens/page-header"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import type { MenuVersionSummary } from "@/lib/menus/types"
 import { requireActiveAdmin } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
@@ -26,8 +34,16 @@ import {
   getVenueMenuOverview,
   listMenuVenues,
 } from "@/lib/server/menus"
+import {
+  getPackaging,
+  listChangeRequests,
+  type PackagingItem,
+} from "@/lib/server/menus/local"
+import { PackagingControl } from "@/components/nabalens/manager/menu/packaging-control"
 import { cn } from "@/lib/utils"
 
+import { setPackagingAction } from "../actions"
+import { ChangeRequestsPanel } from "../change-requests"
 import { RetryButton } from "../retry-button"
 import { itemOptions } from "../review"
 import {
@@ -51,7 +67,9 @@ function versionWhen(v: MenuVersionSummary): string {
     case "discarded":
       return `Discarded ${formatDate(v.updatedAt)}`
     default:
-      return `Saved ${formatDateTime(v.updatedAt)}`
+      return v.scheduledFor
+        ? `Scheduled for ${formatDateTime(v.scheduledFor)}`
+        : `Saved ${formatDateTime(v.updatedAt)}`
   }
 }
 
@@ -65,89 +83,87 @@ function VersionsTable({
   versions: MenuVersionSummary[]
   venueId: string
 }) {
-  const cell = "px-3 py-3 align-middle first:pl-4 last:pr-2"
+  // v2 DataTable (SCREENS A3), framed; phones keep the four-column layout
+  // with When, By and Status folded under the title.
+  const cell = "px-3 first:pl-4 last:pr-2"
   return (
-    <div className="overflow-x-auto rounded-card bg-surface shadow-card">
-      <table
-        aria-label="Menu versions"
-        className="w-full border-collapse text-body"
-      >
-        <thead>
-          <tr className="border-b border-line text-left text-meta font-semibold text-ink-muted">
-            <th scope="col" className={cell}>
-              Version
-            </th>
-            <th scope="col" className={cn(cell, "hidden md:table-cell")}>
-              Status
-            </th>
-            <th scope="col" className={cn(cell, "text-right")}>
-              Items
-            </th>
-            <th scope="col" className={cn(cell, "hidden md:table-cell")}>
-              When
-            </th>
-            <th scope="col" className={cn(cell, "hidden md:table-cell")}>
-              By
-            </th>
-            <th scope="col" className={cn(cell, "w-0")}>
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
-          {versions.map((v) => {
-            const closed = v.status === "retired" || v.status === "discarded"
-            return (
-              <tr key={v.id} className={cn(closed && "text-ink-muted")}>
-                <td className={cn(cell, "min-w-0")}>
-                  <Link
-                    href={versionHref(v.id)}
-                    className={cn(
-                      "rounded-square font-bold break-words underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2",
-                      closed ? "text-ink-muted" : "text-ink"
-                    )}
-                  >
-                    {v.title}
-                  </Link>
-                  <span className={cn("block md:hidden", menuMetaClassName)}>
-                    {versionWhen(v)} · {versionBy(v)}
-                  </span>
-                  {/* On phones the status sits under the title and may wrap:
+    <Table framed aria-label="Menu versions">
+      <TableHeader>
+        <TableRow>
+          <TableHead className={cell}>Version</TableHead>
+          <TableHead className={cn(cell, "hidden md:table-cell")}>
+            Status
+          </TableHead>
+          <TableHead numeric className={cell}>
+            Items
+          </TableHead>
+          <TableHead className={cn(cell, "hidden md:table-cell")}>
+            When
+          </TableHead>
+          <TableHead className={cn(cell, "hidden md:table-cell")}>By</TableHead>
+          <TableHead className={cn(cell, "w-0")}>
+            <span className="sr-only">Actions</span>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {versions.map((v) => {
+          const closed = v.status === "retired" || v.status === "discarded"
+          return (
+            <TableRow key={v.id} className={cn(closed && "text-ink-muted")}>
+              <TableCell
+                className={cn(
+                  cell,
+                  "min-w-0 whitespace-normal [&_a]:text-current"
+                )}
+              >
+                <Link
+                  href={versionHref(v.id)}
+                  className={cn(
+                    "rounded-square font-semibold break-words underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2",
+                    closed ? "text-ink-muted" : "text-ink"
+                  )}
+                >
+                  {v.title}
+                </Link>
+                <span className={cn("block md:hidden", menuMetaClassName)}>
+                  {versionWhen(v)} · {versionBy(v)}
+                </span>
+                {/* On phones the status sits under the title and may wrap:
                       "Active · for labelling only" on one line is wider than
                       a 320px table's spare room. */}
-                  <MenuVersionStatusBadge
-                    status={v.status}
-                    className="mt-1 whitespace-normal md:hidden"
-                  />
-                </td>
-                <td className={cn(cell, "hidden md:table-cell")}>
-                  <MenuVersionStatusBadge status={v.status} />
-                </td>
-                <td className={cn(cell, "text-right tabular-nums")}>
-                  {v.itemCount}
-                </td>
-                <td
-                  className={cn(cell, "hidden whitespace-nowrap md:table-cell")}
-                >
-                  {versionWhen(v)}
-                </td>
-                <td className={cn(cell, "hidden md:table-cell")}>
-                  {versionBy(v)}
-                </td>
-                <td className={cell}>
-                  <VersionRowActions
-                    versionId={v.id}
-                    title={v.title}
-                    venueId={venueId}
-                    isActive={v.status === "active"}
-                  />
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+                <MenuVersionStatusBadge
+                  status={v.status}
+                  className="mt-1 whitespace-normal md:hidden"
+                />
+              </TableCell>
+              <TableCell className={cn(cell, "hidden md:table-cell")}>
+                <MenuVersionStatusBadge status={v.status} />
+              </TableCell>
+              <TableCell numeric className={cell}>
+                {v.itemCount}
+              </TableCell>
+              <TableCell
+                className={cn(cell, "hidden whitespace-nowrap md:table-cell")}
+              >
+                {versionWhen(v)}
+              </TableCell>
+              <TableCell className={cn(cell, "hidden md:table-cell")}>
+                {versionBy(v)}
+              </TableCell>
+              <TableCell className={cell}>
+                <VersionRowActions
+                  versionId={v.id}
+                  title={v.title}
+                  venueId={venueId}
+                  isActive={v.status === "active"}
+                />
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
   )
 }
 
@@ -192,6 +208,10 @@ function ImportHistory({ versions }: { versions: MenuVersionSummary[] }) {
   )
 }
 
+/** Items the packaged list shows: drinks, and any item already packaged. */
+const packagingRows = (items: PackagingItem[]) =>
+  items.filter((i) => i.kind === "drinks" || i.packaged)
+
 /** One venue: versions, import, suggestions and the import history (A13). */
 export default async function VenueMenusPage({
   params,
@@ -202,9 +222,11 @@ export default async function VenueMenusPage({
   const { venueId } = await params
   const auth = await getMediaActor("admin")
   if (!auth.ok) throw new Error("Not authorised.")
-  const [overview, venueList] = await Promise.all([
+  const [overview, venueList, requests, packaging] = await Promise.all([
     getVenueMenuOverview(auth.actor, venueId),
     listMenuVenues(auth.actor),
+    listChangeRequests(auth.actor, { venueId, status: "open" }),
+    getPackaging(auth.actor, venueId),
   ])
   const venues = venueList.ok
     ? venueList.venues.map((v) => ({ id: v.venueId, name: v.venueName }))
@@ -270,6 +292,61 @@ export default async function VenueMenusPage({
             />
             <VersionsTable versions={versions} venueId={venue.id} />
           </section>
+          <section aria-labelledby="requests-title" className="grid gap-3">
+            <MenuSectionHead
+              id="requests-title"
+              title="Change requests"
+              count={
+                requests.ok
+                  ? `${requests.requests.length} open · from the venue's manager`
+                  : "Could not be loaded"
+              }
+            />
+            {requests.ok ? (
+              <ChangeRequestsPanel requests={requests.requests} />
+            ) : null}
+          </section>
+          {/* FA-51 (spec §4.2): drinks, and anything already packaged. */}
+          {packaging.ok && active ? (
+            <section aria-labelledby="packaged-title" className="grid gap-3">
+              <MenuSectionHead
+                id="packaged-title"
+                title="Packaged items"
+                count="A packaged item only counts in coverage when a photo is wanted"
+              />
+              {packagingRows(packaging.items).length === 0 ? (
+                <EmptyState
+                  variant="done"
+                  title="No drinks on the active menu."
+                  className="py-0"
+                />
+              ) : (
+                <ul
+                  aria-label="Packaged items"
+                  data-slot="packaged-items"
+                  className={menuListClassName}
+                >
+                  {packagingRows(packaging.items).map((i) => (
+                    <PackagingControl
+                      key={i.itemId}
+                      variant="row"
+                      itemId={i.itemId}
+                      name={i.name}
+                      venueId={venue.id}
+                      detail={
+                        i.source === "special" ? "Special" : i.sectionName
+                      }
+                      value={{
+                        packaged: i.packaged,
+                        photoWanted: i.photoWanted,
+                      }}
+                      setAction={setPackagingAction}
+                    />
+                  ))}
+                </ul>
+              )}
+            </section>
+          ) : null}
           <div className="grid items-start gap-6 lg:grid-cols-2">
             <section aria-labelledby="suggestions-title" className="min-w-0">
               <MenuSectionHead

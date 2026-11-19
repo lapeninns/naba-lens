@@ -9,16 +9,16 @@ import {
 import { cn } from "@/lib/utils"
 
 type InputProps = Omit<React.ComponentProps<"input">, "size"> & {
-  /** sm 44px, md 56px (default), lg 60px. Replaces the native character-count `size`. */
+  /** sm 44px, md 48px (default), lg 48px. Replaces the native character-count `size`. */
   size?: FieldControlSize
 }
 
 /*
- * Text input (DESIGN.md §4 Field): the shared field recipe, at least 56px
+ * Text input (v2 Field): the shared field recipe, at least 48px
  * tall and full width. Put it in a FormField so it has a label, and so its
  * hint and error are linked.
  *
- * Prefer `aria-disabled` to `disabled` (DESIGN.md §7): the field stays in the
+ * Prefer `aria-disabled` to `disabled` (common-room.md §7): the field stays in the
  * focus order, so the reason beside it can be reached. It is made read-only
  * here, because `aria-disabled` alone does not stop typing.
  */

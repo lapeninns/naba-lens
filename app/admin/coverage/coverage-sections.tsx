@@ -125,7 +125,7 @@ function TallyItem({
       <dt className="text-meta text-ink-muted">{label}</dt>
       <dd
         className={cn(
-          "flex items-baseline gap-1.5 type-count text-ink tabular-nums",
+          "flex items-baseline gap-1.5 type-figure text-ink tabular-nums",
           active && "text-warn-fg",
           tone === "positive" && "text-ok-fg"
         )}
@@ -133,7 +133,9 @@ function TallyItem({
         {active ? <Icon aria-hidden className="size-6 self-center" /> : null}
         {value}
         {of !== undefined ? (
-          <small className="text-lead font-bold text-ink-muted">of {of}</small>
+          <small className="text-lead font-semibold text-ink-muted">
+            of {of}
+          </small>
         ) : null}
       </dd>
       {note ? <dd className="text-meta text-ink-muted">{note}</dd> : null}

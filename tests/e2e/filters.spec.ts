@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { chooseOption, escape, libraryList } from "./helpers/ui"
+import { ADMIN_LANDING, chooseOption, escape, libraryList } from "./helpers/ui"
 import { provisionWorld, seedReadyAssets, signedInPage } from "./helpers/world"
 
 /**
@@ -22,7 +22,8 @@ test("venue + staff + type filters combine across pages, then clear", async ({
   await seedReadyAssets(w.staffC.id, w.venue2.id, 5, "image", `c2-photo-${t}`)
 
   const admin = await signedInPage(browser, w.adminB)
-  await expect(admin).toHaveURL(/\/admin$/)
+  await expect(admin).toHaveURL(ADMIN_LANDING)
+  await admin.goto("/admin")
   const library = libraryList(admin)
   const tiles = library.getByRole("button")
 
@@ -100,7 +101,22 @@ test("Photos filters: sheet applies venue + media, then nothing matches, then cl
   await seedReadyAssets(w.staffA.id, w.venue1.id, 2, "video", `p1-video-${t}`)
   await seedReadyAssets(w.staffC.id, w.venue2.id, 2, "image", `p2-photo-${t}`)
 
-  const page = await signedInPage(browser, w.staffB)
+  // FA-20: colleagues see only accepted photos, so these unreviewed ones are
+  // hidden from staff B and shown to their owner, staff A, who runs the
+  // filters below.
+  const colleague = await signedInPage(browser, w.staffB)
+  await colleague.goto(`/staff/community?venue=${w.venue1.id}`)
+  await expect(colleague.getByRole("heading", { level: 1 })).toHaveText(
+    "Photos"
+  )
+  await expect(
+    colleague
+      .getByRole("list", { name: "Organization portfolio" })
+      .getByRole("button", { name: new RegExp(escape(w.staffA.name)) })
+  ).toHaveCount(0)
+  await colleague.context().close()
+
+  const page = await signedInPage(browser, w.staffA)
   await page.goto("/staff/community")
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Photos")
   const tiles = page

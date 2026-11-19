@@ -108,7 +108,7 @@ const tile = (date: string) =>
     "button",
     {
       // Fixture uploads are at 10:00 London time.
-      name: `Photo uploaded ${date}, 10:00`,
+      name: `Photo added ${date}, 10:00`,
     }
   )
 
@@ -276,9 +276,11 @@ describe("SubmitPhotosPanel", () => {
     expect(input.requestId).toMatch(/^[0-9a-f-]{36}$/)
     const status = await screen.findByRole("status")
     expect(status.textContent).toContain("Sent 2 photos for review.")
+    // FA-20 (E9): never "already in Explore" before review.
     expect(status.textContent).toContain(
-      "already in your portfolio and Explore"
+      "The team sees each one once your manager accepts it."
     )
+    expect(status.textContent).not.toMatch(/Explore|already in/)
     // Selection cleared and eligibility re-read.
     expect(tile("2 Nov 2026").getAttribute("aria-pressed")).toBe("false")
     await waitFor(() =>
@@ -521,7 +523,7 @@ describe("SubmitPhotosPanel", () => {
     const { user } = setup({ photos: [processing, A] })
     const t = within(
       screen.getByRole("list", { name: "Your photos" })
-    ).getByRole("button", { name: "Photo uploaded 2 Nov 2026, 12:00" })
+    ).getByRole("button", { name: "Photo added 2 Nov 2026, 12:00" })
     expect(t.getAttribute("aria-disabled")).toBe("true")
     expect(
       screen.getByText("Still processing. It can't count until it's ready.")
@@ -530,7 +532,7 @@ describe("SubmitPhotosPanel", () => {
     expect(t.getAttribute("aria-pressed")).toBe("false")
     expect(
       screen.getByText(
-        /photos still processing or that failed to upload don't count/
+        /photos still processing or that failed to send don't count/
       )
     ).toBeTruthy()
   })
@@ -610,7 +612,7 @@ describe("SubmitPhotosPanel", () => {
     })
     expect(
       screen.getByText(
-        "Uploaded before this month, so it can't count toward this month."
+        "Added before this month, so it can't count toward this month."
       )
     ).toBeTruthy()
   })
@@ -758,7 +760,7 @@ describe("SubmitPhotosPanel", () => {
     expect(await screen.findByText("1 new photo selected.")).toBeTruthy()
     const uploaded = within(
       screen.getByRole("list", { name: "Your photos" })
-    ).getByRole("button", { name: "Photo uploaded 2 Nov 2026, 15:00" })
+    ).getByRole("button", { name: "Photo added 2 Nov 2026, 15:00" })
     expect(uploaded.getAttribute("aria-pressed")).toBe("true")
     expect(tile("2 Nov 2026").getAttribute("aria-pressed")).toBe("false")
     expect(screen.getByRole("button", { name: "Send 1 photo" })).toBeTruthy()

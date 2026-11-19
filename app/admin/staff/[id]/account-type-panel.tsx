@@ -249,7 +249,7 @@ export function AccountTypePanel({
         onDismiss={action.dismiss}
       />
       <div className="grid gap-1 text-body">
-        <p className="flex flex-wrap items-center gap-2 font-bold">
+        <p className="flex flex-wrap items-center gap-2 font-semibold">
           {role === "manager" ? (
             <>
               <StatusChip state="venue_manager" />

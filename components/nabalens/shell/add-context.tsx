@@ -2,12 +2,13 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { PlusIcon } from "@phosphor-icons/react"
+import { ImagesIcon } from "@phosphor-icons/react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { EntryIntent } from "@/lib/work-client/entry"
 
+import type { MatchTarget } from "../album/match/model"
 import type { PhotoSource } from "../photo-source"
 import type { UploadPurpose } from "../upload-queue"
 import { TabBadge } from "./tab-badge"
@@ -25,14 +26,41 @@ export type AddLabelPreset = {
   variantName: string | null
 }
 
+/** An empty slot a photo goes straight to (DESIGN.md §6.1, D9). */
+export type AddSlot = MatchTarget
+
 export type OpenAddOptions = {
   /**
-   * Open this picker straight away (no sheet): "camera" captures with the
-   * back camera, "library" picks several. The host clicks its hidden input
-   * synchronously, so call openAdd inside the click handler. The picked files
-   * start uploading at once and the "Saving N photos" sheet opens.
+   * Open the phone's photo gallery straight away (no sheet). The host
+   * clicks its hidden input synchronously, so call openAdd inside the click
+   * handler. The picked files start uploading at once and the "Saving N
+   * photos" sheet opens.
+   *
+   * Add is gallery first (DESIGN.md §2, §9): there is no in-app camera, so
+   * "camera" opens the gallery too. It is kept only until the screens that
+   * still ask for it (AL-6) stop; do not pass it in new code.
    */
   source?: PhotoSource
+  /**
+   * Match on add (DESIGN.md §6.1, D9): open the gallery for up to 20 photos,
+   * then Match, where each photo is matched to an empty slot, kept for Match
+   * later, or shared with no slot. `place` is where the person is (Album's
+   * place key, "unplaced" for Not placed yet): its empty slots are suggested
+   * first. Staff accounts only; elsewhere it opens the gallery as `source`.
+   */
+  match?: { place?: string | null }
+  /**
+   * A Needed slot's tile (DESIGN.md §5 Slot tile): open the gallery for one
+   * photo that goes straight to this slot (a dish as its menu label, an area
+   * as its venue-area label), then Match's end for that one photo.
+   */
+  slot?: AddSlot
+  /**
+   * How the photos were started, for the workflow events (spec §18.3,
+   * S2-METRICS): "request" from a manager's Asked for. Omitted: from a
+   * slot's tile or the gallery.
+   */
+  route?: "request"
   /** Accept photos only for the files picked from this call (task screens). */
   imagesOnly?: boolean
   /**
@@ -56,7 +84,7 @@ export type OpenAddOptions = {
   onReady?: (assetIds: string[]) => boolean | void
   /**
    * Show the upload dialog at every width instead of the phone sheet (Me's
-   * own "Upload photos or videos").
+   * own "Add photos or videos").
    */
   dialog?: boolean
   /**
@@ -133,7 +161,26 @@ type AddContextValue = {
    * the entry off: a dish button needs "dish".
    */
   intents?: readonly EntryIntent[] | null
+  /**
+   * Slots whose photo this phone matched and is sending or has sent, by the
+   * album's slot id ("dish:<id>", "area:<id>"): Album's tiles show them so
+   * (DESIGN.md §4, §6.8) until the album itself reads them.
+   */
+  slots?: ReadonlyMap<string, SlotSend>
+  /** The album reads this slot itself now: its tile no longer needs `slots`. */
+  settleSlot?: (slotId: string) => void
+  /**
+   * Photos picked in an earlier visit that never finished (the capture
+   * journal): Album Home offers them under the Add action (spec §6 S1).
+   */
+  earlier?: number
 }
+
+/**
+ * A matched photo on its way to its slot: "sending" until the queue has it
+ * saved (the tile says Saved on this phone while offline), then "waiting".
+ */
+export type SlotSend = { state: "sending" | "waiting"; file: File }
 
 /**
  * The Add value behind a context that never changes: readers subscribe to
@@ -273,14 +320,23 @@ export function useAddRefreshSignal(): number {
 
 /**
  * Opens Add: the raised tab on phones, "Add photos" in the AppBar from md.
- * Outside the staff layout (previews, tests) it links to Me, where the
- * profile's own upload lives.
+ * `compact` is the v2 Button "Add" a manager's phone header carries, where
+ * the bottom bar holds the five tabs. Outside the staff layout (previews,
+ * tests) it links to Me, where the profile's own upload lives. With `match`
+ * (the Album tab bar, DESIGN.md §5 Tab bar) it opens the gallery straight
+ * away and then Match (§6.1). Gallery only, never a camera (D9, D10).
  */
-export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
+export function AddTrigger({
+  kind,
+  match = false,
+}: {
+  kind: "tab" | "bar" | "compact"
+  match?: boolean
+}) {
   const add = useAddContext()
   const openAdd = add?.openAdd ?? null
   const busy = add?.busy
-  const label = kind === "tab" ? "Add" : "Add photos"
+  const label = kind === "bar" ? "Add photos" : "Add"
   // While the hidden Add queue has unfinished files, Add shows that queue:
   // a count on the trigger, and the words after its name. The name is set
   // whole because Chrome inserts a space before an sr-only suffix.
@@ -297,39 +353,43 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
       />
     </span>
   ) : null
+  // The tab is v2's round bottle button (`nl-tab--upload`), as Album's
+  // (AlbumAddTrigger): a 40px bottle disc holding the gallery icon, the
+  // label under it in ink, inside the 64px bar (py-0.5, review Z8).
   const content =
     kind === "tab" ? (
       <>
-        {/* Common Room Add tab: a grey pill around the plus, never blue
-            (the screen's one blue is its own primary). */}
         <span
           data-slot="tabbar-disc"
           aria-hidden
-          className="grid h-[30px] w-11 place-items-center rounded-round bg-surface-2 text-ink transition-colors duration-quick group-hover:bg-raised"
+          className="grid size-10 place-items-center rounded-round bg-accent text-on-accent"
         >
-          <PlusIcon weight="bold" className="size-[22px]" />
+          <ImagesIcon className="size-5.5" />
         </span>
         {label}
         {badge}
       </>
     ) : (
       <>
-        <PlusIcon data-icon="inline-start" aria-hidden />
+        <ImagesIcon data-icon="inline-start" aria-hidden />
         {label}
         {badge}
       </>
     )
   const className =
     kind === "tab"
-      ? cn(TAB_ITEM, "group text-ink hover:bg-surface-2")
-      : // One line from lg: wrapping doubled the bar height at 1280 (768 needs the wrap).
-        cn(buttonVariants({ variant: "secondary" }), "lg:whitespace-nowrap")
+      ? cn(TAB_ITEM, "py-0.5 text-ink hover:bg-raised")
+      : kind === "compact"
+        ? // v2 Button: compact in the manager shell (44px on phones).
+          buttonVariants({ variant: "secondary", size: "sm" })
+        : // One line from lg: wrapping doubled the bar height at 1280 (768 needs the wrap).
+          cn(buttonVariants({ variant: "secondary" }), "lg:whitespace-nowrap")
   return openAdd ? (
     <button
       type="button"
       className={className}
       aria-label={busyName}
-      onClick={() => openAdd({ entry: "choose" })}
+      onClick={() => openAdd(match ? { match: {} } : { entry: "choose" })}
     >
       {content}
     </button>

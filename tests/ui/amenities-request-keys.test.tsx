@@ -65,6 +65,21 @@ const keyOf = (fn: unknown, call: number) =>
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
+/**
+ * S2-MGR (AC29): archive and restore ask for a reason in a dialog first; a
+ * failure closes it and is said on the page, so a retry opens it again.
+ */
+async function withReason(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+  reason = "TEST reason"
+) {
+  await user.click(screen.getByRole("button", { name }))
+  const dialog = await screen.findByRole("dialog")
+  await user.type(within(dialog).getByLabelText(/Reason/), reason)
+  await user.click(within(dialog).getByRole("button", { name }))
+}
+
 async function expectReplayed(fn: unknown, success: string) {
   expect(await screen.findByText(success)).toBeTruthy()
   expect(screen.queryByText(/Someone else changed this check/)).toBeNull()
@@ -120,9 +135,9 @@ describe("MG-01: a retry after a lost reply replays", () => {
     render(
       <AmenityCheckDetail detail={detail()} basePath={BASE} handlers={h} />
     )
-    await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
+    await withReason(user, UI_TEXT.archive)
     expect(await screen.findByText(NETWORK_ERROR)).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
+    await withReason(user, UI_TEXT.archive)
     await expectReplayed(
       h.archive,
       "Archived. Restore it from the Archived list at any time."
@@ -142,9 +157,9 @@ describe("MG-01: a retry after a lost reply replays", () => {
         handlers={h}
       />
     )
-    await user.click(screen.getByRole("button", { name: UI_TEXT.restore }))
+    await withReason(user, UI_TEXT.restore)
     expect(await screen.findByText(NETWORK_ERROR)).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: UI_TEXT.restore }))
+    await withReason(user, UI_TEXT.restore)
     await expectReplayed(h.restore, "Restored.")
   })
 
@@ -186,9 +201,9 @@ describe("MG-01: a retry after a lost reply replays", () => {
         handlers={h}
       />
     )
-    await user.click(screen.getByRole("button", { name: UI_TEXT.restore }))
+    await withReason(user, UI_TEXT.restore)
     expect(await screen.findByText(NETWORK_ERROR)).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: UI_TEXT.restore }))
+    await withReason(user, UI_TEXT.restore)
     await expectReplayed(h.restore, `Restored “${ARCHIVED.entry.question}”.`)
   })
 
@@ -253,9 +268,9 @@ describe("MG-01: keys per intent", () => {
         handlers={handlers({ archive })}
       />
     )
-    await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
+    await withReason(user, UI_TEXT.archive)
     expect(await screen.findByText(/^Archived\./)).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
+    await withReason(user, UI_TEXT.archive)
     expect(await screen.findByText(CONFLICT_TEXT)).toBeTruthy()
     expect(keyOf(archive, 1)).not.toBe(keyOf(archive, 0))
   })
@@ -299,7 +314,7 @@ describe("MG-01: keys per intent", () => {
         handlers={handlers({ archive })}
       />
     )
-    await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
+    await withReason(user, UI_TEXT.archive)
     expect(await screen.findByText(message)).toBeTruthy()
     expect(refresh).toHaveBeenCalledTimes(1)
   })

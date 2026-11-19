@@ -15,6 +15,7 @@ import { GET } from "@/app/api/knowledge/v1/venues/[venueId]/answers/route"
 import { psql } from "./coverage-fixtures"
 import {
   call,
+  confirmWaiting,
   json,
   service,
   slotRevision,
@@ -41,7 +42,7 @@ let staffReason: World
 function attach(contributionId: string, schema: string, detail: object) {
   psql(`insert into public.knowledge_contribution_details
       (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
-    select x.id, x.venue_id, 1, '${schema}', 1, '${JSON.stringify(detail).replace(/'/g, "''")}'::jsonb,
+    select x.id, x.venue_id, (select max(v.version) from public.knowledge_question_versions v where v.key = x.question_key), '${schema}', 1, '${JSON.stringify(detail).replace(/'/g, "''")}'::jsonb,
       encode(sha256('TEST'::bytea), 'hex')
     from public.knowledge_contributions x where x.id = '${contributionId}'`)
 }
@@ -144,6 +145,8 @@ afterAll(() => vi.unstubAllEnvs())
 describe("internal reader over B03-c answers", () => {
   it("withholds a qualified and an incomplete policy answer, keeps a plain Yes, and answers 200", async () => {
     const plain = await yes(w.staffA, w, "guest_wifi")
+    // S1-FACTS (AC25): a manager confirms guest Wi-Fi.
+    await confirmWaiting(w, "guest_wifi", plain)
     const toilets = await yes(w.staffA, w, "guest_toilets", {
       finding: "TEST toilets out of order",
       limitations: "TEST until Friday",
@@ -310,7 +313,12 @@ describe("internal reader over B03-e to B03-g answers", () => {
       status: "available",
       value: { type: "yes_no_na", answer: "no" },
       provenance: { sourceKind: "manager_observation", idKind: "contribution" },
-      freshness: { observedAt: null, nextCheckDue: null, state: "unrated" },
+      // S1-FACTS: 90 days from the day it was verified (spec §9.3).
+      freshness: {
+        observedAt: null,
+        nextCheckDue: expect.any(String),
+        state: "current",
+      },
     })
     expect(raw).not.toContain(corrected.manager.id)
   })

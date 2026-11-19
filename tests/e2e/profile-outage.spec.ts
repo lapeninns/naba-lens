@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test"
 
 import { createIdentity, createVenue } from "../support/identities"
+import { passMfaIfAsked } from "./helpers/mfa"
 import { provisioner, psql } from "./helpers/stack"
 
 // Final review F4: the /admin and /staff layouts read the profile for their
@@ -29,6 +30,8 @@ async function signedIn(browser: Browser, email: string) {
   )
   await page.getByRole("button", { name: "Continue" }).click()
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/confirm"))
+  // FA-23: an admin passes the two-step sign-in before the outage starts.
+  await passMfaIfAsked(page, email)
   return page
 }
 
@@ -43,8 +46,10 @@ async function expectRetryPage(page: Page, path: string) {
   const html = await res!.text()
   expect(html).not.toContain("Internal Server Error")
   // Fails closed: neither app shell is rendered.
+  // Neither My photos' Add a video nor any Add photos (the AppBar's or the
+  // tab bar's) is rendered.
   await expect(
-    page.getByRole("button", { name: "Upload photos or videos" })
+    page.getByRole("button", { name: /^Add (a video|photos)/ })
   ).toHaveCount(0)
   await expect(page.getByRole("combobox", { name: "Venue" })).toHaveCount(0)
 }
@@ -77,7 +82,8 @@ test.describe("profile read outage on the role-gated layouts", () => {
       await expectRetryPage(adminPage, "/admin")
       // A staff member asking for /admin is not let in either.
       await expectRetryPage(staffPage, "/admin")
-      await expectRetryPage(staffPage, "/staff")
+      // My photos (DESIGN.md §5e): the tab with "Add a video" on it.
+      await expectRetryPage(staffPage, "/staff/photos")
     } finally {
       psql(RESTORE)
     }
@@ -88,7 +94,7 @@ test.describe("profile read outage on the role-gated layouts", () => {
     ).toBeVisible()
     await staffPage.getByRole("button", { name: "Try again" }).click()
     await expect(
-      staffPage.getByRole("button", { name: "Upload photos or videos" }).first()
+      staffPage.getByRole("button", { name: "Add a video" }).first()
     ).toBeVisible()
 
     await staffPage.context().close()

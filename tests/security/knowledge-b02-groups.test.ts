@@ -34,6 +34,7 @@ import {
   readDocument,
   section,
 } from "./menus-fixtures"
+import { acceptAsset } from "./privacy-fixtures"
 
 type GroupView = {
   groupId: string
@@ -295,6 +296,8 @@ describe("contribution groups (W1)", () => {
 
   it("never widens visibility: each viewer sees only the members today's gates show", async () => {
     const general = await photo(w.staffA.id, w.venue)
+    // FA-20: a colleague sees it only once accepted.
+    acceptAsset(general, w.admin.id)
     const evidence = await amenityAsset(w.staffA.id, w.venue)
     const before = await communityVisible(w.staffB, [general, evidence])
     expect(before.has(evidence)).toBe(false)
@@ -322,19 +325,23 @@ describe("contribution groups (W1)", () => {
     )
     expect(lookup).toEqual([{ asset_id: general, group_id: g }])
 
-    // Another venue's staff see what organisation Photos already shows them:
-    // the eligible general staff photo, never the amenity evidence.
+    // Another venue's staff see none of it (spec §3.3, FA-20): not even the
+    // accepted general photo, so not the group.
     expect([
       ...(await communityVisible(other.staffA, [general, evidence])),
-    ]).toEqual([general])
-    const elsewhere = await view(other.staffA, g)
-    expect(elsewhere.members.map((m) => m.assetId)).toEqual([general])
-    expect(elsewhere.mine).toBe(false)
+    ]).toEqual([])
+    await refused(
+      other.staffA,
+      "contribution_group",
+      { p_group_id: g },
+      "contribution_group_not_found",
+      "P0002"
+    )
     expect(
       await json(other.staffA, "contribution_groups_for_assets", {
         p_asset_ids: [general, evidence],
       })
-    ).toEqual([{ asset_id: general, group_id: g }])
+    ).toEqual([])
 
     // A group of private members only: another venue's staff see nothing.
     const loose = await amenityAsset(w.staffA.id, w.venue)
@@ -385,22 +392,26 @@ describe("contribution groups (W1)", () => {
       ).toEqual([general])
     }
 
-    // Another venue's staff see the general member, as Photos shows it, but
-    // cannot read the task, so the group names no subject.
+    // Another venue's staff cannot read the task, and since FA-20 see no
+    // member either, so not the group.
     const { data: rows, error } = await other.staffA.client
       .from("coverage_requirements")
       .select("id")
       .eq("id", task)
     expect(error).toBeNull()
     expect(rows).toEqual([])
-    const elsewhere = await view(other.staffA, g)
-    expect(elsewhere.members.map((m) => m.assetId)).toEqual([general])
-    expect(elsewhere.subject).toEqual({ kind: "none", id: null, name: null })
+    await refused(
+      other.staffA,
+      "contribution_group",
+      { p_group_id: g },
+      "contribution_group_not_found",
+      "P0002"
+    )
     expect(
       await json(other.staffA, "contribution_groups_for_assets", {
         p_asset_ids: [general],
       })
-    ).toEqual([{ asset_id: general, group_id: g }])
+    ).toEqual([])
   })
 
   it("names a task subject to the venue's effective manager account, never through another venue's or an ineffective grant", async () => {
@@ -430,8 +441,8 @@ describe("contribution groups (W1)", () => {
     expect(managed.members.map((m) => m.assetId)).toEqual([general])
 
     // Another venue's effective grant, and an open grant for this venue held
-    // by staff assigned elsewhere (not effective). Photos still shows each the
-    // general member, so the group reads, but it names no subject.
+    // by staff assigned elsewhere (not effective). Since FA-20 neither sees
+    // the waiting member, so neither reads the group or its task.
     const stray = await createIdentity(service, {
       label: "kn-b02-groups-stray",
       role: "staff",
@@ -451,17 +462,14 @@ describe("contribution groups (W1)", () => {
         "42501"
       )
       expect(await readableTasks(who, [task]), who.id).toEqual([])
-      expect([...(await communityVisible(who, [general]))], who.id).toEqual([
-        general,
-      ])
-      const seen = await view(who, g)
-      expect(
-        seen.members.map((m) => m.assetId),
-        who.id
-      ).toEqual([general])
-      expect(seen.subject, who.id).toEqual(noSubject)
-      expect(JSON.stringify(seen), who.id).not.toContain(task)
-      expect(JSON.stringify(seen), who.id).not.toContain(title)
+      expect([...(await communityVisible(who, [general]))], who.id).toEqual([])
+      await refused(
+        who,
+        "contribution_group",
+        { p_group_id: g },
+        "contribution_group_not_found",
+        "P0002"
+      )
     }
     // Another venue's manager account sees no member, so no group.
     await refused(
@@ -546,22 +554,20 @@ describe("contribution groups (W1)", () => {
       members: [],
     })
 
-    // The mover's new colleague sees both general members, as Photos shows
-    // them, and neither task.
+    // The mover's new colleague reads neither task and, since FA-20, no
+    // member of another venue's waiting photos, so neither group.
     expect(await readableTasks(other.staffA, [own, unrelated])).toEqual([])
     expect(
       [...(await communityVisible(other.staffA, [submitted, loose]))].sort()
-    ).toEqual([submitted, loose].sort())
-    for (const [g, member] of [
-      [gOwn, submitted],
-      [gUnrelated, loose],
-    ] as const) {
-      const seen = await view(other.staffA, g)
-      expect(seen.members.map((m) => m.assetId)).toEqual([member])
-      expect(seen.subject).toEqual(noSubject)
-      for (const hidden of [own, unrelated, ownTitle, otherTitle])
-        expect(JSON.stringify(seen)).not.toContain(hidden)
-    }
+    ).toEqual([])
+    for (const g of [gOwn, gUnrelated])
+      await refused(
+        other.staffA,
+        "contribution_group",
+        { p_group_id: g },
+        "contribution_group_not_found",
+        "P0002"
+      )
   })
 
   // B05-m5 (OD-B5-01-7): the creator now also sees a deleted member, as

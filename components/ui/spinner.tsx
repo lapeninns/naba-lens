@@ -4,7 +4,7 @@ import { cva } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 /*
- * The one spinner (DESIGN.md §7: a state is always written in words). The
+ * The one spinner (common-room.md §7: a state is always written in words). The
  * glyph is decoration and hidden from assistive technology; the words beside
  * it say what is happening. Where no words are on screen, pass `label` and
  * it is read out as a status. Reduced motion stops the turn (app/globals.css).

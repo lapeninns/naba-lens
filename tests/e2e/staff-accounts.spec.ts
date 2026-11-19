@@ -9,8 +9,10 @@ import {
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 import { psql } from "./helpers/stack"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { openMe } from "./helpers/s4-photos"
+import { ADMIN_LANDING, STAFF_LANDING, STAFF_TABS } from "./helpers/ui"
 import { provisionWorld, signedInPage } from "./helpers/world"
+import { passMfaIfAsked } from "./helpers/mfa"
 
 const admin = serviceClient()
 // Server Functions and routes compile on first use under `next dev`.
@@ -27,6 +29,8 @@ async function signInAs(page: Page, email: string) {
     `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`
   )
   await page.getByRole("button", { name: "Continue" }).click()
+  // FA-23: an admin passes the TOTP second step.
+  await passMfaIfAsked(page, email)
 }
 
 /** The invitation link from the real email in the local Mailpit inbox. */
@@ -63,12 +67,12 @@ test.describe("admin staff management", () => {
     })
     const adminPage = await (await browser.newContext()).newPage()
     await signInAs(adminPage, adminUser.email)
-    await expect(adminPage).toHaveURL(/\/admin$/)
+    await expect(adminPage).toHaveURL(ADMIN_LANDING)
 
     // Invite through the dialog.
     await adminPage.goto("/admin/staff")
     await expect(
-      adminPage.getByRole("heading", { name: "Staff", level: 1 })
+      adminPage.getByRole("heading", { name: "People", level: 1 })
     ).toBeVisible()
     const email = testEmail("e2e-invitee")
     const name = `TEST Invitee ${email.slice(10, 18)}`
@@ -103,8 +107,8 @@ test.describe("admin staff management", () => {
     ).toBeVisible()
     await dialog.getByRole("button", { name: "Cancel" }).click()
 
-    // The invitee accepts from the real email, lands on Home and opens
-    // their portfolio.
+    // The invitee accepts from the real email, lands on Today and opens Me,
+    // whose profile header names them (DESIGN.md §5b).
     const staffContext = await browser.newContext()
     const staffPage = await staffContext.newPage()
     await staffPage.goto(await invitationLink(email))
@@ -115,8 +119,8 @@ test.describe("admin staff management", () => {
       .getByRole("button", { name: "Accept your invitation" })
       .click()
     await expect(staffPage).toHaveURL(STAFF_LANDING)
-    await openPortfolio(staffPage)
-    await expect(staffPage.getByRole("heading", { name })).toBeVisible()
+    const profile = await openMe(staffPage)
+    await expect(profile.getByRole("heading", { name })).toBeVisible()
 
     // Staff cannot open the admin staff area or call its avatar route.
     await staffPage.goto("/admin/staff")
@@ -175,7 +179,7 @@ test.describe("admin staff management", () => {
     ).toHaveCount(0, fast)
 
     // The staff member's existing session is refused on its next request.
-    await staffPage.goto("/staff")
+    await staffPage.goto(STAFF_TABS.today)
     await expect(staffPage).toHaveURL(/\/auth\/blocked$/)
 
     // Reactivation restores access with a fresh sign-in.
@@ -220,7 +224,7 @@ test.describe("admin staff management", () => {
     })
     await page.goto("/admin/staff")
     const row = page
-      .getByRole("list", { name: "Staff" })
+      .getByRole("list", { name: "People" })
       .getByRole("listitem")
       .filter({ hasText: name })
     const link = row.getByRole("link", { name })
@@ -280,7 +284,8 @@ test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () =
     await expect(sending).toBeDisabled()
     await expect(page.getByText(/^Sending the invitation to /)).toBeVisible()
     const box = await sending.boundingBox()
-    expect(box!.height).toBeGreaterThanOrEqual(44)
+    // v2 compact control on an admin's desktop (D10): 40px.
+    expect(box!.height).toBeGreaterThanOrEqual(40)
     await page
       .getByRole("button", { name: `More actions for ${person.name}` })
       .click()

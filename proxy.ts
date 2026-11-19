@@ -9,6 +9,7 @@ import {
   safeReturnPath,
 } from "@/lib/auth/routes"
 import { SESSION_ENDED_MESSAGE } from "@/lib/auth/session-ended"
+import { canUseFixtureSignIn } from "@/lib/dev/phone-origin.mjs"
 import { updateSession } from "@/lib/supabase/proxy"
 
 /**
@@ -18,14 +19,32 @@ import { updateSession } from "@/lib/supabase/proxy"
  * re-authorises against the database via lib/auth.
  */
 export async function proxy(request: NextRequest) {
-  const { response, userId } = await updateSession(request)
   const { pathname } = request.nextUrl
+  // Reject a misconfigured dev target before the session refresh tries to use
+  // its Supabase environment. The page and action enforce the same gate.
+  if (
+    process.env.NODE_ENV === "development" &&
+    pathname === "/dev/sign-in" &&
+    !canUseFixtureSignIn(
+      process.env.NODE_ENV,
+      process.env.NEXT_PUBLIC_SUPABASE_URL
+    )
+  ) {
+    return new NextResponse(null, { status: 404 })
+  }
+  const { response, userId } = await updateSession(request)
 
   if (userId) {
-    // "/" applies the return path once signed in (app/page.tsx). Any other
-    // signed-in request means it was used, refused or belongs to an earlier
-    // visit, so it must not steer a later sign-in on this browser.
-    if (pathname !== "/" && request.cookies.has(RETURN_TO_COOKIE))
+    // "/" applies the return path once signed in (app/page.tsx). The second
+    // sign-in step (/auth/mfa, FA-23) is still part of signing in: it ends on
+    // "/", which then applies the path (S3-E2E-1 E2). Any other signed-in
+    // request means it was used, refused or belongs to an earlier visit, so
+    // it must not steer a later sign-in on this browser.
+    if (
+      pathname !== "/" &&
+      !isMfaStep(pathname) &&
+      request.cookies.has(RETURN_TO_COOKIE)
+    )
       response.cookies.delete(RETURN_TO_COOKIE)
     return response
   }
@@ -70,6 +89,11 @@ export async function proxy(request: NextRequest) {
   return redirect
 }
 
+/** The second sign-in step's page (and its Server Functions, posted there). */
+function isMfaStep(pathname: string) {
+  return pathname === ROUTES.mfa || pathname.startsWith(`${ROUTES.mfa}/`)
+}
+
 /** The requested page and query, without the router's cache-busting `_rsc`. */
 function returnPathOf(request: NextRequest): string | null {
   const search = new URLSearchParams(request.nextUrl.search)
@@ -104,7 +128,8 @@ function withSessionHeaders(from: NextResponse, to: NextResponse) {
 
 export const config = {
   matcher: [
-    // Everything except static assets and image optimisation.
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // Everything except static assets and image optimisation. The web app
+    // manifest (FA-53) is the same for everyone and needs no session.
+    "/((?!_next/static|_next/image|favicon.ico|manifest\\.webmanifest$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 }

@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils"
 
 /**
- * A section header on the grey canvas (DESIGN.md §4 `.sec-head`): Figtree
+ * A section header on the grey canvas (common-room.md §4 `.sec-head`): Figtree
  * 21/700 title, an optional link or count on the right, an optional scope
  * line under it. Sits 4px in from the cards' edge, like a feed heading.
  */

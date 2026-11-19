@@ -1,9 +1,10 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import ts from "typescript"
 import { describe, expect, it } from "vitest"
+
+import { visibleText, walk } from "./support/visible-text"
 
 /**
  * Staff copy guard (v0.5 rules 21 to 23; docs/plans/goals-not-tasks.md G-5).
@@ -25,12 +26,12 @@ const root = fileURLToPath(new URL("../../", import.meta.url))
 /** The staff modules for food and drink work, by screen. */
 const SCOPE: { screen: string; paths: string[] }[] = [
   {
-    screen: "Home",
+    screen: "Album (Home)",
     paths: [
       "app/staff/tasks/page.tsx",
       "app/staff/tasks/loading.tsx",
       "app/staff/tasks/error.tsx",
-      "components/nabalens/home",
+      "components/nabalens/album",
       "components/nabalens/tasks",
     ],
   },
@@ -43,8 +44,13 @@ const SCOPE: { screen: string; paths: string[] }[] = [
       "app/staff/page.tsx",
       "app/staff/staff-portfolio.tsx",
       "app/staff/needs-attention.tsx",
+      // S2-STAFF: My uploads, Help and account, notices, the notice.
+      "components/nabalens/me",
+      "lib/staff",
+      "app/staff/notifications",
     ],
   },
+  { screen: "Album slot (S2-STAFF)", paths: ["app/staff/album"] },
   { screen: "menu-photos", paths: ["components/nabalens/menu-photos"] },
 ]
 
@@ -90,26 +96,6 @@ const ALLOWED_TEXT: { file: string; text: string; reason: string }[] = [
     text: "Task",
     reason: "kind label fallback for a requirement of an unknown kind",
   },
-  // The B01/B02 rollback Home (NABALENS_HOME_LAYOUT=b01|b02) lists non-menu
-  // tasks with their dates. Goal-led Home never renders these; they go when
-  // the rollback is retired after release.
-  ...[
-    ["app/staff/tasks/loading.tsx", "Other tasks this month"],
-    ["app/staff/tasks/loading.tsx", "Loading tasks…"],
-    ["components/nabalens/tasks/home-overview.tsx", "Other tasks this month"],
-    ["components/nabalens/tasks/home-overview.tsx", "Tasks assigned to you at"],
-    [
-      "components/nabalens/tasks/home-overview.tsx",
-      "Your manager assigns tasks at . You can still add photos to your profile.",
-    ],
-    ["components/nabalens/tasks/todo-list.tsx", "Overdue"],
-    ["components/nabalens/tasks/todo-list.tsx", "due soon"],
-    ["components/nabalens/tasks/todo-list.tsx", "Was due"],
-  ].map(([file, text]) => ({
-    file,
-    text,
-    reason: "non-menu task cards on the B01/B02 rollback Home (rule 28)",
-  })),
   {
     file: "components/nabalens/tasks/copy.ts",
     text: "Overdue jobs still take photos.",
@@ -139,87 +125,7 @@ const PENDING: { file: string; owner: string }[] = []
 /** Whole words only: "Overdue", "Due 30 Nov", "tasks", "better photo". */
 const BANNED = /\b(tasks?|due|overdue|better photos?)\b/i
 
-/** Route paths, import paths, ids and lower-case keys: code, not copy. */
-function isCode(text: string): boolean {
-  const value = text.trim()
-  if (value === "") return true
-  if (/^[/@.#?&]/.test(value)) return true
-  return /^[a-z0-9_\-.:[\]=&?/]+$/.test(value)
-}
-
 type Hit = { file: string; line: number; text: string }
-
-/** Every piece of text a person could see in this source. */
-function visibleText(
-  fileName: string,
-  source: string
-): { line: number; text: string }[] {
-  const file = ts.createSourceFile(
-    fileName,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
-  )
-  const out: { line: number; text: string }[] = []
-  const add = (node: ts.Node, text: string) => {
-    if (isCode(text)) return
-    const { line } = file.getLineAndCharacterOfPosition(node.getStart(file))
-    out.push({ line: line + 1, text: text.replace(/\s+/g, " ").trim() })
-  }
-  const skip = (node: ts.Node): boolean => {
-    const parent = node.parent
-    if (!parent) return false
-    // import "x", export … from "x", import("x"), require("x")
-    if (
-      ts.isImportDeclaration(parent) ||
-      ts.isExportDeclaration(parent) ||
-      ts.isExternalModuleReference(parent) ||
-      ts.isLiteralTypeNode(parent)
-    )
-      return true
-    if (
-      ts.isCallExpression(parent) &&
-      (parent.expression.kind === ts.SyntaxKind.ImportKeyword ||
-        (ts.isIdentifier(parent.expression) &&
-          parent.expression.text === "require"))
-    )
-      return true
-    // { "due_on": … } and obj["due"]: keys, not copy.
-    if (
-      (ts.isPropertyAssignment(parent) || ts.isPropertySignature(parent)) &&
-      parent.name === node
-    )
-      return true
-    if (ts.isElementAccessExpression(parent)) return true
-    return false
-  }
-  const visit = (node: ts.Node) => {
-    if (
-      (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
-      !skip(node)
-    )
-      add(node, node.text)
-    else if (ts.isTemplateExpression(node)) {
-      // Holes become a space so "Due ${day}" still reads as "Due".
-      add(
-        node,
-        [node.head.text, ...node.templateSpans.map((s) => s.literal.text)].join(
-          " "
-        )
-      )
-    } else if (ts.isJsxText(node)) add(node, node.text)
-    ts.forEachChild(node, visit)
-  }
-  visit(file)
-  return out
-}
-
-function walk(path: string): string[] {
-  return statSync(path).isDirectory()
-    ? readdirSync(path).flatMap((name) => walk(join(path, name)))
-    : [path]
-}
 
 function scopedFiles(): string[] {
   const files = SCOPE.flatMap((s) => s.paths)

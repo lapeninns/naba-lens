@@ -5,10 +5,11 @@ import { getAuthState, ROUTES } from "@/lib/auth"
 import { RETURN_TO_COOKIE, returnPathFor } from "@/lib/auth/routes"
 
 /**
- * Role redirect: staff to Home, managers to the workspace, admins to the
- * library, or to the page they asked for before signing in when it is in their
- * own area. Every sign-in (link, code, invitation) finishes here, after the
- * session is set; the proxy then clears the remembered page.
+ * Role redirect: staff to Home, managers to the workspace, admins to
+ * Overview, or to the page they asked for before signing in when it is in
+ * their own area. Every sign-in (link, code, invitation) finishes here, after
+ * the session is set, and so does the second step (/auth/mfa, which keeps the
+ * remembered page); the proxy then clears it.
  */
 export default async function RootPage() {
   const state = await getAuthState()
@@ -18,6 +19,8 @@ export default async function RootPage() {
     case "no_profile":
     case "inactive":
       redirect(ROUTES.blocked)
+    case "mfa_required":
+      redirect(ROUTES.mfa)
     case "active": {
       const remembered = (await cookies()).get(RETURN_TO_COOKIE)?.value
       redirect(returnPathFor(state.profile.role, remembered))

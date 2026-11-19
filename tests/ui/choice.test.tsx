@@ -368,7 +368,7 @@ describe("OptionRow", () => {
     expect(row.tagName).toBe("LABEL")
     expect(row.getAttribute("data-type")).toBe("checkbox")
     expect(row.getAttribute("data-size")).toBe("md")
-    expect(row.className).toContain("min-h-14")
+    expect(row.className).toContain("min-h-12")
     expect(row.className).toContain("focus-ring-within")
     expect(row.className).toContain("has-data-checked:bg-accent-soft")
     expect(row.className).toContain("has-data-checked:edge-selected")
@@ -384,8 +384,8 @@ describe("OptionRow", () => {
 
   it.each([
     ["sm", "min-h-11"],
-    ["md", "min-h-14"],
-    ["lg", "min-h-15"],
+    ["md", "min-h-12"],
+    ["lg", "min-h-12"],
   ] as const)("size %s is %s", (size, height) => {
     render(<OptionRow type="checkbox" label="Vegan" size={size} />)
     const row = screen.getByRole("checkbox").closest("label")!

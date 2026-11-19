@@ -367,7 +367,8 @@ describe("detail and observation date on knowledge_submit (A20)", () => {
     expect(
       psql(`select observed_on || '|' || observed_on_source || '|' || question_version
         from public.knowledge_contribution_details where contribution_id = '${result.contributionId}'`)
-    ).toBe(`${daysAgo(30)}|chosen|1`)
+      // The question's latest version (S1-FACTS added version 2).
+    ).toBe(`${daysAgo(30)}|chosen|2`)
 
     const replay = await submit19(w.staffA, "onsite_parking", {
       answer: "unknown",
@@ -465,13 +466,16 @@ describe("detail and observation date on knowledge_submit (A20)", () => {
       observedOn: londonToday(),
     })
     expect(check.detail === null || typeof check.detail === "string").toBe(true)
+    // S1-FACTS: counted from the day it was checked (spec §9.3).
     expect(check.freshness).toEqual(
       ["internal", "public"].map((use) => ({
         use,
-        state: "unrated",
-        nextCheckDue: null,
-        basis: null,
-        basisDate: null,
+        state: "current",
+        nextCheckDue: expect.any(String),
+        basis: "verified_on",
+        basisDate: londonToday(),
+        policyId: `fact_${use}`,
+        policyVersion: 1,
       }))
     )
   })

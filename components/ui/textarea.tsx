@@ -9,12 +9,12 @@ import { cn } from "@/lib/utils"
 type TextareaProps = React.ComponentProps<"textarea">
 
 /*
- * Multi-line text (DESIGN.md §4 Field, `textarea.input`): the shared field
- * recipe, at least three rows and 120px tall, resized downwards only so it
+ * Multi-line text (v2 Field, `textarea.nl-input`): the shared field
+ * recipe, at least three rows and 96px tall (v2), resized downwards only so it
  * never pushes the page sideways. It has one size.
  *
  * `aria-disabled` keeps it in the focus order and makes it read-only, as on
- * Input (DESIGN.md §7).
+ * Input (common-room.md §7).
  */
 function Textarea({
   className,
@@ -32,7 +32,7 @@ function Textarea({
       className={cn(
         fieldControlVariants({ size: "md" }),
         // Several lines need more room between them than one line does.
-        "block min-h-30 resize-y py-3.5 leading-normal",
+        "block min-h-24 resize-y py-3 leading-normal",
         className
       )}
       {...props}

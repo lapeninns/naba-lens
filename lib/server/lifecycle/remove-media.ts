@@ -22,9 +22,18 @@ export type RemoveMediaAssetResult =
     }
   | {
       ok: false
-      status: 401 | 403 | 404 | 500
+      status: 401 | 403 | 404 | 409 | 500
+      /**
+       * `retained`: the asset has been accepted, so it is kept (FA-21). Its
+       * uploader may ask an admin to remove it (`requestMediaRemoval`).
+       */
       error:
-        "unauthenticated" | "inactive" | "forbidden" | "not_found" | "failed"
+        | "unauthenticated"
+        | "inactive"
+        | "forbidden"
+        | "not_found"
+        | "retained"
+        | "failed"
     }
 
 export type RemoveMediaDeps = {
@@ -38,8 +47,10 @@ export type RemoveMediaDeps = {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * Removes a media asset for the signed-in caller (spec §7): staff their own,
- * admins any. Hides it immediately through `delete_media_asset` (tombstone), then
+ * Removes a media asset for the signed-in caller (spec §7): its uploader, or
+ * an admin, while it has not been accepted. An accepted asset answers 409
+ * `retained` (FA-21, spec §16): only an admin removes it, with a reason and
+ * an impact preview (`removeAcceptedMediaAsset`). Hides it immediately through `delete_media_asset` (tombstone), then
  * tries to delete the original and derivatives. A storage failure leaves the asset
  * hidden and is retried by the cleanup job. Idempotent: removing a removed asset
  * succeeds again. Missing assets and other staff members' assets both answer 404,
@@ -89,6 +100,9 @@ export async function removeMediaAssetWith(
     if (deleteError.code === "42501") {
       return { ok: false, status: 403, error: "forbidden" }
     }
+    if (deleteError.message === "media_asset_retained") {
+      return { ok: false, status: 409, error: "retained" }
+    }
     return { ok: false, status: 500, error: "failed" }
   }
 
@@ -99,6 +113,23 @@ export async function removeMediaAssetWith(
     deps.removeObjects ?? storageRemover(service)
   )
   return { ok: true, assetId, storage }
+}
+
+/**
+ * Physical removal after a tombstone written elsewhere (an admin removal):
+ * the service role deletes the asset's objects, `pending` when some remain
+ * for the cleanup job.
+ */
+export function removeTombstonedObjects(
+  service: ServiceClient,
+  assetId: string,
+  removeObjects?: RemoveObjects
+): Promise<"removed" | "pending"> {
+  return removeStoredObjects(
+    service,
+    assetId,
+    removeObjects ?? storageRemover(service)
+  )
 }
 
 async function removeStoredObjects(

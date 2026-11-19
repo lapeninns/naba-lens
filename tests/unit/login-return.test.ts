@@ -176,10 +176,10 @@ describe("/ applies the remembered page after the role check", () => {
   it("sends another account on the same browser home when the role does not allow it", async () => {
     jar.values.set("nl-return-to", "/admin/menus/v1")
     auth.state = active("staff")
-    expect(await redirectOf(RootPage)).toBe("/staff/tasks")
+    expect(await redirectOf(RootPage)).toBe("/staff/home")
     jar.values.set("nl-return-to", "/staff/tasks/t1")
     auth.state = active("admin")
-    expect(await redirectOf(RootPage)).toBe("/admin")
+    expect(await redirectOf(RootPage)).toBe("/admin/overview")
   })
 
   it("re-validates the cookie: a tampered value goes home", async () => {
@@ -191,13 +191,13 @@ describe("/ applies the remembered page after the role check", () => {
       "/api/x",
     ]) {
       jar.values.set("nl-return-to", value)
-      expect(await redirectOf(RootPage), value).toBe("/staff/tasks")
+      expect(await redirectOf(RootPage), value).toBe("/staff/home")
     }
   })
 
   it("is unchanged without a cookie and for signed-out or blocked accounts", async () => {
     auth.state = active("admin")
-    expect(await redirectOf(RootPage)).toBe("/admin")
+    expect(await redirectOf(RootPage)).toBe("/admin/overview")
     jar.values.set("nl-return-to", "/staff/tasks/t1")
     auth.state = { status: "signed_out" }
     expect(await redirectOf(RootPage)).toBe("/login")
