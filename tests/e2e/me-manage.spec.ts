@@ -59,10 +59,10 @@ test("at 390px a manager account opening Me lands in /manager; plain staff see n
   await expectNoManageRow(browser, w.staffA)
 })
 
-// App defect (D3): Me still shows "Manage <venue>" to a staff account holding
-// a legacy staff-held grant (canManageVenue counts staff-held grants), and the
-// row's /manager link sends that account straight back to Today.
-test.fixme("at 390px staff holding a legacy staff-held grant see no Manage row", async ({
+// The staff shell never offers Manage: /manager takes manager accounts only
+// (D3), so a staff account still holding a legacy staff-held grant sees no
+// Manage row and is sent back to Today from /manager.
+test("at 390px staff holding a legacy staff-held grant see no Manage row", async ({
   browser,
 }) => {
   test.setTimeout(120_000)
