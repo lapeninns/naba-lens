@@ -23,7 +23,6 @@ import {
   eventKinds,
   expectRefused,
   expectSubmitRefused,
-  legacyManagerGrant,
   londonToday,
   provisionAmenitiesWorld,
   question,
@@ -51,20 +50,18 @@ import { signedInPage, type Person } from "./helpers/world"
  * Amenity checks in the built app (plan release criteria 3 and 4): admin
  * enable, manager add/assign/reopen/archive/restore and Capture myself, staff
  * capture against each evidence rule. Managers are venue manager accounts
- * working in the /manager workspace (the same screens as /staff/manage); one
- * journey covers a staff account with a pre-existing (transitional) grant,
- * which keeps /staff/manage. People act through the pages. Setup that a test
- * does not assert runs in the actor's own database session; the service role
- * only seeds people, grants made before manager accounts and media, and reads
- * state to confirm what the pages did.
+ * working in the /manager workspace (decision D3: a staff account never
+ * manages, whatever grant it holds). People act through the pages. Setup that
+ * a test does not assert runs in the actor's own database session; the
+ * service role only seeds people and media, and reads state to confirm what
+ * the pages did.
  */
 
 const MANAGER = amenityHrefs("/manager")
-const LEGACY_MANAGE = amenityHrefs("/staff/manage")
 const adminHrefs = (w: AmenitiesWorld) =>
   amenityHrefs(`/admin/coverage/${w.venueA.id}`)
 
-/** Staff land on Home and start the assigned check from Other jobs. */
+/** Staff land on Today and start the assigned check from Other jobs (DESIGN.md §5c). */
 async function openStaffCheck(page: Page, key: string, id: string) {
   await expect(page).toHaveURL(STAFF_LANDING)
   await startOtherJobsCheck(page, question(key), id)
@@ -202,7 +199,7 @@ test.describe("amenity checks", () => {
     })
     expect(currentSubmission(id).assets).toEqual([photo])
 
-    // Complete checks leave Other jobs (and were never on goal-led Home).
+    // Complete checks leave Other jobs (and were never on Today).
     await staff.goto(OTHER_JOBS_PATH)
     await expect(
       staff.getByRole("heading", { level: 1, name: "Other jobs" })
@@ -630,36 +627,5 @@ test.describe("amenity checks", () => {
     for (const key of ["darts", ...CORE_CHECK_KEYS]) {
       await expect(admin.getByText(question(key))).toHaveCount(0)
     }
-  })
-
-  test("transitional: a staff account with a pre-existing grant still manages Amenities at /staff/manage", async ({
-    browser,
-  }) => {
-    const w = await provisionAmenitiesWorld()
-    await amenityOk(await sessionOf(w.admin), "amenity_enable_venue", {
-      p_venue_id: w.venueA.id,
-    })
-    // A grant made before manager accounts existed, held by a staff account.
-    await legacyManagerGrant(w, w.staffA2, w.venueA)
-
-    const legacy = await signedInPage(browser, w.staffA2)
-    await legacy.goto(LEGACY_MANAGE.list)
-    await expect(legacy).toHaveURL(new RegExp(`${escape(LEGACY_MANAGE.list)}$`))
-    for (const q of CORE_QUESTIONS) {
-      await expect(legacy.getByRole("link", { name: q })).toBeVisible()
-    }
-    await expect(
-      legacy.getByRole("button", { name: UI_TEXT.enable })
-    ).toHaveCount(0)
-
-    const id = checkId(w.venueA, "guest_toilets")
-    await legacy.getByRole("link", { name: question("guest_toilets") }).click()
-    await expect(legacy).toHaveURL(
-      new RegExp(`${escape(LEGACY_MANAGE.check(id))}$`)
-    )
-    await chooseOption(legacy, legacy, "Assignee", assigneeOption(w.staffA))
-    await legacy.getByRole("button", { name: UI_TEXT.assign }).click()
-    await expect.poll(() => checkState(id).assignee).toBe(w.staffA.id)
-    expect(eventKinds(id)).toEqual(expect.arrayContaining(["assigned"]))
   })
 })

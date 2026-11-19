@@ -75,7 +75,7 @@ test("AC34 a leaver loses access at once; accepted photos and their credit remai
   expect(JSON.stringify(data)).toContain("deactivated")
 
   // Their open session ends: the next page is not the app.
-  await staff.goto("/staff/tasks")
+  await staff.goto("/staff/home")
   await expect(staff).not.toHaveURL(/\/staff\//)
   await keep(staff, info, "ac34-leaver")
   expect(
@@ -139,36 +139,50 @@ test("AC36 the next person on a shared phone sees none of the last person's prev
   const unsentId = await assetNamed(unsent.name)
   await keep(page, info, "ac36-a-before-sign-out")
 
-  // A logs out from Me (the phone's place for it), explaining unsent work.
-  await page.goto("/staff")
+  // A logs out from Me's Settings (the phone's place for it), explaining
+  // unsent work.
+  await page.goto("/staff/me/settings")
   page.once("dialog", (d) => void d.accept())
   await page.getByRole("button", { name: "Log out" }).click()
   const confirm = page.getByRole("alertdialog")
   if (await confirm.isVisible().catch(() => false))
     await confirm.getByRole("button", { name: /Log out/ }).click()
   await expect(page).toHaveURL(/\/login/)
+  await expect(
+    page.getByRole("status").filter({ hasText: "You have signed out." })
+  ).toBeVisible()
   block = false
 
-  // Nothing of A's is left on the phone.
-  const left = await page.evaluate(async () => {
-    const keys = Object.keys(localStorage)
-    const dbs = indexedDB.databases
-      ? (await indexedDB.databases()).map((d) => d.name ?? "")
-      : []
-    const cached: string[] = []
-    if ("caches" in window)
-      for (const name of await caches.keys())
-        for (const req of await (await caches.open(name)).keys())
-          cached.push(req.url)
-    return { keys, dbs, cached }
-  })
-  expect(
-    left.keys.filter((k) => /upload-keys|tus::|capture/.test(k)),
-    "upload keys and capture data"
-  ).toEqual([])
-  expect(left.dbs, "the capture journal").not.toContain(
-    "nabalens-capture-journal"
-  )
+  // Nothing of A's is left on the phone. The sign-in card wipes it once it
+  // has loaded (app/login/login-card-host.tsx), before anyone can type.
+  const deviceState = () =>
+    page.evaluate(async () => {
+      const keys = Object.keys(localStorage)
+      const dbs = indexedDB.databases
+        ? (await indexedDB.databases()).map((d) => d.name ?? "")
+        : []
+      const cached: string[] = []
+      if ("caches" in window)
+        for (const name of await caches.keys())
+          for (const req of await (await caches.open(name)).keys())
+            cached.push(req.url)
+      return { keys, dbs, cached }
+    })
+  await expect
+    .poll(
+      async () =>
+        (await deviceState()).keys.filter((k) =>
+          /upload-keys|tus::|capture/.test(k)
+        ),
+      { message: "upload keys and capture data" }
+    )
+    .toEqual([])
+  await expect
+    .poll(async () => (await deviceState()).dbs, {
+      message: "the capture journal",
+    })
+    .not.toContain("nabalens-capture-journal")
+  const left = await deviceState()
   expect(
     left.cached.filter((u) => u.includes(sentId) || u.includes(unsentId)),
     "cached previews"
@@ -178,7 +192,13 @@ test("AC36 the next person on a shared phone sees none of the last person's prev
   await signInOn(page, w.staffA2)
   await openAlbum(page)
   const html = async () => page.content()
-  for (const path of ["/staff/tasks", "/staff"]) {
+  // Album, My photos, Me and Today (DESIGN.md §5d, §5e, §5b, §5c).
+  for (const path of [
+    "/staff/album",
+    "/staff/photos",
+    "/staff/me",
+    "/staff/home",
+  ]) {
     await page.goto(path)
     await expect(page.locator("main")).toBeVisible()
     await page.waitForLoadState("networkidle")
@@ -187,9 +207,8 @@ test("AC36 the next person on a shared phone sees none of the last person's prev
     expect(content, `${path}: A's unsent photo`).not.toContain(unsentId)
     expect(content, `${path}: A's file names`).not.toContain(unsent.name)
   }
+  // Today's Unfinished row is absent: the Add queue holds none of A's photos.
   await expect(page.locator('[data-slot="unfinished-row"]')).toHaveCount(0)
-  // The Add queue holds none of A's photos either.
-  await page.goto("/staff/tasks")
   await expect(
     page.locator('[data-slot="album-add"]').filter({ visible: true }).first()
   ).toHaveAccessibleName("Add photos")

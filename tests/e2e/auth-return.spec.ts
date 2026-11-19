@@ -345,8 +345,8 @@ test.describe("unknown URLs inside an app area", () => {
       who: "staff",
       path: "/staff/this-page-does-not-exist/deeper",
       heading: "We can't find that page",
-      back: "Go to Home",
-      href: "/staff/tasks",
+      back: "Go to Today",
+      href: "/staff/home",
     },
     {
       who: "manager",
@@ -396,7 +396,7 @@ test.describe("unknown URLs inside an app area", () => {
     })
   }
 
-  test("the role guard still runs first: staff at an unknown /admin URL go Home", async ({
+  test("the role guard still runs first: staff at an unknown /admin URL go to Today", async ({
     browser,
   }) => {
     const context = await browser.newContext()

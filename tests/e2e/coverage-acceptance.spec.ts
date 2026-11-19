@@ -11,8 +11,14 @@ import {
   seedImages,
   type CoverageWorld,
 } from "./helpers/coverage-world"
+import { convertToManager } from "./helpers/manager-world"
 import { provisioner, psql } from "./helpers/stack"
-import { chooseOption, openOtherJobs, STAFF_LANDING } from "./helpers/ui"
+import {
+  chooseOption,
+  openOtherJobs,
+  STAFF_LANDING,
+  STAFF_TABS,
+} from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -21,6 +27,13 @@ import { signedInPage } from "./helpers/world"
  * AC-29, D11; R-A3). Every decision is made by a real signed-in admin,
  * manager or staff member through PostgREST or the built pages; the service
  * role and psql only seed photos and read results back.
+ *
+ * The manager's database session holds a legacy staff-held grant, so the
+ * database rules for a venue manager are exercised through PostgREST.
+ * Decision D3 retired the staff-side Manage pages (DESIGN.md §15): the
+ * coverage review, checklist and menu screens open only from the admin's
+ * venue coverage now, so those page checks run there; manager pages are
+ * /manager, for venue manager accounts.
  */
 
 type RpcError = { code: string; message: string; details?: string | null }
@@ -105,6 +118,10 @@ type StaffProgress = {
   accepted_count: number
   is_current_member: boolean
 }
+
+/** The admin's venue coverage page for one section of venue 1. */
+const venuePath = (w: CoverageWorld, section: string) =>
+  `/admin/coverage/${w.venue1.id}/${section}`
 
 /** One person's monthly progress at a venue, read as the admin. */
 const staffProgress = async (admin: Db, venueId: string, staffId: string) =>
@@ -557,15 +574,15 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       pending_reconciliation_count: 2,
       complete: false,
     })
-    const managerPage = await signedInPage(browser, w.manager)
-    await managerPage.goto("/staff/manage/menu")
+    const menuPage = await signedInPage(browser, w.admin)
+    await menuPage.goto(venuePath(w, "menu"))
     await expect(
-      managerPage.getByRole("heading", {
+      menuPage.getByRole("heading", {
         name: "Carry photos from the previous menu",
       })
     ).toBeVisible()
     await expect(
-      managerPage
+      menuPage
         .getByRole("region", { name: "Carry photos from the previous menu" })
         .getByText("Nothing is matched by name.", { exact: false })
     ).toBeVisible()
@@ -654,7 +671,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         `select string_agg(status || ':' || coalesce(retire_kind, '-'), ',' order by title) from public.coverage_requirements where id in ('${starters1.requirement_id}'::uuid, '${mains1.requirement_id}'::uuid)`
       )
     ).toBe("retired:reconciled,retired:reconciled")
-    for (const page of [adminPage, managerPage]) await page.context().close()
+    for (const page of [adminPage, menuPage]) await page.context().close()
   })
 
   test("historical target corrections are admin-only, need a reason and are audited (AC-23, R-A3)", async ({
@@ -682,22 +699,6 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         `select coalesce(string_agg(target_count::text || ':' || source, ','), '') from public.monthly_targets where staff_id = '${w.staffA.id}'::uuid and venue_id = '${w.venue1.id}'::uuid and period_month = '${previous}'::date`
       )
     expect(pastRow()).toBe("")
-
-    // The manager's team page shows past months read-only.
-    const managerPage = await signedInPage(browser, w.manager)
-    await managerPage.goto(`/staff/manage/team?period=${previousKey}`)
-    await expect(managerPage.getByRole("heading", { level: 1 })).toBeVisible()
-    await expect(
-      managerPage.getByText(`${w.staffA.name}`, { exact: false }).first()
-    ).toBeVisible()
-    await expect(
-      managerPage.getByRole("button", {
-        name: /^(Correct .+ target|(Decrease|Increase) .+ photo target)$/,
-      })
-    ).toHaveCount(0)
-    await expect(
-      managerPage.getByRole("button", { name: "Save targets" })
-    ).toHaveCount(0)
 
     // R-A3: the admin corrects last month in the UI, with a reason.
     const adminPage = await signedInPage(browser, w.admin)
@@ -734,7 +735,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         `select string_agg(actor_role || ':' || historical::text || ':' || coalesce(reason, '-'), ',') from public.coverage_audit_events where entity = 'monthly_target' and actor_id = '${w.admin.id}'::uuid`
       )
     ).toBe(`admin:true:${reason}`)
-    for (const page of [managerPage, adminPage]) await page.context().close()
+    await adminPage.context().close()
   })
 
   test("a transfer blocks old-venue tasks and photos, keeps past credit, and never grants the new venue (AC-24)", async ({
@@ -764,7 +765,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     const staffPage = await signedInPage(browser, w.staffA)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
     // A non-menu task is on Other jobs, not Home (decision 10).
-    await staffPage.goto("/staff/tasks/other")
+    await openOtherJobs(staffPage)
     await expect(
       staffPage.getByRole("link", { name: `WS5 transfer task ${w.tag}` })
     ).toBeVisible()
@@ -785,13 +786,13 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       staffPage.getByRole("link", { name: `WS5 transfer task ${w.tag}` })
     ).toHaveCount(0)
     await staffPage.goto(`/staff/tasks/${task}`)
-    // G-4: the staff not-found, back to Home (the link may have been menu work).
+    // G-4: the staff not-found, back to Today (the link may have been menu work).
     await expect(
       staffPage.getByRole("heading", { name: "We can't find that page" })
     ).toBeVisible()
     await expect(
-      staffPage.getByRole("link", { name: "Go to Home" })
-    ).toHaveAttribute("href", "/staff/tasks")
+      staffPage.getByRole("link", { name: "Go to Today" })
+    ).toHaveAttribute("href", STAFF_TABS.today)
     await refused(
       staffA.rpc("submit_coverage_photos", {
         p_asset_ids: [oldPhoto!],
@@ -822,14 +823,12 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         `select string_agg(coalesce(revoke_kind, 'open'), ',') from public.venue_manager_grants where staff_id = '${w.manager.id}'::uuid`
       )
     ).toBe("venue_changed")
+    // Their staff account has no Manage row and no workspace (D3).
     const managerPage = await signedInPage(browser, w.manager)
-    await managerPage.goto("/staff/manage")
-    await expect(
-      managerPage.getByRole("heading", { name: "Manage isn't available" })
-    ).toBeVisible()
-    await expect(managerPage.getByRole("link", { name: "Manage" })).toHaveCount(
-      0
-    )
+    await managerPage.goto(STAFF_TABS.me)
+    await expect(managerPage.locator('[data-slot="me-manage"]')).toHaveCount(0)
+    await managerPage.goto("/manager")
+    await expect(managerPage).toHaveURL(STAFF_LANDING)
     for (const page of [staffPage, adminPage, managerPage])
       await page.context().close()
   })
@@ -864,7 +863,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       .click()
     await expect(adminPage.getByText(/is inactive\./)).toBeVisible()
 
-    await leaver.goto("/staff/tasks")
+    await leaver.goto(STAFF_TABS.today)
     await expect(leaver).toHaveURL(/\/auth\/blocked$/)
     expect(
       psql(
@@ -876,15 +875,15 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     )
     expect(row).toMatchObject({ needs_reassignment: true })
 
-    const managerPage = await signedInPage(browser, w.manager)
-    await managerPage.goto("/staff/manage/checklist")
+    await adminPage.goto(venuePath(w, "checklist"))
     await expect(
-      managerPage
+      adminPage
         .getByRole("listitem")
         .filter({ hasText: title })
         .getByText("Needs reassignment")
     ).toBeVisible()
-    // The leaver's accepted photo stays reviewable evidence.
+    // The leaver's accepted photo stays reviewable evidence for the manager.
+    const managerPage = await signedInPage(browser, w.manager)
     const evidence = await managerPage.request.get(
       `/api/coverage/evidence/${photo}/thumb`,
       { maxRedirects: 0 }
@@ -1148,6 +1147,12 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       )
     ).toBe(`staff:${w.venue1.id}:foh:true`)
 
+    // The pages: the same person as a venue manager account (D3).
+    await convertToManager(
+      await signIn(provisioner(), w.admin.email),
+      w.manager,
+      w.venue1
+    )
     const page = await signedInPage(browser, w.manager)
     for (const path of [
       "/admin/staff",
@@ -1156,7 +1161,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       "/admin/coverage/managers",
     ]) {
       await page.goto(path)
-      await expect(page, path).toHaveURL(STAFF_LANDING)
+      await expect(page, path).toHaveURL(/\/manager$/)
     }
     const download = await page.request.get(
       `/api/media/${colleaguePhoto}/download`,
@@ -1170,11 +1175,12 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       (p) => p.email
     )
     for (const path of [
-      "/staff/manage",
-      "/staff/manage/review",
-      "/staff/manage/team",
-      `/staff/manage/team?staff=${w.staffB.id}`,
-      "/staff/manage/checklist",
+      "/manager",
+      "/manager/review",
+      "/manager/team",
+      "/manager/menu",
+      "/manager/search",
+      "/manager/amenities",
     ]) {
       await page.goto(path)
       await expect(
@@ -1203,9 +1209,9 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         p_client_request_key: key(),
       })
     )) as unknown as SubmitRow[]
-    const first = await signedInPage(browser, w.manager)
-    const second = await signedInPage(browser, w.manager)
-    for (const page of [first, second]) await page.goto("/staff/manage/review")
+    const first = await signedInPage(browser, w.admin)
+    const second = await signedInPage(browser, w.admin)
+    for (const page of [first, second]) await page.goto(venuePath(w, "review"))
     const card = (page: typeof first) =>
       page.getByRole("article", {
         name: `Monthly photo: photo by ${w.staffB.name}`,
@@ -1240,9 +1246,9 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         p_client_request_key: key(),
       })
     )) as unknown as SubmitRow[]
-    const first = await signedInPage(browser, w.manager)
-    const second = await signedInPage(browser, w.manager)
-    for (const page of [first, second]) await page.goto("/staff/manage/review")
+    const first = await signedInPage(browser, w.admin)
+    const second = await signedInPage(browser, w.admin)
+    for (const page of [first, second]) await page.goto(venuePath(w, "review"))
     const card = (page: typeof first) =>
       page.getByRole("article", {
         name: `Monthly photo: photo by ${w.staffB.name}`,
@@ -1273,8 +1279,8 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     const { manager } = await people(w)
     const title = `WS5 stale exclusion ${w.tag}`
     const task = await newTask(manager, w, title, [w.staffA.id])
-    const page = await signedInPage(browser, w.manager)
-    await page.goto(`/staff/manage/checklist/${task}`)
+    const page = await signedInPage(browser, w.admin)
+    await page.goto(`${venuePath(w, "checklist")}/${task}`)
     await expect(page.getByRole("heading", { name: title })).toBeVisible()
     // The same item changes elsewhere after this page loaded.
     await ok(
@@ -1348,12 +1354,12 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       "not_venue_manager",
       "42501"
     )
+    // No way into a workspace: Me shows no Manage row, /manager is closed.
     const page = await signedInPage(browser, w.manager)
-    await page.goto("/staff/manage")
-    await expect(
-      page.getByRole("heading", { name: "Manage isn't available" })
-    ).toBeVisible()
-    await expect(page.getByRole("link", { name: "Manage" })).toHaveCount(0)
+    await page.goto(STAFF_TABS.me)
+    await expect(page.locator('[data-slot="me-manage"]')).toHaveCount(0)
+    await page.goto("/manager")
+    await expect(page).not.toHaveURL(/\/manager(\/|$)/)
     await page.context().close()
   })
 })

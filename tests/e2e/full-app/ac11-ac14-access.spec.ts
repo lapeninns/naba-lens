@@ -18,7 +18,7 @@ import {
 import { provisionManagerWorld } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
 import { provisioner, psql } from "../helpers/stack"
-import { escape } from "../helpers/ui"
+import { escape, STAFF_LANDING } from "../helpers/ui"
 import { signedInPage } from "../helpers/world"
 
 /**
@@ -51,7 +51,10 @@ async function adminCall(
   return data
 }
 
-/** Me's (or Team's) venue switcher: "Work at another venue", Change venue. */
+/**
+ * The venue switcher on Me's Settings (or the manager's Team):
+ * "Work at another venue", Change venue. A staff role lands on Today.
+ */
 async function switchVenue(page: Page, path: string, venueName: string) {
   await page.goto(path)
   await page.getByRole("combobox", { name: "Work at another venue" }).click()
@@ -92,9 +95,10 @@ test("AC11 a venue change during Match leaves no old-venue label on any photo", 
 
   // Another tab on the same phone moves the person to venue B.
   const other = await page.context().newPage()
-  await switchVenue(other, "/staff", w.venueB.name)
-  await expect(other).toHaveURL(/\/staff\/tasks$/)
-  await expect(other.locator('[data-slot="album-home"]')).toContainText(
+  await switchVenue(other, "/staff/me/settings", w.venueB.name)
+  await expect(other).toHaveURL(STAFF_LANDING)
+  await openAlbum(other)
+  await expect(other.locator('[data-slot="album-landing"]')).toContainText(
     w.venueB.name
   )
   await other.close()
@@ -251,7 +255,7 @@ test("AC13 staff using another venue's ids get no data, preview, export or chang
     `/admin/library/${bPhoto}`,
   ]) {
     await page.goto(path)
-    await expect(page, path).toHaveURL(/\/staff(\/tasks)?$/)
+    await expect(page, path).toHaveURL(STAFF_LANDING)
   }
   // Direct database calls in their own session.
   const db = await signIn(provisioner(), w.staffA1.email)
@@ -332,8 +336,9 @@ test("AC14 manager at A and staff at B: manager rights apply only at A", async (
 
   // Working at B: staff only.
   await switchVenue(page, "/manager/team", w.venueB.name)
-  await expect(page).toHaveURL(/\/staff\/tasks$/)
-  await expect(page.locator('[data-slot="album-home"]')).toContainText(
+  await expect(page).toHaveURL(STAFF_LANDING)
+  await openAlbum(page)
+  await expect(page.locator('[data-slot="album-landing"]')).toContainText(
     w.venueB.name
   )
   await keep(page, info, "ac14-at-b")

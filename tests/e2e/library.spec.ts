@@ -10,13 +10,19 @@ import {
 } from "../library/e2e"
 import { secondsBefore, seedAsset, setupIdentity } from "../library/seed"
 import { createVenue, serviceClient } from "../support/identities"
-import { ADMIN_LANDING, openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import {
+  myPhotoTileById,
+  myPhotoTiles,
+  openPhotoPage,
+  photoDetail,
+} from "./helpers/s4-photos"
+import { ADMIN_LANDING, openMyPhotos, STAFF_LANDING } from "./helpers/ui"
 
 /**
  * The library track's browser checks (spec §3 admin library and portfolio, §7
  * signed reads): filters and URL params, pagination under filters, the 15 s
  * foreground refresh, and previews that keep loading after their signed links
- * expire. Run with a short TTL to exercise expiry quickly:
+ * expire (staff: My photos and a photo's own page, DESIGN.md §5e). Run with a short TTL to exercise expiry quickly:
  *
  *   NABALENS_SIGNED_URL_TTL_SECONDS=5 pnpm exec playwright test tests/e2e/library.spec.ts
  *
@@ -68,13 +74,6 @@ async function tileLabels(page: Page, list: string) {
     .getByRole("button")
     .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label") ?? ""))
 }
-
-/**
- * The gallery's "N previews could not load." alert (Next's dev route announcer
- * is also an empty role="alert").
- */
-const previewAlert = (page: Page) =>
-  page.getByRole("alert").filter({ hasText: /could not load/ })
 
 /** Private media never goes through the image optimiser. */
 function forbidImageOptimiser(page: Page) {
@@ -297,7 +296,7 @@ test.describe("admin library", () => {
 })
 
 test.describe("signed previews", () => {
-  test("keep loading after their links expire, in the staff and admin portfolios", async ({
+  test("keep loading after their links expire, on My photos and in the admin portfolio", async ({
     browser,
     baseURL,
   }) => {
@@ -327,13 +326,17 @@ test.describe("signed previews", () => {
       original
     )
 
-    // --- Staff portfolio.
+    // --- Staff: My photos (DESIGN.md §5e). Every tile loads its thumbnail
+    // through the signed route, newest first.
     const staffPage = await signInAs(browser, admin, staff, baseURL!)
     const checkStaffOptimiser = forbidImageOptimiser(staffPage)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
-    await openPortfolio(staffPage)
-    const portfolio = staffPage.getByRole("list", { name: "Your portfolio" })
-    const firstTile = portfolio.getByRole("button").first()
+    await openMyPhotos(staffPage)
+    const firstTile = myPhotoTiles(staffPage).first()
+    await expect(firstTile).toHaveAttribute(
+      "href",
+      `/staff/photos/${photos[0].id}`
+    )
     await expectImageLoaded(firstTile.locator("img"))
     expect(await firstTile.locator("img").getAttribute("src")).toBe(
       `/api/media/${photos[0].id}/thumb`
@@ -352,71 +355,27 @@ test.describe("signed previews", () => {
     const stale = await staffPage.request.get(signed)
     expect(stale.ok(), "the captured link should have expired").toBe(false)
 
-    // After expiry: the viewer, more pages and a focus refresh all load.
+    // After expiry: the photo's own page and every tile, oldest included,
+    // load again (all PAGE + 2 fit on My photos' first page).
     await firstTile.click()
-    const staffViewer = staffPage.getByRole("dialog")
-    await expectImageLoaded(staffViewer.locator("img"))
-    await staffViewer.press("Escape")
-    await staffPage.getByRole("button", { name: "Load more" }).click()
-    await expect(portfolio.getByRole("button")).toHaveCount(PAGE + 2)
-    await expectImageLoaded(portfolio.getByRole("button").last().locator("img"))
-    await staffPage.evaluate(() => window.dispatchEvent(new Event("focus")))
+    await expect(staffPage).toHaveURL(
+      new RegExp(`/staff/photos/${photos[0].id}$`)
+    )
+    await expectImageLoaded(photoDetail(staffPage).locator("img"))
+    expect(
+      await photoDetail(staffPage).locator("img").getAttribute("src")
+    ).toBe(`/api/media/${photos[0].id}/preview`)
+    await openMyPhotos(staffPage)
+    await expect(myPhotoTiles(staffPage)).toHaveCount(PAGE + 2)
     await expectImageLoaded(firstTile.locator("img"))
-    await expect(previewAlert(staffPage)).toHaveCount(0)
-
-    // A load that fails once (e.g. expired between redirect and fetch) is
-    // re-signed and retried once, invisibly.
-    // Me also lists the photo under Your photos (S2-STAFF My uploads), which
-    // loads the same thumb route: fail every first load (no `r`) once, so
-    // each image on the page shows its own retry.
-    let failures = 0
-    let retries = 0
-    await staffPage.route(`**/api/media/${photos[1].id}/thumb*`, (route) => {
-      if (!new URL(route.request().url()).searchParams.has("r")) {
-        failures++
-        return route.fulfill({ status: 503, body: "" })
-      }
-      retries++
-      return route.continue()
-    })
-    await staffPage.reload()
-    const second = portfolio.getByRole("button").nth(1).locator("img")
-    await expectImageLoaded(second)
-    expect(await second.getAttribute("src")).toBe(
-      `/api/media/${photos[1].id}/thumb?r=1`
-    )
-    expect(failures).toBeGreaterThanOrEqual(1)
-    expect(retries).toBeGreaterThanOrEqual(1)
-    await expect(previewAlert(staffPage)).toHaveCount(0)
-
-    // A load that keeps failing shows a visible error; Try again recovers.
-    await staffPage.unroute(`**/api/media/${photos[1].id}/thumb*`)
-    await staffPage.route(`**/api/media/${photos[2].id}/thumb*`, (route) =>
-      route.fulfill({ status: 503, body: "" })
-    )
-    await staffPage.reload()
-    // Me lists Your photos first (S2-STAFF), so the portfolio's lazy tiles
-    // load only once scrolled to.
-    await portfolio.getByRole("button").nth(2).scrollIntoViewIfNeeded()
-    // Your photos follows the same rule (S3-R4, F7) with its own notice.
-    const yours = staffPage.locator('[data-slot="my-uploads-broken"]')
-    const alert = previewAlert(staffPage).and(
-      staffPage.locator(':not([data-slot="my-uploads-broken"])')
-    )
-    await expect(alert).toHaveText(/1 preview could not load\./)
-    await expect(yours).toHaveText(/1 preview could not load\./)
-    await expect(
-      portfolio.getByRole("button").nth(2).locator("img")
-    ).toHaveCount(0)
-    await staffPage.unroute(`**/api/media/${photos[2].id}/thumb*`)
-    await alert.getByRole("button", { name: "Try again" }).click()
-    await expectImageLoaded(portfolio.getByRole("button").nth(2).locator("img"))
-    await expect(alert).toHaveCount(0)
-    await yours.getByRole("button", { name: "Try again" }).click()
-    await expect(yours).toHaveCount(0)
+    const oldest = myPhotoTileById(staffPage, photos.at(-1)!.id)
+    await expectImageLoaded(oldest.locator("img"))
+    // A direct open of another photo's page loads its preview too.
+    await openPhotoPage(staffPage, photos[1].id)
+    await expectImageLoaded(photoDetail(staffPage).locator("img"))
     checkStaffOptimiser()
 
-    // --- Admin portfolio (/admin/staff/[id]): the same gallery and recovery.
+    // --- Admin portfolio (/admin/staff/[id]): the gallery after expiry.
     const adminPage = await signInAs(browser, admin, adminUser, baseURL!)
     const checkAdminOptimiser = forbidImageOptimiser(adminPage)
     await adminPage.goto(`/admin/staff/${staff.id}`)

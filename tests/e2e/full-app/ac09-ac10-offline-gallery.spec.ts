@@ -14,6 +14,7 @@ import {
 } from "../helpers/full-app"
 import { provisionManagerWorld } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
+import { openMenuShelf } from "../helpers/s6-fullapp"
 import { signedInPage } from "../helpers/world"
 
 /**
@@ -33,7 +34,8 @@ test("AC09 offline: no false Sent; saved on this phone; sent once back online (p
   const w = await provisionManagerWorld()
   const photo = await syntheticJpeg(`ac09-${w.tag}.jpg`)
   const page = await signedInPage(browser, w.staffA1, SIZES.phone)
-  await openAlbum(page)
+  // Album's Menu, Starters: Salad's tile is on screen (DESIGN.md §5d).
+  await openMenuShelf(page, "food.starters")
   // The signal drops once Match has its slots (they come from the server).
   const { match } = await startMatch(page, [photo.path])
   await expect(

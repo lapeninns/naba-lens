@@ -6,7 +6,7 @@ import { anonClient, signIn, type Db } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 import { supportedMp4, syntheticJpeg } from "./helpers/media"
 import { provisioner } from "./helpers/stack"
-import { openPortfolio, uploadThroughDialog } from "./helpers/ui"
+import { openMyPhotos, uploadThroughDialog } from "./helpers/ui"
 import { provisionWorld, signedInPage } from "./helpers/world"
 
 /**
@@ -74,10 +74,10 @@ test("staff reading colleagues' media rows directly get no path to stored bytes;
   const clip = supportedMp4(`colleague-original-${world.tag}.mp4`)
   const doomed = await syntheticJpeg(`colleague-deleted-${world.tag}.jpg`)
   const pageB = await signedInPage(browser, world.staffB)
-  await openPortfolio(pageB)
+  await openMyPhotos(pageB)
   await uploadThroughDialog(pageB, [photo, clip])
   const pageC = await signedInPage(browser, world.staffC)
-  await openPortfolio(pageC)
+  await openMyPhotos(pageC)
   await uploadThroughDialog(pageC, [doomed])
   await pageB.context().close()
   await pageC.context().close()

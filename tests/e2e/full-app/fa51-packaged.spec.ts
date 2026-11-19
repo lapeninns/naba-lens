@@ -1,6 +1,12 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { labelledPhoto, provisionManagerWorld } from "../helpers/manager-world"
+import {
+  menuShelfPath,
+  openMenuPart,
+  openMenuShelf,
+  partCount,
+} from "../helpers/s6-fullapp"
 import { psql, requireIsolatedStack } from "../helpers/stack"
 import {
   acceptAsManager,
@@ -25,8 +31,9 @@ import {
  * S5-R1 (review Y1, Y2): the older menu-photo screens follow the same rule.
  * The manager Overview's "Menu photos" heading and its "with no ready photo"
  * tally match the rule's dish rows; the manager Menu "Still needs a photo"
- * filter and staff Our menu "Still needs a photo" leave the lager out, and
- * their full lists show it as Optional.
+ * filter leaves the lager out, and its full list shows it as Optional.
+ * (Staff Our menu is gone: `/staff/menu` is Album's Menu, DESIGN.md §5d,
+ * where the lager's tile reads Optional and leaves the Menu count.)
  */
 
 test.describe.configure({ mode: "serial" })
@@ -70,14 +77,10 @@ const dishRow = (page: Page, name: string) =>
     .locator("article")
     .filter({ has: page.getByRole("heading", { name, exact: true }) })
 
-/** A place's "n empty of N": its empty slots and its total. */
-async function placeCount(
-  page: Page
-): Promise<{ empty: number; total: number }> {
-  const line = page.getByText(/^\d+ empty of \d+$/).first()
-  await expect(line).toBeVisible()
-  const m = /(\d+) empty of (\d+)/.exec((await line.textContent()) ?? "")!
-  return { empty: Number(m[1]), total: Number(m[2]) }
+/** Album's Menu count, "n still empty of N" (DESIGN.md §5d "A part"). */
+async function menuCount(page: Page) {
+  await openMenuPart(page)
+  return partCount(page)
 }
 
 test("FA-51: a packaged drink without Photo wanted reads Optional and leaves every count (AC39)", async ({
@@ -89,14 +92,15 @@ test("FA-51: a packaged drink without Photo wanted reads Optional and leaves eve
   const before = counts(w.venueA.id, null)
   expect(counts(w.venueA.id, "drinks")).toEqual({ covered: 0, total: 1 })
 
-  // Staff, phone: the lager is an ordinary empty slot first.
+  // Staff, phone: the lager is an ordinary empty slot first, on Album's
+  // Menu, Drinks (DESIGN.md §5d).
   const staff = await as(browser, w.staffA1, PHONE)
-  await staff.goto("/staff/album/unplaced")
+  const placeBefore = await menuCount(staff)
+  await openMenuShelf(staff, "drinks.more")
   const lagerTile = staff.locator(
     `[data-slot="slot-tile"][aria-label^="Lager:"]`
   )
   await expect(lagerTile).toHaveAttribute("aria-label", "Lager: needed")
-  const placeBefore = await placeCount(staff)
 
   // Manager, phone: Packaged on the item page, one confirm, no reason.
   const mgr = await as(browser, w.mgrA, PHONE)
@@ -124,14 +128,14 @@ test("FA-51: a packaged drink without Photo wanted reads Optional and leaves eve
   expect(all).toEqual({ covered: before.covered, total: before.total - 1 })
 
   // Staff, phone: still listed, reads Optional, out of the album count.
-  await staff.reload()
-  await expect(lagerTile).toHaveAttribute("aria-label", "Lager: optional")
-  await expect(lagerTile).toContainText("Optional")
-  await expect(lagerTile).toHaveAttribute("data-optional", "true")
-  expect(await placeCount(staff)).toEqual({
+  expect(await menuCount(staff)).toEqual({
     empty: placeBefore.empty - 1,
     total: placeBefore.total - 1,
   })
+  await openMenuShelf(staff, "drinks.more")
+  await expect(lagerTile).toHaveAttribute("aria-label", "Lager: optional")
+  await expect(lagerTile).toContainText("Optional")
+  await expect(lagerTile).toHaveAttribute("data-optional", "true")
   await expectNoSidewaysScroll(staff, "album at 390 px")
   await evidence(staff, "fa51-staff-album-390")
   await lagerTile.click()
@@ -139,19 +143,9 @@ test("FA-51: a packaged drink without Photo wanted reads Optional and leaves eve
     "Optional: a photo is welcome, but none is needed."
   )
   await expect(
-    staff.getByRole("button", { name: "Add a photo for this slot" })
+    staff.getByRole("button", { name: "Add photos for this slot" })
   ).toBeVisible()
   await evidence(staff, "fa51-staff-slot-390")
-
-  // Staff, phone: Our menu lists the lager as Optional, never as a gap (Y2).
-  await staff.goto("/staff/menu")
-  await expect(dishRow(staff, "Lager")).toContainText("Optional")
-  await expect(dishRow(staff, "Lager")).not.toContainText("Still needs a photo")
-  await expectNoSidewaysScroll(staff, "our menu at 390 px")
-  await evidence(staff, "fa51-staff-our-menu-390")
-  await staff.goto("/staff/menu?filter=gaps")
-  await expect(dishRow(staff, "Salad")).toBeVisible()
-  await expect(dishRow(staff, "Lager")).toHaveCount(0)
 
   // Manager, desktop: metrics and How this is counted say the same.
   const desk = await as(browser, w.mgrA, DESKTOP)
@@ -232,9 +226,9 @@ test("FA-51: a packaged drink without Photo wanted reads Optional and leaves eve
   expect(counts(w.venueA.id, "drinks")).toEqual({ covered: 0, total: 1 })
   expect(counts(w.venueA.id, null)).toEqual(before)
 
-  await staff.goto("/staff/album/unplaced")
+  await staff.goto(menuShelfPath("drinks.more"))
   await expect(lagerTile).toHaveAttribute("aria-label", "Lager: needed")
-  expect(await placeCount(staff)).toEqual(placeBefore)
+  expect(await menuCount(staff)).toEqual(placeBefore)
 })
 
 test("FA-51 layout: the admin's packaged list reads at 390 px", async ({

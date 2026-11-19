@@ -226,18 +226,18 @@ export async function pickFiles(
 }
 
 /**
- * Add with labels while idle: Me's Add a video (opening Me first when elsewhere),
- * then "Choose from your photos" in the Add sheet. The Album tab's Add
- * photos opens Match instead (DESIGN.md §6.1), so it is not this path.
+ * Add with labels while idle: My photos' Add a video (opening My photos first
+ * when elsewhere), then "Choose from your photos" in the Add sheet. The Add
+ * tab opens Match instead (DESIGN.md §6.1), so it is not this path.
  */
 export async function addFromLibrary(
   page: Page,
   paths: string[],
   taps?: TapCounter
 ) {
-  if (new URL(page.url()).pathname !== "/staff") {
-    await page.goto("/staff")
-    await expect(page).toHaveURL(/\/staff$/)
+  if (new URL(page.url()).pathname !== "/staff/photos") {
+    await page.goto("/staff/photos")
+    await expect(page).toHaveURL(/\/staff\/photos$/)
   }
   const trigger = meAddButton(page)
   if (taps) await taps.tap(trigger, "Add")

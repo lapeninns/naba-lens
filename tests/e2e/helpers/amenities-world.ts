@@ -110,9 +110,10 @@ export async function provisionAmenitiesWorld(): Promise<AmenitiesWorld> {
 }
 
 /**
- * Makes `staff` a transitional venue manager: a grant held by a STAFF account,
- * as made before manager accounts existed (helpers/coverage-world). It stays
- * effective for the legacy /staff/manage tools.
+ * Gives `staff` a grant held by a STAFF account, as made before manager
+ * accounts existed (helpers/coverage-world). Under decision D3 it makes the
+ * account a manager nowhere in the UI: /manager needs a manager account and
+ * the retired staff manage URLs redirect there. Use it to prove that refusal.
  */
 export function legacyManagerGrant(
   w: Pick<AmenitiesWorld, "admin">,
@@ -520,7 +521,7 @@ function evidenceCheckbox(page: Page, assetId: string): Locator {
 
 /**
  * The capture form (staff task page, or a manager/admin "Capture myself"
- * page; /manager and /staff/manage share the screen), components/nabalens/amenities/capture/capture-form.tsx. Choices are
+ * page under /manager/amenities), components/nabalens/amenities/capture/capture-form.tsx. Choices are
  * radios named by ANSWER_LABEL. "What you found" and "Limitations" are
  * optional, so their labels end in " (optional)"; Reason shows only for No and
  * Not applicable, and the Wi-Fi test fields only for a Wi-Fi Yes.

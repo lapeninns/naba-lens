@@ -5,6 +5,7 @@ import { signIn } from "../../support/identities"
 import { keep, openAlbum, SIZES, sql } from "../helpers/full-app"
 import { provisionManagerWorld } from "../helpers/manager-world"
 import { provisioner, psql } from "../helpers/stack"
+import { STAFF_LANDING } from "../helpers/ui"
 import { signedInPage } from "../helpers/world"
 
 /**
@@ -81,20 +82,21 @@ for (const size of ["narrow", "desktop"] as const) {
         where profile_id = ${sql(profileId)}::uuid and ended_at is null`)
     ).toBe(`${w.venueA.id}:staff`)
 
-    // The invitee accepts and lands on venue A's album as staff.
+    // The invitee accepts and lands on Today as staff, and the album is
+    // venue A's (DESIGN.md §5c, §5d).
     const invitee = await (await browser.newContext(SIZES[size])).newPage()
     await invitee.goto(await invitationLink(email))
     await invitee
       .getByRole("button", { name: "Accept your invitation" })
       .click()
-    await expect(invitee).toHaveURL(/\/staff\/tasks$/)
+    await expect(invitee).toHaveURL(STAFF_LANDING)
     await openAlbum(invitee)
-    await expect(invitee.locator('[data-slot="album-home"]')).toContainText(
+    await expect(invitee.locator('[data-slot="album-landing"]')).toContainText(
       w.venueA.name
     )
     for (const path of ["/manager", "/admin"]) {
       await invitee.goto(path)
-      await expect(invitee, path).toHaveURL(/\/staff(\/tasks)?$/)
+      await expect(invitee, path).toHaveURL(STAFF_LANDING)
     }
     await invitee.context().close()
 

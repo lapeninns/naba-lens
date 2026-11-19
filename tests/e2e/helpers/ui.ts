@@ -57,8 +57,19 @@ export async function staffTile(
   return scope.locator(`button[data-media-id="${id ?? "no-such-asset"}"]`)
 }
 
-/** Where staff land after sign-in or a wrong-role redirect: Album (Home). */
-export const STAFF_LANDING = /\/staff\/tasks$/
+/**
+ * Where staff land after sign-in or a wrong-role redirect: Today
+ * (DESIGN.md §5c, §15). The five staff tabs and their paths are below.
+ */
+export const STAFF_LANDING = /\/staff\/home$/
+
+/** The staff tabs (DESIGN.md §15): Today, Album, Add (a button), My photos, Me. */
+export const STAFF_TABS = {
+  today: "/staff/home",
+  album: "/staff/album",
+  photos: "/staff/photos",
+  me: "/staff/me",
+} as const
 
 /** Where admins land after sign-in or a wrong-role redirect: Overview (K7). */
 export const ADMIN_LANDING = /\/admin\/overview$/
@@ -68,13 +79,13 @@ export const OTHER_JOBS_PATH = "/staff/tasks/other"
 export const OTHER_JOBS = /\/staff\/tasks\/other$/
 
 /**
- * Opens Other jobs the way staff do: the Other jobs row on Album (Home,
- * under Match later). The row shows whenever a job waits on the person, so a
- * spec that opens Other jobs proves it is reachable (revb B2).
+ * Opens Other jobs the way staff do: the Other jobs row on Today (under
+ * Match later; Me has the same row). The row shows whenever a job waits on
+ * the person, so a spec that opens Other jobs proves it is reachable (revb B2).
  */
 export async function openOtherJobs(page: Page) {
-  if (new URL(page.url()).pathname !== "/staff/tasks")
-    await page.goto("/staff/tasks")
+  if (new URL(page.url()).pathname !== STAFF_TABS.today)
+    await page.goto(STAFF_TABS.today)
   await page.getByRole("link", { name: /^Other jobs/ }).click()
   await expect(page).toHaveURL(OTHER_JOBS)
 }
@@ -124,20 +135,34 @@ export async function startOtherJobsCheck(
   )
 }
 
-/** My portfolio is a page staff open, no longer where they land. */
-export async function openPortfolio(page: Page) {
-  await page.goto("/staff")
-  await expect(page).toHaveURL(/\/staff$/)
+/**
+ * My photos, the staff tab of the person's own photos (DESIGN.md §5e, D19):
+ * a Needs you inbox and a grid by day. It replaced Me's "Your portfolio";
+ * every action on a photo is on that photo's own page. "Add a video" (the
+ * older Add sheet, `meSheetButton`) lives here.
+ */
+export async function openMyPhotos(page: Page) {
+  if (new URL(page.url()).pathname !== STAFF_TABS.photos)
+    await page.goto(STAFF_TABS.photos)
+  await expect(page).toHaveURL(/\/staff\/photos$/)
+  await expect(page.locator('[data-slot="my-photos"]')).toBeVisible()
 }
 
-export const portfolioList = (page: Page) =>
-  page.getByRole("list", { name: "Your portfolio" })
+export const myPhotos = (page: Page) => page.locator('[data-slot="my-photos"]')
+
+/** A photo's own page under My photos (DESIGN.md §5e). */
+export const photoPagePath = (assetId: string) =>
+  `${STAFF_TABS.photos}/${encodeURIComponent(assetId)}`
+
+/** A photo's link on My photos (grid tile or Needs you row), by asset id. */
+export const myPhotoLink = (page: Page | Locator, assetId: string) =>
+  page.locator(`a[href="${photoPagePath(assetId)}"]`).first()
 export const libraryList = (page: Page) =>
   page.getByRole("list", { name: "Library" })
 
 /**
- * Me's way to the older Add sheet (R15-1): "Add a video", a secondary button
- * beside Me's main Add photos. Add photos opens the gallery and Match, which
+ * My photos' way to the older Add sheet (R15-1): "Add a video", a secondary
+ * button at the top of the My photos tab (`openMyPhotos`). Add photos opens the gallery and Match, which
  * takes photos only; the sheet takes photos and videos, labels them with
  * "What's in these photos?" and lists each file with Retry. Every journey
  * that tests the sheet itself starts here.

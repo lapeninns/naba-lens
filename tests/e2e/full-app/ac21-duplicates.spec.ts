@@ -6,8 +6,8 @@ import {
 } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
 import { psql, requireIsolatedStack } from "../helpers/stack"
-import { matchSummary, startMatch } from "../helpers/full-app"
-import { openPortfolio } from "../helpers/ui"
+import { matchSummary, openToday, startMatch } from "../helpers/full-app"
+import { photoPagePath } from "../helpers/ui"
 import {
   acceptAsManager,
   as,
@@ -21,8 +21,10 @@ import {
 /**
  * AC21 (spec §12.4, §22; FA-35): an exact duplicate, found by the SHA-256 of
  * its original at finalisation, never adds coverage or contribution credit.
- * The same file is uploaded twice through Me's Add photos (the gallery, then
- * Match; S3-R12), so the hash is computed by the app, not the fixture.
+ * The same file is uploaded twice through Add photos (the gallery, then
+ * Match; S3-R12), so the hash is computed by the app, not the fixture. The
+ * staff member reads the note on the copy's own page under My photos
+ * (DESIGN.md §5e).
  */
 
 test.describe.configure({ mode: "serial" })
@@ -39,16 +41,12 @@ const assetsNamed = (uploaderId: string, name: string) =>
     .filter(Boolean)
 
 /**
- * Me's Add photos (S3-R12: the tab bar's gallery and Match), answered Match
+ * Add photos (S3-R12: the tab bar's gallery and Match), answered Match
  * later so the photo is sent without a label, as the old sheet sent it.
  */
-async function addFromMe(page: Page, path: string) {
-  await openPortfolio(page)
-  const { match } = await startMatch(
-    page,
-    [path],
-    page.locator('[data-slot="me-add"]').first()
-  )
+async function addPhotos(page: Page, path: string) {
+  await openToday(page)
+  const { match } = await startMatch(page, [path])
   await match.getByRole("button", { name: "Match later" }).click()
   await expect(matchSummary(page)).toBeVisible()
   await page.keyboard.press("Escape")
@@ -62,7 +60,7 @@ test("AC21: an exact duplicate does not inflate coverage or contribution counts,
   const file = await syntheticJpeg(`ac21-${w.tag}.jpg`)
 
   const staff = await as(browser, w.staffA1, PHONE)
-  await addFromMe(staff, file.path)
+  await addPhotos(staff, file.path)
   await expect
     .poll(() => assetsNamed(w.staffA1.id, file.name).length, {
       timeout: 60_000,
@@ -83,7 +81,7 @@ test("AC21: an exact duplicate does not inflate coverage or contribution counts,
   const coveredBefore = covered()
 
   // The same bytes again.
-  await addFromMe(staff, file.path)
+  await addPhotos(staff, file.path)
   await expect
     .poll(() => assetsNamed(w.staffA1.id, file.name).length, {
       timeout: 60_000,
@@ -127,8 +125,8 @@ test("AC21: an exact duplicate does not inflate coverage or contribution counts,
   expect(slot()).toBe("covered:0")
   expect(covered()).toBe(coveredBefore)
 
-  // The staff member is told it doesn't count twice.
-  await openPortfolio(staff)
+  // The staff member is told it doesn't count twice, on the copy's page.
+  await staff.goto(photoPagePath(copy))
   await expect(
     staff.getByText(/doesn't count twice|won't count twice/).first()
   ).toBeVisible()
