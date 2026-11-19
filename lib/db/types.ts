@@ -10732,6 +10732,7 @@ export type Database = {
           needed_by_passed: boolean
           needs_recheck_count: number
           oldest_candidate_at: string
+          optional: boolean
           primary_asset_id: string
           primary_has_preview: boolean
           primary_has_thumbnail: boolean
