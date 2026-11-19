@@ -3,13 +3,21 @@ import { createHash } from "node:crypto"
 
 import { expect, test, type Locator, type Route } from "@playwright/test"
 
+import {
+  expectMark,
+  expectPhotoState,
+  myPhotoTiles,
+  openMe,
+  openPhotoPage,
+  photoDetail,
+} from "../e2e/helpers/s4-photos"
 import { provisioner, psql } from "../e2e/helpers/stack"
 import {
   ADMIN_LANDING,
   libraryList,
-  openPortfolio,
+  myPhotos,
+  openMyPhotos,
   STAFF_LANDING,
-  staffTile,
 } from "../e2e/helpers/ui"
 import {
   CHUNK,
@@ -22,7 +30,6 @@ import {
   isFinalise,
   objectsOf,
   openUploadDialog,
-  portfolio,
   rowsOf,
   row,
   signInAs,
@@ -34,7 +41,7 @@ import {
 /**
  * Media upload interruption and recovery against the real local Supabase
  * stack (real TUS resumable uploads and signed PUTs through the real upload
- * sheet: Me's "Add a video" (R15-1) opens Add's queue, which starts
+ * sheet: My photos' "Add a video" (R15-1, DESIGN.md §5e) opens Add's queue, which starts
  * uploading as soon as files are picked and is titled "Saving N photos" from
  * then on). Every test asserts the CORRECT behaviour; the interruption is made
  * with Playwright routes or the browser's offline switch, never with Docker.
@@ -319,10 +326,12 @@ test.describe("media.reload-resume", () => {
     const unfinished = await rowsOf(staff.id)
     expect(unfinished).toHaveLength(1)
     expect(unfinished[0].upload_state).toBe("uploading")
-    await expect(
-      // After the reload this tab no longer holds the transfer (B02 UP-01).
-      await tileOf(page, staff.id, "tus-video.mp4", "Stopped")
-    ).toHaveCount(1)
+    // After the reload the unfinished video is still on My photos, waiting,
+    // and its page says it is still sending (the server has it uploading).
+    const stopped = await tileOf(page, staff.id, "tus-video.mp4")
+    await expect(stopped).toHaveCount(1)
+    await expectMark(stopped, "Waiting")
+    await expectPhotoState(page, unfinished[0].id, "Sending")
 
     storage.reset()
     dialog = await openUploadDialog(page)
@@ -339,9 +348,8 @@ test.describe("media.reload-resume", () => {
       upload_state: "ready",
     })
     await dialog.getByRole("button", { name: "Done" }).click()
-    await expect(
-      await tileOf(page, staff.id, "tus-video.mp4", "ready")
-    ).toHaveCount(1)
+    await expect(await tileOf(page, staff.id, "tus-video.mp4")).toHaveCount(1)
+    await expectPhotoState(page, unfinished[0].id, "ready")
     await page.context().close()
   })
 })
@@ -387,13 +395,15 @@ test.describe("media.removed-reservation", () => {
     expect(live[0].id).not.toBe(reserved.id)
     expect(live[0].upload_state).toBe("ready")
     await dialog.getByRole("button", { name: "Done" }).click()
-    await expect(await tileOf(page, staff.id, "tus-video.mp4")).toHaveCount(1)
+    const tile = await tileOf(page, staff.id, "tus-video.mp4")
+    await expect(tile).toHaveCount(1)
+    await expect(tile).toHaveAttribute("href", `/staff/photos/${live[0].id}`)
     await page.context().close()
   })
 })
 
 test.describe("media.reopen-states", () => {
-  test("media.reopen-states: after a reload the portfolio tells completed, incomplete and failed uploads apart", async ({
+  test("media.reopen-states: after a reload My photos tells completed, incomplete and failed uploads apart", async ({
     browser,
     baseURL,
   }, testInfo) => {
@@ -418,33 +428,41 @@ test.describe("media.reopen-states", () => {
     await page.reload()
     await page.unroute(TUS)
 
+    const ids = Object.fromEntries(
+      (await rowsOf(staff.id)).map((r) => [r.original_filename, r.id])
+    )
     const expectStates = async (p: typeof page) => {
-      // Tiles, not buttons: the stopped video's tile also carries its own
-      // "Open Add" button inside the list (B02 UP-01). Exactly one.
-      await expect(portfolio(p).locator("button[data-media-id]")).toHaveCount(3)
+      // One tile per upload in the grid (DESIGN.md §5e step 6), each with
+      // its mark; the failed file is also in Needs you with Add again.
+      await expect(myPhotoTiles(p)).toHaveCount(3)
+      const photo = await tileOf(p, staff.id, "photo.jpg")
+      const failed = await tileOf(p, staff.id, "disguised.jpg")
+      const video = await tileOf(p, staff.id, "tus-video.mp4")
+      await expect(photo).toHaveCount(1)
+      await expect(failed).toHaveCount(1)
+      await expect(video).toHaveCount(1)
+      await expectMark(failed, "Needs you")
+      await expectMark(video, "Waiting")
       await expect(
-        portfolio(p).getByRole("button", { name: "Open Add" })
+        myPhotos(p).getByRole("button", { name: "Add again" })
       ).toHaveCount(1)
-      await expect(await tileOf(p, staff.id, "photo.jpg", "ready")).toHaveCount(
-        1
-      )
-      await expect(
-        await tileOf(p, staff.id, "disguised.jpg", "Failed")
-      ).toHaveCount(1)
-      await expect(
-        await tileOf(p, staff.id, "tus-video.mp4", "Stopped")
-      ).toHaveCount(1)
-      // The completed photo has a real thumbnail; the others are not "ready".
+      // The completed photo has a real thumbnail; the others are not ready.
       await expect
-        .poll(async () =>
-          (await tileOf(p, staff.id, "photo.jpg", "ready"))
+        .poll(() =>
+          photo
             .locator("img")
             .evaluate((img: HTMLImageElement) => img.naturalWidth)
         )
         .toBeGreaterThan(0)
+      await expect(failed.locator("img")).toHaveCount(0)
+      await expect(video.locator("img")).toHaveCount(0)
+      // Each photo's page says what happened to it.
+      await expectPhotoState(p, ids["photo.jpg"]!, "ready")
+      await expectPhotoState(p, ids["disguised.jpg"]!, "Couldn't finish")
+      await expectPhotoState(p, ids["tus-video.mp4"]!, "Sending")
     }
     await expectStates(page)
-    await testInfo.attach("portfolio-after-reload", {
+    await testInfo.attach("my-photos-after-reload", {
       body: await page.screenshot({ fullPage: true }),
       contentType: "image/png",
     })
@@ -460,7 +478,7 @@ test.describe("media.reopen-states", () => {
 
     // Another device sees the same states from the server.
     const fresh = await signInAs(browser, staff, baseURL!, STAFF_LANDING)
-    await openPortfolio(fresh)
+    await openMyPhotos(fresh)
     await expectStates(fresh)
     await fresh.context().close()
 
@@ -585,14 +603,14 @@ test.describe("media.stuck-processing", () => {
     const service = provisioner()
 
     // A finalise that never completes: the bytes are stored, the row is not.
-    await page.route("**/staff", async (route) => {
+    await page.route("**/staff/photos", async (route) => {
       if (isFinalise(route.request())) return route.abort("connectionreset")
       await route.continue()
     })
     let dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, ["photo.jpg"])
     await expectRow(dialog, "photo.jpg", "Needs attention", undefined, 60_000)
-    await page.unroute("**/staff")
+    await page.unroute("**/staff/photos")
     const [claimed] = await rowsOf(staff.id)
     expect(await objectsOf(staff.id, claimed.id)).toContain("original.jpg")
 
@@ -608,9 +626,10 @@ test.describe("media.stuck-processing", () => {
     )
 
     await page.reload()
-    await expect(
-      await tileOf(page, staff.id, "photo.jpg", "Processing")
-    ).toHaveCount(1)
+    const stuck = await tileOf(page, staff.id, "photo.jpg")
+    await expect(stuck).toHaveCount(1)
+    await expectMark(stuck, "Waiting")
+    await expectPhotoState(page, claimed.id, "Checking")
     await testInfo.attach("stuck-processing", {
       body: await page.screenshot({ fullPage: true }),
       contentType: "image/png",
@@ -627,12 +646,8 @@ test.describe("media.stuck-processing", () => {
     expect((await rowsOf(staff.id))[0].upload_state).toBe("failed")
 
     await page.reload()
-    await expect(
-      await tileOf(page, staff.id, "photo.jpg", "Failed")
-    ).toHaveCount(1)
-    await expect(
-      await tileOf(page, staff.id, "photo.jpg", "Processing")
-    ).toHaveCount(0)
+    await expectMark(stuck, "Needs you")
+    await expectPhotoState(page, claimed.id, "Couldn't finish")
 
     // Recovery: choosing the file again finalises the stored bytes.
     dialog = await openUploadDialog(page)
@@ -669,7 +684,7 @@ test.describe("media.leave-warning", () => {
     // Navigation away: the page asks, and staying keeps the upload running.
     await page.goto("/login").catch(() => {})
     expect(seen).toEqual(["beforeunload"])
-    expect(new URL(page.url()).pathname).toBe("/staff")
+    expect(new URL(page.url()).pathname).toBe("/staff/photos")
     await expectRow(dialog, "tus-video.mp4", "Saving…", "Uploading")
 
     // Closing the tab asks too.
@@ -707,13 +722,14 @@ test.describe("media.reload-metadata", () => {
     const rows = await rowsOf(staff.id)
     expect(rows).toHaveLength(2)
 
-    // Staff view: thumbnail and upload date on every tile; contributor and
-    // venue in the profile header.
+    // Staff view: a thumbnail on every My photos tile, under today's day
+    // heading; each photo's page has its date; contributor and venue are in
+    // Me's profile header (DESIGN.md §5b, §5e).
+    await expect(
+      myPhotos(page).getByRole("heading", { name: /^Today/ })
+    ).toBeVisible()
     for (const r of rows) {
-      const date = appDate(r.created_at)
-      const tile = (
-        await staffTile(portfolio(page), r.original_filename, staff.id)
-      ).and(page.getByRole("button", { name: `Photo, uploaded ${date}` }))
+      const tile = await tileOf(page, staff.id, r.original_filename)
       await expect(tile).toBeVisible()
       await expect
         .poll(() =>
@@ -723,15 +739,22 @@ test.describe("media.reload-metadata", () => {
         )
         .toBeGreaterThan(0)
     }
-    const header = page.getByRole("region", { name: "Profile" })
+    await testInfo.attach("staff-my-photos", {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    })
+    for (const r of rows) {
+      await openPhotoPage(page, r.id)
+      // "Sent 17 Nov" this year (lib/staff/my-uploads datesLine).
+      await expect(photoDetail(page)).toContainText(
+        `Sent ${appDate(r.created_at).replace(/ \d{4}$/, "")}`
+      )
+    }
+    const header = await openMe(page)
     await expect(
       header.getByRole("heading", { name: staff.name })
     ).toBeVisible()
     await expect(header.getByText(world.venue1.name)).toBeVisible()
-    await testInfo.attach("staff-portfolio", {
-      body: await page.screenshot({ fullPage: true }),
-      contentType: "image/png",
-    })
 
     // Admin view of the same uploads: contributor, venue and date by name.
     const adminPage = await signInAs(

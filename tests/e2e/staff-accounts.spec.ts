@@ -9,7 +9,8 @@ import {
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 import { psql } from "./helpers/stack"
-import { ADMIN_LANDING, openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { openMe } from "./helpers/s4-photos"
+import { ADMIN_LANDING, STAFF_LANDING, STAFF_TABS } from "./helpers/ui"
 import { provisionWorld, signedInPage } from "./helpers/world"
 import { passMfaIfAsked } from "./helpers/mfa"
 
@@ -106,8 +107,8 @@ test.describe("admin staff management", () => {
     ).toBeVisible()
     await dialog.getByRole("button", { name: "Cancel" }).click()
 
-    // The invitee accepts from the real email, lands on Home and opens
-    // their portfolio.
+    // The invitee accepts from the real email, lands on Today and opens Me,
+    // whose profile header names them (DESIGN.md §5b).
     const staffContext = await browser.newContext()
     const staffPage = await staffContext.newPage()
     await staffPage.goto(await invitationLink(email))
@@ -118,8 +119,8 @@ test.describe("admin staff management", () => {
       .getByRole("button", { name: "Accept your invitation" })
       .click()
     await expect(staffPage).toHaveURL(STAFF_LANDING)
-    await openPortfolio(staffPage)
-    await expect(staffPage.getByRole("heading", { name })).toBeVisible()
+    const profile = await openMe(staffPage)
+    await expect(profile.getByRole("heading", { name })).toBeVisible()
 
     // Staff cannot open the admin staff area or call its avatar route.
     await staffPage.goto("/admin/staff")
@@ -178,7 +179,7 @@ test.describe("admin staff management", () => {
     ).toHaveCount(0, fast)
 
     // The staff member's existing session is refused on its next request.
-    await staffPage.goto("/staff")
+    await staffPage.goto(STAFF_TABS.today)
     await expect(staffPage).toHaveURL(/\/auth\/blocked$/)
 
     // Reactivation restores access with a fresh sign-in.

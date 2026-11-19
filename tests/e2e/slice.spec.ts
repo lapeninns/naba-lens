@@ -14,10 +14,17 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import {
+  MY_PHOTOS_EMPTY,
+  myPhotoTile,
+  openMe,
+  photoDetail,
+  SETTINGS_PATH,
+} from "./helpers/s4-photos"
+import {
   ADMIN_LANDING,
-  openPortfolio,
+  myPhotos,
+  openMyPhotos,
   STAFF_LANDING,
-  staffTile,
   uploadSheet,
 } from "./helpers/ui"
 import { passMfaIfAsked } from "./helpers/mfa"
@@ -25,7 +32,7 @@ import { passMfaIfAsked } from "./helpers/mfa"
 /**
  * The vertical slice (spec §9 M2 + M3) in a real browser against the local
  * stack: staff uploads a synthetic JPEG (signed PUT) and an MP4 (TUS) through the
- * upload dialog; both appear in their portfolio; a different admin finds the
+ * upload dialog; both appear on My photos (DESIGN.md §5e); a different admin finds the
  * photo in the library and downloads byte-identical original bytes; another staff
  * member at the same venue sees its previews (community) but never its original.
  */
@@ -91,7 +98,7 @@ async function assetsOf(uploaderId: string) {
   return data
 }
 
-test.describe("vertical slice: upload, portfolio, library, download, isolation", () => {
+test.describe("vertical slice: upload, My photos, library, download, isolation", () => {
   test("staff uploads; a different admin downloads identical bytes; other staff see nothing before review (FA-20)", async ({
     browser,
     baseURL,
@@ -124,13 +131,12 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     // --- Staff A uploads through the real dialog.
     const staffPage = await signIn(browser, staffA, baseURL!)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
-    await openPortfolio(staffPage)
+    const profile = await openMe(staffPage)
     await expect(
-      staffPage.getByRole("heading", { name: "TEST e2e-slice-a" })
+      profile.getByRole("heading", { name: "TEST e2e-slice-a" })
     ).toBeVisible()
-    await expect(
-      staffPage.getByRole("main").getByText("Your profile starts here.")
-    ).toBeVisible()
+    await openMyPhotos(staffPage)
+    await expect(myPhotos(staffPage).getByText(MY_PHOTOS_EMPTY)).toBeVisible()
 
     await staffPage.getByRole("button", { name: "Add a video" }).first().click()
     const dialog = uploadSheet(staffPage)
@@ -146,9 +152,8 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     await dialog.getByRole("button", { name: "Done" }).click()
     await expect(dialog).toBeHidden()
 
-    const portfolio = staffPage.getByRole("list", { name: "Your portfolio" })
-    const ownPhoto = await staffTile(portfolio, "curry-dish.jpg")
-    const ownVideo = await staffTile(portfolio, "synthetic.mp4")
+    const ownPhoto = await myPhotoTile(staffPage, "curry-dish.jpg", staffA.id)
+    const ownVideo = await myPhotoTile(staffPage, "synthetic.mp4", staffA.id)
     await expect(ownPhoto).toBeVisible()
     await expect(ownVideo).toBeVisible()
 
@@ -172,7 +177,7 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
         .evaluate((img: HTMLImageElement) => img.naturalWidth)
     ).toBeGreaterThan(0)
     await staffPage.screenshot({
-      path: testInfo.outputPath("staff-portfolio.png"),
+      path: testInfo.outputPath("staff-my-photos.png"),
       fullPage: true,
     })
 
@@ -226,10 +231,8 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     // leaves through a staff route.
     const otherPage = await signIn(browser, staffB, baseURL!)
     await expect(otherPage).toHaveURL(STAFF_LANDING)
-    await openPortfolio(otherPage)
-    await expect(
-      otherPage.getByRole("main").getByText("Your profile starts here.")
-    ).toBeVisible()
+    await openMyPhotos(otherPage)
+    await expect(myPhotos(otherPage).getByText(MY_PHOTOS_EMPTY)).toBeVisible()
     for (const route of ["thumb", "preview", "stream", "download"]) {
       const response = await otherPage.request.get(
         `/api/media/${photo.id}/${route}`,
@@ -281,21 +284,21 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
       library.getByRole("button", { name: /^Photo, curry-dish\.jpg/ })
     ).toHaveCount(0)
 
-    // ...staff remove their own video; both views lose both files.
+    // ...staff withdraw their own video from its page (DESIGN.md §5e); both
+    // views lose both files.
     await staffPage.reload()
     await expect(ownPhoto).toHaveCount(0)
     await ownVideo.click()
-    await staffPage
-      .getByRole("dialog")
-      .getByRole("button", { name: "Delete" })
+    await photoDetail(staffPage)
+      .getByRole("button", { name: "Withdraw" })
       .click()
     await staffPage
-      .getByRole("alertdialog")
-      .getByRole("button", { name: "Delete" })
+      .getByRole("alertdialog", { name: "Withdraw this photo?" })
+      .getByRole("button", { name: "Withdraw" })
       .click()
-    await expect(
-      staffPage.getByRole("main").getByText("Your profile starts here.")
-    ).toBeVisible()
+    await expect(photoDetail(staffPage)).toHaveCount(0)
+    await openMyPhotos(staffPage)
+    await expect(myPhotos(staffPage).getByText(MY_PHOTOS_EMPTY)).toBeVisible()
     await adminPage.goto(`/admin?staff=${staffA.id}`)
     await expect(
       adminPage.getByText("Nothing matches these filters.")
@@ -325,7 +328,10 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     const photo = await syntheticJpeg(dir)
     const page = await signIn(browser, staff, baseURL!)
     await expect(page).toHaveURL(STAFF_LANDING)
-    await openPortfolio(page)
+    // Profile editing is on Settings (DESIGN.md §5b), opened from Me.
+    await openMe(page)
+    await page.getByRole("link", { name: /^Settings/ }).click()
+    await expect(page).toHaveURL(new RegExp(`${SETTINGS_PATH}$`))
     await page.getByRole("button", { name: "Edit profile" }).click()
     const dialog = page.getByRole("dialog")
     await dialog.getByLabel("Display name").fill("TEST e2e renamed")

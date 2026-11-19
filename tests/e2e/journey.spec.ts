@@ -11,6 +11,13 @@ import {
   syntheticHeic,
   syntheticJpeg,
 } from "./helpers/media"
+import {
+  MY_PHOTOS_EMPTY,
+  myPhotoTileById,
+  myPhotoTiles,
+  openMe,
+  photoDetail,
+} from "./helpers/s4-photos"
 import { provisioner, storedObjects } from "./helpers/stack"
 import {
   ADMIN_LANDING,
@@ -18,10 +25,9 @@ import {
   documentUnchanged,
   libraryList,
   markDocument,
-  openPortfolio,
-  portfolioList,
+  myPhotos,
+  openMyPhotos,
   STAFF_LANDING,
-  staffTile,
   tile,
   uploadThroughDialog,
 } from "./helpers/ui"
@@ -35,11 +41,11 @@ import {
 /**
  * Release-critical journey (spec §2 vertical slice + §10 acceptance), run on
  * Chromium, Firefox, WebKit and a mobile-emulated width. Real invite email →
- * real uploads (JPEG, H.264 MP4, HEIC from `sips`) → portfolio after reload and
- * in a fresh context → a second admin's already-open library picks them up
+ * real uploads (JPEG, H.264 MP4, HEIC from `sips`) → My photos after reload
+ * and in a fresh context → a second admin's already-open library picks them up
  * without reload → combined filters → portfolio → preview → original download
- * with matching SHA-256 → staff deletes one → both views lose it, old grants
- * are denied and storage is empty.
+ * with matching SHA-256 → staff withdraw one from its own page (DESIGN.md
+ * §5e) → both views lose it, old grants are denied and storage is empty.
  */
 
 // The admin library's foreground refresh is ~15 s (app/admin/admin-library.tsx).
@@ -65,7 +71,7 @@ test.describe("release journey @core", () => {
     world = await provisionWorld()
   })
 
-  test("invite → upload → portfolio → second admin → filters → download → delete @core", async ({
+  test("invite → upload → My photos → second admin → filters → download → withdraw @core", async ({
     browser,
   }, testInfo) => {
     test.setTimeout(300_000)
@@ -94,21 +100,20 @@ test.describe("release journey @core", () => {
     await invite.getByRole("button", { name: "Close" }).last().click()
     await expect(invite).toBeHidden()
 
-    // --- The invitee accepts from the real email and lands on their portfolio.
+    // --- The invitee accepts from the real email and lands on Today; Me
+    // names them and their venue, and My photos is empty (DESIGN.md §5b, §5e).
     const inviteLink = await waitForLink(inviteeEmail, SUBJECTS.invite, before)
     const staffContext = await browser.newContext()
     const staff = await staffContext.newPage()
     await openEmailLink(staff, inviteLink)
     await expect(staff).toHaveURL(STAFF_LANDING)
-    await openPortfolio(staff)
+    const profile = await openMe(staff)
     await expect(
-      staff.getByRole("heading", { name: inviteeName })
+      profile.getByRole("heading", { name: inviteeName })
     ).toBeVisible()
-    const profile = staff.getByRole("region", { name: "Profile" })
     await expect(profile.getByText(venue1.name)).toBeVisible()
-    await expect(
-      staff.getByRole("main").getByText("Your profile starts here.")
-    ).toBeVisible()
+    await openMyPhotos(staff)
+    await expect(myPhotos(staff).getByText(MY_PHOTOS_EMPTY)).toBeVisible()
     const { data: invitee } = await provisioner()
       .from("profiles")
       .select("id, role, venue_id")
@@ -126,7 +131,8 @@ test.describe("release journey @core", () => {
     ).toBeVisible()
     await markDocument(adminB)
 
-    // --- Staff uploads a JPEG, an MP4 and a HEIC through the real dialog.
+    // --- Staff uploads a JPEG, an MP4 and a HEIC through the real dialog
+    // (My photos' Add a video).
     const seen = await uploadThroughDialog(staff, [jpeg, mp4, heic])
     for (const file of [jpeg, mp4, heic]) {
       const log = seen[file.name]
@@ -153,23 +159,22 @@ test.describe("release journey @core", () => {
     const idOf = (name: string) =>
       rows!.find((r) => r.original_filename === name)!.id
 
-    const portfolio = portfolioList(staff)
-    const ownJpeg = await staffTile(portfolio, jpeg.name)
+    const ownJpeg = myPhotoTileById(staff, idOf(jpeg.name))
     await expect(ownJpeg).toBeVisible()
-    await expect(await staffTile(portfolio, mp4.name)).toBeVisible()
-    await expect(await staffTile(portfolio, heic.name)).toBeVisible()
+    await expect(myPhotoTileById(staff, idOf(mp4.name))).toBeVisible()
+    await expect(myPhotoTileById(staff, idOf(heic.name))).toBeVisible()
 
     // Persists after reload, with real thumbnails (HEIC decoded server-side).
     await staff.reload()
     for (const name of [jpeg.name, heic.name]) {
-      const img = (await staffTile(portfolio, name)).locator("img")
+      const img = myPhotoTileById(staff, idOf(name)).locator("img")
       await expect
         .poll(() =>
           img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)
         )
         .toBeGreaterThan(0)
     }
-    await expect(portfolio.getByRole("button")).toHaveCount(3)
+    await expect(myPhotoTiles(staff)).toHaveCount(3)
 
     // A fresh browser context, signed in through the real login form + email.
     const fresh = await browser.newContext()
@@ -186,8 +191,8 @@ test.describe("release journey @core", () => {
       await waitForLink(inviteeEmail, SUBJECTS.signIn, seenSignIn)
     )
     await expect(freshPage).toHaveURL(STAFF_LANDING)
-    await openPortfolio(freshPage)
-    await expect(portfolioList(freshPage).getByRole("button")).toHaveCount(3)
+    await openMyPhotos(freshPage)
+    await expect(myPhotoTiles(freshPage)).toHaveCount(3)
     await fresh.close()
 
     // --- Admin B's already-open library shows them without a reload.
@@ -269,7 +274,7 @@ test.describe("release journey @core", () => {
         .getByRole("button")
     ).toHaveCount(3)
 
-    // --- Staff deletes their JPEG. Capture its grants first.
+    // --- Staff withdraw their JPEG. Capture its grants first.
     const jpegId = idOf(jpeg.name)
     const thumbBefore = await staff.request.get(`/api/media/${jpegId}/thumb`, {
       maxRedirects: 0,
@@ -283,21 +288,20 @@ test.describe("release journey @core", () => {
     await markDocument(adminB)
     await expect(tile(libraryList(adminB), "Photo", jpeg.name)).toBeVisible()
 
+    // Its tile opens its own page, where Withdraw is (DESIGN.md §5e).
     await ownJpeg.click()
-    await staff
-      .getByRole("dialog")
-      .getByRole("button", { name: "Delete" })
-      .click()
-    const confirm = staff.getByRole("alertdialog")
-    await expect(
-      confirm.getByText(
-        /When backups are enabled, copies are retained indefinitely for recovery\. Previously downloaded copies cannot be recalled\.$/
-      )
-    ).toBeVisible()
-    await confirm.getByRole("button", { name: "Delete" }).click()
+    await expect(staff).toHaveURL(new RegExp(`/staff/photos/${jpegId}$`))
+    await photoDetail(staff).getByRole("button", { name: "Withdraw" }).click()
+    const confirm = staff.getByRole("alertdialog", {
+      name: "Withdraw this photo?",
+    })
+    await expect(confirm).toContainText("This can't be undone.")
+    await confirm.getByRole("button", { name: "Withdraw" }).click()
     await expect(confirm).toBeHidden()
-    await expect(ownJpeg).toHaveCount(0)
-    await expect(portfolio.getByRole("button")).toHaveCount(2)
+    await expect(photoDetail(staff)).toHaveCount(0)
+    await openMyPhotos(staff)
+    await expect(myPhotoTileById(staff, jpegId)).toHaveCount(0)
+    await expect(myPhotoTiles(staff)).toHaveCount(2)
 
     // Admin B's open library drops it on its next refresh, without reload.
     await expect(tile(libraryList(adminB), "Photo", jpeg.name)).toHaveCount(0, {
