@@ -1967,23 +1967,34 @@ describe("asset search chunked evaluation equals the base body (B05 perf)", () =
   // through its own uploads, the manager's through its manager-era ones).
   // The grant holder walks at 24 and 48 a page (22 pages of 24 pass the
   // 525 edge); limit 1 and 2 are the manager's and the admin's.
-  // The manager's and the admin's walks run in two tests each, one per pair
-  // of page sizes: all four sizes in one test outran 600 s on the hosted
-  // firefox runner. Together they cover the same cases and limits.
-  const pageSizes = [
-    { name: "1 and 2 a page", limits: [1, 2] },
-    { name: "24 and 48 a page", limits: [24, 48] },
+  // Each manager walk at a small page size has its own timeout budget. All
+  // callers keep the same filters, page sizes and cursors.
+  const largePages = { name: "24 and 48 a page", limits: [24, 48] }
+  const pageSizes = [{ name: "1 and 2 a page", limits: [1, 2] }, largePages]
+
+  const smallManagerPages = [
+    { name: "1 a page", limits: [1] },
+    { name: "2 a page", limits: [2] },
+  ]
+  const managerWalks = [
+    ...smallManagerPages.flatMap(({ name, limits }) => [
+      { name: `${name} from the first page`, limits, withCursor: false },
+      { name: `${name} from a cursor`, limits, withCursor: true },
+    ]),
+    { ...largePages, withCursor: null },
   ]
 
-  it.each(pageSizes)(
+  it.each(managerWalks)(
     "crosses chunk edges with equal times and cursors on rejected or deleted rows: manager account, $name",
-    ({ limits }) => {
+    ({ limits, withCursor }) => {
       const d = compareBodies(
         c.manager.id,
-        chunkEdgeCases().map((x) => ({ ...x, limits }))
+        chunkEdgeCases()
+          .filter((x) => withCursor === null || Boolean(x.at) === withCursor)
+          .map((x) => ({ ...x, limits }))
       )
       expectSame(d)
-      expect(d.rows, c.manager.id).toBeGreaterThan(limits[0] === 1 ? 0 : 500)
+      expect(d.rows, c.manager.id).toBeGreaterThan(limits[0]! <= 2 ? 0 : 500)
     },
     600_000
   )
@@ -2206,8 +2217,8 @@ ${fn.slice(at + CHUNK_MARK.length)};`
         .at(-1)!
     ) as { reads: number; items: number; chunks: number[] }[]
 
-  it("crosses chunk edges where the gate refuses rows P keeps", () => {
-    const cases: Case[] = [
+  const strictGateCases = (): Case[] =>
+    [
       { filters: {} },
       ...["not_granted", "in_force", "legacy_unknown", "expired"].map((r) => ({
         filters: { rights: r },
@@ -2219,24 +2230,45 @@ ${fn.slice(at + CHUNK_MARK.length)};`
       },
       { filters: {}, at: deletedCursor.at, id: deletedCursor.id },
     ].map((x) => ({ ...x, limits: [1, 2, 24, 48], max: 40 }))
-    for (const [who, list] of [
-      [c.manager, cases],
-      [c.staffManager, cases.map((x) => ({ ...x, limits: [24, 48], max: 25 }))],
-    ] as const) {
-      const d = compareBodies(who.id, list, STRICT_GATE)
+
+  it.each([...smallManagerPages, largePages])(
+    "crosses chunk edges where the gate refuses rows P keeps: manager, $name",
+    ({ limits }) => {
+      const d = compareBodies(
+        c.manager.id,
+        strictGateCases().map((x) => ({ ...x, limits })),
+        STRICT_GATE
+      )
       expectSame(d)
-      expect(d.rows, who.id).toBeGreaterThan(100)
-    }
+      expect(d.rows, c.manager.id).toBeGreaterThan(limits[0]! <= 2 ? 0 : 100)
+    },
+    600_000
+  )
+
+  it("crosses chunk edges where the gate refuses rows P keeps: legacy grant holder", () => {
+    const d = compareBodies(
+      c.staffManager.id,
+      strictGateCases().map((x) => ({ ...x, limits: [24, 48], max: 25 })),
+      STRICT_GATE
+    )
+    expectSame(d)
+    expect(d.rows, c.staffManager.id).toBeGreaterThan(100)
+  }, 600_000)
+
+  it("crosses chunk edges where the gate refuses rows P keeps: admin", () => {
     expectSame(
       compareBodies(
         c.admin.id,
-        cases.map((x) => ({
+        strictGateCases().map((x) => ({
           ...x,
           filters: { venue: c.venue, ...(x.filters as object) },
         })),
         STRICT_GATE
       )
     )
+  }, 600_000)
+
+  it("records every chunk size where the gate refuses rows P keeps", () => {
     // Rows each call read (one gate call per row read) and the chunk sizes
     // it issued, page by page: a page of 24 reads past its first chunk of 25;
     // walks at 1 a page (chunks of 2, 8, 32, ...) read past the second chunk
@@ -2427,11 +2459,12 @@ ${fn.slice(at + CHUNK_MARK.length)};`
 
   // P and the rights split mirror these bodies. A change to any of them
   // needs P (the gate prefilter in public.asset_search) and the rights
-  // conditions re-checked, then these pins updated. admits, caller and
-  // can_open must stay as they were at the base commit.
+  // conditions re-checked, then these pins updated. The staff primary-photo
+  // branch still requires a decision row, which P already checks.
+  // admits, caller and can_open must stay as they were at the base commit.
   it("pins the helpers the prefilter and the rights split mirror", () => {
     const pins: Record<string, string> = {
-      "public.menu_item_photo_asset(uuid)": "cd08be25d426976c1e0aeda12f65e28d",
+      "public.menu_item_photo_asset(uuid)": "21bc2f514a6733be01440e8868b07b92",
       "public.task_evidence_asset(uuid)": "7f8c6a96ff4c0a9a899168f481ab42b2",
       "public.amenity_evidence_asset(uuid)": "4f82066506491c9b9b77b1dacca0a6e5",
       "private.menu_photo_unlabelled_eligible(uuid,uuid)":

@@ -713,8 +713,8 @@ as $$
         and exists (
           select 1
           from public.menu_item_photos p
-          join private.current_photo_menu_items(a.venue_id) e on e.item_id = p.item_id
           where p.asset_id = a.id and p.state = 'accepted'
+            and private.is_current_photo_item(a.venue_id, p.item_id, array['food', 'drinks', 'other'])
             and private.menu_item_effective_primary(p.item_id) = p.id
         )
       )

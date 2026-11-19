@@ -539,7 +539,9 @@ describe("local specials", () => {
   })
 
   it("lets the manager place a staff photo on an accepted suggestion, while expired and future specials are excluded", async () => {
-    const { venue, version, staff, mgr } = await world("menus-special-photo")
+    const { venue, version, staff, staff2, mgr } = await world(
+      "menus-special-photo"
+    )
     const suggested = (await ok(create(staff, venue)))!
     const future = (await ok(create(mgr, venue, londonDay(2), londonDay(7))))!
     const asset = await reserveReady(service, staff)
@@ -585,6 +587,12 @@ describe("local specials", () => {
     expect((await ok(assign(suggested.itemId)))![0]).toMatchObject({
       state: "accepted",
     })
+    const preview = (who: TestIdentity) =>
+      ok(who.client.rpc("menu_item_photo_asset", { p_asset_id: asset.id }))
+    expect(await preview(staff2)).toContainEqual(
+      expect.objectContaining({ asset_id: asset.id })
+    )
+    expect(await preview(other.staff)).toEqual([])
     const detail = await ok(
       mgr.client.rpc("review_photo_detail", { p_asset_id: asset.id })
     )
@@ -623,6 +631,7 @@ describe("local specials", () => {
     expect(
       (await catalogueItems(staff, venue)).map((i) => i.itemId)
     ).not.toContain(suggested.itemId)
+    expect(await preview(staff2)).toEqual([])
     expect(await coverage()).not.toMatchObject({
       slots: expect.arrayContaining([
         expect.objectContaining({ slotId: suggested.itemId }),
