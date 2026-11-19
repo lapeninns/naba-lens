@@ -1,5 +1,6 @@
 import type { NextConfig } from "next"
 import { getLoginCaptchaConfig } from "./lib/auth/captcha"
+import { RETIRED_MANAGE_REDIRECTS } from "./lib/config/retired-manage-routes"
 
 /**
  * Baseline security headers (docs/reviews/wave3-review.md finding 7). The CSP is
@@ -113,6 +114,9 @@ const nextConfig: NextConfig = {
       // input; the default 1 MB rejected valid large drafts (final review I-2).
       bodySizeLimit: "4mb",
     },
+  },
+  async redirects() {
+    return [...RETIRED_MANAGE_REDIRECTS]
   },
   async headers() {
     return [
