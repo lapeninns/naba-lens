@@ -146,33 +146,35 @@ test("AC36 the next person on a shared phone sees none of the last person's prev
   const confirm = page.getByRole("alertdialog")
   if (await confirm.isVisible().catch(() => false))
     await confirm.getByRole("button", { name: /Log out/ }).click()
-  await expect(page).toHaveURL(/\/login/)
+  await expect(page).toHaveURL(/\/login\?signed_out=1$/)
   block = false
 
-  // Nothing of A's is left on the phone.
-  const left = await page.evaluate(async () => {
-    const keys = Object.keys(localStorage)
-    const dbs = indexedDB.databases
-      ? (await indexedDB.databases()).map((d) => d.name ?? "")
-      : []
-    const cached: string[] = []
-    if ("caches" in window)
-      for (const name of await caches.keys())
-        for (const req of await (await caches.open(name)).keys())
-          cached.push(req.url)
-    return { keys, dbs, cached }
-  })
-  expect(
-    left.keys.filter((k) => /upload-keys|tus::|capture/.test(k)),
-    "upload keys and capture data"
-  ).toEqual([])
-  expect(left.dbs, "the capture journal").not.toContain(
-    "nabalens-capture-journal"
-  )
-  expect(
-    left.cached.filter((u) => u.includes(sentId) || u.includes(unsentId)),
-    "cached previews"
-  ).toEqual([])
+  // The login screen clears A's device data after it hydrates.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        async ({ sentId, unsentId }) => {
+          const uploadKeys = Object.keys(localStorage).filter((key) =>
+            /upload-keys|tus::|capture/.test(key)
+          )
+          const hasJournal = (await indexedDB.databases()).some(
+            (db) => db.name === "nabalens-capture-journal"
+          )
+          const previewCaches: string[] = []
+          if ("caches" in window)
+            for (const name of await caches.keys())
+              for (const request of await (await caches.open(name)).keys())
+                if (
+                  request.url.includes(sentId) ||
+                  request.url.includes(unsentId)
+                )
+                  previewCaches.push(name)
+          return { uploadKeys, hasJournal, previewCaches }
+        },
+        { sentId, unsentId }
+      )
+    )
+    .toEqual({ uploadKeys: [], hasJournal: false, previewCaches: [] })
 
   // B signs in on the same phone.
   await signInOn(page, w.staffA2)
