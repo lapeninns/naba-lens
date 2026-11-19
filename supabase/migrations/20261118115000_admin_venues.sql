@@ -88,9 +88,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_base text := rtrim(
-    left(btrim(regexp_replace(lower(p_name), '[^a-z0-9]+', '-', 'g'), '-'), 70),
-    '-');
+  v_base text := left(btrim(regexp_replace(lower(p_name), '[^a-z0-9]+', '-', 'g'), '-'), 70);
   v_slug text;
   v_n integer := 1;
 begin

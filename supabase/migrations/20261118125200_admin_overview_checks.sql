@@ -81,7 +81,6 @@ begin
                   ) as covered
                 from public.menu_entries e
                 join public.menu_sections s on s.id = e.section_id
-                join public.menu_items i on i.id = e.item_id and i.archived_at is null
                 where e.version_id = v_next_id and s.kind = c ->> 'category'
               ) n
             ), jsonb_build_object('total', 0, 'covered', 0))
