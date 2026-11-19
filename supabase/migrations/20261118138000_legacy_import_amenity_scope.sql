@@ -17,6 +17,8 @@ set lock_timeout = '5s';
 --               existing fallback), so it waits in Needs label. The script
 --               offers only in-scope checks as candidates
 --               (scripts/import/legacy-import.ts, readCandidates).
+--               A staged place label belongs to the asset's uploader so the
+--               place review gate recognises it. The batch records the admin.
 --   Unlabelled  private.asset_unlabelled_reason holds an amenity-staged
 --               import only while that check is active and in scope, the
 --               same rule amenity_photo_rows reads. Once the check leaves
@@ -173,7 +175,7 @@ begin
         raise exception 'area_unavailable' using errcode = 'P0001';
       end if;
       insert into public.media_area_labels (asset_id, venue_id, subject_id, subject_kind, subject_label, added_by)
-      values (p_asset_id, v_asset.venue_id, v_subject.id, v_subject.kind, v_subject.label, p_admin);
+      values (p_asset_id, v_asset.venue_id, v_subject.id, v_subject.kind, v_subject.label, v_asset.uploader_id);
     elsif v_kind = 'amenity' then
       if v_asset.media_type <> 'image' or not exists (
         select 1 from public.venue_amenity_checks c

@@ -49,17 +49,31 @@ begin
       select jsonb_agg(case
           when c ->> 'category' in ('food', 'drinks', 'other') then
             jsonb_build_object('category', c ->> 'category') || coalesce((
+              -- Same counting rules as current coverage
+              -- (private.coverage_slot_rows): a duplicate copy never covers
+              -- a dish, and a packaged item without Photo wanted (FA-51,
+              -- public.menu_item_packaging from 20261118133000, read at run
+              -- time) is optional: inactive, out of the total.
               select jsonb_build_object(
-                'total', count(*), 'covered', count(*) filter (where n.covered),
+                'total', count(*) filter (where not n.optional),
+                'covered', count(*) filter (where n.covered and not n.optional),
                 'pending', 0, 'checkDue', 0, 'replacementNeeded', 0,
-                'missing', count(*) filter (where not n.covered),
-                'notHere', 0, 'inactive', 0, 'unavailable', 0)
+                'missing', count(*) filter (where not n.covered and not n.optional),
+                'notHere', 0, 'inactive', count(*) filter (where n.optional),
+                'unavailable', 0)
               from (
                 select distinct e.item_id,
+                  coalesce((
+                    select k.packaged and not k.photo_wanted
+                    from public.menu_item_packaging k where k.item_id = e.item_id
+                  ), false) as optional,
                   exists (
                     select 1 from public.menu_item_photos p
+                    join public.media_assets a on a.id = p.asset_id and a.venue_id = p.venue_id
                     where p.item_id = e.item_id and p.venue_id = p_venue.id
                       and p.state = 'accepted' and p.review_level = 'public'
+                      and a.upload_state = 'ready' and a.deleted_at is null and a.media_type = 'image'
+                      and not private.media_duplicate_suppressed(a.id)
                       and not exists (
                         select 1 from public.menu_item_photos l
                         where l.asset_id = p.asset_id and l.item_id = p.item_id

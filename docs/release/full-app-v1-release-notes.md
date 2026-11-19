@@ -52,7 +52,7 @@ Four things stay separate throughout the app and these notes:
 
 ## Data and migrations
 
-83 Full App migrations, `20261118100000` to `20261118138100`: Sprint 1 (23), the Sprint 2 fix pass `108000`-`108600` (7), Sprint 2 (20), the Sprint 3 repair rounds `120000`-`132100` (26) and the Release 1 completion batch `133000`-`138100` (7). With the four Album migrations not yet on `main`, the PR adds 87. Every one applies in order on a fresh stack. All are additive: new tables, columns, functions and policies, with RLS on and no direct table grants. Run them on staging first.
+85 Full App migrations, `20261118100000` to `20261118138200`: Sprint 1 (23), the Sprint 2 fix pass `108000`-`108600` (7), Sprint 2 (20), the Sprint 3 repair rounds `120000`-`132100` (26) and the Release 1 completion batch `133000`-`138200` (9). With the four Album migrations not yet on `main`, the PR adds 89. Every one applies in order on a fresh stack. All are additive: new tables, columns, functions and policies, with RLS on and no direct table grants. Run them on staging first.
 
 ### Migrations that change existing data
 

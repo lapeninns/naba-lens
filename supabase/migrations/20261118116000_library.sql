@@ -236,6 +236,7 @@ grant select on table
 -- asset search pins and mirrors its body.
 -- Coordinator merge: S2-INT's rule (20261118109100: review level, place
 -- freshness, amenity photo acceptance) plus S2-LIBRARY's withdrawal rule.
+-- Dish candidates include the venue's current permanent offerings and running specials.
 create or replace function private.export_candidate_rows(p_venue_id uuid, p_mode text)
 returns table (
   asset_id uuid,
@@ -282,13 +283,11 @@ as $$
   ),
   menu as (
     select distinct on (p.asset_id, p.item_id)
-      p.asset_id, p.item_id, e.name, s.kind, p.id as photo_id, p.revision, p.state, p.review_level
+      p.asset_id, p.item_id, o.name, o.section_kind as kind,
+      p.id as photo_id, p.revision, p.state, p.review_level
     from public.menu_item_photos p
     join usable u on u.id = p.asset_id
-    join public.menu_items i on i.id = p.item_id and i.archived_at is null
-    join public.menu_versions v on v.venue_id = p.venue_id and v.status = 'active'
-    join public.menu_entries e on e.version_id = v.id and e.item_id = p.item_id
-    join public.menu_sections s on s.id = e.section_id and s.version_id = v.id
+    join private.current_photo_menu_items(p_venue_id) o on o.item_id = p.item_id
     where p.venue_id = p_venue_id
       and ((p.state = 'accepted' and p.review_level = 'public')
         or (p_mode = 'internal' and p.state in ('accepted', 'better_photo_requested', 'needs_recheck')))

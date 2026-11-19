@@ -122,7 +122,7 @@ beforeAll(async () => {
   manifest = [
     "file,venue,contributor_email,capture_date,legacy_label,legacy_folder",
     `dish.jpg,${slug},${w.staffA.email},2019-06-01,Fish & Chips,Approved`,
-    `place.jpg,${w.venue},,,beer garden,Approved`,
+    `place.jpg,${w.venue},${w.staffB.email},,beer garden,Approved`,
     `amenity.jpg,${slug},,,Guest toilets,`,
     `mystery.jpg,${slug},,,Old menu shot,Approved`,
     `copy-of-dish.jpg,${slug},${w.staffB.email},,Fish & Chips,Old`,
@@ -237,9 +237,9 @@ describe("legacy import", () => {
     expect(new Date(dishAsset.captured_at!).toISOString()).toBe(
       "2019-06-01T11:00:00.000Z"
     )
-    // No contributor: held by the importing admin; no date, no metadata.
+    // The contributor holds this place photo too. It has no capture date.
     const placeAsset = byHash(assets, "place")
-    expect(placeAsset.uploader_id).toBe(w.admin.id)
+    expect(placeAsset.uploader_id).toBe(w.staffB.id)
     expect(placeAsset.captured_at).toBeNull()
     expect(placeAsset.captured_at_source).toBe("unknown")
 
@@ -262,6 +262,7 @@ describe("legacy import", () => {
     ).toBe(`amenity:${w.checks.guest_toilets}`)
     // No match: unlabelled, the legacy label kept as the note.
     const mysteryAsset = byHash(assets, "mystery")
+    expect(mysteryAsset.uploader_id).toBe(w.admin.id)
     expect(
       psql(
         `select coalesce(has_labels::text, 'none') || '|' || note from public.media_labels where asset_id = '${mysteryAsset.id}'`
@@ -305,9 +306,31 @@ describe("legacy import", () => {
         p_status: "pending",
       })
     ).toContain(byHash(assets, "dish").id)
-    expect(await queue("area_photo_queue", { p_venue_id: w.venue })).toContain(
-      byHash(assets, "place").id
+    const placeAsset = byHash(assets, "place")
+    const places = await ok(
+      w.manager.client.rpc("area_photo_queue", {
+        p_venue_id: w.venue,
+        p_status: "pending",
+      })
     )
+    const pendingPlace = places.find((r) => r.asset_id === placeAsset.id)
+    expect(pendingPlace).toMatchObject({
+      asset_id: placeAsset.id,
+      state: "pending",
+    })
+    const [placeDecision] = await ok(
+      w.manager.client.rpc("decide_area_photo_level", {
+        p_label_id: pendingPlace!.label_id,
+        p_action: "accepted",
+        p_level: "public",
+      })
+    )
+    expect(placeDecision).toMatchObject({ state: "accepted" })
+    expect(
+      psql(
+        `select created_by from public.media_import_batches where id = '${batch}'`
+      )
+    ).toBe(w.admin.id)
     expect(
       await queue("amenity_photo_queue", { p_venue_id: w.venue })
     ).toContain(byHash(assets, "amenity").id)

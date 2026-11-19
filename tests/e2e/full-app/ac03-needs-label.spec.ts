@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test"
 
+import { signIn } from "../../support/identities"
 import {
   assetNamed,
   dishesOn,
@@ -8,11 +9,14 @@ import {
   openAlbum,
   placesOn,
   SIZES,
+  slotChoice,
+  sql,
   startMatch,
   uploadStateOf,
 } from "../helpers/full-app"
 import { provisionManagerWorld } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
+import { provisioner, psql } from "../helpers/stack"
 import { signedInPage } from "../helpers/world"
 
 /**
@@ -81,3 +85,56 @@ for (const size of ["phone", "desktop"] as const) {
     await manager.context().close()
   })
 }
+
+test("staff can search by the original dish name and a manager can approve a photo for a staff-suggested special", async ({
+  browser,
+}) => {
+  test.setTimeout(180_000)
+  const w = await provisionManagerWorld()
+  const special = "Venison and juniper"
+  const photo = await syntheticJpeg(`special-${w.tag}.jpg`)
+  const managerDb = await signIn(provisioner(), w.mgrA.email)
+  const rename = await managerDb.rpc("menu_item_display_name_set", {
+    p_item_id: w.itemsA.soup,
+    p_name: "French onion potage",
+    p_reason: "TEST local display name",
+  })
+  expect(rename.error).toBeNull()
+
+  const staff = await signedInPage(browser, w.staffA1, SIZES.phone)
+  await openAlbum(staff)
+  const { match } = await startMatch(staff, [photo.path])
+  const search = match.getByRole("searchbox", { name: "Search all slots" })
+  await search.fill("Soup")
+  await expect(slotChoice(match, "French onion potage")).toBeVisible()
+  await search.fill(special)
+  await match.getByRole("button", { name: "It's food" }).click()
+  await expect(match.getByText(/is suggested to your manager/)).toBeVisible()
+  await match.getByRole("button", { name: /^I'm not sure/ }).click()
+  await expect(matchSummary(staff)).toContainText("with your manager")
+  const asset = await assetNamed(photo.name)
+  await expect
+    .poll(() => uploadStateOf(asset), { timeout: 60_000 })
+    .toBe("ready")
+  await staff.context().close()
+
+  const manager = await signedInPage(browser, w.mgrA, SIZES.desktop)
+  await manager.goto("/manager/menu/specials")
+  const proposal = manager.getByRole("listitem").filter({ hasText: special })
+  await proposal.getByRole("button", { name: "Accept", exact: true }).click()
+  await expect(proposal).toContainText("Running")
+  await manager.goto(`/manager/review/photo/${asset}`)
+  await manager.locator('[data-review-action="fix-label"]').click()
+  const dialog = manager.getByRole("dialog", { name: "Fix label" })
+  await dialog.getByRole("searchbox", { name: "Search the menu" }).fill(special)
+  await dialog.getByRole("radio", { name: new RegExp(`^${special}`) }).check()
+  await dialog.getByRole("button", { name: `Approve for ${special}` }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect(manager.getByText("Saved.")).toBeVisible()
+  expect(
+    psql(`select s.name || ':' || r.state from public.menu_specials s
+    join private.coverage_slot_rows(${sql(w.venueA.id)}::uuid) r on r.slot_id = s.item_id
+    where s.venue_id = ${sql(w.venueA.id)}::uuid and r.primary_asset_id = ${sql(asset)}::uuid`)
+  ).toBe(`${special}:covered`)
+  await manager.context().close()
+})

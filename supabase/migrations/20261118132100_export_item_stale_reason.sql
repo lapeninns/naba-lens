@@ -17,7 +17,7 @@ set lock_timeout = '5s';
 --   withdrawn       withdrawn in the Library, its use is withdrawn, (public
 --                   package) its public use was withdrawn, or the reviewer
 --                   withdrew the decision the item was exported under
---   off_menu        the dish was archived or is not on the active menu
+--   off_menu        the dish left the current menu or its special ended
 --   subject_retired the place was retired, or the facility check archived
 --                   or taken off the working list
 --   label_changed   the photo no longer carries the place label
@@ -79,13 +79,7 @@ begin
   end if;
 
   if p_subject_kind = 'menu_item' then
-    if not exists (
-      select 1 from public.menu_items i
-      join public.menu_versions v on v.venue_id = p_venue_id and v.status = 'active'
-      join public.menu_entries e on e.version_id = v.id and e.item_id = i.id
-      join public.menu_sections s on s.id = e.section_id and s.version_id = v.id
-      where i.id = p_subject_id and i.archived_at is null
-    ) then
+    if not private.is_current_photo_item(p_venue_id, p_subject_id, array['food', 'drinks', 'other']) then
       return 'off_menu';
     end if;
     if exists (

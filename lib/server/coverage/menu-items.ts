@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { Database } from "@/lib/db/types"
+import { getLabellingCatalogue } from "@/lib/server/labels"
 import { redactError } from "@/lib/server/log/redact"
 import type { MediaActor } from "@/lib/server/media/types"
 
@@ -756,49 +757,35 @@ const dishKey = (ref: { itemId: string; variantId: string | null }) =>
 
 /**
  * The dishes of open better-photo requests that the caller's current venue's
- * active menu offers in a food or drinks section, not archived (with the
- * variant, when one was asked for). A retake is labelled from that menu, so
- * a dish that left it, or a request from a venue the person has moved from,
- * can't be answered. Null when the menu can't be read.
+ * catalogue still offers, including any requested variant. A retake uses
+ * the current venue's food and drinks offerings. Null if the catalogue
+ * cannot be read.
  */
 async function retakeableDishes(
   actor: MediaActor,
   states: readonly MyMenuPhotoState[]
 ): Promise<Set<string> | null> {
-  const itemIds = [
-    ...new Set(
-      states
-        .filter((s) => s.state === "better_photo_requested")
-        .map((s) => s.itemId)
-    ),
-  ]
+  const itemIds = new Set(
+    states
+      .filter((state) => state.state === "better_photo_requested")
+      .map((state) => state.itemId)
+  )
   const venueId = actor.profile.venueId
-  if (itemIds.length === 0 || !venueId) return new Set()
-  const version = await actor.db
-    .from("menu_versions")
-    .select("id")
-    .eq("venue_id", venueId)
-    .eq("status", "active")
-    .maybeSingle()
-  if (version.error) return null
-  if (!version.data) return new Set()
-  const entries = await actor.db
-    .from("menu_entries")
-    .select(
-      "item_id, menu_sections!inner(kind), menu_items!inner(archived_at), menu_entry_variants(variant_id)"
-    )
-    .eq("version_id", version.data.id)
-    .in("item_id", itemIds)
-    .in("menu_sections.kind", ["food", "drinks"])
-    .is("menu_items.archived_at", null)
-  if (entries.error) return null
+  if (itemIds.size === 0 || !venueId) return new Set()
+  const found = await getLabellingCatalogue(actor, venueId)
+  if (!found.ok) return null
+  if (found.catalogue.status === "none") return new Set()
   const offered = new Set<string>()
-  for (const entry of entries.data ?? []) {
-    offered.add(dishKey({ itemId: entry.item_id, variantId: null }))
-    for (const variant of entry.menu_entry_variants ?? [])
-      offered.add(
-        dishKey({ itemId: entry.item_id, variantId: variant.variant_id })
-      )
+  for (const section of found.catalogue.sections) {
+    if (section.kind !== "food" && section.kind !== "drinks") continue
+    for (const item of section.items) {
+      if (!itemIds.has(item.itemId)) continue
+      offered.add(dishKey({ itemId: item.itemId, variantId: null }))
+      for (const variant of item.variants)
+        offered.add(
+          dishKey({ itemId: item.itemId, variantId: variant.variantId })
+        )
+    }
   }
   return offered
 }

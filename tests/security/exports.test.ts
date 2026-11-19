@@ -756,6 +756,122 @@ describe("publication records (AC31, AC33)", () => {
       ...args,
     })
 
+  it("exports and records an approved running special before its venue publishes a menu", async () => {
+    const local = await world("export-running-special")
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/London",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date())
+    const special = await json<{ specialId: string; itemId: string }>(
+      local.manager,
+      "menu_special_create",
+      {
+        p_venue_id: local.venue,
+        p_name: "TEST venison special",
+        p_description: null,
+        p_kind: "food",
+        p_starts_on: today,
+        p_ends_on: today,
+      }
+    )
+    const asset = await reserveReady(service, local.staffA)
+    await saveOk(local.staffA, {
+      asset: asset.id,
+      revision: 0,
+      types: ["dish"],
+      items: [{ itemId: special.itemId, variantId: null }],
+    })
+    const choice = {
+      assetId: asset.id,
+      subjectId: special.itemId,
+      subjectKind: "menu_item" as const,
+    }
+    const choices = async () =>
+      (await candidates(local.manager, local.venue)).items.filter(
+        (candidate) => candidate.assetId === asset.id
+      )
+    expect(await choices()).toEqual([])
+    await ok(
+      local.manager.client.rpc("review_menu_item_photo", {
+        p_asset_id: asset.id,
+        p_item_id: special.itemId,
+        p_variant_id: null as unknown as string,
+        p_decision: "accepted",
+        p_expected_revision: 1,
+      })
+    )
+    expect(await choices()).toEqual([
+      expect.objectContaining({
+        ...choice,
+        category: "food",
+        subjectLabel: "TEST venison special",
+        approvalLevel: "public",
+      }),
+    ])
+    const groupId = await ok(
+      local.staffA.client.rpc("contribution_group_start", {
+        p_key: key(),
+        p_subject_kind: "menu_item",
+        p_subject_id: special.itemId,
+      })
+    )
+    expect(
+      await ok(
+        local.staffA.client.rpc("contribution_group", { p_group_id: groupId })
+      )
+    ).toMatchObject({
+      subject: {
+        kind: "menu_item",
+        id: special.itemId,
+        name: "TEST venison special",
+      },
+    })
+    const pkg = (await ok(create(local.manager, [choice]))) as Created
+    expect(pkg.itemCount).toBe(1)
+    expect(await start(local.manager, pkg.packageId)).toMatchObject({
+      state: "ready",
+      items: [expect.objectContaining({ assetId: asset.id })],
+    })
+
+    const destination = await json<{ id: string }>(
+      admin,
+      "publication_destination_save",
+      {
+        p_destination_id: null,
+        p_venue_id: local.venue,
+        p_label: "TEST special website",
+        p_url: "https://example.test/",
+        p_active: true,
+      }
+    )
+    expect(
+      await ok(
+        record(admin, {
+          p_destination_id: destination.id,
+          p_asset_id: asset.id,
+          p_action: "published",
+          p_external_ref: "TEST publication reference",
+        })
+      )
+    ).toMatchObject({ state: "published_confirmed" })
+
+    psql(`update public.menu_specials set starts_on = current_date - 3, ends_on = current_date - 2
+      where id = '${special.specialId}'`)
+    expect(await choices()).toEqual([])
+    expect(
+      await json(local.manager, "export_package_detail", {
+        p_package_id: pkg.packageId,
+      })
+    ).toMatchObject({
+      state: "needs_rebuild",
+      items: [
+        expect.objectContaining({ eligible: false, staleReason: "off_menu" }),
+      ],
+    })
+  })
+
   it("lets only admins configure destinations", async () => {
     for (const who of [v.w.manager, v.w.staffA, inactiveManager]) {
       await refused(

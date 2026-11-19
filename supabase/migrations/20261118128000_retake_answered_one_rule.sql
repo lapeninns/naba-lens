@@ -168,6 +168,15 @@ as $$
     from public.profiles p
     where p.id = p_staff_id
   ),
+  -- What the staff member's current venue offers now for a dish retake:
+  -- active-menu food and drinks entries and running specials, the same
+  -- targets as matching and review (private.current_photo_menu_items,
+  -- 20261118103100). A special has no entry, so no variant.
+  offered as (
+    select o.item_id, o.entry_id
+    from me cross join lateral private.current_photo_menu_items(me.active_venue_id) o
+    where o.section_kind in ('food', 'drinks')
+  ),
   menu_answered as (
     select m.*,
       private.retake_answer(p_staff_id, m.venue_id, 'dish', m.item_id, m.asset_id, m.decided_at)
@@ -186,16 +195,13 @@ as $$
       ) as aside_at,
       exists (
         select 1
-        from me
-        join public.menu_versions mv on mv.venue_id = me.active_venue_id and mv.status = 'active'
-        join public.menu_entries me2 on me2.version_id = mv.id and me2.item_id = m.item_id
-        join public.menu_sections ms on ms.id = me2.section_id and ms.kind in ('food', 'drinks')
-        join public.menu_items mi on mi.id = me2.item_id and mi.archived_at is null
-        where m.variant_id is null
-          or exists (
-            select 1 from public.menu_entry_variants ev
-            where ev.entry_id = me2.id and ev.variant_id = m.variant_id
-          )
+        from offered o
+        where o.item_id = m.item_id
+          and (m.variant_id is null
+            or exists (
+              select 1 from public.menu_entry_variants ev
+              where ev.entry_id = o.entry_id and ev.variant_id = m.variant_id
+            ))
       ) as on_menu
     from menu_answered m
   ),

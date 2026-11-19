@@ -261,9 +261,8 @@ begin
       new.item_id::text, format('retake:menu_photo:%s:%s', new.photo_id, new.revision),
       jsonb_strip_nulls(jsonb_build_object('source', 'menu_photo', 'itemId', new.item_id,
         'photoId', new.photo_id, 'reason', new.reason,
-        'itemName', (select e.name from public.menu_entries e
-          where e.item_id = new.item_id and e.version_id = private.active_menu_version_id(new.venue_id)
-          limit 1))),
+        'itemName', (select e.name from private.current_photo_menu_items(new.venue_id) e
+          where e.item_id = new.item_id))),
       new.created_at);
   end if;
   return null;
