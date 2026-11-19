@@ -4,13 +4,15 @@ import {
   activeItemId,
   attachShot,
   openActiveVersion,
-  openOwnLabelEditor,
+  openLibraryLabelEditor,
   openVenueMenus,
   pickMenuItem,
   sql,
   worldWithActiveRailway,
 } from "../fixtures/menus/journey-helpers"
+import { syntheticJpeg } from "../e2e/helpers/media"
 import { psql, requireIsolatedStack } from "../e2e/helpers/stack"
+import { addFromLibrary } from "../e2e/helpers/upload-label-flow"
 import { seedReadyAssets, signedInPage } from "../e2e/helpers/world"
 
 /**
@@ -53,15 +55,22 @@ test("menus.unavailable-items: an archived item is no longer offered to staff", 
   const { world, admin } = await worldWithActiveRailway(browser)
   const prefix = `jr-arch-${world.tag}`
   await seedReadyAssets(world.staffA.id, world.venue1.id, 1, "image", prefix)
-  const staff = await signedInPage(browser, world.staffA)
+  // Staff have no label editor for their own photos since My photos
+  // replaced Me's portfolio (DESIGN.md §5e); the library's editor is the
+  // same component, opened here by the admin in a second session.
+  const labeller = await signedInPage(browser, world.adminA)
 
   await test.step("before: Momo is offered", async () => {
-    const { editor } = await openOwnLabelEditor(staff, `${prefix}-01.jpg`)
+    const { editor } = await openLibraryLabelEditor(
+      labeller,
+      world.staffA.id,
+      `${prefix}-01.jpg`
+    )
     await editor.getByRole("combobox", { name: /^Menu item at / }).fill("Momo")
     await expect(
       editor.getByRole("option", { name: /^Momo\s*Appetisers/ })
     ).toBeVisible()
-    await staff.keyboard.press("Escape")
+    await labeller.keyboard.press("Escape")
   })
 
   await archiveMomo(admin, world.venue1)
@@ -71,7 +80,11 @@ test("menus.unavailable-items: an archived item is no longer offered to staff", 
   ).toBe("t")
 
   await test.step("after: Momo is not offered", async () => {
-    const { editor } = await openOwnLabelEditor(staff, `${prefix}-01.jpg`)
+    const { editor } = await openLibraryLabelEditor(
+      labeller,
+      world.staffA.id,
+      `${prefix}-01.jpg`
+    )
     await editor.getByRole("combobox", { name: /^Menu item at / }).fill("Momo")
     const matches = editor.getByRole("listbox", {
       name: "Matching menu items",
@@ -81,7 +94,7 @@ test("menus.unavailable-items: an archived item is no longer offered to staff", 
       `Nothing on ${world.venue1.name}'s menu matches "Momo".`
     )
     await expect(matches.getByRole("option")).toHaveCount(0)
-    await attachShot(testInfo, "archived-item-not-offered", staff)
+    await attachShot(testInfo, "archived-item-not-offered", labeller)
   })
 })
 
@@ -93,8 +106,15 @@ test("menus.unavailable-items: an item archived while staff edit is flagged and 
   const prefix = `jr-gone-${world.tag}`
   await seedReadyAssets(world.staffA.id, world.venue1.id, 1, "image", prefix)
   const fileName = `${prefix}-01.jpg`
-  const staff = await signedInPage(browser, world.staffA)
-  const { viewer, editor } = await openOwnLabelEditor(staff, fileName)
+  // Staff have no label editor for their own photos since My photos
+  // replaced Me's portfolio (DESIGN.md §5e); the library's editor is the
+  // same component, opened here by the admin in a second session.
+  const labeller = await signedInPage(browser, world.adminA)
+  const { viewer, editor } = await openLibraryLabelEditor(
+    labeller,
+    world.staffA.id,
+    fileName
+  )
   await pickMenuItem(editor, "Momo", /^Momo\s*Appetisers/)
   await editor
     .getByRole("group", { name: /^Which Momo\?/ })
@@ -107,7 +127,7 @@ test("menus.unavailable-items: an item archived while staff edit is flagged and 
   await editor.getByRole("button", { name: /^Save labels/ }).click()
   await expect(editor).toContainText("Some menu items are no longer available")
   expect(labelRows(fileName)).toBe("0")
-  await attachShot(testInfo, "unavailable-items-error", staff)
+  await attachShot(testInfo, "unavailable-items-error", labeller)
 
   await editor.getByRole("button", { name: "Remove unavailable items" }).click()
   await expect(
@@ -127,25 +147,35 @@ test("menus.unavailable-items: Item not on the menu? reaches the venue's Menus p
 }, testInfo) => {
   test.setTimeout(240_000)
   const { world, admin } = await worldWithActiveRailway(browser)
-  const prefix = `jr-miss-${world.tag}`
-  await seedReadyAssets(world.staffA.id, world.venue1.id, 1, "image", prefix)
+  // Staff suggest a missing item while labelling in the Add sheet (My
+  // photos' Add a video, DESIGN.md §5e): the per-photo editor went with Me's
+  // portfolio.
   const staff = await signedInPage(browser, world.staffA)
   const missing = `JOURNEY lamb shank special ${world.tag}`
 
   await test.step("staff suggests an item that is not on the menu", async () => {
-    const { viewer, editor } = await openOwnLabelEditor(
-      staff,
-      `${prefix}-01.jpg`
-    )
-    await editor.getByRole("button", { name: "Item not on the menu?" }).click()
-    await editor
-      .getByRole("textbox", { name: "Missing menu item" })
+    const photo = await syntheticJpeg(`jr-miss-${world.tag}.jpg`)
+    const sheet = await addFromLibrary(staff, [photo.path])
+    // A suggestion belongs to one file: it is under the photo's Adjust.
+    await sheet.getByRole("button", { name: /^Adjust labels for / }).click()
+    await sheet.getByRole("button", { name: /^Item not on the menu\?/ }).click()
+    await sheet
+      .getByRole("textbox", { name: /^Missing menu item/ })
       .fill(missing)
-    await editor.getByRole("button", { name: /^Save labels/ }).click()
-    await expect(editor).toBeHidden()
-    await expect(viewer.getByRole("region", { name: "Labels" })).toContainText(
-      `Suggested missing item: ${missing}`
-    )
+    await expect
+      .poll(
+        () =>
+          psql(
+            `select count(*) from public.menu_item_suggestions where suggested_name = ${sql(missing)}`
+          ),
+        { timeout: 60_000 }
+      )
+      .toBe("1")
+    await expect(sheet.getByRole("status")).toHaveText("1 saved", {
+      timeout: 60_000,
+    })
+    await sheet.getByRole("button", { name: "Done" }).click()
+    await expect(sheet).toBeHidden()
   })
 
   await test.step("the suggestion is on the venue's Menus page", async () => {
