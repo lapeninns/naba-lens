@@ -791,3 +791,201 @@ as $$
   left join public.media_labels l on l.asset_id = a.id
   where a.id = p_asset_id;
 $$;
+
+-- Photo sets and use grants share the same check for a dish subject.
+create or replace function private.contribution_subject_exists(p_venue_id uuid, p_kind text, p_subject_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case p_kind
+    when 'none' then p_subject_id is null
+    when 'menu_item' then private.is_current_photo_item(
+      p_venue_id, p_subject_id, array['food', 'drinks', 'other'])
+    when 'task' then exists (
+      select 1 from public.coverage_requirements r
+      where r.id = p_subject_id and r.venue_id = p_venue_id and r.status <> 'retired')
+    when 'question' then exists (
+      select 1 from public.venue_amenity_checks c
+      where c.id = p_subject_id and c.venue_id = p_venue_id and c.status = 'active'
+        and private.knowledge_in_scope(c.venue_id, c.template_key))
+    else false
+  end;
+$$;
+
+create or replace function public.contribution_group(p_group_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := private.amenity_assert_active_user();
+  v_is_manager boolean := private.is_active_manager();
+  v_derivative_fn regprocedure := to_regprocedure('private.media_asset_derivative_summary(uuid)');
+  v_group public.media_contribution_groups;
+  v_creator boolean := false;
+  v_privileged boolean := false;
+  v_use_view text;
+  v_list jsonb := '[]'::jsonb;
+  v_member jsonb;
+  v_derivative text;
+  v_members jsonb;
+  v_summary jsonb;
+  v_subject jsonb;
+  r record;
+begin
+  select g.* into v_group from public.media_contribution_groups g where g.id = p_group_id;
+  if found then
+    v_creator := v_group.created_by = v_uid;
+    -- can_manage_venue: the venue's effective manager, or an active admin.
+    v_use_view := case when private.can_manage_venue(v_group.venue_id) then 'full' else 'uploader' end;
+    v_privileged := v_creator or v_use_view = 'full';
+    for r in
+      select m.position, a.id, a.media_type, a.upload_state, a.uploader_id, a.deleted_at, a.updated_at,
+        coalesce(lb.has_labels, false) as has_labels,
+        l.related_asset_id,
+        (l.related_asset_id is not null and (
+          (v_privileged and not v_creator)
+          or (v_creator and ra.uploader_id = v_uid and (ra.uploader_role = 'manager' or not v_is_manager))
+          or private.viewer_sees_asset(l.related_asset_id))) as related_visible
+      from public.media_contribution_group_members m
+      join public.media_assets a on a.id = m.asset_id
+      left join public.media_labels lb on lb.asset_id = a.id
+      left join public.media_asset_links l
+        on l.asset_id = a.id and l.kind = 'replaces_failed_member' and l.group_id = m.group_id
+      left join public.media_assets ra on ra.id = l.related_asset_id
+      where m.group_id = v_group.id
+        and (
+          (v_creator and a.uploader_id = v_uid and (a.uploader_role = 'manager' or not v_is_manager))
+          or private.viewer_sees_asset(a.id)
+        )
+      order by m.position
+    loop
+      v_member := jsonb_build_object(
+        'assetId', r.id, 'position', r.position, 'mediaType', r.media_type,
+        'uploadState', r.upload_state, 'mine', r.uploader_id = v_uid,
+        'replacesAssetId', case when r.related_visible then r.related_asset_id end);
+      if v_privileged then
+        v_derivative := null;
+        if v_derivative_fn is not null then
+          execute format('select %s($1)', v_derivative_fn::oid::regproc) into v_derivative using r.id;
+        end if;
+        v_member := v_member || jsonb_build_object(
+          'technical', case when r.deleted_at is not null then 'removed' else r.upload_state::text end,
+          -- S4's stopped rule, so a screen offers Replace where it is taken.
+          'stopped', r.deleted_at is null and r.upload_state = 'uploading'
+            and r.updated_at < now() - private.group_stopped_upload_window(),
+          -- When an uploading member becomes stopped (null otherwise), so a
+          -- screen can read the set again then.
+          'stoppedAt', case when r.deleted_at is null and r.upload_state = 'uploading'
+            then r.updated_at + private.group_stopped_upload_window() end,
+          'labels', case
+            when exists (
+                select 1 from public.media_pending_labels pl
+                where pl.asset_id = r.id and pl.status = 'needs_attention')
+              or private.asset_needs_labels(r.id) then 'needs_attention'
+            when r.has_labels
+              or exists (
+                select 1 from public.media_pending_labels pl
+                where pl.asset_id = r.id and pl.status = 'pending') then 'labelled'
+            else 'none'
+          end,
+          'review', private.media_asset_review_list(r.id),
+          'use', private.media_asset_use_summary(r.id, v_use_view),
+          'derivative', v_derivative);
+      end if;
+      v_list := v_list || jsonb_build_array(v_member);
+    end loop;
+    if jsonb_array_length(v_list) > 0 then
+      v_members := v_list;
+    end if;
+  end if;
+  if v_group.id is null or (v_members is null and v_group.created_by is distinct from v_uid) then
+    raise exception 'contribution_group_not_found' using errcode = 'P0002';
+  end if;
+  if v_privileged then
+    select jsonb_build_object(
+        'live', c.ready + c.in_progress + c.failed,
+        'ready', c.ready,
+        'inProgress', c.in_progress,
+        'failed', c.failed,
+        'removed', c.removed,
+        'replaced', c.replaced,
+        'finished', c.ready + c.in_progress + c.failed > 0 and c.ready = c.ready + c.in_progress + c.failed)
+    into v_summary
+    from (
+      select
+        count(*) filter (where s.bucket = 'ready') as ready,
+        count(*) filter (where s.bucket = 'in_progress') as in_progress,
+        count(*) filter (where s.bucket = 'failed') as failed,
+        count(*) filter (where s.bucket = 'removed') as removed,
+        count(*) filter (where s.bucket = 'replaced') as replaced
+      from (
+        select case
+          when exists (
+            select 1 from public.media_asset_links l
+            where l.group_id = v_group.id and l.related_asset_id = m.asset_id
+              and l.kind = 'replaces_failed_member') then 'replaced'
+          when a.deleted_at is not null then 'removed'
+          when a.upload_state = 'failed' then 'failed'
+          when a.upload_state = 'ready' then 'ready'
+          else 'in_progress'
+        end as bucket
+        from public.media_contribution_group_members m
+        join public.media_assets a on a.id = m.asset_id
+        where m.group_id = v_group.id
+          -- The creator: the members it is shown (the loop's rule).
+          and (
+            not v_creator
+            or (a.uploader_id = v_uid and (a.uploader_role = 'manager' or not v_is_manager))
+            or private.viewer_sees_asset(a.id)
+          )
+      ) s
+    ) c;
+  end if;
+  if v_group.subject_kind = 'task' then
+    -- This task row only, at the group's venue, under the task read rules.
+    select jsonb_build_object('kind', 'task', 'id', r2.id, 'name', r2.title)
+    into v_subject
+    from public.coverage_requirements r2
+    where r2.id = v_group.subject_id and r2.venue_id = v_group.venue_id
+      and (
+        private.can_manage_venue(r2.venue_id)
+        or coalesce(private.active_staff_venue_id() = r2.venue_id, false)
+        or r2.id in (select private.own_item_requirement_ids())
+      );
+    v_subject := coalesce(v_subject, jsonb_build_object('kind', 'none', 'id', null, 'name', null));
+  else
+    v_subject := jsonb_build_object(
+      'kind', v_group.subject_kind,
+      'id', v_group.subject_id,
+      'name', case v_group.subject_kind
+        when 'menu_item' then (
+          select o.name from private.current_photo_menu_items(v_group.venue_id) o
+          where o.item_id = v_group.subject_id)
+        when 'question' then (
+          select t.question from public.venue_amenity_checks c
+          join public.amenity_catalogue t on t.key = c.template_key
+          where c.id = v_group.subject_id)
+      end
+    );
+  end if;
+  return jsonb_build_object(
+    'groupId', v_group.id,
+    'venueId', v_group.venue_id,
+    'createdAt', v_group.created_at,
+    'mine', v_group.created_by = v_uid,
+    'subject', v_subject,
+    'members', coalesce(v_members, '[]'::jsonb)
+  ) || case
+    when v_privileged then jsonb_build_object('summary', v_summary)
+    else jsonb_build_object('creatorFirstName', (
+      select nullif(split_part(btrim(p.display_name), ' ', 1), '')
+      from public.profiles p where p.id = v_group.created_by))
+  end;
+end;
+$$;
