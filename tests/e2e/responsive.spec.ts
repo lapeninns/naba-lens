@@ -169,13 +169,11 @@ async function closeDialog(page: Page) {
 }
 
 for (const width of WIDTHS) {
-  test(`screens and dialogs at ${width}px`, async () => {
-    test.setTimeout(240_000)
-    for (const page of [staff, admin, anon]) {
-      await page.setViewportSize({ width, height: width < 768 ? 800 : 900 })
-    }
+  const viewport = { width, height: width < 768 ? 800 : 900 }
 
-    // --- /login
+  test(`login screens at ${width}px`, async () => {
+    test.setTimeout(240_000)
+    await anon.setViewportSize(viewport)
     await anon.goto("/login")
     await check(
       anon,
@@ -190,8 +188,11 @@ for (const width of WIDTHS) {
       "login-expired",
       anon.getByRole("button", { name: "Send a new link" })
     )
+  })
 
-    // --- /staff and its dialogs
+  test(`staff screens and dialogs at ${width}px`, async () => {
+    test.setTimeout(240_000)
+    await staff.setViewportSize(viewport)
     await staff.goto("/staff")
     const portfolio = portfolioList(staff)
     const ownPhoto = await staffTile(portfolio, jpeg.name)
@@ -267,8 +268,11 @@ for (const width of WIDTHS) {
       .getByRole("button", { name: /^Keep (photo|video|file)$/ })
       .click()
     await closeDialog(staff)
+  })
 
-    // --- /admin library, filters and viewer
+  test(`admin library and its dialogs at ${width}px`, async () => {
+    test.setTimeout(240_000)
+    await admin.setViewportSize(viewport)
     await admin.goto(`/admin?staff=${world.staffA.id}`)
     const library = libraryList(admin)
     await expect(tile(library, "Video", mp4.name)).toBeVisible()
@@ -296,8 +300,11 @@ for (const width of WIDTHS) {
       admin.getByRole("option").first()
     )
     await admin.keyboard.press("Escape")
+  })
 
-    // --- /admin/staff directory and dialogs
+  test(`admin staff screens and dialogs at ${width}px`, async () => {
+    test.setTimeout(240_000)
+    await admin.setViewportSize(viewport)
     await admin.goto("/admin/staff")
     const invite = admin.getByRole("button", { name: "Invite staff" })
     await check(admin, width, "admin-staff-directory", invite)
