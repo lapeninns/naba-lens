@@ -99,6 +99,12 @@ type NavItem<Id extends string> = {
   label: string
   href: string
   icon: Icon
+  /**
+   * A shorter word the phone TabBar shows below 360px, where the label would
+   * wrap and push the bar past 64px (departure V2-15). It must be part of
+   * `label`, so the visible word stays inside the link's name.
+   */
+  narrowLabel?: string
 }
 
 export type AdminNavItem = NavItem<AdminSection> & {
@@ -214,6 +220,7 @@ const PHONE_TABS: ReadonlyArray<NavItem<StaffSection>> = [
   {
     id: "photos",
     label: "My photos",
+    narrowLabel: "Photos",
     href: STAFF_PHOTO_ROUTES.photos,
     icon: ImageIcon,
   },
@@ -584,7 +591,17 @@ export function TabLink({
       )}
     >
       <Icon aria-hidden className="size-6" />
-      {item.label}
+      {item.narrowLabel ? (
+        <>
+          <span aria-hidden className="min-[360px]:hidden">
+            {item.narrowLabel}
+          </span>
+          {/* The full word stays the name, read but not shown below 360px. */}
+          <span className="max-[359px]:sr-only">{item.label}</span>
+        </>
+      ) : (
+        item.label
+      )}
       <TabBadge
         count={count}
         unknown={unknown}

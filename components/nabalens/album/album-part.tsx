@@ -275,7 +275,7 @@ export function AlbumPart({
                     href={`#${id}`}
                     aria-current={here ? "true" : undefined}
                     className={cn(
-                      "flex min-h-11 items-center gap-1.5 rounded-round px-3 text-label focus-ring transition-colors duration-quick",
+                      "flex min-h-12 items-center gap-1.5 rounded-round px-3 text-label focus-ring transition-colors duration-quick",
                       here
                         ? "bg-ink text-canvas"
                         : "bg-surface text-ink edge hover:bg-raised"

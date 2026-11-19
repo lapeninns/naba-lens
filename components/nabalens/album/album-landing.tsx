@@ -199,7 +199,7 @@ function PartCard({ part, lens }: { part: AlbumPart; lens: PlaceLens }) {
             <li key={link.key}>
               <Link
                 href={link.href}
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-round px-3 text-label text-ink edge focus-ring hover:bg-raised"
+                className="inline-flex min-h-12 items-center gap-1.5 rounded-round px-3 text-label text-ink edge focus-ring hover:bg-raised"
               >
                 {link.label}
                 {link.empty > 0 ? (

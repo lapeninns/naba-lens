@@ -29,7 +29,7 @@ export function RecentActivity({ items }: { items: MyUpload[] | null }) {
         </h2>
         <Link
           href={STAFF_PHOTO_ROUTES.photos}
-          className="inline-flex min-h-11 items-center rounded-control text-label text-accent-text underline underline-offset-4 focus-ring"
+          className="inline-flex min-h-12 items-center rounded-control text-label text-accent-text underline underline-offset-4 focus-ring"
         >
           {HOME_COPY.seeYourPhotos}
         </Link>

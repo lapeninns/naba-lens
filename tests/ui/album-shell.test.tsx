@@ -92,6 +92,13 @@ afterEach(() => {
   clearCookie()
 })
 
+/** What a tab says aloud: its text without the aria-hidden narrow word. */
+function spoken(el: Element) {
+  const copy = el.cloneNode(true) as Element
+  copy.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove())
+  return copy.textContent
+}
+
 function staffNav(slot: "app-nav" | "tabbar") {
   const found = screen
     .getAllByRole("navigation", { name: "Staff" })
@@ -127,7 +134,7 @@ describe("Album shell: the tab bar (DESIGN.md §15, D18)", () => {
     const tabs = within(staffNav("tabbar"))
     const items = Array.from(
       staffNav("tabbar").querySelectorAll<HTMLElement>("a, button")
-    ).map((el) => [el.tagName, el.textContent, el.getAttribute("href")])
+    ).map((el) => [el.tagName, spoken(el), el.getAttribute("href")])
     expect(items).toEqual([
       ["A", "Today", "/staff/home"],
       ["A", "Album", "/staff/album"],
@@ -160,11 +167,22 @@ describe("Album shell: the tab bar (DESIGN.md §15, D18)", () => {
     expect(tabs.getByRole("link", { name: "Album" }).textContent).toBe("Album")
   })
 
+  it("shows Photos below 360px but keeps My photos as the name (V2-15)", () => {
+    renderShell()
+    const link = within(staffNav("tabbar")).getByRole("link", {
+      name: /^My photos/,
+    })
+    const narrow = link.querySelector('[aria-hidden="true"]:not(svg)')
+    expect(narrow?.textContent).toBe("Photos")
+    expect(narrow?.className).toContain("min-[360px]:hidden")
+  })
+
   it("shows no retake badge on My photos itself, and ? when unread", () => {
     renderShell(vi.fn(), { active: "photos" })
     expect(
-      within(staffNav("tabbar")).getByRole("link", { name: "My photos" })
-        .textContent
+      spoken(
+        within(staffNav("tabbar")).getByRole("link", { name: "My photos" })
+      )
     ).toBe("My photos")
     cleanup()
     render(
@@ -258,7 +276,7 @@ describe("Album shell: the tab bar (DESIGN.md §15, D18)", () => {
     )
     const names = Array.from(
       staffNav("tabbar").querySelectorAll("a, button")
-    ).map((el) => el.textContent)
+    ).map(spoken)
     expect(names).toEqual(["Today", "Album", "Add", "My photos", "Me"])
   })
 
