@@ -1,25 +1,26 @@
 import { expect, test } from "@playwright/test"
 
-import { provisionManagedWorld } from "./helpers/managed-world"
+import { provisionLayoutWorld } from "./helpers/s5-layout"
 import { appBarFit } from "./helpers/overflow"
 import { signedInPage } from "./helpers/world"
 
 /**
  * The AppBar's sections fit beside Add and Log out at every md-up width,
- * for each role's set of sections: staff (five), a manager (six) and an
- * admin. Before, from md to lg (and at lg with the name shown) the nav was
+ * for each role whose shell has one: staff (the tabs of DESIGN.md §15) and
+ * an admin. Before, from md to lg (and at lg with the name shown) the nav was
  * squeezed and its last links slid under the right-hand group. From 1100px
- * (v2's bp-desktop, D10) an admin's sections are in the SideNav instead.
+ * (v2's bp-desktop, D10) an admin's sections are in the SideNav instead. A
+ * venue manager works in /manager (decision D3), whose sections are section
+ * tabs and the SideNav, not this AppBar, so no manager row here.
  */
 
 test.skip(({ browserName }) => browserName !== "chromium", "Chromium only")
 
 test("AppBar sections fit beside Add and Log out", async ({ browser }) => {
   test.setTimeout(180_000)
-  const m = await provisionManagedWorld("appbar")
+  const m = await provisionLayoutWorld("appbar")
   const people = [
-    ["staff", m.world.staffA, "/staff"],
-    ["manager", m.world.manager, "/staff/tasks"],
+    ["staff", m.world.staffA, "/staff/home"],
     ["admin", m.world.admin, "/admin"],
   ] as const
   for (const [role, person, path] of people) {

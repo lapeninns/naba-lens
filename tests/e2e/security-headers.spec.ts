@@ -7,10 +7,14 @@ import { expect, test, type Browser, type Page } from "@playwright/test"
 import sharp from "sharp"
 
 import { openEmailLink } from "./helpers/email-link"
+import { assetNamed } from "./helpers/full-app"
 import {
-  openPortfolio,
+  myPhotoLink,
+  myPhotos,
+  openMyPhotos,
+  photoPagePath,
   STAFF_LANDING,
-  staffTile,
+  STAFF_TABS,
   uploadSheet,
 } from "./helpers/ui"
 
@@ -23,8 +27,10 @@ import {
 
 /**
  * Wave 3 finding 7: the security headers from next.config.ts are present, and the
- * CSP does not break the real upload (signed PUT + TUS to Supabase), thumbnail,
- * preview and video flows. Any CSP violation fails the test.
+ * CSP does not break the real upload (signed PUT + TUS to Supabase), thumbnail
+ * and preview flows. Any CSP violation fails the test. Staff have no video
+ * player since Me's portfolio lightbox went (My photos shows a video as its
+ * icon, DESIGN.md §5e), so the video is checked as an upload only.
  */
 
 const admin = serviceClient()
@@ -72,7 +78,7 @@ async function violations(page: Page) {
   )
 }
 
-test("security headers are sent and the CSP allows upload, thumbnails, preview and video", async ({
+test("security headers are sent and the CSP allows upload, thumbnails and preview", async ({
   browser,
   baseURL,
 }) => {
@@ -105,9 +111,9 @@ test("security headers are sent and the CSP allows upload, thumbnails, preview a
 
   const { page, consoleViolations } = await signIn(browser, staff, baseURL!)
   await expect(page).toHaveURL(STAFF_LANDING)
-  await openPortfolio(page)
+  await openMyPhotos(page)
 
-  const response = await page.request.get("/staff")
+  const response = await page.request.get(STAFF_TABS.photos)
   const headers = response.headers()
   expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'")
   expect(headers["content-security-policy"]).toContain("object-src 'none'")
@@ -119,7 +125,8 @@ test("security headers are sent and the CSP allows upload, thumbnails, preview a
   expect(headers["permissions-policy"]).toContain("camera=(self)")
   expect(headers["x-frame-options"]).toBe("DENY")
 
-  // Upload a photo (signed PUT) and a video (TUS) through the real dialog.
+  // Upload a photo (signed PUT) and a video (TUS) through the real sheet
+  // (My photos' "Add a video").
   await page.getByRole("button", { name: "Add a video" }).first().click()
   const dialog = uploadSheet(page)
   await expect(dialog).toBeVisible()
@@ -134,35 +141,34 @@ test("security headers are sent and the CSP allows upload, thumbnails, preview a
   await dialog.getByRole("button", { name: "Done" }).click()
   await expect(dialog).toBeHidden()
 
-  // Thumbnail (302 to a 60 s signed Storage URL on the Supabase origin).
-  const portfolio = page.getByRole("list", { name: "Your portfolio" })
-  const tile = await staffTile(portfolio, "csp-photo.jpg")
-  await expect(tile.locator("img")).toHaveJSProperty("complete", true)
+  // Thumbnail (302 to a 60 s signed Storage URL on the Supabase origin) on
+  // My photos' grid. The list streams in, so reload once the upload is in.
+  const photoId = await assetNamed("csp-photo.jpg")
+  await expect
+    .poll(
+      async () => {
+        await page.reload()
+        return myPhotoLink(myPhotos(page), photoId).count()
+      },
+      { timeout: 30_000 }
+    )
+    .toBeGreaterThan(0)
+  const thumb = myPhotoLink(myPhotos(page), photoId).locator("img")
+  await expect(thumb).toHaveJSProperty("complete", true)
   expect(
-    await tile
-      .locator("img")
-      .evaluate((img: HTMLImageElement) => img.naturalWidth)
+    await thumb.evaluate((img: HTMLImageElement) => img.naturalWidth)
   ).toBeGreaterThan(0)
 
-  // Preview.
-  await tile.click()
-  const viewer = page.getByRole("dialog")
-  const previewImg = viewer.locator("img").first()
+  // Preview: the photo's own page shows it large (DESIGN.md §5e "One photo").
+  await myPhotoLink(myPhotos(page), photoId).click()
+  await expect(page).toHaveURL(new RegExp(`${photoPagePath(photoId)}$`))
+  const previewImg = page
+    .getByRole("main")
+    .locator(`img[src="/api/media/${photoId}/preview"]`)
   await expect(previewImg).toHaveJSProperty("complete", true)
   expect(
     await previewImg.evaluate((img: HTMLImageElement) => img.naturalWidth)
   ).toBeGreaterThan(0)
-  await viewer.press("Escape")
-
-  // Video playback through the stream route.
-  await (await staffTile(portfolio, "synthetic.mp4")).click()
-  const player = page.getByRole("dialog").locator("video")
-  await expect(player).toBeVisible()
-  await expect
-    .poll(() => player.evaluate((v: HTMLVideoElement) => v.readyState), {
-      timeout: 15_000,
-    })
-    .toBeGreaterThanOrEqual(1)
 
   expect(await violations(page)).toEqual([])
   expect(consoleViolations).toEqual([])

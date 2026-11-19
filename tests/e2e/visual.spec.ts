@@ -24,12 +24,16 @@ import {
   seedImages,
 } from "./helpers/coverage-world"
 import { openEmailLink } from "./helpers/email-link"
+import { convertToManager } from "./helpers/manager-world"
 import { provisioner, psql } from "./helpers/stack"
 import {
   ADMIN_LANDING,
-  openPortfolio as gotoPortfolio,
+  myPhotoLink,
+  myPhotos,
+  openMyPhotos,
+  photoPagePath,
   STAFF_LANDING,
-  staffTile,
+  STAFF_TABS,
   uploadSheet,
 } from "./helpers/ui"
 
@@ -44,8 +48,10 @@ import {
  *
  * Keyboard checks: every tab stop on the main screens shows a visible focus
  * indicator, and focus returns to the opener when a dialog closes. Media checks:
- * the viewer shows the whole image (no crop) inside the viewport, and video never
- * autoplays. Light and dark colour schemes are both covered.
+ * a photo's own page (staff) and the admin viewer show the whole image (no
+ * crop) inside the viewport, and video never autoplays. Light and dark colour
+ * schemes are both covered. Staff screens are the five tabs (DESIGN.md §15):
+ * Today, My photos and a photo's own page (§5e), Settings (§5b).
  *
  * Chromium runs 360/390/768/1280/1440 px; other browsers run their project
  * viewport (1280 in playwright.visual.config.ts). Fixtures are DEV FIXTURE data
@@ -476,8 +482,11 @@ async function useDark(page: Page) {
 }
 
 /** The previewed image keeps its aspect ratio and fits inside the viewport. */
-async function expectWholeImage(page: Page, label: string) {
-  const img = page.getByRole("dialog").locator("img").first()
+async function expectWholeImage(
+  page: Page,
+  label: string,
+  img: Locator = page.getByRole("dialog").locator("img").first()
+) {
   await expect(img).toBeVisible()
   await img.evaluate((el: HTMLImageElement) =>
     el.complete ? null : new Promise((r) => (el.onload = r))
@@ -505,11 +514,33 @@ async function expectWholeImage(page: Page, label: string) {
   expect.soft(box.inside, `${label}: viewer image fits the viewport`).toBe(true)
 }
 
-// Staff tile names carry no file name: find the populated staff member's
-// tile by the media id of that file.
-async function tile(page: Page, filename: string) {
-  return staffTile(page, filename, fx.populated.id)
+// Staff photos never show a file name: find the populated staff member's
+// photo by the media id of that file (their own upload).
+function populatedAsset(filename: string) {
+  const id = psql(
+    `select id::text from public.media_assets where uploader_id = '${fx.populated.id}'::uuid and original_filename = '${filename.replace(/'/g, "''")}' and deleted_at is null order by created_at desc limit 1`
+  )
+  expect(id, `${filename}: a fixture asset`).toMatch(/^[0-9a-f-]{36}$/)
+  return id
 }
+
+/** The photo's link on My photos (a grid tile or a Needs you row). */
+function tile(page: Page, filename: string) {
+  return myPhotoLink(myPhotos(page), populatedAsset(filename))
+}
+
+/** Opens a photo's own page from My photos (DESIGN.md §5e "One photo"). */
+async function openPhotoPage(page: Page, filename: string) {
+  const id = populatedAsset(filename)
+  await myPhotoLink(myPhotos(page), id).click()
+  await expect(page).toHaveURL(new RegExp(`${photoPagePath(id)}$`))
+  await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
+  return id
+}
+
+/** The large photo on a photo's own page. */
+const largePhoto = (page: Page, id: string) =>
+  page.getByRole("main").locator(`img[src="/api/media/${id}/preview"]`)
 
 // Admin tile names keep the file name.
 function adminTile(page: Page, filename: string) {
@@ -519,14 +550,21 @@ function adminTile(page: Page, filename: string) {
 }
 
 /**
- * Opens My portfolio and waits for React's streamed segments to be revealed.
- * For a moment after `load`, a completed boundary sits both in the page and in
- * a hidden `<div id="S:n">` it is moved out of, so strict text and tile
- * locators would match twice (seen on HEAD and on this branch alike).
+ * Opens My photos (DESIGN.md §5e) and waits for React's streamed segments to
+ * be revealed. For a moment after `load`, a completed boundary sits both in
+ * the page and in a hidden `<div id="S:n">` it is moved out of, so strict
+ * text and tile locators would match twice.
  */
-async function openPortfolio(page: Page) {
-  await gotoPortfolio(page)
+async function openPhotos(page: Page) {
+  await openMyPhotos(page)
   await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
+}
+
+/** Settings (§5b): profile, Edit profile, venues, appearance, Log out. */
+async function openSettings(page: Page) {
+  await page.goto("/staff/me/settings")
+  await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Edit profile" })).toBeVisible()
 }
 
 // ---------------------------------------------------------------------------
@@ -579,13 +617,21 @@ test("blocked: deactivated account", async ({ browser, baseURL }, testInfo) => {
   await page.context().close()
 })
 
-test("staff: empty portfolio", async ({ browser, baseURL }, testInfo) => {
+test("staff: empty Today and My photos", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
   const page = await signIn(browser, fx.empty.email, baseURL!)
   await expect(page).toHaveURL(STAFF_LANDING)
-  await openPortfolio(page)
-  await expect(page.getByText("Your profile starts here")).toBeVisible()
-  await capture(page, testInfo, "staff-empty")
-  await expectFocusVisibleEverywhere(page, "staff-empty")
+  await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
+  await capture(page, testInfo, "staff-today-empty")
+  await expectFocusVisibleEverywhere(page, "staff-today-empty")
+  await openPhotos(page)
+  await expect(
+    myPhotos(page).getByText("Photos you add appear here, newest first.")
+  ).toBeVisible()
+  await capture(page, testInfo, "staff-photos-empty")
+  await expectFocusVisibleEverywhere(page, "staff-photos-empty")
   await page.context().close()
 })
 
@@ -593,10 +639,10 @@ test("staff: upload dialog states and focus return", async ({
   browser,
   baseURL,
 }, testInfo) => {
-  // A separate account, so the upload never fills the empty portfolio above.
+  // A separate account, so the upload never fills the empty My photos above.
   const page = await signIn(browser, fx.uploader.email, baseURL!)
   await expect(page).toHaveURL(STAFF_LANDING)
-  await openPortfolio(page)
+  await openPhotos(page)
 
   // Open by keyboard so focus return is meaningful.
   const uploadButton = page.getByRole("button", { name: "Add a video" }).first()
@@ -658,7 +704,7 @@ test("staff: upload dialog states and focus return", async ({
         page,
         page.getByRole("button", { name: "Add a video" }).first()
       ),
-      "focus returns to the Upload button after the upload dialog closes"
+      "focus returns to Add a video after the upload dialog closes"
     )
     .toBe(true)
   await page.context().close()
@@ -682,63 +728,54 @@ function reopen(page: Page, trigger: Locator, popup: Locator) {
 async function populatedStaff(browser: Browser, baseURL: string) {
   const page = await signIn(browser, fx.populated.email, baseURL)
   await expect(page).toHaveURL(STAFF_LANDING)
-  await openPortfolio(page)
-  await expect(page.getByRole("list", { name: "Your portfolio" })).toBeVisible()
+  await openPhotos(page)
   return page
 }
 
-test("staff: populated portfolio and photo viewer", async ({
+test("staff: populated My photos and a photo's own page", async ({
   browser,
   baseURL,
 }, testInfo) => {
   const page = await populatedStaff(browser, baseURL!)
-  await capture(page, testInfo, "staff-populated")
-  await expectFocusVisibleEverywhere(page, "staff-populated")
+  await expect(tile(page, "landscape-dish.jpg")).toBeVisible()
+  await capture(page, testInfo, "staff-photos-populated")
+  await expectFocusVisibleEverywhere(page, "staff-photos-populated")
 
-  // Viewer: every photo shows whole, in every width; focus returns to the tile.
+  // A photo's own page shows it whole, at every width (DESIGN.md §5e).
   for (const name of [
     "landscape-dish.jpg",
     "portrait-plating.jpg",
     "panorama-dining-room.jpg",
   ]) {
-    const opener = await tile(page, name)
-    await opener.focus()
-    await page.keyboard.press("Enter")
-    await expect(page.getByRole("dialog")).toBeVisible()
+    const id = await openPhotoPage(page, name)
     for (const width of widthsFor(page)) {
       await page.setViewportSize({ width, height: HEIGHT[width] ?? 800 })
       await settle(page)
-      await expectWholeImage(page, `${name} @${width}`)
+      await expectWholeImage(page, `${name} @${width}`, largePhoto(page, id))
     }
     if (name === "portrait-plating.jpg") {
-      await capture(page, testInfo, "viewer-photo-portrait")
+      await capture(page, testInfo, "photo-page-portrait")
     }
     if (name === "panorama-dining-room.jpg") {
-      await capture(page, testInfo, "viewer-photo-panorama", {
+      await capture(page, testInfo, "photo-page-panorama", {
         widths: some(page, testInfo, [360, 1280]),
       })
     }
-    await page.keyboard.press("Escape")
-    await expect(page.getByRole("dialog")).toBeHidden()
-    await page.waitForTimeout(300)
-    expect
-      .soft(
-        await activeElementMatches(page, opener),
-        `focus returns to the ${name} tile`
-      )
-      .toBe(true)
+    await openPhotos(page)
   }
   await page.context().close()
 })
 
 /**
- * Opens a video tile and reports what the viewer did: "plays" when the element
- * decoded frames (videoWidth > 0 and currentTime advanced after a muted,
- * test-initiated play), "fallback" when it shows the explicit message instead.
- * Also asserts it never started by itself.
+ * Opens a video tile in the admin library viewer and reports what it did:
+ * "plays" when the element decoded frames (videoWidth > 0 and currentTime
+ * advanced after a muted, test-initiated play), "fallback" when it shows the
+ * explicit message instead. Also asserts it never started by itself. Staff
+ * have no player since Me's portfolio lightbox went (My photos shows a video
+ * as its icon), so the media viewer is the admin's.
  */
 async function videoOutcome(page: Page, name: string) {
-  await (await tile(page, name)).click()
+  await adminTile(page, name).click()
   const dialog = page.getByRole("dialog")
   await expect(dialog).toBeVisible()
   const video = dialog.locator("video")
@@ -788,23 +825,25 @@ async function videoOutcome(page: Page, name: string) {
   return "plays" as const
 }
 
-test("staff: video playback by codec (MOV tried, HEVC falls back)", async ({
+async function populatedLibrary(browser: Browser, baseURL: string) {
+  const page = await signIn(browser, fx.admin.email, baseURL)
+  await expect(page).toHaveURL(ADMIN_LANDING)
+  await page.goto(`/admin?staff=${fx.populated.id}`)
+  await expect(page.getByRole("list", { name: "Library" })).toBeVisible()
+  return page
+}
+
+test("admin viewer: video playback by codec (MOV tried, HEVC falls back)", async ({
   browser,
   baseURL,
 }, testInfo) => {
-  const page = await populatedStaff(browser, baseURL!)
+  const page = await populatedLibrary(browser, baseURL!)
   const engine = page.context().browser()!.browserType().name()
 
   // H.264 in a MOV: Chromium's canPlayType("video/quicktime") is "", but the
   // element can decode it, so the viewer must try instead of pre-rejecting.
   // Sub-second clip: "<0:01", not "0:00"; a film icon marks a video tile.
-  const movTile = await tile(page, "iphone-h264.mov")
-  await expect(movTile).toContainText("<0:01")
-  // v0.3: the staff tile name also ends with its labels status ("Needs
-  // labels" / "N labels"), shown by a badge outside the button.
-  await expect(movTile).toHaveAccessibleName(
-    /duration <0:01(, (Needs labels|\d+ labels?))?$/
-  )
+  await expect(adminTile(page, "iphone-h264.mov")).toContainText("<0:01")
   expect(await videoOutcome(page, "iphone-h264.mov")).toBe("plays")
   await capture(page, testInfo, "viewer-video-mov", {
     widths: some(page, testInfo, [390, 1280]),
@@ -823,79 +862,68 @@ test("staff: video playback by codec (MOV tried, HEVC falls back)", async ({
   await page.context().close()
 })
 
-test("staff: video and non-ready viewer states", async ({
+test("admin viewer video, and staff non-ready photo pages", async ({
   browser,
   baseURL,
 }, testInfo) => {
-  const page = await populatedStaff(browser, baseURL!)
+  const admin = await populatedLibrary(browser, baseURL!)
   // Video: controls, no autoplay.
-  await (await tile(page, "kitchen-pass.mp4")).click()
-  const video = page.getByRole("dialog").locator("video")
+  await adminTile(admin, "kitchen-pass.mp4").click()
+  const video = admin.getByRole("dialog").locator("video")
   await expect(video).toBeVisible()
   expect(await video.evaluate((v: HTMLVideoElement) => v.autoplay)).toBe(false)
   expect(await video.evaluate((v: HTMLVideoElement) => v.controls)).toBe(true)
-  await capture(page, testInfo, "viewer-video")
-  await page.keyboard.press("Escape")
-  await expect(page.getByRole("dialog")).toBeHidden()
+  await capture(admin, testInfo, "viewer-video")
+  await admin.context().close()
 
-  // Non-ready states explain themselves.
+  // Non-ready photos explain themselves on their own page (§5e).
+  const page = await populatedStaff(browser, baseURL!)
   for (const [name, text] of [
-    ["failed-upload.mov", "could not be processed"],
-    ["still-processing.jpg", "Processing. It appears here in a moment."],
+    ["failed-upload.mov", "This photo couldn't be finished."],
+    ["still-processing.jpg", "Still being prepared."],
   ] as const) {
-    await (await tile(page, name)).click()
-    await expect(page.getByRole("dialog").getByText(text)).toBeVisible()
-    await capture(page, testInfo, `viewer-${name.split(".")[0]}`, {
+    await openPhotoPage(page, name)
+    await expect(page.getByRole("main").getByText(text)).toBeVisible()
+    await capture(page, testInfo, `photo-page-${name.split(".")[0]}`, {
       widths: some(page, testInfo, [390, 1280]),
     })
-    await page.keyboard.press("Escape")
-    await expect(page.getByRole("dialog")).toBeHidden()
+    await openPhotos(page)
   }
   await page.context().close()
 })
 
-test("staff: delete confirmation and edit profile", async ({
+test("staff: withdraw confirmation and edit profile", async ({
   browser,
   baseURL,
 }, testInfo) => {
   const page = await populatedStaff(browser, baseURL!)
-  // Long filename in the viewer, then delete confirmation and keep.
-  await (
-    await tile(
-      page,
-      "IMG_20261030_dessert-with-a-very-long-original-filename-from-the-phone-camera.jpg"
-    )
-  ).click()
-  const viewer = page.getByRole("dialog")
-  await expect(viewer).toBeVisible()
-  await capture(page, testInfo, "viewer-photo-long-filename")
-  const deleteButton = viewer.getByRole("button", { name: "Delete" })
-  await deleteButton.focus()
+  // A long file name's own page, then Withdraw's confirmation and Keep it.
+  await openPhotoPage(
+    page,
+    "IMG_20261030_dessert-with-a-very-long-original-filename-from-the-phone-camera.jpg"
+  )
+  await capture(page, testInfo, "photo-page-long-filename")
+  const withdraw = page.getByRole("main").getByRole("button", {
+    name: "Withdraw",
+  })
+  await withdraw.focus()
   await page.keyboard.press("Enter")
   const confirm = page.getByRole("alertdialog")
   await expect(confirm).toBeVisible()
-  await expect(confirm).toContainText(
-    "Previously downloaded copies cannot be recalled"
-  )
-  await capture(page, testInfo, "delete-confirm")
-  await confirm
-    .getByRole("button", { name: /^Keep (photo|video|file)$/ })
-    .click()
+  await expect(confirm).toContainText("This can't be undone.")
+  await capture(page, testInfo, "withdraw-confirm")
+  await confirm.getByRole("button", { name: "Keep it" }).click()
   await expect(confirm).toBeHidden()
   await page.waitForTimeout(300)
   expect
     .soft(
-      await activeElementMatches(
-        page,
-        page.getByRole("dialog").getByRole("button", { name: "Delete" })
-      ),
-      "focus returns to Delete after keeping the file"
+      await activeElementMatches(page, withdraw),
+      "focus returns to Withdraw after keeping the photo"
     )
     .toBe(true)
-  await page.keyboard.press("Escape")
-  await expect(page.getByRole("dialog")).toBeHidden()
 
-  // Edit profile: open, validation error, close.
+  // Edit profile on Settings (§5b): open, validation error, close.
+  await openSettings(page)
   const edit = page.getByRole("button", { name: "Edit profile" })
   await edit.focus()
   await page.keyboard.press("Enter")
@@ -920,20 +948,18 @@ test("staff: delete confirmation and edit profile", async ({
   await page.context().close()
 })
 
-test("staff: dark mode portfolio, viewer, upload dialog", async ({
+test("staff: dark mode My photos, a photo's page, upload dialog", async ({
   browser,
   baseURL,
 }, testInfo) => {
   const page = await populatedStaff(browser, baseURL!)
   await useDark(page)
-  await capture(page, testInfo, "staff-populated")
-  await (await tile(page, "landscape-dish.jpg")).click()
-  await expect(page.getByRole("dialog")).toBeVisible()
-  await capture(page, testInfo, "viewer-photo-landscape", {
+  await capture(page, testInfo, "staff-photos-populated")
+  await openPhotoPage(page, "landscape-dish.jpg")
+  await capture(page, testInfo, "photo-page-landscape", {
     widths: some(page, testInfo, [390, 1280]),
   })
-  await page.keyboard.press("Escape")
-  await expect(page.getByRole("dialog")).toBeHidden()
+  await openPhotos(page)
   await page.getByRole("button", { name: "Add a video" }).click()
   await expect(page.getByRole("dialog")).toBeVisible()
   await capture(page, testInfo, "upload-dialog", {
@@ -948,7 +974,7 @@ test("staff: long name and paused venue", async ({
 }, testInfo) => {
   const long = await signIn(browser, fx.longName.email, baseURL!)
   await expect(long).toHaveURL(STAFF_LANDING)
-  await openPortfolio(long)
+  await openSettings(long)
   await capture(long, testInfo, "staff-long-name")
   await long.getByRole("button", { name: "Edit profile" }).click()
   await capture(long, testInfo, "edit-profile-long-name", {
@@ -958,16 +984,15 @@ test("staff: long name and paused venue", async ({
 
   const paused = await signIn(browser, fx.pausedVenue.email, baseURL!)
   await expect(paused).toHaveURL(STAFF_LANDING)
-  await openPortfolio(paused)
-  // The paused-venue words since R-2 (as gaps.spec.ts checks them).
+  await openPhotos(paused)
+  // The paused-venue words since R-2 (ADD_BLOCKED, as Today shows them too).
   await expect(
-    paused.getByRole("status").filter({ hasText: /isn't taking photos/ })
+    paused.getByRole("main").getByText(/isn't taking photos/)
   ).toBeVisible()
-  // Neither of Me's Add buttons (R15-1) is offered at a paused venue.
+  // My photos' Add a video (R15-1) is not offered at a paused venue.
   await expect(paused.getByRole("button", { name: "Add a video" })).toHaveCount(
     0
   )
-  await expect(paused.locator('[data-slot="me-add"]')).toHaveCount(0)
   await capture(paused, testInfo, "staff-paused-venue")
   await paused.context().close()
 })
@@ -1169,8 +1194,8 @@ test("admin: individual portfolios", async ({ browser, baseURL }, testInfo) => {
   await page.context().close()
 })
 
-// Coverage screens (staff tasks, manager tools, admin oversight). Each test
-// makes its own DEV FIXTURE coverage world through the coverage RPCs.
+// Coverage screens (staff tasks, the manager workspace, admin oversight).
+// Each test makes its own DEV FIXTURE coverage world through the coverage RPCs.
 
 type Rpc<T> = {
   data: T | null
@@ -1266,7 +1291,7 @@ async function seedCoverageScenes() {
 const pageHeading = (page: Page) =>
   expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible()
 
-test("coverage: staff Home, a task, its send dialog and the month", async ({
+test("coverage: staff Today, a task, its send dialog and the month", async ({
   browser,
   baseURL,
 }, testInfo) => {
@@ -1274,18 +1299,11 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
   const { w, requirementId, askedAgain } = await seedCoverageScenes()
   const page = await signIn(browser, w.staffA.email, baseURL!)
   await expect(page).toHaveURL(STAFF_LANDING)
-  // Album is Home (§5a): its retake row is for dishes, so a task's request is
-  // the retake note on Me (G-3), which names who asked (decision 21).
-  await expect(page.locator('[data-slot="album-home"]')).toBeVisible()
-  await capture(page, testInfo, "coverage-staff-home")
-  await expectFocusVisibleEverywhere(page, "coverage-staff-home")
-  await page.goto("/staff")
-  const note = page.getByRole("region", { name: /^Needs another photo/ })
-  await expect(
-    note.getByText("The door is half open; take it closed, from the street.")
-  ).toBeVisible()
-  await expect(note).toContainText(w.manager.name)
-  await capture(page, testInfo, "coverage-staff-me-retake")
+  // Staff land on Today (DESIGN.md §5c). The task's request is on the task
+  // page below; Me's old retake note went with the portfolio.
+  await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
+  await capture(page, testInfo, "coverage-staff-today")
+  await expectFocusVisibleEverywhere(page, "coverage-staff-today")
 
   await page.goto(`/staff/tasks/${requirementId}`)
   await expect(
@@ -1337,57 +1355,49 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
   await capture(page, testInfo, "coverage-staff-month")
 
   await useDark(page)
-  await page.goto("/staff/tasks")
+  await page.goto(STAFF_TABS.today)
   await pageHeading(page)
-  await capture(page, testInfo, "coverage-staff-home", {
+  await capture(page, testInfo, "coverage-staff-today", {
     widths: some(page, testInfo, [390, 1280]),
   })
   await page.context().close()
 })
 
-test("coverage: manager overview, review, team, checklist, item and menu", async ({
+test("coverage: manager workspace overview, review, team and menu", async ({
   browser,
   baseURL,
 }, testInfo) => {
   test.setTimeout(400_000)
-  const { w, requirementId } = await seedCoverageScenes()
+  const { w } = await seedCoverageScenes()
+  // The scenes are seeded through the legacy staff-held grant; venue
+  // managers work in /manager with a manager ACCOUNT (decision D3), so the
+  // admin converts the manager before they sign in.
+  await convertToManager(
+    await signInDb(provisioner(), w.admin.email),
+    w.manager,
+    w.venue1
+  )
   const page = await signIn(browser, w.manager.email, baseURL!)
   for (const [path, label] of [
-    ["/staff/manage", "coverage-manager-overview"],
-    ["/staff/manage/review", "coverage-manager-review"],
-    ["/staff/manage/team", "coverage-manager-team"],
-    ["/staff/manage/checklist", "coverage-manager-checklist"],
-    [`/staff/manage/checklist/${requirementId}`, "coverage-manager-item"],
-    ["/staff/manage/menu", "coverage-manager-menu"],
+    ["/manager", "coverage-manager-overview"],
+    ["/manager/review", "coverage-manager-review"],
+    ["/manager/team", "coverage-manager-team"],
+    ["/manager/menu", "coverage-manager-menu"],
   ] as const) {
     await page.goto(path)
+    await expect(page).toHaveURL((url) => url.pathname === path)
     await pageHeading(page)
     await capture(page, testInfo, label)
   }
+  await expectFocusVisibleEverywhere(page, "coverage-manager-menu")
 
-  await page.goto("/staff/manage/review")
-  const ask = page
-    .getByRole("article", { name: `Monthly photo: photo by ${w.staffB.name}` })
-    .getByRole("button", { name: "Ask for another photo" })
-  const askDialog = page.getByRole("dialog", { name: "Ask for another photo" })
-  await ask.click()
-  await expect(askDialog).toBeVisible()
-  await capture(page, testInfo, "coverage-manager-ask-dialog", {
-    restore: reopen(page, ask, askDialog),
-  })
-  await page.keyboard.press("Escape")
-  await expect(askDialog).toBeHidden()
-  // Focus returns to the opener; the walk starts from a fresh load because
-  // Chromium's first Tab after a programmatic blur stays on <body>.
-  await expect(ask).toBeFocused()
-  await page.reload()
-  await pageHeading(page)
-  await expectFocusVisibleEverywhere(page, "coverage-manager-review")
-
-  await page.goto("/staff/manage/team")
-  // Targets are edited inline on each row; a changed row shows Save changes.
-  const target = page.getByRole("textbox", {
-    name: `${w.staffA.name}'s photo target`,
+  await page.goto("/manager/team")
+  // Team targets: Change opens a row's own target, edited in place.
+  await page
+    .getByRole("button", { name: `Change ${w.staffA.name}'s target` })
+    .click()
+  const target = page.getByLabel(`${w.staffA.name}'s photo target`, {
+    exact: true,
   })
   await expect(target).toBeVisible()
   const savedTarget = await target.inputValue()
@@ -1396,7 +1406,7 @@ test("coverage: manager overview, review, team, checklist, item and menu", async
   await target.fill(savedTarget)
 
   await useDark(page)
-  await page.goto("/staff/manage/review")
+  await page.goto("/manager/review")
   await pageHeading(page)
   await capture(page, testInfo, "coverage-manager-review", {
     widths: some(page, testInfo, [390, 1280]),
