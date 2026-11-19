@@ -426,17 +426,15 @@ describe("slice: reserve, upload, finalise, read (local Supabase)", () => {
       assetId = reserved.assetId
     })
 
-    it("staff B (same venue) cannot finalise, sign, read, list or delete A's asset", async () => {
+    it("staff B can view ready media but cannot finalise, own-list or delete A's asset", async () => {
       expect(
         await finaliseAsset(actorB, { assetId, idempotencyKey: newKey() })
       ).toMatchObject({ ok: false, status: 404 })
       expect(await signDerivative(actorB, assetId, "thumbnail")).toMatchObject({
-        ok: false,
-        status: 404,
+        ok: true,
       })
       expect(await getReadableAsset(actorB, assetId)).toMatchObject({
-        ok: false,
-        status: 404,
+        ok: true,
       })
       const own = await listOwnMedia(actorB)
       expect(own.ok && own.items.some((i) => i.id === assetId)).toBe(false)
@@ -678,10 +676,7 @@ describe("slice: reserve, upload, finalise, read (local Supabase)", () => {
       const mine = await signAvatar(await actorFor(staffA), staffA.id)
       expect(mine.ok).toBe(true)
       expect((await signAvatar(actorAdmin, staffA.id)).ok).toBe(true)
-      expect(await signAvatar(actorB, staffA.id)).toMatchObject({
-        ok: false,
-        status: 404,
-      })
+      expect(await signAvatar(actorB, staffA.id)).toMatchObject({ ok: true })
 
       expect(
         await updateOwnProfile(actorA, { displayName: "  ", avatar: null })

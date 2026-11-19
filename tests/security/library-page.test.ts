@@ -393,7 +393,7 @@ describe("library_page against library_assets and the table feed", () => {
     }
   }, 600_000)
 
-  it("gives the same pages as the references for staff (their own assets only)", async () => {
+  it("gives the same pages as the references for staff under community read permissions", async () => {
     for (const user of [staff1, staff2]) {
       for (const c of combos()) {
         for (const cap of [0, 20000]) await walk(user, c, cap)
@@ -439,11 +439,20 @@ describe("library_page against library_assets and the table feed", () => {
     expect(anon.error, "anon has no EXECUTE").not.toBeNull()
     const { data: staffRows } = await staff1.client
       .rpc("library_page", { p_venue: venue, p_limit: 25 })
-      .select("id, uploader_id")
+      .select("id, uploader_id, upload_state, deleted_at")
     expect(staffRows!.length).toBeGreaterThan(0)
     expect(
-      staffRows!.every((r) => r.uploader_id === staff1.id),
-      "staff see only their own assets through library_page"
+      staffRows!.every((r) => [staff1.id, staff2.id].includes(r.uploader_id))
+    ).toBe(true)
+    expect(
+      staffRows!.some((r) => r.uploader_id === staff2.id),
+      "ready colleague assets are shared"
+    ).toBe(true)
+    expect(
+      staffRows!.every(
+        (r) => r.upload_state === "ready" && r.deleted_at === null
+      ),
+      "unfinished and deleted assets stay hidden"
     ).toBe(true)
   })
 })

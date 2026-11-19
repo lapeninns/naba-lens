@@ -39,6 +39,7 @@ export default async function StaffPage() {
         profile={{
           displayName: profile.displayName,
           jobTitle: profile.jobTitle,
+          department: profile.department,
           venueName: profile.venue?.name ?? null,
           avatarUrl: avatarUrl(profile.id, profile.avatarPath),
         }}

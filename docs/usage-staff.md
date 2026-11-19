@@ -11,12 +11,45 @@ Staff land at `/staff`. If **Account unavailable** appears, ask an admin;
 that screen has **Sign out**. In your portfolio header, use **Log out**,
 especially on shared devices.
 
+## Explore work across Lapen Inns
+
+The staff navigation has **Explore**, **People** and **My portfolio**.
+**My portfolio** (`/staff`) remains your own upload and profile workspace.
+
+- Open **Explore** (`/staff/community`) to see ready photos and videos from
+  active staff across the organisation, newest first. Choose a **Venue**,
+  **Team** (Front of house / Back of house) or **Media** type, then choose
+  **Apply filters**. Use **All venues**, **All teams** and **Photos and videos**
+  for the full community view.
+- Open an upload to preview it and see its contributor and venue at upload.
+  **Open portfolio** takes you to that colleague's profile and ready uploads.
+  Use **Load more** for older uploads.
+- Open **People** (`/staff/people`) to search colleagues by **Name**, **Venue**
+  or **Team**, then choose **Find people**. Each card shows the person's
+  profile details and ready-upload count. Choose **View portfolio**; use
+  **Next people** or **Previous people** when available.
+
+People uses a colleague's current venue; Explore uses the venue recorded when
+the file was uploaded. Team filters use the colleague's current assigned team.
+Staff without a team assignment still appear under **All teams**.
+
+Community viewing is available to active signed-in staff. Inactive colleagues
+are not listed, and their media is unavailable to peers; admins retain access
+to their ready media. Uploading, processing, failed and deleted media are not
+shown in Explore or colleague portfolios. Your own portfolio can still show
+your incomplete uploads so you can manage them.
+
+Colleague portfolios provide viewing, without account editing, label editing,
+deletion or **Download original**. Names, profile photos, job titles, venues,
+teams and ready-upload counts are visible; account email and access-management
+details are not part of the colleague view.
+
 ## Update your profile
 
 Choose **Edit profile**, change **Display name** or **Profile photo**, then
 **Save changes**. Photos can be up to 4 MiB (shown as **4.0 MB**).
-Your admin controls job title, venue and access. Ask them to fix a missing or
-inactive venue if uploads are paused.
+Your admin controls job title, department (FOH or BOH), venue and access. Ask
+them to fix a missing or inactive venue if uploads are paused.
 
 ## Upload photos or videos
 
@@ -30,8 +63,10 @@ inactive venue if uploads are paused.
 3. Keep the page open; at most two transfers run at once. Each file independently
    moves from **Ready to upload** through **Waiting**, **Uploading** (percentage)
    and **Processing** to **Uploaded** or **Failed** with its error. A failure
-   does not undo successful files. Ready media reaches both your portfolio and
-   the admin library automatically; processing is technical, not editorial approval.
+   does not undo successful files. Ready media reaches your portfolio, the
+   admin library and the organisation's Explore and colleague views; processing
+   is technical, not editorial approval. Reload Explore or a colleague portfolio
+   to pick up new uploads.
 4. Use **Retry** beside a failed or **Cancelled** file, or **Retry failed** for
    all failures. Retry here reuses the same upload; do not reselect successful
    files. For rejected or corrupt content, choose a valid replacement rather
@@ -77,8 +112,10 @@ To remove an item, open it and choose **Delete**. Read:
 
 > Remove this file from your portfolio and the admin library? When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled.
 
-Choose **Keep file** to cancel or **Delete** to confirm. The same asset disappears
-from both views. Existing signed links may work until expiry; saved copies remain.
+Choose **Keep file** to cancel or **Delete** to confirm. The same asset is removed
+from your portfolio, the admin library and community views. Reload a community
+page to update its gallery. Existing signed links may work until expiry; saved
+copies remain.
 When the original-media archive is enabled, deletion does not erase its private
 recovery copy. The owner has chosen indefinite archive retention; local/staging
 environments may explicitly disable archival. See [archive operations](media-archive.md).

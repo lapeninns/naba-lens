@@ -657,9 +657,13 @@ describe("profile reads", () => {
     const embedded = await db
       .from("media_assets")
       .select("id, uploader:profiles(id, display_name, role)")
-    expect(new Set((embedded.data ?? []).map((r) => r.uploader?.id))).toEqual(
-      new Set([staff.id])
-    )
+    // Shared media rows can be visible while their raw uploader profile stays
+    // hidden: only the safe community RPC exposes colleague profile fields.
+    expect(
+      (embedded.data ?? []).every(
+        (r) => !r.uploader || r.uploader.id === staff.id
+      )
+    ).toBe(true)
     // Role filters do not reveal admins either.
     expect(
       (await db.from("profiles").select("id").eq("role", "admin")).data
@@ -700,19 +704,27 @@ describe("profile reads", () => {
     expect((await me.json()).id).toBe(staff.id)
   })
 
-  it("no route gives staff another person's profile or photo", async () => {
+  it("staff can see colleague photos while admin profiles and management remain private", async () => {
     const run = <T>(fn: () => Promise<T>) => staff.browser.run(fn)
     const own = await run(() =>
       avatarRoute(appRequest(staff.browser, "/x"), params(staff.id))
     )
     expect(own.status).toBe(302)
-    for (const id of [admin.id, otherStaff.id]) {
-      const res = await run(() =>
-        avatarRoute(appRequest(staff.browser, "/x"), params(id))
-      )
-      expect(res.status).toBe(404)
-      expect(res.headers.get("location")).toBeNull()
-    }
+    const colleaguePhoto = await run(() =>
+      avatarRoute(appRequest(staff.browser, "/x"), params(otherStaff.id))
+    )
+    expect(colleaguePhoto.status).toBe(302)
+    expect(colleaguePhoto.headers.get("location")).toContain(
+      "/storage/v1/object/sign/"
+    )
+    expect(colleaguePhoto.headers.get("cache-control")).toBe(
+      "private, no-store"
+    )
+    const adminPhoto = await run(() =>
+      avatarRoute(appRequest(staff.browser, "/x"), params(admin.id))
+    )
+    expect(adminPhoto.status).toBe(404)
+    expect(adminPhoto.headers.get("location")).toBeNull()
     for (const page of [
       () => AdminPage(noSearch),
       StaffDirectoryPage,
@@ -766,7 +778,7 @@ describe("profile reads", () => {
     }
     // Since the security hardening (review finding 1) nobody reads Storage
     // directly, not even their own photo: reads go through /api/avatars/[id],
-    // which serves the owner (asserted above) and admins only.
+    // which authorizes the owner, active colleagues, or an admin per request.
     const ownKey = (await profileRow(staff.id)).avatar_path!
     expect((await bucket.download(ownKey)).data).toBeNull()
     expect((await bucket.createSignedUrl(ownKey, 60)).data).toBeNull()

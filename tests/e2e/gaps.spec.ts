@@ -31,7 +31,7 @@ import {
  * - Library refresh on focus/visibility, besides the 15 s interval.
  * - GAP-12: staff at a deactivated venue: no Upload, setup message; admin still
  *   sees the retained media.
- * - GAP-11 over real HTTP: cross-staff avatar/media denial, admin page redirect,
+ * - GAP-11 over real HTTP: cross-staff portfolio reads, admin page redirect,
  *   private no-store headers.
  */
 
@@ -309,8 +309,8 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
   })
 })
 
-test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => {
-  test("staff B gets nothing of staff A's; responses are private and uncached", async ({
+test.describe("GAP-11 over HTTP: community reads and management isolation", () => {
+  test("staff B can view colleague portfolios; originals and management stay private", async ({
     browser,
     baseURL,
   }, testInfo) => {
@@ -362,11 +362,8 @@ test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => 
       }
     }
 
-    // Staff B: avatar and every media route for A's asset are refused.
+    // Photo streaming is not a video route; original downloads remain admin-only.
     const deniedPaths = [
-      `/api/avatars/${staffA.id}`,
-      `/api/media/${photoA}/thumb`,
-      `/api/media/${photoA}/preview`,
       `/api/media/${photoA}/stream`,
       `/api/media/${photoA}/download`,
     ]
@@ -377,7 +374,12 @@ test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => 
       checkPrivate(`B ${path}`, res.headers())
     }
     const anonymous = await request.newContext({ baseURL })
-    for (const path of deniedPaths) {
+    for (const path of [
+      ...deniedPaths,
+      `/api/avatars/${staffA.id}`,
+      `/api/media/${photoA}/thumb`,
+      `/api/media/${photoA}/preview`,
+    ]) {
       const anon = await anonymous.get(path, { maxRedirects: 0 })
       expect([401, 403, 404], `anon ${path}`).toContain(anon.status())
       expect(anon.headers()["location"], `anon ${path}`).toBeUndefined()
@@ -405,6 +407,9 @@ test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => 
 
     // Allowed reads carry private, no-store headers and nosniff.
     const allowed: [Page, string, number][] = [
+      [pageB, `/api/avatars/${staffA.id}`, 302],
+      [pageB, `/api/media/${photoA}/thumb`, 302],
+      [pageB, `/api/media/${photoA}/preview`, 302],
       [pageA, `/api/avatars/${staffA.id}`, 302],
       [pageAdmin, `/api/avatars/${staffA.id}`, 302],
       [pageA, `/api/media/${photoA}/thumb`, 302],

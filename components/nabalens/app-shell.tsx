@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 type AdminSection = "content" | "staff" | "menus"
+type StaffSection = "portfolio" | "community" | "people"
 
 type AppShellProps = {
   children: React.ReactNode
@@ -15,7 +16,7 @@ type AppShellProps = {
   logoutAction?: (formData: FormData) => void | Promise<void>
   className?: string
 } & (
-  | { variant: "staff" }
+  | { variant: "staff"; active?: StaffSection }
   | {
       variant: "admin"
       active: AdminSection
@@ -30,9 +31,14 @@ const NAV: { id: AdminSection; label: string; href: string }[] = [
   { id: "menus", label: "Menus", href: "/admin/menus" },
 ]
 
+const STAFF_NAV: { id: StaffSection; label: string; href: string }[] = [
+  { id: "community", label: "Explore", href: "/staff/community" },
+  { id: "people", label: "People", href: "/staff/people" },
+  { id: "portfolio", label: "My portfolio", href: "/staff" },
+]
+
 /**
- * Page frame. Staff get the wordmark and Log out only; admin also get the
- * sections Content, Staff and (v0.3) Menus. Nothing else belongs here.
+ * Shared page frame with staff discovery or administration navigation.
  */
 export function AppShell(props: AppShellProps) {
   const { children, userName, onLogout, logoutAction, className } = props
@@ -86,10 +92,37 @@ export function AppShell(props: AppShellProps) {
                 )
               })}
             </nav>
-          ) : null}
+          ) : (
+            <nav
+              aria-label="Staff"
+              className="order-last -mx-4 flex w-[calc(100%+2rem)] min-w-0 items-center gap-1 border-t px-3 sm:order-none sm:mx-0 sm:w-auto sm:border-t-0 sm:px-0"
+            >
+              {STAFF_NAV.map((item) => {
+                const current = (props.active ?? "portfolio") === item.id
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    aria-current={current ? "page" : undefined}
+                    className={cn(
+                      "inline-flex h-11 items-center rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 sm:h-9",
+                      current && "bg-muted text-foreground"
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </nav>
+          )}
           <div className="ml-auto flex min-w-0 items-center gap-3">
             {userName ? (
-              <span className="hidden max-w-48 truncate text-sm text-muted-foreground sm:inline">
+              <span
+                className={cn(
+                  "hidden max-w-48 truncate text-sm text-muted-foreground",
+                  props.variant === "staff" ? "lg:inline" : "sm:inline"
+                )}
+              >
                 {userName}
               </span>
             ) : null}

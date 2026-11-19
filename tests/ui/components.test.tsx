@@ -40,7 +40,12 @@ describe("ConfirmDeleteDialog", () => {
     const onConfirm = vi.fn().mockResolvedValue({ ok: true })
     const onOpenChange = vi.fn()
     render(
-      <ConfirmDeleteDialog open onOpenChange={onOpenChange} fileName="a.jpg" onConfirm={onConfirm} />
+      <ConfirmDeleteDialog
+        open
+        onOpenChange={onOpenChange}
+        fileName="a.jpg"
+        onConfirm={onConfirm}
+      />
     )
     expect(
       screen.getByText(
@@ -63,7 +68,10 @@ describe("ConfirmDeleteDialog", () => {
       />
     )
     await userEvent.click(screen.getByRole("button", { name: "Delete" }))
-    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Not allowed.")
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      "Not allowed."
+    )
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 })
@@ -71,8 +79,17 @@ describe("ConfirmDeleteDialog", () => {
 describe("MediaGrid and EmptyState", () => {
   it("renders keyboard-focusable tiles with a video badge and opens on Enter", async () => {
     const onOpen = vi.fn()
-    render(<MediaGrid label="Library" items={[item]} onOpen={onOpen} showAttribution />)
-    const tile = screen.getByRole("button", { name: /Video, clip\.mov, by Test contributor, .*, duration 0:42$/ })
+    render(
+      <MediaGrid
+        label="Library"
+        items={[item]}
+        onOpen={onOpen}
+        showAttribution
+      />
+    )
+    const tile = screen.getByRole("button", {
+      name: /Video, clip\.mov, by Test contributor, .*, duration 0:42$/,
+    })
     expect(screen.getByText("0:42")).toBeTruthy()
     tile.focus()
     await userEvent.keyboard("{Enter}")
@@ -82,7 +99,9 @@ describe("MediaGrid and EmptyState", () => {
   it("shows the staff empty-state copy by default", () => {
     render(<EmptyState />)
     expect(
-      screen.getByText("Your portfolio starts here. Upload your first photo or video.")
+      screen.getByText(
+        "Your portfolio starts here. Upload your first photo or video."
+      )
     ).toBeTruthy()
   })
 })
@@ -100,7 +119,9 @@ describe("MediaViewer", () => {
   it("lets the element try a MOV even when canPlayType says no, without autoplay", () => {
     // jsdom's canPlayType returns "" for everything, as Chromium does for
     // video/quicktime although it plays H.264 MOV. No pre-rejection.
-    expect(document.createElement("video").canPlayType("video/quicktime")).toBe("")
+    expect(document.createElement("video").canPlayType("video/quicktime")).toBe(
+      ""
+    )
     render(<MediaViewer item={item} open onOpenChange={() => {}} />)
     const video = document.querySelector("video")!
     expect(video.getAttribute("src")).toBe(item.previewUrl)
@@ -111,7 +132,11 @@ describe("MediaViewer", () => {
   })
 
   it("shows the explicit fallback when the element cannot decode (HEVC in Chromium)", () => {
-    const hevc = { ...item, previewUrl: "https://example.invalid/clip-hevc.mp4", mimeType: "video/mp4" }
+    const hevc = {
+      ...item,
+      previewUrl: "https://example.invalid/clip-hevc.mp4",
+      mimeType: "video/mp4",
+    }
     render(<MediaViewer item={hevc} open onOpenChange={() => {}} />)
     fireEvent.error(document.querySelector("video")!)
     expect(document.querySelector("video")).toBeNull()
@@ -119,8 +144,14 @@ describe("MediaViewer", () => {
   })
 
   it("renders only the actions it is given", () => {
-    const photo: MediaItem = { ...item, mediaType: "image", mimeType: "image/jpeg" }
-    const { rerender } = render(<MediaViewer item={photo} open onOpenChange={() => {}} />)
+    const photo: MediaItem = {
+      ...item,
+      mediaType: "image",
+      mimeType: "image/jpeg",
+    }
+    const { rerender } = render(
+      <MediaViewer item={photo} open onOpenChange={() => {}} />
+    )
     expect(screen.queryByRole("link", { name: /Download original/ })).toBeNull()
     expect(screen.queryByRole("button", { name: /Delete/ })).toBeNull()
 
@@ -133,9 +164,11 @@ describe("MediaViewer", () => {
         onDelete={() => {}}
       />
     )
-    expect(screen.getByRole("link", { name: /Download original/ }).getAttribute("href")).toBe(
-      "/download/m1"
-    )
+    expect(
+      screen
+        .getByRole("link", { name: /Download original/ })
+        .getAttribute("href")
+    ).toBe("/download/m1")
     expect(screen.getByRole("button", { name: /Delete/ })).toBeTruthy()
   })
 })
@@ -144,11 +177,19 @@ describe("LibraryFilters", () => {
   it("changes the media type and clears all filters", async () => {
     const onChange = vi.fn()
     const { rerender } = render(
-      <LibraryFilters venues={[]} staff={[]} value={EMPTY_LIBRARY_FILTERS} onChange={onChange} />
+      <LibraryFilters
+        venues={[]}
+        staff={[]}
+        value={EMPTY_LIBRARY_FILTERS}
+        onChange={onChange}
+      />
     )
     expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull()
     await userEvent.click(screen.getByRole("button", { name: "Videos" }))
-    expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY_LIBRARY_FILTERS, type: "video" })
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...EMPTY_LIBRARY_FILTERS,
+      type: "video",
+    })
 
     rerender(
       <LibraryFilters
@@ -167,15 +208,24 @@ describe("LoginCard", () => {
   it("validates, sends and shows the neutral sent state", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(<LoginCard onSubmit={onSubmit} />)
-    await userEvent.click(screen.getByRole("button", { name: "Send sign-in link" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Send sign-in link" })
+    )
     expect(screen.getByText(/Enter the email address/)).toBeTruthy()
     expect(onSubmit).not.toHaveBeenCalled()
 
-    await userEvent.type(screen.getByLabelText("Email"), "someone@example.invalid")
-    await userEvent.click(screen.getByRole("button", { name: "Send sign-in link" }))
+    await userEvent.type(
+      screen.getByLabelText("Email"),
+      "someone@example.invalid"
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: "Send sign-in link" })
+    )
     expect(onSubmit).toHaveBeenCalledWith("someone@example.invalid")
     expect(await screen.findByText("Check your email")).toBeTruthy()
-    expect(screen.getByText(/If/).textContent).toContain("has a Naba-Lens account")
+    expect(screen.getByText(/If/).textContent).toContain(
+      "has a Naba-Lens account"
+    )
   })
 
   it("explains an expired link", () => {
@@ -205,7 +255,10 @@ describe("InviteStaffDialog", () => {
     expect(onSubmit).not.toHaveBeenCalled()
 
     await user.type(screen.getByLabelText("Name"), "Test person")
-    await user.type(screen.getByLabelText("Email"), "Test.Person@Example.invalid ")
+    await user.type(
+      screen.getByLabelText("Email"),
+      "Test.Person@Example.invalid "
+    )
     await user.click(screen.getByRole("combobox", { name: "Venue" }))
     await user.click(await screen.findByRole("option", { name: "Test venue" }))
     await user.click(screen.getByRole("button", { name: "Send invitation" }))
@@ -214,10 +267,15 @@ describe("InviteStaffDialog", () => {
       displayName: "Test person",
       email: "test.person@example.invalid",
       jobTitle: "",
+      department: null,
       venueId: "v1",
     })
-    expect(await screen.findByText("Account created, email not sent")).toBeTruthy()
-    expect(screen.getByText("The invitation email could not be sent.")).toBeTruthy()
+    expect(
+      await screen.findByText("Account created, email not sent")
+    ).toBeTruthy()
+    expect(
+      screen.getByText("The invitation email could not be sent.")
+    ).toBeTruthy()
     expect(screen.queryByText("Invitation sent")).toBeNull()
   })
 })

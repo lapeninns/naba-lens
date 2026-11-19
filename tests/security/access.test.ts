@@ -214,7 +214,7 @@ for (const actor of actors)
         (await setup().from("venues").select("id").eq("id", venueA)).data
       ).toHaveLength(1)
     })
-    it("§7: media list/select hides other contributors, non-ready admin rows and tombstones", async () => {
+    it("§7: media list/select shares ready portfolios and hides non-ready peer rows and tombstones", async () => {
       const ids = Object.values(assets).map((a) => a.id)
       const rows = await jsonRows(
         actor,
@@ -224,7 +224,7 @@ for (const actor of actors)
       const expected =
         actor === "A"
           ? [assets.ready.id, assets.uploading.id, assets.failed.id]
-          : actor === "admin"
+          : ["B", "C", "admin"].includes(actor)
             ? [assets.ready.id]
             : []
       expect(rows.map((r) => r.id).sort()).toEqual(expected.sort())

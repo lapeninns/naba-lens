@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js"
 
+import type { Department } from "@/lib/config/departments"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import { STORAGE_BUCKETS } from "@/lib/config/storage"
 
@@ -22,6 +23,7 @@ export type StaffDirectoryEntry = {
   displayName: string
   avatarUrl: string | null
   jobTitle: string | null
+  department: Department | null
   venueId: string | null
   venueName: string | null
   venueActive: boolean | null
@@ -31,13 +33,14 @@ export type StaffDirectoryEntry = {
 }
 
 const PROFILE_COLUMNS =
-  "id, display_name, avatar_path, job_title, venue_id, active, venue:venues(name, active)"
+  "id, display_name, avatar_path, job_title, department, venue_id, active, venue:venues(name, active)"
 
 type ProfileRow = {
   id: string
   display_name: string
   avatar_path: string | null
   job_title: string | null
+  department: Department | null
   venue_id: string | null
   active: boolean
   venue: { name: string; active: boolean } | null
@@ -99,6 +102,7 @@ function toEntry(
       ? (avatarUrls.get(row.avatar_path) ?? null)
       : null,
     jobTitle: row.job_title,
+    department: row.department,
     venueId: row.venue_id,
     venueName: row.venue?.name ?? null,
     venueActive: row.venue?.active ?? null,

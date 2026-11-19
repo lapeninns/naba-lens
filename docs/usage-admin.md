@@ -23,9 +23,39 @@ For **Account unavailable**, contact the system owner; that screen offers
 
 **Open portfolio** leads to `/admin/staff/[id]`. You can also open **Staff**
 (`/admin/staff`) → **Portfolio** on desktop, or the person's row on phones.
-Individual portfolios have previews and **Load more**, but **no download or
-delete actions**. Use **Content** filtered by **Staff member** instead.
-Reload a portfolio page if its previews expire.
+Individual admin portfolios have previews, **Load more**, **Download original**
+and **Delete**, using the same gallery behavior as Content. The gallery
+refreshes about every 15 seconds and on tab focus.
+
+## Staff community and team assignments
+
+Active staff have **Explore**, **People** and **My portfolio** navigation.
+Explore shows ready photos and videos across the organisation with venue,
+FOH/BOH team and media-type filters. People lets staff search colleagues by
+name, current venue and team, then open a colleague's portfolio. See the
+[staff guide](usage-staff.md#explore-work-across-lapen-inns) for the viewing flow.
+Admin navigation remains **Content**, **Staff** and **Menus**.
+
+Community profiles show name, photo, job title, department, current venue and
+ready-upload count. Account email and access-management fields stay in admin
+tools. Staff viewing a colleague cannot edit the account or labels, delete
+the colleague's uploads, or use the admin **Download original** route.
+Only ready, non-deleted uploads from active staff are shared with colleagues.
+Deactivating an account removes it from People and stops peers reading its
+media on subsequent protected requests; admins retain ready media in Content.
+Previously issued short-lived media links may work until expiry.
+
+Assign **Department** when inviting staff or in **Edit details**. The choices
+are **Front of house (FOH)**, **Back of house (BOH)** or **Unassigned**. Existing
+accounts remain unassigned until an admin chooses a department; the app does
+not infer it from a job title. Unassigned staff remain visible under **All
+teams**. Department is a team label, separate from the `staff` / `admin`
+access role, and staff cannot change their own assignment.
+
+The app represents one parent organisation with venues as its units. It uses
+the configured venue records and does not create or assume a list of ten
+sister companies. The [community deployment notes](community.md) describe the
+required database migrations; these guides do not establish production status.
 
 ## Filter by labels and correct them
 
@@ -64,7 +94,8 @@ details for reference.
 ## Invite staff and recover email failures
 
 In **Staff**, choose **Invite staff**. Fill **Name**, **Email**,
-**Job title (optional)** and **Venue** (an active venue), then **Send invitation**.
+**Job title (optional)**, **Department** (or leave **Unassigned**) and **Venue**
+(an active venue), then **Send invitation**.
 Invitations create staff only; additional admins use [setup](setup.md).
 
 - **Invitation sent**: **Close**. Status stays **Invited** until first sign-in.
@@ -78,8 +109,8 @@ Invitations create staff only; additional admins use [setup](setup.md).
 
 Choose **Edit details** in the menu or portfolio header. **Edit staff account**
 allows **Display name**, **Profile photo** (up to
-4 MiB, shown as **4.0 MB**), **Job title**, **Venue** or **Account active**,
-then **Save changes**. Email and role are not editable here.
+4 MiB, shown as **4.0 MB**), **Job title**, **Department**, **Venue** or
+**Account active**, then **Save changes**. Email and role are not editable here.
 Venue changes affect new uploads only; old media keeps its original venue.
 A photo may save before a later field fails; recheck errors.
 
@@ -100,8 +131,9 @@ In **Content**, open the item and choose **Delete**. The confirmation reads:
 > Remove this file from your portfolio and the admin library? Previously downloaded copies cannot be recalled.
 
 Choose **Keep file** or confirm with **Delete**. Deletion hides the same asset
-from both library and portfolio; there is no trash/recovery screen. Existing
-signed links may work until expiry, and downloaded copies cannot be recalled.
+from the library, owner portfolio and community views; there is no trash/recovery
+screen. Reload a community page to update its gallery. Existing signed links
+may work until expiry, and downloaded copies cannot be recalled.
 
 Check privacy and permissions before external use: ready media is not
 publishing clearance.

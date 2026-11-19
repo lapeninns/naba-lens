@@ -1,6 +1,7 @@
 // View-model types for NabaLens presentational components. Pages map database
 // rows (see lib/db/types.ts) onto these; components never fetch data.
 
+import type { Department } from "@/lib/config/departments"
 import type { MediaLabelSummary } from "@/lib/menus/types"
 
 export type MediaType = "image" | "video"
@@ -42,6 +43,7 @@ export type StaffMember = {
   displayName: string
   avatarUrl: string | null
   jobTitle: string | null
+  department?: Department | null
   venueId: string | null
   venueName: string | null
   email?: string | null

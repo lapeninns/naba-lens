@@ -1227,9 +1227,9 @@ describe("library_assets (A1.10, A1.12)", () => {
     })
   })
 
-  it("applies the caller's RLS: staff see only their own assets; others' labels never match", async () => {
+  it("applies community asset reads while others' labels remain inaccessible", async () => {
     expect(await lib(staff1, {})).toEqual(
-      expected("both", "paneer", "none", "empty")
+      expected("both", "paneer", "split", "typeOnly", "lassi", "none", "empty")
     )
     expect(await lib(staff1, { p_item: d["curries--korma"]!.itemId })).toEqual(
       expected("both")
@@ -1238,7 +1238,14 @@ describe("library_assets (A1.10, A1.12)", () => {
       expected("typeOnly")
     )
     expect(await lib(staff1, { p_query: "staff curry" })).toEqual([])
-    expect(await lib(staffB, {})).toEqual([])
+    expect(await lib(staffB, {})).toEqual(
+      expected("both", "paneer", "split", "typeOnly", "lassi", "none", "empty")
+    )
+    expect(await lib(staffB, { p_query: "staff curry" })).toEqual([])
+    expect(await labelRows(staff1, assets.typeOnly!)).toEqual({
+      labels: 0,
+      items: 0,
+    })
   })
 })
 

@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest"
 /**
  * GAP-16 scope guard (spec §1 "Explicitly out of scope", brief: "two interfaces").
  *
- * 1. Every URL the app serves comes from an allow-list: the five product screens,
+ * 1. Every URL the app serves comes from an allow-list: the product screens,
  *    auth infrastructure, the media/profile APIs the screens use, and the dev-only
  *    UI preview. A new screen or API must be added here on purpose.
  * 2. Application source (comments stripped) has no code for the excluded
@@ -28,6 +28,10 @@ const ALLOWED_PAGES = new Set([
   "/",
   "/login",
   "/staff",
+  // Owner-requested organization portfolio discovery (November 2026).
+  "/staff/community",
+  "/staff/people",
+  "/staff/people/[id]",
   "/admin",
   "/admin/staff",
   "/admin/staff/[id]",

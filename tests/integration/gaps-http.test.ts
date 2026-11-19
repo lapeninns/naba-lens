@@ -167,14 +167,14 @@ describe("GAP-11: cross-role access and private headers at the HTTP layer", () =
   })
 
   describe("avatars", () => {
-    it("staff B cannot read staff A's avatar; anon gets 401", async () => {
+    it("staff B can view an active colleague avatar; anon gets 401", async () => {
       const { GET } = await routes.avatar()
       const asB = await as(staffB, () =>
         GET(get(`/api/avatars/${staffA.id}`), params(staffA.id))
       )
-      expect([403, 404]).toContain(asB.status)
-      expect(asB.headers.get("location")).toBeNull()
-      expect(await asB.text()).not.toContain("token=")
+      expect(asB.status).toBe(302)
+      expect(asB.headers.get("location")).toContain("/storage/v1/object/sign/")
+      expect(assertPrivateCaching(asB, "colleague avatar")).toEqual([])
 
       const anon = await as(null, () =>
         GET(get(`/api/avatars/${staffA.id}`), params(staffA.id))
@@ -222,14 +222,20 @@ describe("GAP-11: cross-role access and private headers at the HTTP layer", () =
   })
 
   describe("media routes", () => {
-    it("staff B is denied every media route for staff A's assets", async () => {
-      for (const route of MEDIA_ROUTES) {
-        for (const id of [photoA, videoA]) {
-          const res = await mediaGet(route, staffB, id)
-          expect([403, 404], `${route} ${id}`).toContain(res.status)
-          expect(res.headers.get("location"), route).toBeNull()
-          expect(assertPrivateCaching(res, `${route} denied`)).toEqual([])
-        }
+    it("staff B can preview colleague media while original downloads remain admin-only", async () => {
+      const checks: [MediaRoute, string, number][] = [
+        ["thumb", photoA, 302],
+        ["preview", photoA, 302],
+        ["stream", videoA, 200],
+        ["stream", photoA, 404],
+        ["download", photoA, 404],
+        ["download", videoA, 404],
+      ]
+      for (const [route, id, status] of checks) {
+        const res = await mediaGet(route, staffB, id)
+        expect(res.status, `${route} ${id}`).toBe(status)
+        expect(assertPrivateCaching(res, `${route} colleague`)).toEqual([])
+        await res.body?.cancel()
       }
     })
 

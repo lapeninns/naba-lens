@@ -896,6 +896,7 @@ export type Database = {
           avatar_path: string | null
           created_at: string
           display_name: string
+          department: string | null
           id: string
           job_title: string | null
           role: Database["public"]["Enums"]["app_role"]
@@ -906,6 +907,7 @@ export type Database = {
           active?: boolean
           avatar_path?: string | null
           created_at?: string
+          department?: string | null
           display_name: string
           id: string
           job_title?: string | null
@@ -917,6 +919,7 @@ export type Database = {
           active?: boolean
           avatar_path?: string | null
           created_at?: string
+          department?: string | null
           display_name?: string
           id?: string
           job_title?: string | null
@@ -963,6 +966,53 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      community_members: {
+        Args: {
+          p_venue?: string
+          p_member?: string
+          p_department?: string
+          p_query?: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          id: string
+          display_name: string
+          job_title: string | null
+          department: string | null
+          venue_id: string | null
+          venue_name: string | null
+          avatar_path: string | null
+          media_count: number
+        }[]
+      }
+      community_media_page: {
+        Args: {
+          p_venue?: string
+          p_uploader?: string
+          p_type?: Database["public"]["Enums"]["media_type"]
+          p_department?: string
+          p_after_created_at?: string
+          p_after_id?: string
+          p_limit?: number
+        }
+        Returns: {
+          id: string
+          uploader_id: string
+          contributor_name: string
+          venue_name: string
+          media_type: Database["public"]["Enums"]["media_type"]
+          has_thumbnail: boolean
+          has_preview: boolean
+          validated_mime_type: string | null
+          original_filename: string
+          created_at: string
+          width: number | null
+          height: number | null
+          duration_seconds: number | null
+          size_bytes: number | null
+        }[]
+      }
       acquire_maintenance_lease: {
         Args: { p_holder: string; p_name: string; p_ttl: string }
         Returns: boolean

@@ -32,8 +32,8 @@ export const PRIVATE_HEADERS = {
 } as const
 
 /**
- * A ready, non-deleted asset the caller may read: their own (active staff) or any
- * (active admin). Read through the caller's RLS-scoped client, then re-checked
+ * A ready, non-deleted asset the caller may read: their own, an active
+ * colleague's portfolio asset, or any ready asset as an active admin. Read through the caller's RLS-scoped client, then re-checked
  * here, so a service-role step afterwards only touches an authorised asset.
  * Unknown and forbidden assets look the same (404).
  */
@@ -41,7 +41,7 @@ export async function getReadableAsset(
   actor: MediaActor,
   assetId: string
 ): Promise<Outcome<{ asset: ReadableAsset }>> {
-  if (!UUID.test(assetId)) return notFound
+  if (!actor.profile.active || !UUID.test(assetId)) return notFound
   const { data, error } = await actor.db
     .from("media_assets")
     .select(
@@ -59,10 +59,19 @@ export async function getReadableAsset(
   ) {
     return notFound
   }
-  const allowed =
-    actor.profile.role === "admin" ||
-    (actor.profile.role === "staff" && data.uploader_id === actor.profile.id)
-  if (!allowed) return notFound
+  const ownOrAdmin =
+    actor.profile.role === "admin" || data.uploader_id === actor.profile.id
+  if (!ownOrAdmin) {
+    // Repeat the narrow community-member check before a service-signed or
+    // streamed response. A suspended colleague's media immediately becomes
+    // unavailable to peers, even if a caller accidentally supplied a service DB.
+    const visible = await actor.db.rpc("community_members", {
+      p_member: data.uploader_id,
+      p_limit: 1,
+    })
+    if (visible.error) return { ok: false, status: 503, message: "Try again." }
+    if (actor.profile.role !== "staff" || !visible.data?.length) return notFound
+  }
   return {
     ok: true,
     asset: {
