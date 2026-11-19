@@ -210,6 +210,7 @@ test("capture-journal: a photo closed mid-TUS continues with one tap, the same a
   await openStaff(page)
   await recordProbe(page, info)
   // The first 6 MiB chunk lands; the second never does.
+  const partial = watchStorage(page)
   const held = await holdPatchesFrom(page, 6 * MiB)
   await pickFromAdd(page, [fixtureFile(PHOTO)])
   await expect(savingSheet(page)).toBeVisible()
@@ -223,8 +224,11 @@ test("capture-journal: a photo closed mid-TUS continues with one tap, the same a
   const [row] = await rowsOf(world.staffA.id)
   expect(entry).toMatchObject({ name: PHOTO, assetId: row!.id })
   expect(row!.upload_state).toBe("uploading")
+  await expect.poll(partial.deliveredPatchBytes).toBe(6 * MiB)
 
-  // The tab goes (no beforeunload); the same device opens the app again.
+  // Explicitly drop the intercepted request before tearing down the tab.
+  // Its browser context and the server's acknowledged chunk both survive.
+  await held[0]!.abort("internetdisconnected")
   const context = page.context()
   await page.close()
   const again = await context.newPage()
@@ -268,9 +272,9 @@ test("capture-journal: a photo closed mid-TUS continues with one tap, the same a
   // One asset, the same row, continued from where the first tab stopped.
   const rows = await rowsOf(world.staffA.id)
   expect(rows.map((r) => [r.id, r.upload_state])).toEqual([[row!.id, "ready"]])
-  const offsets = storage.patchOffsets()
-  expect(offsets.length).toBeGreaterThan(0)
-  expect(offsets[0]).toBeGreaterThan(0)
+  expect(storage.methods()[0]).toBe("HEAD")
+  expect(storage.methods()).not.toContain("POST")
+  expect(storage.patchOffsets()[0]).toBe(6 * MiB)
   // Finished: its journal entry is gone.
   await expect.poll(() => journal(again)).toEqual([])
   await again.context().close()

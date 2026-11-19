@@ -40,7 +40,11 @@ test.afterAll(async () => {
   await admin?.context().close()
 })
 
-async function tabThrough(page: Page, path: string) {
+async function tabThrough(
+  page: Page,
+  path: string,
+  prepare?: () => Promise<void>
+) {
   await page.goto(path)
   await expect(page.locator("h1").first()).toBeVisible()
   // The loading shell (with its own TabBar and heading) shows first while the
@@ -48,6 +52,7 @@ async function tabThrough(page: Page, path: string) {
   await expect(page.locator('[data-slot="tabbar"]')).toHaveCount(1)
   const bar = page.locator('[data-slot="tabbar"]')
   await expect(bar).toBeVisible()
+  await prepare?.()
   const covered: string[] = []
   const seen = new Set<string>()
   for (let i = 0; i < 120; i++) {
@@ -88,7 +93,14 @@ test("draft menu editor at 320px", async () => {
 })
 
 test("admin Staff at 320px", async () => {
-  await tabThrough(admin, "/admin/staff")
+  await tabThrough(admin, "/admin/staff", async () => {
+    // Keep the keyboard walk on this test's roster, even after other suites
+    // have added staff to the same isolated stack.
+    await admin.getByRole("searchbox", { name: "Search" }).fill(world.tag)
+    await admin.getByRole("button", { name: "Apply filters" }).click()
+    await expect(admin.getByText("3 shown", { exact: true })).toBeVisible()
+    await admin.getByRole("link", { name: "Skip to content" }).focus()
+  })
 })
 
 test("staff People at 320px", async () => {
