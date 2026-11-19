@@ -19,6 +19,9 @@ export function noticeHref(n: AppNotification): string {
       const subject = id(p.subjectId)
       if (p.source === "area" && subject)
         return `/staff/album/slot/area/${subject}`
+      const check = id(p.checkId)
+      if (p.source === "amenity" && check)
+        return `/staff/tasks/amenities/${check}`
       return "/staff"
     }
     case "assigned": {

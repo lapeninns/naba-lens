@@ -676,15 +676,24 @@ describe("review repairs (K1, K4, K6, K7, K9 to K12)", () => {
       // A journal that opens but whose pick stalls.
       const { s } = sessions()
       const session = (await s.get("user-1"))!
+      const { promise: pickStarted, resolve: markPickStarted } =
+        Promise.withResolvers<void>()
       const hung: CaptureSession = {
         ...session,
-        journal: { ...session.journal, pick: () => new Promise(() => {}) },
+        journal: {
+          ...session.journal,
+          pick: () => {
+            markPickStarted()
+            return new Promise(() => {})
+          },
+        },
       }
       const slow = toQueueUploader(fakeUpload({ state: "ready" }), {
         keys: memKeys(),
         capture: async () => hung,
       })
       const second = slow(photo(), context())
+      await pickStarted
       await vi.advanceTimersByTimeAsync(JOURNAL_DEADLINE_MS + 10)
       await expect(second).resolves.toMatchObject({ assetId: "asset-1" })
     } finally {
@@ -1073,21 +1082,28 @@ describe("late and hung journal operations (L2)", () => {
       })
       await s.get("user-1")
       const file = photo(1000)
-      annotateCapture(file, {
-        pendingLabels: { venueId: "v", input: { x: 1 } },
-      })
+      const pendingLabels = { venueId: "v", input: { x: 1 } }
+      annotateCapture(file, { pendingLabels })
       const up = gatedUpload({ state: "ready" })
       const upload = toQueueUploader(up.fn, {
         keys: memKeys(),
         capture: s.get,
       })
-      raw.slowNext(3000)
+      const put = vi.spyOn(raw, "put")
+      const pickStarted = raw.slowNext(3000)
       const run = upload(file, context()).catch(() => {})
-      await tick(500)
+      await pickStarted
+      expect(put).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ pendingLabels })
+      )
       // The server confirmed the labels before the entry was bound.
       annotateCapture(file, { pendingLabels: undefined })
       await tick(3000)
-      await tickUntil(async () => (await raw.getAll()).length > 0)
+      await tickUntil(async () => {
+        const [entry] = await raw.getAll()
+        return entry !== undefined && !Object.hasOwn(entry, "pendingLabels")
+      })
       const [entry] = await raw.getAll()
       expect(entry).toBeDefined()
       expect(entry).not.toHaveProperty("pendingLabels")
@@ -1103,8 +1119,14 @@ describe("late and hung journal operations (L2)", () => {
     try {
       const storage = memStorage()
       const backend = memoryJournalBackend()
+      const { promise: probeStarted, resolve: markProbeStarted } =
+        Promise.withResolvers<void>()
       const s = createCaptureSessions({
-        probe: () => new Promise((r) => setTimeout(() => r(roomy), 2500)),
+        probe: () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(roomy), 2500)
+            markProbeStarted()
+          }),
         backend: () => backend,
         cleanup: () => ({ storage }),
         events: () => null,
@@ -1117,7 +1139,8 @@ describe("late and hung journal operations (L2)", () => {
         { keys: memKeys(), capture: s.get }
       )
       const run = upload(photo(), context()).catch(() => {})
-      await tick(2600)
+      await probeStarted
+      await tick(2500)
       await run
       await tick(10)
       expect(await backend.getAll()).toMatchObject([{ state: "failed" }])

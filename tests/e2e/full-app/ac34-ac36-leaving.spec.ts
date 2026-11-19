@@ -155,38 +155,31 @@ test("AC36 the next person on a shared phone sees none of the last person's prev
 
   // Nothing of A's is left on the phone. The sign-in card wipes it once it
   // has loaded (app/login/login-card-host.tsx), before anyone can type.
-  const deviceState = () =>
-    page.evaluate(async () => {
-      const keys = Object.keys(localStorage)
-      const dbs = indexedDB.databases
-        ? (await indexedDB.databases()).map((d) => d.name ?? "")
-        : []
-      const cached: string[] = []
-      if ("caches" in window)
-        for (const name of await caches.keys())
-          for (const req of await (await caches.open(name)).keys())
-            cached.push(req.url)
-      return { keys, dbs, cached }
-    })
   await expect
-    .poll(
-      async () =>
-        (await deviceState()).keys.filter((k) =>
-          /upload-keys|tus::|capture/.test(k)
-        ),
-      { message: "upload keys and capture data" }
+    .poll(() =>
+      page.evaluate(
+        async ({ sentId, unsentId }) => {
+          const uploadKeys = Object.keys(localStorage).filter((key) =>
+            /upload-keys|tus::|capture/.test(key)
+          )
+          const hasJournal = (await indexedDB.databases()).some(
+            (db) => db.name === "nabalens-capture-journal"
+          )
+          const previewCaches: string[] = []
+          if ("caches" in window)
+            for (const name of await caches.keys())
+              for (const request of await (await caches.open(name)).keys())
+                if (
+                  request.url.includes(sentId) ||
+                  request.url.includes(unsentId)
+                )
+                  previewCaches.push(name)
+          return { uploadKeys, hasJournal, previewCaches }
+        },
+        { sentId, unsentId }
+      )
     )
-    .toEqual([])
-  await expect
-    .poll(async () => (await deviceState()).dbs, {
-      message: "the capture journal",
-    })
-    .not.toContain("nabalens-capture-journal")
-  const left = await deviceState()
-  expect(
-    left.cached.filter((u) => u.includes(sentId) || u.includes(unsentId)),
-    "cached previews"
-  ).toEqual([])
+    .toEqual({ uploadKeys: [], hasJournal: false, previewCaches: [] })
 
   // B signs in on the same phone.
   await signInOn(page, w.staffA2)

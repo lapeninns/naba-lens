@@ -12,6 +12,7 @@
 // line's next attempt id); a live leftover reservation is reused; a rerun
 // after that changes nothing; the tombstoned row is refused by
 // legacy_import_reserve.
+import { spawn } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -27,7 +28,14 @@ import {
 } from "../../scripts/import/legacy-import"
 import { syntheticJpeg } from "../slice/media-actor"
 import { ok, psql } from "./coverage-fixtures"
-import { call, json, service, world, type World } from "./knowledge-fixtures"
+import {
+  call,
+  json,
+  service,
+  sleep,
+  world,
+  type World,
+} from "./knowledge-fixtures"
 
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex")
 
@@ -95,6 +103,111 @@ beforeAll(async () => {
 afterAll(async () => {
   if (folder) await rm(folder, { recursive: true, force: true })
 })
+
+it("serializes identical completions from separate import batches at one venue", async () => {
+  const image = await syntheticJpeg(320, 240)
+  const contentHash = sha(image)
+  const reserve = async (filename: string) => {
+    const batch = await ok(
+      service.rpc("legacy_import_begin", {
+        p_admin: w.admin.id,
+        p_manifest_sha256: sha(new TextEncoder().encode(randomUUID())),
+        p_label: "TEST concurrent import",
+      })
+    )
+    const id = importAssetId(batch, 2)
+    await ok(
+      service.rpc("legacy_import_reserve", {
+        p_batch_id: batch,
+        p_asset_id: id,
+        p_uploader: w.admin.id,
+        p_venue_id: w.venue,
+        p_media_type: "image",
+        p_extension: "jpg",
+        p_original_filename: filename,
+        p_size_bytes: image.byteLength,
+      })
+    )
+    return id
+  }
+  const [first, second] = await Promise.all([
+    reserve("concurrent-first.jpg"),
+    reserve("concurrent-second.jpg"),
+  ])
+  const url = process.env.NABALENS_TEST_DB_URL
+  if (!url || !/^postgresql:\/\/[^@]+@(127\.0\.0\.1|localhost):/.test(url))
+    throw new Error("Run through pnpm test:security with a local database")
+  const marker = `test-import-${randomUUID()}`
+  const primary = spawn("psql", [url, "-X", "-qAt", "-v", "ON_ERROR_STOP=1"], {
+    env: { ...process.env, PGAPPNAME: marker },
+    stdio: ["pipe", "pipe", "pipe"],
+  })
+  let output = ""
+  let errors = ""
+  primary.stdout.on("data", (chunk) => (output += String(chunk)))
+  primary.stderr.on("data", (chunk) => (errors += String(chunk)))
+  const closed = new Promise<number>((resolve) => {
+    primary.once("error", (error) => {
+      errors = error.message
+      resolve(1)
+    })
+    primary.once("close", (code) => resolve(code ?? 1))
+  })
+  primary.stdin.write(`
+    begin;
+    select outcome from public.legacy_import_complete(
+      '${w.admin.id}', '${first}', 2, 'concurrent-first.jpg',
+      'image/jpeg', ${image.byteLength}, '${contentHash}', 'unknown',
+      p_width => 320, p_height => 240
+    );
+    select 'ready';
+  `)
+
+  try {
+    for (let attempt = 0; attempt < 100 && !output.includes("ready"); attempt++)
+      await sleep(50)
+    expect(output.trim().split("\n"), errors).toEqual(["imported", "ready"])
+
+    const competing = Promise.resolve(
+      service.rpc("legacy_import_complete", {
+        p_admin: w.admin.id,
+        p_asset_id: second,
+        p_line_no: 2,
+        p_file_path: "concurrent-second.jpg",
+        p_validated_mime_type: "image/jpeg",
+        p_size_bytes: image.byteLength,
+        p_content_sha256: contentHash,
+        p_captured_source: "unknown",
+        p_width: 320,
+        p_height: 240,
+      })
+    )
+    await expect
+      .poll(
+        () =>
+          psql(`select exists (
+        select 1 from pg_stat_activity a
+        join pg_stat_activity holder on holder.pid = any(pg_blocking_pids(a.pid))
+        where holder.application_name = '${marker}' and a.wait_event = 'advisory'
+      )`),
+        { timeout: 5000 }
+      )
+      .toBe("t")
+    primary.stdin.end("commit;\n")
+    expect(await closed, errors).toBe(0)
+    expect(await ok(competing)).toMatchObject([
+      { outcome: "duplicate", asset_id: first },
+    ])
+    expect(
+      psql(`select id from public.media_assets
+        where venue_id = '${w.venue}' and content_sha256 = '${contentHash}'
+          and upload_state = 'ready' and deleted_at is null`)
+    ).toBe(first)
+  } finally {
+    if (!primary.stdin.writableEnded) primary.stdin.end("rollback;\n")
+    await closed
+  }
+}, 20_000)
 
 describe("Y5: amenity-staged imports always reach a review queue", () => {
   let toilets: string

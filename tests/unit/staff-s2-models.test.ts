@@ -599,6 +599,9 @@ describe("notice links and Your month", () => {
     )
     expect(noticeHref(n({ payload: { source: "checklist" } }))).toBe("/staff")
     expect(
+      noticeHref(n({ payload: { source: "amenity", checkId: CHECK } }))
+    ).toBe(`/staff/tasks/amenities/${CHECK}`)
+    expect(
       noticeHref(n({ kind: "assigned", payload: { checkId: CHECK } }))
     ).toBe(`/staff/tasks/amenities/${CHECK}`)
     expect(
