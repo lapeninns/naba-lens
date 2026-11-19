@@ -5796,6 +5796,48 @@ export type Database = {
           },
         ]
       }
+      menu_item_packaging: {
+        Row: {
+          item_id: string
+          packaged: boolean
+          photo_wanted: boolean
+          set_at: string
+          set_by: string | null
+          venue_id: string
+        }
+        Insert: {
+          item_id: string
+          packaged?: boolean
+          photo_wanted?: boolean
+          set_at?: string
+          set_by?: string | null
+          venue_id: string
+        }
+        Update: {
+          item_id?: string
+          packaged?: boolean
+          photo_wanted?: boolean
+          set_at?: string
+          set_by?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_packaging_item_fkey"
+            columns: ["item_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "menu_item_packaging_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_item_photo_events: {
         Row: {
           action: string
@@ -10341,6 +10383,15 @@ export type Database = {
         Args: { p_item_id: string; p_name: string; p_reason?: string }
         Returns: Json
       }
+      menu_item_packaging: { Args: { p_venue_id?: string }; Returns: Json }
+      menu_item_packaging_set: {
+        Args: {
+          p_item_id: string
+          p_packaged: boolean
+          p_photo_wanted?: boolean
+        }
+        Returns: Json
+      }
       menu_item_photo_asset: {
         Args: { p_asset_id: string }
         Returns: {
@@ -11495,7 +11546,8 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
@@ -11519,7 +11571,8 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
@@ -11543,7 +11596,8 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
@@ -11583,3 +11637,4 @@ export const Constants = {
     },
   },
 } as const
+
