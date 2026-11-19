@@ -15,13 +15,14 @@ MatchScreen; the tray stays a trial (D13).
 
 1. **PR 34 lands first.** Another thread is qualifying `feat/full-app-v1`.
    Do not start a second `lci` run while it holds the shared runner.
-2. **E2E migration batch (not done).** About 40 specs in `tests/e2e/`
-   drive retired URLs (mostly `/staff/manage/*`, `/staff`, `/staff/tasks`):
-   `coverage-manager`, `coverage-acceptance`, `upload-label-flow`, `visual`,
-   `reflow`, `manager-workspace`, `coverage-routes`, `helpers/managed-world.ts`
-   and others (`grep -lE '/staff/manage|"/staff"|"/staff/tasks"' tests/e2e`).
-   Manager journeys move to `/manager`; staff journeys to the five tabs.
-   `lci` fails until this is done.
+2. **E2E migration (done, 19 Nov).** Merged from `test/e2e-five-tab-urls`
+   (`cafb0b8dc`). On an isolated stack: chromium 302 passed, 1 failed, 7
+   skipped; mobile-chromium 47 passed; visual 15 passed, 3 failed. The four
+   failures are app findings outside this redesign: the Today goal chip's
+   name, `/manager` touch targets, two chips in the menus "Saving" sheet at
+   360px, and admin coverage overflow at 768px. `scripts/ci/fixtures.ts`
+   signs the admin in without the second factor, so its menu step fails;
+   check it before `lci`. Details: the shared note `e2e-migration-handover.md`.
 3. **Integration tests not run.** `tests/integration/auth-access.test.ts`
    and `auth-links.test.ts` were retargeted to `/staff/me` and
    `/staff/photos` and typecheck, but need the local stack
