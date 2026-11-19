@@ -127,7 +127,7 @@ export function chipState(key: string): ChipState {
 }
 
 export const chipClassName =
-  "inline-flex min-h-[22px] items-center gap-1 rounded-chip border border-transparent px-[7px] text-chip-touch whitespace-nowrap wdth-92 align-middle md:text-chip [&_svg]:size-3.5 [&_svg]:shrink-0"
+  "inline-flex min-h-5.5 items-center gap-1 rounded-chip border border-transparent px-1.75 text-chip-touch whitespace-nowrap wdth-92 align-middle md:text-chip [&_svg]:size-3.5 [&_svg]:shrink-0"
 
 type StatusChipProps = {
   className?: string

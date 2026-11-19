@@ -27,7 +27,7 @@ export function TileBadge({
     <span
       data-slot="tile-badge"
       className={cn(
-        "inline-flex min-h-[22px] items-center gap-1 rounded-chip bg-tile-badge px-[7px] text-chip-touch whitespace-nowrap text-on-tile-badge tabular-nums backdrop-blur-[6px] wdth-92 md:text-chip [&_svg]:size-[13px]",
+        "inline-flex min-h-5.5 items-center gap-1 rounded-chip bg-tile-badge px-1.75 text-chip-touch whitespace-nowrap text-on-tile-badge tabular-nums backdrop-blur-[6px] wdth-92 md:text-chip [&_svg]:size-[13px]",
         className
       )}
     >
