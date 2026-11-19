@@ -7,11 +7,42 @@ set lock_timeout = '5s';
 -- setter required an active-menu entry and always refused a special with
 -- menu_item_unavailable.
 --
--- Body as in 20261116150000, except the offering check, which now uses
--- private.is_current_photo_item (food and drinks, active entries and running
--- specials). Signature, errors, locks and grants are unchanged.
---
--- Rollback: re-apply public.set_menu_item_needed_by from 20261116150000.
+-- The offering check includes active entries and running specials. Only a
+-- public approval fulfills the public-photo requirement.
+-- Rollback: re-apply both needed-by functions from 20261116150000.
+
+create or replace function private.menu_item_needed_by_live(p_venue_id uuid)
+returns table (item_id uuid, needed_by date)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select n.item_id, n.needed_by
+  from public.menu_item_needed_by n
+  where n.venue_id = p_venue_id
+    and n.cleared_at is null
+    and not exists (
+      select 1 from public.menu_item_photo_events ev
+      where ev.venue_id = n.venue_id and ev.item_id = n.item_id
+        and ev.created_at >= n.set_at
+        and (
+          (ev.action = 'level_set' and ev.detail ->> 'level' = 'public')
+          or (
+            ev.action = 'accepted' and not exists (
+              -- A reference approval writes accepted and the next revision's
+              -- level_set together, at the same transaction timestamp.
+              select 1 from public.menu_item_photo_events ref
+              where ref.photo_id = ev.photo_id
+                and ref.revision = ev.revision + 1
+                and ref.created_at = ev.created_at
+                and ref.action = 'level_set'
+                and ref.detail ->> 'level' = 'reference'
+            )
+          )
+        )
+    );
+$$;
 
 create or replace function public.set_menu_item_needed_by(
   p_item_id uuid,
@@ -53,7 +84,7 @@ begin
     select 1
     from public.menu_item_photos p
     join public.media_assets a on a.id = p.asset_id
-    where p.item_id = p_item_id and p.state = 'accepted'
+    where p.item_id = p_item_id and p.state = 'accepted' and p.review_level = 'public'
       and a.upload_state = 'ready' and a.deleted_at is null and a.media_type = 'image'
   ) then
     raise exception 'menu_item_has_photo' using errcode = '55000';

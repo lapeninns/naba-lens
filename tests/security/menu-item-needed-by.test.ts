@@ -186,13 +186,7 @@ async function head(itemId: string) {
   return data?.revision ?? 1
 }
 
-/** A ready photo of the dish by `who`, labelled, then accepted by `reviewer`. */
-async function acceptedPhoto(
-  w: World,
-  who: TestIdentity,
-  reviewer: TestIdentity,
-  itemId: string
-) {
+async function labelledPhoto(w: World, who: TestIdentity, itemId: string) {
   const asset = await reserveReady(service, who)
   await saveOk(who, {
     asset: asset.id,
@@ -201,9 +195,20 @@ async function acceptedPhoto(
     items: [{ itemId, variantId: null }],
     catalogue: w.version,
   })
+  return asset.id
+}
+
+/** A ready photo of the dish by `who`, labelled, then accepted by `reviewer`. */
+async function acceptedPhoto(
+  w: World,
+  who: TestIdentity,
+  reviewer: TestIdentity,
+  itemId: string
+) {
+  const assetId = await labelledPhoto(w, who, itemId)
   const [row] = await ok(
     reviewer.client.rpc("review_menu_item_photo", {
-      p_asset_id: asset.id,
+      p_asset_id: assetId,
       p_item_id: itemId,
       p_variant_id: null as unknown as string,
       p_decision: "accepted",
@@ -415,6 +420,39 @@ describe("setting and clearing needed by", () => {
       "55000"
     )
   })
+})
+
+it("keeps needed by through a reference approval until the photo becomes public", async () => {
+  const w = await world("needby-reference")
+  const itemId = id(w, "mains--korma")
+  const assetId = await labelledPhoto(w, w.staff1, itemId)
+  const setLevel = async (level: "reference" | "public") =>
+    ok(
+      w.mgr.client.rpc("set_menu_item_photo_level", {
+        p_asset_id: assetId,
+        p_item_id: itemId,
+        p_variant_id: null as unknown as string,
+        p_level: level,
+        p_expected_revision: await head(itemId),
+      })
+    )
+  const neededBy = async () =>
+    (await managerList(w.mgr)).find((row) => row.item_id === itemId)?.needed_by
+
+  await ok(setNeeded(w.mgr, itemId, londonDay(3)))
+  await setLevel("reference")
+  expect(await neededBy()).toBe(londonDay(3))
+  await ok(setNeeded(w.mgr, itemId, londonDay(5)))
+  expect(await neededBy()).toBe(londonDay(5))
+  await setLevel("public")
+  expect(await neededBy()).toBeNull()
+  await fails(
+    setNeeded(w.mgr, itemId, londonDay(6)),
+    "menu_item_has_photo",
+    "55000"
+  )
+  await setLevel("reference")
+  expect(await neededBy()).toBeNull()
 })
 
 describe("ordering Still needed", () => {

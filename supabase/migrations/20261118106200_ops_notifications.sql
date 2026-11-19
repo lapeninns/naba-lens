@@ -12,7 +12,7 @@ set lock_timeout = '5s';
 --                   use, so it waits out quiet hours (21:00-08:00 in the
 --                   venue's timezone by default, or the person's own).
 --   Kinds           retake_requested  a manager asked the uploader for
---                                     another photo (menu, checklist, area)
+--                                     another photo (menu, checklist, area, amenity)
 --                   assigned          a check was assigned to the person
 --                   upload_problem    the person's upload failed, or its
 --                                     labels could not be applied
@@ -35,7 +35,7 @@ set lock_timeout = '5s';
 -- my_notification_count; mark_notifications_read.
 --
 -- Rollback: roll back the app first, then revoke execute on the three public
--- functions and drop the six triggers. The table stays.
+-- functions and drop the notification triggers. The table stays.
 
 -- ---------------------------------------------------------------------------
 -- Table
@@ -327,6 +327,39 @@ $$;
 create trigger area_photo_decisions_notify
   after insert on public.area_photo_decisions
   for each row execute function private.notify_on_area_photo_decision();
+
+-- Amenity evidence photo: needs another photo.
+create function private.notify_on_amenity_photo_decision()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uploader uuid;
+  v_question text;
+begin
+  select a.uploader_id into v_uploader from public.media_assets a where a.id = new.asset_id;
+  if v_uploader is distinct from new.decided_by then
+    select t.question into v_question
+    from public.venue_amenity_checks c
+    join public.amenity_catalogue t on t.key = c.template_key
+    where c.id = new.check_id;
+    perform private.notify(v_uploader, new.venue_id, 'retake_requested', 'amenity_check',
+      new.check_id::text, format('retake:amenity:%s', new.id),
+      jsonb_strip_nulls(jsonb_build_object('source', 'amenity', 'checkId', new.check_id,
+        'question', v_question, 'reason', new.reason)), new.decided_at);
+  end if;
+  return null;
+end;
+$$;
+
+revoke all on function private.notify_on_amenity_photo_decision() from public, anon, authenticated, service_role;
+
+create trigger amenity_photo_decisions_notify
+  after insert on public.amenity_photo_decisions
+  for each row when (new.action = 'needs_another_photo')
+  execute function private.notify_on_amenity_photo_decision();
 
 -- Direct assignment of a venue check.
 create function private.notify_on_amenity_check_event()

@@ -125,8 +125,8 @@ grant execute on function public.ops_record_job_run(text, text, timestamptz, tex
 -- ---------------------------------------------------------------------------
 
 -- Work waiting for a manager at one venue: menu photos waiting for a decision
--- (the manager queue's own rule), area photos without a decision and checklist
--- photos submitted; plus open venue checks past their due date.
+-- (the manager queue's own rule), area photos without a decision, submitted
+-- checklist photos and pending amenity photos; plus open venue checks past due.
 create function private.ops_venue_backlog(p_venue_id uuid, p_now timestamptz default null)
 returns jsonb
 language plpgsql
@@ -142,6 +142,8 @@ declare
   v_area_oldest timestamptz;
   v_list integer;
   v_list_oldest timestamptz;
+  v_amenity integer;
+  v_amenity_oldest timestamptz;
   v_overdue integer;
 begin
   select count(*)::integer, min(coalesce(t.labelled_at, t.created_at))
@@ -161,14 +163,19 @@ begin
   where i.venue_id = p_venue_id and i.state = 'submitted'
     and a.upload_state = 'ready' and a.deleted_at is null;
 
+  select count(*)::integer, min(r.uploaded_at) into v_amenity, v_amenity_oldest
+  from private.amenity_photo_rows(p_venue_id) r
+  where r.state = 'pending';
+
   select count(*)::integer into v_overdue
   from private.knowledge_venue_open_rechecks(p_venue_id) t
   where t.due_at < v_now;
 
   return jsonb_build_object(
-    'waiting', v_menu + v_area + v_list,
+    'waiting', v_menu + v_area + v_list + v_amenity,
     'menuPhotos', v_menu, 'areaPhotos', v_area, 'checklistPhotos', v_list,
-    'oldestWaitingAt', least(v_menu_oldest, v_area_oldest, v_list_oldest),
+    'amenityPhotos', v_amenity,
+    'oldestWaitingAt', least(v_menu_oldest, v_area_oldest, v_list_oldest, v_amenity_oldest),
     'overdueChecks', v_overdue);
 end;
 $$;

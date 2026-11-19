@@ -22,7 +22,20 @@ set lock_timeout = '5s';
 --     duplicate_of_asset_id null (it returns its own lookup); the stored
 --     column, which credit and coverage read, is correct.
 --
--- Rollback: drop trigger media_assets_duplicate_serialise.
+-- Rollback: drop trigger media_assets_duplicate_serialise. Keep the lock
+-- helper until the legacy import function no longer uses it.
+
+create function private.lock_media_duplicate(p_venue_id uuid, p_content_sha256 text)
+returns void
+language sql
+volatile
+set search_path = ''
+as $$
+  select pg_advisory_xact_lock(
+    hashtextextended('nabalens_dup:' || p_venue_id::text || ':' || p_content_sha256, 0));
+$$;
+
+revoke all on function private.lock_media_duplicate(uuid, text) from public, anon, authenticated, service_role;
 
 create function private.media_assets_duplicate_serialise()
 returns trigger
@@ -33,8 +46,7 @@ as $$
 declare
   v_duplicate uuid;
 begin
-  perform pg_advisory_xact_lock(
-    hashtextextended('nabalens_dup:' || new.venue_id::text || ':' || new.content_sha256, 0));
+  perform private.lock_media_duplicate(new.venue_id, new.content_sha256);
   if new.duplicate_of_asset_id is null then
     select d.id into v_duplicate
     from public.media_assets d

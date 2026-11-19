@@ -21,7 +21,7 @@ import {
   psql,
   review,
 } from "./coverage-fixtures"
-import { call, service, world, type World } from "./knowledge-fixtures"
+import { call, service, world, yes, type World } from "./knowledge-fixtures"
 
 type Rpc<T> = PromiseLike<{
   data: T | null
@@ -81,6 +81,17 @@ const setSettings = (
 const inbox = (who: TestIdentity, args: object = {}) =>
   rpc<Inbox>(who, "my_notifications", args)
 const unread = (who: TestIdentity) => rpc<number>(who, "my_notification_count")
+
+async function pendingAmenityPhoto(w: World) {
+  await yes(w.staffA, w, "onsite_parking")
+  const [photo] = await ok(
+    rpc<{ check_id: string; asset_id: string; uploaded_at: string }[]>(
+      w.manager,
+      "amenity_photo_queue"
+    )
+  )
+  return photo!
+}
 
 /**
  * Every item in the person's inbox, page by page. The job notifies each admin
@@ -459,6 +470,50 @@ describe("notification preferences", () => {
 })
 
 describe("notifications", () => {
+  it("notifies only the uploader once about an amenity retake", async () => {
+    const w = await world("ops-amenity-retake")
+    const photo = await pendingAmenityPhoto(w)
+    const before = await ok(unread(w.staffA))
+    const reason = "Show the parking entrance sign"
+    const decide = (decisionId?: number) =>
+      rpc<{ changed: boolean; decision_id: number }[]>(
+        w.manager,
+        "review_decide_amenity_photo",
+        {
+          p_check_id: photo.check_id,
+          p_asset_id: photo.asset_id,
+          p_action: "needs_another_photo",
+          p_reason: reason,
+          ...(decisionId === undefined
+            ? {}
+            : { p_expected_decision_id: decisionId }),
+        }
+      )
+    const [first] = await ok(decide())
+    expect(first!.changed).toBe(true)
+    expect((await ok(decide(first!.decision_id)))[0]!.changed).toBe(false)
+    expect(await ok(unread(w.staffA))).toBe(before + 1)
+    const retakes = async (who: TestIdentity) =>
+      (await ok(inbox(who))).items.filter(
+        (item) =>
+          item.kind === "retake_requested" && item.subjectId === photo.check_id
+      )
+    expect(await retakes(w.staffA)).toEqual([
+      expect.objectContaining({
+        subjectType: "amenity_check",
+        venueId: w.venue,
+        payload: expect.objectContaining({
+          source: "amenity",
+          checkId: photo.check_id,
+          question: expect.any(String),
+          reason,
+        }),
+      }),
+    ])
+    expect(await retakes(w.staffB)).toEqual([])
+    expect(await retakes(w.manager)).toEqual([])
+  })
+
   it("tells the uploader once about a failed upload and resolves it when fixed", async () => {
     const before = await ok(unread(v.staffA))
     const asset = await uploadingAsset(v, v.staffA)
@@ -767,6 +822,45 @@ describe("monitoring and the notification job", () => {
       )
     )
     expect(await digests(v.staffManager)).toHaveLength(1)
+  })
+
+  it("includes an amenity-only queue in the manager digest and aging alert", async () => {
+    const w = await world("ops-amenity-backlog")
+    const photo = await pendingAmenityPhoto(w)
+    const at = new Date(photo.uploaded_at)
+    at.setUTCDate(at.getUTCDate() + 60)
+    at.setUTCHours(10, 0, 0, 0)
+    await ok(
+      service.rpc(
+        "ops_run_notification_jobs" as never,
+        {
+          p_now: at.toISOString(),
+        } as never
+      )
+    )
+    const managerItems = await allInbox(w.staffManager)
+    const digest = managerItems.find(
+      (item) => item.kind === "review_digest" && item.subjectId === w.venue
+    )
+    expect(digest?.payload).toMatchObject({
+      waiting: 1,
+      menuPhotos: 0,
+      areaPhotos: 0,
+      checklistPhotos: 0,
+      amenityPhotos: 1,
+    })
+    expect(new Date(String(digest?.payload.oldestWaitingAt)).getTime()).toBe(
+      new Date(photo.uploaded_at).getTime()
+    )
+    const adminItems = await allInbox(w.admin)
+    expect(
+      adminItems.find(
+        (item) =>
+          item.kind === "exception" &&
+          item.venueId === w.venue &&
+          item.payload.topic === "backlog"
+      )?.payload
+    ).toMatchObject({ waiting: 1, amenityPhotos: 1 })
   })
 
   it("tells every admin once about a failed job and resolves it when the job recovers", async () => {

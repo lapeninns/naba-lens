@@ -29,7 +29,8 @@ set lock_timeout = '5s';
 --
 -- Bodies start from the latest definitions: legacy_import_complete
 -- (20261118135000; the only definition) and asset_unlabelled_reason
--- (20261118135100). Only the lines named above change.
+-- (20261118135100). Import shares the upload duplicate lock (20261118108200)
+-- because its reservation is still uploading when it first stores the hash.
 --
 -- Rollback: re-apply those two bodies.
 
@@ -107,6 +108,7 @@ begin
   end if;
 
   -- Exact duplicate (FA-35, AC21): same venue, same bytes, live and ready.
+  perform private.lock_media_duplicate(v_asset.venue_id, p_content_sha256);
   select d.id into v_duplicate
   from public.media_assets d
   where d.venue_id = v_asset.venue_id

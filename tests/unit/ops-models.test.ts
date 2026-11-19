@@ -204,6 +204,18 @@ describe("notifications", () => {
         .title
     ).toBe("Retake: a checklist photo")
     expect(
+      notificationWords(
+        notice("retake_requested", {
+          source: "amenity",
+          question: "Is there on-site parking?",
+          reason: "Show the entrance sign",
+        })
+      )
+    ).toEqual({
+      title: "Retake: Is there on-site parking?",
+      detail: "Show the entrance sign",
+    })
+    expect(
       notificationWords(notice("assigned", { question: "guest_wifi" }))
     ).toEqual({ title: "A check was given to you", detail: "guest wifi" })
     expect(
