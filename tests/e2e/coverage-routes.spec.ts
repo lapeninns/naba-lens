@@ -518,12 +518,9 @@ test.describe("retired staff Manage (decision D3; DESIGN.md §15)", () => {
     const manager = await signedInPage(browser, w.manager)
     const staff = await signedInPage(browser, w.staffA)
     const checkId = randomUUID()
-    // Each retired page redirects to its /manager twin, but the staff
-    // layout's requireActiveStaff sends a manager account to /manager before
-    // the page's own redirect runs, so today it lands on the workspace home
-    // (open app defect, 19 Nov 2026). Either is accepted until that is fixed;
-    // then tighten this to the twin. The staff-side checklist has no /manager
-    // screen, so it lands on the workspace home.
+    // Each retired URL goes to its /manager twin (next.config redirects,
+    // lib/config/retired-manage-routes.ts). The staff-side checklist has no
+    // /manager screen, so it lands on the workspace home.
     for (const [from, to] of [
       ["/staff/manage", "/manager"],
       ["/staff/manage/review", "/manager/review"],
@@ -541,8 +538,9 @@ test.describe("retired staff Manage (decision D3; DESIGN.md §15)", () => {
       await manager.goto(from)
       await expect
         .poll(() => new URL(manager.url()).pathname, { message: label })
-        .toMatch(/^\/manager(\/|$)/)
-      expect([to, "/manager"], label).toContain(new URL(manager.url()).pathname)
+        // next.config redirects run before the staff layout (D3), so each
+        // deep link reaches its own /manager twin.
+        .toBe(to)
       await staff.goto(from)
       await expect(staff, `staff ${label}`).toHaveURL(STAFF_LANDING)
     }
