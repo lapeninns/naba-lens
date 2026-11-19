@@ -12,14 +12,19 @@ import {
 import { ENTRY_COPY } from "../../components/nabalens/shell/entry-copy"
 import { signIn } from "../support/identities"
 import { provisionCoverageWorld } from "./helpers/coverage-world"
+import { convertToManager } from "./helpers/manager-world"
 import { activateMenu, createMenuDraft, ok } from "./helpers/menus"
 import { provisioner, psql, requireIsolatedStack } from "./helpers/stack"
 import { signedInPage } from "./helpers/world"
 
 /**
  * B05-01 tandoor journey (B02 UI design §9; contracts/b05-01-grouping-scope.md
- * slice B), at phone width in Chromium: Our menu → a dish → three photos, one
- * the server can't process → Replace it with a different photo. The set's one
+ * slice B), at phone width in Chromium: the venue manager's Menu
+ * (/manager/menu) → a dish's "Add photos of this dish" → three photos, one
+ * the server can't process → Replace it with a different photo. Staff no
+ * longer make sets: their slot tile takes one photo and Match files each
+ * photo on its own (DESIGN.md §6, D9), so the dish set lives on the manager's
+ * Menu, with a manager account (decision D3). The set's one
  * acknowledgement is worded from contribution_group: two saved and a line for
  * the failed photo, then three saved and no line once the replacement is
  * ready. contribution_group reads 3 ready and 1 replaced, and finished only
@@ -96,10 +101,16 @@ test("tandoor set: one forced failure, replaced; one acknowledgement from the se
   // Pie stands in for the tandoor item: any dish of the active menu.
   const dish = "Pie"
 
-  const page = await signedInPage(browser, w.staffA, PHONE)
-  await page.goto("/staff/menu")
+  // The venue's manager account (helpers/manager-world) adds the set.
+  await convertToManager(admin, w.manager, w.venue1)
+  const uploader = w.manager
+
+  const page = await signedInPage(browser, uploader, PHONE)
+  await page.goto("/manager/menu")
   await settled(page)
-  const row = page.getByRole("article", { name: dish })
+  const row = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: dish, exact: true }),
+  })
   await pick(
     page,
     () => row.getByRole("button", { name: "Add photos of this dish" }).click(),
@@ -119,7 +130,7 @@ test("tandoor set: one forced failure, replaced; one acknowledgement from the se
   const group =
     psql(`select m.group_id from public.media_contribution_group_members m
     join public.media_assets a on a.id = m.asset_id
-    where a.uploader_id = ${sql(w.staffA.id)} and a.original_filename = 'photo.jpg'`)
+    where a.uploader_id = ${sql(uploader.id)} and a.original_filename = 'photo.jpg'`)
   expect(group).toMatch(/^[0-9a-f-]{36}$/)
   expect(
     psql(`select string_agg(a.original_filename || ':' || a.upload_state, ',' order by m.position)
@@ -152,10 +163,10 @@ test("tandoor set: one forced failure, replaced; one acknowledgement from the se
     .toBe("1")
   await expect.poll(() => held.length).toBeGreaterThan(0)
 
-  const staff = await signIn(provisioner(), w.staffA.email)
+  const own = await signIn(provisioner(), uploader.email)
   const read = async () =>
     (await ok(
-      staff.rpc("contribution_group" as never, { p_group_id: group } as never)
+      own.rpc("contribution_group" as never, { p_group_id: group } as never)
     )) as { summary: Summary }
   expect((await read()).summary).toEqual({
     live: 3,

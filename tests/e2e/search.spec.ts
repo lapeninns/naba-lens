@@ -33,15 +33,16 @@ import {
   withdrawUse,
   type TestDestination,
 } from "./helpers/use-grant"
+import { STAFF_LANDING } from "./helpers/ui"
 import { seedReadyAssets, signedInPage } from "./helpers/world"
 
 /**
  * B05-06 asset search screen (contracts/b05-search-screen-scope.md) in the
  * built app: an admin finds a photo by venue, menu item and use; a manager
  * account sees its own venue only (another venue in the URL is refused) and
- * another uploader's thumbnails; a legacy grant holder searches at
- * /staff/manage/search; plain staff get Manage isn't available and a 403 from
- * the API; Show more pages without duplicates; an empty filtered result
+ * another uploader's thumbnails, and filters by Use by keyboard or tap; a
+ * staff account, even one holding a legacy grant, is not a manager (decision
+ * D3): /manager/search sends it to Today, and the API refuses plain staff; Show more pages without duplicates; an empty filtered result
  * clears with focus on the results heading; axe and overflow at 1280 and 390.
  * The service role and psql only seed fixtures (photos, a test-only place of
  * use per SS-3, a legacy grant); decisions and grants use real sessions.
@@ -366,12 +367,12 @@ test("(b) a manager sees its own venue only, with another uploader's thumbnails"
   ).toBeFocused()
 })
 
-test("(c) a legacy grant holder searches the venue at /staff/manage/search", async ({
+test("(c) a manager filters the venue's search by Use", async ({
   browser,
 }, info) => {
   const w = await searchWorld()
-  const page = await signedInPage(browser, w.legacy, view(info))
-  await page.goto("/staff/manage/search")
+  const page = await signedInPage(browser, w.mgrA, view(info))
+  await page.goto("/manager/search")
   await expect(
     page.getByRole("heading", { level: 1, name: "Search photos and videos" })
   ).toBeVisible()
@@ -390,18 +391,23 @@ test("(c) a legacy grant holder searches the venue at /staff/manage/search", asy
   await expect(cards(page).first()).toContainText("No use agreed")
   await expect(status(page)).toHaveText("1 shown")
   await readOnly(page)
-  await evidence(page, `legacy-manager-${phone(info) ? 390 : 1280}`)
+  await evidence(page, `manager-use-filter-${phone(info) ? 390 : 1280}`)
 })
 
-test("(d) plain staff get Manage isn't available and a refused API", async ({
+test("(d) staff accounts are sent to Today from manager search, and plain staff get a refused API", async ({
   browser,
 }, info) => {
   const w = await searchWorld()
+  // A legacy staff-held grant makes no one a manager (decision D3).
+  const legacy = await signedInPage(browser, w.legacy, view(info))
+  await legacy.goto("/manager/search")
+  await expect(legacy).toHaveURL(STAFF_LANDING)
+  await expect(cards(legacy)).toHaveCount(0)
+  await legacy.context().close()
+
   const page = await signedInPage(browser, w.staffA1, view(info))
-  await page.goto("/staff/manage/search")
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Manage isn't available" })
-  ).toBeVisible()
+  await page.goto("/manager/search")
+  await expect(page).toHaveURL(STAFF_LANDING)
   await expect(cards(page)).toHaveCount(0)
   const res = await page.request.get("/api/media/search")
   expect(res.status()).toBe(403)

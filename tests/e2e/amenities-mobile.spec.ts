@@ -22,7 +22,7 @@ import { signedInPage } from "./helpers/world"
 
 /**
  * Amenity capture at phone width (Pixel 7 emulation in the mobile-chromium
- * project): staff find the check on Home, capture it with a photo, and no page
+ * project): staff find the check from Today (DESIGN.md §5c), capture it with a photo, and no page
  * on the way scrolls sideways. Emulation, not a device or camera test.
  */
 
@@ -42,7 +42,7 @@ test.describe("amenity capture at phone width", () => {
     const staff = await signedInPage(browser, w.staffA, device)
     await expect(staff).toHaveURL(STAFF_LANDING)
     expect((await horizontalOverflow(staff)).overflowPx).toBe(0)
-    // Goal-led Home: the check is one tap away, on Other jobs.
+    // Today: the check is one tap away, on Other jobs.
     await openOtherJobs(staff)
     const darts = await expectOtherJobsCheck(staff, question("darts"), id)
     await expect(darts.card).toContainText(PROGRESS_LABEL.needs_capture)
