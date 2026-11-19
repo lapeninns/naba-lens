@@ -16,8 +16,8 @@ import { activateMenu, createMenuDraft, ok } from "./helpers/menus"
 import { psql } from "./helpers/stack"
 import {
   OTHER_JOBS,
-  openPortfolio,
   STAFF_LANDING,
+  STAFF_TABS,
   startOtherJobsCheck,
 } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
@@ -108,23 +108,25 @@ test("a staff target combines distinct menu items and completed amenity checks",
     ).toHaveCount(met ? 1 : 0)
   }
   try {
-    // Album is Home (§5a); Your month is on Me.
+    // Staff land on Today (DESIGN.md §5c); Your month is a row on Me (§5b).
     await expect(staff).toHaveURL(STAFF_LANDING)
-    await openPortfolio(staff)
-    await expect(
-      staff.getByRole("progressbar", { name: "4 of 5 items completed" })
-    ).toBeVisible()
-    await staff.getByRole("link", { name: "See your month" }).click()
+    await staff.goto(STAFF_TABS.me)
+    const monthRow = staff.locator('[data-slot="me-month"]')
+    await expect(monthRow).toContainText("4 of 5 this month")
+    await monthRow.click()
+    await expect(staff).toHaveURL(/\/staff\/tasks\/month$/)
     await expect(
       staff.getByRole("heading", { name: "Monthly target", exact: true })
     ).toBeVisible()
     await expectCurrentTarget(4, "3 menu items · 1 amenity check", false)
     await expect(
-      staff.getByRole("link", { name: "Browse menu items" })
-    ).toHaveAttribute("href", "/staff/menu")
-    await expect(
       staff.getByRole("heading", { name: "Add photos for this month" })
     ).toHaveCount(0)
+    // Browse menu items opens the Album's menu part.
+    await staff.getByRole("link", { name: "Browse menu items" }).click()
+    await expect(staff).toHaveURL(/\/staff\/album\/menu$/)
+    await staff.goBack()
+    await expect(staff).toHaveURL(/\/staff\/tasks\/month$/)
 
     await staff.getByRole("link", { name: "See your other jobs" }).click()
     await expect(staff).toHaveURL(OTHER_JOBS)

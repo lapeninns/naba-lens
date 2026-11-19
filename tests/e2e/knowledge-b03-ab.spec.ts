@@ -259,8 +259,8 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     // ---- 375 px: staff choose Checked on and one entrance, and submit ------
     const staff = await signedInPage(browser, w.staffA, PHONE(375, 812))
     await expect(staff).toHaveURL(STAFF_LANDING)
-    // Goal-led Home: working-list questions are on Other jobs (an unassigned
-    // question waits on nobody, so Home may show no Other jobs row for it).
+    // Today (DESIGN.md §5c): working-list questions are on Other jobs (an unassigned
+    // question waits on nobody, so Today may show no Other jobs row for it).
     await staff.goto(OTHER_JOBS_PATH)
     const row = staff.getByRole("link", {
       name: new RegExp(`: ${escape(ask)}$`),
@@ -294,7 +294,9 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
         expect(count(), "one submit left the page").toBe(1)
       },
     })
-    await expect(staff).toHaveURL(new RegExp(`finding_sent=${id}`))
+    await expect(staff).toHaveURL(
+      new RegExp(`/staff/home\\?finding_sent=${id}`)
+    )
     await expect(
       staff.getByRole("status").filter({ hasText: ask })
     ).toBeFocused()
@@ -538,7 +540,9 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     const staffOverflow = await horizontalOverflow(staff)
     expect(staffOverflow.overflowPx, staffOverflow.culprit).toBe(0)
     await s.submit.click()
-    await expect(staff).toHaveURL(new RegExp(`finding_sent=${id}`))
+    await expect(staff).toHaveURL(
+      new RegExp(`/staff/home\\?finding_sent=${id}`)
+    )
     await staff.context().close()
 
     const [observed, ...extra] = contributionsAt(w.venueA, id)

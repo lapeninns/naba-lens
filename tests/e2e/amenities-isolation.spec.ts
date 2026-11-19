@@ -19,6 +19,7 @@ import {
   sessionOf,
   submitArgs,
 } from "./helpers/amenities-world"
+import { STAFF_LANDING } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -30,7 +31,6 @@ import { signedInPage } from "./helpers/world"
  */
 
 const MANAGER = amenityHrefs("/manager")
-const LEGACY_MANAGE = amenityHrefs("/staff/manage")
 
 /**
  * The route's not-found screen, with nothing of venue A on it. These pages
@@ -38,8 +38,8 @@ const LEGACY_MANAGE = amenityHrefs("/staff/manage")
  * segment's not-found.tsx: assert the screen, not the status.
  */
 const NOT_FOUND_HEADING = {
-  // app/staff/manage/amenities/[checkId]/not-found.tsx (also wraps /capture);
-  // the /manager amenity pages share the screen inside the workspace layout.
+  // app/manager/amenities/[checkId]/not-found.tsx (also wraps /capture),
+  // inside the workspace layout.
   manage: "This check isn't here",
   // app/staff/tasks/amenities/[checkId]/not-found.tsx
   staff: "We can't find this question for your venue.",
@@ -144,12 +144,11 @@ test.describe("amenity two-venue isolation", () => {
         `manager B ${path}`
       )
     }
-    // Staff who manage nothing get the manager tools' plain refusal.
-    for (const path of [
-      LEGACY_MANAGE.check(checkA),
-      LEGACY_MANAGE.capture(checkA),
-    ]) {
+    // A staff account opening the manager pages is sent back to its own
+    // landing (decision D3), with nothing of venue A on the way.
+    for (const path of [MANAGER.check(checkA), MANAGER.capture(checkA)]) {
       await expectNoVenueAData(staffB, path, venueASecrets)
+      await expect(staffB).toHaveURL(STAFF_LANDING)
     }
     await expectPageNotFound(
       staffB,

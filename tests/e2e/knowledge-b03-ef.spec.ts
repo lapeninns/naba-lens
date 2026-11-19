@@ -65,6 +65,7 @@ import {
   stepFreeAccessibilityVersion,
 } from "./helpers/knowledge-b03-ab-world"
 import { psql } from "./helpers/stack"
+import { STAFF_LANDING } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -80,7 +81,6 @@ const DESK = { viewport: { width: 1280, height: 800 } }
 const PHONE = { viewport: { width: 390, height: 844 } }
 
 const MANAGER = amenityHrefs("/manager")
-const LEGACY_MANAGE = amenityHrefs("/staff/manage")
 const adminHrefs = (venueId: string) =>
   amenityHrefs(`/admin/coverage/${venueId}`)
 
@@ -644,8 +644,9 @@ test.describe("knowledge B03 E and F", () => {
     const entranceId = await addPlace(w.managerA, "entrance", ENTRANCE)
     const a = (await knowledgeChecks(w, w.venueA, [KEY]))[KEY]!
     const b = (await knowledgeChecks(w, w.venueB, [KEY]))[KEY]!
-    // staffA sent the answer; staffA2 holds a legacy grant (history only);
-    // the reader is ordinary staff who sent nothing here.
+    // staffA sent the answer; staffA2 holds a legacy staff-held grant (its
+    // database session reads history; no manager page in the UI, decision
+    // D3); the reader is ordinary staff who sent nothing here.
     await legacyManagerGrant(w, w.staffA2, w.venueA)
     const reader = addStaff(w, w.venueA, "B03F Reader")
 
@@ -758,28 +759,20 @@ test.describe("knowledge B03 E and F", () => {
     ).toBeVisible()
     await expect(history(admin)).toBeVisible()
 
-    // A staff account with a legacy grant reads history but cannot correct
-    // or withdraw, even by opening the correction URL directly.
+    // A staff account with a legacy grant is no manager in the UI (decision
+    // D3): the manager check and its correction URL send it to Today, with
+    // nothing of the history, even when opened directly.
     const legacy = await signedInPage(browser, w.staffA2, DESK)
-    await legacy.goto(LEGACY_MANAGE.check(a))
-    await settled(legacy)
-    await singleSections(legacy)
-    await expect(history(legacy)).toBeVisible()
-    await expect(atDate(legacy)).toBeVisible()
-    await expect(
-      legacy.getByRole("link", { name: CORRECT_COPY.open })
-    ).toHaveCount(0)
-    await expect(
-      legacy.getByRole("button", { name: WITHDRAW_COPY.open })
-    ).toHaveCount(0)
-    await legacy.goto(`${LEGACY_MANAGE.capture(a)}?correct=1`)
-    await settled(legacy)
-    await expect(
-      legacy.getByText(CORRECT_COPY.notPermitted, { exact: true })
-    ).toBeVisible()
-    await expect(
-      legacy.getByRole("button", { name: CORRECT_COPY.save })
-    ).toHaveCount(0)
+    for (const path of [MANAGER.check(a), `${MANAGER.capture(a)}?correct=1`]) {
+      await legacy.goto(path)
+      await expect(legacy, `legacy ${path}`).toHaveURL(STAFF_LANDING)
+      await expect(history(legacy)).toHaveCount(0)
+      await expect(
+        legacy.getByRole("button", { name: CORRECT_COPY.save })
+      ).toHaveCount(0)
+      await expectNone(legacy, [NOTE, video], `legacy ${path}`)
+    }
+    await legacy.context().close()
 
     // Ordinary staff at 390: no history, correction or withdrawal anywhere.
     const staff = await signedInPage(browser, reader, PHONE)
@@ -808,10 +801,10 @@ test.describe("knowledge B03 E and F", () => {
         staff.getByRole("button", { name: WITHDRAW_COPY.open })
       ).toHaveCount(0)
     }
-    await staff.goto(LEGACY_MANAGE.check(a))
-    await settled(staff)
+    await staff.goto(MANAGER.check(a))
+    await expect(staff).toHaveURL(STAFF_LANDING)
     await expect(history(staff)).toHaveCount(0)
-    await expectNone(staff, [NOTE, video], "staff /staff/manage check")
+    await expectNone(staff, [NOTE, video], "staff /manager check")
 
     // Venue B's manager: venue A's check, correction and history are not
     // there, and nothing of venue A shows.
@@ -1159,21 +1152,15 @@ test.describe("knowledge B03 E and F", () => {
     const earlier = secondAfter(firstConfirmed.at)
     expect(Date.parse(earlier)).toBeLessThan(Date.parse(correctionRow.at))
     const later = secondAfter(withdrawal.at)
-    for (const page of [manager, legacy]) {
-      if (page === legacy) {
-        await legacy.goto(LEGACY_MANAGE.check(a))
-        await settled(page)
-      }
-      const then = await answerOn(page, earlier)
-      await expect(
-        atDate(page).getByText(AT_DATE_COPY.was(then, ANSWER_LABEL.yes), {
-          exact: true,
-        })
-      ).toBeVisible()
-      await expect(
-        atDate(page).getByText(AT_DATE_COPY.confirmed, { exact: true })
-      ).toBeVisible()
-    }
+    const then = await answerOn(manager, earlier)
+    await expect(
+      atDate(manager).getByText(AT_DATE_COPY.was(then, ANSWER_LABEL.yes), {
+        exact: true,
+      })
+    ).toBeVisible()
+    await expect(
+      atDate(manager).getByText(AT_DATE_COPY.confirmed, { exact: true })
+    ).toBeVisible()
     const now = await answerOn(manager, later)
     await expect(
       atDate(manager).getByText(AT_DATE_COPY.was(now, ANSWER_LABEL.no), {
