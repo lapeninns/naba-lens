@@ -18,11 +18,12 @@ import {
   uploadAs,
 } from "../integration/gaps-support"
 import { actorFor, syntheticJpeg } from "../slice/media-actor"
+import { myPhotoTile, openMe } from "./helpers/s4-photos"
 import {
   ADMIN_LANDING,
-  openPortfolio,
+  myPhotos,
+  openMyPhotos,
   STAFF_LANDING,
-  staffTile,
   uploadSheet,
 } from "./helpers/ui"
 import {
@@ -40,8 +41,8 @@ import { passMfaIfAsked } from "./helpers/mfa"
  * - Library refresh on focus/visibility, besides the 15 s interval.
  * - GAP-12: staff at a deactivated venue: no Upload, setup message; admin still
  *   sees the retained media.
- * - GAP-11 over real HTTP: cross-staff portfolio reads, admin page redirect,
- *   private no-store headers.
+ * - GAP-11 over real HTTP: colleagues' photos, admin page redirect, private
+ *   no-store headers.
  */
 
 const admin = serviceClient()
@@ -114,7 +115,8 @@ test.describe("GAP-19: leave warning during an active upload", () => {
 
     const page = await signIn(browser, staff, baseURL!)
     await expect(page).toHaveURL(STAFF_LANDING)
-    await openPortfolio(page)
+    // My photos holds Add a video, the upload sheet (DESIGN.md §5e).
+    await openMyPhotos(page)
 
     const dialogs: string[] = []
     const onDialog = (dialog: Dialog) => {
@@ -126,8 +128,7 @@ test.describe("GAP-19: leave warning during an active upload", () => {
 
     // Idle: leaving needs no confirmation. (A click first, so Chromium's
     // user-activation requirement for beforeunload is met in both cases.)
-    await page.getByRole("button", { name: "Edit profile" }).click()
-    await page.keyboard.press("Escape")
+    await myPhotos(page).click({ position: { x: 2, y: 2 } })
     const idleProbe = await page.evaluate(() => {
       const event = new Event("beforeunload", { cancelable: true })
       window.dispatchEvent(event)
@@ -164,8 +165,8 @@ test.describe("GAP-19: leave warning during an active upload", () => {
     await expect
       .poll(() => dialogs, { timeout: 10_000 })
       .toContain("beforeunload")
-    // Dismissed: still on the portfolio with the upload running.
-    await expect(page).toHaveURL(/\/staff$/)
+    // Dismissed: still on My photos with the upload running.
+    await expect(page).toHaveURL(/\/staff\/photos$/)
     await expect(dialog).toBeVisible()
 
     // Let it finish; then leaving is silent.
@@ -294,21 +295,17 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
 
     const staffPage = await signIn(browser, staff, baseURL!)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
-    await openPortfolio(staffPage)
+    // My photos says why and offers no Add a video (DESIGN.md §5e).
+    await openMyPhotos(staffPage)
     await expect(
       staffPage.getByRole("status").filter({ hasText: /isn't taking photos/ })
     ).toBeVisible()
     await expect(
       staffPage.getByRole("button", { name: "Add a video" })
     ).toHaveCount(0)
-    // Me's Add photos (R15-1) is not offered either.
-    await expect(staffPage.locator('[data-slot="me-add"]')).toHaveCount(0)
     // Their own retained media is still listed for them.
     await expect(
-      await staffTile(
-        staffPage.getByRole("list", { name: "Your portfolio" }),
-        "before-pause.jpg"
-      )
+      await myPhotoTile(staffPage, "before-pause.jpg", staff.id)
     ).toBeVisible()
 
     const adminPage = await signIn(browser, adminUser, baseURL!)
@@ -413,7 +410,7 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
     // carrying a client-side redirect.
     const html = await portfolio.text()
     expect(portfolio.status()).toBe(307)
-    expect(portfolio.headers()["location"]).toMatch(/\/staff\/tasks$/)
+    expect(portfolio.headers()["location"]).toMatch(/\/staff\/home$/)
     expect(html).not.toContain('data-slot="skeleton"')
     expect(html).not.toContain("TEST e2e-gaps-http-a")
     expect(html).not.toContain(photoA)
@@ -423,12 +420,11 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
     await expect(pageB.getByText("TEST e2e-gaps-http-a")).toHaveCount(0)
     await expect(pageB.getByText("private-dish.jpg")).toHaveCount(0)
 
-    // Album links to the community feed through Me. A's name belongs in the
-    // feed attribution, with no management or original download controls.
-    await openPortfolio(pageB)
-    await pageB
-      .getByRole("link", { name: /^Photos Accepted photos from colleagues/ })
-      .click()
+    // Me links to the community feed (Colleagues' photos, DESIGN.md §5b).
+    // A's name belongs in the feed attribution, with no management or
+    // original download controls.
+    await openMe(pageB)
+    await pageB.getByRole("link", { name: /^Colleagues' photos/ }).click()
     await expect(pageB).toHaveURL(/\/staff\/community$/)
     const feedLabel = "Organization portfolio"
     const colleagues = pageB.getByRole("list", { name: feedLabel })

@@ -13,17 +13,25 @@ import {
 } from "./helpers/mailpit"
 import { openEmailLink } from "./helpers/email-link"
 import { hevcMp4, sha256, supportedMp4, syntheticJpeg } from "./helpers/media"
+import {
+  MY_PHOTOS_EMPTY,
+  myPhotoTile,
+  myPhotoTileById,
+  openMe,
+  openPhotoPage,
+  photoDetail,
+} from "./helpers/s4-photos"
 import { provisioner, psql } from "./helpers/stack"
 import {
   chooseOption,
   libraryList,
-  portfolioList,
-  staffTile,
+  myPhotos,
+  openMyPhotos,
+  STAFF_LANDING,
+  STAFF_TABS,
   tile,
   uploadSheet,
   uploadThroughDialog,
-  openPortfolio,
-  STAFF_LANDING,
 } from "./helpers/ui"
 import {
   fixtureEmail,
@@ -94,18 +102,22 @@ test.describe("release negatives", () => {
     const photo = await syntheticJpeg(`b-only-${world.tag}.jpg`)
     const staffB = await signedInPage(browser, world.staffB)
     await expect(staffB).toHaveURL(STAFF_LANDING)
-    await openPortfolio(staffB)
+    await openMyPhotos(staffB)
     await uploadThroughDialog(staffB, [photo])
     const [asset] = await assetIdsOf(world.staffB.id)
 
     const staffA = await signedInPage(browser, world.staffA)
     await expect(staffA).toHaveURL(STAFF_LANDING)
-    await openPortfolio(staffA)
-    // Same venue, still nothing of B's in A's own portfolio.
+    await openMyPhotos(staffA)
+    // Same venue, still nothing of B's in A's own My photos (DESIGN.md §5e),
+    // and B's photo's own page is not found for A.
+    await expect(myPhotos(staffA).getByText(MY_PHOTOS_EMPTY)).toBeVisible()
+    await expect(await myPhotoTile(staffA, photo.name)).toHaveCount(0)
+    await staffA.goto(`${STAFF_TABS.photos}/${asset.id}`)
     await expect(
-      staffA.getByRole("main").getByText("Your profile starts here.")
+      staffA.getByRole("link", { name: "Go to Today" })
     ).toBeVisible()
-    await expect(await staffTile(staffA, photo.name)).toHaveCount(0)
+    await expect(photoDetail(staffA)).toHaveCount(0)
 
     // FA-20 (spec §3.3 row 3): a colleague's photo nobody has reviewed is
     // not shown to other staff at all, not even as a preview; the original
@@ -150,7 +162,8 @@ test.describe("release negatives", () => {
       expect(r.status(), route).toBe(401)
     }
     for (const path of [
-      "/staff",
+      STAFF_TABS.today,
+      STAFF_TABS.photos,
       "/admin",
       `/admin/staff/${world.staffB.id}`,
     ]) {
@@ -163,9 +176,7 @@ test.describe("release negatives", () => {
 
     // B still has their file: nothing above changed it.
     await staffB.reload()
-    await expect(
-      await staffTile(portfolioList(staffB), photo.name)
-    ).toBeVisible()
+    await expect(myPhotoTileById(staffB, asset.id)).toBeVisible()
   })
 
   test("staff are denied media the community hides: inactive uploader, deleted or unfinished", async ({
@@ -184,7 +195,7 @@ test.describe("release negatives", () => {
     if (moved.error) throw moved.error
     const clip = supportedMp4(`c-clip-${tag}.mp4`)
     const staffCPage = await signedInPage(browser, staffC)
-    await openPortfolio(staffCPage)
+    await openMyPhotos(staffCPage)
     await uploadThroughDialog(staffCPage, [clip])
     const video = (await assetIdsOf(staffC.id)).find(
       (a) => a.original_filename === clip.name
@@ -318,12 +329,14 @@ test.describe("release negatives", () => {
     const kept = await syntheticJpeg(`kept-${world.tag}.jpg`)
     const late = await syntheticJpeg(`late-${world.tag}.jpg`)
     const staff = await signedInPage(browser, world.staffB)
-    await openPortfolio(staff)
+    await openMyPhotos(staff)
     await uploadThroughDialog(staff, [kept])
     const [asset] = await assetIdsOf(world.staffB.id)
-    const portfolio = portfolioList(staff)
-    const keptTile = await staffTile(portfolio, kept.name)
-    await expect(keptTile).toBeVisible()
+    await expect(myPhotoTileById(staff, asset.id)).toBeVisible()
+    // The photo's own page (DESIGN.md §5e), open in a second tab before the
+    // account is deactivated: Withdraw is there.
+    const photoTab = await staff.context().newPage()
+    await openPhotoPage(photoTab, asset.id)
 
     // Admin A deactivates through the UI.
     const admin = await signedInPage(browser, world.adminA)
@@ -338,13 +351,7 @@ test.describe("release negatives", () => {
       .click()
     await expect(admin.getByText(/is inactive\./)).toBeVisible()
 
-    // Read: the open page's next refresh (focus) is refused.
-    await staff.evaluate(() => window.dispatchEvent(new Event("focus")))
-    await expect(
-      staff
-        .getByRole("status")
-        .filter({ hasText: "Your account is not active." })
-    ).toBeVisible()
+    // Read: the photo's previews are refused.
     const thumb = await staff.request.get(`/api/media/${asset.id}/thumb`, {
       maxRedirects: 0,
     })
@@ -371,26 +378,25 @@ test.describe("release negatives", () => {
     await sheet.getByRole("button", { name: "Done" }).click()
     await expect(sheet).toBeHidden()
 
-    // Delete own media: refused with a clear message, the file stays.
-    await keptTile.click()
-    await staff
-      .getByRole("dialog")
-      .getByRole("button", { name: "Delete" })
+    // Withdraw own photo from its open page: refused with a clear message,
+    // the file stays.
+    await photoDetail(photoTab)
+      .getByRole("button", { name: "Withdraw" })
       .click()
-    const confirm = staff.getByRole("alertdialog")
-    // HM-04: wait for "Checking…" (the delete impact read) to settle first.
+    const confirm = photoTab.getByRole("alertdialog", {
+      name: "Withdraw this photo?",
+    })
+    await confirm.getByRole("button", { name: "Withdraw" }).click()
+    await expect(confirm).toBeHidden()
     await expect(
-      confirm.getByRole("button", { name: "Checking…" })
-    ).toHaveCount(0)
-    await confirm.getByRole("button", { name: /^Delete( anyway)?$/ }).click()
-    await expect(
-      confirm.getByRole("alert").filter({
-        hasText: "Your account is not active, so files cannot be removed.",
-      })
+      photoDetail(photoTab)
+        .getByRole("alert")
+        .filter({ hasText: "Your account is not active." })
     ).toBeVisible()
+    await photoTab.close()
 
     // Any navigation lands on the blocked page.
-    await staff.goto("/staff")
+    await staff.goto(STAFF_TABS.photos)
     await expect(staff).toHaveURL(/\/auth\/blocked$/)
     await expect(
       staff.getByRole("heading", { name: "Account unavailable" })
@@ -411,9 +417,9 @@ test.describe("release negatives", () => {
     const before = await syntheticJpeg(`before-move-${world.tag}.jpg`)
     const after = await syntheticJpeg(`after-move-${world.tag}.jpg`)
     const staff = await signedInPage(browser, staffC)
-    await openPortfolio(staff)
-    const profile = staff.getByRole("region", { name: "Profile" })
+    const profile = await openMe(staff)
     await expect(profile.getByText(venue2.name)).toBeVisible()
+    await openMyPhotos(staff)
     await uploadThroughDialog(staff, [before])
 
     const admin = await signedInPage(browser, world.adminA)
@@ -424,8 +430,9 @@ test.describe("release negatives", () => {
     await edit.getByRole("button", { name: "Save changes" }).click()
     await expect(edit).toBeHidden()
 
-    await staff.reload()
+    await openMe(staff)
     await expect(profile.getByText(venue1.name)).toBeVisible()
+    await openMyPhotos(staff)
     await uploadThroughDialog(staff, [after])
 
     const rows = await assetIdsOf(staffC.id)
@@ -451,7 +458,7 @@ test.describe("release negatives", () => {
   }) => {
     const hevc = hevcMp4(`hevc-${world.tag}.mp4`)
     const staff = await signedInPage(browser, world.staffC)
-    await openPortfolio(staff)
+    await openMyPhotos(staff)
     await uploadThroughDialog(staff, [hevc])
 
     const admin = await signedInPage(browser, world.adminA)
@@ -491,14 +498,14 @@ test.describe("release negatives", () => {
   })
 
   test("empty states and a failed download", async ({ browser }) => {
-    // New staff: empty portfolio with the upload call to action.
+    // New staff: empty My photos with its Add photos call to action
+    // (DESIGN.md §5e).
     const staff = await signedInPage(browser, world.staffA)
-    await openPortfolio(staff)
+    await openMyPhotos(staff)
+    await expect(myPhotos(staff).getByText(MY_PHOTOS_EMPTY)).toBeVisible()
     await expect(
-      staff
-        .getByRole("main")
-        .getByText("Your profile starts here. Add your first photo or video.")
-    ).toBeVisible()
+      myPhotos(staff).getByRole("button", { name: "Add photos" })
+    ).toBeEnabled()
 
     const admin = await signedInPage(browser, world.adminA)
     // Admin portfolio of someone without uploads.
@@ -562,7 +569,7 @@ test.describe("release negatives", () => {
     // /admin/staff/[id] onto MediaGallery.
     const photo = await syntheticJpeg(`portfolio-${world.tag}.jpg`)
     const staff = await signedInPage(browser, world.staffA)
-    await openPortfolio(staff)
+    await openMyPhotos(staff)
     await uploadThroughDialog(staff, [photo])
     const admin = await signedInPage(browser, world.adminA)
     await admin.goto(`/admin/staff/${world.staffA.id}`)

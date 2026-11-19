@@ -11,13 +11,9 @@ import {
   seedImages,
 } from "./helpers/coverage-world"
 import { supportedMp4, syntheticJpeg } from "./helpers/media"
+import { myPhotoTile } from "./helpers/s4-photos"
 import { provisioner, psql } from "./helpers/stack"
-import {
-  openPortfolio,
-  portfolioList,
-  staffTile,
-  uploadThroughDialog,
-} from "./helpers/ui"
+import { openMyPhotos, uploadThroughDialog } from "./helpers/ui"
 import { provisionWorld, seedReadyAssets, signedInPage } from "./helpers/world"
 
 /**
@@ -144,7 +140,7 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
     const world = await provisionWorld()
     const clip = supportedMp4(`r01-clip-${world.tag}.mp4`)
     const owner = await signedInPage(browser, world.staffB)
-    await openPortfolio(owner)
+    await openMyPhotos(owner)
     await uploadThroughDialog(owner, [clip])
     const [video] = await ownAssets(world.staffB.id)
     const colleague = await signedInPage(browser, world.staffA)
@@ -199,7 +195,7 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
     const world = await provisionWorld()
     const photo = await syntheticJpeg(`r02-private-name-${world.tag}.jpg`)
     const owner = await signedInPage(browser, world.staffB)
-    await openPortfolio(owner)
+    await openMyPhotos(owner)
     await uploadThroughDialog(owner, [photo])
     const [asset] = await ownAssets(world.staffB.id)
     const stem = photo.name.replace(/\.jpg$/, "")
@@ -253,9 +249,9 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
       await expect(viewer).not.toContainText(stem)
       await viewer.press("Escape")
     }
-    // Not even the owner's tile carries the file name.
+    // Not even the owner's tile on My photos carries the file name.
     await owner.reload()
-    const ownTile = await staffTile(portfolioList(owner), photo.name)
+    const ownTile = await myPhotoTile(owner, photo.name, world.staffB.id)
     await expect(ownTile).toBeVisible()
     expect(await ownTile.getAttribute("aria-label")).not.toContain(stem)
 
