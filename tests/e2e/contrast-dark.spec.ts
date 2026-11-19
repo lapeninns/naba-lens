@@ -126,7 +126,7 @@ for (const width of WIDTHS) {
   })
 
   test(`manager pages hold 4.5:1 in dark at ${width}px`, async () => {
-    for (const path of managerPages(m)) await contrast(manager, width, path)
+    for (const path of managerPages()) await contrast(manager, width, path)
   })
 
   test(`admin pages hold 4.5:1 in dark at ${width}px`, async () => {

@@ -94,7 +94,7 @@ export const staffPages = (m: ManagedWorld) => [
 ]
 
 /** The venue manager workspace (/manager, decision D3). */
-export const managerPages = (_m: ManagedWorld) => [
+export const managerPages = () => [
   "/manager",
   "/manager/team",
   "/manager/review",

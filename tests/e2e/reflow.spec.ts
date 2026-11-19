@@ -146,7 +146,7 @@ for (const size of SIZES) {
   // The /manager workspace (decision D3) has no checklist screen, so the
   // old Add a checklist item dialog is gone with it.
   test(`manager pages reflow at ${size.name}`, async () => {
-    for (const path of managerPages(m)) await reflow(manager, size, path)
+    for (const path of managerPages()) await reflow(manager, size, path)
   })
 
   test(`admin pages and Invite staff reflow at ${size.name}`, async () => {
