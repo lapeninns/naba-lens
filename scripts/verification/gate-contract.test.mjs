@@ -135,7 +135,7 @@ test("common checks run once, all browser lanes retain build, database/browser a
   for (const check of [
     "typecheck",
     "lint",
-    "test",
+    "test --reporter=verbose",
     "test:monitoring",
     "test:archive",
     "test:verification",
@@ -202,7 +202,7 @@ test("standalone full mode keeps every common check and browser boundary without
   for (const check of [
     "pnpm typecheck",
     "pnpm lint",
-    "pnpm test",
+    "pnpm test --reporter=verbose",
     "pnpm test:monitoring",
     "pnpm test:archive",
     "pnpm test:verification",
@@ -210,6 +210,37 @@ test("standalone full mode keeps every common check and browser boundary without
     "node privacy-runtime.mjs",
   ])
     assert.ok(f.lines().includes(check), check)
+})
+
+test("hosted common retains scrubbed per-test diagnostics, not raw unit logs", (t) => {
+  const workflow = readFileSync(
+    join(source, ".github/workflows/ci.yml"),
+    "utf8"
+  )
+  const common = workflow.split("\n  database:")[0]
+  assert.match(common, /os\.availableParallelism\(\)/)
+  assert.match(common, /common-logs\/unit\.scrubbed\.log/)
+  assert.doesNotMatch(common, /common-logs\/unit\.log/)
+  const script = common.match(
+    /node --input-type=module <<'JS'\n([\s\S]*?)\n\s*JS/
+  )
+  assert.ok(script, "common diagnostic script")
+  const dir = mkdtempSync(join(tmpdir(), "nabalens-common-diagnostics-"))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const token =
+    "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.c2lnbmF0dXJl"
+  writeFileSync(join(dir, "unit.log"), `case cost 123ms ${token}\n`)
+  const result = spawnSync(process.execPath, ["--input-type=module"], {
+    cwd: source,
+    env: { ...process.env, CI_LOG_DIR: dir },
+    input: script[1],
+    encoding: "utf8",
+  })
+  assert.equal(result.status, 0, result.stderr)
+  const scrubbed = readFileSync(join(dir, "unit.scrubbed.log"), "utf8")
+  assert.match(scrubbed, /case cost 123ms/)
+  assert.equal(scrubbed.includes(token), false)
+  assert.match(scrubbed, /\[redacted-jwt\]/)
 })
 
 test("database proof requires every suite and cleanup, and each browser validates it before setup", (t) => {

@@ -66,6 +66,11 @@ describe("images", () => {
     const d = await createImageDerivatives(b, "image/heic")
     expect([d.width, d.height]).toEqual([4000, 3000])
     expect((await sharp(d.preview).metadata()).width).toBe(1600)
+  })
+  // Each independent operation decodes the full 12MP fixture. Keep their
+  // correctness checks under the unchanged per-operation test deadline.
+  it("validates synthetic 12MP HEIF with WASM", async () => {
+    const b = await fixture("synthetic-12mp.heic")
     expect(
       (
         await validateMedia({
@@ -75,6 +80,9 @@ describe("images", () => {
         })
       ).ok
     ).toBe(true)
+  })
+  it("creates an avatar from synthetic 12MP HEIC with WASM", async () => {
+    const b = await fixture("synthetic-12mp.heic")
     expect(
       (await sharp(await createAvatarDerivative(b)).metadata()).width
     ).toBe(256)

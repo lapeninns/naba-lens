@@ -23,6 +23,7 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
       CI_PHASE: common
       CI_VERIFICATION_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      CI_LOG_DIR: ${{ runner.temp }}/common-logs
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -35,6 +36,9 @@ jobs:
         with:
           node-version: 24.16.0
           cache: pnpm
+      - name: Record runner CPU allocation
+        run: |
+          node -e 'const os = require("node:os"); console.log(JSON.stringify({platform: process.platform, arch: process.arch, logicalCpus: os.cpus().length, availableParallelism: os.availableParallelism(), cpuModel: os.cpus()[0]?.model, memoryMiB: Math.round(os.totalmem()/1048576)}))'
       - name: Run browser-independent checks once
         env:
           CI_COMMON_RECEIPT: ${{ runner.temp }}/common-receipt.json
@@ -46,6 +50,26 @@ jobs:
           path: ${{ runner.temp }}/common-receipt.json
           if-no-files-found: error
           retention-days: 7
+      - name: Scrub common unit diagnostics
+        if: always()
+        run: |
+          node --input-type=module <<'JS'
+          import { existsSync, readFileSync, writeFileSync } from "node:fs"
+          import { scrub } from "./scripts/ci/suite-report.mjs"
+          const path = `${process.env.CI_LOG_DIR}/unit.log`
+          if (existsSync(path))
+            writeFileSync(path.replace(/\.log$/, ".scrubbed.log"), scrub(readFileSync(path, "utf8")))
+          JS
+      - name: Retain per-test costs and common timings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: common-logs-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/common-logs/unit.scrubbed.log
+            ${{ runner.temp }}/common-logs/timings.tsv
+          retention-days: 7
+          if-no-files-found: ignore
 
   database:
     name: Database checks

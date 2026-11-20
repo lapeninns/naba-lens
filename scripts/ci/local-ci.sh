@@ -75,7 +75,7 @@ run install pnpm install --frozen-lockfile || exit 1
 if [[ "$phase" == full || "$phase" == common ]]; then
   run typecheck pnpm typecheck || true
   run lint pnpm lint || true
-  run unit pnpm test || true
+  run unit pnpm test --reporter=verbose || true
   run monitoring pnpm test:monitoring || true
   run archive pnpm test:archive || true
   run verification pnpm test:verification || true
