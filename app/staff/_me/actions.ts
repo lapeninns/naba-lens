@@ -1,6 +1,8 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { STAFF_ALBUM_POSTS } from "@/lib/config/staff-album-posts"
+import { withStaffAlbumStates } from "@/lib/server/staff-album-posts"
 
 import { deleteMedia } from "@/app/_media/actions"
 import { requestRemoval } from "@/app/_media/removal-actions"
@@ -25,7 +27,6 @@ import {
   moveMyUploadSlot,
   MOVE_SLOT_WORDS,
   reportSlotChange,
-  setMyCapturedAt,
   withdrawSlotReport,
 } from "@/lib/server/staff"
 import type { Inbox } from "@/lib/ops/notifications"
@@ -106,6 +107,14 @@ export async function loadMyUploadsAction(
     before: c.before,
     beforeId: c.beforeId,
   })
+  if (result.ok && STAFF_ALBUM_POSTS) {
+    const page = await withStaffAlbumStates(auth.actor.db, result.page).catch(
+      () => null
+    )
+    return page
+      ? { ok: true, page }
+      : refused("Your photos couldn't be loaded. Try again.")
+  }
   return result.ok ? result : refused(result.message)
 }
 
@@ -211,22 +220,6 @@ export async function changeUploadSlotAction(input: {
   if (!moved.ok) return refused(moved.message)
   revalidatePath("/staff")
   return { ok: true }
-}
-
-/** Correct when one's own photo was taken; null means "I don't know". */
-export async function setCapturedAtAction(
-  assetId: unknown,
-  capturedAt: unknown
-): Promise<MeReply<{ capturedAt: string | null }>> {
-  if (!isId(assetId)) return refused("Reload the page.")
-  if (capturedAt !== null && typeof capturedAt !== "string")
-    return refused("Give a date and time.")
-  const auth = await getMediaActor(OWN_MEDIA_ROLES)
-  if (!auth.ok) return refused(auth.message)
-  const result = await setMyCapturedAt(auth.actor, assetId, capturedAt)
-  if (!result.ok) return refused(result.message)
-  revalidatePath("/staff")
-  return result
 }
 
 /** Ask an admin to remove one's own accepted photo (FA-21). */

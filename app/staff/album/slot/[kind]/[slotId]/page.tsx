@@ -5,15 +5,19 @@ import { reportSlotChangeAction } from "@/app/staff/_me/actions"
 import { staffShellStatus } from "@/app/staff/_shell/shell-status"
 import { ADD_BLOCKED } from "@/app/staff/add-blocked"
 import { AlbumSlotScreen } from "@/components/nabalens/album/slot-screen"
+import { PostedPhotos } from "@/components/nabalens/album/posted-photos"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { LinkButton } from "@/components/ui/link-button"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { findSlot } from "@/lib/album/model"
 import { STAFF_PHOTO_ROUTES } from "@/lib/config/album-upload-tray"
+import { STAFF_ALBUM_POSTS } from "@/lib/config/staff-album-posts"
 import { loadAlbum } from "@/lib/server/album"
 import { getCoverageActor } from "@/lib/server/coverage"
 import { getMySlotUploads } from "@/lib/server/staff"
+import { albumPostCursor, listAlbumPosts } from "@/lib/server/staff-album-posts"
 import { openRetake } from "@/lib/staff/my-uploads"
 
 export const metadata: Metadata = { title: "Album" }
@@ -31,8 +35,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  */
 export default async function AlbumSlotPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ kind: string; slotId: string }>
+  searchParams: Promise<{ before?: string; beforeId?: string }>
 }) {
   const { kind, slotId } = await params
   if (!UUID.test(slotId)) notFound()
@@ -42,11 +48,15 @@ export default async function AlbumSlotPage({
   const auth = await getCoverageActor()
   if (!auth.ok) notFound()
   const { actor } = auth
-  const [shell, album, mine] = await Promise.all([
+  const cursor = albumPostCursor(await searchParams)
+  const [shell, album, mine, posts] = await Promise.all([
     staffShellStatus(actor, profile),
     loadAlbum(actor),
     // Own photos are a help on this page, never a reason to fail it.
     getMySlotUploads(actor, { kind, slotId }).catch(() => null),
+    STAFF_ALBUM_POSTS
+      ? listAlbumPosts(actor.db, { slot: { kind, id: slotId }, cursor })
+      : null,
   ])
   const found = album.ok ? findSlot(album.album, `${kind}:${slotId}`) : null
   if (album.ok && !found) notFound()
@@ -93,6 +103,24 @@ export default async function AlbumSlotPage({
             outcome,
             uploadedAt,
           }))}
+          postedPhotos={
+            STAFF_ALBUM_POSTS ? (
+              <section aria-label="Posted photos" className="grid gap-3">
+                <PostedPhotos
+                  posts={posts?.posts ?? null}
+                  label="Posted photos"
+                />
+                {posts?.next ? (
+                  <LinkButton
+                    href={`?${new URLSearchParams(posts.next)}`}
+                    className="justify-self-start"
+                  >
+                    Older photos
+                  </LinkButton>
+                ) : null}
+              </section>
+            ) : undefined
+          }
           canAdd={blocked === null}
           blocked={blocked ? ADD_BLOCKED[blocked] : null}
           sendReport={reportSlotChangeAction}

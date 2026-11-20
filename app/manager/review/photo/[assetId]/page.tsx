@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { INBOX_COPY } from "@/components/nabalens/manager/review/inbox-copy"
 import { InboxPhotoDetail } from "@/components/nabalens/manager/review/inbox-photo-detail"
+import { AlbumPostModeration } from "@/components/nabalens/manager/review/album-post-moderation"
 import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
@@ -11,9 +12,14 @@ import {
 import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
 import { requireManagerVenue } from "@/lib/auth/manager"
+import {
+  STAFF_ALBUM_POSTS,
+  staffPostImage,
+} from "@/lib/config/staff-album-posts"
 import { isUuid } from "@/lib/server/coverage/validate"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 import { getPhotoDetail } from "@/lib/server/review/inbox"
+import { getAlbumPost } from "@/lib/server/staff-album-posts"
 
 import { imagesOf } from "../../_shared/photo-images"
 import { failedRead } from "../../../load-overview"
@@ -37,13 +43,26 @@ export default async function ManagerReviewPhotoPage({
   const here = managerHrefs.photo(assetId)
   const scope = await getManagerPhotoCtx()
   if (!scope.ok) failedRead(scope.code, undefined, here)
-  const read = await getPhotoDetail(scope.ctx, assetId)
+  const db = scope.ctx.actor.db
+  const [read, post] = await Promise.all([
+    getPhotoDetail(scope.ctx, assetId),
+    STAFF_ALBUM_POSTS ? getAlbumPost(db, assetId) : null,
+  ])
   if (!read.ok) {
     if (read.code === "not_found") notFound()
     if (read.code === "forbidden") failedRead("not_permitted", undefined, here)
     if (read.code === "account_inactive" || read.code === "unauthenticated")
       failedRead(read.code, undefined, here)
     throw new Error(`Could not load the photo: ${read.code}`)
+  }
+  const choices =
+    post && !post.removed ? await db.rpc("staff_album_review_options") : null
+  const images = imagesOf(read.detail)
+  if (post && !post.removed) {
+    images.main = {
+      thumbnail: staffPostImage(assetId, "thumb"),
+      preview: staffPostImage(assetId, "preview"),
+    }
   }
   return (
     <div className="grid gap-6">
@@ -66,7 +85,15 @@ export default async function ManagerReviewPhotoPage({
         title={INBOX_COPY.title}
         className="pb-0 md:pb-0"
       />
-      <InboxPhotoDetail detail={read.detail} images={imagesOf(read.detail)} />
+      <InboxPhotoDetail
+        detail={read.detail}
+        images={images}
+        staffAlbum={
+          post && post.uploaderId !== scope.ctx.actor.profile.id ? (
+            <AlbumPostModeration post={post} choices={choices?.data ?? []} />
+          ) : null
+        }
+      />
     </div>
   )
 }

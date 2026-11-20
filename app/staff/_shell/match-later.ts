@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { MatchLaterPhoto } from "@/components/nabalens/album/match/match-later"
+import { STAFF_ALBUM_POSTS } from "@/lib/config/staff-album-posts"
 import { getMyAreaLabels } from "@/lib/server/area-photos"
 import { myLabelHelp } from "@/lib/server/label-help"
 import { listOwnMedia } from "@/lib/server/media/library"
@@ -14,8 +15,7 @@ function waiting(item: MediaItemView) {
   return (
     item.uploadState === "ready" &&
     item.mediaType === "image" &&
-    item.labels !== null &&
-    !item.labels.hasLabels
+    (STAFF_ALBUM_POSTS || (item.labels !== null && !item.labels.hasLabels))
   )
 }
 
@@ -54,6 +54,16 @@ async function toPhotos(
   // A photo labelled with a venue area is matched (G-9); one sent to the
   // manager as "I'm not sure" (FA-4) is theirs to label now.
   const ids = items.slice(0, 100).map((item) => item.id)
+  if (STAFF_ALBUM_POSTS && ids.length) {
+    const { data, error } = await actor.db.rpc("staff_album_own_states", {
+      p_asset_ids: ids,
+    })
+    if (error) throw new Error("Could not load unlabelled photos.")
+    const eligible = new Set(
+      (data ?? []).filter((p) => !p.labelled && !p.removed).map((p) => p.id)
+    )
+    return items.filter((item) => eligible.has(item.id)).map(asPhoto)
+  }
   let areaLabelled = new Set<string>()
   let withManager = new Set<string>()
   if (ids.length > 0) {
@@ -67,10 +77,12 @@ async function toPhotos(
   }
   return items
     .filter((item) => !areaLabelled.has(item.id) && !withManager.has(item.id))
-    .map((item) => ({
-      id: item.id,
-      thumbnailUrl: item.previewUrl ?? item.thumbnailUrl,
-      createdAt: item.createdAt,
-      revision: item.labels?.revision ?? 0,
-    }))
+    .map(asPhoto)
 }
+
+const asPhoto = (item: MediaItemView): MatchLaterPhoto => ({
+  id: item.id,
+  thumbnailUrl: item.previewUrl ?? item.thumbnailUrl,
+  createdAt: item.createdAt,
+  revision: item.labels?.revision ?? 0,
+})

@@ -104,6 +104,7 @@ import {
   resumableEntries,
 } from "@/components/nabalens/shell/capture-resume"
 import { MEDIA_LIMITS } from "@/lib/config/media"
+import { STAFF_ALBUM_POSTS } from "@/lib/config/staff-album-posts"
 import {
   annotateCapture,
   captureAnnotation,
@@ -1213,10 +1214,41 @@ export function AddHost({
       const owner = pickerOwner.current
       pickerOwner.current = null
       if (mode.kind === "match") {
+        if (STAFF_ALBUM_POSTS) {
+          claim(files, owner)
+          queueFiles(files)
+          return
+        }
         startMatch(files, mode.place, null, mode.request)
         return
       }
       if (mode.kind === "slot") {
+        if (STAFF_ALBUM_POSTS) {
+          const slot = mode.slot
+          const { kind } = slot
+          claim(files, {
+            onReady: null,
+            onPicked: null,
+            onUnfinished: null,
+            purpose: "general",
+            subject: null,
+            set: null,
+            venueId,
+            preset:
+              kind === "dish"
+                ? {
+                    itemId: slot.itemId,
+                    itemName: slot.name,
+                    variantId: null,
+                    variantName: null,
+                  }
+                : null,
+            area: kind === "area" ? slot.subjectId : null,
+            noLabels: kind === "area",
+          })
+          queueFiles(files)
+          return
+        }
         startMatch(
           MATCH_TRAY ? files : files.slice(0, 1),
           null,
@@ -1909,8 +1941,10 @@ export function AddHost({
                 onPick={picked}
                 onUploaded={() => {
                   setRefreshSignal((signal) => signal + 1)
-                  router.refresh()
+                  if (!STAFF_ALBUM_POSTS || role !== "staff" || !uploadOpen)
+                    router.refresh()
                 }}
+                albumPosting={STAFF_ALBUM_POSTS && role === "staff"}
                 onReady={handleReady}
                 purposeOf={(file) =>
                   fileOwners.current.get(file)?.purpose ?? "general"

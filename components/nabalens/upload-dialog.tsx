@@ -34,6 +34,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
+import { LinkButton } from "@/components/ui/link-button"
+import { STAFF_POSTED, staffPostHref } from "@/lib/config/staff-album-posts"
 import type {
   ContributionGroupMember,
   ContributionGroupView,
@@ -138,6 +140,7 @@ type UploadDialogProps = {
    * person taps "Upload N files" (screens with their own dialog).
    */
   startOnPick?: boolean
+  albumPosting?: boolean
   /**
    * Closing while files upload hides the queue and lets them carry on (the
    * owner stays mounted; Add shows the queue again). Default false: closing
@@ -435,12 +438,15 @@ export type UploadBusy = {
 }
 
 /** The row's one state word (C5). */
-type RowWord = "Saved" | "Saving…" | "Needs attention"
+type RowWord =
+  "Saved" | "Saving…" | "Uploading" | "Needs attention" | typeof STAFF_POSTED
 
 // v2 UploadRow (`nl-file--*`): the state word takes its tone's colour:
 // positive bottle, progress sky, attention brass-ink.
 const WORD_LOOK: Record<RowWord, { icon: Icon; tone: string }> = {
   Saved: { icon: CheckIcon, tone: "text-ok-fg" },
+  [STAFF_POSTED]: { icon: CheckIcon, tone: "text-ok-fg" },
+  Uploading: { icon: HourglassIcon, tone: "text-info-fg" },
   "Saving…": { icon: HourglassIcon, tone: "text-info-fg" },
   "Needs attention": { icon: WarningCircleIcon, tone: "text-warn-fg" },
 }
@@ -532,7 +538,8 @@ function rowState(
   item: QueueItem,
   labels: LabelView,
   pause: QueuePause,
-  notAdded: string | null = null
+  notAdded: string | null = null,
+  albumPosting = false
 ): RowState {
   const percent = Math.round(item.progress * 100)
   switch (item.status) {
@@ -542,10 +549,17 @@ function rowState(
       return {
         word: "Saving…",
         suffix: null,
-        detail: pause === "offline" ? "Waiting for a signal" : "Waiting",
+        detail:
+          pause === "offline"
+            ? "Waiting for a signal"
+            : albumPosting
+              ? "Preparing upload"
+              : "Waiting",
       }
     case "uploading":
-      return { word: "Saving…", suffix: null, detail: `Uploading ${percent}%` }
+      return albumPosting
+        ? { word: "Uploading", suffix: `${percent}%`, detail: null }
+        : { word: "Saving…", suffix: null, detail: `Uploading ${percent}%` }
     case "processing":
       return { word: "Saving…", suffix: null, detail: "Processing" }
     case "cancelled":
@@ -562,6 +576,20 @@ function rowState(
       }
     case "done":
       break
+  }
+  if (albumPosting) {
+    return {
+      word: STAFF_POSTED,
+      suffix: labels.kind === "saved" ? labels.names.join(", ") : null,
+      detail:
+        labels.kind === "attention"
+          ? labels.message
+          : labels.kind === "retry"
+            ? LABELS_NOT_SAVED
+            : labels.kind === "saving"
+              ? "Saving labels"
+              : null,
+    }
   }
   switch (labels.kind) {
     case "none":
@@ -644,6 +672,7 @@ function QueueRow({
   onFixLabels,
   onReplace,
   replaceState,
+  onViewPost,
 }: {
   item: QueueItem
   state: RowState
@@ -656,6 +685,7 @@ function QueueRow({
   /** B05-01d: offered when the server will take a replacement. */
   onReplace?: () => void
   replaceState?: ReplaceState | null
+  onViewPost?: () => void
 }) {
   const percent = Math.round(item.progress * 100)
   const statusId = `${item.id}-status`
@@ -711,6 +741,16 @@ function QueueRow({
         >
           {item.file.name}
         </p>
+        {onViewPost && item.assetId ? (
+          <LinkButton
+            variant="quiet"
+            href={staffPostHref(item.assetId)}
+            onClick={onViewPost}
+            className="justify-self-start"
+          >
+            View photo in Album
+          </LinkButton>
+        ) : null}
         <p
           id={statusId}
           // Takes focus when the action pressed in this row goes away.
@@ -838,6 +878,7 @@ export function UploadDialog({
   controlRef,
   labels: labelsConfig,
   startOnPick = false,
+  albumPosting = false,
   keepRunningWhenClosed = false,
   onBusyChange,
   allowCamera = true,
@@ -1600,6 +1641,13 @@ export function UploadDialog({
       i.status === "cancelled" ||
       (i.status === "done" && ["retry", "attention"].includes(viewOf(i).kind))
   ).length
+  const isAlbumPhoto = (item: QueueItem) =>
+    albumPosting &&
+    item.kind === "image" &&
+    (purposeOf?.(item.file) ?? purpose) === "general"
+  const postedCount = items.filter(
+    (item) => isAlbumPhoto(item) && item.status === "done"
+  ).length
   const saving = items.length - saved - attention - summary.selected
   const status = !started
     ? summary.selected > 0
@@ -1608,7 +1656,7 @@ export function UploadDialog({
     : !startOnPick
       ? legacyStatus(summary, pause)
       : [
-          `${saved} saved`,
+          albumPosting ? `${postedCount} posted` : `${saved} saved`,
           saving > 0
             ? pause === "offline"
               ? `${saving} waiting`
@@ -1767,8 +1815,14 @@ export function UploadDialog({
                     pause,
                     unattached.has(item.id)
                       ? notAddedText(purposeOf?.(item.file) ?? purpose)
-                      : null
+                      : null,
+                    isAlbumPhoto(item)
                   )}
+                  onViewPost={
+                    isAlbumPhoto(item) && item.status === "done"
+                      ? () => onOpenChange(false)
+                      : undefined
+                  }
                   labels={view}
                   onRemove={() => {
                     focusPast(item.id)
@@ -1870,6 +1924,17 @@ export function UploadDialog({
         {/* Sticky, as in the label editor: on phones the actions stay in
             reach below long rows and the labels panel. */}
         <DialogFooter className="sticky bottom-0 mx-0 mb-0 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:mx-0 md:mb-0 md:pb-4">
+          {albumPosting &&
+          labelItems.some((item) => viewOf(item).kind === "none") &&
+          !closeBlocked ? (
+            <Button
+              type="button"
+              variant="quiet"
+              onClick={() => handleOpenChange(false)}
+            >
+              Label later
+            </Button>
+          ) : null}
           {items.length > 0 && status ? (
             <p
               role="status"

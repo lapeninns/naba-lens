@@ -224,11 +224,13 @@ export function InboxPhotoDetail({
   detail,
   images,
   venueId,
+  staffAlbum,
 }: {
   detail: PhotoDetail
   images: DetailImages
   /** Admins name the venue on every decision. */
   venueId?: string
+  staffAlbum?: React.ReactNode
 }) {
   const router = useRouter()
   const sessionEnded = useSessionEndedCatch()
@@ -573,9 +575,10 @@ export function InboxPhotoDetail({
         </Notice>
       ) : null}
 
+      {staffAlbum}
       <section aria-labelledby="review-photo-slots" className="grid gap-3">
         <h2 id="review-photo-slots" className="type-section-title text-ink">
-          {C.slots}
+          {staffAlbum ? "Website and marketing review" : C.slots}
         </h2>
         {detail.dishes.length === 0 &&
         detail.places.length === 0 &&
@@ -874,7 +877,7 @@ export function InboxPhotoDetail({
         key={
           ask
             ? `${ask.kind}:${"dish" in ask ? ask.dish.itemId : "place" in ask ? ask.place.labelId : ask.amenity.checkId}`
-            : "closed"
+            : "ask-closed"
         }
         target={ask}
         onClose={() => setAsk(null)}
@@ -966,7 +969,7 @@ export function InboxPhotoDetail({
       />
 
       <DuplicateDialog
-        key={dupOpen ? "open" : "closed"}
+        key={dupOpen ? "duplicate-open" : "duplicate-closed"}
         open={dupOpen}
         onOpenChange={setDupOpen}
         targets={targets}

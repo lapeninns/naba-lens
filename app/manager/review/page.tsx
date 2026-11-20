@@ -24,9 +24,14 @@ import {
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
+import { LinkButton } from "@/components/ui/link-button"
 import { requireManagerVenue } from "@/lib/auth/manager"
 import { ROUTES } from "@/lib/auth/routes"
 import { managerTriageSurface } from "@/lib/config/manager-triage"
+import {
+  MANAGER_STAFF_ALBUM,
+  STAFF_ALBUM_POSTS,
+} from "@/lib/config/staff-album-posts"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getAmenityActor } from "@/lib/server/amenities"
 import {
@@ -109,6 +114,11 @@ export default async function ManagerReviewPage({
   const triage = managerTriageSurface() === "b02"
   const kind = triage ? reviewKindOf(search.kind) : "photos"
   const filter = triage ? <ReviewKindFilter active={kind} /> : null
+  const staffAlbum = STAFF_ALBUM_POSTS ? (
+    <LinkButton href={MANAGER_STAFF_ALBUM} className="justify-self-start">
+      Staff Album
+    </LinkButton>
+  ) : null
   if (kind === "photos" && reviewModeOf(search) === "thumb")
     return (
       <div className="grid gap-6">
@@ -116,6 +126,7 @@ export default async function ManagerReviewPage({
           className={OFFLINE_BANNER_CLASS}
           loadedAt={new Date().toISOString()}
         />
+        {staffAlbum}
         <AlbumReviewBody
           ctx={scope.ctx}
           venueName={venue.name}
@@ -136,6 +147,7 @@ export default async function ManagerReviewPage({
         summary={<p>{REVIEW_COPY.summary}</p>}
         className="pb-0 md:pb-0"
       />
+      {staffAlbum}
       {filter}
       {kind === "photos" ? (
         <>

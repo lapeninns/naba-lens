@@ -3,6 +3,7 @@
 // photo page and the tests share it.
 
 import { londonDay } from "@/lib/staff/home"
+import { STAFF_POSTED } from "@/lib/config/staff-album-posts"
 import {
   openRetake,
   unmatched,
@@ -15,12 +16,15 @@ export type NeedYou =
   | { kind: "retake"; slot: UploadSlot }
   | { kind: "no-slot" }
   | { kind: "failed" }
+  | { kind: "feedback" }
 
 /** The one thing a photo needs from the person, or null. */
 export function needsYou(item: MyUpload): NeedYou | null {
   if (item.uploadState === "failed") return { kind: "failed" }
   const retake = openRetake(item)
   if (retake) return { kind: "retake", slot: retake }
+  if (item.albumPost)
+    return item.albumPost.needs_attention ? { kind: "feedback" } : null
   // "I'm not sure" goes to the manager, who chooses the slot: not the person's job.
   if (item.uploadState === "ready" && unmatched(item) && !item.labelHelp)
     return { kind: "no-slot" }
@@ -28,12 +32,15 @@ export function needsYou(item: MyUpload): NeedYou | null {
 }
 
 /** A photo's corner mark in the grid (§5e step 6). */
-export type PhotoMark = "needs-you" | "waiting" | "in-album" | "none"
+export type PhotoMark =
+  "needs-you" | "waiting" | "in-album" | "posted" | "removed" | "none"
 
 const IN_ALBUM = new Set(["public", "reference", "label_corrected"])
 
 export function photoMark(item: MyUpload): PhotoMark {
+  if (item.albumPost?.removed) return "removed"
   if (needsYou(item)) return "needs-you"
+  if (item.albumPost) return "posted"
   if (item.slots.some((s) => IN_ALBUM.has(s.outcome))) return "in-album"
   if (
     item.uploadState !== "ready" ||
@@ -45,7 +52,7 @@ export function photoMark(item: MyUpload): PhotoMark {
   return "none"
 }
 
-export type PhotoShow = "all" | "waiting" | "in-album"
+export type PhotoShow = "all" | "waiting" | "in-album" | "posted" | "unlabelled"
 
 export const PHOTO_SHOWS: ReadonlyArray<{ key: PhotoShow; label: string }> = [
   { key: "all", label: "All" },
@@ -53,11 +60,22 @@ export const PHOTO_SHOWS: ReadonlyArray<{ key: PhotoShow; label: string }> = [
   { key: "in-album", label: "In the album" },
 ]
 
-export const isPhotoShow = (v: unknown): v is PhotoShow =>
-  PHOTO_SHOWS.some((s) => s.key === v)
+export const POSTED_PHOTO_SHOWS: typeof PHOTO_SHOWS = [
+  { key: "all", label: "All" },
+  { key: "unlabelled", label: "Unlabelled" },
+  { key: "posted", label: STAFF_POSTED },
+]
+
+export const isPhotoShow = (v: unknown, posting = false): v is PhotoShow =>
+  (posting ? POSTED_PHOTO_SHOWS : PHOTO_SHOWS).some((s) => s.key === v)
 
 export function matchesShow(item: MyUpload, show: PhotoShow): boolean {
   if (show === "all") return true
+  if (show === "posted") return !!item.albumPost && !item.albumPost.removed
+  if (show === "unlabelled")
+    return (
+      !!item.albumPost && !item.albumPost.removed && !item.albumPost.labelled
+    )
   return photoMark(item) === show
 }
 
@@ -127,9 +145,11 @@ export const MY_PHOTOS_COPY = {
       .filter(Boolean)
       .join(" · "),
   needsYou: "Needs you",
+  feedback: "Your manager left feedback.",
   retake: "Retake",
   noSlot: "Which dish or space is this?",
-  choose: "Choose",
+  viewPhoto: "View photo",
+  labelMultiple: "Label photos",
   failed: "Didn't finish. Add it again from your gallery.",
   addAgain: "Add again",
   sending: (n: number) => `Sending ${n} ${n === 1 ? "photo" : "photos"}…`,
@@ -141,6 +161,8 @@ export const MY_PHOTOS_COPY = {
     "needs-you": "Needs you",
     waiting: "Waiting",
     "in-album": "In the album",
+    posted: STAFF_POSTED,
+    removed: "Removed from Album",
     none: "Not in the album",
   } satisfies Record<PhotoMark, string>,
   back: "My photos",

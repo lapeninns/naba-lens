@@ -212,6 +212,18 @@ export const MATCH_LATER_COPY = {
   empty: "Every photo you added is matched to a slot.",
   intro:
     "These photos were added without a slot. Match each one, or say it is not for a slot.",
+  batchMode: "Select photos",
+  singleMode: "Label one at a time",
+  selectHint: "Select the photos that show the same thing.",
+  batchHint: (n: number) =>
+    n === 1
+      ? "Choose a label for the selected photo."
+      : `Choose one label for all ${n} selected photos.`,
+  batchFailed: (n: number, reason: string) =>
+    `${n === 1 ? "1 photo still needs a label" : `${n} photos still need a label`}. ${reason}`,
+  labelled: (n: number) =>
+    n === 1 ? "1 photo labelled." : `${n} photos labelled.`,
+  openFolder: (name: string) => `Open ${name} in Album`,
   saveFailed: "This photo could not be matched. Try again.",
   refused:
     "This photo can no longer be matched here. It stays on your profile.",

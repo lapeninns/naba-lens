@@ -220,45 +220,6 @@ export async function moveMyUploadSlot(
   }
 }
 
-/**
- * Corrects when the caller's own photo was taken (S1-UPLOAD
- * set_media_captured_at): an instant, or null for "I don't know".
- */
-export async function setMyCapturedAt(
-  caller: Caller,
-  assetId: string,
-  capturedAt: string | null
-): Promise<Result<{ capturedAt: string | null }>> {
-  if (!UUID.test(assetId)) return apiError("not_found", { field: "asset" })
-  if (capturedAt !== null && Number.isNaN(Date.parse(capturedAt)))
-    return apiError("invalid_input", {
-      field: "capturedAt",
-      message: "Give a date and time.",
-    })
-  const { error } = await caller.db.rpc("set_media_captured_at", {
-    p_asset_id: assetId,
-    // Null means unknown; the generator types the argument non-null.
-    p_captured_at: capturedAt as string,
-  })
-  if (error)
-    return failed("captured at", error).code === "invalid_input"
-      ? apiError("invalid_input", {
-          field: "capturedAt",
-          message: "Choose a date that is not in the future.",
-        })
-      : fromDbError(error, {
-          invalid_captured_at: {
-            field: "capturedAt",
-            message: "Choose a date between 1990 and today.",
-          },
-          media_asset_not_found: {
-            field: "asset",
-            message: "This photo is no longer listed. Reload the page.",
-          },
-        })
-  return { ok: true, capturedAt }
-}
-
 /** Who manages the caller's current venue (spec §6 S5). */
 export async function getMyVenueManagers(
   caller: Caller

@@ -4,8 +4,10 @@ import { AddVideoButton } from "@/components/nabalens/me/add-video-button"
 import { MyPhotos } from "@/components/nabalens/me/my-photos"
 import { Notice } from "@/components/nabalens/notice"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import { STAFF_ALBUM_POSTS } from "@/lib/config/staff-album-posts"
 import { getMediaActor } from "@/lib/server/media/context"
 import { getMyUploads } from "@/lib/server/staff"
+import { withStaffAlbumStates } from "@/lib/server/staff-album-posts"
 import { isPhotoShow } from "@/lib/staff/my-photos"
 
 import { ownMonth, staffShellStatus } from "../_shell/shell-status"
@@ -38,6 +40,11 @@ export default async function StaffMyPhotosPage({
   ])
   const blocked = uploadBlockReason(profile)
   const asked = Array.isArray(params.show) ? params.show[0] : params.show
+  const page = uploads?.ok ? uploads.page : null
+  const initial =
+    STAFF_ALBUM_POSTS && page
+      ? await withStaffAlbumStates(actor.db, page).catch(() => null)
+      : page
 
   return (
     <AppShell
@@ -59,8 +66,10 @@ export default async function StaffMyPhotosPage({
           <Notice tone="attention">{ADD_BLOCKED[blocked]}</Notice>
         ) : null}
         <MyPhotos
-          initial={uploads?.ok ? uploads.page : null}
-          show={isPhotoShow(asked) ? asked : "all"}
+          initial={initial}
+          show={isPhotoShow(asked, STAFF_ALBUM_POSTS) ? asked : "all"}
+          posting={STAFF_ALBUM_POSTS}
+          currentVenueId={profile.venueId ?? null}
           canAdd={blocked === null}
           loadMore={loadMyUploadsAction}
         />

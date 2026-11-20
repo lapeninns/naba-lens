@@ -19,9 +19,18 @@ import {
   saveUploadLabels,
 } from "@/app/staff/_shell/upload-label-api"
 import { Notice } from "@/components/nabalens/notice"
+import { Button } from "@/components/ui/button"
 import { Photo } from "@/components/ui/photo"
+import { SelectableTile } from "@/components/ui/selectable-tile"
 import type { ContentType, SaveLabelsInput } from "@/lib/menus/types"
 import { STAFF_PHOTO_ROUTES } from "@/lib/config/album-upload-tray"
+import { STAFF_ALBUM_POSTS } from "@/lib/config/staff-album-posts"
+import {
+  LABEL_PHOTO,
+  MATCH_LATER_HREF,
+  photoHref,
+  slotPageHref,
+} from "@/lib/staff/my-uploads"
 import { cn } from "@/lib/utils"
 
 import { MATCH_LATER_COPY } from "./copy"
@@ -33,9 +42,6 @@ import {
 } from "./last-place"
 import { MatchPicker, type BoardState } from "./match-picker"
 import { placeKey, type MatchSlot, type SharedKind } from "./model"
-
-/** Where Match later lives. */
-export const MATCH_LATER_HREF = "/staff/album/match-later"
 
 /** A photo added without a slot, as Match later shows it. */
 export type MatchLaterPhoto = {
@@ -85,12 +91,9 @@ export function MatchLaterRow({
 
 type LabelTarget = { venueId: string; catalogueVersionId: string | null }
 
-/** What the server said, as the screen shows it. */
-type Problem = { id: string; message: string } | null
-
 /*
- * Match later (DESIGN.md §2.8, §6.1): one unmatched photo at a time on the
- * stage, the strip of the rest, and the match picker. A dish saves the dish
+ * Match later (DESIGN.md §2.8, §5e, §6.1): a single photo on the stage or a
+ * selection of photos, with the same match picker. A dish saves the dish
  * as the photo's menu label, an area its venue-area label (G-9), Not for a
  * slot what it shows; each matched photo leaves the list. Match later is
  * the one place a photo is matched after it was sent: it was sent without a
@@ -99,15 +102,26 @@ type Problem = { id: string; message: string } | null
 export function MatchLaterScreen({
   photos: initial,
   headingLevel = 1,
+  focused = false,
+  selectPhotos = false,
 }: {
   photos: MatchLaterPhoto[]
   headingLevel?: 1 | 2
+  focused?: boolean
+  selectPhotos?: boolean
 }) {
   const router = useRouter()
   const [photos, setPhotos] = React.useState(initial)
   const [shown, setShown] = React.useState<string | null>(null)
+  const [batch, setBatch] = React.useState(selectPhotos)
+  const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set())
   const [busy, setBusy] = React.useState(false)
-  const [problem, setProblem] = React.useState<Problem>(null)
+  const saving = React.useRef(false)
+  const [problem, setProblem] = React.useState<string | null>(null)
+  const [receipt, setReceipt] = React.useState<{
+    count: number
+    slot: MatchSlot
+  } | null>(null)
   const [board, setBoard] = React.useState<BoardState>({ state: "loading" })
   const [boardTry, setBoardTry] = React.useState(0)
   // Slots matched on this screen, newest first: marked, and first under
@@ -168,6 +182,12 @@ export function MatchLaterScreen({
 
   const photo = photos.find((p) => p.id === shown) ?? photos[0] ?? null
   const index = photo ? photos.indexOf(photo) : -1
+  const chosen = batch
+    ? photos.filter((p) => selected.has(p.id))
+    : photo
+      ? [photo]
+      : []
+  const fromPhotos = focused || selectPhotos
 
   const saveLabels = async (
     item: MatchLaterPhoto,
@@ -183,31 +203,46 @@ export function MatchLaterScreen({
       missingItem: null,
       ...labels,
     })
-    if (result.ok) return null
+    if (result.ok)
+      return result.state === "saved" ? null : MATCH_LATER_COPY.saveFailed
+    if (result.code === "catalogue_changed") target.current = null
     return result.code === "forbidden" || result.code === "not_found"
       ? MATCH_LATER_COPY.refused
       : result.message || MATCH_LATER_COPY.saveFailed
   }
 
   const settle = async (
-    item: MatchLaterPhoto,
-    send: () => Promise<string | null>,
+    send: (item: MatchLaterPhoto) => Promise<string | null>,
     slot: MatchSlot | null
   ) => {
+    if (saving.current || chosen.length === 0) return
+    saving.current = true
     setBusy(true)
     setProblem(null)
-    let message: string | null
-    try {
-      message = await send()
-    } catch {
-      message = MATCH_LATER_COPY.saveFailed
+    setReceipt(null)
+    const saved = new Set<string>()
+    const failures: string[] = []
+    for (const item of chosen) {
+      try {
+        const error = await send(item)
+        if (error) failures.push(error)
+        else saved.add(item.id)
+      } catch {
+        failures.push(MATCH_LATER_COPY.saveFailed)
+      }
     }
+    saving.current = false
     setBusy(false)
-    if (message) {
-      setProblem({ id: item.id, message })
-      return
+    if (failures.length > 0) {
+      setProblem(
+        chosen.length === 1
+          ? failures[0]!
+          : MATCH_LATER_COPY.batchFailed(failures.length, failures[0]!)
+      )
     }
+    if (saved.size === 0) return
     if (slot) {
+      setReceipt({ count: saved.size, slot })
       setVisit((v) => [slot.id, ...v.filter((id) => id !== slot.id)])
       writeLastPlace(placeKey(slot.place))
       setLast(placeKey(slot.place))
@@ -216,79 +251,152 @@ export function MatchLaterScreen({
         slot.id
       )
     }
-    setPhotos((list) => list.filter((p) => p.id !== item.id))
+    setPhotos((list) => list.filter((p) => !saved.has(p.id)))
+    setSelected((list) => new Set([...list].filter((id) => !saved.has(id))))
     setShown(null)
-    router.refresh()
+    if (focused && photo) router.replace(photoHref(photo.id))
   }
 
   const match = (slot: MatchSlot) => {
-    if (!photo) return
-    const item = photo
-    void settle(
-      item,
-      async () => {
-        if (slot.target.kind === "dish")
-          return saveLabels(item, {
-            items: [{ itemId: slot.target.itemId, variantId: null }],
-            contentTypes: [],
-          })
-        const result = await setAreaLabelAction(item.id, slot.target.subjectId)
-        return result.ok ? null : result.message || MATCH_LATER_COPY.saveFailed
-      },
-      slot
-    )
+    void settle(async (item) => {
+      if (slot.target.kind === "dish")
+        return saveLabels(item, {
+          items: [{ itemId: slot.target.itemId, variantId: null }],
+          contentTypes: [],
+        })
+      const result = await setAreaLabelAction(item.id, slot.target.subjectId)
+      return result.ok ? null : result.message || MATCH_LATER_COPY.saveFailed
+    }, slot)
   }
 
   // I'm not sure (FA-4, spec §5.3): the manager chooses the slot, here too
   // (S3-R12: a photo that reached Match later because the first request
   // failed is offered it again).
   const unsure = () => {
-    if (!photo) return
-    const item = photo
+    void settle(async (item) => {
+      const result = await requestLabelHelpAction(item.id)
+      return result.ok ? null : result.message || MATCH_LATER_COPY.saveFailed
+    }, null)
+  }
+
+  const share = (kind: SharedKind) => {
     void settle(
-      item,
-      async () => {
-        const result = await requestLabelHelpAction(item.id)
-        return result.ok ? null : result.message || MATCH_LATER_COPY.saveFailed
-      },
+      (item) =>
+        saveLabels(item, { items: [], contentTypes: [kind as ContentType] }),
       null
     )
   }
 
-  const share = (kind: SharedKind) => {
-    if (!photo) return
-    const item = photo
-    void settle(
-      item,
-      () =>
-        saveLabels(item, { items: [], contentTypes: [kind as ContentType] }),
-      null
-    )
+  const toggleBatch = () => {
+    setBatch((value) => !value)
+    setSelected(new Set())
+    setProblem(null)
+  }
+
+  const togglePhoto = (id: string, checked: boolean) => {
+    setSelected((previous) => {
+      const next = new Set(previous)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
   }
 
   return (
     <div className="grid gap-4 pb-4" data-slot="match-later">
       <div>
         <Link
-          href={STAFF_PHOTO_ROUTES.home}
+          href={
+            fromPhotos ? STAFF_PHOTO_ROUTES.photos : STAFF_PHOTO_ROUTES.home
+          }
           className="inline-flex min-h-12 items-center gap-1 text-label text-ink focus-ring"
         >
           <ArrowLeftIcon aria-hidden className="size-5" />
-          Today
+          {fromPhotos ? "My photos" : "Today"}
         </Link>
       </div>
       <header className="grid gap-1">
         <Title className="type-display text-ink">
-          {MATCH_LATER_COPY.title}
+          {focused
+            ? LABEL_PHOTO
+            : STAFF_ALBUM_POSTS
+              ? "Label photos"
+              : MATCH_LATER_COPY.title}
         </Title>
         <p className="text-caption text-ink-muted tabular-nums">
-          {photos.length > 0 ? MATCH_LATER_COPY.row(photos.length) : null}
+          {!focused && photos.length > 0
+            ? MATCH_LATER_COPY.row(photos.length)
+            : null}
         </p>
       </header>
 
-      {photo ? (
+      {receipt ? (
+        <Notice tone="positive">
+          <p role="status">{MATCH_LATER_COPY.labelled(receipt.count)}</p>
+          <Link
+            className="text-label underline focus-ring"
+            href={slotPageHref(
+              receipt.slot.target.kind === "dish"
+                ? { kind: "dish", slotId: receipt.slot.target.itemId }
+                : { kind: "area", slotId: receipt.slot.target.subjectId }
+            )}
+          >
+            {MATCH_LATER_COPY.openFolder(receipt.slot.name)}
+          </Link>
+        </Notice>
+      ) : null}
+      {problem ? (
+        <Notice tone="negative" role="alert">
+          {problem}
+        </Notice>
+      ) : null}
+      {!focused && (photos.length > 1 || (batch && photos.length > 0)) ? (
+        <Button
+          variant="secondary"
+          className="w-fit"
+          disabled={busy}
+          onClick={toggleBatch}
+        >
+          {batch ? MATCH_LATER_COPY.singleMode : MATCH_LATER_COPY.batchMode}
+        </Button>
+      ) : null}
+
+      {batch && photos.length > 0 ? (
         <>
-          <p className="text-body text-ink-muted">{MATCH_LATER_COPY.intro}</p>
+          <ul
+            className="grid grid-cols-3 gap-2 sm:grid-cols-4"
+            aria-label={MATCH_LATER_COPY.batchMode}
+          >
+            {photos.map((item, i) => (
+              <li key={item.id}>
+                <SelectableTile
+                  label={`photo ${i + 1}`}
+                  checked={selected.has(item.id)}
+                  disabled={busy}
+                  onCheckedChange={(checked) => togglePhoto(item.id, checked)}
+                >
+                  <Photo
+                    src={item.thumbnailUrl ?? `/api/media/${item.id}/thumb`}
+                    alt=""
+                    ratio="1/1"
+                    radius="none"
+                  />
+                </SelectableTile>
+              </li>
+            ))}
+          </ul>
+          <p className="text-body text-ink-muted" role="status">
+            {chosen.length === 0
+              ? MATCH_LATER_COPY.selectHint
+              : MATCH_LATER_COPY.batchHint(chosen.length)}
+          </p>
+        </>
+      ) : null}
+      {!batch && photo ? (
+        <>
+          {!focused ? (
+            <p className="text-body text-ink-muted">{MATCH_LATER_COPY.intro}</p>
+          ) : null}
           {photos.length > 1 ? (
             <ul
               aria-label={MATCH_LATER_COPY.title}
@@ -300,6 +408,7 @@ export function MatchLaterScreen({
                     type="button"
                     aria-current={p === photo ? "true" : undefined}
                     aria-label={`Photo ${i + 1} of ${photos.length}`}
+                    disabled={busy}
                     onClick={() => {
                       setProblem(null)
                       setShown(p.id)
@@ -338,34 +447,31 @@ export function MatchLaterScreen({
               </span>
             )}
           </div>
-          {problem && problem.id === photo.id ? (
-            <Notice tone="negative" role="alert">
-              {problem.message}
-            </Notice>
-          ) : null}
-          <MatchPicker
-            key={photo.id}
-            board={board}
-            onRetryBoard={() => {
-              setBoard({ state: "loading" })
-              setBoardTry((n) => n + 1)
-            }}
-            current={null}
-            last={last}
-            taken={taken}
-            visit={visit}
-            recent={recent}
-            busy={busy}
-            onMatch={match}
-            onShared={share}
-            onUnsure={unsure}
-          />
         </>
-      ) : (
+      ) : null}
+      {chosen.length > 0 ? (
+        <MatchPicker
+          key={batch ? "batch" : photo?.id}
+          board={board}
+          onRetryBoard={() => {
+            setBoard({ state: "loading" })
+            setBoardTry((n) => n + 1)
+          }}
+          current={null}
+          last={last}
+          taken={taken}
+          visit={visit}
+          recent={recent}
+          busy={busy}
+          onMatch={match}
+          onShared={share}
+          onUnsure={STAFF_ALBUM_POSTS ? undefined : unsure}
+        />
+      ) : photos.length === 0 && !receipt ? (
         <p className="text-body text-ink" role="status">
           {MATCH_LATER_COPY.empty}
         </p>
-      )}
+      ) : null}
     </div>
   )
 }

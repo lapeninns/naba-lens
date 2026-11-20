@@ -311,7 +311,7 @@ A tab (§15, D18): everything the person has sent and what happened to it, photo
 2. The summary line: "42 sent · 30 in the album · 9 waiting" (only the parts that are not zero).
 3. **Needs you · 3**, when anything needs the person, one row each with its own button, newest first:
    - a retake: the slot's name, "Retake: " and the reviewer's reason, **Retake** (opens the slot, §5b slot page);
-   - no slot yet (not "I'm not sure", which is the manager's job): "Which dish or space is this?", **Choose** (opens the photo, where Change slot is);
+   - no slot yet (not "I'm not sure", which is the manager's job): "Which dish or space is this?", **Label photo** (opens Match later for that photo);
    - couldn't finish: "Didn't finish. Add it again from your gallery.", **Add again** (the gallery, then Match);
    - labels the server kept but could not add (`NeedsAttention`, without its own heading): Fix labels or Discard labels.
 4. **Sending 2 photos…**, a thin row while uploads from this phone are on their way (the receipt words, §4). Never a filter.
@@ -319,7 +319,9 @@ A tab (§15, D18): everything the person has sent and what happened to it, photo
 6. **The grid**: three-up square photos grouped by the day they were sent ("Today", "Yesterday", "Tue 17 Nov", in the venue's calendar), newest first. Each photo carries one small mark in its corner: a tick (in the album), a clock (waiting), an exclamation (needs you) or none (not used, withdrawn). A video shows its film icon. Under the grid, "Show more" while there are older photos (§7, never infinite scroll).
 7. Empty: "Photos you add appear here, newest first." with Add photos.
 
-**One photo** (`/staff/photos/[assetId]`): "← My photos", the photo large (`/api/media/[id]/preview`), the slot names with each one's state chip (§4, FA-7), the reviewer's reason on a retake, the venue when it is not the current one, sent and taken dates, "Already sent before: it doesn't count twice" (FA-35), then every action the photo allows as full-width buttons: Retake, Change slot (the §5 Match picker), Fix date taken, Ask for a correction, Ask to remove (FA-21) and Withdraw (last, destructive). After Withdraw the page says so and links back. A photo that is not the person's, or no longer exists, is not found.
+**One photo** (`/staff/photos/[assetId]`): "← My photos", the photo large (`/api/media/[id]/preview`), the slot names with each one's state chip (§4, FA-7), the reviewer's reason on a retake, the venue when it is not the current one, sent and taken dates, "Already sent before: it doesn't count twice" (FA-35), then every action the photo allows as full-width buttons: Retake, Label photo (when it has no slot), Change slot (the §5 Match picker), Ask for a correction, Ask to remove (FA-21) and Withdraw (last, destructive). After Withdraw the page says so and links back. A photo that is not the person's, or no longer exists, is not found.
+
+In Needs you, **Label photos** opens Match later in selection mode when several photos can be labelled. Staff tick the photos that show the same thing and choose their slot once. The result links to that dish or space in Album, which shows those photos while they wait for review.
 
 The words are Album's (§7). Nothing on My photos ranks the person or compares them with a colleague (§9).
 

@@ -262,6 +262,7 @@ function launch({ dir, config, file, base, appPort, ...identity }) {
         SUPABASE_SERVICE_ROLE_KEY: serviceRole,
         NEXT_PUBLIC_SITE_URL: origin,
         NABALENS_PHONE_HOST: host,
+        NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS: "1",
         MEDIA_ARCHIVE_MODE: "disabled",
       },
     }

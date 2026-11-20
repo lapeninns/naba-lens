@@ -325,10 +325,6 @@ function actions(over: Partial<MyUploadsActions> = {}): MyUploadsActions {
       ok: true as const,
       board: { slots: [], amenities: [] },
     })),
-    setCapturedAt: vi.fn(async () => ({
-      ok: true as const,
-      capturedAt: null,
-    })),
     requestRemoval: vi.fn(async () => ({ ok: true as const })),
     report: vi.fn(async () => ({ ok: true as const, created: true })),
     ...over,
@@ -372,6 +368,25 @@ describe("My uploads (spec §6 S4)", () => {
       ],
     }),
   ]
+
+  it("opens the picker for an unmatched photo and shows its dates as read-only", () => {
+    render(
+      <MyUploads
+        initial={{
+          items: [upload({ slots: [], capturedAt: "2026-11-10T19:00:00Z" })],
+          next: null,
+        }}
+        currentVenueId={V}
+        layout="detail"
+        actions={actions()}
+      />
+    )
+    expect(
+      screen.getByRole("link", { name: "Label photo" }).getAttribute("href")
+    ).toBe(`/staff/album/match-later?photo=${A}`)
+    expect(screen.getByText(/taken 10 Nov/)).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Fix date taken" })).toBeNull()
+  })
 
   it("opens on Needs attention with the counts, the reason and the venue", () => {
     render(
@@ -526,7 +541,12 @@ describe("My uploads repairs (S3-R4)", () => {
       "With your manager, who will choose its slot."
     )
     expect(unsure.textContent).not.toContain("Match later")
-    expect(later.textContent).toContain("under Match later")
+    expect(
+      within(unsure).queryByRole("link", { name: "Label photo" })
+    ).toBeNull()
+    expect(
+      within(later).getByRole("link", { name: "Label photo" })
+    ).toBeTruthy()
   })
 
   it("offers Change slot only at the photo's venue, with a hint elsewhere (V13)", () => {

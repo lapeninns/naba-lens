@@ -61,6 +61,14 @@ export type MyUpload = {
   labelHelp: boolean
   removalRequested: boolean
   removalRequestId: string | null
+  /** Private staff Album status, independent of the manager's marketing decision. */
+  albumPost?: {
+    removed: boolean
+    needs_attention: boolean
+    labelled: boolean
+    labels?: ReadonlyArray<{ kind: "dish" | "area"; id: string; name: string }>
+    managerLabelled?: boolean
+  }
 }
 
 export type MyUploadsPage = {
@@ -257,6 +265,22 @@ export function unmatched(item: MyUpload): boolean {
   )
 }
 
+/** An unlabelled photo the owner can still match at their current venue. */
+export function canLabelUpload(item: MyUpload, currentVenueId: string | null) {
+  if (item.venueId !== currentVenueId) return false
+  return item.albumPost
+    ? !item.albumPost.removed && !item.albumPost.labelled
+    : unmatched(item) && !item.labelHelp
+}
+
+export const LABEL_PHOTO = "Label photo"
+export const MATCH_LATER_HREF = "/staff/album/match-later"
+
+export const photoHref = (assetId: string) => `/staff/photos/${assetId}`
+
+export const labelPhotoHref = (assetId: string) =>
+  `${MATCH_LATER_HREF}?${new URLSearchParams({ photo: assetId })}`
+
 /** Which section an upload sits in (spec §6 S4). */
 export function uploadSection(item: MyUpload): UploadSection {
   if (item.uploadState === "failed") return "attention"
@@ -295,8 +319,6 @@ export type UploadActions = {
   correction: boolean
   /** Ask to remove: it is accepted (public, reference or relabelled) (FA-21). */
   removal: boolean
-  /** Fix the date it was taken (S1-UPLOAD's set_media_captured_at). */
-  fixDate: boolean
 }
 
 const DECIDED = new Set<UploadOutcome>([
@@ -339,7 +361,6 @@ export function uploadActions(
     retake: openRetake(item),
     correction: ready && decided,
     removal: ready && accepted && !item.removalRequested,
-    fixDate: ready,
   }
 }
 
@@ -377,58 +398,6 @@ export function datesLine(item: MyUpload, now: Date = new Date()): string {
     ? `taken ${shortDay(item.capturedAt, now)}`
     : "date taken unknown"
   return `${sent} · ${taken}`
-}
-
-/**
- * A datetime-local value ("2026-11-12T19:30") as an ISO instant in London
- * time, for set_media_captured_at; null when it is not a valid value.
- */
-export function londonLocalToIso(value: string): string | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value)
-  if (!m) return null
-  const [, y, mo, d, h, mi] = m.map(Number) as number[]
-  const guess = Date.UTC(y!, mo! - 1, d!, h!, mi!)
-  // London is UTC or UTC+1: try both offsets and keep the one that reads back.
-  for (const offset of [0, 60]) {
-    const at = new Date(guess - offset * 60_000)
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/London",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(at)
-    const get = (t: string) => parts.find((p) => p.type === t)?.value
-    if (
-      Number(get("year")) === y &&
-      Number(get("month")) === mo &&
-      Number(get("day")) === d &&
-      Number(get("hour")) === h &&
-      Number(get("minute")) === mi
-    )
-      return at.toISOString()
-  }
-  return null
-}
-
-/** An ISO instant as a datetime-local value in London time. */
-export function isoToLondonLocal(iso: string | null): string {
-  if (!iso) return ""
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ""
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date)
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ""
-  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`
 }
 
 /**

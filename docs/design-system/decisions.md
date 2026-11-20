@@ -109,3 +109,10 @@ These were settled in the Common Room spec before it came into the repo. They bi
   Waiting and In the album, and a page per photo (`/staff/photos/[assetId]`)
   holding every action. Sending is a row, not a filter. Chosen over a
   compact list by day and over a bottom sheet for details.
+
+- **D20** (20 Nov 2026, Aman Kumar Shrestha). Trial immediate posting in
+  the private staff Album. Gallery selection starts the upload. Each ready
+  photo posts to the venue, with an optional label during or after upload.
+  Managers moderate posted photos. Approval for public use is separate.
+  The trial is enabled with `NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS=1`
+  in the dev harness (departure A-POST1).

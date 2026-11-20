@@ -154,7 +154,6 @@ export function StaffMeSpecimens({
               ok: true,
               board: { slots: [], amenities: [] },
             }),
-            setCapturedAt: async () => ({ ok: true, capturedAt: null }),
             requestRemoval: ok,
             report: async () => ({ ok: true, created: true }),
           }}

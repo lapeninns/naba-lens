@@ -72,6 +72,7 @@ export function AlbumSlotScreen({
   slot,
   retake,
   ownPhotos,
+  postedPhotos,
   canAdd,
   blocked,
   sendReport,
@@ -84,6 +85,7 @@ export function AlbumSlotScreen({
   /** The reviewer's exact reason, when the person was asked to retake it. */
   retake: { reason: string | null } | null
   ownPhotos: SlotOwnPhoto[]
+  postedPhotos?: React.ReactNode
   canAdd: boolean
   /** Why adding is paused (no or inactive venue), or null. */
   blocked: string | null
@@ -157,28 +159,37 @@ export function AlbumSlotScreen({
         </section>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] md:items-start">
-        <figure className="grid gap-2">
-          <div className="w-full max-w-80">
-            <SlotTile
-              name={slot.name}
-              state={slot.state}
-              photoSrc={slot.thumbnailUrl ?? undefined}
-              onSelect={empty && canAdd ? add : undefined}
-              optional={slot.optional}
-            />
-          </div>
-          <figcaption className="text-meta text-ink-muted">
-            {hasPhoto && slot.thumbnailUrl
-              ? SLOT_COPY.inAlbum
-              : SLOT_COPY.noPhoto}
-          </figcaption>
-          {slot.optional ? (
-            <p className="text-body text-ink" data-slot="slot-optional">
-              {SLOT_COPY.optional}
-            </p>
-          ) : null}
-        </figure>
+      {postedPhotos}
+      <div
+        className={
+          postedPhotos === undefined
+            ? "grid gap-4 md:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] md:items-start"
+            : "grid gap-4"
+        }
+      >
+        {postedPhotos === undefined ? (
+          <figure className="grid gap-2">
+            <div className="w-full max-w-80">
+              <SlotTile
+                name={slot.name}
+                state={slot.state}
+                photoSrc={slot.thumbnailUrl ?? undefined}
+                onSelect={empty && canAdd ? add : undefined}
+                optional={slot.optional}
+              />
+            </div>
+            <figcaption className="text-meta text-ink-muted">
+              {hasPhoto && slot.thumbnailUrl
+                ? SLOT_COPY.inAlbum
+                : SLOT_COPY.noPhoto}
+            </figcaption>
+            {slot.optional ? (
+              <p className="text-body text-ink" data-slot="slot-optional">
+                {SLOT_COPY.optional}
+              </p>
+            ) : null}
+          </figure>
+        ) : null}
 
         <div className="grid content-start gap-4">
           <section aria-labelledby="slot-brief" className="grid gap-1">
@@ -210,13 +221,13 @@ export function AlbumSlotScreen({
             ) : null}
           </section>
 
-          {slot.pendingCount > 0 ? (
+          {postedPhotos === undefined && slot.pendingCount > 0 ? (
             <p className="text-body text-ink-muted" data-slot="slot-pending">
               {SLOT_COPY.waiting(slot.pendingCount)}
             </p>
           ) : null}
 
-          {ownPhotos.length > 0 ? (
+          {postedPhotos === undefined && ownPhotos.length > 0 ? (
             <section aria-labelledby="slot-yours" className="grid gap-2">
               <Section id="slot-yours" className="type-section-title text-ink">
                 {SLOT_COPY.yours}

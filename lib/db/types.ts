@@ -7845,6 +7845,57 @@ export type Database = {
           },
         ]
       }
+      staff_album_feedback: {
+        Row: {
+          action: string
+          asset_id: string
+          created_at: string
+          id: number
+          label_id: string | null
+          label_kind: string | null
+          label_name: string | null
+          manager_id: string
+          note: string | null
+        }
+        Insert: {
+          action: string
+          asset_id: string
+          created_at?: string
+          id?: never
+          label_id?: string | null
+          label_kind?: string | null
+          label_name?: string | null
+          manager_id: string
+          note?: string | null
+        }
+        Update: {
+          action?: string
+          asset_id?: string
+          created_at?: string
+          id?: never
+          label_id?: string | null
+          label_kind?: string | null
+          label_name?: string | null
+          manager_id?: string
+          note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_album_feedback_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_album_feedback_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_work_profiles: {
         Row: {
           completed_at: string | null
@@ -11420,10 +11471,6 @@ export type Database = {
           subject_id: string
         }[]
       }
-      set_media_captured_at: {
-        Args: { p_asset_id: string; p_captured_at: string }
-        Returns: Json
-      }
       set_menu_item_archived: {
         Args: { p_archived: boolean; p_item_id: string }
         Returns: undefined
@@ -11607,6 +11654,58 @@ export type Database = {
       slot_change_reports: {
         Args: { p_limit?: number; p_state?: string; p_venue_id?: string }
         Returns: Json
+      }
+      staff_album_can_view: { Args: { p_asset_id: string }; Returns: boolean }
+      staff_album_folder_covers: {
+        Args: never
+        Returns: { kind: string; slot_id: string; asset_id: string }[]
+      }
+      staff_album_moderate: {
+        Args: {
+          p_action: string
+          p_asset_id: string
+          p_label_id?: string
+          p_label_kind?: string
+          p_note?: string
+        }
+        Returns: undefined
+      }
+      staff_album_own_states: {
+        Args: { p_asset_ids: string[] }
+        Returns: {
+          id: string
+          labelled: boolean
+          needs_attention: boolean
+          removed: boolean
+        }[]
+      }
+      staff_album_posts: {
+        Args: {
+          p_asset_id?: string
+          p_before?: string
+          p_before_id?: string
+          p_limit?: number
+          p_slot_id?: string
+          p_slot_kind?: string
+        }
+        Returns: {
+          created_at: string
+          feedback: Json
+          id: string
+          labels: Json
+          removed: boolean
+          uploader_id: string
+          uploader_name: string
+        }[]
+      }
+      staff_album_review_options: {
+        Args: never
+        Returns: {
+          group_name: string
+          id: string
+          kind: string
+          name: string
+        }[]
       }
       stage_media_labels: {
         Args: { p_asset_id: string; p_input: Json; p_venue_id: string }
