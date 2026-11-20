@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import { apiError, fromDbError, type ApiError } from "@/lib/server/http/errors"
@@ -27,11 +28,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 function failed(context: string, error: { code?: string; message?: string }) {
   const mapped = fromDbError(error)
   if (mapped.code === "unavailable") {
-    console.error(`[metrics] ${context} failed`, {
-      error: redactError(
+    logger.error(
+      `[metrics] ${context} failed`,
+      redactError(
         new Error(`${error.code ?? "unknown"}: ${error.message ?? ""}`)
-      ),
-    })
+      )
+    )
   }
   return mapped
 }

@@ -2,6 +2,7 @@
 // HTTP status: PostgREST answers named exceptions with 500. Anything not
 // listed is logged redacted and becomes a retryable 503.
 
+import { logger } from "@/lib/server/log/logger"
 import type { DbError } from "@/lib/server/amenities/errors"
 import { redactError } from "@/lib/server/log/redact"
 
@@ -71,9 +72,7 @@ export function searchRpcFailure(
   )
     return searchInvalid({ answerFreshness: "Choose a venue first." })
   if (hit) return searchFailure(hit[1], hit[2])
-  console.error(`[asset-search] ${context} failed`, {
-    error: redactError(error),
-  })
+  logger.error(`[asset-search] ${context} failed`, redactError(error))
   return searchFailure(
     "unavailable",
     "Something went wrong. Try again in a moment."

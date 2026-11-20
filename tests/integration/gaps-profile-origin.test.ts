@@ -6,14 +6,13 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
+import type { CookieJar } from "./gaps-cookies"
 import {
-  cookiesModule,
   params,
   sessionCookies,
   setupIdentity,
   setupSession,
   applyLocalEnv,
-  type CookieJar,
 } from "./gaps-support"
 
 /**
@@ -23,7 +22,10 @@ import {
 
 const jar = vi.hoisted<CookieJar>(() => ({ current: new Map() }))
 vi.mock("server-only", () => ({}))
-vi.mock("next/headers", () => cookiesModule(jar))
+vi.mock("next/headers", async () => {
+  const { cookiesModule } = await import("./gaps-cookies")
+  return cookiesModule(jar)
+})
 
 applyLocalEnv()
 vi.setConfig({ hookTimeout: 240_000, testTimeout: 90_000 })

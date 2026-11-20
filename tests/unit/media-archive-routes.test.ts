@@ -156,7 +156,15 @@ describe("private archive operational endpoints", () => {
       const response = await runAudit(request())
       expect(response.status).toBe(500)
       expect(await response.json()).toEqual({ error: "archive_audit_failed" })
-      expect(consoleError).toHaveBeenCalledWith("media archive audit failed")
+      await vi.waitFor(() =>
+        expect(consoleError).toHaveBeenCalledWith(
+          JSON.stringify({
+            level: "error",
+            event: "media archive audit failed",
+            requestId: null,
+          })
+        )
+      )
     } finally {
       consoleError.mockRestore()
     }

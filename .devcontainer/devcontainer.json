@@ -1,0 +1,11 @@
+{
+  "name": "Naba-Lens",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-24-bookworm",
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode", "ms-vscode.vscode-typescript-next"]
+    }
+  },
+  "postCreateCommand": "corepack pnpm@10.30.1 install --frozen-lockfile",
+  "forwardPorts": [3000]
+}

@@ -1,8 +1,8 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import type { Database } from "@/lib/db/types"
 import { getLabellingCatalogue } from "@/lib/server/labels"
-import { redactError } from "@/lib/server/log/redact"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import { readAccess, resolveVenue } from "./context"
@@ -409,11 +409,7 @@ async function reviewStatesByItem(
     p_item_ids: itemIds,
   })
   if (error) {
-    console.error("[coverage] our menu review states failed", {
-      error: redactError(
-        new Error(`${error.code || "unknown"}: ${error.message ?? ""}`)
-      ),
-    })
+    logger.error("[coverage] our menu review states failed", error.code)
     return null
   }
   return new Map((data ?? []).map((r) => [r.item_id, r]))
@@ -434,11 +430,7 @@ async function myWaitingByItem(
     p_item_ids: itemIds,
   })
   if (error) {
-    console.error("[coverage] our menu own waiting failed", {
-      error: redactError(
-        new Error(`${error.code || "unknown"}: ${error.message ?? ""}`)
-      ),
-    })
+    logger.error("[coverage] our menu own waiting failed", error.code)
     return null
   }
   return new Map((data ?? []).map((r) => [r.item_id, r.waiting]))

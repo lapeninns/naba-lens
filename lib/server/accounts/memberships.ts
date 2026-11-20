@@ -4,6 +4,7 @@
 // 20261118101100/101200, which re-read the caller's membership and grant.
 // The service client is used only for Supabase Auth (create the invited user,
 // send the email, sign a deactivated account out) after the database agreed.
+import { logger } from "@/lib/server/log/logger"
 import type { PostgrestError } from "@supabase/supabase-js"
 
 import {
@@ -150,7 +151,7 @@ export function membershipError(
   const known = MESSAGES[error.message]
   if (known) return fail(known.code, known.text)
   if (error.code === "42501") return fail("forbidden", FORBIDDEN_MESSAGE)
-  console.error("[accounts] membership command failed", { code: error.code })
+  logger.error("[accounts] membership command failed", error.code)
   return dbFailed()
 }
 
@@ -318,9 +319,7 @@ export async function inviteStaffToVenue(
           })
         )
       }
-      console.error("[accounts] venue invite: create user failed", {
-        code: error?.code ?? null,
-      })
+      logger.error("[accounts] venue invite: create user failed", error?.code)
       return asInviteError(
         fail(
           "auth_failed",
@@ -350,10 +349,11 @@ export async function inviteStaffToVenue(
   const mailer = ctx.mailer ?? supabaseInviteMailer(ctx.service)
   const { error: mailError } = await mailer(input.email)
   if (mailError) {
-    console.error("[accounts] venue invite: email failed", {
-      code: mailError.code ?? null,
-      created,
-    })
+    logger.error(
+      "[accounts] venue invite: email failed",
+      mailError.code,
+      created
+    )
     return { status: "partial", userId, message: INVITE_EMAIL_FAILED }
   }
   return { status: "sent", userId }
@@ -404,9 +404,7 @@ export async function removeVenueMember(
       { ban_duration: DEACTIVATED_BAN_DURATION }
     )
     if (banError) {
-      console.error("[accounts] membership removal: sign-out failed", {
-        code: banError.code ?? null,
-      })
+      logger.error("[accounts] removal sign-out failed", banError.code)
       result.warning =
         "Their access has ended. Signing out their other devices failed; they are still refused on their next request."
     }

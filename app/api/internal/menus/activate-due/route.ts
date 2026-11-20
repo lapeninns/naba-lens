@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import { archiveBearerAuthorized } from "@/lib/server/archive/authorization"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -33,7 +34,7 @@ async function run(request: Request) {
     )
     if (error) {
       // SQLSTATE only: no venue, menu or database text.
-      console.error("menu scheduled activation failed", { code: error.code })
+      logger.error("menu scheduled activation failed", error.code)
       return Response.json(
         { error: "activation_failed" },
         { status: 500, headers }
@@ -44,7 +45,7 @@ async function run(request: Request) {
       { status: 200, headers }
     )
   } catch {
-    console.error("menu scheduled activation failed")
+    logger.error("menu scheduled activation failed")
     return Response.json(
       { error: "activation_failed" },
       { status: 500, headers }

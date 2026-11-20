@@ -19,6 +19,7 @@ import net from "node:net"
 import { join } from "node:path"
 
 const work = process.argv[2]
+const zap = process.argv[3] === "--zap"
 if (!work)
   throw new Error("Usage: node scripts/ci/privacy-runtime.mjs <workdir>")
 const status = JSON.parse(readFileSync(`${work}/status.json`, "utf8"))
@@ -148,6 +149,9 @@ const run = spawnSync(
     },
   }
 )
+const dast = zap
+  ? spawnSync("pnpm", ["scan:dast", base], { stdio: "inherit", env })
+  : null
 // spawnSync blocked the event loop: let the child's exit event, if any, land.
 await new Promise((r) => setTimeout(r, 200))
 const survived = exited === null
@@ -164,6 +168,7 @@ const result = JSON.parse(readFileSync(report, "utf8"))
 const skipped = result.numPendingTests + result.numTodoTests
 const ok =
   run.status === 0 &&
+  (!dast || dast.status === 0) &&
   result.numFailedTests === 0 &&
   skipped === 0 &&
   result.numPassedTests >= 11

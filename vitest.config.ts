@@ -19,6 +19,13 @@ export default defineConfig({
     ],
   },
   test: {
+    coverage: {
+      provider: "v8",
+      // This floor covers the redaction and correlation boundary. The existing
+      // complete unit suite still runs as its own required CI step.
+      include: ["lib/server/log/logger.ts"],
+      thresholds: { lines: 85, functions: 80, statements: 85, branches: 70 },
+    },
     projects: [
       {
         extends: true,

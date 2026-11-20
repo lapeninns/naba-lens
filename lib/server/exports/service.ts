@@ -1,8 +1,8 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import { randomUUID } from "node:crypto"
 
-import { redactError } from "@/lib/server/log/redact"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import {
@@ -173,7 +173,7 @@ export function exportFailure(error: RpcError, op: string): ExportFailure {
   const message = error?.message ?? ""
   const known = KNOWN[message]
   if (known) return { ok: false, code: message, ...known }
-  console.error(`[exports] ${op} failed`, { error: redactError(error) })
+  logger.error(`[exports] ${op} failed`, error?.code)
   return UNAVAILABLE
 }
 

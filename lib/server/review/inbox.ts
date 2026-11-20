@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 // The manager review inbox's server half (Full App v1 S2-REVIEW; spec §7 M2):
@@ -10,7 +11,6 @@ import "server-only"
 
 import { getCoverageSlots, setMenuItemPhotoLevel } from "@/lib/server/album"
 import { apiError, fromDbError, type ApiError } from "@/lib/server/http/errors"
-import { redactError } from "@/lib/server/log/redact"
 import type { ManagerPhotoCtx } from "@/lib/server/menu-photos"
 import { isUuid } from "@/lib/server/coverage/validate"
 import {
@@ -176,7 +176,7 @@ export function reviewFailure(
     })
   const mapped = fromDbError(error)
   if (mapped.code === "unavailable")
-    console.error(`[review] ${what} failed`, redactError(error))
+    logger.error(`[review] ${what} failed`, error?.code)
   return mapped
 }
 
@@ -213,7 +213,7 @@ export async function getPhotoDetail(
   if (error) return reviewFailure(error, "photo detail")
   const detail = parsePhotoDetail(data)
   if (!detail) {
-    console.error("[review] photo detail shape")
+    logger.error("[review] photo detail shape")
     return apiError("unavailable")
   }
   // An admin's scope names one venue: a photo elsewhere is not found here.

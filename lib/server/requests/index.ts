@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import {
@@ -163,11 +164,12 @@ export function requestError(
   }
   const mapped = fromDbError(error, FIELDS)
   if (mapped.code === "unavailable")
-    console.error("[requests] database call failed", {
-      error: redactError(
+    logger.error(
+      "[requests] database call failed",
+      redactError(
         new Error(`${error?.code ?? "unknown"}: ${error?.message ?? ""}`)
-      ),
-    })
+      )
+    )
   return mapped
 }
 

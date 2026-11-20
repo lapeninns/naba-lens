@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 import type { Database } from "@/lib/db/types"
+import { correlatedFetch } from "@/lib/server/log/logger"
 import { getSupabasePublicEnv } from "@/lib/supabase/env"
 
 /**
@@ -14,6 +15,7 @@ export async function updateSession(request: NextRequest) {
   const { url, publishableKey } = getSupabasePublicEnv()
 
   const supabase = createServerClient<Database>(url, publishableKey, {
+    global: { fetch: correlatedFetch(url) },
     cookies: {
       getAll() {
         return request.cookies.getAll()

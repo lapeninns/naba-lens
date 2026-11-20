@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/routes"
 import { SESSION_ENDED_MESSAGE } from "@/lib/auth/session-ended"
 import { canUseFixtureSignIn } from "@/lib/dev/phone-origin.mjs"
+import { REQUEST_ID_HEADER, withRequestId } from "@/lib/server/log/logger"
 import { updateSession } from "@/lib/supabase/proxy"
 
 /**
@@ -19,6 +20,16 @@ import { updateSession } from "@/lib/supabase/proxy"
  * re-authorises against the database via lib/auth.
  */
 export async function proxy(request: NextRequest) {
+  const id = crypto.randomUUID()
+  request.headers.set(REQUEST_ID_HEADER, id)
+  return withRequestId(id, async () => {
+    const response = await routeRequest(request)
+    response.headers.set(REQUEST_ID_HEADER, id)
+    return response
+  })
+}
+
+async function routeRequest(request: NextRequest) {
   const { pathname } = request.nextUrl
   // Reject a misconfigured dev target before the session refresh tries to use
   // its Supabase environment. The page and action enforce the same gate.

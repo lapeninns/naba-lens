@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 // Admin venues and the group overview (Full App v1, S2-ADMIN; spec §8 A1,
@@ -74,11 +75,12 @@ function failed(context: string, error: RpcError | null): ApiError {
     })
   const mapped = fromDbError(error)
   if (mapped.code === "unavailable")
-    console.error(`[admin] ${context} failed`, {
-      error: redactError(
+    logger.error(
+      `[admin] ${context} failed`,
+      redactError(
         new Error(`${error?.code ?? "unknown"}: ${error?.message ?? ""}`)
-      ),
-    })
+      )
+    )
   return mapped
 }
 

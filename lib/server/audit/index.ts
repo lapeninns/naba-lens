@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import {
@@ -51,9 +52,10 @@ export async function loadActivity(
   if (error) {
     const mapped = fromDbError(error)
     if (mapped.code === "unavailable")
-      console.error("[ops] activity read failed", {
-        error: redactError(new Error(`${error.code}: ${error.message}`)),
-      })
+      logger.error(
+        "[ops] activity read failed",
+        redactError(new Error(`${error.code}: ${error.message}`))
+      )
     return mapped
   }
   const page = parseActivityPage(data)

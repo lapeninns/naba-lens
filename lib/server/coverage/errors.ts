@@ -2,6 +2,7 @@
 // exception code) or SQLSTATE, never by HTTP status: PostgREST answers named
 // exceptions with 500. Unexpected failures are logged redacted and become 503.
 
+import { logger } from "@/lib/server/log/logger"
 import { redactError } from "@/lib/server/log/redact"
 
 import type {
@@ -61,11 +62,12 @@ export function unavailableFailure(
   context: string,
   error?: DbError
 ): CoverageFailure {
-  console.error(`[coverage] ${context} failed`, {
-    error: redactError(
+  logger.error(
+    `[coverage] ${context} failed`,
+    redactError(
       new Error(`${error?.code || "unknown"}: ${error?.message ?? ""}`)
-    ),
-  })
+    )
+  )
   return failure(
     "unavailable",
     "Coverage could not be loaded or saved right now. Try again shortly."

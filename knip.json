@@ -1,0 +1,12 @@
+{
+  "entry": [
+    "app/**/{page,layout,route,template,error,global-error,loading,not-found,default,manifest,robots,sitemap}.{ts,tsx}",
+    "proxy.ts",
+    "instrumentation*.ts",
+    "scripts/**/*.{mjs,ts}",
+    "tests/**/*.{test,spec}.{ts,tsx,mjs}",
+    "tests/**/{run,prepare-stack}.mjs",
+    "tests/perf/*.mjs"
+  ],
+  "project": ["**/*.{js,mjs,ts,tsx,mts}"]
+}

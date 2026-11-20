@@ -17,9 +17,14 @@ export const commonChecks = [
   "typecheck",
   "lint",
   "unit",
+  "coverage",
   "monitoring",
   "archive",
   "verification",
+  "quality",
+  "docs",
+  "api-contract",
+  "secrets",
 ]
 const sha = (value) => createHash("sha256").update(value).digest("hex")
 export function receiptContext(cwd = process.cwd(), env = process.env) {

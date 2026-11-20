@@ -524,7 +524,11 @@ describe("archive audit failures keep honest progress", () => {
       expect(await audit(fake)).toMatchObject({ outcome: "completed_cycle" })
       expect(fake.state.last_complete_at).not.toBeNull()
       expect(silence).toHaveBeenCalledWith(
-        "media archive audit run record failed"
+        JSON.stringify({
+          level: "error",
+          event: "media archive audit run record failed",
+          requestId: null,
+        })
       )
     } finally {
       silence.mockRestore()
@@ -715,8 +719,14 @@ describe("deadline, lease and overlap", () => {
     }
     const report = await audit(fake, undefined, { finalizationMs: 120 })
     expect(report).toMatchObject({ outcome: "completed_cycle", checked: 1 })
-    expect(logged).toHaveBeenCalledWith("media archive audit run record failed")
-    expect(logged).toHaveBeenCalledWith("media archive audit run prune failed")
+    for (const event of [
+      "media archive audit run record failed",
+      "media archive audit run prune failed",
+    ]) {
+      expect(logged).toHaveBeenCalledWith(
+        JSON.stringify({ level: "error", event, requestId: null })
+      )
+    }
     expect(fake.calls).toContain("rpc.release_maintenance_lease")
     expect(ARCHIVE_AUDIT_FINALIZATION_MS).toBeLessThan(60_000)
   })

@@ -23,7 +23,7 @@ export type Parsed<T> =
   { ok: true; value: T } | { ok: false; failure: ReaderFailure }
 
 const invalid = { ok: false, failure: { code: "invalid_request" } } as const
-const ANSWER_PARAMS = ["keys", "audience", "purpose", "schema"] as const
+export const ANSWER_PARAMS = ["keys", "audience", "purpose", "schema"] as const
 const KEY = /^[a-z0-9_]{1,40}$/
 const SCHEMA = /^(\d{1,3})\.(\d{1,3})$/
 

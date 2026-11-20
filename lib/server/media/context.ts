@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import { getAuthState, type AppRole } from "@/lib/auth"
@@ -76,9 +77,7 @@ export async function getMediaActor(
   } catch (error) {
     // A failed profile read is not a denial: answer "retry", never a 500. The
     // cause (database outage, missing config or a bug) is logged, redacted.
-    console.error("[media] account check failed", {
-      error: redactError(error),
-    })
+    logger.error("[media] account check failed", redactError(error))
     return PROFILE_UNAVAILABLE
   }
   if (state.status === "signed_out") {

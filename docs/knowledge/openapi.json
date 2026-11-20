@@ -1,0 +1,1369 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Naba-Lens internal knowledge reader",
+    "version": "1.0"
+  },
+  "security": [
+    {
+      "consumerCredential": []
+    }
+  ],
+  "paths": {
+    "/api/knowledge/v1/meta": {
+      "get": {
+        "summary": "Read the credential scope",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderMeta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request, unsupported_version",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthenticated",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "414": {
+            "description": "request_too_large",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "reader_unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read the credential scope",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request, unsupported_version",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthenticated",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "414": {
+            "description": "request_too_large",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "reader_unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge/v1/venues/{venueId}/answers": {
+      "get": {
+        "summary": "Read venue answers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "venueId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "keys",
+            "required": true,
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "step_free_entrance",
+                  "onsite_parking",
+                  "guest_toilets",
+                  "guest_wifi"
+                ]
+              },
+              "uniqueItems": true,
+              "minItems": 1,
+              "maxItems": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "audience",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "internal"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "purpose",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "operations_lookup",
+                "pilot_verification"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "schema",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1.0"
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderAnswers"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Snapshot unchanged",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request, unsupported_version",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthenticated",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "venue_not_found",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "414": {
+            "description": "request_too_large",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "reader_unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read venue answers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "venueId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "keys",
+            "required": true,
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "step_free_entrance",
+                  "onsite_parking",
+                  "guest_toilets",
+                  "guest_wifi"
+                ]
+              },
+              "uniqueItems": true,
+              "minItems": 1,
+              "maxItems": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "audience",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "internal"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "purpose",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "operations_lookup",
+                "pilot_verification"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "schema",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1.0"
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Snapshot unchanged",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request, unsupported_version",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthenticated",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "venue_not_found",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "414": {
+            "description": "request_too_large",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "reader_unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "consumerCredential": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "ReaderMeta": {
+        "type": "object",
+        "required": [
+          "supportedSchemas",
+          "consumer"
+        ],
+        "properties": {
+          "supportedSchemas": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "1.0"
+              ]
+            }
+          },
+          "consumer": {
+            "type": "object",
+            "required": [
+              "id",
+              "venues",
+              "audiences",
+              "purposes",
+              "questions",
+              "schemaMajors"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "venues": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "audiences": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "internal"
+                  ]
+                }
+              },
+              "purposes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "operations_lookup",
+                    "pilot_verification"
+                  ]
+                }
+              },
+              "questions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "step_free_entrance",
+                    "onsite_parking",
+                    "guest_toilets",
+                    "guest_wifi"
+                  ]
+                }
+              },
+              "schemaMajors": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ReaderAnswers": {
+        "type": "object",
+        "required": [
+          "schema",
+          "venue",
+          "audience",
+          "purpose",
+          "snapshot",
+          "answers"
+        ],
+        "properties": {
+          "schema": {
+            "type": "string",
+            "enum": [
+              "1.0"
+            ]
+          },
+          "venue": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "internal"
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "operations_lookup",
+              "pilot_verification"
+            ]
+          },
+          "snapshot": {
+            "type": "object",
+            "required": [
+              "readAt",
+              "etag"
+            ],
+            "properties": {
+              "readAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "etag": {
+                "type": "string"
+              }
+            }
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReaderAnswer"
+            }
+          }
+        }
+      },
+      "ReaderAnswer": {
+        "type": "object",
+        "required": [
+          "key",
+          "questionVersion",
+          "status",
+          "value",
+          "summary",
+          "conditions",
+          "provenance",
+          "revision",
+          "freshness",
+          "unavailable"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "step_free_entrance",
+              "onsite_parking",
+              "guest_toilets",
+              "guest_wifi"
+            ]
+          },
+          "questionVersion": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "answer"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "yes_no_na"
+                    ]
+                  },
+                  "answer": {
+                    "type": "string",
+                    "enum": [
+                      "yes",
+                      "no",
+                      "not_applicable"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "kind",
+                "text"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "limitation",
+                    "reason"
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "sourceKind",
+                  "contributionId",
+                  "idKind",
+                  "confirmation",
+                  "redactionProof",
+                  "evidence"
+                ],
+                "properties": {
+                  "sourceKind": {
+                    "type": "string"
+                  },
+                  "contributionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "idKind": {
+                    "type": "string",
+                    "enum": [
+                      "contribution",
+                      "submission"
+                    ]
+                  },
+                  "confirmation": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "authority",
+                          "selfConfirmed",
+                          "savedAt"
+                        ],
+                        "properties": {
+                          "authority": {
+                            "type": "string",
+                            "enum": [
+                              "venue_manager",
+                              "admin"
+                            ]
+                          },
+                          "selfConfirmed": {
+                            "type": "boolean"
+                          },
+                          "savedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "redactionProof": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "recorded",
+                          "not_recorded"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "evidence": {
+                    "type": "object",
+                    "required": [
+                      "photos",
+                      "videos"
+                    ],
+                    "properties": {
+                      "photos": {
+                        "type": "integer"
+                      },
+                      "videos": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "savedAt",
+                  "observedAt",
+                  "nextCheckDue",
+                  "state"
+                ],
+                "properties": {
+                  "savedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "observedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nextCheckDue": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "current",
+                      "due_soon",
+                      "unrated"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unavailable": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "reason",
+                  "detail"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "unknown",
+                      "not_confirmed",
+                      "stale",
+                      "disputed",
+                      "withdrawn",
+                      "not_permitted",
+                      "unsupported_version"
+                    ]
+                  },
+                  "detail": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ReaderError": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "requestId"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "invalid_request",
+                  "unsupported_version",
+                  "unauthenticated",
+                  "forbidden",
+                  "venue_not_found",
+                  "method_not_allowed",
+                  "request_too_large",
+                  "rate_limited",
+                  "reader_unavailable",
+                  "internal_error"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "requestId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "retryAfterSeconds": {
+                "type": "integer"
+              },
+              "supported": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "1.0"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

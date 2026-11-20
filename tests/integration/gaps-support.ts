@@ -19,8 +19,6 @@ import { getLocalSupabaseEnv } from "../support/local-supabase"
  * identity, so the route sees a genuine session (RLS and getClaims included).
  */
 
-export type CookieJar = { current: Map<string, string> }
-
 /** Points the app's env readers at the local stack the tests use. */
 export function applyLocalEnv() {
   const env = getLocalSupabaseEnv()
@@ -54,23 +52,6 @@ export async function sessionCookies(
   if (error) throw error
   if (store.size === 0) throw new Error("No auth cookies were written")
   return store
-}
-
-/** `next/headers` replacement backed by the jar. */
-export function cookiesModule(jar: CookieJar) {
-  return {
-    cookies: async () => ({
-      getAll: () => [...jar.current].map(([name, value]) => ({ name, value })),
-      get: (name: string) =>
-        jar.current.has(name)
-          ? { name, value: jar.current.get(name)! }
-          : undefined,
-      has: (name: string) => jar.current.has(name),
-      set: () => {},
-      delete: () => {},
-    }),
-    headers: async () => new Headers(),
-  }
 }
 
 /** Route Handler context for a dynamic `[id]` segment. */

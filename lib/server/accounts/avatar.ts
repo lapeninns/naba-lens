@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import { randomUUID } from "node:crypto"
 
 import { MEDIA_LIMITS } from "@/lib/config/media"
@@ -80,9 +81,7 @@ export async function replaceProfileAvatar(
     upsert: false,
   })
   if (uploadError) {
-    console.error("[accounts] avatar upload failed", {
-      name: uploadError.name,
-    })
+    logger.error("[accounts] avatar upload failed", uploadError.name)
     return fail("database_failed", "The photo could not be saved. Try again.")
   }
 
@@ -99,9 +98,7 @@ export async function replaceProfileAvatar(
   if (target.avatar_path && target.avatar_path !== key) {
     const { error: removeError } = await bucket.remove([target.avatar_path])
     if (removeError) {
-      console.error("[accounts] old avatar removal failed", {
-        name: removeError.name,
-      })
+      logger.error("[accounts] old avatar removal failed", removeError.name)
     }
   }
   return { ok: true, avatarPath: key }

@@ -1,3 +1,4 @@
+import { logger, validRequestId, withRequestId } from "@/lib/server/log/logger"
 import "server-only"
 
 import { randomUUID } from "node:crypto"
@@ -63,7 +64,16 @@ export function defaultReaderDeps(): ReaderDeps {
     now: Date.now,
     requestId: randomUUID,
     sourceTimeoutMs: LIMITS.sourceTimeoutMs,
-    log: (entry) => console.info("[knowledge-reader]", entry),
+    log: (entry) =>
+      withRequestId(entry.requestId, () =>
+        logger.info(
+          "knowledge_reader",
+          entry.route,
+          entry.status,
+          entry.durationMs,
+          entry.note
+        )
+      ),
   }
   return defaults
 }
@@ -146,7 +156,8 @@ function begin(
 ): Context {
   return {
     deps,
-    requestId: deps.requestId(),
+    requestId:
+      validRequestId(request.headers.get("x-request-id")) ?? deps.requestId(),
     head: request.method === "HEAD",
     started: deps.now(),
     log: {

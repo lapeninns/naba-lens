@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+type ReportFailure = (
+  event: string,
+  code: string | null,
+  status: number | null
+) => void
+
 // Deliberately simple: the auth server is the real validator.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -21,7 +27,8 @@ export async function sendSignInLink(
   supabase: SupabaseClient,
   email: string,
   emailRedirectTo: string,
-  captchaToken?: string
+  captchaToken?: string,
+  reportFailure?: ReportFailure
 ): Promise<SignInLinkResult> {
   const { error } = await supabase.auth.signInWithOtp({
     email,
@@ -36,10 +43,11 @@ export async function sendSignInLink(
   if (error?.code === "captcha_failed") return { status: "captcha_failed" }
 
   if (error && !isExpectedNeutralError(error)) {
-    console.error("[auth] sign-in link request failed", {
-      code: error.code ?? null,
-      status: error.status ?? null,
-    })
+    reportFailure?.(
+      "auth_sign_in_link_failed",
+      error.code ?? null,
+      error.status ?? null
+    )
   }
 
   return { status: "sent" }
@@ -90,7 +98,8 @@ export type SignInCodeResult =
 export async function verifySignInCode(
   supabase: SupabaseClient,
   email: string,
-  code: string
+  code: string,
+  reportFailure?: ReportFailure
 ): Promise<SignInCodeResult> {
   const { data, error } = await supabase.auth.verifyOtp({
     email,
@@ -105,10 +114,11 @@ export async function verifySignInCode(
     return { status: "unreachable" }
   }
   if (error && error.code !== "otp_expired" && error.status !== 403) {
-    console.error("[auth] sign-in code check failed", {
-      code: error.code ?? null,
-      status: error.status ?? null,
-    })
+    reportFailure?.(
+      "auth_sign_in_code_failed",
+      error.code ?? null,
+      error.status ?? null
+    )
   }
   return { status: "invalid" }
 }

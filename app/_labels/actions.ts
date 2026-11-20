@@ -1,5 +1,6 @@
 "use server"
 
+import { logger } from "@/lib/server/log/logger"
 import { workFocus, type WorkFocus } from "@/lib/config/work-roles"
 import {
   LABEL_LIMITS,
@@ -187,7 +188,7 @@ export async function saveLabelBatch(
     try {
       results.push(await saveAssetLabels(auth.actor, input as SaveLabelsInput))
     } catch (error) {
-      console.error("[labels] save failed", { error: redactError(error) })
+      logger.error("[labels] save failed", redactError(error))
       results.push({
         ok: false,
         assetId: idOf(input),

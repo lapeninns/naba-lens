@@ -398,7 +398,7 @@ describe("segment layouts reject before anything renders (privacy R3)", () => {
           redirectOf(() => AdminLayout({ children }))
         )
       ).location
-    ).toBe("/staff/tasks")
+    ).toBe("/staff/home")
     expect(
       (
         await admin.browser.run(() =>
@@ -753,7 +753,7 @@ describe("profile reads", () => {
       () => StaffPortfolioPage(params(admin.id)),
       () => StaffPortfolioPage(params(otherStaff.id)),
     ]) {
-      expect((await run(() => redirectOf(page))).location).toBe("/staff/tasks")
+      expect((await run(() => redirectOf(page))).location).toBe("/staff/home")
     }
     expect(
       (await run(() => loadLibraryPage({ staff: otherStaff.id }, null))).ok
@@ -906,7 +906,7 @@ describe("venue manager accounts", () => {
 
   it("sends staff and admins away from the manager workspace", async () => {
     for (const [p, home] of [
-      [staff, "/staff/tasks"],
+      [staff, "/staff/home"],
       [admin, "/admin/overview"],
     ] as const) {
       const run = <T>(fn: () => Promise<T>) => p.browser.run(fn)
@@ -933,11 +933,9 @@ describe("venue manager accounts", () => {
     )
     const run = <T>(fn: () => Promise<T>) => legacy.browser.run(fn)
     expect((await run(() => redirectOf(getManagerWorkspace))).location).toBe(
-      "/staff/tasks"
+      "/staff/home"
     )
-    expect((await run(() => redirectOf(RootPage))).location).toBe(
-      "/staff/tasks"
-    )
+    expect((await run(() => redirectOf(RootPage))).location).toBe("/staff/home")
   })
 
   it("shows Venue access unavailable once the grant is revoked", async () => {

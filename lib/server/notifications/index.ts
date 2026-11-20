@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import {
@@ -19,11 +20,10 @@ import type { OpsCaller, OpsResult } from "@/lib/server/ops/types"
 // (manager); admins see exceptions on Settings.
 
 function logged(context: string, error: { code?: string; message?: string }) {
-  console.error(`[notifications] ${context} failed`, {
-    error: redactError(
-      new Error(`${error.code ?? "unknown"}: ${error.message ?? ""}`)
-    ),
-  })
+  logger.error(
+    `[notifications] ${context} failed`,
+    redactError(new Error(`${error.code ?? "unknown"}: ${error.message ?? ""}`))
+  )
 }
 
 /** The caller's notices, newest first; `before` is the previous page's nextBefore. */
@@ -197,8 +197,6 @@ export async function recordJobRun(
     })
     if (error) logged("job record", error)
   } catch (error) {
-    console.error("[notifications] job record failed", {
-      error: redactError(error),
-    })
+    logger.error("[notifications] job record failed", redactError(error))
   }
 }

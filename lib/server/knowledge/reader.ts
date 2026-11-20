@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import {
@@ -47,10 +48,11 @@ function readerCode(
   if (error?.code === "NLK06" || error?.message === "knowledge_venue_not_found")
     return "venue_not_found"
   if (error?.code === "22023" || error?.code === "22P02") return "invalid_input"
-  console.error("[knowledge] reader answers failed", {
-    error: redactError(
+  logger.error(
+    "[knowledge] reader answers failed",
+    redactError(
       new Error(`${error?.code || "unknown"}: ${error?.message ?? ""}`)
-    ),
-  })
+    )
+  )
   return "unavailable"
 }

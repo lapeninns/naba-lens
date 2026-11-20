@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import {
@@ -77,9 +78,7 @@ async function menuOptionsFor(
       ),
     }
   } catch (error) {
-    console.error("[asset-search] menu options unavailable", {
-      error: redactError(error),
-    })
+    logger.error("[asset-search] menu options unavailable", redactError(error))
     return { venueId, items: [] }
   }
 }
@@ -119,9 +118,7 @@ async function destinationOptions(
       .sort((a, b) => a.label.localeCompare(b.label, "en-GB"))
       .map((d) => ({ id: d.key, name: d.label }))
   } catch (error) {
-    console.error("[asset-search] destinations unavailable", {
-      error: redactError(error),
-    })
+    logger.error("[asset-search] destinations unavailable", redactError(error))
     return []
   }
 }
