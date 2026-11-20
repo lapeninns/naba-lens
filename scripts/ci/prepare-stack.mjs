@@ -96,7 +96,7 @@ export async function prepareStack(work) {
   )
   const lane = process.env.CI_FIXTURE_LANE
   if (lane && !/^[1-4]$/.test(lane)) throw new Error("Invalid CI fixture lane")
-  if (lane) offsets.push(APP_PORT_OFFSET)
+  offsets.push(APP_PORT_OFFSET)
   const reservation = await reserveAvailablePortBlock(offsets, {
     baseCandidates: candidates(lane ? Number(lane) : undefined),
   })
@@ -114,9 +114,7 @@ export async function prepareStack(work) {
       )
     // Auth links point at the e2e server; only the owned stack's per-IP
     // fixture limits are raised. Invite-only signup remains unchanged.
-    const appPort = lane
-      ? reservation.base + APP_PORT_OFFSET
-      : Number(process.env.E2E_PORT ?? 3457)
+    const appPort = reservation.base + APP_PORT_OFFSET
     const site = `http://127.0.0.1:${appPort}`
     config = config
       .replace(/^site_url = ".*"$/m, `site_url = "${site}"`)

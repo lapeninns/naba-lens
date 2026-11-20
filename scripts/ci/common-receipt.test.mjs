@@ -11,6 +11,7 @@ import { join } from "node:path"
 import test from "node:test"
 import {
   commonChecks,
+  databaseChecks,
   validateReceipt,
   writeReceipt,
 } from "./common-receipt.mjs"
@@ -27,6 +28,24 @@ const receipt = () => ({
   status: "passed",
   checks: [...commonChecks],
   context: { ...context },
+})
+test("database evidence cannot be substituted with common or incomplete evidence", () => {
+  const proof = { ...receipt(), checks: [...databaseChecks] }
+  assert.equal(validateReceipt(proof, context, databaseChecks), true)
+  assert.throws(() => validateReceipt(receipt(), context, databaseChecks))
+  assert.throws(() => validateReceipt(proof, context))
+  for (const check of databaseChecks)
+    assert.throws(() =>
+      validateReceipt(
+        { ...proof, checks: databaseChecks.filter((c) => c !== check) },
+        context,
+        databaseChecks
+      )
+    )
+  for (const key of Object.keys(context))
+    assert.throws(() =>
+      validateReceipt(proof, { ...context, [key]: "changed" }, databaseChecks)
+    )
 })
 test("all common checks are mandatory for an exact source/run/toolchain receipt", () => {
   assert.equal(validateReceipt(receipt(), context), true)

@@ -32,6 +32,10 @@ function fixture(t, probe = "") {
     join(root, "scripts/ci/common-receipt.test.mjs"),
     "import test from 'node:test'; test('receipt fixture',()=>{});\n"
   )
+  writeFileSync(
+    join(root, "scripts/ci/run-suites.test.mjs"),
+    "import test from 'node:test'; test('suite fixture',()=>{});\n"
+  )
   writeFileSync(join(root, "package.json"), '{"type":"module"}\n')
   const git = (...args) =>
     execFileSync("git", args, {
@@ -58,6 +62,7 @@ function fixture(t, probe = "") {
       encoding: "utf8",
       env: {
         ...process.env,
+        HOME: join(root, ".git/home"),
         PATH: join(root, ".git/bin") + ":" + process.env.PATH,
         CAPTURE: join(root, ".git/capture"),
       },
@@ -81,6 +86,59 @@ test("real CLI refuses empty/full-suite focus and unfinished integration; record
   const status = JSON.parse(f.run("status").stdout)
   assert.equal(status.batch.candidate.head, head)
   assert.equal(status.batch.phase, "frozen")
+})
+
+test("release forwards FIFO --wait to the real entry point without bypass flags", (t) => {
+  const f = fixture(t)
+  const bin = join(f.root, ".git/bin")
+  const homeBin = join(f.root, ".git/home/.local/bin")
+  mkdirSync(bin, { recursive: true })
+  mkdirSync(homeBin, { recursive: true })
+  const head = f.git("rev-parse", "HEAD")
+  const statusCheckRollup = [
+    "fixtures-common",
+    "fixtures-database",
+    "fixtures-chromium-1",
+    "fixtures-chromium-2",
+    "fixtures-firefox",
+    "fixtures-webkit",
+    "smoke-production-contract",
+    "result",
+  ].map((name) => ({ context: `local-ci/${name}`, state: "SUCCESS" }))
+  writeFileSync(
+    join(bin, "gh"),
+    `#!/bin/sh\nprintf '%s\\n' '${JSON.stringify({ headRefOid: head, statusCheckRollup })}'\n`,
+    { mode: 0o755 }
+  )
+  writeFileSync(
+    join(homeBin, "lci"),
+    '#!/bin/sh\nprintf "%s\\n" "$@" > "$CAPTURE"\n',
+    { mode: 0o755 }
+  )
+  assert.equal(f.run("start", "Release contract", "22", "queue").status, 0)
+  assert.equal(f.run("complete", "queue").status, 0)
+  assert.equal(f.run("integrate").status, 0)
+  assert.equal(f.run("freeze", head, "reviewed-fixture-head").status, 0)
+  const r = f.run("release")
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.deepEqual(
+    readFileSync(join(f.root, ".git/capture"), "utf8").trim().split("\n"),
+    ["run", "naba-lens", "--pr", "22", "--post", "--comment", "--wait"]
+  )
+  assert.notEqual(
+    f.run("release").status,
+    0,
+    "the same head cannot qualify twice"
+  )
+})
+test("focused tooling accepts explicit CLI tests without expanding to the full tooling suite", (t) => {
+  const f = fixture(t)
+  const r = f.run("focused", "tooling", "scripts/ci/run-suites.test.mjs")
+  assert.equal(r.status, 0, r.stderr + r.stdout)
+  assert.match(r.stdout, /suite fixture/)
+  assert.doesNotMatch(r.stdout, /fixture check|receipt fixture/)
+  for (const path of ["package.json", "../outside.test.mjs", "--help"])
+    assert.notEqual(f.run("focused", "tooling", path).status, 0)
 })
 test("focused tooling execution writes measured evidence without authorizing release", (t) => {
   const f = fixture(t),

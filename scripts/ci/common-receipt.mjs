@@ -21,6 +21,14 @@ export const commonChecks = [
   "archive",
   "verification",
 ]
+export const databaseChecks = [
+  "build",
+  "scan-bundle",
+  "integration",
+  "lifecycle",
+  "security",
+  "cleanup",
+]
 const sha = (value) => createHash("sha256").update(value).digest("hex")
 export function receiptContext(cwd = process.cwd(), env = process.env) {
   const git = (...args) =>
@@ -53,16 +61,14 @@ export function receiptContext(cwd = process.cwd(), env = process.env) {
     environment: sha(JSON.stringify(environment)),
   }
 }
-export function validateReceipt(receipt, expected) {
+export function validateReceipt(receipt, expected, checks = commonChecks) {
   if (
     receipt?.version !== 1 ||
     receipt.status !== "passed" ||
-    JSON.stringify(receipt.checks) !== JSON.stringify(commonChecks) ||
+    JSON.stringify(receipt.checks) !== JSON.stringify(checks) ||
     JSON.stringify(receipt.context) !== JSON.stringify(expected)
   )
-    throw Error(
-      "Common job evidence is missing, stale or incompatible with this lane"
-    )
+    throw Error("Job evidence is missing, stale or incompatible with this lane")
   return true
 }
 function safePath(path) {
@@ -81,7 +87,7 @@ function safePath(path) {
   )
     throw Error("Unsafe receipt file")
 }
-export function writeReceipt(path, context) {
+export function writeReceipt(path, context, checks = commonChecks) {
   safePath(path)
   const temporary = path + ".writing-" + randomUUID()
   writeFileSync(
@@ -89,7 +95,7 @@ export function writeReceipt(path, context) {
     JSON.stringify({
       version: 1,
       status: "passed",
-      checks: commonChecks,
+      checks,
       context,
     }) + "\n",
     { mode: 0o600, flag: "wx" }
@@ -98,15 +104,26 @@ export function writeReceipt(path, context) {
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
-    const [op, path] = process.argv.slice(2)
-    if (process.argv.length !== 4 || !["clear", "write", "verify"].includes(op))
-      throw Error("Use clear|write|verify /absolute/common-receipt.json")
+    const [op, path, kind = "common"] = process.argv.slice(2)
+    if (
+      ![4, 5].includes(process.argv.length) ||
+      !["clear", "write", "verify"].includes(op) ||
+      !["common", "database"].includes(kind)
+    )
+      throw Error(
+        "Use clear|write|verify /absolute/receipt.json [common|database]"
+      )
+    const checks = kind === "database" ? databaseChecks : commonChecks
     safePath(path)
     if (op === "clear") {
       if (existsSync(path)) unlinkSync(path)
-    } else if (op === "write") writeReceipt(path, receiptContext())
+    } else if (op === "write") writeReceipt(path, receiptContext(), checks)
     else
-      validateReceipt(JSON.parse(readFileSync(path, "utf8")), receiptContext())
+      validateReceipt(
+        JSON.parse(readFileSync(path, "utf8")),
+        receiptContext(),
+        checks
+      )
   } catch (error) {
     console.error(error.message)
     process.exitCode = 1

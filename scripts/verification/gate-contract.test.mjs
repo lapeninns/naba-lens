@@ -17,6 +17,22 @@ import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 const source = fileURLToPath(new URL("../../", import.meta.url))
+test("the source-selected lci tier and hosted aggregate retain database and every browser lane", () => {
+  // The steward's backwards-compatible profile selects this tier by this
+  // source marker; removing it must be an explicit contract change.
+  assert.match(
+    readFileSync(join(source, "scripts/ci/local-ci.sh"), "utf8"),
+    /CI_DATABASE_RECEIPT/
+  )
+  const workflow = readFileSync(
+    join(source, ".github/workflows/ci.yml"),
+    "utf8"
+  )
+  assert.match(workflow, /needs: \[common, database, fixtures\]/)
+  assert.match(workflow, /test "\$DATABASE" = success/)
+  for (const lane of ["chromium-1", "chromium-2", "firefox", "webkit"])
+    assert.ok(workflow.includes(`lane: ${lane}`), lane)
+})
 function fixture(t) {
   const dir = realpathSync(
       mkdtempSync(join(tmpdir(), "nabalens-gate-contract-"))
@@ -49,7 +65,7 @@ function fixture(t) {
       join(root, "scripts/ci", file),
       logger +
         (file === "run-suites.mjs"
-          ? "if(process.env.FAIL_BROWSER==='1')process.exit(4);"
+          ? "fs.appendFileSync(process.env.TRACE,'suite-mode '+process.argv[3]+'\\n');if(process.env.FAIL_BROWSER==='1'||process.env.FAIL_DATABASE==='1')process.exit(4);"
           : "")
     )
   writeFileSync(
@@ -59,7 +75,7 @@ function fixture(t) {
   )
   writeFileSync(
     join(bin, "supabase"),
-    '#!/bin/sh\nprintf "supabase %s\\n" "$*" >> "$TRACE"\nprintf "{}\\n"\n',
+    '#!/bin/sh\nprintf "supabase %s\\n" "$*" >> "$TRACE"\nif [ "$3" = stop ] && [ "$FAIL_STOP" = 1 ]; then exit 5; fi\nprintf "{}\\n"\n',
     { mode: 0o755 }
   )
   for (const name of ["ffmpeg", "psql"])
@@ -81,6 +97,7 @@ function fixture(t) {
     "fixture"
   )
   const receipt = join(dir, "common-receipt.json")
+  const databaseReceipt = join(dir, "database-receipt.json")
   const env = {
     ...process.env,
     PATH: bin + ":" + process.env.PATH,
@@ -100,6 +117,7 @@ function fixture(t) {
     root,
     trace,
     receipt,
+    databaseReceipt,
     run,
     lines: () =>
       existsSync(trace) ? readFileSync(trace, "utf8").split("\n") : [],
@@ -124,13 +142,17 @@ test("common checks run once, all browser lanes retain build, database/browser a
   ])
     assert.equal(lines.filter((l) => l === "pnpm " + check).length, 1, check)
   for (const check of [
-    "pnpm build",
-    "node scan-bundle.mjs",
     "node prepare-stack.mjs",
     "node run-suites.mjs",
     "node privacy-runtime.mjs",
   ])
     assert.equal(lines.filter((l) => l === check).length, 3, check)
+  assert.equal(
+    lines.includes("pnpm build"),
+    false,
+    "no build before the stack exists"
+  )
+  assert.equal(lines.filter((l) => l === "suite-mode full").length, 3)
   assert.equal(
     lines.filter((l) => l.startsWith("supabase ") && l.includes(" stop "))
       .length,
@@ -184,9 +206,63 @@ test("standalone full mode keeps every common check and browser boundary without
     "pnpm test:monitoring",
     "pnpm test:archive",
     "pnpm test:verification",
-    "pnpm build",
     "node run-suites.mjs",
     "node privacy-runtime.mjs",
   ])
     assert.ok(f.lines().includes(check), check)
+})
+
+test("database proof requires every suite and cleanup, and each browser validates it before setup", (t) => {
+  const f = fixture(t)
+  const options = { CI_DATABASE_RECEIPT: f.databaseReceipt }
+  assert.equal(f.run("common").status, 0)
+  assert.notEqual(f.run("browser", options).status, 0)
+  assert.equal(f.lines().includes("node prepare-stack.mjs"), false)
+  const database = f.run("database", options)
+  assert.equal(database.status, 0, database.stdout + database.stderr)
+  assert.equal(existsSync(f.databaseReceipt), true)
+  assert.ok(f.lines().includes("suite-mode database"))
+  for (const browser of ["chromium", "firefox", "webkit"]) {
+    const r = f.run("browser", { ...options, CI_BROWSER: browser })
+    assert.equal(r.status, 0, r.stdout + r.stderr)
+  }
+  assert.equal(f.lines().filter((l) => l === "suite-mode database").length, 1)
+  assert.equal(f.lines().filter((l) => l === "suite-mode browser").length, 3)
+  assert.notEqual(
+    f.run("browser", { ...options, CI_VERIFICATION_RUN_ID: "stale-run" })
+      .status,
+    0
+  )
+  writeFileSync(join(f.root, "package.json"), '{"changed":true}\n')
+  assert.notEqual(f.run("browser", options).status, 0)
+  assert.equal(
+    f.lines().filter((l) => l === "node prepare-stack.mjs").length,
+    4
+  )
+})
+
+for (const failure of ["FAIL_DATABASE", "FAIL_STOP"]) {
+  test(`controlled ${failure} failure removes prior proof and blocks browser reuse`, (t) => {
+    const f = fixture(t)
+    const options = { CI_DATABASE_RECEIPT: f.databaseReceipt }
+    assert.equal(f.run("common").status, 0)
+    assert.equal(f.run("database", options).status, 0)
+    const r = f.run("database", { ...options, [failure]: "1" })
+    assert.notEqual(r.status, 0, r.stdout + r.stderr)
+    assert.equal(existsSync(f.databaseReceipt), false)
+    assert.notEqual(f.run("browser", options).status, 0)
+    assert.ok(
+      f.lines().some((l) => l.startsWith("supabase ") && l.includes(" stop "))
+    )
+  })
+}
+
+test("a supplied E2E_PORT is restored before publishing source-context evidence", (t) => {
+  const f = fixture(t)
+  const options = { E2E_PORT: "12345", CI_DATABASE_RECEIPT: f.databaseReceipt }
+  assert.equal(f.run("common", options).status, 0)
+  const r = f.run("database", options)
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  const browser = f.run("browser", options)
+  assert.equal(browser.status, 0, browser.stdout + browser.stderr)
 })

@@ -30,6 +30,23 @@ async function unusedPort() {
 }
 
 describe("CI stack port blocks", () => {
+  it("also isolates the app port when the formal runner does not set a local lane", () => {
+    const root = mkdtempSync(join(tmpdir(), "nabalens-formal-port-"))
+    try {
+      const work = join(root, "formal")
+      execFileSync(process.execPath, ["scripts/ci/prepare-stack.mjs", work], {
+        env: { ...process.env, CI_FIXTURE_LANE: "", E2E_PORT: "3457" },
+      })
+      const appPort = Number(readFileSync(join(work, "e2e-port"), "utf8"))
+      expect(appPort).toBeGreaterThanOrEqual(58000)
+      expect(appPort).toBeLessThan(64000)
+      expect(
+        readFileSync(join(work, "supabase/config.toml"), "utf8")
+      ).toContain(`site_url = "http://127.0.0.1:${appPort}"`)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
   it("gives every local browser lane distinct stack and auth app ports", () => {
     const root = mkdtempSync(join(tmpdir(), "nabalens-lanes-"))
     const used = new Set<number>()

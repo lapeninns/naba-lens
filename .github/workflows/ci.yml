@@ -47,9 +47,65 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  database:
+    name: Database checks
+    needs: common
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI_PHASE: database
+      CI_VERIFICATION_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+        with:
+          version: 10.30.1
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.16.0
+          cache: pnpm
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359
+        with:
+          version: 2.117.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: common-checks
+          path: ${{ runner.temp }}/common
+      - name: Install fixture media tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Run integration, lifecycle and security once
+        env:
+          CI_COMMON_RECEIPT: ${{ runner.temp }}/common/common-receipt.json
+          CI_DATABASE_RECEIPT: ${{ runner.temp }}/database-receipt.json
+          CI_LOG_DIR: ${{ runner.temp }}/ci-logs
+        run: bash scripts/ci/local-ci.sh
+      - name: Publish database and cleanup receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: database-checks
+          path: ${{ runner.temp }}/database-receipt.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload scrubbed failures and timings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: database-logs-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ci-logs/*.scrubbed.log
+            ${{ runner.temp }}/ci-logs/timings.tsv
+            ${{ runner.temp }}/ci-logs/suite-results.json
+          retention-days: 7
+          if-no-files-found: ignore
+
   fixtures:
     name: Fixtures (${{ matrix.lane }})
-    needs: common
+    needs: [common, database]
     runs-on: ubuntu-24.04
     # This budget includes runner setup, database suites and browser tests.
     timeout-minutes: 150
@@ -98,6 +154,11 @@ jobs:
           path: ${{ runner.temp }}/common
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
+      - name: Fetch this run's database receipt
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: database-checks
+          path: ${{ runner.temp }}/database
       - name: Install browser and Linux dependencies
         run: pnpm exec playwright install --with-deps "$CI_BROWSER"
       - name: Install fixture media tools
@@ -105,6 +166,7 @@ jobs:
       - name: Run shared local and hosted gate
         env:
           CI_COMMON_RECEIPT: ${{ runner.temp }}/common/common-receipt.json
+          CI_DATABASE_RECEIPT: ${{ runner.temp }}/database/database-receipt.json
           CI_LOG_DIR: ${{ runner.temp }}/ci-logs
         run: |
           if [[ "$CI_BROWSER" == webkit ]]; then
@@ -125,23 +187,27 @@ jobs:
           if-no-files-found: ignore
       # Artifacts of this public repository are public: scrubbed suite logs only.
       - name: Upload scrubbed suite logs
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: suite-logs-${{ matrix.lane }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/ci-logs/*.scrubbed.log
+          path: |
+            ${{ runner.temp }}/ci-logs/*.scrubbed.log
+            ${{ runner.temp }}/ci-logs/timings.tsv
+            ${{ runner.temp }}/ci-logs/suite-results.json
           retention-days: 7
           if-no-files-found: ignore
 
   result:
     name: CI result
     if: always()
-    needs: [common, fixtures]
+    needs: [common, database, fixtures]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require every browser lane
         env:
           COMMON: ${{ needs.common.result }}
+          DATABASE: ${{ needs.database.result }}
           RESULT: ${{ needs.fixtures.result }}
-        run: test "$COMMON" = success && test "$RESULT" = success
+        run: test "$COMMON" = success && test "$DATABASE" = success && test "$RESULT" = success

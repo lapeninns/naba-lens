@@ -128,7 +128,9 @@ function fixture(t) {
       'echo "running $1 with $SUPABASE_SERVICE_ROLE_KEY"',
       'echo "s3 ${S3_LEAK:-}"',
       `echo "Cookie: ${AUTH_COOKIE}"`,
-      'if [ -n "$FAIL_ALL" ] || { [ "$1" = test:integration ] && [ -z "$PASS_ALL" ]; }; then',
+      'if [ "$1" = exec ] && [ "$E2E_SKIP_BUILD" != 1 ]; then exit 91; fi',
+      'if [ "$1" = build ] && [ -n "$E2E_SKIP_BUILD" ]; then exit 92; fi',
+      'if [ "$1" = "$FAIL_CHECK" ] || { [ -n "$FAIL_ALL" ] && [ "$1" != build ] && [ "$1" != scan:bundle ]; } || { [ "$1" = test:integration ] && [ -z "$PASS_ALL" ]; }; then',
       '  echo "⎯⎯⎯ Failed Tests 1 ⎯⎯⎯"',
       '  echo " FAIL  tests/$1.test.ts > lists everyone past max_rows in $1" >&2',
       '  echo "AssertionError: expected 1000 to be greater than 1000 at $SUPABASE_DB_URL"',
@@ -142,8 +144,8 @@ function fixture(t) {
     ].join("\n"),
     { mode: 0o755 }
   )
-  const run = (extra = {}) =>
-    spawnSync(process.execPath, [runSuites, work], {
+  const run = (extra = {}, mode = "full") =>
+    spawnSync(process.execPath, [runSuites, work, mode], {
       env: {
         ...process.env,
         PATH: bin + ":" + process.env.PATH,
@@ -162,6 +164,8 @@ test("every sub-suite runs in order and a failure is named in the last 35 lines,
   const r = f.run()
   assert.equal(r.status, 1)
   assert.deepEqual(readFileSync(f.trace, "utf8").trim().split("\n"), [
+    "build",
+    "scan:bundle",
     "test:integration",
     "test:lifecycle",
     "test:security",
@@ -188,6 +192,66 @@ test("every sub-suite runs in order and a failure is named in the last 35 lines,
   assert.equal(clean.includes(JWT) || clean.includes("hunter2pass"), false)
   for (const name of ["test-lifecycle", "test-security", "playwright"])
     readFileSync(join(f.logs, `suite-${name}.scrubbed.log`), "utf8")
+})
+
+test("database mode retains its build, scan and every database suite, without a browser", (t) => {
+  const f = fixture(t)
+  const r = f.run({ PASS_ALL: "1" }, "database")
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.deepEqual(readFileSync(f.trace, "utf8").trim().split("\n"), [
+    "build",
+    "scan:bundle",
+    "test:integration",
+    "test:lifecycle",
+    "test:security",
+  ])
+})
+
+test("receipt-backed browser mode builds and scans once without rerunning database suites", (t) => {
+  const f = fixture(t)
+  const r = f.run({ E2E_SKIP_BUILD: "unsafe-inherited-value" }, "browser")
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.deepEqual(readFileSync(f.trace, "utf8").trim().split("\n"), [
+    "build",
+    "scan:bundle",
+    "exec",
+  ])
+  const results = JSON.parse(readFileSync(join(f.logs, "suite-results.json")))
+  assert.equal(results.length, 3)
+  assert.ok(results.every((r) => r.passed && r.durationMs >= 0))
+  assert.equal(JSON.stringify(results).includes(JWT), false)
+})
+
+test("a controlled early database failure stops expensive later suites and records NOT RUN, never PASS", (t) => {
+  const f = fixture(t)
+  const r = f.run({ PASS_ALL: "1", FAIL_CHECK: "test:integration" }, "database")
+  assert.equal(r.status, 1, r.stdout + r.stderr)
+  assert.deepEqual(readFileSync(f.trace, "utf8").trim().split("\n"), [
+    "build",
+    "scan:bundle",
+    "test:integration",
+  ])
+  assert.match(r.stdout, /test:lifecycle\s+NOT RUN/)
+  assert.match(r.stdout, /test:security\s+NOT RUN/)
+  const results = JSON.parse(readFileSync(join(f.logs, "suite-results.json")))
+  assert.ok(results.slice(-2).every((r) => r.skipped && !r.passed))
+})
+
+for (const check of ["build", "scan:bundle"]) {
+  test(`a controlled ${check} failure cannot start a browser or pass`, (t) => {
+    const f = fixture(t)
+    const r = f.run({ PASS_ALL: "1", FAIL_CHECK: check }, "browser")
+    assert.equal(r.status, 1, r.stdout + r.stderr)
+    assert.equal(readFileSync(f.trace, "utf8").includes("exec"), false)
+    assert.match(r.stdout, /FAIL\s+exit 1/)
+  })
+}
+
+test("an unknown mode fails before invoking any suite", (t) => {
+  const f = fixture(t)
+  const r = f.run({}, "typo")
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /Invalid suite mode/)
 })
 
 test("with every suite failing, the whole summary and each failure fit in the last 35 lines", (t) => {
