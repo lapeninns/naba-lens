@@ -148,7 +148,7 @@ describe("invitations", { timeout: 60_000 }, () => {
     expect(accepted.location).toBe("/")
     expect(
       (await accepted.browser.run(() => redirectOf(RootPage))).location
-    ).toBe("/staff/tasks")
+    ).toBe("/staff/home")
 
     const stale = new Browser("stale invite")
     const res = await followEmailLink(stale, firstLink)
