@@ -56,10 +56,18 @@ function safeValue(value: unknown): string | number | boolean | null {
   return value == null ? null : "[object omitted]"
 }
 
+const trustedEventNames = new Set([
+  "auth_sign_in_link_failed",
+  "auth_sign_in_code_failed",
+])
+
 type Level = "info" | "warn" | "error"
 function write(level: Level, event: unknown, ...details: unknown[]) {
   const data = details.map(safeValue)
-  const safeEvent = safeValue(event)
+  const safeEvent =
+    typeof event === "string" && trustedEventNames.has(event)
+      ? event
+      : safeValue(event)
   const scoped = requestContext.getStore()
   function emit(requestId: string | null) {
     console[level](

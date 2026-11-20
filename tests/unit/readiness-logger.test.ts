@@ -50,6 +50,30 @@ describe("request correlation and log redaction", () => {
     expect(await currentRequestId()).toBeNull()
   })
 
+  it("keeps known sign-in event names distinct and still scrubs log details", () => {
+    const captured = vi.spyOn(console, "error").mockImplementation(() => {})
+    withRequestId(id, () => {
+      logger.error("auth_sign_in_link_failed", "private@example.test")
+      logger.error("auth_sign_in_code_failed", "invalid_code")
+      logger.error("untrusted_opaque_identifier")
+    })
+    expect(captured.mock.calls.map(([line]) => JSON.parse(line))).toEqual([
+      {
+        level: "error",
+        event: "auth_sign_in_link_failed",
+        requestId: id,
+        details: ["[email]"],
+      },
+      {
+        level: "error",
+        event: "auth_sign_in_code_failed",
+        requestId: id,
+        details: ["invalid_code"],
+      },
+      { level: "error", event: "[redacted]", requestId: id },
+    ])
+  })
+
   it("does not propagate outside the configured origin or outside a request", async () => {
     const send = vi.fn<typeof fetch>().mockResolvedValue(new Response())
     vi.stubGlobal("fetch", send)
