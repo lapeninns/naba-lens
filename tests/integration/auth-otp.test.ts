@@ -89,7 +89,7 @@ describe("sign-in codes", () => {
     expect((await sessionCookies(browser)).length).toBeGreaterThan(0)
     expect((await browser.run(getAuthState)).status).toBe("active")
     expect((await browser.run(() => redirectOf(RootPage))).location).toBe(
-      "/staff/tasks"
+      "/staff/home"
     )
   })
 
@@ -238,7 +238,7 @@ describe("sign-in codes", () => {
     const later = new Browser("otp-invitee-later")
     expect(await enterCode(later, email, code)).toEqual({ ok: true })
     expect((await later.run(() => redirectOf(RootPage))).location).toBe(
-      "/staff/tasks"
+      "/staff/home"
     )
   })
 })
