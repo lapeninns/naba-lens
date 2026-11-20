@@ -11,7 +11,9 @@ import {
 const fixture = (n: string) =>
   readFile(new URL("../fixtures/media/" + n, import.meta.url))
 it("normalizes advisory MIME and rejects known contradiction", async () => {
-  const bytes = await fixture("synthetic-12mp.heic")
+  // Policy is not a three-decode 12MP speed benchmark. Keep a real worker and
+  // the same width assertion; full-size processing/memory tests stay separate.
+  const bytes = await fixture("synthetic-policy.heic")
   for (const declaredMime of [
     "",
     "application/octet-stream",
@@ -101,7 +103,7 @@ it("returns derivatives from validation without a second decode API call", async
   })
 })
 it("runs HEIC decodes one at a time, in arrival order", async () => {
-  const b = await fixture("synthetic-12mp.heic")
+  const b = await fixture("synthetic-policy.heic")
   const done: number[] = []
   await Promise.all(
     [0, 1, 2].map((i) => processImage(b).then(() => done.push(i)))
