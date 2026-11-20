@@ -1,7 +1,8 @@
 import "server-only"
 
 import { AsyncLocalStorage } from "node:async_hooks"
-import { headers } from "next/headers"
+// Playwright's Node ESM fixtures load shared server services without Next's bundler.
+import { headers } from "next/headers.js"
 
 export const REQUEST_ID_HEADER = "x-request-id"
 const REQUEST_ID =

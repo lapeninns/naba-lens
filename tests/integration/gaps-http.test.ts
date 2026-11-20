@@ -9,16 +9,15 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
+import type { CookieJar } from "./gaps-cookies"
 import {
   assertPrivateCaching,
-  cookiesModule,
   params,
   sessionCookies,
   setupIdentity,
   setupSession,
   uploadAs,
   applyLocalEnv,
-  type CookieJar,
 } from "./gaps-support"
 import { acceptForColleagues } from "./accepted"
 
@@ -32,7 +31,10 @@ import { acceptForColleagues } from "./accepted"
 
 const jar = vi.hoisted<CookieJar>(() => ({ current: new Map() }))
 vi.mock("server-only", () => ({}))
-vi.mock("next/headers", () => cookiesModule(jar))
+vi.mock("next/headers", async () => {
+  const { cookiesModule } = await import("./gaps-cookies")
+  return cookiesModule(jar)
+})
 
 applyLocalEnv()
 // Setup creates five identities and real uploads; generous on a shared machine.
