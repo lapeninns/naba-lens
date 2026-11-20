@@ -5,6 +5,7 @@ import "./globals.css"
 import { CANVAS_SRGB } from "@/lib/pwa/canvas-colours"
 import { InstallPromptCapture } from "@/components/nabalens/me/install-app"
 import { ThemeProvider } from "@/components/theme-provider"
+import { SentryConsent } from "@/components/nabalens/sentry-consent"
 import { cn } from "@/lib/utils"
 
 // Body face (design system v2, D10): everything people read and tap, at
@@ -71,6 +72,7 @@ export default function RootLayout({
       )}
     >
       <body>
+        {process.env.NEXT_PUBLIC_SENTRY_DSN && <SentryConsent />}
         <InstallPromptCapture />
         <ThemeProvider>{children}</ThemeProvider>
       </body>

@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import { createHash, timingSafeEqual } from "node:crypto"
 
 import { runDocumentCleanup } from "@/lib/server/documents"
@@ -44,14 +45,21 @@ async function runAuthorised(request: Request) {
   try {
     const report = await runDocumentCleanup(createAdminClient())
     // Counts only: document ids and paths stay out of logs.
-    console.info("document cleanup done", report)
     const failed = report.status === "completed" ? report.failed : 0
+    if (report.status === "completed")
+      logger.info(
+        "document cleanup done",
+        report.documents,
+        failed,
+        report.more
+      )
+    else logger.info("document cleanup skipped", report.reason)
     return Response.json(report, {
       status: failed > 0 ? 500 : 200,
       headers: NO_STORE,
     })
   } catch (error) {
-    console.error(
+    logger.error(
       "document cleanup failed",
       error instanceof Error ? error.message : "error"
     )

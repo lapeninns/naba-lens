@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import type { PostgrestError } from "@supabase/supabase-js"
 
 import type { Department } from "@/lib/config/departments"
@@ -56,7 +57,7 @@ function mapUpdateError(error: PostgrestError): AccountError {
       return fail("forbidden", FORBIDDEN_MESSAGE)
   }
   if (error.code === "42501") return fail("forbidden", FORBIDDEN_MESSAGE)
-  console.error("[accounts] profile update failed", { code: error.code })
+  logger.error("[accounts] profile update failed", error.code)
   return dbFailed()
 }
 
@@ -165,9 +166,10 @@ export async function setStaffActive(
       { ban_duration: DEACTIVATED_BAN_DURATION }
     )
     if (banError) {
-      console.error("[accounts] deactivate: session revocation failed", {
-        code: banError.code ?? null,
-      })
+      logger.error(
+        "[accounts] deactivate: session revocation failed",
+        banError.code ?? null
+      )
       return {
         ok: true,
         status: "inactive",
@@ -181,9 +183,7 @@ export async function setStaffActive(
   const { data: unbanned, error: unbanError } =
     await ctx.service.auth.admin.updateUserById(id, { ban_duration: "none" })
   if (unbanError) {
-    console.error("[accounts] reactivate: unban failed", {
-      code: unbanError.code ?? null,
-    })
+    logger.error("[accounts] reactivate: unban failed", unbanError.code ?? null)
     return fail(
       "auth_failed",
       "The account could not be reactivated. Nothing changed. Try again."

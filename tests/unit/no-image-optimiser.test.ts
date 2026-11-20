@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url"
 
 import { describe, expect, it } from "vitest"
 
-import nextConfig from "../../next.config"
+import { nextConfig } from "../../next.config"
 
 /**
  * Spec §7: private media must not pass through a shared image-optimisation

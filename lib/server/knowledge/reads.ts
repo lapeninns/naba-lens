@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import {
@@ -307,13 +308,11 @@ async function withGroupIds(
     { p_asset_ids: photos }
   )
   if (error) {
-    console.error(
+    logger.error(
       "[knowledge] contribution groups for my contributions failed",
-      {
-        error: redactError(
-          new Error(`${error.code || "unknown"}: ${error.message ?? ""}`)
-        ),
-      }
+      redactError(
+        new Error(`${error.code || "unknown"}: ${error.message ?? ""}`)
+      )
     )
     return page
   }

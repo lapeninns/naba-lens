@@ -1,7 +1,7 @@
 import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match"
 import { describe, expect, it } from "vitest"
 
-import nextConfig from "@/next.config"
+import { nextConfig } from "@/next.config"
 
 /** The headers Next sends for a path: every matching entry, later ones win. */
 async function effectiveHeaders(path: string) {

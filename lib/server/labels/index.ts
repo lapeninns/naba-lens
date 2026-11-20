@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 // v0.3 optional media labels, server side (docs/fanout/CONTRACT-v0.3-menus.md
@@ -24,7 +25,6 @@ import {
   type UploadLabelDiscardResult,
   type UploadLabelPostResult,
 } from "@/lib/menus/types"
-import { redactError } from "@/lib/server/log/redact"
 import type { Db, MediaActor, Outcome } from "@/lib/server/media/types"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -54,15 +54,7 @@ type DbError = {
 } | null
 
 function logFailure(where: string, error: unknown) {
-  console.error(`[labels] ${where} failed`, {
-    error: redactError(
-      error instanceof Error
-        ? error
-        : new Error(
-            `${(error as DbError)?.code ?? "unknown"}: ${(error as DbError)?.message ?? ""}`
-          )
-    ),
-  })
+  logger.error(`[labels] ${where} failed`, (error as DbError)?.code)
 }
 
 // ---------------------------------------------------------------------------

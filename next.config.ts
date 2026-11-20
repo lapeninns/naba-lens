@@ -46,7 +46,7 @@ function contentSecurityPolicy(): string {
     `img-src 'self' blob: data:${remote}`,
     `media-src 'self' blob:${remote}`,
     "font-src 'self' data:",
-    `connect-src 'self'${remote}${isDev ? " ws: wss:" : ""}`,
+    `connect-src 'self'${remote}${browserSentryOrigin()}${isDev ? " ws: wss:" : ""}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
@@ -99,7 +99,19 @@ const GUIDE_IMAGES_CACHE = {
   value: "public, max-age=31536000, immutable",
 }
 
-const nextConfig: NextConfig = {
+function browserSentryOrigin(): string {
+  try {
+    const dsn = new URL(process.env.NEXT_PUBLIC_SENTRY_DSN ?? "")
+    return dsn.protocol === "https:" &&
+      /\.ingest(?:\.[a-z]{2})?\.sentry\.io$/.test(dsn.hostname)
+      ? ` ${dsn.origin}`
+      : ""
+  } catch {
+    return ""
+  }
+}
+
+export const nextConfig: NextConfig = {
   // Opt these files into routing only in development. The fixture sign-in
   // page and its Server Action must have no production route or action entry.
   ...(isDev && { pageExtensions: ["dev.tsx", "tsx", "ts", "jsx", "js"] }),
@@ -130,4 +142,24 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default async function config() {
+  // A fixture or deployment without a DSN and all upload settings must neither
+  // load the build plugin nor emit or send public source maps.
+  if (
+    !process.env.SENTRY_DSN ||
+    !process.env.SENTRY_ORG ||
+    !process.env.SENTRY_PROJECT ||
+    !process.env.SENTRY_AUTH_TOKEN
+  )
+    return nextConfig
+
+  const { withSentryConfig } = await import("@sentry/nextjs/config")
+  return withSentryConfig(nextConfig, {
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    silent: true,
+    telemetry: false,
+    sourcemaps: { deleteSourcemapsAfterUpload: true },
+  })
+}

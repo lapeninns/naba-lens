@@ -16,7 +16,7 @@ export type ReaderFailure = {
   supported?: readonly string[]
 }
 
-const STATUS: Record<ReaderErrorCode, number> = {
+export const READER_ERROR_STATUS: Record<ReaderErrorCode, number> = {
   invalid_request: 400,
   unsupported_version: 400,
   unauthenticated: 401,
@@ -72,7 +72,7 @@ export function errorResponse(
     },
   }
   return new Response(head ? null : JSON.stringify(body), {
-    status: STATUS[failure.code],
+    status: READER_ERROR_STATUS[failure.code],
     headers,
   })
 }

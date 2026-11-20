@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import { createHash } from "node:crypto"
@@ -275,9 +276,10 @@ function zipStream(
     e: unknown
   ) => {
     done = true
-    console.error("[exports] zip failed", {
-      code: e instanceof Error ? e.message.slice(0, 80) : "unknown",
-    })
+    logger.error(
+      "[exports] zip failed",
+      e instanceof Error ? e.message.slice(0, 80) : "unknown"
+    )
     await finish(actor, started.downloadId, false).catch(() => undefined)
     controller.error(new Error("export_failed"))
   }

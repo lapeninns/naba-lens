@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import { createHash, timingSafeEqual } from "node:crypto"
 
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -45,13 +46,19 @@ async function runAuthorised(request: Request) {
     "knowledge_run_rechecks"
   )
   if (error) {
-    console.error("knowledge rechecks failed", error.code ?? "error")
+    logger.error("knowledge rechecks failed", error.code ?? "error")
     return Response.json(
       { error: "rechecks_failed" },
       { status: 500, headers: NO_STORE }
     )
   }
   // Counts only.
-  console.info("knowledge rechecks done", data)
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    logger.info(
+      "knowledge rechecks done",
+      typeof data.opened === "number" ? data.opened : null,
+      typeof data.closed === "number" ? data.closed : null
+    )
+  } else logger.info("knowledge rechecks done")
   return Response.json(data, { status: 200, headers: NO_STORE })
 }

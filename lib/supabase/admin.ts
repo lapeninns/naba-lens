@@ -3,6 +3,7 @@ import "server-only"
 import { createClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/db/types"
+import { correlatedFetch } from "@/lib/server/log/logger"
 import { getSupabasePublicEnv } from "@/lib/supabase/env"
 
 /**
@@ -17,6 +18,7 @@ export function createAdminClient() {
   }
   const { url } = getSupabasePublicEnv()
   return createClient<Database>(url, serviceRoleKey, {
+    global: { fetch: correlatedFetch(url) },
     auth: {
       persistSession: false,
       autoRefreshToken: false,

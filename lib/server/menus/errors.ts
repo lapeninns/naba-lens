@@ -2,6 +2,7 @@
 // (contract amendment A2.2: by error message = code, or SQLSTATE; never by
 // HTTP status, because PostgREST answers P0002 with 500). Pure.
 
+import { logger } from "@/lib/server/log/logger"
 import { redactError } from "@/lib/server/log/redact"
 
 type DbError =
@@ -146,18 +147,20 @@ export function menuRpcFailure(error: DbError, context: string): MenuFailure {
   if (code === "40001")
     return fail(409, "This changed elsewhere. Reload the page and try again.")
 
-  console.error(`[menus] ${context} failed`, {
-    error: redactError(new Error(`${code || "unknown"}: ${message}`)),
-  })
+  logger.error(
+    `[menus] ${context} failed`,
+    redactError(new Error(`${code || "unknown"}: ${message}`))
+  )
   return fail(503, "Menus could not be updated right now. Try again shortly.")
 }
 
 /** A read failed (RLS returns empty rather than erroring, so this is outage). */
 export function menuReadFailure(error: DbError, context: string): MenuFailure {
-  console.error(`[menus] ${context} read failed`, {
-    error: redactError(
+  logger.error(
+    `[menus] ${context} read failed`,
+    redactError(
       new Error(`${error?.code || "unknown"}: ${error?.message ?? ""}`)
-    ),
-  })
+    )
+  )
   return fail(503, "Menus could not be loaded right now. Try again shortly.")
 }

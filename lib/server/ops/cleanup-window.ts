@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import { abandonedUploadInterval, MEDIA_LIMITS } from "@/lib/config/media"
@@ -23,9 +24,7 @@ export async function orphanCleanupInterval(service: Db): Promise<string> {
     if (typeof days === "number" && Number.isInteger(days) && days >= 1)
       return `${days * 24} hours`
   } catch (error) {
-    console.error("[ops] orphan window read failed", {
-      error: redactError(error),
-    })
+    logger.error("[ops] orphan window read failed", redactError(error))
   }
   return MEDIA_LIMITS.abandonedUploadWindowHours > fallbackDays * 24
     ? abandonedUploadInterval(MEDIA_LIMITS)

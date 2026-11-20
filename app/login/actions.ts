@@ -23,6 +23,7 @@ import {
 } from "@/lib/auth/routes"
 import { getSiteUrl } from "@/lib/supabase/env"
 import { createClient } from "@/lib/supabase/server"
+import { logger } from "@/lib/server/log/logger"
 
 /**
  * Sends a sign-in link. The result is the same for known and unknown emails;
@@ -60,7 +61,8 @@ export async function requestSignInLink(
     supabase,
     email,
     `${getSiteUrl()}/auth/callback`,
-    captcha.enabled ? captchaToken! : undefined
+    captcha.enabled ? captchaToken! : undefined,
+    logger.error
   )
   if (result.status === "captcha_failed") {
     return { error: CAPTCHA_RETRY_MESSAGE }
@@ -85,7 +87,12 @@ export async function verifySignInCodeAction(
   const code = normaliseSignInCode(rawCode)
   if (!code) return { error: SIGN_IN_CODE_FORMAT_MESSAGE }
 
-  const result = await verifySignInCode(await createClient(), email, code)
+  const result = await verifySignInCode(
+    await createClient(),
+    email,
+    code,
+    logger.error
+  )
   const error = signInCodeError(result)
   return error ? { error } : { ok: true }
 }

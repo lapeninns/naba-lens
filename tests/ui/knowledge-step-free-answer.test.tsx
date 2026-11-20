@@ -6,6 +6,9 @@
 // headlines, questions and old answers keep their words; no person is named.
 import { cleanup, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { AmenityCheckDetail } from "@/components/nabalens/amenities/manage"
+
+import { detail, STEP_FREE_CHECK } from "./amenities-manage-fixtures"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -305,11 +308,7 @@ describe("the manager's Where it stands", () => {
     }
   }
 
-  async function renderCheck(answer: AnswerInUse) {
-    const { AmenityCheckDetail } =
-      await import("@/components/nabalens/amenities/manage")
-    const { detail, STEP_FREE_CHECK } =
-      await import("./amenities-manage-fixtures")
+  function renderCheck(answer: AnswerInUse) {
     render(
       <AmenityCheckDetail
         detail={detail({
@@ -338,8 +337,8 @@ describe("the manager's Where it stands", () => {
     return { section, row }
   }
 
-  it("shows where, Checked on and Recorded apart, then what it covers", async () => {
-    const { section, row } = await renderCheck(STEP_FREE_YES)
+  it("shows where, Checked on and Recorded apart, then what it covers", () => {
+    const { section, row } = renderCheck(STEP_FREE_YES)
     expect(row("Answer")).toMatch(/^Current answer: Yes, at Main entrance\./)
     expect(row("Checked on")).toBe("3 Nov 2026")
     expect(row("Recorded")).toBe("4 Nov 2026")
@@ -357,8 +356,8 @@ describe("the manager's Where it stands", () => {
     ).toBeTruthy()
   })
 
-  it("names no place and says nothing it covers when the entrance can't be named", async () => {
-    const { section, row } = await renderCheck({
+  it("names no place and says nothing it covers when the entrance can't be named", () => {
+    const { section, row } = renderCheck({
       ...STEP_FREE_YES,
       entranceLabels: undefined,
     })
@@ -368,8 +367,8 @@ describe("the manager's Where it stands", () => {
     expect(within(section).queryByText(/^This covers/)).toBeNull()
   })
 
-  it("keeps an old answer's line and adds no date rows", async () => {
-    const { section, row } = await renderCheck({
+  it("keeps an old answer's line and adds no date rows", () => {
+    const { section, row } = renderCheck({
       ...STEP_FREE_YES,
       answerDetail: undefined,
       observedOn: undefined,

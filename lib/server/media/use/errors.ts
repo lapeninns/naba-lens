@@ -2,6 +2,7 @@
 // HTTP status: PostgREST answers named exceptions with 500. Anything not
 // listed is logged redacted and becomes a retryable 503.
 
+import { logger } from "@/lib/server/log/logger"
 import type { DbError } from "@/lib/server/amenities/errors"
 import { redactError } from "@/lib/server/log/redact"
 
@@ -105,9 +106,7 @@ export function mediaUseRpcFailure(
   const message = error?.message ?? ""
   const hit = MAPPING[message]
   if (hit) return mediaUseFailure(hit[0], hit[1])
-  console.error(`[media-use] ${context} failed`, {
-    error: redactError(error),
-  })
+  logger.error(`[media-use] ${context} failed`, redactError(error))
   return mediaUseFailure(
     "unavailable",
     "Something went wrong. Try again in a moment."

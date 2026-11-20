@@ -98,7 +98,7 @@ describe("login CAPTCHA", () => {
   it("allows only Turnstile's documented script/frame origin when enabled", async () => {
     configure()
     vi.resetModules()
-    const { default: nextConfig } = await import("../../next.config")
+    const { nextConfig } = await import("../../next.config")
     expect(nextConfig.logging).toMatchObject({ serverFunctions: false })
     const rules = await nextConfig.headers!()
     const csp = rules[0].headers.find(
@@ -116,7 +116,7 @@ describe("login CAPTCHA", () => {
     configure("")
     vi.stubEnv("AUTH_CAPTCHA_ENABLED", "")
     vi.resetModules()
-    const { default: nextConfig } = await import("../../next.config")
+    const { nextConfig } = await import("../../next.config")
     const rules = await nextConfig.headers!()
     const csp = rules[0].headers.find(
       (header) => header.key === "Content-Security-Policy"

@@ -2,6 +2,7 @@
 // by HTTP status. Logs carry only a context and the redacted error: no
 // document id, filename or path.
 
+import { logger } from "@/lib/server/log/logger"
 import type { DbError } from "@/lib/server/amenities/errors"
 import { redactError } from "@/lib/server/log/redact"
 
@@ -79,7 +80,7 @@ export function documentRpcFailure(
 ): DocumentFailure {
   const hit = MAPPING[error?.message ?? ""]
   if (hit && hit[0] !== "unavailable") return documentFailure(hit[0], hit[1])
-  console.error(`[documents] ${context} failed`, { error: redactError(error) })
+  logger.error(`[documents] ${context} failed`, redactError(error))
   return documentFailure(
     "unavailable",
     "Something went wrong. Try again in a moment."

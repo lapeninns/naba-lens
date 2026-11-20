@@ -85,6 +85,8 @@ These do not need a Supabase stack. For `pnpm test:integration`,
 `pnpm test:migrations "$W" <phase>` ([backup and restore](docs/backup-restore.md)),
 follow [isolated test setup](docs/setup.md#4-checks-and-isolated-test-stacks).
 `bash scripts/ci/local-ci.sh` runs the whole fixture gate ([CI](docs/ci.md)).
+See [readiness gates and owner actions](docs/readiness.md) for the pre-push
+checks, generated API contract, release notes and operator configuration.
 Integration/e2e's bare-status fallback does not discover a temporary `$W`:
 supply its explicit credentials privately. Tests write local test data.
 E2e builds and starts a production server (`next build && next start`, :3457 by

@@ -133,10 +133,10 @@ export function abortError() {
   return new DOMException("The operation was aborted.", "AbortError")
 }
 
-/** Let every already-resolved promise continuation run. */
-export async function flush(rounds = 20) {
-  for (let i = 0; i < rounds; i++)
-    await new Promise<void>((r) => setImmediate(r))
+/** One event-loop turn drains the promise microtask queue. The fixture's
+ * timers advance only through TestClock, not through extra real turns. */
+export function flush() {
+  return new Promise<void>((resolve) => setImmediate(resolve))
 }
 
 /** What the fake bucket needs from a clock. */

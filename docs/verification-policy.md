@@ -43,7 +43,7 @@ this CLI is workflow enforcement, not a security boundary against an agent that
 ignores instructions.
 
 `verify:release` checks the pushed PR head, records qualification intent before
-calling the real `~/.local/bin/lci run naba-lens --pr N --post --comment`, then
+calling the real `~/.local/bin/lci run naba-lens --pr N --post --comment --wait`, then
 reads back the exact PR's result. No alternate runner, forced run, partial gate,
 profile bypass, merge or deployment is performed. A dirty/moved candidate, a changed installed CI profile, missing required local
 job statuses, or an unknown result is blocked. A second call against the same frozen candidate is

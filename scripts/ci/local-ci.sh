@@ -32,12 +32,14 @@ mkdir -p "$logdir"
 steps=(); results=(); failed=0; started=0
 run() {
   local name=$1; shift
+  local before=$SECONDS
   steps+=("$name")
   if "$@" >"$logdir/$name.log" 2>&1; then results+=(PASS); else
     results+=(FAIL); failed=1
     tail -n 35 "$logdir/$name.log"
     return 1
   fi
+  printf '%s: %ss\n' "$name" "$((SECONDS - before))"
 }
 finish() {
   local exit_status=$?
@@ -59,9 +61,14 @@ if [[ "$phase" != browser ]]; then
   run typecheck pnpm typecheck || true
   run lint pnpm lint || true
   run unit pnpm test || true
+  run coverage pnpm test:coverage || true
   run monitoring pnpm test:monitoring || true
   run archive pnpm test:archive || true
   run verification pnpm test:verification || true
+  run quality pnpm quality || true
+  run docs pnpm docs:check || true
+  run api-contract pnpm docs:api || true
+  run secrets pnpm scan:secrets || true
 fi
 if [[ "$phase" == common ]]; then
   # A failed common check never publishes reusable evidence.
@@ -70,6 +77,7 @@ if [[ "$phase" == common ]]; then
   exit "$failed"
 fi
 run build pnpm build && run scan-bundle node scripts/ci/scan-bundle.mjs || true
+run bundle-size pnpm analyze:bundle || true
 run prepare node scripts/ci/prepare-stack.mjs "$work" || exit 1
 export E2E_PORT
 E2E_PORT=$(cat "$work/e2e-port") || exit 1
@@ -79,5 +87,9 @@ run reset supabase --workdir "$work" db reset || exit 1
 supabase --workdir "$work" status -o json > "$work/status.json" 2>/dev/null || exit 1
 run database-and-browser node scripts/ci/run-suites.mjs "$work" || true
 # After the browser suites: reuses their stack build and e2e port (never skipped).
-run privacy-runtime node scripts/ci/privacy-runtime.mjs "$work" || true
+if [[ "$phase" == full || ( "${CI_BROWSER:-chromium}" == chromium && "${CI_PLAYWRIGHT_SHARD:-1/2}" == 1/2 ) ]]; then
+  run privacy-runtime node scripts/ci/privacy-runtime.mjs "$work" --zap || true
+else
+  run privacy-runtime node scripts/ci/privacy-runtime.mjs "$work" || true
+fi
 exit "$failed"

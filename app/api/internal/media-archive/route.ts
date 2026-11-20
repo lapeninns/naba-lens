@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import { archiveBearerAuthorized } from "@/lib/server/archive/authorization"
 import { runArchiveAudit } from "@/lib/server/archive/audit"
 import { readArchiveConfig } from "@/lib/server/archive/config"
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
     const report = await runArchiveAudit(createAdminClient())
     // partial, locked and idle are normal for a cycle that spans invocations.
     if (report.outcome === "failed") {
-      console.error("media archive audit failed")
+      logger.error("media archive audit failed")
       return Response.json(
         { error: "archive_audit_failed", outcome: report.outcome },
         { status: 500, headers }
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
     return Response.json(report, { status: ok ? 200 : 503, headers })
   } catch {
     // Provider details, source names, object keys and credentials stay out of logs.
-    console.error("media archive audit failed")
+    logger.error("media archive audit failed")
     return Response.json(
       { error: "archive_audit_failed" },
       { status: 500, headers }

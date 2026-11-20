@@ -241,7 +241,7 @@ function release() {
   // No shell, alternate runner, --force, --only, profile rewrite, merge or gate bypass.
   const result = spawnSync(
     join(homedir(), ".local/bin/lci"),
-    ["run", "naba-lens", "--pr", String(s.pr), "--post", "--comment"],
+    ["run", "naba-lens", "--pr", String(s.pr), "--post", "--comment", "--wait"],
     { stdio: "inherit" }
   )
   let passed = false

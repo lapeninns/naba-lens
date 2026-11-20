@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import { apiError, fromDbError } from "@/lib/server/http/errors"
@@ -57,11 +58,10 @@ const SETTINGS_ERRORS: Record<
 }
 
 function logged(context: string, error: { code?: string; message?: string }) {
-  console.error(`[ops] ${context} failed`, {
-    error: redactError(
-      new Error(`${error.code ?? "unknown"}: ${error.message ?? ""}`)
-    ),
-  })
+  logger.error(
+    `[ops] ${context} failed`,
+    redactError(new Error(`${error.code ?? "unknown"}: ${error.message ?? ""}`))
+  )
 }
 
 export async function loadOpsSettings(

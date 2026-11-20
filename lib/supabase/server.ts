@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
 import type { Database } from "@/lib/db/types"
+import { correlatedFetch } from "@/lib/server/log/logger"
 import { getSupabasePublicEnv } from "@/lib/supabase/env"
 
 /**
@@ -15,6 +16,7 @@ export async function createClient() {
   const { url, publishableKey } = getSupabasePublicEnv()
 
   return createServerClient<Database>(url, publishableKey, {
+    global: { fetch: correlatedFetch(url) },
     cookies: {
       getAll() {
         return cookieStore.getAll()

@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import { intInRange } from "@/lib/server/coverage/validate"
@@ -49,9 +50,10 @@ async function answersFor(
     p_asset_ids: ids,
   })
   if (error || !data || !Array.isArray(data.items)) {
-    console.error("[asset-search] asset_search_answers failed", {
-      error: redactError(error ?? { message: "malformed" }),
-    })
+    logger.error(
+      "[asset-search] asset_search_answers failed",
+      redactError(error ?? { message: "malformed" })
+    )
     return out
   }
   for (const row of data.items)

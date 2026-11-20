@@ -449,10 +449,12 @@ describe("coverage RPC failure mapping (schema v4 §8)", () => {
     const f = map("relation does not exist", "42P01")
     expect(f).toMatchObject({ code: "unavailable", status: 503 })
     expect(f.message).not.toContain("relation")
-    expect(log).toHaveBeenCalledWith(
-      "[coverage] test failed",
-      expect.anything()
-    )
+    expect(log).toHaveBeenCalledOnce()
+    expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
+      level: "error",
+      event: "[coverage] test failed",
+      details: [expect.stringContaining("42P01")],
+    })
   })
 
   it("uses one status per error code", () => {

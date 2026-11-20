@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
@@ -70,19 +71,15 @@ export default async function StaffPortfolioPage({
       getPersonVenuePrivileges(ctx, member.id),
     ])
   if (!privileges.ok) {
-    console.error("[staff] venue privileges unavailable", {
-      code: privileges.code,
-    })
+    logger.error("[staff] venue privileges unavailable", privileges.code)
   }
   // Context only: a failed read says so in the section instead of failing the page.
   if (!history.ok) {
-    console.error("[staff] account type history unavailable", {
-      code: history.code,
-    })
+    logger.error("[staff] account type history unavailable", history.code)
   }
   // Like the grants, the month only adds context: a failed read leaves it out.
   if (roster && !roster.ok) {
-    console.error("[staff] month unavailable", { code: roster.code })
+    logger.error("[staff] month unavailable", roster.code)
   }
   const monthly = roster?.ok
     ? (roster.roster.find((row) => row.person.id === member.id) ?? null)

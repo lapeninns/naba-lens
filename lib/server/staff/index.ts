@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import { apiError, fromDbError, type ApiError } from "@/lib/server/http/errors"
@@ -31,11 +32,10 @@ type Result<T> = ({ ok: true } & T) | ApiError
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function logged(context: string, error: { code?: string; message?: string }) {
-  console.error(`[staff] ${context} failed`, {
-    error: redactError(
-      new Error(`${error.code ?? "unknown"}: ${error.message ?? ""}`)
-    ),
-  })
+  logger.error(
+    `[staff] ${context} failed`,
+    redactError(new Error(`${error.code ?? "unknown"}: ${error.message ?? ""}`))
+  )
 }
 
 /** RPCs added in this task, called by name (the types know them). */

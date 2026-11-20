@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+corepack pnpm@10.30.1 quality
+corepack pnpm@10.30.1 docs:check
+corepack pnpm@10.30.1 scan:secrets

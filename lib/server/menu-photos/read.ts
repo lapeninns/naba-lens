@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import { menuPhotoRoutes, neededByView } from "@/lib/server/coverage/menu-items"
@@ -384,9 +385,7 @@ async function itemsWithVariants(ctx: ManagerPhotoCtx): Promise<Set<string>> {
       p_limit: 101,
     })
     if (error) {
-      console.error("[menu-photos] item variants unavailable", {
-        code: error.code,
-      })
+      logger.error("[menu-photos] item variants unavailable", error.code)
       return found
     }
     const rows: ItemRow[] = data ?? []

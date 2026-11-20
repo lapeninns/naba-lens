@@ -1,0 +1,17 @@
+{
+  "AUTH_CAPTCHA_ENABLED": {
+    "definition": "lib/auth/captcha.ts",
+    "accessor": "getLoginCaptchaConfig",
+    "owner": "Auth maintainers"
+  },
+  "NABALENS_ALBUM_MOCK_PHOTOS": {
+    "definition": "lib/album/mock-photos.ts",
+    "accessor": "ALBUM_MOCK_PHOTOS",
+    "owner": "Album maintainers"
+  },
+  "NEXT_PUBLIC_NABALENS_UPLOAD_TRAY": {
+    "definition": "lib/config/album-upload-tray.ts",
+    "accessor": "ALBUM_UPLOAD_TRAY",
+    "owner": "Album maintainers"
+  }
+}

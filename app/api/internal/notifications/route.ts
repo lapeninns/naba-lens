@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import { archiveBearerAuthorized } from "@/lib/server/archive/authorization"
 import { runNotificationJobs } from "@/lib/server/notifications"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -40,7 +41,7 @@ async function runAuthorised(request: Request) {
       { status: 200, headers }
     )
   } catch {
-    console.error("notification job failed")
+    logger.error("notification job failed")
     return Response.json(
       { error: "notification_job_failed" },
       { status: 500, headers }

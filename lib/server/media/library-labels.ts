@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import type {
   LabelCatalogue,
   LibraryLabelFilterOptions,
@@ -84,9 +85,10 @@ export async function libraryLabelFilterOptions(
   try {
     return await readOptions(actor, venueId)
   } catch (error) {
-    console.error("[media] library label filter options unavailable", {
-      error: redactError(error),
-    })
+    logger.error(
+      "[media] library label filter options unavailable",
+      redactError(error)
+    )
     return NONE
   }
 }

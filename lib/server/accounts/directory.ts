@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import type { User } from "@supabase/supabase-js"
 
 import type { Department } from "@/lib/config/departments"
@@ -102,9 +103,7 @@ export type AuthDetails = "ok" | "unavailable"
 
 function logAuthUnavailable(where: string, error: unknown) {
   if (!(error instanceof AuthLookupError)) throw error
-  console.error(`[accounts] ${where}: auth details unavailable`, {
-    reason: error.reason,
-  })
+  logger.error(`[accounts] ${where}: auth details unavailable`, error.reason)
 }
 
 function toEntry(

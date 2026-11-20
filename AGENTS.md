@@ -38,6 +38,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   no browser journey. Separate local checks, CI, deployment and live proof.
 - Operation: see `docs/verification-policy.md`. The ledger is workflow evidence,
   not a security boundary or permission to bypass required release checks.
+- Run `pnpm hooks:install` once in your clone. Run `pnpm quality` before
+  requesting review. Use kebab-case filenames and link new debt markers as
+  `TODO(#123)` or `FIXME(#123)`.
 
 ## UI changes
 

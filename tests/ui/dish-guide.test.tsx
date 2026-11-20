@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
@@ -128,6 +129,10 @@ describe("DishGuide", () => {
     render(<DishGuide suggested={[]} initialDish="curry" />)
     await user.click(tile(/^Side view/))
     const dialog = await screen.findByRole("dialog")
+    // The dialog mounts before its focus manager hands it the keyboard.
+    await waitFor(() =>
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    )
     expect(within(dialog).getByText("4 of 4 · Curry")).toBeTruthy()
     await user.keyboard("{ArrowRight}")
     expect(within(dialog).getByText("4 of 4 · Curry")).toBeTruthy()

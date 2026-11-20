@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import type { User } from "@supabase/supabase-js"
 
 import {
@@ -85,9 +86,7 @@ export async function inviteStaff(
     )
   } catch (error) {
     if (!(error instanceof AuthLookupError)) throw error
-    console.error("[accounts] invite: auth lookup unavailable", {
-      reason: error.reason,
-    })
+    logger.error("[accounts] invite: auth lookup unavailable", error.reason)
     return asError(
       fail(
         "auth_failed",
@@ -128,9 +127,7 @@ export async function inviteStaff(
           })
         )
       }
-      console.error("[accounts] invite: create user failed", {
-        code: error?.code ?? null,
-      })
+      logger.error("[accounts] invite: create user failed", error?.code ?? null)
       return asError(
         fail(
           "auth_failed",
@@ -166,18 +163,14 @@ export async function inviteStaff(
     if (insertError.message === "venue_inactive") {
       return asError(venueInactive())
     }
-    console.error("[accounts] invite: profile insert failed", {
-      code: insertError.code,
-    })
+    logger.error("[accounts] invite: profile insert failed", insertError.code)
     return asError(dbFailed())
   }
 
   const mailer = ctx.mailer ?? supabaseInviteMailer(service)
   const { error: mailError } = await mailer(input.email)
   if (mailError) {
-    console.error("[accounts] invite: email failed", {
-      code: mailError.code ?? null,
-    })
+    logger.error("[accounts] invite: email failed", mailError.code ?? null)
     return { status: "partial", userId, message: INVITE_EMAIL_FAILED }
   }
   return { status: "sent", userId }
@@ -224,9 +217,7 @@ export async function resendInvitation(
     )
   } catch (error) {
     if (!(error instanceof AuthLookupError)) throw error
-    console.error("[accounts] resend: auth lookup unavailable", {
-      reason: error.reason,
-    })
+    logger.error("[accounts] resend: auth lookup unavailable", error.reason)
     return fail(
       "auth_failed",
       "The sign-in service is not responding. No email was sent. Try again in a minute."
@@ -243,9 +234,7 @@ export async function resendInvitation(
     if (mailError.code === "email_exists") {
       return alreadySignedIn(profile.display_name)
     }
-    console.error("[accounts] resend: email failed", {
-      code: mailError.code ?? null,
-    })
+    logger.error("[accounts] resend: email failed", mailError.code ?? null)
     return fail(
       "auth_failed",
       "The invitation email could not be sent. Wait a minute and try again."

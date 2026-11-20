@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import { randomUUID } from "node:crypto"
@@ -335,9 +336,9 @@ export async function runArchiveAudit(
         }),
         finalSignal()
       )
-      if (inserted.error) console.error("media archive audit run record failed")
+      if (inserted.error) logger.error("media archive audit run record failed")
     } catch {
-      console.error("media archive audit run record failed")
+      logger.error("media archive audit run record failed")
     }
   }
 
@@ -751,14 +752,12 @@ export async function runArchiveAudit(
 
   async function prune() {
     const cutoff = iso(now() - ARCHIVE_AUDIT_RUN_RETENTION_DAYS * 86_400_000)
+    const history = service.from("media_archive_audit_runs")
     const pruned = await request(
-      service
-        .from("media_archive_audit_runs")
-        .delete()
-        .lt("finished_at", cutoff),
+      history.delete().lt("finished_at", cutoff),
       finalSignal()
     ).catch(() => ({ error: true }))
-    if (pruned.error) console.error("media archive audit run prune failed")
+    if (pruned.error) logger.error("media archive audit run prune failed")
   }
 }
 

@@ -2,6 +2,7 @@
 // exception code) or SQLSTATE, never by HTTP status: PostgREST answers named
 // exceptions with 500. Unexpected failures are logged redacted and become 503.
 
+import { logger } from "@/lib/server/log/logger"
 import {
   EVIDENCE_RULES,
   type AmenityErrorCode,
@@ -66,11 +67,12 @@ export function unavailableFailure(
   context: string,
   error?: DbError
 ): AmenityFailure {
-  console.error(`[amenities] ${context} failed`, {
-    error: redactError(
+  logger.error(
+    `[amenities] ${context} failed`,
+    redactError(
       new Error(`${error?.code || "unknown"}: ${error?.message ?? ""}`)
-    ),
-  })
+    )
+  )
   return failure("unavailable", UNAVAILABLE_MESSAGE)
 }
 

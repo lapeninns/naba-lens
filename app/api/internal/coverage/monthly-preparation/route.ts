@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import { archiveBearerAuthorized } from "@/lib/server/archive/authorization"
 import { runScheduledPreparation } from "@/lib/server/coverage/preparation"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -30,7 +31,7 @@ async function runAuthorised(request: Request) {
   try {
     const result = await runScheduledPreparation(createAdminClient())
     if (!result.ok) {
-      console.error("coverage monthly preparation failed")
+      logger.error("coverage monthly preparation failed")
       return Response.json(
         { error: "preparation_failed" },
         { status: 500, headers }
@@ -48,9 +49,10 @@ async function runAuthorised(request: Request) {
       errorCode: r.errorCode,
     }))
     if (result.failed)
-      console.error("coverage monthly preparation failed", {
-        errorCodes: runs.map((r) => r.errorCode).filter(Boolean),
-      })
+      logger.error(
+        "coverage monthly preparation failed",
+        ...runs.flatMap(({ errorCode }) => (errorCode ? [errorCode] : []))
+      )
     // A failure status makes the cron history show the run as failed; the
     // next hourly run retries.
     return Response.json(
@@ -58,7 +60,7 @@ async function runAuthorised(request: Request) {
       { status: result.failed ? 500 : 200, headers }
     )
   } catch {
-    console.error("coverage monthly preparation failed")
+    logger.error("coverage monthly preparation failed")
     return Response.json(
       { error: "preparation_failed" },
       { status: 500, headers }

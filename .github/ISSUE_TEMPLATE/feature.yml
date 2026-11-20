@@ -1,0 +1,17 @@
+name: Feature or maintenance request
+description: Propose a scoped change with a verifiable outcome.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and context
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria and constraints
+      description: Include affected roles, data boundaries, and relevant docs or tests.
+    validations:
+      required: true

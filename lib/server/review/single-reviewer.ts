@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 // FA-9 single-reviewer venue (S3-R1 K6): the admin reads and changes the
@@ -42,7 +43,7 @@ function failed(
   if (known) return known
   const mapped = fromDbError(error)
   if (mapped.code === "unavailable")
-    console.error(`[review] ${what} failed`, redactError(error))
+    logger.error(`[review] ${what} failed`, redactError(error))
   return mapped
 }
 

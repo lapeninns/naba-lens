@@ -1,3 +1,4 @@
+import { logger } from "@/lib/server/log/logger"
 import "server-only"
 
 import { getCoverageActor, listManagerGrants } from "@/lib/server/coverage"
@@ -19,7 +20,7 @@ export async function loadManagerGrants({
     includeRevoked: includeEnded,
   })
   if (!result.ok) {
-    console.error("[staff] manager grants unavailable", { code: result.code })
+    logger.error("[staff] manager grants unavailable", result.code)
     return null
   }
   return result.grants
