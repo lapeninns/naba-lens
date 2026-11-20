@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import {
+  act,
   cleanup,
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
@@ -128,6 +130,10 @@ describe("DishGuide", () => {
     render(<DishGuide suggested={[]} initialDish="curry" />)
     await user.click(tile(/^Side view/))
     const dialog = await screen.findByRole("dialog")
+    // A mounted dialog is not necessarily focused until its opening lifecycle.
+    await waitFor(() =>
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    )
     expect(within(dialog).getByText("4 of 4 · Curry")).toBeTruthy()
     await user.keyboard("{ArrowRight}")
     expect(within(dialog).getByText("4 of 4 · Curry")).toBeTruthy()
@@ -148,6 +154,39 @@ describe("DishGuide", () => {
     expect(live?.textContent).toBe(
       "2 of 4, Overhead. Phone flat, straight above. Whole plate in, with some dark background around it."
     )
+  })
+
+  it("keeps rapid arrow steps before a render and restores focus at both ends", async () => {
+    const user = userEvent.setup()
+    render(<DishGuide suggested={[]} initialDish="curry" />)
+    await user.click(tile(/^Side view/))
+    const dialog = await screen.findByRole("dialog")
+    await waitFor(() =>
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    )
+    const previous = within(dialog).getByRole("button", { name: "Previous" })
+    const next = within(dialog).getByRole("button", { name: "Next" })
+    // Hold both events in one React batch, not a machine-dependent delay.
+    act(() => {
+      fireEvent.keyDown(dialog, { key: "ArrowLeft" })
+      fireEvent.keyDown(dialog, { key: "ArrowLeft" })
+    })
+    expect(within(dialog).getByText("2 of 4 · Curry")).toBeTruthy()
+    act(() => {
+      previous.focus()
+      for (let i = 0; i < 5; i++)
+        fireEvent.keyDown(dialog, { key: "ArrowLeft" })
+    })
+    expect(within(dialog).getByText("1 of 4 · Curry")).toBeTruthy()
+    expect((previous as HTMLButtonElement).disabled).toBe(true)
+    expect(document.activeElement).toBe(next)
+    act(() => {
+      for (let i = 0; i < 5; i++)
+        fireEvent.keyDown(dialog, { key: "ArrowRight" })
+    })
+    expect(within(dialog).getByText("4 of 4 · Curry")).toBeTruthy()
+    expect((next as HTMLButtonElement).disabled).toBe(true)
+    expect(document.activeElement).toBe(previous)
   })
 
   it("a swipe steps; a second finger (pinch) does not", async () => {

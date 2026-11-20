@@ -170,7 +170,12 @@ export function DishGuide({
       <GuideViewer
         dish={dish}
         index={viewer.index}
-        onIndexChange={(index) => setViewer((v) => ({ ...v, index }))}
+        onIndexChange={(update) =>
+          setViewer((v) => {
+            const index = update(v.index)
+            return index === v.index ? v : { ...v, index }
+          })
+        }
         open={viewer.open}
         onOpenChange={(open) => setViewer((v) => ({ ...v, open }))}
         returnFocus={() => opener.current}
