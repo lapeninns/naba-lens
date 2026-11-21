@@ -61,9 +61,10 @@ export const RECONCILE_COPY = {
     unknown: "Not checked",
   } as const,
   showOlder: "Show more",
-  runsTitle: "Runs",
-  runs: "Runs",
-  noRuns: "No runs yet.",
+  // Runs are called Imports (redesign R5, ia.md decision 7).
+  runsTitle: "Imports",
+  runs: "Imports",
+  noRuns: "No imports yet.",
   runKind: { legacy: "Old facts", external: "Other sources" } as const,
   runMode: { dry_run: "Dry run", apply: "Applied" } as const,
   started: (by: string, at: string) => `Started by ${by}, ${at}`,

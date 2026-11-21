@@ -17,6 +17,7 @@ import {
 import { loadActivity } from "@/lib/server/audit"
 import { getCoverageActor } from "@/lib/server/coverage"
 
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
 import { ActivityList } from "./activity-list"
 
 export const metadata: Metadata = { title: "Activity · Settings" }
@@ -76,23 +77,17 @@ export default async function AdminActivityPage({
         <div className="flex flex-col gap-4">
           <PageHeader
             scope="All venues"
-            title="Activity"
+            title={ADMIN_SECTION_TITLES.settings}
             summary={
               <p>
                 Who changed what, where and why. Newest first. Nothing here can
                 be edited.
               </p>
             }
-            actions={
-              <Link
-                href="/admin/settings"
-                className={buttonVariants({ variant: "secondary" })}
-              >
-                Settings
-              </Link>
-            }
             className="pb-0 md:pb-0"
-          />
+          >
+            <AdminTabs set="settings" active="activity" />
+          </PageHeader>
           <OfflineNotice />
         </div>
 

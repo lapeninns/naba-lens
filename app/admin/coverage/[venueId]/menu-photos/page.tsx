@@ -37,7 +37,8 @@ export default async function AdminMenuPhotosPage({
   return (
     <ManageFrame
       ctx={ctx}
-      section="menu_items"
+      section="review"
+      adminView={{ tab: "review", pick: "menu-and-spaces" }}
       title={REVIEW_COPY.adminTitle}
       summary={<p>{REVIEW_COPY.summary}</p>}
       pendingReview={ctx.coverage?.summary.pendingReview}

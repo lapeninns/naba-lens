@@ -41,12 +41,18 @@ vi.mock("@/app/staff/manage/_shared/frame", () => ({
   // The real frame renders the page title as the h1 inside its shell.
   ManageFrame: ({
     title,
+    adminView,
     children,
   }: {
     title: string
+    adminView?: { tab: string; pick?: string }
     children: ReactNode
   }) => (
-    <div>
+    <div
+      data-admin-view={
+        adminView ? `${adminView.tab}/${adminView.pick}` : undefined
+      }
+    >
       <h1>{title}</h1>
       {children}
     </div>
@@ -132,9 +138,22 @@ describe("Places pages", () => {
       expect(
         screen.getByRole("heading", { level: 1, name: "Places at ⟨Venue⟩" })
       ).toBeTruthy()
-      expect(
-        screen.getByRole("link", { name: "All amenities" }).getAttribute("href")
-      ).toBe(list)
+      if (name === "admin") {
+        // An admin's places are the venue's Album › Spaces (redesign R5,
+        // ia.md); the frame's Album pick is the way to Amenities.
+        expect(
+          document
+            .querySelector("[data-admin-view]")
+            ?.getAttribute("data-admin-view")
+        ).toBe("album/spaces")
+        expect(screen.queryByRole("link", { name: "All amenities" })).toBeNull()
+      } else {
+        expect(
+          screen
+            .getByRole("link", { name: "All amenities" })
+            .getAttribute("href")
+        ).toBe(list)
+      }
       expect(screen.getByText("⟨Main entrance⟩")).toBeTruthy()
     }
   )

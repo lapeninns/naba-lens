@@ -28,14 +28,20 @@ import { TabBadge } from "./shell/tab-badge"
 import { TAB_ITEM } from "./shell/tab-item"
 import { CountBadge } from "./status-chip"
 
-type AdminSection =
+/**
+ * The admin nav section a page lights (redesign R5, ia.md "Admin"). Overview
+ * is all venues at once (/admin/overview, albums, coverage, metrics); Venues
+ * is one venue at a time (/admin/venues/** and every
+ * /admin/coverage/[venueId]/** page); People holds /admin/coverage/managers;
+ * Settings holds /admin/activity and /admin/knowledge/**. Each page passes
+ * its section itself, so there is no alias to keep in step.
+ */
+export type AdminSection =
   | "overview"
   | "venues"
   | "content"
   | "staff"
   | "menus"
-  | "coverage"
-  | "albums"
   | "publishing"
   | "settings"
   | "more"
@@ -118,14 +124,16 @@ export type AdminNavItem = NavItem<AdminSection> & {
  * Spec §8: Overview / Venues / Menus & catalog / Library / Publishing /
  * People / Settings & activity. The bar shows the short label (the spec's
  * names don't fit beside Log out within max-w-page; departures.md A-ADMIN-1).
- * Coverage and Albums are reached from Overview, which they light up.
+ * Albums, This month and Metrics are Overview's tabs, Venue managers is a
+ * People tab, and Activity and Venue facts are Settings tabs (redesign R5,
+ * ia.md; app/admin/_components/admin-tabs.tsx).
  */
 export const ADMIN_NAV: AdminNavItem[] = [
   {
     id: "overview",
     label: "Overview",
     fullLabel: "Overview",
-    description: "Every venue's coverage, facts, backlog and exceptions.",
+    description: "Every venue at once: albums, this month and metrics.",
     href: "/admin/overview",
     icon: ChartBarIcon,
   },
@@ -133,7 +141,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     id: "venues",
     label: "Venues",
     fullLabel: "Venues",
-    description: "Names, locations, status, reviewers and setup.",
+    description: "One venue at a time: coverage, review, album and setup.",
     href: "/admin/venues",
     icon: StorefrontIcon,
   },
@@ -166,7 +174,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     id: "staff",
     label: "People",
     fullLabel: "People",
-    description: "Invite people, venue roles, admins and access.",
+    description: "Accounts, venue managers, admins and access.",
     href: "/admin/staff",
     icon: UsersIcon,
   },
@@ -175,17 +183,11 @@ export const ADMIN_NAV: AdminNavItem[] = [
     id: "settings",
     label: "Settings",
     fullLabel: "Settings & activity",
-    description: "Rules for every venue, monitoring and the activity log.",
+    description: "Rules for every venue, the activity log and venue facts.",
     href: "/admin/settings",
     icon: GearSixIcon,
   },
 ]
-
-/** Sections without their own nav item light up the one they belong to. */
-const ADMIN_ACTIVE_ALIAS: Partial<Record<AdminSection, AdminSection>> = {
-  coverage: "overview",
-  albums: "overview",
-}
 
 /** The phone and tablet tab bar: three sections and More (all of them). */
 const ADMIN_TABS: AdminSection[] = ["overview", "venues", "content"]
@@ -299,7 +301,7 @@ export function AppShell(props: AppShellProps) {
           count: item.id === "manage" ? staff?.reviewCount : undefined,
         }))
   const active = admin
-    ? (ADMIN_ACTIVE_ALIAS[admin.active] ?? admin.active)
+    ? admin.active
     : (STAFF_ACTIVE_ALIAS[staff?.active ?? "portfolio"] ??
       staff?.active ??
       "portfolio")

@@ -175,6 +175,7 @@ export async function TeamScreen({
         section="team"
         title={row?.person.displayName ?? "Person"}
         month={scopeMonth}
+        back={{ href: manageHrefs(ctx.basePath).team, label: "Team" }}
         pendingReview={ctx.coverage?.summary.pendingReview}
       >
         <OfflineNotice />

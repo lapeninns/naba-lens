@@ -8,6 +8,7 @@ import { requireActiveAdmin } from "@/lib/auth"
 import { loadAdminAlbums } from "@/lib/server/album-admin"
 import { getCoverageActor } from "@/lib/server/coverage"
 
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
 import { ADMIN_ALBUMS_COPY, AdminAlbumsView } from "./albums-view"
 
 export const metadata: Metadata = { title: ADMIN_ALBUMS_COPY.title }
@@ -26,15 +27,17 @@ export default async function AdminAlbumsPage() {
   if (!read.ok) unexpected(read)
 
   return (
-    <AppShell variant="admin" active="albums" userName={profile.displayName}>
+    <AppShell variant="admin" active="overview" userName={profile.displayName}>
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
           <PageHeader
             scope={ADMIN_ALBUMS_COPY.scope}
-            title={ADMIN_ALBUMS_COPY.title}
+            title={ADMIN_SECTION_TITLES.overview}
             summary={<p>{ADMIN_ALBUMS_COPY.summary}</p>}
             className="pb-0 md:pb-0"
-          />
+          >
+            <AdminTabs set="overview" active="albums" />
+          </PageHeader>
           <OfflineNotice />
         </div>
         <AdminAlbumsView albums={read.albums} />

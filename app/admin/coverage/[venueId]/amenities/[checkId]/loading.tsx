@@ -1,5 +1,7 @@
-import { AmenitiesLoading } from "@/app/staff/manage/_shared/screens/amenities-fallbacks"
+"use client"
+
+import { AdminVenueLoadingPage } from "../../../../_components/admin-boundary"
 
 export default function AdminVenueAmenityCheckLoading() {
-  return <AmenitiesLoading label="Loading the check…" admin />
+  return <AdminVenueLoadingPage label="Loading the check…" />
 }
