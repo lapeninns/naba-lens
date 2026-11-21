@@ -347,7 +347,7 @@ test.describe("knowledge B03 E and F", () => {
     const emptySlot = slotRead(w.venueA, toilets)
     expect(emptySlot.currentSubmissionId).toBeNull()
     await toiletsCard
-      .getByRole("button", { name: "Confirm", exact: true })
+      .getByRole("button", { name: "Use this answer", exact: true })
       .click()
     await expect(
       toConfirm(manager).getByText(
@@ -411,7 +411,7 @@ test.describe("knowledge B03 E and F", () => {
     await settled(manager)
     const parkingCard = cardWith(manager, PARKING_NOTE)
     const staleConfirm = parkingCard.getByRole("button", {
-      name: "Confirm",
+      name: "Use this answer",
       exact: true,
     })
     await expect(staleConfirm).toBeEnabled()
@@ -472,7 +472,7 @@ test.describe("knowledge B03 E and F", () => {
       parkingCard.getByText(IMPORT_TEXT.notAdoptable, { exact: true })
     ).toBeVisible()
     await expect(
-      parkingCard.getByRole("button", { name: "Confirm", exact: true })
+      parkingCard.getByRole("button", { name: "Use this answer", exact: true })
     ).toHaveCount(0)
     await expect(
       parkingCard.getByRole("button", { name: IMPORT_TEXT.dontUse })
@@ -1040,7 +1040,7 @@ test.describe("knowledge B03 E and F", () => {
         }),
       })
     await unconfirmed
-      .getByRole("button", { name: "Confirm", exact: true })
+      .getByRole("button", { name: "Use this answer", exact: true })
       .click()
     await expect(
       toConfirm(admin).getByText(

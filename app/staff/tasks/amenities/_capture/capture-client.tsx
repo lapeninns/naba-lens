@@ -60,7 +60,6 @@ export function CaptureClient({
   announceSent = true,
   uploadRefused = false,
   knowledge = null,
-  submitLabel,
 }: {
   check: CaptureCheck
   /** The signed-in person; their drafts are kept apart on a shared device. */
@@ -79,8 +78,6 @@ export function CaptureClient({
   uploadRefused?: boolean
   /** Set for a working-list question: send through the knowledge path. */
   knowledge?: KnowledgeProps | null
-  /** The primary's words (staff: "Send answer"); the form's default otherwise. */
-  submitLabel?: string
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -110,7 +107,6 @@ export function CaptureClient({
         )
       }
       uploadRefused={uploadRefused}
-      submitLabel={submitLabel}
       signInHref={loginHref(pathname)}
       pageHref={pathname}
       knowledge={

@@ -10,7 +10,6 @@ import { StatusChip } from "@/components/nabalens/status-chip"
 import {
   ANSWER_LABEL,
   PROGRESS_LABEL,
-  UI_TEXT,
   type AmenityResult,
 } from "@/lib/amenities/contract"
 import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
@@ -431,7 +430,6 @@ export async function CaptureScreen({
       announceSent={announceSent}
       uploadRefused={mode === "manager" && !canUpload}
       knowledge={knowledge}
-      submitLabel={mode === "staff" ? UI_TEXT.sendAnswer : undefined}
     />
   )
   return (

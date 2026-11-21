@@ -546,9 +546,9 @@ export function captureForm(page: Page) {
       download: page.getByLabel("Download (Mbps)", { exact: true }),
       upload: page.getByLabel("Upload (Mbps)", { exact: true }),
     },
-    // Staff send an answer; a manager or admin submits a finding.
+    // Everyone sends an answer (D22).
     submit: page.getByRole("button", {
-      name: new RegExp(`^(${UI_TEXT.submit}|${UI_TEXT.sendAnswer})$`),
+      name: UI_TEXT.submit,
     }),
   }
 }

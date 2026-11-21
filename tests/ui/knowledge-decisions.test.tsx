@@ -185,7 +185,7 @@ describe("To confirm: one finding", () => {
     ).toBeTruthy()
     const c = card("Finding from Sam Lee")
     expect(within(c).getByText("None")).toBeTruthy()
-    await user.click(within(c).getByRole("button", { name: "Confirm" }))
+    await user.click(within(c).getByRole("button", { name: "Use this answer" }))
     expect(handlers.decide).toHaveBeenCalledWith(
       expect.objectContaining({
         findingRef: f.findingRef,
@@ -210,7 +210,7 @@ describe("To confirm: one finding", () => {
     expect(
       within(c).getByText("Confirmed by Maya Rai on 3 Nov 2026")
     ).toBeTruthy()
-    await user.click(within(c).getByRole("button", { name: "Confirm" }))
+    await user.click(within(c).getByRole("button", { name: "Use this answer" }))
     const dialog = await screen.findByRole("dialog", {
       name: "Replace the current answer?",
     })
@@ -219,7 +219,7 @@ describe("To confirm: one finding", () => {
     )
     expect(handlers.decide).not.toHaveBeenCalled()
     await user.click(
-      within(dialog).getByRole("button", { name: "Confirm and replace" })
+      within(dialog).getByRole("button", { name: "Use this answer" })
     )
     expect(handlers.decide).toHaveBeenCalledWith(
       expect.objectContaining({ decision: "confirm" })
@@ -291,7 +291,7 @@ describe("To confirm: one finding", () => {
 
   it("offers no decision on the manager's own finding without self-confirmation", () => {
     setup(view([finding({ mine: true })]))
-    expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Use this answer" })).toBeNull()
     expect(
       screen.getByText(
         "You sent this, so another manager or an admin confirms it."
@@ -310,11 +310,13 @@ describe("To confirm: Couldn't establish (rev 5 §6.2)", () => {
       ...over,
     })
 
-  it("never offers Confirm; without a dispute, Mark as seen", async () => {
+  it("never offers Use this answer; without a dispute, Mark as seen", async () => {
     const f = unknown()
     const { user, handlers } = setup(view([f]))
     const c = card("Finding from Sam Lee")
-    expect(within(c).queryByRole("button", { name: "Confirm" })).toBeNull()
+    expect(
+      within(c).queryByRole("button", { name: "Use this answer" })
+    ).toBeNull()
     expect(
       within(c).getByText("Needs someone with access or a key")
     ).toBeTruthy()
@@ -433,7 +435,7 @@ describe("To confirm: findings that disagree (§6.4)", () => {
         "These findings disagree. Choose which one to use, or keep the answer in use."
       )
     ).toBeTruthy()
-    expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull()
+    // Only the two choices: no card also offers a plain Use this answer.
     expect(
       screen.getAllByRole("button", { name: "Use this answer" })
     ).toHaveLength(2)
@@ -514,7 +516,7 @@ describe("To confirm: answers in use that need a decision", () => {
       "The question is reopened: staff see it as Needs recheck."
     )
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }))
-    await user.click(within(c).getByRole("button", { name: "Confirm" }))
+    await user.click(within(c).getByRole("button", { name: "Use this answer" }))
     expect(handlers.decide).toHaveBeenCalledWith(
       expect.objectContaining({
         findingRef: { type: "submission", id: "sub1" },
@@ -572,7 +574,7 @@ describe("To confirm: refusals (§6.6)", () => {
         message: "x",
       })),
     })
-    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await user.click(screen.getByRole("button", { name: "Use this answer" }))
     expect(
       screen.getByText(
         "Someone already decided this finding. Reload to see the result."
@@ -608,7 +610,7 @@ describe("To confirm: refusals (§6.6)", () => {
         message: "x",
       })),
     })
-    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await user.click(screen.getByRole("button", { name: "Use this answer" }))
     expect(screen.getByText(text)).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
   })
@@ -623,7 +625,7 @@ describe("To confirm: refusals (§6.6)", () => {
           "This check is archived. Restore it first, or reload the page.",
       })),
     })
-    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await user.click(screen.getByRole("button", { name: "Use this answer" }))
     expect(
       screen.getByText(
         "This check is archived. Restore it first, or reload the page."
@@ -652,7 +654,7 @@ describe("To confirm: refusals (§6.6)", () => {
         })),
       }
     )
-    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await user.click(screen.getByRole("button", { name: "Use this answer" }))
     expect(
       screen.getByText(
         "This import can't be used: this question already has a recorded answer (in use, withdrawn or past its check date). Nothing was changed."
@@ -668,7 +670,7 @@ describe("To confirm: refusals (§6.6)", () => {
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValueOnce(ok)
     const { user } = setup(view([finding()]), { decide })
-    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await user.click(screen.getByRole("button", { name: "Use this answer" }))
     expect(
       screen.getByText(
         "We couldn't confirm your decision was saved. Check your connection and try again; nothing is decided twice."
@@ -738,7 +740,9 @@ describe("To confirm: recovery and focus (MG-02, MG-04, MG-05, MG-06, MG-11)", (
     const { rerender } = render(
       <DecisionPanel view={view([f])} handlers={handlers} />
     )
-    await userEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Use this answer" })
+    )
     // The refresh brings the question with nothing left to decide.
     rerender(<DecisionPanel view={view([])} handlers={handlers} />)
     expect(
@@ -755,8 +759,8 @@ describe("To confirm: recovery and focus (MG-02, MG-04, MG-05, MG-06, MG-11)", (
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValueOnce(ok)
     const { user } = setup(view([finding()]), { decide })
-    await user.click(screen.getByRole("button", { name: "Confirm" }))
-    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await user.click(screen.getByRole("button", { name: "Use this answer" }))
+    await user.click(screen.getByRole("button", { name: "Use this answer" }))
     const [first, second] = decide.mock.calls.map((c) => c[0])
     expect(second.idempotencyKey).toBe(first.idempotencyKey)
   })
@@ -780,6 +784,29 @@ describe("To confirm: recovery and focus (MG-02, MG-04, MG-05, MG-06, MG-11)", (
     )
   })
 
+  it("with an answer in use, not using a finding keeps the current answer (D22)", async () => {
+    const { user, handlers } = setup(view([finding({ answer: "no" })], YES))
+    await user.click(
+      screen.getByRole("button", { name: "Keep the current answer" })
+    )
+    const dialog = await screen.findByRole("dialog", {
+      name: "Keep this answer?",
+    })
+    await user.type(
+      within(dialog).getByRole("textbox", { name: /Why not\?/ }),
+      "Checked it myself"
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Keep the current answer" })
+    )
+    expect(handlers.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        decision: "decline",
+        note: "Checked it myself",
+      })
+    )
+  })
+
   it("keeps the note and the dialog open when a confirmation is refused (MG-05)", async () => {
     const decide = vi.fn<DecisionHandlers["decide"]>(async () => ({
       ok: false,
@@ -788,14 +815,14 @@ describe("To confirm: recovery and focus (MG-02, MG-04, MG-05, MG-06, MG-11)", (
       message: "refused",
     }))
     const { user } = setup(view([finding({ answer: "no" })], YES), { decide })
-    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await user.click(screen.getByRole("button", { name: "Use this answer" }))
     const dialog = await screen.findByRole("dialog", {
       name: "Replace the current answer?",
     })
     const note = within(dialog).getByRole("textbox", { name: /Note/ })
     await user.type(note, "Checked the sign")
     await user.click(
-      within(dialog).getByRole("button", { name: "Confirm and replace" })
+      within(dialog).getByRole("button", { name: "Use this answer" })
     )
     expect(screen.getByRole("dialog")).toBeTruthy()
     expect((note as HTMLTextAreaElement).value).toBe("Checked the sign")
@@ -806,7 +833,7 @@ describe("To confirm: recovery and focus (MG-02, MG-04, MG-05, MG-06, MG-11)", (
 
   it("puts focus on the To confirm heading after a decision (MG-11)", async () => {
     const { user } = setup(view([finding()]))
-    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await user.click(screen.getByRole("button", { name: "Use this answer" }))
     await waitFor(() =>
       expect(document.activeElement?.id).toBe("amenity-to-confirm-title")
     )
@@ -864,7 +891,7 @@ describe("To confirm: a policy that still needs something (B03 UI §4.4)", () =>
     const { user, handlers } = setup(
       view([finding({ answer: "yes", policyMissing: ["zones", "authority"] })])
     )
-    const confirm = screen.getByRole("button", { name: "Confirm" })
+    const confirm = screen.getByRole("button", { name: "Use this answer" })
     expect(confirm.getAttribute("aria-disabled")).toBe("true")
     const why = document.getElementById(
       confirm.getAttribute("aria-describedby")!
@@ -883,7 +910,7 @@ describe("To confirm: a policy that still needs something (B03 UI §4.4)", () =>
     const { user, handlers } = setup(
       view([finding({ answer: "yes", policyMissing: ["authority"] })])
     )
-    const confirm = screen.getByRole("button", { name: "Confirm" })
+    const confirm = screen.getByRole("button", { name: "Use this answer" })
     expect(confirm.getAttribute("aria-disabled")).toBeNull()
     await user.click(confirm)
     await waitFor(() => expect(handlers.decide).toHaveBeenCalled())
@@ -911,7 +938,7 @@ describe("To confirm: a policy that still needs something (B03 UI §4.4)", () =>
     expect(screen.queryByText(/doesn't confirm the policy/)).toBeNull()
     expect(
       screen
-        .getByRole("button", { name: "Confirm" })
+        .getByRole("button", { name: "Use this answer" })
         .getAttribute("aria-disabled")
     ).toBeNull()
   })
@@ -1188,7 +1215,9 @@ describe("To confirm: imports (B03 UI §7.1)", () => {
         "Imported records are never used until someone confirms them."
       )
     ).toBeTruthy()
-    expect(within(card).getByRole("button", { name: "Confirm" })).toBeTruthy()
+    expect(
+      within(card).getByRole("button", { name: "Use this answer" })
+    ).toBeTruthy()
     expect(within(card).getByRole("button", { name: "Don't use" })).toBeTruthy()
     expect(
       within(card).queryByRole("button", { name: "Ask for more detail" })
@@ -1209,7 +1238,9 @@ describe("To confirm: imports (B03 UI §7.1)", () => {
           stateHref="/manager/amenities/c1/capture"
         />
       )
-      expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull()
+      expect(
+        screen.queryByRole("button", { name: "Use this answer" })
+      ).toBeNull()
       expect(
         screen.getByText(
           /^This import can't be used: this question already has a recorded answer/

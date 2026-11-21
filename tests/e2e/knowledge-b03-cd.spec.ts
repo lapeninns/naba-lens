@@ -796,7 +796,7 @@ test.describe("B03 browser charters C and D", () => {
       staff.getByRole("main").getByLabel(CHECKED_ON_COPY.label, { exact: true })
     ).toHaveValue(today)
     // A question with an answer is in change mode: its primary action is
-    // "Send change report", not "Submit finding" (b01-ui-design §4.2), and a
+    // "Send change report", not "Send answer" (b01-ui-design §4.2), and a
     // change report says what changed (required).
     await staff
       .getByRole("main")
@@ -823,7 +823,7 @@ test.describe("B03 browser charters C and D", () => {
     await settled(manager)
     const toConfirm = manager.getByRole("region", { name: /^To confirm/ })
     await toConfirm
-      .getByRole("button", { name: "Confirm", exact: true })
+      .getByRole("button", { name: "Use this answer", exact: true })
       .click()
     await expect.poll(() => tasksOf(id.stale)[0]?.state).toBe("done")
     // A confirmation is stored against the answer it confirms, not the

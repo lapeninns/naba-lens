@@ -434,8 +434,9 @@ export const CHIP_STATES = {
     icon: MinusCircleIcon,
     shape: "closed",
   },
+  // D22: the staff answer words (screens-2 decision 2).
   couldnt_establish: {
-    word: "Couldn't establish",
+    word: "I couldn't find out",
     tone: "neutral",
     icon: MinusIcon,
     shape: "na",

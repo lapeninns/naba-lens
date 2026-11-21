@@ -344,7 +344,9 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     const card = manager.getByRole("article", {
       name: new RegExp(`from ${escape(w.staffA.name)}`),
     })
-    await card.getByRole("button", { name: "Confirm", exact: true }).click()
+    await card
+      .getByRole("button", { name: "Use this answer", exact: true })
+      .click()
     await expect(
       manager.getByText(
         `Confirmed. This is now the answer for ${w.venueA.name}.`
@@ -586,7 +588,7 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     const block = policyConfirmBlock(["conditions", "authority", "stated_on"])!
     await expect(card).toContainText(block)
     const blockedConfirm = card.getByRole("button", {
-      name: "Confirm",
+      name: "Use this answer",
       exact: true,
     })
     // Unavailable but still focusable, and it says why.

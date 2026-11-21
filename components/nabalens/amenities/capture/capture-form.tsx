@@ -493,7 +493,6 @@ export function CaptureForm({
   knowledge = null,
   newKey = newIdempotencyKey,
   uploadRefused = false,
-  submitLabel = UI_TEXT.submit,
 }: {
   check: CaptureCheck
   /** The signed-in person: drafts are kept per person on a shared device. */
@@ -532,8 +531,6 @@ export function CaptureForm({
    * stays offered and says why it can't be sent.
    */
   uploadRefused?: boolean
-  /** The primary's words for an answer: staff send "Send answer". */
-  submitLabel?: string
 }) {
   const ids = React.useId()
   const { entry } = check
@@ -2591,7 +2588,7 @@ export function CaptureForm({
                 : sending
                   ? SEND_PROGRESS_COPY.sending
                   : !knowledge
-                    ? submitLabel
+                    ? UI_TEXT.submit
                     : findingKind === "detail"
                       ? "Send detail"
                       : findingKind === "change_report"
@@ -2600,7 +2597,7 @@ export function CaptureForm({
                           ? "Save policy (not confirmed)"
                           : askConfirmOwn && draft.confirmOwn === true
                             ? "Submit and confirm"
-                            : submitLabel}
+                            : UI_TEXT.submit}
             </Button>
           </>
         )}

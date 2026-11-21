@@ -242,8 +242,8 @@ describe("To confirm: the policy in use (B03 UI §4, A38)", () => {
     for (const term of ["Rule", "Conditions", "Applies to", "Stated on"])
       expect(inUse[term]).toBeUndefined()
     expect(screen.queryByText(/On a lead/)).toBeNull()
-    // Still incomplete: Confirm says why it can't be used yet.
-    const confirm = screen.getByRole("button", { name: "Confirm" })
+    // Still incomplete: Use this answer says why it can't be used yet.
+    const confirm = screen.getByRole("button", { name: "Use this answer" })
     expect(confirm.getAttribute("aria-disabled")).toBe("true")
   })
 

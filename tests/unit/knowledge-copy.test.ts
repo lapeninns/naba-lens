@@ -118,7 +118,7 @@ describe("knowledge words", () => {
       "Needs verification"
     )
     expect(CHIP_STATES.unknown.word).toBe("Needs verification")
-    expect(CHIP_STATES.couldnt_establish.word).toBe("Couldn't establish")
+    expect(CHIP_STATES.couldnt_establish.word).toBe("I couldn't find out")
     expect(CHIP_STATES.to_check.word).toBe("To check")
   })
 

@@ -194,9 +194,8 @@ export const UI_TEXT = {
   restore: "Restore",
   reopen: "Reopen",
   captureMyself: "Capture myself",
-  submit: "Submit finding",
-  /** Staff send an answer (screens-2 handoff); managers keep Submit finding. */
-  sendAnswer: "Send answer",
+  /** Staff, managers and admins all send an answer (D22). */
+  submit: "Send answer",
   retry: "Try again",
   recentlyCompleted: "Recently completed",
   archived: "Archived",
