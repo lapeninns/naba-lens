@@ -1,11 +1,12 @@
 "use client"
 
-import { AppShell } from "@/components/nabalens"
-import { PageHeader } from "@/components/nabalens/page-header"
+import { AdminErrorPage } from "./_components/admin-boundary"
 
-import { LIBRARY_COPY } from "./library-copy"
-import { LibraryError } from "./library-states"
-
+/**
+ * An admin page with no boundary of its own (each section has one; redesign
+ * R5): the admin nav stays and the notice says only that this page failed.
+ * Never titled "Library": Library › Photos has its own in (content).
+ */
 export default function AdminError({
   error,
   retry,
@@ -14,17 +15,13 @@ export default function AdminError({
   retry: () => void
 }) {
   return (
-    <AppShell variant="admin" active="content">
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          venueScope
-          scope={[LIBRARY_COPY.allVenues, LIBRARY_COPY.order]}
-          title={LIBRARY_COPY.title}
-          summary={<p>{LIBRARY_COPY.summary}</p>}
-          className="pb-0 md:pb-0"
-        />
-        <LibraryError retry={() => retry()} digest={error.digest} />
-      </div>
-    </AppShell>
+    <AdminErrorPage
+      section="overview"
+      title="This page"
+      back={{ href: "/admin/overview", label: "Overview" }}
+      what="This page couldn't be loaded"
+      error={error}
+      retry={retry}
+    />
   )
 }

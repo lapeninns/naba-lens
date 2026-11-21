@@ -1,14 +1,13 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 
 import { AppShell } from "@/components/nabalens/app-shell"
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import { listTags } from "@/lib/server/library/service"
 import { getMediaActor } from "@/lib/server/media/context"
 
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../../_components/admin-tabs"
 import { TagsView } from "../_components/collections"
 
 export const metadata: Metadata = { title: "Tags · Library" }
@@ -28,23 +27,17 @@ export default async function LibraryTagsPage() {
       <div className="flex flex-col gap-6">
         <PageHeader
           scope="All venues"
-          title="Tags"
+          title={ADMIN_SECTION_TITLES.library}
           summary={
             <p>
               A fixed list of words for finding photos later. Only these can be
               added to a photo.
             </p>
           }
-          actions={
-            <Link
-              href="/admin/library/collections"
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              Collections
-            </Link>
-          }
           className="pb-0 md:pb-0"
-        />
+        >
+          <AdminTabs set="library" active="tags" />
+        </PageHeader>
         {read.ok ? (
           <TagsView tags={read.value} />
         ) : (

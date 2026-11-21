@@ -1,11 +1,10 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { AppShell } from "@/components/nabalens/app-shell"
+import { BackLink } from "@/components/nabalens/back-link"
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import { isUuid } from "@/lib/library/model"
 import { listCollections } from "@/lib/server/library/service"
@@ -84,20 +83,18 @@ export default async function LibraryCollectionPage({
   return (
     <AppShell variant="admin" active="content" userName={profile.displayName}>
       <div className="flex flex-col gap-6">
-        <PageHeader
-          scope="Collection"
-          title={collection?.name ?? "Collection"}
-          summary={collection?.purpose ? <p>{collection.purpose}</p> : null}
-          actions={
-            <Link
-              href="/admin/library/collections"
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              All collections
-            </Link>
-          }
-          className="pb-0 md:pb-0"
-        />
+        {/* Library, detail page: back to Collections (redesign R5). */}
+        <div className="grid min-w-0 gap-1">
+          <BackLink href="/admin/library/collections" compact>
+            Collections
+          </BackLink>
+          <PageHeader
+            scope="Collection"
+            title={collection?.name ?? "Collection"}
+            summary={collection?.purpose ? <p>{collection.purpose}</p> : null}
+            className="pb-0 md:pb-0"
+          />
+        </div>
         {collection && page.ok ? (
           <CollectionDetailView
             collection={collection}

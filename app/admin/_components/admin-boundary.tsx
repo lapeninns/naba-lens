@@ -11,17 +11,12 @@ import { PageHeader } from "@/components/nabalens/page-header"
 import { Button } from "@/components/ui/button"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
+import { ADMIN_BOUNDARY_COPY } from "./admin-copy"
 import {
   ADMIN_VENUE_TAB_LABELS,
   AdminVenueTabs,
   type AdminVenueTab,
 } from "./admin-tabs"
-
-/** Error notices say Retry (redesign R5, ia.md decision 11). */
-export const ADMIN_BOUNDARY_COPY = {
-  retry: "Retry",
-  requestId: (digest: string) => `Request ID ${digest}`,
-} as const
 
 type FrameProps = {
   /** The nav section the page lights (ia.md "Admin route map"). */

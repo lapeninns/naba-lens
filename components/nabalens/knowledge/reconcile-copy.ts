@@ -103,7 +103,7 @@ export const RECONCILE_COPY = {
   newDryRun: "Start a new dry run",
   cancel: "Cancel",
   failed: "This couldn't be read.",
-  tryAgain: "Try again",
+  tryAgain: "Retry",
   aVenue: "A venue",
   someone: "an admin",
 } as const

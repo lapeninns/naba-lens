@@ -12,6 +12,7 @@ import {
 } from "@/lib/server/accounts"
 import { accountsContext } from "@/lib/server/accounts/request"
 
+import { AdminTabs } from "../_components/admin-tabs"
 import { revokeAdminAction } from "./actions"
 import { AdminRoles } from "./admin-roles"
 import { AuthDetailsNotice } from "./auth-details-notice"
@@ -65,10 +66,12 @@ export default async function StaffDirectoryPage() {
             title="People"
             summary={STAFF_SUMMARY}
             className="pb-0 md:pb-0"
-          />
+          >
+            <AdminTabs set="people" active="accounts" />
+          </PageHeader>
           <ErrorState
             title="We couldn't load the staff list"
-            action={<RetryButton label={ERROR_COPY.tryAgain} />}
+            action={<RetryButton label="Retry" />}
           >
             {ERROR_COPY.checkConnection} Nothing has changed.
           </ErrorState>

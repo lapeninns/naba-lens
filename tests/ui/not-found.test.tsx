@@ -90,13 +90,32 @@ describe("branded not-found pages", () => {
     expect(screen.getByRole("link", { name: "Go to Today" })).toBeTruthy()
   })
 
-  it("a missing admin page keeps the admin navigation and goes back to Library", async () => {
+  // Redesign R5 (ia.md decision 12): not found sends admins to Overview,
+  // where they land, not Library.
+  it("a missing admin page keeps the admin navigation and goes back to Overview", async () => {
     const page = (await AdminNotFound()) as unknown as Element
     expect(page.type).toBe(AppShell)
-    expect(page.props).toMatchObject({ variant: "admin", userName: "Ravi" })
-    expect(cardIn(page)).toMatchObject({
-      type: NotFoundCard,
-      props: { backHref: "/admin", backLabel: "Go to Library" },
+    expect(page.props).toMatchObject({
+      variant: "admin",
+      active: "overview",
+      userName: "Ravi",
     })
+    render(page as unknown as React.ReactElement)
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "This page isn't available",
+      })
+    ).toBeTruthy()
+    const links = screen
+      .getAllByRole("link")
+      .filter((a) => /Overview/.test(a.textContent ?? ""))
+      .map((a) => [a.textContent, a.getAttribute("href")])
+    expect(links).toEqual(
+      expect.arrayContaining([
+        ["Overview", "/admin/overview"],
+        ["Go to Overview", "/admin/overview"],
+      ])
+    )
   })
 })

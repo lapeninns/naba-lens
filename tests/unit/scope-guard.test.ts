@@ -678,6 +678,8 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
       feature: "tagging workflow",
       prefixes: [
         "app/admin/library/",
+        // Redesign R5 (ia.md): the Library tabs link the controlled Tags page.
+        "app/admin/_components/admin-tabs.tsx",
         "app/admin/(content)/page.tsx",
         "app/admin/admin-library.tsx",
         "app/admin/library-more-filters.tsx",
