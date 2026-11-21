@@ -2,6 +2,8 @@ import { AppShell } from "@/components/nabalens/app-shell"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
+
 /** Exceptions, then the operations tiles and the form (spec §8 A7). */
 export default function AdminSettingsLoading() {
   return (
@@ -9,9 +11,11 @@ export default function AdminSettingsLoading() {
       <div className="flex flex-col gap-8">
         <PageHeader
           scope="All venues"
-          title="Settings"
+          title={ADMIN_SECTION_TITLES.settings}
           className="pb-0 md:pb-0"
-        />
+        >
+          <AdminTabs set="settings" active="rules" />
+        </PageHeader>
         <SkeletonRegion label="Loading settings" className="grid gap-6">
           <Skeleton shape="title" className="w-48" />
           <div className="grid gap-2 rounded-card border border-line bg-surface p-3 sm:grid-cols-4">

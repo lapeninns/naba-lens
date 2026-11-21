@@ -17,7 +17,7 @@ function Shell({
   children: React.ReactNode
 }) {
   return admin ? (
-    <AppShell variant="admin" active="coverage">
+    <AppShell variant="admin" active="venues">
       <div className="grid gap-5">{children}</div>
     </AppShell>
   ) : (

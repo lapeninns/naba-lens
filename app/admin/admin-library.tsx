@@ -1,12 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {
-  FolderSimpleIcon,
-  MagnifyingGlassIcon,
-  StackIcon,
-  TrashIcon,
-} from "@phosphor-icons/react"
+import { FolderSimpleIcon, MagnifyingGlassIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -31,6 +26,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { NO_EXTRA_FILTERS, type LibraryExtraFilters } from "@/lib/library/model"
 import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from "@/lib/menus/types"
 
+import { AdminTabs } from "./_components/admin-tabs"
 import { loadLibraryPage, type LibraryPageResult } from "./library-actions"
 import { filtersToSearch, type LibrarySearchParams } from "./library-search"
 import { LIBRARY_COPY } from "./library-copy"
@@ -98,32 +94,20 @@ export function AdminLibrary({
         title={LIBRARY_COPY.title}
         summary={<p>{LIBRARY_COPY.summary}</p>}
         actions={
-          <>
-            <Link
-              href="/admin/library/collections"
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              <StackIcon aria-hidden />
-              Collections
-            </Link>
-            <Link
-              href="/admin/library/removals"
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              <TrashIcon aria-hidden />
-              Removal requests
-            </Link>
-            <Link
-              href="/admin/search"
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              <MagnifyingGlassIcon aria-hidden />
-              {SEARCH_COPY.entry}
-            </Link>
-          </>
+          <Link
+            href="/admin/search"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            <MagnifyingGlassIcon aria-hidden />
+            {SEARCH_COPY.entry}
+          </Link>
         }
         className="pb-0 md:pb-0"
-      />
+      >
+        {/* Library › Photos; Collections, Tags and Removal requests are
+            sibling tabs (redesign R5, ia.md). */}
+        <AdminTabs set="library" active="photos" />
+      </PageHeader>
       <LibraryFilters
         venues={venues}
         staff={staff}

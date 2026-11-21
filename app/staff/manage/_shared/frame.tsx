@@ -8,6 +8,11 @@ import { buttonVariants } from "@/components/ui/button"
 import type { CoverageFailure } from "@/lib/server/coverage/types"
 import { periodKeyOf, periodView } from "@/lib/server/coverage/time"
 
+import {
+  AdminVenueHeader,
+  type AdminVenueView,
+} from "@/app/admin/_components/admin-venue-header"
+
 import { currentStaffShell } from "../../_shell/shell-status"
 import { triageConfirmCount } from "@/components/nabalens/manager/overview/triage-card"
 
@@ -24,6 +29,21 @@ export function currentMonthLabel(): string {
 }
 
 /**
+ * Where each coverage section sits among one venue's admin tabs (redesign
+ * R5, ia.md "Venues › one venue"). Pages that differ pass `adminView`.
+ */
+const ADMIN_VIEW: Record<ManageSection, AdminVenueView> = {
+  overview: { tab: "coverage", pick: "month" },
+  menu: { tab: "coverage", pick: "menu" },
+  review: { tab: "review", pick: "checklist" },
+  menu_items: { tab: "album", pick: "menu" },
+  amenities: { tab: "album", pick: "amenities" },
+  checklist: { tab: "checklist" },
+  team: { tab: "team" },
+  search: { tab: "coverage" },
+}
+
+/**
  * Page frame for one venue's coverage tools (manager or admin): the shell,
  * the page header scoped to the venue and month, and the five section tabs.
  * Detail pages keep the tabs with their parent section current.
@@ -37,6 +57,8 @@ export async function ManageFrame({
   month,
   venueScope,
   pendingReview,
+  adminView,
+  back,
   children,
 }: {
   ctx: ManageContext
@@ -50,17 +72,46 @@ export async function ManageFrame({
   venueScope?: React.ReactNode
   /** Review count when the page already has it; read otherwise. */
   pendingReview?: number
+  /** Admin only: the venue tab and pick, when not the section's own. */
+  adminView?: AdminVenueView
+  /**
+   * Admin only: a detail page's parent (its href and title). Tab roots go
+   * back to Venues and take the tab's name as their title.
+   */
+  back?: { href: string; label: string }
   children: React.ReactNode
 }) {
   const [shell, read, triage] = await Promise.all([
     ctx.mode === "manager" ? currentStaffShell() : null,
     pendingReview === undefined ? readVenueCoverage(ctx) : null,
-    ctx.mode === "workspace" ? null : readVenueTriage(ctx),
+    // Only the manager tabs count findings on Amenities.
+    ctx.mode === "manager" ? readVenueTriage(ctx) : null,
   ])
   let reviewCount = pendingReview
   if (read) {
     if (!read.ok) return <RefusedPage ctx={ctx} failure={read} />
     reviewCount = read.coverage.summary.pendingReview
+  }
+  if (ctx.mode === "admin") {
+    // One venue lights Venues and has its own tabs (redesign R5, ia.md).
+    return (
+      <AppShell variant="admin" active="venues" userName={ctx.viewerName}>
+        <div className="grid min-w-0 gap-gutter md:gap-4">
+          <AdminVenueHeader
+            venueId={ctx.venueId}
+            venueName={ctx.venue.name}
+            month={month ?? currentMonthLabel()}
+            view={adminView ?? ADMIN_VIEW[section]}
+            title={title}
+            summary={summary}
+            actions={actions}
+            back={back}
+            pendingReview={reviewCount}
+          />
+          {children}
+        </div>
+      </AppShell>
+    )
   }
   const body = (
     <div className="grid min-w-0 gap-gutter md:gap-4">
@@ -77,22 +128,14 @@ export async function ManageFrame({
           active={section}
           pendingReview={reviewCount}
           confirmCount={triage ? triageConfirmCount(triage) : null}
-          label={
-            ctx.mode === "admin"
-              ? `Coverage for ${ctx.venue.name}`
-              : `Manage ${ctx.venue.name}`
-          }
+          label={`Manage ${ctx.venue.name}`}
         />
       </div>
       {children}
     </div>
   )
 
-  return ctx.mode === "admin" ? (
-    <AppShell variant="admin" active="coverage" userName={ctx.viewerName}>
-      {body}
-    </AppShell>
-  ) : (
+  return (
     // This page has just proved the grant and read the venue's count, so they
     // win over the shared status (same source, possibly a later read).
     <AppShell

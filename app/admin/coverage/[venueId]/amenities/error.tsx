@@ -1,13 +1,12 @@
 "use client"
 
-import { AmenitiesError } from "@/app/staff/manage/_shared/screens/amenities-fallbacks"
+import { AdminVenueErrorPage } from "../../../_components/admin-boundary"
 
+/** Album › Amenities (or Spaces) that could not load. */
 export default function AdminVenueAmenitiesError({
   retry,
 }: {
   retry: () => void
 }) {
-  return (
-    <AmenitiesError title="Amenities" what="amenities" retry={retry} admin />
-  )
+  return <AdminVenueErrorPage retry={retry} />
 }

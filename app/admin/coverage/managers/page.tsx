@@ -1,6 +1,4 @@
 import type { Metadata } from "next"
-import Link from "next/link"
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
@@ -8,7 +6,6 @@ import { AppShell } from "@/components/nabalens/app-shell"
 import { ErrorState } from "@/components/nabalens/error-state"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import { listAssignableVenues } from "@/lib/server/accounts"
 import { accountsContext } from "@/lib/server/accounts/request"
@@ -19,6 +16,7 @@ import {
 } from "@/lib/server/coverage"
 import { isUuid } from "@/lib/server/coverage/validate"
 
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../../_components/admin-tabs"
 import { MANAGERS_COPY } from "./managers-copy"
 import { ManagersView } from "./managers-view"
 
@@ -57,25 +55,19 @@ export default async function VenueManagersPage({
   if (candidates && !candidates.ok) unexpected(candidates)
 
   return (
-    <AppShell variant="admin" active="coverage" userName={profile.displayName}>
+    <AppShell variant="admin" active="staff" userName={profile.displayName}>
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
           <PageHeader
             venueScope
             scope={MANAGERS_COPY.scope}
-            title={MANAGERS_COPY.title}
+            title={ADMIN_SECTION_TITLES.people}
             summary={MANAGERS_COPY.summary}
-            actions={
-              <Link
-                href="/admin/coverage"
-                className={buttonVariants({ variant: "secondary" })}
-              >
-                <ArrowLeftIcon aria-hidden />
-                Coverage
-              </Link>
-            }
             className="pb-0 md:pb-0"
-          />
+          >
+            {/* People › Venue managers (redesign R5, ia.md decision 8). */}
+            <AdminTabs set="people" active="managers" />
+          </PageHeader>
           <OfflineNotice />
         </div>
         {venues.ok ? (

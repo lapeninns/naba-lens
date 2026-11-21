@@ -159,6 +159,7 @@ export async function RequirementScreen({
       section="checklist"
       title={requirement.title}
       summary={itemSummary(requirement, ctx.venue.name)}
+      back={{ href: hrefs.checklist, label: "Checklist" }}
     >
       <RequirementSetupControl
         requirement={requirement}

@@ -30,7 +30,7 @@ export default async function AdminAmenityCapturePage({
   const ctx = await adminVenueContext(venueId)
   const checkHref = amenityHrefs(ctx.basePath).check(checkId)
   return (
-    <AppShell variant="admin" active="coverage" userName={ctx.viewerName}>
+    <AppShell variant="admin" active="venues" userName={ctx.viewerName}>
       <CaptureScreen
         actor={ctx.actor}
         checkId={checkId}

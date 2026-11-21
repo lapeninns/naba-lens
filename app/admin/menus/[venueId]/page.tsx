@@ -17,6 +17,7 @@ import {
   type Option,
 } from "@/components/nabalens"
 import { ErrorState, ERROR_COPY } from "@/components/nabalens/error-state"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import {
   Table,
@@ -243,6 +244,9 @@ export default async function VenueMenusPage({
     const name = venues?.find((v) => v.id === venueId)?.name
     return shell(
       <>
+        <BackLink href="/admin/menus" compact>
+          Menus
+        </BackLink>
         <PageHeader
           venueScope
           scope={[name ?? "Venue", "All months"]}

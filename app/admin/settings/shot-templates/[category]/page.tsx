@@ -1,10 +1,9 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { BackLink } from "@/components/nabalens/back-link"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -62,13 +61,9 @@ export default async function ShotTemplatePage({
   return (
     <AppShell variant="admin" active="settings" userName={profile.displayName}>
       <div className="grid gap-6">
-        <Link
-          href="/admin/settings#shot-templates"
-          className="inline-flex min-h-12 items-center gap-1 justify-self-start font-semibold text-ink focus-ring"
-        >
-          <ArrowLeftIcon aria-hidden className="size-5" />
+        <BackLink href="/admin/settings#shot-templates" compact>
           Settings
-        </Link>
+        </BackLink>
         <PageHeader
           scope="All venues"
           title={`${label} shot template`}

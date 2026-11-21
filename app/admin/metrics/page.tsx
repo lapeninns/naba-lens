@@ -17,6 +17,8 @@ import { LinkButton } from "@/components/ui/link-button"
 import { requireActiveAdmin } from "@/lib/auth"
 import { parseCategory, parsePeriod } from "@/lib/metrics/model"
 import { getCoverageActor } from "@/lib/server/coverage"
+
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
 import { loadMetricsOverview, loadVenueMetrics } from "@/lib/server/metrics"
 
 export const metadata: Metadata = { title: METRICS_COPY.title }
@@ -63,13 +65,13 @@ export default async function AdminMetricsPage({
       })
 
   return (
-    <AppShell variant="admin" active="coverage" userName={profile.displayName}>
+    <AppShell variant="admin" active="overview" userName={profile.displayName}>
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
           <PageHeader
             scope={venue?.ok ? venue.metrics.venueName : "All venues"}
             venueScope={!!venue?.ok}
-            title={METRICS_COPY.title}
+            title={ADMIN_SECTION_TITLES.overview}
             summary={<p>{METRICS_COPY.adminSummary}</p>}
             actions={
               venueId ? (
@@ -82,7 +84,9 @@ export default async function AdminMetricsPage({
               ) : undefined
             }
             className="pb-0 md:pb-0"
-          />
+          >
+            <AdminTabs set="overview" active="metrics" />
+          </PageHeader>
           <OfflineNotice />
         </div>
 

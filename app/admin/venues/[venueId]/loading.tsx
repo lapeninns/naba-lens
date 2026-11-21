@@ -1,24 +1,29 @@
-import { AppShell } from "@/components/nabalens/app-shell"
-import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
+"use client"
 
-/** The venue's header and its setup checklist while they load. */
+import { useParams } from "next/navigation"
+
+import { AdminLoadingPage } from "../../_components/admin-boundary"
+import { AdminVenueTabs } from "../../_components/admin-tabs"
+
+/** Venues › one venue › Setup while it loads (redesign R5). */
 export default function AdminVenueLoading() {
+  const { venueId = "" } = useParams<{ venueId?: string }>() ?? {}
   return (
-    <AppShell variant="admin" active="venues">
-      <SkeletonRegion label="Loading the venue" className="grid gap-6">
-        <div className="grid gap-2 px-1">
-          <Skeleton shape="line" className="w-24" />
-          <Skeleton shape="title" className="w-64" />
-        </div>
-        <div className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
-          {Array.from({ length: 5 }, (_, i) => (
-            <div key={i} className="grid min-h-16 gap-2 px-4 py-3.5">
-              <Skeleton shape="line" className="w-56" />
-              <Skeleton shape="line" className="w-40" />
-            </div>
-          ))}
-        </div>
-      </SkeletonRegion>
-    </AppShell>
+    <AdminLoadingPage
+      section="venues"
+      title="Setup"
+      back={{ href: "/admin/venues", label: "Venues" }}
+      tabs={
+        venueId ? (
+          <AdminVenueTabs
+            venueId={venueId}
+            venueName="This venue"
+            active="setup"
+          />
+        ) : undefined
+      }
+      label="Loading the venue"
+      rows={5}
+    />
   )
 }

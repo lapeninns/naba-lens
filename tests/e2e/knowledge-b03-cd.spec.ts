@@ -1022,9 +1022,15 @@ test.describe("B03 browser charters C and D", () => {
     const admin = await signedInPage(browser, w.admin, DESKTOP)
     await admin.goto(CHECK_DATES)
     await settled(admin)
+    // Settings › Venue facts › Check dates (redesign R5, ia.md).
     await expect(
-      admin.getByRole("heading", { name: CHECK_DATES_TEXT.title, level: 1 })
+      admin.getByRole("heading", { name: "Settings", level: 1 })
     ).toBeVisible()
+    await expect(
+      admin
+        .getByRole("group", { name: "Venue facts" })
+        .getByRole("link", { name: CHECK_DATES_TEXT.title, exact: true })
+    ).toHaveAttribute("aria-current", "page")
     const question = admin.getByLabel(CHECK_DATES_TEXT.question, {
       exact: true,
     })

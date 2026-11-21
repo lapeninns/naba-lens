@@ -2,6 +2,7 @@ import { AppShell } from "@/components/nabalens"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 
+import { AdminTabs } from "../_components/admin-tabs"
 import { LIBRARY_COPY } from "../library-copy"
 import { LibraryGridSkeleton } from "../library-states"
 
@@ -15,7 +16,9 @@ export default function AdminLoading() {
           title={LIBRARY_COPY.title}
           summary={<p>{LIBRARY_COPY.summary}</p>}
           className="pb-0 md:pb-0"
-        />
+        >
+          <AdminTabs set="library" active="photos" />
+        </PageHeader>
         <div
           aria-hidden
           className="grid grid-cols-2 gap-x-3 gap-y-4 md:flex md:flex-wrap md:items-end"

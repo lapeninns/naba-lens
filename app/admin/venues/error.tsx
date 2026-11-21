@@ -1,13 +1,14 @@
 "use client"
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react"
+import { useParams, usePathname } from "next/navigation"
 
-import { AppShell } from "@/components/nabalens/app-shell"
-import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
-import { PageHeader } from "@/components/nabalens/page-header"
-import { Button } from "@/components/ui/button"
+import { AdminErrorPage } from "../_components/admin-boundary"
+import { AdminVenueTabs } from "../_components/admin-tabs"
 
-/** A failed venues read (list or one venue): what happened and a retry. */
+/**
+ * A failed venues read (redesign R5): the list, Add a venue, or one venue's
+ * Setup tab, each under its own title, with Retry.
+ */
 export default function AdminVenuesError({
   error,
   retry,
@@ -15,21 +16,43 @@ export default function AdminVenuesError({
   error: Error & { digest?: string }
   retry: () => void
 }) {
-  return (
-    <AppShell variant="admin" active="venues">
-      <div className="flex flex-col gap-6">
-        <PageHeader title="Venues" className="pb-0 md:pb-0" />
-        <ErrorState
-          title="Venues couldn't be loaded"
-          action={
-            <Button type="button" variant="primary" onClick={() => retry()}>
-              <ArrowClockwiseIcon aria-hidden />
-              {ERROR_COPY.tryAgain}
-            </Button>
-          }
-          detail={error.digest ? `Request ID ${error.digest}` : undefined}
-        />
-      </div>
-    </AppShell>
+  const pathname = usePathname() ?? ""
+  const { venueId } = useParams<{ venueId?: string }>() ?? {}
+  const back = { href: "/admin/venues", label: "Venues" }
+  if (venueId)
+    return (
+      <AdminErrorPage
+        section="venues"
+        title="Setup"
+        back={back}
+        tabs={
+          <AdminVenueTabs
+            venueId={venueId}
+            venueName="This venue"
+            active="setup"
+          />
+        }
+        what="This venue's setup couldn't be loaded"
+        error={error}
+        retry={retry}
+      />
+    )
+  return pathname.startsWith("/admin/venues/new") ? (
+    <AdminErrorPage
+      section="venues"
+      title="Add a venue"
+      back={back}
+      what="Add a venue couldn't be loaded"
+      error={error}
+      retry={retry}
+    />
+  ) : (
+    <AdminErrorPage
+      section="venues"
+      title="Venues"
+      what="Venues couldn't be loaded"
+      error={error}
+      retry={retry}
+    />
   )
 }

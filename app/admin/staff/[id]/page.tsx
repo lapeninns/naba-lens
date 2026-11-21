@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { AppShell } from "@/components/nabalens"
-import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
+import { ErrorState } from "@/components/nabalens/error-state"
 import { requireActiveAdmin } from "@/lib/auth"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import {
@@ -188,7 +188,7 @@ export default async function StaffPortfolioPage({
             ) : (
               <ErrorState
                 title={`We couldn't load ${first}'s photos`}
-                action={<RetryButton label={ERROR_COPY.tryAgain} />}
+                action={<RetryButton label="Retry" />}
               >
                 The account details below are up to date. Try again to load the
                 photos.

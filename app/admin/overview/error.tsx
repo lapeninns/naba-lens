@@ -1,13 +1,9 @@
 "use client"
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react"
+import { AdminErrorPage } from "../_components/admin-boundary"
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
 
-import { AppShell } from "@/components/nabalens/app-shell"
-import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
-import { PageHeader } from "@/components/nabalens/page-header"
-import { Button } from "@/components/ui/button"
-
-/** A failed overview read: what happened and a retry. */
+/** A failed overview read: what happened and Retry. */
 export default function AdminOverviewError({
   error,
   retry,
@@ -16,20 +12,13 @@ export default function AdminOverviewError({
   retry: () => void
 }) {
   return (
-    <AppShell variant="admin" active="overview">
-      <div className="flex flex-col gap-6">
-        <PageHeader title="Overview" className="pb-0 md:pb-0" />
-        <ErrorState
-          title="The overview couldn't be loaded"
-          action={
-            <Button type="button" variant="primary" onClick={() => retry()}>
-              <ArrowClockwiseIcon aria-hidden />
-              {ERROR_COPY.tryAgain}
-            </Button>
-          }
-          detail={error.digest ? `Request ID ${error.digest}` : undefined}
-        />
-      </div>
-    </AppShell>
+    <AdminErrorPage
+      section="overview"
+      title={ADMIN_SECTION_TITLES.overview}
+      tabs={<AdminTabs set="overview" active="by-venue" />}
+      what="The overview couldn't be loaded"
+      error={error}
+      retry={retry}
+    />
   )
 }

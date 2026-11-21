@@ -16,6 +16,7 @@ import {
 } from "@/components/nabalens"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
@@ -142,6 +143,10 @@ export function VenueMenusView({
 
   return (
     <>
+      {/* Menus › one venue (redesign R5, ia.md). */}
+      <BackLink href="/admin/menus" compact>
+        Menus
+      </BackLink>
       <PageHeader
         venueScope
         scope={[

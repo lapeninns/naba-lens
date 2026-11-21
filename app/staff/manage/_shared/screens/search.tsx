@@ -8,6 +8,7 @@ import {
   type SearchMode,
 } from "@/app/_media/search-params"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { BackLink } from "@/components/nabalens/back-link"
 import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
@@ -196,13 +197,19 @@ export async function SearchScreen(props: SearchScreenProps) {
     return (
       <AppShell variant="admin" active="content" userName={props.viewerName}>
         <div className="grid min-w-0 gap-6">
-          <PageHeader
-            venueScope
-            scope={[venueName ?? SEARCH_COPY.allVenues, SEARCH_COPY.order]}
-            title={SEARCH_COPY.title}
-            summary={<p>{SEARCH_COPY.introAdmin}</p>}
-            className="pb-0 md:pb-0"
-          />
+          {/* Library, from "All filters": back to Library (redesign R5). */}
+          <div className="grid min-w-0 gap-1">
+            <BackLink href="/admin" compact>
+              Library
+            </BackLink>
+            <PageHeader
+              venueScope
+              scope={[venueName ?? SEARCH_COPY.allVenues, SEARCH_COPY.order]}
+              title={SEARCH_COPY.title}
+              summary={<p>{SEARCH_COPY.introAdmin}</p>}
+              className="pb-0 md:pb-0"
+            />
+          </div>
           {view}
         </div>
       </AppShell>

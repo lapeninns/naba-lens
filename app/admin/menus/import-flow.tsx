@@ -13,7 +13,6 @@ import {
   plural,
   possessive,
 } from "@/components/nabalens"
-import { ERROR_COPY } from "@/components/nabalens/error-state"
 import { Notice } from "@/components/nabalens/notice"
 import { useOnline } from "@/components/nabalens/offline-notice"
 import { Button } from "@/components/ui/button"
@@ -21,6 +20,7 @@ import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 import type { ImportIssue, ReviewDecision } from "@/lib/menus/types"
 import type { ImportPreview } from "@/lib/server/menus"
 
+import { ADMIN_BOUNDARY_COPY } from "../_components/admin-copy"
 import { createDraftAction } from "./actions"
 import { resolveDecisions } from "./review"
 
@@ -194,7 +194,7 @@ export function ImportFlow({
               disabled={creating || !online}
             >
               <ArrowClockwiseIcon aria-hidden />
-              {ERROR_COPY.tryAgain}
+              {ADMIN_BOUNDARY_COPY.retry}
             </Button>
           }
         >

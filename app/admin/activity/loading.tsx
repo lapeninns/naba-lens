@@ -2,6 +2,8 @@ import { AppShell } from "@/components/nabalens/app-shell"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
+
 /** The filters, then the list of changes. */
 export default function AdminActivityLoading() {
   return (
@@ -9,9 +11,11 @@ export default function AdminActivityLoading() {
       <div className="flex flex-col gap-6">
         <PageHeader
           scope="All venues"
-          title="Activity"
+          title={ADMIN_SECTION_TITLES.settings}
           className="pb-0 md:pb-0"
-        />
+        >
+          <AdminTabs set="settings" active="activity" />
+        </PageHeader>
         <SkeletonRegion label="Loading activity" className="grid gap-4">
           <Skeleton shape="line" className="h-20" />
           <div className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">

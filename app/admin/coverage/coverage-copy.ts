@@ -163,7 +163,7 @@ export const VENUE_COVERAGE_COPY = {
   couldNotLoad: "We couldn't load this venue's coverage",
   notFoundTitle: "We couldn't find that venue",
   notFoundText: "It may have been removed, or the link may be wrong.",
-  backToVenues: "All venues",
+  backToVenues: "Go to Venues",
 } as const
 
 /** A19: managers' decisions on their own photos. */

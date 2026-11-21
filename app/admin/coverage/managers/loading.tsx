@@ -2,6 +2,7 @@ import { AppShell } from "@/components/nabalens/app-shell"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../../_components/admin-tabs"
 import { MANAGERS_COPY } from "./managers-copy"
 
 const ROWS = [
@@ -13,15 +14,17 @@ const ROWS = [
 /** The grant form card, then the current grants card, as they will load. */
 export default function ManagersLoading() {
   return (
-    <AppShell variant="admin" active="coverage">
+    <AppShell variant="admin" active="staff">
       <div className="flex flex-col gap-6">
         <PageHeader
           venueScope
           scope={MANAGERS_COPY.scope}
-          title={MANAGERS_COPY.title}
+          title={ADMIN_SECTION_TITLES.people}
           summary={MANAGERS_COPY.summary}
           className="pb-0 md:pb-0"
-        />
+        >
+          <AdminTabs set="people" active="managers" />
+        </PageHeader>
         <SkeletonRegion label={MANAGERS_COPY.loading} className="grid gap-6">
           <div className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
             <Skeleton shape="title" className="w-64 max-w-full" />

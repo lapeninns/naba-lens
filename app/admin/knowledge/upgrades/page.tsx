@@ -8,13 +8,13 @@ import {
   UpgradeControl,
 } from "@/components/nabalens/knowledge/upgrade-control"
 import { Notice } from "@/components/nabalens/notice"
-import { PageHeader } from "@/components/nabalens/page-header"
+import { VenueFactsHeader } from "@/app/admin/_components/admin-tabs"
 import { requireActiveAdmin } from "@/lib/auth"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCoverageActor } from "@/lib/server/coverage"
 
 export const metadata: Metadata = {
-  title: "Schema upgrades · Knowledge",
+  title: "Question changes · Venue facts",
 }
 
 /** Admin (B03 UI design §8.3): a question's schema upgrade, dry run first. */
@@ -32,9 +32,9 @@ export default async function UpgradesPage() {
       }))
     : []
   return (
-    <AppShell variant="admin" active="coverage" userName={profile.displayName}>
+    <AppShell variant="admin" active="settings" userName={profile.displayName}>
       <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
-        <PageHeader title={UPGRADE_COPY.title} />
+        <VenueFactsHeader active="question-changes" />
         {registry && !registry.ok ? (
           <Notice tone="negative">{UPGRADE_COPY.failed}</Notice>
         ) : null}

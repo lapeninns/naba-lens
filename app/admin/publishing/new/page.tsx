@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { Notice } from "@/components/nabalens/notice"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
 import { requireActiveAdmin } from "@/lib/auth"
@@ -67,6 +68,10 @@ export default async function AdminNewPackagePage({
       userName={profile.displayName}
     >
       <div className="flex flex-col gap-6">
+        {/* Publishing, detail page (redesign R5, ia.md). */}
+        <BackLink href="/admin/publishing" compact>
+          Publishing
+        </BackLink>
         <PageHeader
           scope={
             candidates?.ok

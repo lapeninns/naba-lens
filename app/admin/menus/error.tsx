@@ -1,27 +1,33 @@
 "use client"
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react"
+import { usePathname } from "next/navigation"
 
-import { ErrorState, ERROR_COPY } from "@/components/nabalens/error-state"
-import { Button } from "@/components/ui/button"
+import { ERROR_COPY } from "@/components/nabalens/error-state"
 
+import { AdminErrorPage } from "../_components/admin-boundary"
+
+/**
+ * Menus, one venue's menus or a version that could not load (redesign R5):
+ * inside the admin frame, so the nav stays, with Retry. No menu changes.
+ */
 export default function MenusError({ retry }: { retry: () => void }) {
+  const pathname = usePathname() ?? ""
+  const back = { href: "/admin/menus", label: "Menus" }
+  const frame = pathname.startsWith("/admin/menus/versions/")
+    ? { title: "Menu version", back }
+    : pathname.startsWith("/admin/menus/")
+      ? { title: "Venue menus", back }
+      : { title: "Menus" }
   return (
-    <main className="mx-auto w-full max-w-page px-page-gutter pt-4 pb-8 md:px-6 md:py-8">
-      <h1 className="px-1 pb-3 type-page-title text-ink md:px-0 md:pb-5">
-        Menus
-      </h1>
-      <ErrorState
-        title={ERROR_COPY.couldNotLoad("menus")}
-        action={
-          <Button variant="primary" onClick={() => retry()}>
-            <ArrowClockwiseIcon aria-hidden />
-            {ERROR_COPY.tryAgain}
-          </Button>
-        }
-      >
-        {ERROR_COPY.checkConnection} No menu has changed.
-      </ErrorState>
-    </main>
+    <AdminErrorPage
+      section="menus"
+      {...frame}
+      what={ERROR_COPY.couldNotLoad(
+        frame.title === "Menus" ? "menus" : "this menu"
+      )}
+      retry={retry}
+    >
+      {ERROR_COPY.checkConnection} No menu has changed.
+    </AdminErrorPage>
   )
 }

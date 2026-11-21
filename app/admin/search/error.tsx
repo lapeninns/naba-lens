@@ -1,6 +1,7 @@
 "use client"
 
 import { AppShell } from "@/components/nabalens"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { SEARCH_COPY } from "@/components/nabalens/search/search-copy"
 import { SearchError } from "@/components/nabalens/search/search-results"
@@ -15,6 +16,9 @@ export default function AdminSearchError({
   return (
     <AppShell variant="admin" active="content">
       <div className="grid min-w-0 gap-6">
+        <BackLink href="/admin" compact>
+          Library
+        </BackLink>
         <PageHeader
           venueScope
           scope={[SEARCH_COPY.allVenues, SEARCH_COPY.order]}
