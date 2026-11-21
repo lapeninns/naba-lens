@@ -505,8 +505,8 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       .getByRole("listitem")
       .filter({ hasText: w.venue1.name })
     await expect(venueRow).toBeVisible()
-    await expect(venueRow).toContainText("Venue coverage")
-    await expect(venueRow).toContainText("Staff participation")
+    await expect(venueRow).toContainText("Checklist items complete")
+    await expect(venueRow).toContainText("Staff met their target")
     test.info().annotations.push({
       type: "AC-19 admin rows",
       description: await venueRow.innerText(),
@@ -1322,11 +1322,15 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         .getByRole("table", { name: "Preparation by venue" })
         .getByRole("row")
         .filter({ hasText: w.venue1.name })
+    // Monthly preparation is a closed disclosure (second handoff).
+    const openPreparation = () => page.locator("#preparation summary").click()
     await page.goto("/admin/coverage")
+    await openPreparation()
     await expect(venueRow()).toContainText("Not prepared yet")
     await ok(admin.rpc("prepare_coverage_month", { p_venue_id: w.venue1.id }))
     await page.reload()
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible()
+    await openPreparation()
     await expect(venueRow()).toBeVisible()
     await expect(venueRow()).not.toContainText("Not prepared yet")
     await page.context().close()

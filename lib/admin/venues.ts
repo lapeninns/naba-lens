@@ -401,7 +401,7 @@ export const SETUP_TITLES: Record<SetupKey, string> = {
   inventory: "Current menu confirmed",
   reviewers: "Main and backup reviewer",
   staff: "Staff invited",
-  spaces: "Spaces and facilities checked",
+  spaces: "Spaces and amenities checked",
   collection: "First accepted photo",
 }
 
@@ -428,10 +428,10 @@ export function setupDetail(item: SetupItem): string {
       const checks = item.checks ?? 0
       const unanswered = item.unanswered ?? 0
       const places = item.places ?? 0
-      if (checks === 0) return "No facility questions yet. Copy a template."
+      if (checks === 0) return "No amenity questions yet. Copy a template."
       if (places === 0) return "No spaces listed yet."
       if (unanswered > 0)
-        return `${unanswered} of ${checks} facility questions still to answer.`
+        return `${unanswered} of ${checks} amenity questions still to answer.`
       return `${checks} questions answered, ${places} ${places === 1 ? "space" : "spaces"}.`
     }
     case "collection": {

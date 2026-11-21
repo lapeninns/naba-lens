@@ -1,12 +1,11 @@
 import type { Metadata } from "next"
-import Link from "next/link"
-import { ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { SelfReviewsControl } from "@/app/staff/manage/_shared/controls"
 import { ItemPhotoSelfReviewsControl } from "@/app/staff/manage/_shared/menu-items-controls"
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { CoverageSection } from "@/components/nabalens/coverage"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { ITEM_SELF_REVIEWS_COPY } from "@/components/nabalens/menu-photos/item-photo-self-reviews"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
@@ -14,7 +13,6 @@ import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { StatusChip } from "@/components/nabalens/status-chip"
-import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import {
   getCoverageActor,
@@ -41,8 +39,6 @@ import {
 } from "../coverage-copy"
 import {
   MonthNav,
-  SectionHead,
-  SummaryLine,
   Tallies,
   VenueList,
   type VenueMenus,
@@ -166,20 +162,10 @@ export default async function CoverageOverviewPage({
         )
       }
       actions={
-        venues.length === 0 ? undefined : (
-          <>
-            <Link
-              href="/admin/coverage/managers"
-              className={buttonVariants({
-                variant: "secondary",
-              })}
-            >
-              <ShieldCheckIcon aria-hidden />
-              {COVERAGE_COPY.venueManagers}
-            </Link>
-            {needsPreparing ? <PrepareButton primary /> : null}
-          </>
-        )
+        // Venue managers is a People tab now (second handoff), not a link here.
+        venues.length > 0 && needsPreparing ? (
+          <PrepareButton primary />
+        ) : undefined
       }
       className="pb-0 md:pb-0"
     >
@@ -233,71 +219,44 @@ export default async function CoverageOverviewPage({
                 />
               ) : null}
               <VenueList rows={venues} menus={menus} />
+              {/* Second handoff: Monthly preparation and Self-reviews are
+                  reference lists, folded shut with their summary line. A
+                  failed run keeps preparation open, so it is not missed. */}
               {isCurrent ? (
-                <div className="grid items-start gap-gutter lg:grid-cols-2">
-                  <div className="grid min-w-0 content-start gap-2 rounded-card bg-surface p-4 shadow-card">
-                    <SectionHead
-                      id="preparation-summary-title"
-                      title={PREPARATION_COPY.title}
-                    />
-                    <SummaryLine
-                      icon={prepared === venues.length ? "check" : "prepare"}
-                    >
-                      <a
-                        href="#preparation"
-                        className="underline decoration-1 underline-offset-4 hover:decoration-2"
-                      >
-                        {PREPARATION_COPY.summaryLine(
-                          prepared,
-                          venues.length,
-                          lastRunAt ? formatDateTime(lastRunAt) : null
-                        )}
-                      </a>
-                    </SummaryLine>
-                  </div>
-                  <div className="grid min-w-0 content-start gap-2 rounded-card bg-surface p-4 shadow-card">
-                    <SectionHead
-                      id="self-review-summary-title"
-                      title={COVERAGE_COPY.selfReviews}
-                    />
-                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body">
-                      <StatusChip state="self_review" />
-                      <a
-                        href="#self-reviews"
-                        className="inline-flex min-h-11 items-center text-ink underline underline-offset-4"
-                      >
-                        {COVERAGE_COPY.selfReviewsThisMonth(selfReviewCount)}
-                      </a>
-                      <span className="text-ink-muted">
-                        {COVERAGE_COPY.selfReviewsNote}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-              {isCurrent ? (
-                <PreparationSection
-                  model={model}
-                  period={overview.period}
-                  venueNames={venueNames}
-                  allRuns={runs.firstPage}
-                  primary={needsPreparing}
-                />
-              ) : null}
-              <section
-                id="self-reviews"
-                aria-labelledby="self-review-title"
-                className="grid scroll-mt-20 gap-3"
-              >
-                <div className="grid gap-1">
-                  <SectionHead
-                    id="self-review-title"
-                    title={SELF_REVIEWS_COPY.title}
+                <CoverageSection
+                  id="preparation"
+                  title={PREPARATION_COPY.title}
+                  count={PREPARATION_COPY.summaryLine(
+                    prepared,
+                    venues.length,
+                    lastRunAt ? formatDateTime(lastRunAt) : null
+                  )}
+                  collapsed={model.unfinished.length === 0}
+                >
+                  <PreparationSection
+                    model={model}
+                    period={overview.period}
+                    venueNames={venueNames}
+                    allRuns={runs.firstPage}
+                    primary={needsPreparing}
+                    bare
                   />
-                  <p className="max-w-reading px-1 text-body text-ink-muted">
-                    {SELF_REVIEWS_COPY.body}
-                  </p>
-                </div>
+                </CoverageSection>
+              ) : null}
+              <CoverageSection
+                id="self-reviews"
+                title={SELF_REVIEWS_COPY.title}
+                count={
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    <StatusChip state="self_review" />
+                    {COVERAGE_COPY.selfReviewsThisMonth(selfReviewCount)}
+                  </span>
+                }
+                collapsed
+              >
+                <p className="max-w-reading px-1 text-body text-ink-muted">
+                  {SELF_REVIEWS_COPY.body}
+                </p>
                 {selfReviews.items.length === 0 ? (
                   <EmptyState
                     title={SELF_REVIEWS_COPY.emptyTitle(overview.period.label)}
@@ -307,7 +266,7 @@ export default async function CoverageOverviewPage({
                   <SelfReviewsControl initial={selfReviews} period={period} />
                 )}
                 <div className="mt-3 grid gap-1">
-                  <h3 className="px-1 font-display text-item-title text-ink">
+                  <h3 className="px-1 text-label text-ink">
                     {ITEM_SELF_REVIEWS_COPY.title}
                   </h3>
                   <p className="max-w-reading px-1 text-body text-ink-muted">
@@ -318,7 +277,7 @@ export default async function CoverageOverviewPage({
                   initial={itemSelfReviews}
                   period={period}
                 />
-              </section>
+              </CoverageSection>
             </>
           )}
         </div>

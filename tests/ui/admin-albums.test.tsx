@@ -138,11 +138,11 @@ const cellsOf = (name: string) =>
     .getAllByRole("cell")
     .map((cell) => [
       cell.getAttribute("data-tint"),
-      cell.textContent?.replace(/^(Food|Drinks|Amenities|Areas)/, ""),
+      cell.textContent?.replace(/^(Food|Drinks|Amenities|Spaces)/, ""),
     ])
 
 describe("/admin/albums", () => {
-  it("draws venues down and Food, Drinks, Amenities, Areas across, filled of total", async () => {
+  it("draws venues down and Food, Drinks, Amenities, Spaces across, filled of total", async () => {
     render(await AdminAlbumsPage())
     // Overview › Albums (redesign R5, ia.md): the section's title, and the
     // Albums tab current.
@@ -158,7 +158,7 @@ describe("/admin/albums", () => {
       within(matrix())
         .getAllByRole("columnheader")
         .map((h) => h.textContent)
-    ).toEqual(["Venue", "Food", "Drinks", "Amenities", "Areas"])
+    ).toEqual(["Venue", "Food", "Drinks", "Amenities", "Spaces"])
     // Venues by name, not by how full they are.
     expect(
       within(matrix())
@@ -210,9 +210,9 @@ describe("/admin/albums", () => {
     ).getAllByRole("link")
     expect(gaps.map((g) => g.textContent)).toEqual([
       "The Bell · SpiritsDrinks3 of 6 still empty",
-      "Old Crown · PlacesAreas1 of 1 still empty",
+      "Old Crown · SpacesSpaces1 of 1 still empty",
       "The Bell · GamesAmenities1 of 1 still empty",
-      "The Bell · PlacesAreas1 of 1 still empty",
+      "The Bell · SpacesSpaces1 of 1 still empty",
     ])
     expect(gaps[0]).toHaveProperty(
       "pathname",

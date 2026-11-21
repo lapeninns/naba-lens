@@ -32,7 +32,7 @@ vi.mock("@/app/admin/staff/[id]/mfa-reset-actions", () => mfa)
 import { OverviewView } from "@/app/admin/overview/overview-view"
 import { MfaResetPanel } from "@/app/admin/staff/[id]/mfa-reset-panel"
 import {
-  ReviewerForm,
+  ReviewersForm,
   ScopeForm,
   StatusForm,
   TemplateForm,
@@ -372,15 +372,21 @@ describe("venue forms (A2)", () => {
 
   it("marks a named reviewer who no longer reviews there", () => {
     render(
-      <ReviewerForm
+      <ReviewersForm
         venueId={V1}
-        responsibility="main"
-        current={venue.reviewers.main}
+        main={venue.reviewers.main}
+        backup={null}
         candidates={[{ profileId: V1, name: "Alex", role: "manager" }]}
       />
     )
     expect(screen.getByText(/Sam no longer reviews at this venue/)).toBeTruthy()
-    const options = screen.getAllByRole("option").map((o) => o.textContent)
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Save reviewers",
+    ])
+    const main = screen.getByRole("combobox", { name: /Main reviewer/ })
+    const options = within(main)
+      .getAllByRole("option")
+      .map((o) => o.textContent)
     expect(options).toEqual([
       "Nobody named",
       "Sam (no longer reviews here)",

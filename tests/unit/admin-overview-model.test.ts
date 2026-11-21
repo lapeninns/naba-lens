@@ -381,7 +381,7 @@ describe("venues model", () => {
         unanswered: 3,
         places: 2,
       })
-    ).toBe("3 of 12 facility questions still to answer.")
+    ).toBe("3 of 12 amenity questions still to answer.")
     expect(setupDetail({ key: "staff", done: true, members: 1 })).toBe(
       "1 person has access."
     )

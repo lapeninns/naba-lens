@@ -12,6 +12,7 @@ export function CoverageSection({
   children,
   className,
   focusableTitle = false,
+  collapsed = false,
 }: {
   title: React.ReactNode
   /** Quiet text after the title: a count, a month or a state. */
@@ -22,8 +23,44 @@ export function CoverageSection({
   className?: string
   /** The title takes focus when an action removes the control that had it. */
   focusableTitle?: boolean
+  /**
+   * A reference section folded shut (second handoff, decision 4): a closed
+   * disclosure whose summary is the title and its count line. The section
+   * inside is unchanged; nothing is removed.
+   */
+  collapsed?: boolean
 }) {
   const titleId = id ? `${id}-title` : undefined
+  if (collapsed) {
+    return (
+      <section
+        id={id}
+        aria-labelledby={titleId}
+        className={cn("min-w-0 scroll-mt-4", className)}
+      >
+        <details className="group rounded-card border border-line bg-surface">
+          <summary className="flex min-h-12 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-card px-4 py-2.5 focus-ring outline-none [&::-webkit-details-marker]:hidden">
+            <CaretRightIcon
+              aria-hidden
+              className="size-5 shrink-0 text-ink-muted transition-transform group-open:rotate-90 motion-reduce:transition-none"
+            />
+            <h2 id={titleId} className="text-label text-balance text-ink">
+              {title}
+            </h2>
+            {count != null ? (
+              <span className="text-meta text-ink-muted tabular-nums">
+                {count}
+              </span>
+            ) : null}
+          </summary>
+          <div className="grid min-w-0 gap-gutter border-t border-line p-4">
+            {action ? <div className="flex justify-end">{action}</div> : null}
+            {children}
+          </div>
+        </details>
+      </section>
+    )
+  }
   return (
     <section
       id={id}

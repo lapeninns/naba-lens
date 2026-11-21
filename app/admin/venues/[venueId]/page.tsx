@@ -12,6 +12,7 @@ import { StatusChip } from "@/components/nabalens/status-chip"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import {
+  OPERATING_STATUSES,
   operatingStatusChip,
   SETUP_TITLES,
   setupDetail,
@@ -25,7 +26,7 @@ import { getReviewSettings } from "@/lib/server/review/single-reviewer"
 
 import { AdminVenueHeader } from "../../_components/admin-venue-header"
 import {
-  ReviewerForm,
+  ReviewersForm,
   ScopeForm,
   StatusForm,
   TemplateForm,
@@ -103,6 +104,9 @@ export default async function AdminVenuePage({
         .map((v) => ({ id: v.id, name: v.name }))
     : []
   const inventory = venue.setup.items.find((i) => i.key === "inventory")
+  const statusLabel = OPERATING_STATUSES.find(
+    (s) => s.value === venue.operatingStatus
+  )?.label
 
   return (
     <AppShell variant="admin" active="venues" userName={profile.displayName}>
@@ -150,81 +154,105 @@ export default async function AdminVenuePage({
           ) : null}
         </div>
 
-        <SetupChecklist venue={venue} />
+        {/* Second handoff, venue Setup: the checklist is the page, with the
+            reference forms folded shut under it; Reviewers stays open beside
+            it because that is the step most often missing. */}
+        <div className="grid min-w-0 items-start gap-8 md:grid-cols-2">
+          <div className="grid min-w-0 gap-4">
+            <SetupChecklist venue={venue} />
 
-        {venue.active ? (
-          <CoverageSection id="reviewers" title="Reviewers">
-            <p className="px-1 text-body text-ink-muted">
-              People who review here today: the venue&apos;s managers and the
-              group admins. To add one, make them a manager in People.
-            </p>
-            <div className="grid gap-4 md:grid-cols-2">
-              <ReviewerForm
+            <CoverageSection
+              id="details"
+              title="Name and location"
+              count={[venue.locality, venue.timezone]
+                .filter(Boolean)
+                .join(" · ")}
+              collapsed
+            >
+              <VenueDetailsForm venue={venue} />
+            </CoverageSection>
+
+            <CoverageSection
+              id="menus"
+              title="Menus"
+              count={inventory?.menuTitle ?? "No active menu"}
+              collapsed
+            >
+              <Row
+                href={`/admin/menus/${venue.id}`}
+                data-testid="venue-menus-link"
+                title={inventory?.menuTitle ?? "No active menu"}
+                subtitle="Menu versions, imports and schedules for this venue."
+              />
+            </CoverageSection>
+
+            {venue.active ? (
+              <CoverageSection
+                id="collect"
+                title="What this venue collects"
+                count={
+                  accommodation
+                    ? accommodation.applicable
+                      ? "Accommodation"
+                      : "No accommodation"
+                    : undefined
+                }
+                collapsed
+              >
+                {accommodation ? (
+                  <ScopeForm
+                    venueId={venue.id}
+                    applicable={accommodation.applicable}
+                    decided={accommodation.decided}
+                    revision={accommodation.revision}
+                    reason={accommodation.reason}
+                  />
+                ) : (
+                  <Notice tone="negative" role="alert">
+                    The venue&apos;s scope couldn&apos;t be loaded. Reload the
+                    page.
+                  </Notice>
+                )}
+                <TemplateForm venueId={venue.id} otherVenues={otherVenues} />
+              </CoverageSection>
+            ) : null}
+
+            <CoverageSection
+              id="status"
+              title="Status"
+              count={statusLabel}
+              collapsed
+            >
+              <StatusForm venue={venue} />
+            </CoverageSection>
+          </div>
+
+          {venue.active ? (
+            <CoverageSection id="reviewers" title="Reviewers">
+              <p className="px-1 text-body text-ink-muted">
+                People who review here today: the venue&apos;s managers and the
+                group admins. To add one, make them a manager in People.
+              </p>
+              <ReviewersForm
                 venueId={venue.id}
-                responsibility="main"
-                current={venue.reviewers.main}
+                main={venue.reviewers.main}
+                backup={venue.reviewers.backup}
                 candidates={venue.candidates}
               />
-              <ReviewerForm
-                venueId={venue.id}
-                responsibility="backup"
-                current={venue.reviewers.backup}
-                candidates={venue.candidates}
-              />
-            </div>
-            {/* FA-9 single-reviewer venue (S3-R1 K6). */}
-            {review.ok ? (
-              <SingleReviewerSetting
-                venueId={venue.id}
-                settings={review.settings}
-              />
-            ) : (
-              <Notice tone="negative" role="alert">
-                The review setting couldn&apos;t be loaded. Reload the page.
-              </Notice>
-            )}
-          </CoverageSection>
-        ) : null}
-
-        <CoverageSection id="details" title="Name and location">
-          <div className="rounded-card bg-surface p-4 shadow-card">
-            <VenueDetailsForm venue={venue} />
-          </div>
-        </CoverageSection>
-
-        <CoverageSection id="menus" title="Menus">
-          <Row
-            href={`/admin/menus/${venue.id}`}
-            data-testid="venue-menus-link"
-            title={inventory?.menuTitle ?? "No active menu"}
-            subtitle="Menu versions, imports and schedules for this venue."
-          />
-        </CoverageSection>
-
-        {venue.active ? (
-          <CoverageSection id="collect" title="What this venue collects">
-            {accommodation ? (
-              <ScopeForm
-                venueId={venue.id}
-                applicable={accommodation.applicable}
-                decided={accommodation.decided}
-                revision={accommodation.revision}
-                reason={accommodation.reason}
-              />
-            ) : (
-              <Notice tone="negative" role="alert">
-                The venue&apos;s scope couldn&apos;t be loaded. Reload the page.
-              </Notice>
-            )}
-            <TemplateForm venueId={venue.id} otherVenues={otherVenues} />
-          </CoverageSection>
-        ) : null}
-
-        <CoverageSection id="status" title="Status">
-          <div className="rounded-card bg-surface p-4 shadow-card">
-            <StatusForm venue={venue} />
-          </div>
-        </CoverageSection>
+              {/* FA-9 single-reviewer venue (S3-R1 K6). */}
+              {review.ok ? (
+                <SingleReviewerSetting
+                  venueId={venue.id}
+                  settings={review.settings}
+                />
+              ) : (
+                <Notice tone="negative" role="alert">
+                  The review setting couldn&apos;t be loaded. Reload the page.
+                </Notice>
+              )}
+            </CoverageSection>
+          ) : null}
+        </div>
       </div>
     </AppShell>
   )

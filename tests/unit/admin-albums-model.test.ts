@@ -73,7 +73,7 @@ const crown = venue("02", "Old Crown", {
 })
 
 describe("buildAdminAlbums", () => {
-  it("lists venues down by name with Food, Drinks, Amenities and Areas across", () => {
+  it("lists venues down by name with Food, Drinks, Amenities and Spaces across", () => {
     const albums = buildAdminAlbums([bell, crown])
     expect(albums.rows.map((r) => r.venueName)).toEqual([
       "Old Crown",
@@ -152,12 +152,12 @@ describe("buildAdminAlbums", () => {
       ["The Bell", "drinks", "Spirits", 8, 8],
       // 6 dishes, 2 accepted, 1 waiting: 3 still empty.
       ["The Bell", "food", "Desserts", 3, 6],
-      ["Old Crown", "areas", "Places", 2, 2],
-      // Ties: by venue name, then column (Food, Drinks, Amenities, Areas),
+      ["Old Crown", "areas", "Spaces", 2, 2],
+      // Ties: by venue name, then column (Food, Drinks, Amenities, Spaces),
       // then group name.
       ["The Bell", "amenities", "Games", 1, 3],
       ["The Bell", "amenities", "Outside", 1, 1],
-      ["The Bell", "areas", "Places", 1, 3],
+      ["The Bell", "areas", "Spaces", 1, 3],
     ])
     // A full section is no gap.
     expect(albums.gaps.some((g) => g.group === "Mains")).toBe(false)

@@ -74,6 +74,10 @@ export const COVERAGE_COPY = {
   },
   itemsComplete: (total: number) => `of ${total} items complete`,
   metTheirTarget: (total: number) => `of ${total} met their target`,
+  // A venue row's two meters (second handoff, Overview › This month).
+  meterChecklist: "Checklist items complete",
+  meterStaff: "Staff met their target",
+  meterOf: (total: number) => `of ${total}`,
   dishesWithPhoto: (total: number) => `of ${total} dishes have a photo`,
   noMenu: "No active menu",
 } as const

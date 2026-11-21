@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: ADMIN_ALBUMS_COPY.title }
 
 /**
  * Album A4, admin albums (DESIGN.md §6.6): every venue's album, venues down
- * and Food, Drinks, Amenities, Areas across, then the biggest gaps. Admins
+ * and Food, Drinks, Amenities, Spaces across, then the biggest gaps. Admins
  * only: the layout's gate, requireActiveAdmin here, and the database
  * (album_admin_counts refuses anyone else).
  */
