@@ -4,6 +4,7 @@ import { AppShell } from "@/components/nabalens/app-shell"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveStaff } from "@/lib/auth"
@@ -66,6 +67,7 @@ export default async function CommunityPage({
       {/* Common Room: one feed column of posts on the grey canvas. */}
       <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
         <OfflineNotice />
+        <BackLink href="/staff/me">Me</BackLink>
         <PageHeader
           scope={venueName ?? "All venues"}
           venueScope={venueName !== null}

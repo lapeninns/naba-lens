@@ -4,6 +4,7 @@ import { CaretDownIcon, UsersIcon } from "@phosphor-icons/react/dist/ssr"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { IconDisc } from "@/components/nabalens/common-room"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveStaff } from "@/lib/auth"
@@ -83,6 +84,7 @@ export default async function PeoplePage({
       {/* Common Room feed: white cards on the grey canvas, one column. */}
       <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
         <OfflineNotice />
+        <BackLink href="/staff/me">Me</BackLink>
         <PageHeader
           scope={PEOPLE_COPY.scope}
           title={PEOPLE_COPY.title}

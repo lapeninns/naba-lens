@@ -71,8 +71,21 @@ describe("AppShell staff navigation", () => {
     )
     for (const name of ["Our menu", "Photos", "People", "Home"])
       expect(screen.queryByRole("link", { name })).toBeNull()
-    expect(current("Staff")).toEqual([])
+    // Our menu is part of the Album, so Album stays lit (redesign R1).
+    expect(current("Staff")).toEqual(["Album"])
   })
+
+  it.each(["community", "people"] as const)(
+    "lights Me on a page reached from Me (%s)",
+    (active) => {
+      render(
+        <AppShell variant="staff" active={active}>
+          x
+        </AppShell>
+      )
+      expect(current("Staff")).toEqual(["Me"])
+    }
+  )
 
   it("keeps Me current when no section is given", () => {
     render(<AppShell variant="staff">x</AppShell>)

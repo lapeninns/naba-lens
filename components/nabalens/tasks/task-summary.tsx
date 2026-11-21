@@ -1,7 +1,6 @@
 import Link from "next/link"
 import {
   CalendarBlankIcon,
-  CaretLeftIcon,
   ClockIcon,
   ForkKnifeIcon,
   HouseIcon,
@@ -18,28 +17,23 @@ import { StatusChip as SystemChip } from "../status-chip"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+import { BackLink } from "../back-link"
 import { ProfileAvatar } from "../profile-avatar"
 import { plural, requirementKindLabel } from "./copy"
 import { DueLine } from "./status-badges"
 import type { MyAssignment, RequirementKind } from "./types"
 
-/** Back link to Home, a 48px staff target (the thread's "‹ Home"). */
+/** Back link, to Today unless told otherwise; a 48px staff target. */
 export function BackToTasks({
   href,
-  label = "Home",
+  label = "Today",
 }: {
   href: string
-  /** Where `href` goes, when it isn't Home (`?from=`). */
+  /** Where `href` goes, when it isn't Today (`?from=`). */
   label?: string
 }) {
   return (
-    <Link
-      href={href}
-      className="-ml-1 inline-flex min-h-12 items-center gap-1.5 self-start rounded-control px-1 text-label text-ink focus-ring outline-none hover:underline"
-    >
-      <CaretLeftIcon className="size-5" weight="bold" aria-hidden />
-      {label}
-    </Link>
+    <BackLink href={href}>{label}</BackLink>
   )
 }
 

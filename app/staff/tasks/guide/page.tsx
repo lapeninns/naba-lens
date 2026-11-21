@@ -1,3 +1,4 @@
+import { STAFF_PHOTO_ROUTES } from "@/lib/config/album-upload-tray"
 import { CheckIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { AppShell } from "@/components/nabalens/app-shell"
@@ -11,7 +12,7 @@ import { GUIDE_RULES, GUIDE_SAFETY } from "@/lib/guide/dish-guide"
 import { getCoverageActor } from "@/lib/server/coverage"
 
 import { staffShellStatus } from "../../_shell/shell-status"
-import { TASKS_PATH, unwrap } from "../result"
+import { unwrap } from "../result"
 
 export const metadata = { title: "Photo guide" }
 
@@ -33,7 +34,7 @@ export default async function PhotoGuidePage() {
       userName={profile.displayName}
     >
       <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter pb-4">
-        <BackToTasks href={TASKS_PATH} />
+        <BackToTasks href={STAFF_PHOTO_ROUTES.home} />
         <PageHeader
           title="Photo guide"
           summary="How to photograph a dish so every venue's photos look alike. Four angles, always in this order."

@@ -1,3 +1,4 @@
+import { STAFF_PHOTO_ROUTES } from "@/lib/config/album-upload-tray"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { FROM_BACK_LABEL } from "@/components/nabalens/shell/entry-copy"
 import { requireActiveStaff } from "@/lib/auth"
@@ -5,7 +6,7 @@ import { getCoverageActor } from "@/lib/server/coverage"
 import { ENTRY_FROM_PARAM, fromHref } from "@/lib/work-client/entry"
 
 import { staffShellStatus } from "../../../_shell/shell-status"
-import { TASKS_PATH, unwrap } from "../../result"
+import { unwrap } from "../../result"
 import { CaptureScreen } from "../_capture/screen"
 
 export const metadata = { title: "Amenity check" }
@@ -49,9 +50,9 @@ export default async function AmenityCapturePage({
       checkId,
       mode: "staff",
       venueName: profile.venue?.name ?? null,
-      backHref: back?.href ?? TASKS_PATH,
+      backHref: back?.href ?? STAFF_PHOTO_ROUTES.home,
       backLabel: back?.label ?? "Home",
-      doneHref: back?.href ?? TASKS_PATH,
+      doneHref: back?.href ?? STAFF_PHOTO_ROUTES.home,
       announceSent: !back,
     }),
   ])

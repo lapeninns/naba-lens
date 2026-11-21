@@ -199,15 +199,23 @@ const ADMIN_MORE: NavItem<AdminSection> = {
 const ME: NavItem<StaffSection> = {
   id: "portfolio",
   label: "Me",
-  href: "/staff",
+  href: STAFF_PHOTO_ROUTES.me,
   icon: UserCircleIcon,
 }
-/** Album is the staff Home (DESIGN.md §5a). */
 const ALBUM: NavItem<StaffSection> = {
   id: "tasks",
   label: "Album",
-  href: "/staff/tasks",
+  href: STAFF_PHOTO_ROUTES.album,
   icon: ImagesSquareIcon,
+}
+/**
+ * Pages reached from Me (Photos, People) light the Me tab, and Our menu
+ * lights Album, so a tab is always lit (redesign audit, R1).
+ */
+const STAFF_ACTIVE_ALIAS: Partial<Record<StaffSection, StaffSection>> = {
+  community: "portfolio",
+  people: "portfolio",
+  menu: "tasks",
 }
 const PHONE_TABS: ReadonlyArray<NavItem<StaffSection>> = [
   {
@@ -292,7 +300,9 @@ export function AppShell(props: AppShellProps) {
         }))
   const active = admin
     ? (ADMIN_ACTIVE_ALIAS[admin.active] ?? admin.active)
-    : (staff?.active ?? "portfolio")
+    : (STAFF_ACTIVE_ALIAS[staff?.active ?? "portfolio"] ??
+      staff?.active ??
+      "portfolio")
   const navLabel = admin ? "Admin" : "Staff"
   const phoneSection = photoNav
     ? PHONE_TABS.find((item) => item.id === active)
