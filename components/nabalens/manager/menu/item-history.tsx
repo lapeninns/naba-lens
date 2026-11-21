@@ -81,7 +81,7 @@ export function ItemHistory({
 
   return (
     <section aria-labelledby="item-history" className="grid gap-3">
-      <h2 id="item-history" className="px-1 type-section-title text-ink">
+      <h2 id="item-history" className="px-1 text-heading text-ink">
         {copy.history}
       </h2>
       {events.length === 0 && !error ? (

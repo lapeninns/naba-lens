@@ -126,7 +126,7 @@ export function NeededByControl({
 
   return (
     <section aria-labelledby="item-needed-by" className="grid gap-3">
-      <h2 id="item-needed-by" className="px-1 type-section-title text-ink">
+      <h2 id="item-needed-by" className="px-1 text-heading text-ink">
         {copy.title}
       </h2>
       <CoverageNotice notice={notice} onDismiss={() => setNotice(null)} />

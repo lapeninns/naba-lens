@@ -7,8 +7,11 @@ import {
   UserIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
-import { Row, SectionHeader } from "@/components/nabalens/common-room"
+// v2 ListRow (catalogue.md): the one row, though its file still sits in the
+// Common Room folder.
+import { Row } from "@/components/nabalens/common-room/row"
 import { dateAndTime, longDate } from "@/components/nabalens/knowledge/copy"
+import { MANAGER_SECTION_HEAD } from "@/components/nabalens/manager/surface"
 import type {
   TriageQueue,
   TriageRow,
@@ -96,7 +99,12 @@ export function TriageCard({
   if (lines.length === 0) return null
   return (
     <section aria-labelledby={TRIAGE_HEADING_ID} className="grid gap-gutter">
-      <SectionHeader id={TRIAGE_HEADING_ID} title={TRIAGE_COPY.title} />
+      {/* Section headings are Figtree (ia.md decision 9). */}
+      <div className={MANAGER_SECTION_HEAD}>
+        <h2 id={TRIAGE_HEADING_ID} className="text-heading text-ink">
+          {TRIAGE_COPY.title}
+        </h2>
+      </div>
       <ul className={ROW_LIST}>
         {lines.map((line) => (
           <li key={line.key} data-triage={line.key}>

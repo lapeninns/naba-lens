@@ -63,7 +63,7 @@ export default async function ManagerExportsPage() {
           today={londonToday()}
         />
         <section aria-labelledby="packages" className="grid gap-3">
-          <h2 id="packages" className="type-section-title text-ink">
+          <h2 id="packages" className="text-heading text-ink">
             {EXPORTS_COPY.packagesTitle}
           </h2>
           {packages.ok ? (

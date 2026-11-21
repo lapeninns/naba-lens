@@ -62,6 +62,11 @@ export default async function ManagerLayout({
       userName={workspace.profile.displayName}
       reviewCount={read?.ok ? read.overview.pendingPhotos : undefined}
       confirmCount={toConfirm}
+      missingCount={
+        read?.ok && read.overview.menuState === "ready"
+          ? read.overview.needsPhotoItems
+          : undefined
+      }
       loadedAt={new Date().toISOString()}
     >
       {children}

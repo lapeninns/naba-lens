@@ -4,12 +4,13 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 
 import { Notice } from "@/components/nabalens/notice"
-import { chipState } from "@/components/nabalens/status-chip"
+import { chipState, StatusChip } from "@/components/nabalens/status-chip"
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
 import { FormField } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { LinkButton } from "@/components/ui/link-button"
 import { OptionRow } from "@/components/ui/option-row"
 import {
   CAPTURE_WINDOW_MAX,
@@ -232,11 +233,11 @@ export function RequestForm({
   }
 
   const hint = REQUEST_WORDS.typeHint[type]
-  return (
+  const form = (
     <form
       noValidate
       data-slot="request-form"
-      className="grid gap-4 rounded-card bg-surface p-3 shadow-card sm:p-5"
+      className="grid gap-4 rounded-card bg-surface p-3 edge sm:p-5"
       onSubmit={(event) => {
         event.preventDefault()
         void submit()
@@ -306,22 +307,6 @@ export function RequestForm({
         </FormField>
       ) : null}
 
-      {mode !== "fact" ? (
-        <FormField
-          label="Kind of request"
-          error={errors.type}
-          description={hint}
-        >
-          <OptionSelect
-            options={MEDIA_TYPES.filter(
-              (t) => mode === "slot" || t !== "replacement"
-            ).map((t) => ({ id: t, name: REQUEST_WORDS.type[t] }))}
-            value={type}
-            onValueChange={(v) => v && setType(v as RequestType)}
-          />
-        </FormField>
-      ) : null}
-
       <FormField
         label={mode === "fact" ? "Note" : "Brief"}
         optional={mode === "fact"}
@@ -329,7 +314,7 @@ export function RequestForm({
         description={
           mode === "fact"
             ? "What to check, in one line."
-            : `One line on what the photo must show, up to ${REQUEST_BRIEF_MAX} characters. Staff read it on the slot.`
+            : `One line on what the photo must show. Staff read it on the slot. ${[...brief].length} of ${REQUEST_BRIEF_MAX} characters.`
         }
       >
         <Input
@@ -346,6 +331,24 @@ export function RequestForm({
             value={intendedUse || null}
             onValueChange={(v) => setUse((v as IntendedUse | null) ?? "")}
             invalid={Boolean(errors.intendedUse)}
+          />
+        </FormField>
+      ) : null}
+
+      {/* The three required answers (slot, brief, use) come first; the
+          kind defaults from the slot, so it follows them. */}
+      {mode !== "fact" ? (
+        <FormField
+          label="Kind of request"
+          error={errors.type}
+          description={hint}
+        >
+          <OptionSelect
+            options={MEDIA_TYPES.filter(
+              (t) => mode === "slot" || t !== "replacement"
+            ).map((t) => ({ id: t, name: REQUEST_WORDS.type[t] }))}
+            value={type}
+            onValueChange={(v) => v && setType(v as RequestType)}
           />
         </FormField>
       ) : null}
@@ -389,7 +392,9 @@ export function RequestForm({
 
       <details className="group grid gap-4 rounded-control bg-surface-2 p-3">
         <summary className="min-h-11 cursor-pointer content-center font-semibold text-ink focus-ring">
-          More detail
+          {mode === "fact"
+            ? "More detail: priority"
+            : "More detail: priority, team, orientation, shot list"}
         </summary>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <FormField label="Priority">
@@ -485,9 +490,71 @@ export function RequestForm({
         </div>
       </details>
 
-      <Button type="submit" variant="primary" loading={busy} disabled={busy}>
-        Send the request
-      </Button>
+      <div className="flex flex-wrap gap-2 max-sm:*:flex-auto">
+        <Button type="submit" variant="primary" loading={busy} disabled={busy}>
+          Send the request
+        </Button>
+        <LinkButton href={requestHrefs.list()} variant="secondary">
+          Cancel
+        </LinkButton>
+      </div>
     </form>
   )
+
+  if (mode === "fact") return form
+  const previewName =
+    mode === "slot" ? (chosen?.name ?? null) : subject.trim() || null
+  const previewBrief = brief.trim()
+  // The handoff's New request: the form left, and from bp-desktop what staff
+  // will see on the slot beside it, so the brief is written for them.
+  return (
+    <div className="grid items-start gap-4 desktop:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
+      {form}
+      <aside
+        aria-labelledby="request-preview-title"
+        data-slot="request-preview"
+        className="grid gap-3 rounded-card bg-surface p-4 edge"
+      >
+        <h2 id="request-preview-title" className="text-heading text-ink">
+          What staff will see
+        </h2>
+        {previewName ? (
+          <div className="grid gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-label [overflow-wrap:anywhere] text-ink">
+                {previewName}
+              </p>
+              <StatusChip state="request_open" />
+            </div>
+            <p className="text-meta [overflow-wrap:anywhere] text-ink-muted">
+              {[
+                previewBrief ? `Asked for: “${previewBrief}”` : null,
+                date ? `Needed by ${shortDate(date)}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Write the brief to see it here."}
+            </p>
+          </div>
+        ) : (
+          <p className="text-meta text-ink-muted">
+            {mode === "slot"
+              ? "Choose a slot to see it here."
+              : "Write the subject to see it here."}
+          </p>
+        )}
+      </aside>
+    </div>
+  )
+}
+
+/** "28 Nov" for a YYYY-MM-DD date. */
+function shortDate(day: string): string {
+  const at = new Date(`${day}T12:00:00Z`)
+  return Number.isNaN(at.getTime())
+    ? day
+    : new Intl.DateTimeFormat("en-GB", {
+        day: "numeric",
+        month: "short",
+        timeZone: "UTC",
+      }).format(at)
 }

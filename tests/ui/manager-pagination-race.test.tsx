@@ -377,7 +377,7 @@ describe("Menu Show more across a filter change", () => {
       await pending.promise
     })
     expect(screen.queryByRole("link", { name: /Tart/ })).toBeNull()
-    expect(screen.getByRole("link", { name: /Pie/ })).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Pie" })).toBeTruthy()
 
     loadItems.mockResolvedValueOnce({
       ok: true,
@@ -392,7 +392,7 @@ describe("Menu Show more across a filter change", () => {
       sectionId: MAINS,
       cursor: "mains-next",
     })
-    expect(await screen.findByRole("link", { name: /Stew/ })).toBeTruthy()
+    expect(await screen.findByRole("link", { name: "Stew" })).toBeTruthy()
     expect(screen.queryByRole("link", { name: /Tart/ })).toBeNull()
   })
 })

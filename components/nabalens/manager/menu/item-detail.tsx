@@ -20,7 +20,9 @@ import { useRequestIds } from "@/components/nabalens/coverage/use-request-id"
 import { formatDate } from "@/components/nabalens/format"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { StatusChip } from "@/components/nabalens/status-chip"
+import { requestHrefs } from "@/components/nabalens/requests/hrefs"
 import { Button } from "@/components/ui/button"
+import { LinkButton } from "@/components/ui/link-button"
 
 import type {
   DecisionAction,
@@ -49,7 +51,9 @@ type Decide = (
 ) => Promise<ReasonOutcome>
 
 /** A section heading on the grey canvas (Common Room SectionHeader). */
-const SECTION_TITLE = "px-1 type-section-title text-ink"
+// Section headings are Figtree; the item's name is the one display heading
+// (ia.md decision 9).
+const SECTION_TITLE = "px-1 text-heading text-ink"
 
 /**
  * One active-menu item for a manager: its menu photo (or the fallback),
@@ -184,6 +188,16 @@ export function ItemDetail({
             </p>
           </div>
         }
+        actions={
+          // The page's one bottle button: a New request for this dish (a
+          // replacement when it already has a photo).
+          <LinkButton
+            href={requestHrefs.newFor("dish", item.itemId)}
+            variant="primary"
+          >
+            {copy.askForPhoto}
+          </LinkButton>
+        }
         className="pb-0 md:pb-0"
       />
       <CoverageNotice
@@ -192,159 +206,168 @@ export function ItemDetail({
         onDismiss={() => setNotice(null)}
       />
 
-      {neededBy}
-
-      <section aria-labelledby="item-menu-photo" className="grid gap-3">
-        <h2 id="item-menu-photo" className={SECTION_TITLE}>
-          {copy.menuPhoto}
-        </h2>
-        {preferred ? (
-          <>
-            {preferred.fallback ? (
-              <p className="text-body text-ink-muted">{copy.fallback}</p>
-            ) : null}
-            {photoCard(
-              preferred,
+      {/* The handoff's menu item detail: the photos on the left and the
+          dish's brief, date and availability beside them from bp-desktop. */}
+      <div className="grid items-start gap-6 desktop:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+        {neededBy ? (
+          <div className="grid gap-6 desktop:col-start-2 desktop:row-start-1">
+            {neededBy}
+          </div>
+        ) : null}
+        <div className="grid min-w-0 gap-6 desktop:col-start-1 desktop:row-start-1">
+          <section aria-labelledby="item-menu-photo" className="grid gap-3">
+            <h2 id="item-menu-photo" className={SECTION_TITLE}>
+              {copy.menuPhoto}
+            </h2>
+            {preferred ? (
               <>
                 {preferred.fallback ? (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={busy !== null}
-                    onClick={() => void run("set_preferred", preferred)}
-                  >
-                    {copy.setPreferred}
-                  </Button>
+                  <p className="text-body text-ink-muted">{copy.fallback}</p>
                 ) : null}
-                <WithdrawButton
-                  photo={preferred}
-                  disabled={busy !== null}
-                  note={
-                    detail.alternatives.length > 0
-                      ? copy.withdrawPromote
-                      : copy.withdrawReopen(item.name)
-                  }
-                  onConfirm={(reason) => run("withdraw", preferred, reason)}
-                  reportFocus={() => noticeRef.current}
-                />
-              </>,
-              undefined
-            )}
-          </>
-        ) : (
-          <p className="text-body text-ink-muted">{copy.noMenuPhoto}</p>
-        )}
-      </section>
-
-      {detail.alternatives.length > 0 ? (
-        <PhotoSection id="item-alternatives" title={copy.alternatives}>
-          {detail.alternatives.map((photo) => (
-            <li key={photo.photoId}>
-              {photoCard(
-                photo,
-                <>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={busy !== null}
-                    onClick={() => void run("set_preferred", photo)}
-                  >
-                    {copy.setPreferred}
-                  </Button>
-                  <WithdrawButton
-                    photo={photo}
-                    disabled={busy !== null}
-                    onConfirm={(reason) => run("withdraw", photo, reason)}
-                    reportFocus={() => noticeRef.current}
-                  />
-                </>
-              )}
-            </li>
-          ))}
-        </PhotoSection>
-      ) : null}
-
-      {detail.askedForAnother.length > 0 ? (
-        <PhotoSection id="item-asked" title={copy.askedForAnother}>
-          {detail.askedForAnother.map((photo) => (
-            <li key={photo.photoId}>
-              {photoCard(
-                photo,
-                <WithdrawButton
-                  photo={photo}
-                  label={copy.withdraw}
-                  title={copy.withdrawRequestTitle}
-                  reasonLabel={copy.withdrawRequestLabel}
-                  disabled={busy !== null}
-                  onConfirm={(reason) => run("withdraw", photo, reason)}
-                  reportFocus={() => noticeRef.current}
-                />
-              )}
-            </li>
-          ))}
-        </PhotoSection>
-      ) : null}
-
-      {detail.recheck.length > 0 ? (
-        <PhotoSection id="item-recheck" title={copy.recheck}>
-          {detail.recheck.map((photo) => {
-            const removed = photo.recheckKind === "variant_removed"
-            return (
-              <li key={photo.photoId}>
                 {photoCard(
-                  photo,
+                  preferred,
                   <>
-                    {removed ? null : (
+                    {preferred.fallback ? (
                       <Button
                         variant="secondary"
                         size="sm"
                         disabled={busy !== null}
-                        onClick={() => void run("reaccept", photo)}
+                        onClick={() => void run("set_preferred", preferred)}
                       >
-                        {copy.acceptAgain}
+                        {copy.setPreferred}
                       </Button>
-                    )}
+                    ) : null}
+                    <WithdrawButton
+                      photo={preferred}
+                      disabled={busy !== null}
+                      note={
+                        detail.alternatives.length > 0
+                          ? copy.withdrawPromote
+                          : copy.withdrawReopen(item.name)
+                      }
+                      onConfirm={(reason) => run("withdraw", preferred, reason)}
+                      reportFocus={() => noticeRef.current}
+                    />
+                  </>,
+                  undefined
+                )}
+              </>
+            ) : (
+              <p className="text-body text-ink-muted">{copy.noMenuPhoto}</p>
+            )}
+          </section>
+
+          {detail.alternatives.length > 0 ? (
+            <PhotoSection id="item-alternatives" title={copy.alternatives}>
+              {detail.alternatives.map((photo) => (
+                <li key={photo.photoId}>
+                  {photoCard(
+                    photo,
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={busy !== null}
+                        onClick={() => void run("set_preferred", photo)}
+                      >
+                        {copy.setPreferred}
+                      </Button>
+                      <WithdrawButton
+                        photo={photo}
+                        disabled={busy !== null}
+                        onConfirm={(reason) => run("withdraw", photo, reason)}
+                        reportFocus={() => noticeRef.current}
+                      />
+                    </>
+                  )}
+                </li>
+              ))}
+            </PhotoSection>
+          ) : null}
+
+          {detail.askedForAnother.length > 0 ? (
+            <PhotoSection id="item-asked" title={copy.askedForAnother}>
+              {detail.askedForAnother.map((photo) => (
+                <li key={photo.photoId}>
+                  {photoCard(
+                    photo,
                     <WithdrawButton
                       photo={photo}
-                      label={removed ? copy.withdraw : undefined}
+                      label={copy.withdraw}
+                      title={copy.withdrawRequestTitle}
+                      reasonLabel={copy.withdrawRequestLabel}
                       disabled={busy !== null}
                       onConfirm={(reason) => run("withdraw", photo, reason)}
                       reportFocus={() => noticeRef.current}
                     />
-                  </>,
-                  <>
-                    {photo.recheckKind ? (
-                      <StatusChip tone="attention">
-                        {copy.recheckKind[photo.recheckKind]}
-                      </StatusChip>
-                    ) : null}
-                    {removed ? (
-                      <p className="text-meta text-ink-muted">
-                        {copy.variantRemoved}
-                      </p>
-                    ) : null}
-                  </>
-                )}
-              </li>
-            )
-          })}
-        </PhotoSection>
-      ) : null}
+                  )}
+                </li>
+              ))}
+            </PhotoSection>
+          ) : null}
 
-      <section aria-labelledby="item-waiting" className="grid gap-3">
-        <h2 id="item-waiting" className={SECTION_TITLE}>
-          {copy.waiting}
-        </h2>
-        {waiting}
-      </section>
+          {detail.recheck.length > 0 ? (
+            <PhotoSection id="item-recheck" title={copy.recheck}>
+              {detail.recheck.map((photo) => {
+                const removed = photo.recheckKind === "variant_removed"
+                return (
+                  <li key={photo.photoId}>
+                    {photoCard(
+                      photo,
+                      <>
+                        {removed ? null : (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={busy !== null}
+                            onClick={() => void run("reaccept", photo)}
+                          >
+                            {copy.acceptAgain}
+                          </Button>
+                        )}
+                        <WithdrawButton
+                          photo={photo}
+                          label={removed ? copy.withdraw : undefined}
+                          disabled={busy !== null}
+                          onConfirm={(reason) => run("withdraw", photo, reason)}
+                          reportFocus={() => noticeRef.current}
+                        />
+                      </>,
+                      <>
+                        {photo.recheckKind ? (
+                          <StatusChip tone="attention">
+                            {copy.recheckKind[photo.recheckKind]}
+                          </StatusChip>
+                        ) : null}
+                        {removed ? (
+                          <p className="text-meta text-ink-muted">
+                            {copy.variantRemoved}
+                          </p>
+                        ) : null}
+                      </>
+                    )}
+                  </li>
+                )
+              })}
+            </PhotoSection>
+          ) : null}
 
-      <ItemHistory
-        // A refresh brings a new first page: start again from it.
-        key={historyKey(history, item.itemRevision)}
-        itemId={item.itemId}
-        initial={history}
-        loadEvents={loadEvents}
-      />
+          <section aria-labelledby="item-waiting" className="grid gap-3">
+            <h2 id="item-waiting" className={SECTION_TITLE}>
+              {copy.waiting}
+            </h2>
+            {waiting}
+          </section>
+
+          <ItemHistory
+            // A refresh brings a new first page: start again from it.
+            key={historyKey(history, item.itemRevision)}
+            itemId={item.itemId}
+            initial={history}
+            loadEvents={loadEvents}
+          />
+        </div>
+      </div>
     </div>
   )
 }

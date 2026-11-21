@@ -227,7 +227,7 @@ export function NewShotListForm({
         })
       }}
     >
-      <h3 className="type-section-title text-ink">New shot list</h3>
+      <h3 className="text-heading text-ink">New shot list</h3>
       {error ? <Notice tone="negative">{error}</Notice> : null}
       {done ? (
         <Notice tone="positive">

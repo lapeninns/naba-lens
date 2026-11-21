@@ -8,6 +8,7 @@ import {
   fromMenuCard,
 } from "@/components/nabalens/album/review/model"
 import { ThumbReview } from "@/components/nabalens/album/review/thumb-review"
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { NeedsLabelList } from "@/components/nabalens/manager/review/inbox-needs-label"
 import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
 import { ROUTES } from "@/lib/auth/routes"
@@ -155,6 +156,8 @@ export async function AlbumReviewBody({
       areaMore={areaCards.length >= AREA_QUEUE_LIMIT}
       total={menuTotal + areaTotal + needsLabel.length}
       waitingElsewhere={needsLabel.length}
+      gaps={menuReady ? overview.overview.needsPhotoItems : 0}
+      gapsHref={managerHrefs.menu({ status: "needs_photo" })}
       context={context}
       listHref={REVIEW_LIST_HREF}
     />

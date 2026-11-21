@@ -50,7 +50,7 @@ export default async function ManagerAccountPage() {
           aria-labelledby="two-step-title"
           className="grid gap-3 rounded-card bg-surface p-4 shadow-card md:p-6"
         >
-          <h2 id="two-step-title" className="type-section-title text-ink">
+          <h2 id="two-step-title" className="text-heading text-ink">
             Two-step sign-in
           </h2>
           <p className="text-body text-ink-muted">

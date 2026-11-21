@@ -34,7 +34,7 @@ export async function AmenityReviewSection({
   const read = await listAmenityPhotoQueue(ctx)
   return (
     <section aria-labelledby="review-amenities" className="grid gap-3">
-      <h2 id="review-amenities" className="type-section-title text-ink">
+      <h2 id="review-amenities" className="text-heading text-ink">
         {A.heading}
       </h2>
       {!read.ok ? (

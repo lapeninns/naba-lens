@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 
 import { workspaceManagerContext } from "@/app/staff/manage/_shared/context"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { ErrorState } from "@/components/nabalens/error-state"
+import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
@@ -13,15 +13,18 @@ import {
   requestHrefs,
   type RequestFilterParam,
 } from "@/components/nabalens/requests/hrefs"
-import { RequestRows } from "@/components/nabalens/requests/request-row"
+import {
+  orderRequests,
+  RequestRows,
+} from "@/components/nabalens/requests/request-row"
 import {
   NewShotListForm,
   ShotListCards,
 } from "@/components/nabalens/requests/shot-lists"
+import { FilterPill } from "@/components/ui/filter-pill"
 import { LinkButton } from "@/components/ui/link-button"
 import { countRequests, filterRequests } from "@/lib/requests/model"
 import { listRequests } from "@/lib/server/requests"
-import { cn } from "@/lib/utils"
 
 import { cancelShotListAction, createShotListAction } from "./actions"
 
@@ -34,10 +37,13 @@ const FILTERS: { id: RequestFilterParam; label: string }[] = [
 ]
 
 /**
- * Requests and shot lists (spec §7 M4; FA-5; S2-REQ). Open requests first:
- * Blocked, Open, Submitted, by priority and date. A request on a slot never
- * turns Overdue; a New brief or shot list with a due date can. A nav section
- * of its own (redesign R4, ia.md).
+ * Requests and shot lists (spec §7 M4; FA-5; S2-REQ), drawn to the 21 Nov
+ * handoff's Requests figure: the counts under the title, one bottle button
+ * (New request), then Blocked first, Submitted, then Open (a neutral chip:
+ * nothing has happened yet). A request on a slot never turns Overdue; a New
+ * brief or shot list with a due date can. A nav section of its own
+ * (redesign R4, ia.md). A failed read is an inline notice with Retry beside
+ * what failed; the title, the filters and New request stay.
  */
 export default async function ManagerRequestsPage({
   searchParams,
@@ -52,13 +58,21 @@ export default async function ManagerRequestsPage({
     venueId: ctx.venueId,
     includeClosed: show !== "active",
   })
+  const counts = read.ok ? countRequests(read.list.items) : null
 
   const header = (
     <PageHeader
       scope={ctx.venue.name}
       venueScope
       title="Requests"
-      summary="Ask for a photo on a slot, a new subject or a fact check. A request on a slot completes when its photo is accepted; staff see it on that slot with your brief."
+      summary={
+        counts ? (
+          <p className="font-mono text-mono font-semibold tabular-nums">
+            {counts.open} open · {counts.submitted} submitted · {counts.blocked}{" "}
+            blocked
+          </p>
+        ) : undefined
+      }
       actions={
         <LinkButton href={requestHrefs.new()} variant="primary">
           New request
@@ -68,19 +82,45 @@ export default async function ManagerRequestsPage({
     />
   )
 
+  const filters = (
+    <nav aria-label="Show requests">
+      <ul className="flex flex-wrap gap-2">
+        {FILTERS.map((f) => (
+          <li key={f.id}>
+            <FilterPill
+              href={requestHrefs.list(f.id)}
+              selected={f.id === show}
+              current="page"
+            >
+              {f.label}
+            </FilterPill>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+
   if (!read.ok)
     return (
       <div className="grid gap-gutter">
         {header}
-        <ErrorState title="We couldn't load requests" role="alert">
+        {filters}
+        <ErrorState
+          title="We couldn't load requests"
+          role="alert"
+          action={
+            <LinkButton href={requestHrefs.list(show)} variant="secondary">
+              {MANAGER_COPY.retry}
+            </LinkButton>
+          }
+        >
           {read.message} {read.nextAction}
         </ErrorState>
       </div>
     )
 
   const { list } = read
-  const items = filterRequests(list.items, show)
-  const counts = countRequests(list.items)
+  const items = orderRequests(filterRequests(list.items, show))
   const openLists = list.shotLists.filter((l) => l.state === "open")
   return (
     <div className="grid gap-gutter">
@@ -89,40 +129,12 @@ export default async function ManagerRequestsPage({
         loadedAt={new Date().toISOString()}
       />
       {header}
+      {filters}
 
       <section aria-labelledby="requests-list" className="grid gap-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="requests-list" className="type-section-title text-ink">
-            {show === "done"
-              ? "Done"
-              : show === "all"
-                ? "All requests"
-                : "Open"}
-          </h2>
-          {show === "active" ? (
-            <p className="font-mono text-mono font-semibold text-ink-muted tabular-nums">
-              {counts.open} open · {counts.submitted} submitted ·{" "}
-              {counts.blocked} blocked
-            </p>
-          ) : null}
-        </div>
-        <nav aria-label="Show requests" className="flex flex-wrap gap-2">
-          {FILTERS.map((f) => (
-            <Link
-              key={f.id}
-              href={requestHrefs.list(f.id)}
-              aria-current={f.id === show ? "page" : undefined}
-              className={cn(
-                "inline-flex min-h-11 items-center rounded-round px-4 font-semibold focus-ring",
-                f.id === show
-                  ? "bg-accent-soft text-accent-text inset-ring-2 inset-ring-accent"
-                  : "bg-surface text-ink shadow-card"
-              )}
-            >
-              {f.label}
-            </Link>
-          ))}
-        </nav>
+        <h2 id="requests-list" className="sr-only">
+          {show === "done" ? "Done" : show === "all" ? "All requests" : "Open"}
+        </h2>
         {items.length > 0 ? (
           <RequestRows requests={items} shotLists={list.shotLists} />
         ) : (
@@ -134,19 +146,13 @@ export default async function ManagerRequestsPage({
                 ? "Ask for a missing dish, a better angle or a fact check. Staff see it on the slot."
                 : "Completed and cancelled requests are kept here."
             }
-            action={
-              show === "active" ? (
-                <LinkButton href={requestHrefs.new()} variant="secondary">
-                  New request
-                </LinkButton>
-              ) : undefined
-            }
           />
         )}
       </section>
 
       <section aria-labelledby="shot-lists" className="grid gap-3">
-        <h2 id="shot-lists" className="type-section-title text-ink">
+        {/* Section headings are Figtree (ia.md decision 9). */}
+        <h2 id="shot-lists" className="text-heading text-ink">
           Shot lists
         </h2>
         <p className="text-body text-ink-muted">

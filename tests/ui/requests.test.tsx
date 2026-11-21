@@ -22,7 +22,10 @@ vi.mock("next/navigation", () => ({
 
 import { RequestControls } from "@/components/nabalens/requests/request-controls"
 import { RequestForm } from "@/components/nabalens/requests/request-form"
-import { RequestRows } from "@/components/nabalens/requests/request-row"
+import {
+  orderRequests,
+  RequestRows,
+} from "@/components/nabalens/requests/request-row"
 import {
   NewShotListForm,
   ShotListCards,
@@ -76,6 +79,25 @@ function request(over: Record<string, unknown> = {}): RequestView {
 }
 
 describe("request rows", () => {
+  it("lists Blocked first, then Submitted, then Open, keeping the server's order within each", () => {
+    const rows = orderRequests([
+      request({ id: "o1", state: "open" }),
+      request({ id: "s1", state: "submitted" }),
+      request({ id: "o2", state: "open" }),
+      request({ id: "b1", state: "blocked" }),
+      request({ id: "c1", state: "completed" }),
+    ])
+    expect(rows.map((r) => r.id)).toEqual(["b1", "s1", "o1", "o2", "c1"])
+  })
+
+  it("draws Open as a neutral chip", () => {
+    render(<RequestRows requests={[request()]} shotLists={[]} />)
+    const chip = within(screen.getByRole("link")).getByText("Open")
+    expect(
+      chip.closest("[data-slot=status-chip]")?.getAttribute("data-v2-tone")
+    ).toBe("neutral")
+  })
+
   it("shows the state, brief and a slot request's date as Needed by", () => {
     render(<RequestRows requests={[request()]} shotLists={[]} />)
     const row = screen.getByRole("link")
@@ -165,6 +187,35 @@ describe("New request form (M4-required-fields)", () => {
       await screen.findByText("Write one line on what the photo must show.")
     ).toBeTruthy()
     expect(create).not.toHaveBeenCalled()
+  })
+
+  it("asks the three required answers first and previews what staff will see", async () => {
+    render(
+      <RequestForm
+        mode="slot"
+        today="2026-11-18"
+        slots={slots}
+        facts={[]}
+        people={people}
+        shotLists={[]}
+        initialSlot={{ kind: "dish", slotId: PIE }}
+        create={vi.fn()}
+      />
+    )
+    const labels = [
+      ...document.querySelectorAll("[data-slot=request-form] label"),
+    ].map((l) => l.textContent?.replace(/\(optional\)|Optional/i, "").trim())
+    expect(labels.slice(0, 3)).toEqual(["Slot", "Brief", "Intended use"])
+    const preview = screen.getByRole("complementary", {
+      name: "What staff will see",
+    })
+    expect(within(preview).getByText("Pie")).toBeTruthy()
+    expect(within(preview).getByText("Open")).toBeTruthy()
+    await userEvent.type(
+      screen.getByRole("textbox", { name: /Brief/ }),
+      "Whole pie"
+    )
+    expect(preview.textContent).toContain("Asked for: “Whole pie”")
   })
 
   it("says a covered slot is Covered, the Metrics word, not In the album (X11)", () => {

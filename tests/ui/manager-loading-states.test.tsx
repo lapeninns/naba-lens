@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The workspace's loading states: each page announces what it is loading,
 // rather than every page saying "Loading menu photos".
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, within } from "@testing-library/react"
 import type { ComponentType } from "react"
 import { afterEach, describe, expect, it } from "vitest"
 
@@ -33,5 +33,21 @@ describe("manager loading states", () => {
     expect(screen.getByRole("status").textContent).toBe(label)
     expect(container.querySelector('[aria-busy="true"]')).toBeTruthy()
     expect(container.textContent).not.toContain("menu photos")
+  })
+
+  // The handoff's Loading state: the real title and tabs are already there,
+  // with sunken blocks in the shape of the chips and rows that are coming.
+  it("Album › Menu shows its real title and tabs while the chips and rows load", () => {
+    const { container } = render(<ManagerMenuLoading />)
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Album" })
+    ).toBeTruthy()
+    const tabs = screen.getByRole("navigation", { name: "Album views" })
+    expect(
+      within(tabs)
+        .getAllByRole("link")
+        .map((l) => l.textContent)
+    ).toEqual(["Menu", "Spaces", "Amenities"])
+    expect(container.querySelectorAll('[data-shape="button"]').length).toBe(5)
   })
 })

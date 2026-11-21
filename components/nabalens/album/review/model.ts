@@ -53,6 +53,13 @@ export type ReviewPhoto = {
   addedAt: string
   /** The album place it belongs to; null when its section is not placed yet. */
   place: string | null
+  /**
+   * Where the slot sits in the album: its menu section and shelf
+   * ("Starters · Menu"), or the Spaces shelf.
+   */
+  group: string
+  /** The photo's pixel size ("4032 × 3024"); null when the queue omits it. */
+  size: string | null
   /** The largest image the scoped routes give, else the thumbnail. */
   imageUrl: string | null
   /** The reviewer's own photo: shown to nobody as a decision (§6.5). */
@@ -96,6 +103,9 @@ const EMPTY_CONTEXT: ReviewContext = {
   itemBrief: new Map(),
 }
 
+/** Album's shelf words (ia.md: Menu · Spaces · Amenities). */
+const SHELF = { menu: "Menu", spaces: "Spaces" } as const
+
 const clean = (value: string | null | undefined) => {
   const text = value?.replace(/\s+/g, " ").trim()
   return text ? text : null
@@ -129,6 +139,11 @@ export function fromMenuCard(
     author: card.contributor.name,
     addedAt: card.labelledAt ?? card.uploadedAt,
     place: context.sectionPlace.get(item.sectionId) ?? null,
+    group: [clean(item.sectionName), SHELF.menu].filter(Boolean).join(" · "),
+    size:
+      card.asset.width && card.asset.height
+        ? `${card.asset.width} × ${card.asset.height}`
+        : null,
     imageUrl: card.asset.previewUrl ?? card.asset.thumbnailUrl,
     // The manager's own photo, unless their venue is single-reviewer (K6,
     // S3-R8 W3): the list's rule, so both views offer the same photos.
@@ -168,6 +183,8 @@ export function fromAreaCard(
     author: card.authorName,
     addedAt: card.labelledAt || card.uploadedAt,
     place: card.area,
+    group: SHELF.spaces,
+    size: null,
     imageUrl: card.previewUrl ?? card.thumbnailUrl,
     own: !card.canDecide,
     subject: { kind: "area", labelId: card.labelId, assetId: card.assetId },
