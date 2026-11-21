@@ -2,6 +2,8 @@
 
 import * as React from "react"
 
+import { ALBUM_REVIEW_COPY } from "@/components/nabalens/album/review/copy"
+
 type ReviewCount = {
   /** Photos waiting for the caller's decision; undefined when it could not be read. */
   count: number | undefined
@@ -57,13 +59,9 @@ export function useReviewCount(): ReviewCount {
  * ia.md), from the workspace's count so it moves as decisions land. Without
  * a count it says what the page is.
  */
-export function ReviewCountTitle({
-  title,
-  fallback,
-}: {
-  title: (count: number) => string
-  fallback: string
-}) {
+export function ReviewCountTitle({ fallback }: { fallback: string }) {
   const { count } = useReviewCount()
-  return <>{count === undefined ? fallback : title(count)}</>
+  // The wording is imported here, not passed in: a Server Component page
+  // cannot hand a function to this Client Component.
+  return <>{count === undefined ? fallback : ALBUM_REVIEW_COPY.title(count)}</>
 }

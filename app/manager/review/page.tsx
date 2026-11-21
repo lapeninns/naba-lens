@@ -9,7 +9,6 @@ import {
   ReviewBody,
   type ReviewSearch,
 } from "@/app/manager/review/_shared/review-page"
-import { ALBUM_REVIEW_COPY } from "@/components/nabalens/album/review/copy"
 import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
 import { ReviewCountTitle } from "@/components/nabalens/manager/review-count"
 import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
@@ -140,12 +139,7 @@ export default async function ManagerReviewPage({
       <PageHeader
         scope={venue.name}
         venueScope
-        title={
-          <ReviewCountTitle
-            title={ALBUM_REVIEW_COPY.title}
-            fallback={REVIEW_COPY.title}
-          />
-        }
+        title={<ReviewCountTitle fallback={REVIEW_COPY.title} />}
         summary={<p>{REVIEW_COPY.summary}</p>}
         className="pb-0 md:pb-0"
       />

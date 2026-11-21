@@ -36,12 +36,7 @@ export default async function ManagerStaffAlbumPage({
   return (
     <div className="grid gap-4">
       <PageHeader
-        title={
-          <ReviewCountTitle
-            title={ALBUM_REVIEW_COPY.title}
-            fallback={REVIEW_COPY.title}
-          />
-        }
+        title={<ReviewCountTitle fallback={REVIEW_COPY.title} />}
         scope={venue.name}
         venueScope
         className="pb-0 md:pb-0"

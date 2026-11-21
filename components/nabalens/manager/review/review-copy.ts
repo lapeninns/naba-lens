@@ -97,7 +97,7 @@ export const REVIEW_COPY = {
   title: "Review",
   adminTitle: "Review menu photos",
   summary:
-    "Photos staff labelled with a menu item, oldest first. Accepting counts the photo for the item and shares it with colleagues in Photos.",
+    "Photos staff labelled with a menu item, oldest first. Keeping one in the album counts it for the item and shares it with colleagues in Photos.",
   listLabel: "Photos to review",
   filtersLabel: "Filter photos",
   statusLabel: "Status",

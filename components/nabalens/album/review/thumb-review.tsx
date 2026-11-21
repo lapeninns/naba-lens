@@ -443,7 +443,9 @@ export function ThumbReview({
               {C.next}
             </Button>
           ) : mode === "bar" ? (
-            <div className="grid grid-cols-2 gap-2">
+            // Stacked on narrow phones, so the longer words of redesign R4
+            // never wrap; the primary stays last, nearest the thumb.
+            <div className="grid gap-2 min-[25rem]:grid-cols-2">
               {askable ? (
                 <Button
                   type="button"
@@ -461,7 +463,7 @@ export function ThumbReview({
                 type="button"
                 variant="primary"
                 size="lg"
-                className={cn("min-h-16", !askable && "col-span-2")}
+                className={cn("min-h-16", !askable && "min-[25rem]:col-span-2")}
                 disabled={busy}
                 aria-busy={busy || undefined}
                 onClick={() => void send({ kind: "accept" })}
