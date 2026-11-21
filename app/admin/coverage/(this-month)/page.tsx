@@ -32,13 +32,13 @@ import {
 import type { GroupOverviewRow } from "@/lib/server/coverage/types"
 import type { MediaActor } from "@/lib/server/media/types"
 
-import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../../_components/admin-tabs"
 import {
   COVERAGE_COPY,
   PREPARATION_COPY,
   SELF_REVIEWS_COPY,
   monthName,
-} from "./coverage-copy"
+} from "../coverage-copy"
 import {
   MonthNav,
   SectionHead,
@@ -46,14 +46,14 @@ import {
   Tallies,
   VenueList,
   type VenueMenus,
-} from "./coverage-sections"
-import { buildPreparation, loadPeriodRuns, runsSince } from "./preparation"
-import { PreparationSection } from "./preparation-section"
+} from "../coverage-sections"
+import { buildPreparation, loadPeriodRuns, runsSince } from "../preparation"
+import { PreparationSection } from "../preparation-section"
 import {
   PrepareButton,
   PrepareProvider,
   PrepareStatus,
-} from "./prepare-control"
+} from "../prepare-control"
 
 export const metadata: Metadata = { title: "Coverage" }
 

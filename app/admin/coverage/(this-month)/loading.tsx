@@ -2,8 +2,8 @@ import { AppShell } from "@/components/nabalens/app-shell"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
-import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
-import { COVERAGE_COPY } from "./coverage-copy"
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../../_components/admin-tabs"
+import { COVERAGE_COPY } from "../coverage-copy"
 
 const ROWS = [
   ["60%", "35%"],
