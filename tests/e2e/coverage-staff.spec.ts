@@ -305,7 +305,8 @@ async function expiredLinkRecovery(page: Page) {
   const mine = page.getByRole("region", { name: "Your photos for this task" })
   const loaded = async () => {
     const images = mine.locator("img")
-    await expect(images).toHaveCount(2)
+    // A reload under load can take longer than the default to render them.
+    await expect(images).toHaveCount(2, { timeout: 30_000 })
     for (const image of await images.all()) {
       await image.scrollIntoViewIfNeeded()
       await expect

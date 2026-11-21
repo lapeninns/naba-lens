@@ -275,7 +275,9 @@ describe("inactive admin with a still-valid session", () => {
     const blocked = await run(() => redirectOf(BlockedPage))
     expect(blocked.location).toBeNull()
     const text = textOf(blocked.value)
-    expect(text).toContain("deactivated")
+    // "This account has been deactivated" is the Notice's title since the
+    // sign-in redesign (R6); its body says what that means.
+    expect(text).toContain("can't open Naba-Lens")
     expect(text).not.toContain(staff.email)
   })
 
