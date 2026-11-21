@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { OptionRow } from "@/components/ui/option-row"
-import { Textarea } from "@/components/ui/textarea"
 import {
   EXPORT_PROFILES,
   quietHoursText,
@@ -30,19 +29,23 @@ export const SETTINGS_FORM_COPY = {
   quietHint:
     "Read in each venue's own time. Digests wait until quiet hours end; in-app notices are still listed.",
   reminders: "Reminders and alerts",
-  retention: "Retention",
+  retention: "Retention and storage",
   retentionHint:
     "Unfinished or failed uploads are removed after this many days. Photos that finished sending are never removed automatically; accepted originals are kept until an admin removes them.",
   exports: "Allowed export profiles",
-  storage: "Storage",
   reason: "Why are you changing this?",
+  reasonHint: "Kept with the change in Activity",
 } as const
 
+/** A group of fields inside the one rules card: a legend, no second frame. */
+const GROUP = "grid gap-4 border-t border-line pt-4 first:border-t-0 first:pt-0"
+
 /**
- * Organisation settings (spec §8 A7). One form, one main button. Errors are
- * written beside the field they are about (DESIGN.md §6.7); what the admin
- * typed is kept. A save made over someone else's newer change is refused and
- * says to reload.
+ * Organisation settings (spec §8 A7; handoff "Settings › Rules"). One card,
+ * one form, one main button, with the reason field beside it because every
+ * change needs one. Errors are written beside the field they are about
+ * (DESIGN.md §6.7); what the admin typed is kept. A save made over someone
+ * else's newer change is refused and says to reload.
  */
 export function SettingsFormView({ settings }: { settings: OpsSettings }) {
   const [state, action, pending] = useActionState<SaveSettingsState, FormData>(
@@ -57,10 +60,14 @@ export function SettingsFormView({ settings }: { settings: OpsSettings }) {
   const errors = state.status === "error" ? (state.fieldErrors ?? {}) : {}
 
   return (
-    <form action={action} className="grid gap-6" noValidate>
+    <form
+      action={action}
+      className="grid gap-4 rounded-card bg-surface p-4 shadow-card"
+      noValidate
+    >
       <input type="hidden" name="revision" value={settings.revision} />
 
-      <FieldSet className="grid gap-4 rounded-card border border-line bg-surface p-4">
+      <FieldSet className={GROUP}>
         <FieldLegend className="type-heading-sm">
           {SETTINGS_FORM_COPY.quiet}
         </FieldLegend>
@@ -79,69 +86,88 @@ export function SettingsFormView({ settings }: { settings: OpsSettings }) {
               name="quietStart"
               type="time"
               defaultValue={start.quietStart}
-              className="max-w-40"
             />
           </FormField>
           <FormField label="Quiet until" error={errors.quietEnd}>
+            <Input name="quietEnd" type="time" defaultValue={start.quietEnd} />
+          </FormField>
+        </div>
+      </FieldSet>
+
+      <FieldSet className={GROUP}>
+        <FieldLegend className="type-heading-sm">
+          {SETTINGS_FORM_COPY.reminders}
+        </FieldLegend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            label="Remind managers about waiting photos every"
+            description="Days between review digests, sent only when something waits."
+            error={errors.reviewReminderDays}
+          >
             <Input
-              name="quietEnd"
-              type="time"
-              defaultValue={start.quietEnd}
-              className="max-w-40"
+              name="reviewReminderDays"
+              inputMode="numeric"
+              defaultValue={start.reviewReminderDays}
+            />
+          </FormField>
+          <FormField
+            label="Tell admins when a photo has waited longer than"
+            description="Days. Shown as an exception here and sent to admins once a week."
+            error={errors.backlogAlertDays}
+          >
+            <Input
+              name="backlogAlertDays"
+              inputMode="numeric"
+              defaultValue={start.backlogAlertDays}
             />
           </FormField>
         </div>
       </FieldSet>
 
-      <FieldSet className="grid gap-4 rounded-card border border-line bg-surface p-4">
-        <FieldLegend className="type-heading-sm">
-          {SETTINGS_FORM_COPY.reminders}
-        </FieldLegend>
-        <FormField
-          label="Remind managers about waiting photos every"
-          description="Days between review digests, sent only when something waits."
-          error={errors.reviewReminderDays}
-        >
-          <Input
-            name="reviewReminderDays"
-            inputMode="numeric"
-            defaultValue={start.reviewReminderDays}
-            className="max-w-28"
-          />
-        </FormField>
-        <FormField
-          label="Tell admins when a photo has waited longer than"
-          description="Days. Shown as an exception here and sent to admins once a week."
-          error={errors.backlogAlertDays}
-        >
-          <Input
-            name="backlogAlertDays"
-            inputMode="numeric"
-            defaultValue={start.backlogAlertDays}
-            className="max-w-28"
-          />
-        </FormField>
-      </FieldSet>
-
-      <FieldSet className="grid gap-4 rounded-card border border-line bg-surface p-4">
+      <FieldSet className={GROUP}>
         <FieldLegend className="type-heading-sm">
           {SETTINGS_FORM_COPY.retention}
         </FieldLegend>
-        <FormField
-          label="Remove unfinished uploads after"
-          description={SETTINGS_FORM_COPY.retentionHint}
-          error={errors.orphanCleanupDays}
-        >
-          <Input
-            name="orphanCleanupDays"
-            inputMode="numeric"
-            defaultValue={start.orphanCleanupDays}
-            className="max-w-28"
-          />
-        </FormField>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            label="Remove unfinished uploads after"
+            description={SETTINGS_FORM_COPY.retentionHint}
+            error={errors.orphanCleanupDays}
+            className="sm:col-span-2"
+          >
+            <Input
+              name="orphanCleanupDays"
+              inputMode="numeric"
+              defaultValue={start.orphanCleanupDays}
+              className="sm:max-w-[calc(50%-0.5rem)]"
+            />
+          </FormField>
+          <FormField
+            label="Storage quota (GB)"
+            description="Your hosting plan's limit for originals."
+            error={errors.storageQuotaGb}
+          >
+            <Input
+              name="storageQuotaGb"
+              inputMode="numeric"
+              defaultValue={start.storageQuotaGb}
+            />
+          </FormField>
+          <FormField
+            label="Warn admins at (per cent)"
+            description="Before uploads are blocked. Nothing is deleted to make room."
+            error={errors.storageAlertPercent}
+          >
+            <Input
+              name="storageAlertPercent"
+              inputMode="numeric"
+              defaultValue={start.storageAlertPercent}
+            />
+          </FormField>
+        </div>
       </FieldSet>
 
-      <FieldSet className="grid gap-3 rounded-card border border-line bg-surface p-4">
+      <FieldSet className={GROUP}>
         <FieldLegend className="type-heading-sm">
           {SETTINGS_FORM_COPY.exports}
         </FieldLegend>
@@ -162,51 +188,6 @@ export function SettingsFormView({ settings }: { settings: OpsSettings }) {
         ) : null}
       </FieldSet>
 
-      <FieldSet className="grid gap-4 rounded-card border border-line bg-surface p-4">
-        <FieldLegend className="type-heading-sm">
-          {SETTINGS_FORM_COPY.storage}
-        </FieldLegend>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField
-            label="Storage quota (GB)"
-            description="Your hosting plan's limit for originals."
-            error={errors.storageQuotaGb}
-          >
-            <Input
-              name="storageQuotaGb"
-              inputMode="numeric"
-              defaultValue={start.storageQuotaGb}
-              className="max-w-36"
-            />
-          </FormField>
-          <FormField
-            label="Warn admins at (per cent)"
-            description="Before uploads are blocked. Nothing is deleted to make room."
-            error={errors.storageAlertPercent}
-          >
-            <Input
-              name="storageAlertPercent"
-              inputMode="numeric"
-              defaultValue={start.storageAlertPercent}
-              className="max-w-28"
-            />
-          </FormField>
-        </div>
-      </FieldSet>
-
-      <FormField
-        label={SETTINGS_FORM_COPY.reason}
-        description="Kept in Activity with the old and new values."
-        error={errors.reason}
-      >
-        <Textarea
-          name="reason"
-          rows={2}
-          maxLength={500}
-          defaultValue={start.reason}
-        />
-      </FormField>
-
       {state.status === "error" ? (
         <Notice tone="negative" role="alert">
           {state.message}
@@ -220,10 +201,21 @@ export function SettingsFormView({ settings }: { settings: OpsSettings }) {
         </Notice>
       ) : null}
 
-      <div>
-        <Button type="submit" variant="primary" loading={pending}>
-          {SETTINGS_FORM_COPY.save}
-        </Button>
+      {/* The reason sits beside Save: every change needs one. */}
+      <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <FormField
+          label={SETTINGS_FORM_COPY.reason}
+          description={SETTINGS_FORM_COPY.reasonHint}
+          error={errors.reason}
+        >
+          <Input name="reason" maxLength={500} defaultValue={start.reason} />
+        </FormField>
+        {/* Lines the button up with the input under the label. */}
+        <div className="sm:pt-7">
+          <Button type="submit" variant="primary" loading={pending}>
+            {SETTINGS_FORM_COPY.save}
+          </Button>
+        </div>
       </div>
     </form>
   )

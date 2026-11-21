@@ -30,12 +30,12 @@ export default function StaffLoading() {
           <AdminTabs set="people" active="accounts" />
         </PageHeader>
         <SkeletonRegion label="Loading staff…" className="grid gap-4">
-          <div className="flex flex-wrap items-end gap-3">
-            {["sm:w-44", "sm:w-44", "sm:w-44", "min-w-48 flex-1"].map(
+          <div className="flex flex-wrap items-end gap-3 lg:flex-nowrap">
+            {["min-w-48 sm:flex-1", "sm:w-56", "sm:w-40", "sm:w-40"].map(
               (width, index) => (
                 <div key={index} className={`grid w-full gap-1.5 ${width}`}>
                   <Skeleton shape="line" className="w-20" />
-                  <Skeleton className="h-14" />
+                  <Skeleton className="h-10" />
                 </div>
               )
             )}

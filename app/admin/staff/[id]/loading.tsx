@@ -10,7 +10,10 @@ const LINES = [
   [48, 28],
 ]
 
-/** One account in its real layout: the Photos card beside the Account card. */
+/**
+ * One account in its real layout (handoff "One person"): the venues table
+ * first, then account type beside the Account card.
+ */
 export default function StaffMemberLoading() {
   return (
     // Inside the admin frame, so the nav stays while it loads (redesign R5).
@@ -29,15 +32,22 @@ export default function StaffMemberLoading() {
         </div>
         <SkeletonRegion
           label="Loading account…"
-          className="grid items-start gap-gutter lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]"
+          className="grid items-start gap-gutter lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]"
         >
-          <div className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
-            <Skeleton shape="title" className="w-32" />
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-              {Array.from({ length: 6 }, (_, index) => (
-                <Skeleton key={index} shape="tile" />
+          <div className="grid gap-3 lg:col-span-2">
+            <Skeleton shape="title" className="w-64" />
+            <div className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card">
+              {[0, 1].map((index) => (
+                <div key={index} className="grid min-h-12 px-4 py-3">
+                  <Skeleton shape="line" className="w-3/4" />
+                </div>
               ))}
             </div>
+          </div>
+          <div className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
+            <Skeleton shape="title" className="w-32" />
+            <Skeleton shape="line" className="w-2/3" />
+            <Skeleton shape="line" className="w-1/2" />
           </div>
           <div className="grid gap-4 rounded-card bg-surface p-4 shadow-card">
             <Skeleton shape="title" className="w-32" />
