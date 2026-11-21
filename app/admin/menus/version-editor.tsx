@@ -697,7 +697,9 @@ export function VersionEditor({
                     <Button
                       variant="primary"
                       className="w-full"
-                      disabled
+                      // aria-disabled keeps it in the focus order, so its
+                      // reason below can be reached (DESIGN.md §8).
+                      aria-disabled
                       aria-describedby={`${editorId}-why`}
                     >
                       Activate for labelling

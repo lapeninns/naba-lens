@@ -247,7 +247,9 @@ describe("menu version page", () => {
     const blocked = screen.getByRole("button", {
       name: "Activate for labelling",
     }) as HTMLButtonElement
-    expect(blocked.disabled).toBe(true)
+    // aria-disabled, not disabled: it stays focusable so the reason can be
+    // reached (DESIGN.md §8); the button holds the click.
+    expect(blocked.getAttribute("aria-disabled")).toBe("true")
     expect(blocked.getAttribute("aria-describedby")).toBeTruthy()
     expect(
       window.document.getElementById(blocked.getAttribute("aria-describedby")!)
