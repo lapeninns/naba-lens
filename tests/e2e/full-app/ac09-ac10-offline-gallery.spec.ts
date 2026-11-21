@@ -1,25 +1,27 @@
 import { expect, test } from "@playwright/test"
 
 import {
+  addPhotos,
+  addSheet,
   assetsNamed,
   assetNamed,
   dishesOn,
   keep,
-  matchBySearch,
-  matchSummary,
+  labelBySearch,
+  labelNow,
   openAlbum,
   SIZES,
-  startMatch,
   uploadStateOf,
+  waitPosted,
 } from "../helpers/full-app"
 import { provisionManagerWorld } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
-import { openMenuShelf } from "../helpers/s6-fullapp"
 import { signedInPage } from "../helpers/world"
 
 /**
- * AC09 (spec §5.6): offline, Match never says a photo was sent; it says it
- * is saved on this phone, and it sends once the phone is back online.
+ * AC09 (spec §5.6), for posting first (D21): offline, the add sheet never
+ * says a photo was posted; it waits for a signal, and the photo posts once
+ * the phone is back online, once.
  * AC10 (FA-2, gallery first): with camera permission denied, Add photos
  * still opens the phone's photo library (no capture attribute) and the
  * photos go through.
@@ -34,43 +36,31 @@ test("AC09 offline: no false Sent; saved on this phone; sent once back online (p
   const w = await provisionManagerWorld()
   const photo = await syntheticJpeg(`ac09-${w.tag}.jpg`)
   const page = await signedInPage(browser, w.staffA1, SIZES.phone)
-  // Album's Menu, Starters: Salad's tile is on screen (DESIGN.md §5d).
-  await openMenuShelf(page, "food.starters")
-  // The signal drops once Match has its slots (they come from the server).
-  const { match } = await startMatch(page, [photo.path])
-  await expect(
-    match
-      .locator('[data-slot="match-picker"]')
-      .getByRole("button", { name: /^Salad\b/ })
-  ).toBeVisible()
+  await openAlbum(page)
   await page.context().setOffline(true)
-  await matchBySearch(match, "salad", "Salad")
-  const summary = matchSummary(page)
-  await expect(summary).toBeVisible()
+  const { sheet } = await addPhotos(page, [photo.path])
   // Honest words for a photo still on the phone (spec §5.6).
-  await expect(summary).toContainText("Saved on this phone")
-  // Nothing reached the server, so the end must not claim a filled slot or
-  // Waiting (S3-E2E-1 E6, fixed by S3-R3).
-  await expect(summary).toContainText("1 photo saved on this phone")
-  await expect(summary).not.toContainText(/\b(Sent|Waiting|slots? filled)\b/)
-  await expect(summary).not.toContainText(/\bSent\b/)
-  await keep(page, info, "ac09-offline-summary")
+  await expect(
+    sheet.getByRole("status").filter({ hasText: /posted/ })
+  ).toHaveText("0 posted · 1 waiting")
+  await expect(sheet).toContainText("Waiting for a signal")
+  await expect(sheet.getByRole("list", { name: "Files" })).not.toContainText(
+    /\bPosted\b/
+  )
+  await keep(page, info, "ac09-offline-sheet")
   expect(
     assetsNamed(photo.name) === 0 ||
       uploadStateOf(await assetNamed(photo.name)) !== "ready"
   ).toBe(true)
 
-  // The album tile says so too, and not Waiting.
-  await page.keyboard.press("Escape")
-  await expect(match).toBeHidden()
-  await expect(
-    page.getByLabel("Salad: saved on this phone").first()
-  ).toBeVisible()
-
   // Back online: it goes, once.
   await page.context().setOffline(false)
+  await waitPosted(page, 1, 90_000)
   const id = await assetNamed(photo.name, 90_000)
   await expect.poll(() => uploadStateOf(id), { timeout: 90_000 }).toBe("ready")
+  await expect(addSheet(page)).toBeVisible()
+  const screen = await labelNow(page)
+  await labelBySearch(screen, [id], "salad", "Salad")
   await expect.poll(() => dishesOn(id), { timeout: 60_000 }).toBe("Salad")
   expect(assetsNamed(photo.name)).toBe(1)
   await page.context().close()
@@ -100,18 +90,19 @@ for (const size of ["phone", "desktop"] as const) {
       )
     ).not.toBe("granted")
     await openAlbum(page)
-    const { match, input } = await startMatch(page, [photo.path])
+    const { input } = await addPhotos(page, [photo.path])
     // The library picker, never a camera capture (FA-2).
     expect(input.capture).toBeNull()
     expect(input.multiple).toBe(true)
     expect(input.accept).toContain("image/jpeg")
-    await matchBySearch(match, "lager", "Lager")
-    await expect(matchSummary(page)).toBeVisible()
-    await keep(page, info, `ac10-${size}`)
+    await waitPosted(page, 1)
     const id = await assetNamed(photo.name)
     await expect
       .poll(() => uploadStateOf(id), { timeout: 60_000 })
       .toBe("ready")
+    const screen = await labelNow(page)
+    await labelBySearch(screen, [id], "lager", "Lager")
+    await keep(page, info, `ac10-${size}`)
     await expect.poll(() => dishesOn(id)).toBe("Lager")
     await page.context().close()
   })

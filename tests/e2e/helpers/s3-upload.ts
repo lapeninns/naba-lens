@@ -70,9 +70,9 @@ export async function myPhotoTile(
   return myPhotoTileById(page, id ?? "no-such-asset")
 }
 
-/** The Needs you inbox on My photos (§5e step 3). */
+/** The Needs you inbox on My photos (§5e step 3), Needs attention since D21. */
 export const needsYouInbox = (page: Page) =>
-  myPhotos(page).getByRole("region", { name: /^Needs you/ })
+  myPhotos(page).getByRole("region", { name: /^(Needs you|Needs attention)/ })
 
 /**
  * Me by its tab (phones), a client navigation: the Add queue and its leave

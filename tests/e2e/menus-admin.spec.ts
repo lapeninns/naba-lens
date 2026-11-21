@@ -6,12 +6,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 import { signIn } from "../support/identities"
 import { provisioner, psql, requireIsolatedStack } from "./helpers/stack"
 import { syntheticJpeg } from "./helpers/media"
-import { escape } from "./helpers/ui"
-import {
-  addFromLibrary,
-  assetIdFor,
-  doneButton,
-} from "./helpers/upload-label-flow"
+import { closeSheet, escape } from "./helpers/ui"
+import { addFromLibrary, assetIdFor } from "./helpers/upload-label-flow"
 import {
   provisionWorld,
   seedReadyAssets,
@@ -197,7 +193,7 @@ async function openStaffLabels(page: Page, name: string) {
   await page.goto("/staff/photos")
   const photo = await syntheticJpeg(`${name}.jpg`)
   const sheet = await addFromLibrary(page, [photo.path])
-  await expect(sheet.getByRole("status")).toHaveText("1 saved", {
+  await expect(sheet.getByRole("status")).toHaveText("1 posted", {
     timeout: 90_000,
   })
   const adjust = sheet.getByRole("button", {
@@ -209,10 +205,9 @@ async function openStaffLabels(page: Page, name: string) {
   return { editor: sheet, fileName: photo.name }
 }
 
-/** Closes the Add sheet with Done (labels chosen in it are kept). */
+/** Closes the Add sheet (labels chosen in it are kept). */
 async function closeStaffLabels(editor: Locator) {
-  await doneButton(editor).click()
-  await expect(editor).toBeHidden()
+  await closeSheet(editor)
 }
 
 async function searchMenu(editor: Locator, query: string) {

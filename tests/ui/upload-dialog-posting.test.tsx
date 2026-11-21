@@ -82,4 +82,25 @@ describe("UploadDialog when photos post to the Album", () => {
     ).toBeTruthy()
     expect(within(dialog).queryByRole("link", { name: "Label now" })).toBeNull()
   })
+
+  it("counts a video as saved, since only photos post to the Album", async () => {
+    const user = userEvent.setup()
+    render(
+      <UploadDialog
+        open
+        onOpenChange={() => {}}
+        uploader={done}
+        limits={LIMITS}
+        startOnPick
+        keepRunningWhenClosed
+        albumPosting
+      />
+    )
+    await user.upload(input(), [
+      jpeg("momo.jpg"),
+      new File([new Uint8Array(64)], "clip.mp4", { type: "video/mp4" }),
+    ])
+    const dialog = await screen.findByRole("dialog", { name: "2 files added" })
+    expect(within(dialog).getByText("1 posted · 1 saved")).toBeTruthy()
+  })
 })

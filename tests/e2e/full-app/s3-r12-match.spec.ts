@@ -1,17 +1,20 @@
 import { expect, test, type Locator } from "@playwright/test"
 
 import {
+  addPhotos,
   assetNamed,
   assetsNamed,
   dishesOn,
   keep,
-  matchSummary,
+  labelNow,
   openAlbum,
+  saveLabel,
   SIZES,
   slotChoice,
   sql,
-  startMatch,
+  tickPhotos,
   uploadStateOf,
+  waitPosted,
 } from "../helpers/full-app"
 import { provisionManagerWorld } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
@@ -19,14 +22,15 @@ import { psql } from "../helpers/stack"
 import { signedInPage } from "../helpers/world"
 
 /**
- * S3-R12 (round 2 review X4, X6; spec §5.2 step 5, §5.4, AC05, AC07):
+ * S3-R12 (round 2 review X4, X6; spec §5.2 step 5, §5.4, AC05, AC07), for
+ * posting first (D21, DESIGN.md §6.1):
  * X4 three photos of one dish in one batch, with another dish between them,
- *    are labelled with no typing: the dish matched on photo 1 stays under
- *    Recent (marked, never hidden), and a group of the next photo takes it
- *    too;
- * X6 each photo's state is on Match's end: Sending with its percent while
- *    the bytes are on their way, and Retry on a row that didn't send, which
- *    sends that same photo once.
+ *    are labelled on Label photos with no typing: the dish just labelled
+ *    stays under Recent (marked, never hidden), and the next two photos,
+ *    ticked together, take it in one tap;
+ * X6 each photo's state is on the add sheet: Uploading with its percent
+ *    while the bytes are on their way, and Retry on a row that didn't send,
+ *    which sends that same photo once.
  */
 
 test.skip(({ browserName }) => browserName !== "chromium", "Chromium only")
@@ -52,41 +56,34 @@ for (const size of ["phone", "desktop"] as const) {
     )
     const page = await signedInPage(browser, w.staffA1, SIZES[size])
     await openAlbum(page)
-    const { match } = await startMatch(
+    await addPhotos(
       page,
       files.map((f) => f.path)
     )
-    // No step below types: every label is a tap (suggestion, Recent, group).
-    const title = match.getByRole("heading", { level: 2 }).first()
+    await waitPosted(page, 4)
+    const ids = await Promise.all(files.map((f) => assetNamed(f.name)))
+    const screen = await labelNow(page)
+    // No step below types: every label is a tap (suggestion or Recent).
 
     // Photo 1: Soup from the suggestions; photo 2: Pie.
-    await expect(title).toHaveText("Photo 1 of 4")
-    await slotChoice(match, "Soup").click()
-    await expect(title).toHaveText("Photo 2 of 4")
-    await slotChoice(match, "Pie").click()
+    await tickPhotos(screen, [ids[0]!])
+    await slotChoice(screen, "Soup").click()
+    await saveLabel(screen, 1, "Soup")
+    await tickPhotos(screen, [ids[1]!])
+    await slotChoice(screen, "Pie").click()
+    await saveLabel(screen, 1, "Pie")
 
-    // Photo 3: Soup is under Recent, marked, one tap away (X4). Group
-    // photo 4 with it, then one tap labels both.
-    await expect(title).toHaveText("Photo 3 of 4")
-    const soup = recentChoice(match, "Soup")
+    // Photos 3 and 4, ticked together: Soup is under Recent, marked, one
+    // tap away (X4).
+    await tickPhotos(screen, [ids[2]!, ids[3]!])
+    const soup = recentChoice(screen, "Soup")
     await expect(soup).toContainText(
       "Matched just now · another photo is welcome"
     )
-    await match
-      .locator('[data-slot="match-group"]')
-      .getByRole("button", { name: "Photo 4 too" })
-      .click()
     await soup.click()
+    await saveLabel(screen, 2, "Soup")
+    await keep(page, info, `r12-x4-${size}-labelled`)
 
-    const summary = matchSummary(page)
-    await expect(summary).toBeVisible()
-    await expect(summary).toContainText("2 slots filled")
-    await expect(
-      page.locator('[data-slot="match-summary-chips"]')
-    ).toContainText("Soup × 3")
-    await keep(page, info, `r12-x4-${size}-summary`)
-
-    const ids = await Promise.all(files.map((f) => assetNamed(f.name)))
     await expect
       .poll(() => Promise.all(ids.map(uploadStateOf)), { timeout: 60_000 })
       .toEqual(ids.map(() => "ready"))
@@ -98,7 +95,7 @@ for (const size of ["phone", "desktop"] as const) {
   })
 }
 
-test("X6 each photo's progress on Match's end, and Retry on its row (phone)", async ({
+test("X6 each photo's progress on the add sheet, and Retry on its row (phone)", async ({
   browser,
 }, info) => {
   test.setTimeout(240_000)
@@ -131,51 +128,52 @@ test("X6 each photo's progress on Match's end, and Retry on its row (phone)", as
   })
 
   await openAlbum(page)
-  const { match } = await startMatch(page, [slow.path, dropped.path])
-  await slotChoice(match, "Soup").click()
-  await slotChoice(match, "Pie").click()
-  const summary = matchSummary(page)
-  await expect(summary).toBeVisible()
+  const { sheet } = await addPhotos(page, [slow.path, dropped.path])
+  const rowOf = (name: string) =>
+    sheet.getByRole("list", { name: "Files" }).getByRole("listitem").filter({
+      hasText: name,
+    })
 
-  // Sending, with its percent and a bar a screen reader reads (X6).
-  const soupRow = summary.locator("li").filter({ hasText: "Soup" })
-  await expect(soupRow).toHaveAttribute("data-state", "sending")
-  await expect(soupRow.locator('[data-slot="match-row-state"]')).toHaveText(
-    /Sending \d+%/,
-    { timeout: 60_000 }
-  )
+  // Uploading, with its percent and a bar a screen reader reads (X6).
+  const slowRow = rowOf(slow.name)
+  await expect(slowRow).toContainText(/Uploading · \d+%/, { timeout: 60_000 })
   await expect(
-    soupRow.getByRole("progressbar", { name: "Soup" })
-  ).toHaveAttribute("aria-valuetext", /^Sending \d+%$/)
+    slowRow.getByRole("progressbar", { name: slow.name })
+  ).toBeVisible()
 
   // The other photo didn't send: Retry is on its own row.
-  await expect(
-    page.getByRole("alert").filter({ hasText: "didn't send" })
-  ).toHaveText("1 photo didn't send. Choose Retry; it won't be sent twice.", {
+  const droppedRow = rowOf(dropped.name)
+  await expect(droppedRow).toContainText("Needs attention", {
     // The queue first retries on its own, backing off.
     timeout: 120_000,
   })
   expect(failed).toBeGreaterThanOrEqual(1)
-  const pieRow = summary.locator("li").filter({ hasText: "Pie" })
-  await expect(pieRow).toHaveAttribute("data-state", "failed")
-  await keep(page, info, "r12-x6-summary")
+  await expect(
+    slowRow.getByRole("button", { name: `Retry ${slow.name}` })
+  ).toHaveCount(0)
+  await keep(page, info, "r12-x6-sheet")
 
   hold = false
   block = false
-  await pieRow.getByRole("button", { name: "Retry Pie" }).click()
-  await expect(pieRow).toHaveAttribute("data-state", "waiting", {
-    timeout: 60_000,
-  })
-  await expect(soupRow).toHaveAttribute("data-state", "waiting", {
-    timeout: 60_000,
-  })
-  await expect(
-    page.getByRole("alert").filter({ hasText: "didn't send" })
-  ).toHaveCount(0)
+  await droppedRow
+    .getByRole("button", { name: `Retry ${dropped.name}` })
+    .click()
+  await waitPosted(page, 2)
+  await expect(droppedRow).toContainText("Posted")
+  await expect(slowRow).toContainText("Posted")
 
-  // Each photo is one asset with its own dish: the retry sent nothing twice.
+  // Then each gets its own label.
   const slowId = await assetNamed(slow.name)
   const droppedId = await assetNamed(dropped.name)
+  const screen = await labelNow(page)
+  await tickPhotos(screen, [slowId])
+  await slotChoice(screen, "Soup").click()
+  await saveLabel(screen, 1, "Soup")
+  await tickPhotos(screen, [droppedId])
+  await slotChoice(screen, "Pie").click()
+  await saveLabel(screen, 1, "Pie")
+
+  // Each photo is one asset with its own dish: the retry sent nothing twice.
   await expect.poll(() => dishesOn(slowId), { timeout: 60_000 }).toBe("Soup")
   await expect.poll(() => dishesOn(droppedId), { timeout: 60_000 }).toBe("Pie")
   expect(assetsNamed(slow.name)).toBe(1)

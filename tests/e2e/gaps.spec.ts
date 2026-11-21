@@ -24,6 +24,7 @@ import {
   myPhotos,
   openMyPhotos,
   STAFF_LANDING,
+  closeUploadSheet,
   uploadSheet,
 } from "./helpers/ui"
 import {
@@ -171,13 +172,13 @@ test.describe("GAP-19: leave warning during an active upload", () => {
 
     // Let it finish; then leaving is silent.
     release()
-    await expect(dialog.getByRole("status")).toHaveText("1 saved", {
+    // A photo posts to the Album (D21).
+    await expect(dialog.getByRole("status")).toHaveText("1 posted", {
       timeout: 60_000,
     })
     await page.unroute(/\/storage\/v1\//)
     dialogs.length = 0
-    await dialog.getByRole("button", { name: "Done" }).click()
-    await expect(dialog).toBeHidden()
+    await closeUploadSheet(page)
     // Leave the app entirely: /login would send a signed-in staff member back.
     await page.evaluate(() => {
       window.location.href = "about:blank"
@@ -420,12 +421,14 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
     await expect(pageB.getByText("TEST e2e-gaps-http-a")).toHaveCount(0)
     await expect(pageB.getByText("private-dish.jpg")).toHaveCount(0)
 
-    // Me links to the community feed (Colleagues' photos, DESIGN.md §5b).
-    // A's name belongs in the feed attribution, with no management or
-    // original download controls.
+    // Me's Colleagues' photos (DESIGN.md §5b) opens the venue's recent
+    // posts since D21; the community feed keeps its own route. A's name
+    // belongs in the feed attribution, with no management or original
+    // download controls.
     await openMe(pageB)
     await pageB.getByRole("link", { name: /^Colleagues' photos/ }).click()
-    await expect(pageB).toHaveURL(/\/staff\/community$/)
+    await expect(pageB).toHaveURL(/\/staff\/album\/recent$/)
+    await pageB.goto("/staff/community")
     const feedLabel = "Organization portfolio"
     const colleagues = pageB.getByRole("list", { name: feedLabel })
     await expect(

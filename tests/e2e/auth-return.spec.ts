@@ -353,7 +353,8 @@ test.describe("unknown URLs inside an app area", () => {
       who: "manager",
       path: "/manager/this-page-does-not-exist",
       heading: "This page isn't available in your workspace",
-      back: "Go to Overview",
+      // Redesign R4 (ia.md decision 12): a BackLink named for Overview.
+      back: "Overview",
       href: "/manager",
     },
   ] as const
@@ -389,7 +390,9 @@ test.describe("unknown URLs inside an app area", () => {
       await expect(
         page.getByRole("link", { name: "Go to Naba-Lens" })
       ).toHaveCount(0)
-      const back = page.getByRole("main").getByRole("link", { name: area.back })
+      const back = page
+        .getByRole("main")
+        .getByRole("link", { name: area.back, exact: true })
       await expect(back).toHaveAttribute("href", area.href)
       await back.click()
       await expect(page).toHaveURL(new RegExp(`${escapeRegExp(area.href)}$`))

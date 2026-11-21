@@ -94,7 +94,9 @@ for (const [size, context] of SIZES) {
     await expectNoSidewaysScroll(mgr, "Review")
     await evidence(mgr, `s5-r2-${size}-dish`)
 
-    await mgr.getByRole("button", { name: "Accept", exact: true }).click()
+    await mgr
+      .getByRole("button", { name: "Keep in the album", exact: true })
+      .click()
     await expect(
       mgr.getByRole("heading", { level: 2, name: label })
     ).toBeVisible()

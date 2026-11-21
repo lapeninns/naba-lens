@@ -182,7 +182,7 @@ test.describe("venue manager workspace (Phase 2)", () => {
     await openEmailLink(byLink, link)
     await expect(byLink).toHaveURL(OVERVIEW)
     await expect(
-      byLink.getByRole("heading", { level: 1, name: "Overview" })
+      byLink.getByRole("heading", { level: 1, name: "Needs you today" })
     ).toBeVisible()
     await expect(navLink(byLink, /^Review/)).toBeVisible()
 
@@ -242,21 +242,17 @@ test.describe("venue manager workspace (Phase 2)", () => {
 
     const mgr = await signedInPage(browser, w.mgrA, view(info))
     await expect(mgr).toHaveURL(OVERVIEW)
+    // Coverage by category (redesign R4): food 3 and drinks 1, the whole
+    // active menu, none covered yet.
+    expect(3 + 1).toBe(eligible)
     await expect(
-      main(mgr).getByRole("heading", {
-        name: `Menu photos · 0 of ${eligible} items covered`,
-      })
+      main(mgr).getByRole("progressbar", { name: /^Food: 0 of 3,/ })
     ).toBeVisible()
     await expect(
-      main(mgr).getByText("2 photos waiting for a decision")
+      main(mgr).getByRole("progressbar", { name: /^Drinks: 0 of 1,/ })
     ).toBeVisible()
+    await expect(main(mgr).getByText(/^2 photos waiting · /)).toBeVisible()
     await expect(navLink(mgr, /^Review.*2 photos waiting/)).toBeVisible()
-    for (const section of [
-      "Starters: 0 of 2",
-      "Mains: 0 of 1",
-      "Drinks: 0 of 1",
-    ])
-      await expect(main(mgr).getByText(section)).toBeVisible()
     await evidence(mgr, "overview-counts")
 
     // Menu lists every active item, grouped by section, each with its own
@@ -317,10 +313,10 @@ test.describe("venue manager workspace (Phase 2)", () => {
         .getByRole("list", { name: "Files" })
         .getByRole("listitem")
         .filter({ hasText: photo.name })
-    ).toContainText("Saved · Soup · waiting for manager review", {
+    ).toContainText("Posted · Soup", {
       timeout: 30_000,
     })
-    await expect(upload.getByRole("status")).toHaveText("1 saved")
+    await expect(upload.getByRole("status")).toHaveText("1 posted")
     await upload.getByRole("button", { name: "Done" }).click()
     await expect(upload).toBeHidden()
     const first = psql(
@@ -330,7 +326,8 @@ test.describe("venue manager workspace (Phase 2)", () => {
     await staff.goto(ALBUM_STARTERS)
     await expect(albumSlot(staff, "Soup")).toHaveAttribute(
       "aria-label",
-      "Soup: waiting for review"
+      // Posted to the Album at once (D21).
+      "Soup: posted"
     )
 
     // Staff 2's photo of Soup (fixture, labelled by its uploader).
@@ -341,11 +338,10 @@ test.describe("venue manager workspace (Phase 2)", () => {
     // The manager signs in and sees the totals before any decision.
     const mgr = await signedInPage(browser, w.mgrA, view(info))
     await expect(mgr).toHaveURL(OVERVIEW)
-    const before = `Menu photos · 0 of ${MENU_SIZE} items covered`
-    await expect(main(mgr).getByRole("heading", { name: before })).toBeVisible()
     await expect(
-      main(mgr).getByText("2 photos waiting for a decision")
+      main(mgr).getByRole("progressbar", { name: /^Food: 0 of 3,/ })
     ).toBeVisible()
+    await expect(main(mgr).getByText(/^2 photos waiting · /)).toBeVisible()
     await evidence(mgr, "overview-before")
 
     // Review opens one photo at a time (DESIGN.md §6.5): its large preview
@@ -428,15 +424,10 @@ test.describe("venue manager workspace (Phase 2)", () => {
 
     // Totals after the decisions; Menu shows Soup with a photo.
     await mgr.goto("/manager")
-    const after = `Menu photos · 1 of ${MENU_SIZE} items covered`
-    await expect(main(mgr).getByRole("heading", { name: after })).toBeVisible()
     await expect(
-      main(mgr).getByText("0 photos waiting for a decision")
+      main(mgr).getByRole("progressbar", { name: /^Food: 1 of 3,/ })
     ).toBeVisible()
-    // Said once, in Review next; the quiet card leads with the gap (S3-R5).
-    await expect(
-      main(mgr).getByText("Nothing waiting for review")
-    ).toBeVisible()
+    await expect(main(mgr).getByText(/^2 photos waiting · /)).toHaveCount(0)
     await evidence(mgr, "overview-after")
     await mgr.goto("/manager/menu")
     const soupRow = main(mgr)
@@ -446,21 +437,24 @@ test.describe("venue manager workspace (Phase 2)", () => {
       })
     await expect(soupRow).toContainText("Has a photo")
 
-    // The staff Album's Menu: Soup is in the album, with its menu photo.
+    // The staff Album's Menu: Soup is posted (D21's one staff word for a
+    // slot with photos), with its menu photo.
     await staff.goto(ALBUM_STARTERS)
     const soup = albumSlot(staff, "Soup")
-    await expect(soup).toHaveAttribute("aria-label", "Soup: in the album")
+    await expect(soup).toHaveAttribute("aria-label", "Soup: posted")
+    // The folder's cover is its newest posted photo (D21), here one of the
+    // two Soup photos, through the Album's own route.
     await expect(soup.locator("img").first()).toHaveAttribute(
       "src",
-      new RegExp(escape(first))
+      new RegExp(`(${escape(first)}|${escape(second)})`)
     )
     await expect(albumSlot(staff, "Salad")).toHaveAttribute(
       "aria-label",
       "Salad: needed"
     )
     await evidence(staff, "staff-album-menu-after")
-    note("totals", `before: ${before}; after: ${after}`)
-    note("staff", "Album Menu: Soup waiting for review, then in the album")
+    note("totals", "Food before: 0 of 3; after: 1 of 3")
+    note("staff", "Album Menu: Soup posted, then in the album")
   })
 
   test("relink with a reason, ask for another photo, withdraw", async ({

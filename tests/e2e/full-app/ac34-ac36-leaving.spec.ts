@@ -4,14 +4,14 @@ import { signIn } from "../../support/identities"
 import { acceptPlacePhoto } from "../helpers/accepted"
 import { openEmailLink } from "../helpers/email-link"
 import {
+  addPhotos,
+  addSheet,
   assetNamed,
   keep,
-  matchBySearch,
-  matchSummary,
   openAlbum,
+  postAndLabel,
   SIZES,
   sql,
-  startMatch,
   uploadStateOf,
 } from "../helpers/full-app"
 import { provisionManagerWorld } from "../helpers/manager-world"
@@ -52,9 +52,7 @@ test("AC34 a leaver loses access at once; accepted photos and their credit remai
   const photo = await syntheticJpeg(`ac34-${w.tag}.jpg`)
   const staff = await signedInPage(browser, w.staffA1, SIZES.phone)
   await openAlbum(staff)
-  const { match } = await startMatch(staff, [photo.path])
-  await matchBySearch(match, "soup", "Soup")
-  await expect(matchSummary(staff)).toBeVisible()
+  await postAndLabel(staff, [photo], "soup", "Soup")
   const id = await assetNamed(photo.name)
   await expect.poll(() => uploadStateOf(id), { timeout: 60_000 }).toBe("ready")
   acceptPlacePhoto(id, w.mgrA.id)
@@ -123,20 +121,21 @@ test("AC36 the next person on a shared phone sees none of the last person's prev
     block ? route.abort("connectionreset") : route.continue()
   )
   await openAlbum(page)
-  let { match } = await startMatch(page, [sent.path])
-  await matchBySearch(match, "soup", "Soup")
-  await expect(matchSummary(page)).toBeVisible()
+  await postAndLabel(page, [sent], "soup", "Soup")
   const sentId = await assetNamed(sent.name)
   await expect
     .poll(() => uploadStateOf(sentId), { timeout: 60_000 })
     .toBe("ready")
-  await page.keyboard.press("Escape")
   block = true
-  ;({ match } = await startMatch(page, [unsent.path]))
-  await matchBySearch(match, "pie", "Pie")
-  await expect(matchSummary(page)).toBeVisible()
-  await page.keyboard.press("Escape")
+  await addPhotos(page, [unsent.path])
   const unsentId = await assetNamed(unsent.name)
+  // Its transfer fails: it needs attention on this phone, never Posted.
+  await expect(
+    addSheet(page)
+      .getByRole("status")
+      .filter({ hasText: /posted/ })
+  ).toContainText("need attention", { timeout: 120_000 })
+  await page.keyboard.press("Escape")
   await keep(page, info, "ac36-a-before-sign-out")
 
   // A logs out from Me's Settings (the phone's place for it), explaining
@@ -196,7 +195,10 @@ test("AC36 the next person on a shared phone sees none of the last person's prev
     await expect(page.locator("main")).toBeVisible()
     await page.waitForLoadState("networkidle")
     const content = await html()
-    expect(content, `${path}: A's sent photo`).not.toContain(sentId)
+    // A's posted photo is in the venue's private Album, which B shares
+    // (D21); it is never in B's own photos or Me.
+    if (path === "/staff/photos" || path === "/staff/me")
+      expect(content, `${path}: A's sent photo`).not.toContain(sentId)
     expect(content, `${path}: A's unsent photo`).not.toContain(unsentId)
     expect(content, `${path}: A's file names`).not.toContain(unsent.name)
   }

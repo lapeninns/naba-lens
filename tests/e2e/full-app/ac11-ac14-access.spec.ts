@@ -3,17 +3,24 @@ import { expect, test, type Page } from "@playwright/test"
 import { signIn, type Db } from "../../support/identities"
 import { seedImages } from "../helpers/coverage-world"
 import {
+  addPhotos,
   assetNamed,
   foreignLabels,
   keep,
-  matchBySearch,
-  matchSummary,
+  labelBySearch,
+  labelConfirm,
+  labelNow,
+  labelSearch,
   openAlbum,
+  openLabelPhotos,
+  photoTick,
   SIZES,
+  slotChoice,
   sql,
-  startMatch,
+  tickPhotos,
   uploadStateOf,
   venueOfAsset,
+  waitPosted,
 } from "../helpers/full-app"
 import { provisionManagerWorld } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
@@ -23,8 +30,9 @@ import { signedInPage } from "../helpers/world"
 
 /**
  * Access during upload and across venues (spec §3, §5.6, §6 S2, §16; FA-22):
- * AC11 the venue changes while Match is open: no label from the old venue
- *      survives on a photo, and Match says where the photos now go;
+ * AC11 the venue changes while Label photos is open (D21: the photos were
+ *      already posted to the old venue): no photo carries another venue's
+ *      label, and the photos wait until the person works there again;
  * AC12 the person's membership is removed mid-upload: finalisation is
  *      refused and the bytes stay private;
  * AC13 staff use another venue's ids directly: no data, preview, export or
@@ -84,14 +92,16 @@ test("AC11 a venue change during Match leaves no old-venue label on any photo", 
   )
   const page = await signedInPage(browser, w.staffA1, SIZES.phone)
   await openAlbum(page)
-  const { match } = await startMatch(
+  await addPhotos(
     page,
     files.map((f) => f.path)
   )
-  await expect(match.locator('[data-slot="match-venue"]')).toHaveText(
-    `For ${w.venueA.name}`
-  )
-  await matchBySearch(match, "soup", "Soup")
+  await waitPosted(page, 3)
+  const ids = await Promise.all(files.map((f) => assetNamed(f.name)))
+  // Posted to the venue the person was at: A.
+  for (const id of ids) expect(venueOfAsset(id)).toBe(w.venueA.id)
+  const screen = await labelNow(page)
+  await labelBySearch(screen, [ids[0]!], "soup", "Soup")
 
   // Another tab on the same phone moves the person to venue B.
   const other = await page.context().newPage()
@@ -103,53 +113,36 @@ test("AC11 a venue change during Match leaves no old-venue label on any photo", 
   )
   await other.close()
 
-  // Back in Match: it now says B and offers B's slots (S3-E2E-1 E7, fixed
-  // by S3-R3: the other tab's switch reaches this one).
+  // Back on Label photos, opened at A: the person labels the other two.
   await page.bringToFront()
-  await expect(match.locator('[data-slot="match-venue"]')).toHaveText(
-    `For ${w.venueB.name}`,
-    { timeout: 15_000 }
-  )
-  await expect(match).toContainText(
-    `You are now adding photos for ${w.venueB.name}.`
-  )
+  await tickPhotos(screen, [ids[1]!, ids[2]!])
+  await labelSearch(screen).fill("pie")
+  await slotChoice(screen, "Pie").click()
+  await labelConfirm(screen).getByRole("button", { name: "Save label" }).click()
+  // Saved as A's Pie on A's photos, or refused: either way it says so.
+  await expect(
+    screen
+      .getByText("2 photos labelled Pie", { exact: true })
+      .or(screen.getByRole("alert"))
+      .first()
+  ).toBeVisible({ timeout: 30_000 })
   await keep(page, info, "ac11-after-switch")
-  // The person answers with what Match offers (A's Pie and Lager when Match
-  // did not notice the switch, B's when it did).
-  await matchBySearch(match, "pie", "Pie")
-  await matchBySearch(match, "lager", "Lager")
-  await expect(matchSummary(page)).toBeVisible()
-  await keep(page, info, "ac11-summary")
-  const summaryVenue = await page
-    .locator('[data-slot="match-summary-venue"]')
-    .textContent()
 
-  // Whatever was sent, no photo carries another venue's label.
-  for (const f of files) {
-    const n = Number(
-      psql(`select count(*) from public.media_assets
-        where original_filename = ${sql(f.name)} and deleted_at is null`)
-    )
-    if (n === 0) continue
-    const id = await assetNamed(f.name)
+  // Whatever was saved, no photo carries another venue's label, and every
+  // photo stays at the venue it was posted to.
+  for (const [i, id] of ids.entries()) {
     await expect
-      .poll(() => foreignLabels(id), { timeout: 30_000, message: f.name })
+      .poll(() => foreignLabels(id), {
+        timeout: 30_000,
+        message: files[i]!.name,
+      })
       .toBe(0)
+    expect(venueOfAsset(id), files[i]!.name).toBe(w.venueA.id)
   }
-  // Photos answered after the switch: sent to B, or not sent at all, and
-  // the end never names a venue they did not go to.
-  for (const f of files.slice(1)) {
-    const n = Number(
-      psql(`select count(*) from public.media_assets
-        where original_filename = ${sql(f.name)} and deleted_at is null and upload_state = 'ready'`)
-    )
-    if (n === 0) continue
-    const id = await assetNamed(f.name)
-    expect(venueOfAsset(id), f.name).toBe(w.venueB.id)
-    expect(summaryVenue, "the end names where they went").not.toContain(
-      w.venueA.name
-    )
-  }
+  // At B, Label photos offers none of A's photos: they wait until the
+  // person works at A again (V9).
+  const atB = await openLabelPhotos(page)
+  for (const id of ids) await expect(photoTick(atB, id)).toHaveCount(0)
   await page.context().close()
 })
 
@@ -178,8 +171,7 @@ test("AC12 removed from the venue mid-upload: finalise is refused; the bytes sta
     return route.continue()
   })
   await openAlbum(page)
-  const { match } = await startMatch(page, [photo.path])
-  await matchBySearch(match, "soup", "Soup")
+  await addPhotos(page, [photo.path])
   await reached
   const id = await assetNamed(photo.name)
 

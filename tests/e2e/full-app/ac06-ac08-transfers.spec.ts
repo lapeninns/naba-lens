@@ -4,27 +4,29 @@ import { statSync } from "node:fs"
 import { expect, test, type Page, type Request } from "@playwright/test"
 
 import {
-  albumAdd,
+  addPhotos,
+  addSheet,
   assetNamed,
   assetsNamed,
   dishesOn,
   keep,
-  matchBySearch,
-  matchSummary,
+  labelBySearch,
+  labelNow,
   openAlbum,
   SIZES,
   sql,
-  startMatch,
   uploadStateOf,
+  waitPosted,
 } from "../helpers/full-app"
 import { provisionManagerWorld } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
 import { psql } from "../helpers/stack"
-import { uploadSheet } from "../helpers/ui"
 import { signedInPage } from "../helpers/world"
 
 /**
- * Transfers through Album's Add photos and Match (spec §5.4, §5.6, §12):
+ * Transfers through Album's Add photos, which posts each ready photo at once
+ * (D21; spec §5.4, §5.6, §12). The add sheet shows each photo's progress
+ * and Retry; labels follow on Label photos.
  * AC06 an oversized photo is left out with its reason while the valid one
  *      goes on;
  * AC07 one transfer fails after another succeeded: only the failed photo is
@@ -50,14 +52,11 @@ const isFinaliseAction = (r: Request) =>
   (r.postData() ?? "").includes('"assetId"') &&
   (r.postData() ?? "").includes('"idempotencyKey"')
 
-/** Opens Add photos while work needs attention: the queue, with Retry. */
-async function retryFromQueue(page: Page, fileName: string) {
-  await albumAdd(page).click()
-  const sheet = uploadSheet(page)
-  await expect(sheet).toBeVisible()
-  await sheet.getByRole("button", { name: `Retry ${fileName}` }).click()
-  return sheet
-}
+/** The add sheet's running count ("1 posted · 1 need attention"). */
+const sheetStatus = (page: Page) =>
+  addSheet(page)
+    .getByRole("status")
+    .filter({ hasText: /posted/ })
 
 const labelRows = (assetId: string) =>
   Number(
@@ -77,22 +76,15 @@ test("AC06 an oversized photo is left out with its remedy; the valid photo conti
 
   const page = await signedInPage(browser, w.staffA1, SIZES.phone)
   await openAlbum(page)
-  const { match } = await startMatch(page, [valid.path, oversized])
-  // Only the valid photo is to match; the other is named with its reason.
-  await expect(match).toContainText(
-    "1 photo was left in your gallery. Photos can be up to 25 MB."
-  )
-  await expect(match.getByRole("heading", { level: 2 }).first()).toHaveText(
-    /^(Photo 1 of 1|Match your photos)$/
-  )
-  await matchBySearch(match, "soup", "Soup")
-  await expect(matchSummary(page)).toBeVisible()
-  await expect(page.locator('[data-slot="match-summary-venue"]')).toHaveText(
-    `1 photo for ${w.venueA.name}`
-  )
-  await keep(page, info, "ac06-summary")
+  const { sheet } = await addPhotos(page, [valid.path, oversized])
+  // Only the valid photo posts; the other is named with its limit.
+  await expect(sheet).toContainText("25 MB")
+  await waitPosted(page, 1)
+  await keep(page, info, "ac06-sheet")
   const id = await assetNamed(valid.name)
   await expect.poll(() => uploadStateOf(id), { timeout: 60_000 }).toBe("ready")
+  const screen = await labelNow(page)
+  await labelBySearch(screen, [id], "soup", "Soup")
   await expect.poll(() => dishesOn(id), { timeout: 60_000 }).toBe("Soup")
   expect(assetsNamed("oversized.jpg")).toBe(0)
   await page.context().close()
@@ -127,37 +119,34 @@ for (const size of ["phone", "desktop"] as const) {
       return route.continue()
     })
     await openAlbum(page)
-    const { match } = await startMatch(page, [sent.path, dropped.path])
-    await matchBySearch(match, "soup", "Soup")
-    await matchBySearch(match, "pie", "Pie")
-    await expect(matchSummary(page)).toBeVisible()
-    await expect(
-      page.getByRole("alert").filter({ hasText: "didn't send" })
-    ).toHaveText("1 photo didn't send. Choose Retry; it won't be sent twice.", {
+    const { sheet } = await addPhotos(page, [sent.path, dropped.path])
+    await expect(sheetStatus(page)).toHaveText("1 posted · 1 need attention", {
       // The queue first retries on its own, backing off.
       timeout: 120_000,
     })
     expect(failed).toBeGreaterThanOrEqual(1)
-    await keep(page, info, `ac07-${size}-summary`)
+    await keep(page, info, `ac07-${size}-sheet`)
 
     const sentId = await assetNamed(sent.name)
     await expect
       .poll(() => uploadStateOf(sentId), { timeout: 60_000 })
       .toBe("ready")
-    await expect.poll(() => dishesOn(sentId)).toBe("Soup")
 
-    // Close Match; Add photos shows the queue with Retry for that one only.
-    await page.keyboard.press("Escape")
-    await expect(match).toBeHidden()
-    block = false
-    const sheet = await retryFromQueue(page, dropped.name)
+    // Retry is offered for the failed photo only.
     await expect(
       sheet.getByRole("button", { name: `Retry ${sent.name}` })
     ).toHaveCount(0)
+    block = false
+    await sheet.getByRole("button", { name: `Retry ${dropped.name}` }).click()
+    await waitPosted(page, 2)
     const droppedId = await assetNamed(dropped.name)
     await expect
       .poll(() => uploadStateOf(droppedId), { timeout: 60_000 })
       .toBe("ready")
+    const screen = await labelNow(page)
+    await labelBySearch(screen, [sentId], "soup", "Soup")
+    await labelBySearch(screen, [droppedId], "pie", "Pie")
+    await expect.poll(() => dishesOn(sentId)).toBe("Soup")
     await expect
       .poll(() => dishesOn(droppedId), { timeout: 60_000 })
       .toBe("Pie")
@@ -195,25 +184,21 @@ test("AC08 a lost answer after finalisation: Retry returns the same asset (phone
     return route.continue()
   })
   await openAlbum(page)
-  const { match } = await startMatch(page, [photo.path])
-  await matchBySearch(match, "lager", "Lager")
-  await expect(matchSummary(page)).toBeVisible()
+  const { sheet } = await addPhotos(page, [photo.path])
   const id = await assetNamed(photo.name)
   // The server did finish it: the photo is ready.
   await expect.poll(() => uploadStateOf(id), { timeout: 60_000 }).toBe("ready")
   await expect.poll(() => lost).toBe(1)
-  // No false "Sent" for the lost answer: the end asks to send it again.
-  await expect(
-    page.getByRole("alert").filter({ hasText: /send|finish/ })
-  ).toBeVisible()
-  await keep(page, info, "ac08-summary")
-
-  await page.keyboard.press("Escape")
-  await expect(match).toBeHidden()
-  const sheet = await retryFromQueue(page, photo.name)
-  await expect(sheet.getByRole("status")).toContainText(/1 saved/, {
+  // No false Posted for the lost answer: the sheet asks to send it again.
+  await expect(sheetStatus(page)).toHaveText("0 posted · 1 need attention", {
     timeout: 60_000,
   })
+  await keep(page, info, "ac08-sheet")
+
+  await sheet.getByRole("button", { name: `Retry ${photo.name}` }).click()
+  await waitPosted(page, 1)
+  const screen = await labelNow(page)
+  await labelBySearch(screen, [id], "lager", "Lager")
   // Every finalise named the same asset, and there is still only one.
   expect(new Set(finalised)).toEqual(new Set([id]))
   expect(finalised.length).toBeGreaterThanOrEqual(2)

@@ -45,7 +45,7 @@ test("AC20 (deferred, FA-42): no in-app editing of an approved photo; the approv
   const mgr = await as(browser, w.mgrA, DESKTOP)
   await mgr.goto(`/manager/review/photo/${asset}`)
   await expect(
-    mgr.getByRole("heading", { level: 1, name: "Photo review" })
+    mgr.getByRole("heading", { level: 1, name: "Soup" })
   ).toBeVisible()
   await expect(mgr.getByRole("button", { name: EDIT })).toHaveCount(0)
   await expect(mgr.getByRole("link", { name: EDIT })).toHaveCount(0)
