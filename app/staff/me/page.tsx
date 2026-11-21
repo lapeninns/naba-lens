@@ -96,19 +96,20 @@ export default async function StaffMePage() {
         <UnfinishedRow />
 
         <Group>
-          <HomeRow
-            href="/staff/tasks/month"
-            slot="me-month"
-            icon={<CalendarCheckIcon />}
-            title={ME_COPY.month}
-            line={monthLine(monthly)}
-          />
+          {/* Notices first, as the staff prototype has it (batch S). */}
           <HomeRow
             href="/staff/notifications"
             slot="me-notices"
             icon={<BellSimpleIcon />}
             title={ME_COPY.notices}
             line={ME_COPY.noticesLine(unread)}
+          />
+          <HomeRow
+            href="/staff/tasks/month"
+            slot="me-month"
+            icon={<CalendarCheckIcon />}
+            title={ME_COPY.month}
+            line={monthLine(monthly)}
           />
           {otherJobs === null || otherJobs > 0 ? (
             <HomeRow
