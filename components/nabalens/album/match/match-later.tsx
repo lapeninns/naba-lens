@@ -33,7 +33,7 @@ import {
 } from "@/lib/staff/my-uploads"
 import { cn } from "@/lib/utils"
 
-import { MATCH_LATER_COPY } from "./copy"
+import { MATCH_LATER_COPY, folderPath } from "./copy"
 import {
   readLastPlace,
   readRecentSlots,
@@ -111,9 +111,18 @@ export function MatchLaterScreen({
   selectPhotos?: boolean
 }) {
   const router = useRouter()
+  // Labelling after posting (D21): tick the photos, choose one label, read
+  // what it will do, then Save. Undo on the result. The 20 Nov 2026 handoff.
+  const posting = STAFF_ALBUM_POSTS && !focused
   const [photos, setPhotos] = React.useState(initial)
   const [shown, setShown] = React.useState<string | null>(null)
-  const [batch, setBatch] = React.useState(selectPhotos)
+  const [batch, setBatch] = React.useState(
+    selectPhotos || (posting && initial.length > 1)
+  )
+  const [pending, setPending] = React.useState<MatchSlot | null>(null)
+  const saveButton = React.useRef<HTMLButtonElement>(null)
+  // The label revision each photo was saved at here, for Undo.
+  const savedAt = React.useRef(new Map<string, number>())
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set())
   const [busy, setBusy] = React.useState(false)
   const saving = React.useRef(false)
@@ -121,7 +130,9 @@ export function MatchLaterScreen({
   const [receipt, setReceipt] = React.useState<{
     count: number
     slot: MatchSlot
+    items: MatchLaterPhoto[]
   } | null>(null)
+  const [undone, setUndone] = React.useState<number | null>(null)
   const [board, setBoard] = React.useState<BoardState>({ state: "loading" })
   const [boardTry, setBoardTry] = React.useState(0)
   // Slots matched on this screen, newest first: marked, and first under
@@ -203,8 +214,11 @@ export function MatchLaterScreen({
       missingItem: null,
       ...labels,
     })
-    if (result.ok)
-      return result.state === "saved" ? null : MATCH_LATER_COPY.saveFailed
+    if (result.ok) {
+      if (result.state !== "saved") return MATCH_LATER_COPY.saveFailed
+      savedAt.current.set(item.id, result.labels.revision)
+      return null
+    }
     if (result.code === "catalogue_changed") target.current = null
     return result.code === "forbidden" || result.code === "not_found"
       ? MATCH_LATER_COPY.refused
@@ -220,6 +234,8 @@ export function MatchLaterScreen({
     setBusy(true)
     setProblem(null)
     setReceipt(null)
+    setUndone(null)
+    setPending(null)
     const saved = new Set<string>()
     const failures: string[] = []
     for (const item of chosen) {
@@ -242,7 +258,11 @@ export function MatchLaterScreen({
     }
     if (saved.size === 0) return
     if (slot) {
-      setReceipt({ count: saved.size, slot })
+      setReceipt({
+        count: saved.size,
+        slot,
+        items: chosen.filter((p) => saved.has(p.id)),
+      })
       setVisit((v) => [slot.id, ...v.filter((id) => id !== slot.id)])
       writeLastPlace(placeKey(slot.place))
       setLast(placeKey(slot.place))
@@ -255,6 +275,66 @@ export function MatchLaterScreen({
     setSelected((list) => new Set([...list].filter((id) => !saved.has(id))))
     setShown(null)
     if (focused && photo) router.replace(photoHref(photo.id))
+  }
+
+  // Posting: a chosen result only fills the confirm bar; Save applies it.
+  const choose = (slot: MatchSlot) => {
+    if (!posting) return match(slot)
+    setProblem(null)
+    setPending(slot)
+  }
+
+  React.useEffect(() => {
+    if (!pending) return
+    saveButton.current?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPending(null)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [pending])
+
+  // Undo the last save: the photos lose that label and come back to label.
+  const undo = async () => {
+    if (!receipt || saving.current) return
+    saving.current = true
+    setBusy(true)
+    setProblem(null)
+    const back: MatchLaterPhoto[] = []
+    for (const item of receipt.items) {
+      try {
+        if (receipt.slot.target.kind === "dish") {
+          const where = await labelTarget()
+          const revision = savedAt.current.get(item.id)
+          if (!where || revision === undefined) continue
+          const result = await saveUploadLabels(where.venueId, {
+            assetId: item.id,
+            expectedRevision: revision,
+            catalogueVersionId: where.catalogueVersionId,
+            note: null,
+            missingItem: null,
+            items: [],
+            contentTypes: [],
+          })
+          if (result.ok && result.state === "saved")
+            back.push({ ...item, revision: result.labels.revision })
+        } else {
+          const result = await setAreaLabelAction(item.id, null)
+          if (result.ok) back.push(item)
+        }
+      } catch {
+        // Counted below: the photo keeps its label.
+      }
+    }
+    saving.current = false
+    setBusy(false)
+    if (back.length < receipt.items.length)
+      setProblem(MATCH_LATER_COPY.undoFailed)
+    if (back.length === 0) return
+    const ids = new Set(back.map((p) => p.id))
+    setPhotos((list) => [...back, ...list.filter((p) => !ids.has(p.id))])
+    setReceipt(null)
+    setUndone(back.length)
   }
 
   const match = (slot: MatchSlot) => {
@@ -323,14 +403,47 @@ export function MatchLaterScreen({
               ? "Label photos"
               : MATCH_LATER_COPY.title}
         </Title>
-        <p className="text-caption text-ink-muted tabular-nums">
-          {!focused && photos.length > 0
-            ? MATCH_LATER_COPY.row(photos.length)
-            : null}
-        </p>
+        {posting ? (
+          <p className="text-body text-ink-muted">
+            {MATCH_LATER_COPY.labelIntro}
+          </p>
+        ) : (
+          <p className="text-caption text-ink-muted tabular-nums">
+            {!focused && photos.length > 0
+              ? MATCH_LATER_COPY.row(photos.length)
+              : null}
+          </p>
+        )}
       </header>
 
-      {receipt ? (
+      {receipt && posting ? (
+        <Notice tone="positive">
+          <p role="status" className="font-semibold">
+            {MATCH_LATER_COPY.labelledAs(receipt.count, receipt.slot.name)}
+          </p>
+          <p className="text-ink-muted">{folderPath(receipt.slot)}</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <Link
+              className="inline-flex min-h-12 items-center text-label underline focus-ring"
+              href={slotPageHref(
+                receipt.slot.target.kind === "dish"
+                  ? { kind: "dish", slotId: receipt.slot.target.itemId }
+                  : { kind: "area", slotId: receipt.slot.target.subjectId }
+              )}
+            >
+              {MATCH_LATER_COPY.openThisFolder}
+            </Link>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void undo()}
+              className="inline-flex min-h-12 items-center text-label underline focus-ring disabled:opacity-60"
+            >
+              {MATCH_LATER_COPY.undo}
+            </button>
+          </div>
+        </Notice>
+      ) : receipt ? (
         <Notice tone="positive">
           <p role="status">{MATCH_LATER_COPY.labelled(receipt.count)}</p>
           <Link
@@ -345,12 +458,43 @@ export function MatchLaterScreen({
           </Link>
         </Notice>
       ) : null}
+      {undone ? (
+        <p role="status" className="text-body text-ink">
+          {MATCH_LATER_COPY.undone(undone)}
+        </p>
+      ) : null}
       {problem ? (
         <Notice tone="negative" role="alert">
           {problem}
         </Notice>
       ) : null}
-      {!focused && (photos.length > 1 || (batch && photos.length > 0)) ? (
+      {posting && batch && photos.length > 0 ? (
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="type-section-title text-ink">
+            {MATCH_LATER_COPY.toLabel}{" "}
+            <span className="text-ink-muted tabular-nums">{photos.length}</span>
+          </h2>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              setSelected(
+                selected.size === photos.length
+                  ? new Set()
+                  : new Set(photos.map((p) => p.id))
+              )
+            }
+            className="inline-flex min-h-12 items-center text-label text-accent-text underline underline-offset-4 focus-ring"
+          >
+            {selected.size === photos.length
+              ? MATCH_LATER_COPY.clearSelection
+              : MATCH_LATER_COPY.selectAll(photos.length)}
+          </button>
+        </div>
+      ) : null}
+      {!posting &&
+      !focused &&
+      (photos.length > 1 || (batch && photos.length > 0)) ? (
         <Button
           variant="secondary"
           className="w-fit"
@@ -388,7 +532,9 @@ export function MatchLaterScreen({
           <p className="text-body text-ink-muted" role="status">
             {chosen.length === 0
               ? MATCH_LATER_COPY.selectHint
-              : MATCH_LATER_COPY.batchHint(chosen.length)}
+              : posting
+                ? MATCH_LATER_COPY.selected(chosen.length)
+                : MATCH_LATER_COPY.batchHint(chosen.length)}
           </p>
         </>
       ) : null}
@@ -463,7 +609,8 @@ export function MatchLaterScreen({
           visit={visit}
           recent={recent}
           busy={busy}
-          onMatch={match}
+          onMatch={choose}
+          labelling={posting}
           onShared={share}
           onUnsure={STAFF_ALBUM_POSTS ? undefined : unsure}
         />
@@ -471,6 +618,35 @@ export function MatchLaterScreen({
         <p className="text-body text-ink" role="status">
           {MATCH_LATER_COPY.empty}
         </p>
+      ) : null}
+      {pending && chosen.length > 0 ? (
+        <div
+          data-slot="label-confirm"
+          className="border-edge sticky bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px))] z-dock -mx-page-gutter grid gap-2 border-t bg-surface px-page-gutter py-3 shadow-raised md:bottom-0"
+        >
+          <p className="text-heading text-ink">
+            {MATCH_LATER_COPY.confirm(chosen.length, pending.name)}
+          </p>
+          <p className="text-body text-ink-muted">{folderPath(pending)}</p>
+          <div className="flex items-center gap-3">
+            <Button
+              ref={saveButton}
+              variant="primary"
+              className="flex-1"
+              disabled={busy}
+              onClick={() => match(pending)}
+            >
+              {MATCH_LATER_COPY.save}
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={busy}
+              onClick={() => setPending(null)}
+            >
+              {MATCH_LATER_COPY.change}
+            </Button>
+          </div>
+        </div>
       ) : null}
     </div>
   )
