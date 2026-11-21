@@ -484,7 +484,7 @@ export const routeWords = (route: string) => ROUTE_WORDS[route] ?? route
 export const REVIEW_KIND_WORDS: Record<string, string> = {
   dish: "Dishes and drinks",
   area: "Spaces",
-  amenity: "Facilities",
+  amenity: "Amenities",
   checklist: "Checklists",
 }
 

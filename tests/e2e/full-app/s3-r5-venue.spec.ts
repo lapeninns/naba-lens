@@ -72,8 +72,11 @@ test("K3: a staff report reaches Venue › Reported changes and is dealt with th
   await other.goto("/manager/venue/reports")
   await expect(other.locator(`[data-report="${reportId}"]`)).toHaveCount(0)
 
-  await row.getByLabel(/Note/).fill("Marked unavailable")
+  // Dealt with opens the optional note (second handoff); Mark dealt with
+  // decides.
   await row.getByRole("button", { name: "Dealt with: Pie" }).click()
+  await row.getByLabel(/Note/).fill("Marked unavailable")
+  await row.getByRole("button", { name: "Mark dealt with: Pie" }).click()
   await expect(row.getByRole("status")).toHaveText("Marked as dealt with.")
   expect(reportState(reportId)).toBe("resolved:Marked unavailable")
   await evidence(mgr, "k3-reported-changes")

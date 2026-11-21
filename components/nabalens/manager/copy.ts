@@ -201,6 +201,8 @@ export const MANAGER_COPY = {
     loading: "Loading the venue's history",
     summary: "Every recorded change at this venue, newest first.",
     all: "All changes",
+    kindLabel: "Kind of change",
+    moreKinds: "More kinds",
     empty: "No changes of this kind yet.",
     more: "Show older changes",
     loadingMore: "Loading",
