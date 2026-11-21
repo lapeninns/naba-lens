@@ -22,9 +22,11 @@ import {
   RetireMenuDialog,
   activationBlockers,
   editorIssues,
+  formatDate,
   plural,
   possessive,
   type MenuActionResult,
+  type MenuItemChange,
 } from "@/components/nabalens"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice, useOnline } from "@/components/nabalens/offline-notice"
@@ -49,6 +51,7 @@ import {
 import {
   makeSourceKey,
   slugify,
+  splitChanged,
   validateMenuDocument,
 } from "@/lib/menus/import"
 import type {
@@ -246,6 +249,17 @@ export function VersionEditor({
     () => new Set(version.archivedItemIds),
     [version.archivedItemIds]
   )
+  // The items list's Change column (handoff "Version editor"), from the
+  // saved diff: a changed presentation sends album photos for a recheck.
+  const itemChanges = React.useMemo(() => {
+    const out: Record<string, MenuItemChange> = {}
+    if (!diff) return out
+    const split = splitChanged(diff)
+    for (const a of diff.added) out[a.sourceKey] = "added"
+    for (const c of split.other) out[c.sourceKey] = "changed"
+    for (const c of split.presentation) out[c.sourceKey] = "recheck"
+    return out
+  }, [diff])
 
   function edit(next: MenuDocument) {
     if (readOnly) return
@@ -382,6 +396,23 @@ export function VersionEditor({
     hasUnsavedChanges: dirty || saving,
   })
 
+  const saveState = saving
+    ? "Saving…"
+    : refreshing
+      ? "Saved. Loading the saved draft…"
+      : dirty
+        ? "Unsaved changes"
+        : `Saved · revision ${version.revision}`
+  // While the header's bottle button is Review, Activate is shown disabled
+  // in the panel with this reason. Other blockers are listed above it, and
+  // the header's Activate opens the dialog that repeats them.
+  const activateReason =
+    unresolved === 0
+      ? null
+      : unresolved === 1
+        ? "Resolve 1 uncertain match first."
+        : `Resolve ${unresolved} uncertain matches first.`
+
   function review() {
     const target =
       window.document.getElementById(decisionsId) ??
@@ -473,9 +504,27 @@ export function VersionEditor({
         scope={[venue, "All months"]}
         title={title}
         summary={
-          <p>
-            <MenuVersionStatusBadge status={version.status} />{" "}
-            {ACTIVE_MEANING_COPY}
+          // Handoff "Version editor": the status, then one meta line. A
+          // draft's save state is here, read out as it changes.
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <MenuVersionStatusBadge status={version.status} />
+            <span className="text-meta text-ink-muted">
+              {plural(itemCount, "item")}
+              {isDraft ? (
+                <>
+                  {" · "}
+                  <span aria-live="polite">{saveState}</span>
+                </>
+              ) : null}
+              {version.source.kind !== "manual"
+                ? ` · imported ${formatDate(version.createdAt)}${
+                    version.createdByName ? ` by ${version.createdByName}` : ""
+                  }`
+                : null}
+            </span>
+            {isDraft ? null : (
+              <span className="basis-full">{ACTIVE_MEANING_COPY}</span>
+            )}
           </p>
         }
         actions={actions}
@@ -512,17 +561,6 @@ export function VersionEditor({
               <h2 id={`${editorId}-title`} className="sr-only">
                 {isDraft ? "Edit draft" : "Menu items"}
               </h2>
-              {isDraft ? (
-                <p aria-live="polite" className="px-1 text-meta text-ink-muted">
-                  {saving
-                    ? "Saving…"
-                    : refreshing
-                      ? "Saved. Loading the saved draft…"
-                      : dirty
-                        ? "Unsaved changes"
-                        : `Saved · revision ${version.revision}`}
-                </p>
-              ) : null}
               <MenuDocumentEditor
                 key={version.id}
                 value={document}
@@ -535,6 +573,7 @@ export function VersionEditor({
                 archivedItemIds={version.archivedItemIds}
                 labelCounts={version.labelCounts}
                 renderItemActions={renderItemActions}
+                itemChanges={itemChanges}
               />
             </section>
 
@@ -637,19 +676,40 @@ export function VersionEditor({
                     ))}
                   </ul>
                 ) : null}
-                <p className="text-body text-ink-muted">
+                <p className="text-meta text-ink-muted">
                   {unresolved === 0 && blockers.length === 0
                     ? "Every item is decided. "
                     : null}
                   {active
                     ? `Activating retires ${active.title}. ${LABELS_KEPT_COPY}`
-                    : `This becomes ${possessive(venue)} first active menu.`}
+                    : `This becomes ${possessive(venue)} first active menu.`}{" "}
+                  {ACTIVE_MEANING_COPY}
                 </p>
-                <p className="text-body text-ink-muted">
+                <p className="text-meta text-ink-muted">
                   {active
                     ? coverageCopy
                     : "Nothing carries over automatically."}
                 </p>
+                {/* Handoff "Version editor": disabled keeps its label and
+                    gives its reason in a caption. */}
+                {activateReason ? (
+                  <div className="grid gap-1.5">
+                    <Button
+                      variant="primary"
+                      className="w-full"
+                      disabled
+                      aria-describedby={`${editorId}-why`}
+                    >
+                      Activate for labelling
+                    </Button>
+                    <p
+                      id={`${editorId}-why`}
+                      className="text-meta text-ink-muted"
+                    >
+                      {activateReason}
+                    </p>
+                  </div>
+                ) : null}
               </section>
             ) : null}
             <ProvenanceCard
