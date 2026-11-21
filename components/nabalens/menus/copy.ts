@@ -11,7 +11,13 @@ import type {
 export const ACTIVE_MEANING_COPY =
   "Active means available for labelling, nothing more. It isn't a public menu, doesn't change any venue website and doesn't mean a dish is served today."
 
-export const MENUS_SUMMARY_COPY = `Each venue's menu, used only for labelling photos. ${ACTIVE_MEANING_COPY}`
+/**
+ * Menus' one-line summary (second handoff). The rest of what Active means
+ * (not a public menu, no website change, not served today) is on each
+ * venue's menus page, in ACTIVE_MEANING_COPY.
+ */
+export const MENUS_SUMMARY_COPY =
+  "Each venue's menu, used only for labelling photos. Active means available for labelling, nothing more."
 
 /** "The Railway's", for sentences that name a venue. */
 export const possessive = (name: string) => `${name}'s`

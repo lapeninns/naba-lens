@@ -82,6 +82,11 @@ export const EXPORTS_COPY = {
   publishedTitle: "Published",
   noPublished: "Nothing is recorded as published yet.",
   recentTitle: "Latest records",
+  // One package, admin (second handoff): one form for the chosen photo.
+  recordWhere: "Record where",
+  recordWhereTitle: "Record where it's published",
+  recordWhereNote:
+    "Exported is not Published. Choose a photo's Record where to say where it went.",
   profilesTitle: "Output sizes",
   profilesIntro:
     "Presets for resized files. They are our own settings, not a platform's rules.",

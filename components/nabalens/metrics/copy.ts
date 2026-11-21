@@ -65,7 +65,7 @@ export const METRICS_COPY = {
   factsConfirmed: "Facts confirmed",
   nothingCounted: "nothing to count yet",
   itemRule:
-    "An item is complete when every photo it needs is covered. A facility is complete when its answer is currently confirmed and, where a photo is needed, the photo is covered. A confirmed No counts.",
+    "An item is complete when every photo it needs is covered. An amenity is complete when its answer is currently confirmed and, where a photo is needed, the photo is covered. A confirmed No counts.",
 
   reviewTitle: "Review",
   reviewMedian: "Decisions",
@@ -118,7 +118,7 @@ export const METRICS_COPY = {
   leavesTotal: "not in the total",
   soldOut: "temporarily unavailable",
   noSlotsTitle: "No slots yet",
-  noSlots: "Slots appear once the venue has a menu, spaces or facilities.",
+  noSlots: "Slots appear once the venue has a menu, spaces or amenities.",
 
   flowTitle: "How photos are added",
   noFlow: "Nothing recorded in this period.",

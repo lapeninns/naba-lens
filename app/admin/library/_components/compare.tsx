@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { MetaList } from "@/components/nabalens/meta-list"
+import { Notice } from "@/components/nabalens/notice"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { buttonVariants } from "@/components/ui/button"
 import { Photo } from "@/components/ui/photo"
@@ -19,16 +20,23 @@ export function CompareView({ a, b }: { a: AssetDetail; b: AssetDetail }) {
     a.asset.contentSha256 === b.asset.contentSha256
   return (
     <div className="grid gap-4">
-      <p className="text-body" data-testid="compare-verdict">
+      {/* Second handoff: the verdict is a Notice above both photos. */}
+      <Notice
+        tone={sameFile ? "attention" : "info"}
+        title={
+          sameFile ? "These are the same file" : "These are different files"
+        }
+        data-testid="compare-verdict"
+      >
         {sameFile
-          ? "These are the same file (identical content). A duplicate adds no coverage or contribution credit."
-          : "These are different files. Compare them before choosing; a similar photo may be a better angle."}
-      </p>
+          ? "Identical content. A duplicate adds no coverage or contribution credit."
+          : "Compare them before choosing; a similar photo may be a better angle."}
+      </Notice>
       <div className="grid gap-4 md:grid-cols-2">
-        {[a, b].map((d) => (
+        {[a, b].map((d, i) => (
           <section
             key={d.asset.id}
-            aria-label={`Photo by ${d.asset.uploaderName}`}
+            aria-label={`Photo ${i === 0 ? "A" : "B"}, by ${d.asset.uploaderName}`}
             className="grid content-start gap-3 rounded-card bg-surface p-3 shadow-card"
           >
             {d.asset.deletedAt ? (
@@ -40,7 +48,10 @@ export function CompareView({ a, b }: { a: AssetDetail; b: AssetDetail }) {
                 ratio="4/3"
               />
             )}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-label text-ink">
+                Photo {i === 0 ? "A" : "B"}
+              </h2>
               {d.review ? <StatusChip state={REVIEW_CHIP[d.review]} /> : null}
               {d.withdrawal ? (
                 <StatusChip tone="closed">Withdrawn from use</StatusChip>

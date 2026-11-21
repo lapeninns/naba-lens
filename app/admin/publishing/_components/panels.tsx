@@ -1,3 +1,4 @@
+import { CoverageSection } from "@/components/nabalens/coverage"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import type {
@@ -60,6 +61,12 @@ export function PublicationPanels(
         venues?: { id: string; name: string }[]
         profiles?: ExportProfile[]
         today: string
+        /**
+         * Fold each reference section shut under its title and a count line
+         * (second handoff, decision 4). Off by default; the inside of each
+         * section is the same either way.
+         */
+        folded?: boolean
       }
 ) {
   const { overview, today } = props
@@ -122,12 +129,21 @@ export function PublicationPanels(
     )
   }
 
+  const folded = props.folded ?? false
+  const inUse = overview.destinations.filter((d) => d.active).length
+  const lastRecord = overview.recent[0]?.occurredOn
   return (
     <>
-      <section aria-labelledby="destinations" className="grid gap-3">
-        <h2 id="destinations" className="type-section-title text-ink">
-          {EXPORTS_COPY.destinationsTitle}
-        </h2>
+      <CoverageSection
+        id="destinations"
+        title={EXPORTS_COPY.destinationsTitle}
+        count={
+          folded
+            ? `${inUse} in use${canRecord ? " · add or change" : ""}`
+            : undefined
+        }
+        collapsed={folded}
+      >
         <p className="text-body text-ink-muted">
           {EXPORTS_COPY.destinationsIntro}
         </p>
@@ -189,12 +205,18 @@ export function PublicationPanels(
             </div>
           </details>
         ) : null}
-      </section>
+      </CoverageSection>
 
-      <section aria-labelledby="published" className="grid gap-3">
-        <h2 id="published" className="type-section-title text-ink">
-          {EXPORTS_COPY.publishedTitle}
-        </h2>
+      <CoverageSection
+        id="published"
+        title={EXPORTS_COPY.publishedTitle}
+        count={
+          folded
+            ? `${overview.published.length} ${overview.published.length === 1 ? "photo" : "photos"}`
+            : undefined
+        }
+        collapsed={folded}
+      >
         {overview.published.length === 0 ? (
           <EmptyState variant="done" title={EXPORTS_COPY.noPublished} inline />
         ) : (
@@ -217,13 +239,19 @@ export function PublicationPanels(
             ))}
           </ul>
         )}
-      </section>
+      </CoverageSection>
 
       {overview.recent.length > 0 ? (
-        <section aria-labelledby="recent" className="grid gap-3">
-          <h2 id="recent" className="type-section-title text-ink">
-            {EXPORTS_COPY.recentTitle}
-          </h2>
+        <CoverageSection
+          id="recent"
+          title={EXPORTS_COPY.recentTitle}
+          count={
+            folded && lastRecord
+              ? `Last on ${londonDate(lastRecord)}`
+              : undefined
+          }
+          collapsed={folded}
+        >
           <ul className="grid gap-1 text-body text-ink">
             {overview.recent.map((r) => (
               <li key={r.id}>
@@ -234,14 +262,18 @@ export function PublicationPanels(
               </li>
             ))}
           </ul>
-        </section>
+        </CoverageSection>
       ) : null}
 
       {canRecord && props.profiles && props.profiles.length > 0 ? (
-        <section aria-labelledby="profiles" className="grid gap-3">
-          <h2 id="profiles" className="type-section-title text-ink">
-            {EXPORTS_COPY.profilesTitle}
-          </h2>
+        <CoverageSection
+          id="profiles"
+          title={EXPORTS_COPY.profilesTitle}
+          count={
+            folded ? props.profiles.map((p) => p.label).join(" · ") : undefined
+          }
+          collapsed={folded}
+        >
           <p className="text-body text-ink-muted">
             {EXPORTS_COPY.profilesIntro}
           </p>
@@ -250,7 +282,7 @@ export function PublicationPanels(
               <ProfileForm key={`${p.key}-${p.revision}`} profile={p} />
             ))}
           </div>
-        </section>
+        </CoverageSection>
       ) : null}
     </>
   )

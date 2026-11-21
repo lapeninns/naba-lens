@@ -88,6 +88,9 @@ export default async function AdminPublishingPage() {
           venues={venues.ok ? venues.venues : []}
           profiles={profiles.ok ? profiles.profiles : []}
           today={londonToday()}
+          // Second handoff: what is acted on stays open (follow-ups and
+          // packages); the reference sections fold shut.
+          folded
         />
       </div>
     </AppShell>

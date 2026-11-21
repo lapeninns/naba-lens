@@ -12,13 +12,13 @@ import {
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
 import { LinkButton } from "@/components/ui/link-button"
 import { requireActiveAdmin } from "@/lib/auth"
 import { parseCategory, parsePeriod } from "@/lib/metrics/model"
 import { getCoverageActor } from "@/lib/server/coverage"
 
 import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
+import { LinkSelect } from "../_components/link-select"
 import { loadMetricsOverview, loadVenueMetrics } from "@/lib/server/metrics"
 
 export const metadata: Metadata = { title: METRICS_COPY.title }
@@ -90,26 +90,20 @@ export default async function AdminMetricsPage({
           <OfflineNotice />
         </div>
 
+        {/* Second handoff: the venue pills became one Select. */}
         {venues.length > 0 ? (
-          <PillGroup label={METRICS_COPY.chooseVenue} className="px-1">
-            <FilterPill
-              href={metricsHrefs.admin({ days, category })}
-              selected={venueId === null}
-              current="page"
-            >
-              {METRICS_COPY.backToAll}
-            </FilterPill>
-            {venues.map((v) => (
-              <FilterPill
-                key={v.venueId}
-                href={metricsHrefs.admin({ venue: v.venueId, days, category })}
-                selected={v.venueId === venueId}
-                current="page"
-              >
-                {v.venueName}
-              </FilterPill>
-            ))}
-          </PillGroup>
+          <LinkSelect
+            label={METRICS_COPY.chooseVenue}
+            className="max-w-sm px-1"
+            value={venueId}
+            emptyLabel={METRICS_COPY.backToAll}
+            emptyHref={metricsHrefs.admin({ days, category })}
+            options={venues.map((v) => ({
+              id: v.venueId,
+              name: v.venueName,
+              href: metricsHrefs.admin({ venue: v.venueId, days, category }),
+            }))}
+          />
         ) : null}
 
         {venue ? (
