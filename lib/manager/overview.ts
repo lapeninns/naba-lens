@@ -46,6 +46,8 @@ export type OverviewAction = {
   href: string
   /** Something here is waiting on the manager. */
   waiting: boolean
+  /** A count behind this job could not be read: never shown as Complete. */
+  unknown?: boolean
 }
 
 export type OverviewHrefs = {
@@ -99,6 +101,7 @@ export function overviewActions(
         ? hrefs.unlabelled
         : hrefs.review,
     waiting: (pending ?? 0) > 0 || (unlabelled ?? 0) > 0,
+    unknown: pending === null || unlabelled === null,
   }
 
   const venue: OverviewAction = {
@@ -114,6 +117,7 @@ export function overviewActions(
     ]),
     href: hrefs.venue,
     waiting: (facts ?? 0) > 0 || input.menuCheckDue === true,
+    unknown: facts === null,
   }
 
   const missing = totals ? totals.missing : null
@@ -133,6 +137,7 @@ export function overviewActions(
           ]),
     href: hrefs.requests,
     waiting: (missing ?? 0) > 0 || (replace ?? 0) > 0,
+    unknown: totals === null,
   }
 
   const issues = input.publicationIssues
@@ -152,6 +157,7 @@ export function overviewActions(
     ]),
     href: (issues ?? 0) > 0 ? hrefs.exports : hrefs.venue,
     waiting: (issues ?? 0) > 0 || (checkDue ?? 0) > 0,
+    unknown: issues === null || totals === null,
   }
 
   return [review, venue, request, outdated]

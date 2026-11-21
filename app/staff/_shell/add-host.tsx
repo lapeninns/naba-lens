@@ -1019,6 +1019,24 @@ export function AddHost({
     setOutbox((current) => [...current, ...files])
   }
 
+  // Posting (D21) skips Match, so the start and each file's route are
+  // recorded here, as startMatch and sendMatched do (S2-METRICS, K5).
+  const trackPosted = (files: File[], route: CaptureRoute) => {
+    matchFlow.current = { route, batchId: newClientId() }
+    trackFlow({
+      name: "flow_started",
+      ...matchFlow.current,
+      count: files.length,
+    })
+    if (files.length > 1)
+      trackFlow({
+        name: "batch_grouped",
+        ...matchFlow.current,
+        count: files.length,
+      })
+    for (const file of files) fileRoutes.current.set(file, route)
+  }
+
   const startMatch = (
     files: File[],
     current: string | null,
@@ -1216,6 +1234,7 @@ export function AddHost({
       if (mode.kind === "match") {
         if (STAFF_ALBUM_POSTS) {
           claim(files, owner)
+          trackPosted(files, mode.request ? "request" : "gallery")
           queueFiles(files)
           return
         }
@@ -1246,6 +1265,7 @@ export function AddHost({
             area: kind === "area" ? slot.subjectId : null,
             noLabels: kind === "area",
           })
+          trackPosted(files, mode.request ? "request" : "slot")
           queueFiles(files)
           return
         }

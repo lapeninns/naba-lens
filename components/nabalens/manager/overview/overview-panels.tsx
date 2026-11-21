@@ -119,11 +119,10 @@ export function OverviewActions({
     ...actions.filter((a) => !(main && a.key === "review")),
     ...extra,
   ]
-  // Open jobs first, then the finished ones, each keeping its order.
-  const ordered = [
-    ...rows.filter((r) => r.waiting),
-    ...rows.filter((r) => !r.waiting),
-  ]
+  // Open jobs first, then the finished ones, each keeping its order. A job
+  // whose count could not be read stays open: it is not known to be done.
+  const open = (r: NeedsRow) => r.waiting || r.unknown === true
+  const ordered = [...rows.filter(open), ...rows.filter((r) => !open(r))]
   return (
     <section
       aria-labelledby={titleId}
@@ -157,7 +156,7 @@ export function OverviewActions({
             data-waiting={row.waiting || undefined}
             data-slot="overview-action"
           >
-            {row.waiting ? (
+            {open(row) ? (
               <HomeRow
                 href={row.href}
                 slot="overview-action-row"
