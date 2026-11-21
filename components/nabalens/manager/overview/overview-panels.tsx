@@ -33,7 +33,7 @@ import { MenuMonthCheckControl } from "../venue/menu-month-check"
  */
 
 /** A row of Needs you today: one of the four actions, or a job of its own. */
-export type NeedsRowKey = OverviewActionKey | "confirm" | "labels"
+export type NeedsRowKey = OverviewActionKey | "confirm" | "rechecks" | "labels"
 export type NeedsRow = Omit<OverviewAction, "key"> & { key: NeedsRowKey }
 
 const ICONS: Record<NeedsRowKey, React.ReactNode> = {
@@ -42,6 +42,7 @@ const ICONS: Record<NeedsRowKey, React.ReactNode> = {
   request: <ImageSquareIcon aria-hidden />,
   outdated: <ArrowsClockwiseIcon aria-hidden />,
   confirm: <ShieldCheckIcon aria-hidden />,
+  rechecks: <ArrowsClockwiseIcon aria-hidden />,
   labels: <PencilSimpleIcon aria-hidden />,
 }
 
@@ -61,6 +62,7 @@ export const OVERVIEW_PANELS_COPY = {
   reviewNext: (n: number) => `Review ${plural(n, "photo")}`,
   confirmTitle: "Confirm amenity findings",
   confirmLine: (n: number) => `${plural(n, "finding")} from staff to confirm`,
+  rechecksTitle: "Recheck amenities",
   labelsTitle: "Label your own photos",
   labelsLine: (n: number) =>
     `${plural(n, "photo")} ${n === 1 ? "needs a label" : "need labels"}`,

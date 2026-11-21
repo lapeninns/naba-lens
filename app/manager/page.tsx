@@ -10,7 +10,11 @@ import {
   type NeedsRow,
 } from "@/components/nabalens/manager/overview/overview-panels"
 import { TeamCompletionTargets } from "@/components/nabalens/manager/overview/team-completion-targets"
-import { triageConfirmCount } from "@/components/nabalens/manager/overview/triage-card"
+import {
+  TRIAGE_COPY,
+  triageConfirmCount,
+  triageRechecks,
+} from "@/components/nabalens/manager/overview/triage-card"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
 import { waitingFor } from "@/components/nabalens/menu-photos/copy"
 import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
@@ -170,6 +174,7 @@ export default async function ManagerOverviewPage() {
     exports: managerHrefs.exports,
   })
   const P = OVERVIEW_PANELS_COPY
+  const rechecks = triageRechecks(triage)
   // Jobs of their own, shown only when something is waiting: a count that
   // couldn't be read says so below the list instead (MG-03).
   const extra: NeedsRow[] = [
@@ -180,6 +185,18 @@ export default async function ManagerOverviewPage() {
             title: P.confirmTitle,
             line: P.confirmLine(confirmCount),
             href: `${amenityHrefs(managerHrefs.overview).list}#amenities-to-confirm`,
+            waiting: true,
+          },
+        ]
+      : []),
+    // Amenity rechecks due (B03): Triage counts them, oldest first.
+    ...(rechecks
+      ? [
+          {
+            key: "rechecks" as const,
+            title: P.rechecksTitle,
+            line: TRIAGE_COPY.rechecks(rechecks.waiting, rechecks.oldest),
+            href: `${amenityHrefs(managerHrefs.overview).list}#amenities-rechecks`,
             waiting: true,
           },
         ]

@@ -1653,6 +1653,15 @@ export function UploadDialog({
   const postedCount = items.filter(
     (item) => isAlbumPhoto(item) && item.status === "done"
   ).length
+  // Videos (and photos for another purpose) are saved, not posted.
+  const savedOther = albumPosting
+    ? items.filter(
+        (item) =>
+          !isAlbumPhoto(item) &&
+          item.status === "done" &&
+          ["none", "saved"].includes(viewOf(item).kind)
+      ).length
+    : 0
   // Posted photos with no label yet: the end offers Label now or Label
   // later, each explained (D21; the 20 Nov 2026 Open Design handoff).
   const toLabel = albumPosting
@@ -1671,7 +1680,14 @@ export function UploadDialog({
     : !startOnPick
       ? legacyStatus(summary, pause)
       : [
-          albumPosting ? `${postedCount} posted` : `${saved} saved`,
+          ...(albumPosting
+            ? [
+                postedCount > 0 || savedOther === 0
+                  ? `${postedCount} posted`
+                  : null,
+                savedOther > 0 ? `${savedOther} saved` : null,
+              ]
+            : [`${saved} saved`]),
           saving > 0
             ? pause === "offline"
               ? `${saving} waiting`

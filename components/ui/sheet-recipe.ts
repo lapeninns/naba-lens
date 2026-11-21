@@ -31,7 +31,7 @@ const GRIP =
  * Forced colours drop the shadow, so the popup draws an outline there.
  */
 export const sheetPopup = cva(
-  "group/sheet fixed inset-x-0 bottom-0 z-overlay mx-auto grid max-h-[88dvh] w-safe grid-cols-[minmax(0,1fr)] overflow-y-auto overscroll-contain rounded-t-sheet bg-surface text-body text-ink shadow-float duration-sheet ease-out outline-none md:top-1/2 md:right-auto md:bottom-auto md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-sheet forced-colors:outline-2 forced-colors:outline-solid data-open:animate-in data-open:fade-in-40 data-open:slide-in-from-bottom-6 md:data-open:fade-in-0 md:data-open:slide-in-from-bottom-0 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-6 md:data-closed:slide-out-to-bottom-0",
+  "group/sheet fixed inset-x-0 bottom-0 z-overlay mx-auto grid max-h-[88dvh] w-safe scroll-pb-40 grid-cols-[minmax(0,1fr)] overflow-y-auto overscroll-contain rounded-t-sheet bg-surface text-body text-ink shadow-float duration-sheet ease-out outline-none md:top-1/2 md:right-auto md:bottom-auto md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-sheet forced-colors:outline-2 forced-colors:outline-solid data-open:animate-in data-open:fade-in-40 data-open:slide-in-from-bottom-6 md:data-open:fade-in-0 md:data-open:slide-in-from-bottom-0 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-6 md:data-closed:slide-out-to-bottom-0",
   {
     variants: {
       size: {
@@ -54,7 +54,8 @@ export type SheetSize = NonNullable<VariantProps<typeof sheetPopup>["size"]>
  * they sit right-aligned, safe choice first, each at least 140px wide.
  *
  * `sticky` is for a form longer than the sheet: the row stays at the bottom
- * edge while the form scrolls under it. It bleeds over the popup's padding
+ * edge while the form scrolls under it. The popup's scroll padding keeps a
+ * control brought into view (by focus, say) clear of it (WCAG 2.4.11). It bleeds over the popup's padding
  * (none in a viewer) and keeps clear of the home indicator itself.
  */
 export const sheetFooter = cva(

@@ -269,7 +269,7 @@ export function unmatched(item: MyUpload): boolean {
 export function canLabelUpload(item: MyUpload, currentVenueId: string | null) {
   if (item.venueId !== currentVenueId) return false
   return item.albumPost
-    ? !item.albumPost.removed && !item.albumPost.labelled
+    ? !item.albumPost.removed && !item.albumPost.labelled && !item.labelHelp
     : unmatched(item) && !item.labelHelp
 }
 

@@ -191,7 +191,7 @@ export function MatchPicker({
     />
   )
   const askAbout =
-    traySearchRef && ready && searching && found.length === 0
+    (traySearchRef || labelling) && ready && searching && found.length === 0
       ? query.trim().slice(0, 120)
       : ""
 
@@ -327,7 +327,7 @@ export function MatchPicker({
               <QuestionIcon aria-hidden weight="bold" className="size-5" />
               {askAbout
                 ? MATCH_COPY.trayAskAbout(askAbout)
-                : traySearchRef
+                : traySearchRef || labelling
                   ? MATCH_COPY.trayAsk
                   : MATCH_COPY.notSure}
             </span>

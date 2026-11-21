@@ -109,6 +109,16 @@ export function TriageCard({
 }
 
 /** The findings queue's count, for a To confirm badge; null when not shown. */
+/** Amenity rechecks due, and the oldest due date, when Triage has them. */
+export function triageRechecks(
+  rows: readonly TriageRow[] | null
+): { waiting: number; oldest: string | null } | null {
+  const row = rows?.find((r) => r.queue === "rechecks")
+  return row?.available && row.waiting > 0
+    ? { waiting: row.waiting, oldest: row.oldestWaitingAt }
+    : null
+}
+
 export function triageConfirmCount(rows: readonly TriageRow[]): number | null {
   const row = rows.find((r) => r.queue === "findings")
   return row?.available ? row.waiting : null
