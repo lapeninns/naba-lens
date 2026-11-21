@@ -9,7 +9,10 @@ export const MANAGERS_COPY = {
     "Venue managers are a separate account type. Convert an account from its staff page, then manage its venue access here.",
   powers:
     "Venue managers sign in to the manager workspace for their venue. They can't add or label photos, invite or deactivate people, change venues or teams, change menus, download originals or delete colleagues' photos. Access ends if the person moves venue, is deactivated or returns to a staff account, and never moves with them.",
-  grantHeading: "Give a venue manager access",
+  // Second handoff: the title-row button and the grant Dialog's title.
+  grantHeading: "Make someone a venue manager",
+  cancel: "Cancel",
+  inEffect: "In effect",
   currentHeading: "Current grants",
   endedHeading: "Ended grants",
   endedNote: "Kept for history",
@@ -32,6 +35,7 @@ export const MANAGERS_COPY = {
     grantedBy: "Granted by",
     dates: "Dates",
     howItEnded: "How it ended",
+    state: "State",
     actions: "Actions",
   },
   grant: "Give access",

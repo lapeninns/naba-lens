@@ -175,18 +175,16 @@ describe("Menu list", () => {
   it("shows the three headline states and the secondary chips", () => {
     screenWith({ items: ITEMS, nextCursor: null })
     const soup = within(row("Soup"))
-    expect(soup.getByText("Has a photo")).toBeTruthy()
+    expect(soup.getByText("In the album")).toBeTruthy()
     expect(soup.getByText("New photo waiting")).toBeTruthy()
     expect(soup.getByText("Cup, Bowl")).toBeTruthy()
     const long = within(row(LONG))
-    expect(long.getByText("Awaiting review")).toBeTruthy()
+    expect(long.getByText("Waiting")).toBeTruthy()
     expect(long.getByText("Needs a recheck")).toBeTruthy()
     expect(
       long.getByText("Your earlier photo is waiting for an admin")
     ).toBeTruthy()
-    expect(
-      within(row("Fish pie")).getByText("Still needs a photo")
-    ).toBeTruthy()
+    expect(within(row("Fish pie")).getByText("Missing")).toBeTruthy()
     expect(within(row("Fish pie")).queryByText("New photo waiting")).toBeNull()
   })
 
@@ -239,18 +237,31 @@ describe("Menu list", () => {
     const nav = screen.getByRole("navigation", { name: "Show" })
     const links = within(nav).getAllByRole("link")
     expect(links.map((a) => a.textContent)).toEqual([
-      "All 3",
-      "Still needs a photo 1",
-      "Awaiting review 1",
-      "Has a photo 1",
+      // ia.md decision 4: the chip words, gaps first and All last.
+      "Missing 1",
+      "Waiting 1",
+      "In the album 1",
       "New photo waiting 1",
       "Needs a recheck 1",
+      "All 3",
     ])
     expect(
       links.filter((a) => a.getAttribute("aria-current") === "page")
     ).toHaveLength(1)
-    expect(links[5]?.getAttribute("aria-current")).toBe("page")
-    expect(links[5]?.getAttribute("href")).toBe("/manager/menu?status=recheck")
+    expect(links[4]?.getAttribute("aria-current")).toBe("page")
+    expect(links[4]?.getAttribute("href")).toBe("/manager/menu?status=recheck")
+  })
+
+  it("gives each gap one action, Ask, a New request with the slot filled in", () => {
+    screenWith({ items: ITEMS, nextCursor: null })
+    const ask = within(row("Fish pie")).getByRole("link", {
+      name: "Ask for a photo of Fish pie",
+    })
+    expect(ask.getAttribute("href")).toBe(
+      "/manager/requests/new?kind=dish&slot=00000000-0000-4000-8000-0000000000c3"
+    )
+    // Rows with a photo have no Ask.
+    expect(within(row("Soup")).queryByRole("link", { name: /^Ask/ })).toBeNull()
   })
 
   it("search replaces the URL without scrolling, 300 ms after typing", () => {
@@ -443,6 +454,15 @@ function showItem(
 const region = (name: string) => screen.getByRole("region", { name })
 
 describe("Item detail", () => {
+  it("has one bottle button, Ask for a photo, a New request for the dish", () => {
+    showItem(detail())
+    const ask = screen.getByRole("link", { name: "Ask for a photo" })
+    expect(ask.getAttribute("href")).toBe(
+      `/manager/requests/new?kind=dish&slot=${ITEM}`
+    )
+    expect(ask.dataset.variant).toBe("primary")
+  })
+
   it("shows the menu photo, alternatives, waiting and history sections", () => {
     showItem(detail())
     expect(

@@ -2,23 +2,22 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { MapPinIcon } from "@phosphor-icons/react"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
 import { FieldError } from "@/components/ui/field"
+import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
 import { Input } from "@/components/ui/input"
 import {
   WORK_AREA_OPTIONS,
   WORK_ROLE_OPTIONS,
   WORK_ROLE_TITLE_MAX,
-  isWorkRoleKey,
   type WorkArea,
   type WorkRoleKey,
 } from "@/lib/config/work-roles"
 
+import { ActionDock } from "./common-room/action-dock"
 import { Notice } from "./notice"
-import { ProfileAvatar } from "./profile-avatar"
 
 export type WorkProfileValues = {
   roleKey: WorkRoleKey | null
@@ -40,24 +39,51 @@ export type WorkProfileResult =
 const NETWORK = "Your work details could not be saved. Check your connection."
 
 /**
- * "What do you do at [venue]?": one main job (radio list, Other with a short
- * title) and optional extra areas. Saving the main job completes the work
+ * The main jobs as four groups of chips (screens-2 handoff, decision 9): the
+ * same options in the same order, a third of the scrolling.
+ */
+const ROLE_GROUPS: ReadonlyArray<{
+  id: string
+  label: string
+  roles: readonly WorkRoleKey[]
+}> = [
+  {
+    id: "kitchen",
+    label: "Kitchen",
+    roles: [
+      "head_chef",
+      "sous_chef",
+      "line_chef",
+      "curry_chef",
+      "tandoor_chef",
+      "plating",
+      "kitchen_team",
+    ],
+  },
+  { id: "bar", label: "Bar", roles: ["bartender", "bar_team"] },
+  {
+    id: "front",
+    label: "Front of house",
+    roles: ["server", "host", "manager", "venue_team"],
+  },
+  { id: "else", label: "Something else", roles: ["other"] },
+]
+
+/**
+ * "What do you do at [venue]?": one main job (chips in four groups, Other
+ * with a short title) and optional extra areas (chips, any number). Saving the main job completes the work
  * details; Skip for now leaves them empty. A value worked out from the
  * admin-set job title is only a suggestion: nothing is stored until Save.
  */
 export function WorkProfileForm({
-  displayName,
   venueName,
-  avatarUrl = null,
   initial,
   suggestedFrom = null,
   next,
   onSave,
   onSkip,
 }: {
-  displayName: string
   venueName: string | null
-  avatarUrl?: string | null
   initial: WorkProfileValues
   /** The job title a suggested prefill came from; null when `initial` is saved. */
   suggestedFrom?: string | null
@@ -105,7 +131,7 @@ export function WorkProfileForm({
     const title = roleTitle.trim().replace(/\s+/g, " ")
     if (!roleKey) {
       setFieldErrors({ roleKey: "Choose what you mainly do." })
-      roleRef.current?.querySelector("input")?.focus()
+      roleRef.current?.querySelector("button")?.focus()
       return
     }
     if (roleKey === "other" && !title) {
@@ -145,33 +171,8 @@ export function WorkProfileForm({
     }
   }
 
-  // Common Room choice rows: one white card, hairlines between rows, a 64px
-  // row per choice with a large radio or box; the chosen row is accent-soft.
-  const listClass =
-    "grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
-  const rowClass =
-    "flex min-h-16 cursor-pointer items-center gap-3 px-4 py-2 text-item-title text-ink transition-colors duration-quick hover:bg-surface-2 has-checked:bg-accent-soft has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-focus has-focus-visible:outline-solid"
-  const areaRowClass =
-    "flex min-h-13 cursor-pointer items-center gap-3 px-4 py-2 text-body text-ink transition-colors duration-quick hover:bg-surface-2 has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-focus has-focus-visible:outline-solid"
-  const markClass = "size-6 shrink-0 accent-select"
-
   return (
     <form onSubmit={submit} noValidate className="grid gap-5">
-      <div className="flex min-w-0 items-center gap-3 rounded-card bg-surface p-3 shadow-card">
-        <ProfileAvatar name={displayName} src={avatarUrl} />
-        <p className="grid min-w-0">
-          <span className="text-item-title [overflow-wrap:anywhere] text-ink">
-            {displayName}
-          </span>
-          <span className="flex items-center gap-1.5 text-body text-ink-muted">
-            <MapPinIcon aria-hidden className="size-[18px] shrink-0" />
-            <span className="[overflow-wrap:anywhere]">
-              {venueName ?? "No venue assigned"}
-            </span>
-          </span>
-        </p>
-      </div>
-
       {suggestion ? (
         <Notice tone="info" role="note" title="Check this suggestion">
           We picked {suggestion.name} from your job title ({suggestedFrom}).
@@ -203,24 +204,30 @@ export function WorkProfileForm({
           Choose your main job. It sets the question Home asks and which dishes
           come first when you label. It never changes what you can see or do.
         </p>
-        <div className={listClass}>
-          {WORK_ROLE_OPTIONS.map((option) => (
-            <label key={option.id} className={rowClass}>
-              <input
-                type="radio"
-                name={`${ids}-role`}
-                value={option.id}
-                checked={roleKey === option.id}
-                onChange={(event) => {
-                  const value = event.currentTarget.value
-                  if (isWorkRoleKey(value)) setRoleKey(value)
-                }}
-                className={markClass}
-              />
-              {option.name}
-            </label>
-          ))}
-        </div>
+        {ROLE_GROUPS.map((group) => (
+          <div key={group.id} className="grid gap-2 pt-1">
+            <h3
+              id={`${ids}-group-${group.id}`}
+              className="px-1 text-label text-ink-muted"
+            >
+              {group.label}
+            </h3>
+            <PillGroup aria-labelledby={`${ids}-group-${group.id}`}>
+              {group.roles.map((key) => {
+                const option = WORK_ROLE_OPTIONS.find((o) => o.id === key)
+                return option ? (
+                  <FilterPill
+                    key={key}
+                    selected={roleKey === key}
+                    onClick={() => setRoleKey(key)}
+                  >
+                    {option.name}
+                  </FilterPill>
+                ) : null
+              })}
+            </PillGroup>
+          </div>
+        ))}
         {fieldErrors.roleKey ? (
           <FieldError id={`${ids}-role-error`}>
             {fieldErrors.roleKey}
@@ -264,36 +271,33 @@ export function WorkProfileForm({
             (optional)
           </span>
         </legend>
-        <div className={listClass}>
+        {/* The fieldset's legend names this group. */}
+        <PillGroup>
           {WORK_AREA_OPTIONS.map((area) => (
-            <label key={area.id} className={areaRowClass}>
-              <input
-                type="checkbox"
-                value={area.id}
-                checked={areas.has(area.id)}
-                onChange={(event) => {
-                  const checked = event.currentTarget.checked
-                  setAreas((current) => {
-                    const nextAreas = new Set(current)
-                    if (checked) nextAreas.add(area.id)
-                    else nextAreas.delete(area.id)
-                    return nextAreas
-                  })
-                }}
-                className={markClass}
-              />
+            <FilterPill
+              key={area.id}
+              selected={areas.has(area.id)}
+              onClick={() =>
+                setAreas((current) => {
+                  const nextAreas = new Set(current)
+                  if (nextAreas.has(area.id)) nextAreas.delete(area.id)
+                  else nextAreas.add(area.id)
+                  return nextAreas
+                })
+              }
+            >
               {area.name}
-            </label>
+            </FilterPill>
           ))}
-        </div>
+        </PillGroup>
         {fieldErrors.workAreas ? (
           <FieldError>{fieldErrors.workAreas}</FieldError>
         ) : null}
       </fieldset>
 
-      {/* Skip (grey) and Save (the one blue), the same width; grey first in
-          the DOM so blue sits on the right, or below when stacked. */}
-      <div className="grid grid-cols-2 gap-2 rounded-card bg-surface p-3 shadow-card max-[359px]:grid-cols-1 md:p-4">
+      {/* Skip (grey) and Save (the one bottle button) in the dock; grey
+          first in the DOM so the primary sits on the right. */}
+      <ActionDock>
         <Button
           type="button"
           variant="secondary"
@@ -305,7 +309,7 @@ export function WorkProfileForm({
         <Button variant="primary" type="submit" disabled={pending !== null}>
           {pending === "save" ? "Saving…" : "Save"}
         </Button>
-      </div>
+      </ActionDock>
     </form>
   )
 }

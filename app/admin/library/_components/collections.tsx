@@ -6,20 +6,47 @@ import { useRouter } from "next/navigation"
 import {
   ArchiveIcon,
   ArrowCounterClockwiseIcon,
+  DotsThreeIcon,
   DownloadSimpleIcon,
+  FolderSimpleIcon,
   PlusIcon,
   XCircleIcon,
 } from "@phosphor-icons/react"
 
+import { Row, RowList } from "@/components/nabalens/common-room/row"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { Notice } from "@/components/nabalens/notice"
+import { PageHeader } from "@/components/nabalens/page-header"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { FormField } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Photo } from "@/components/ui/photo"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import type { LibraryCollection, LibraryTag } from "@/lib/library/model"
+import { cn } from "@/lib/utils"
 
 import {
   saveCollectionAction,
@@ -35,68 +62,159 @@ import { formatWhen } from "./format"
  * retired tag stays on photos but can't be added.
  */
 
-/** Create a collection or a tag: one name field (and a purpose) and Add. */
-function CreateForm({
-  kind,
-  onCreate,
-}: {
-  kind: "collection" | "tag"
-  onCreate: (
-    name: string,
-    purpose: string
-  ) => Promise<{ ok: true } | { ok: false; error: string }>
-}) {
+/** Add a tag (second handoff): one row, the name field and Add tag. */
+function AddTagForm() {
   const router = useRouter()
   const [name, setName] = React.useState("")
-  const [purpose, setPurpose] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
   const [pending, startTransition] = React.useTransition()
 
   return (
     <form
-      className="grid gap-3 rounded-card border border-line bg-surface p-4"
+      className="grid gap-3 rounded-card border border-line bg-surface p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
       onSubmit={(e) => {
         e.preventDefault()
         setError(null)
         startTransition(async () => {
-          const r = await onCreate(name, purpose)
+          const r = await saveTagAction({ name })
           if (!r.ok) setError(r.error)
           else {
             setName("")
-            setPurpose("")
             router.refresh()
           }
         })
       }}
     >
       <FormField
-        label={kind === "collection" ? "New collection" : "New tag"}
+        label="New tag"
+        description="Up to 40 characters"
         error={error}
       >
         <Input
           value={name}
-          maxLength={kind === "collection" ? 80 : 40}
+          maxLength={40}
           onChange={(e) => setName(e.currentTarget.value)}
         />
       </FormField>
-      {kind === "collection" ? (
-        <FormField label="What it is for" optional>
-          <Textarea
-            value={purpose}
-            maxLength={500}
-            rows={2}
-            onChange={(e) => setPurpose(e.currentTarget.value)}
-          />
-        </FormField>
-      ) : null}
       <div>
         <Button type="submit" variant="primary" loading={pending}>
           <PlusIcon aria-hidden />
-          {kind === "collection" ? "Add collection" : "Add tag"}
+          Add tag
         </Button>
       </div>
     </form>
   )
+}
+
+/**
+ * New collection (second handoff, decision 5): the list is the page, so the
+ * create form opens in a Dialog from the title-row button.
+ */
+export function NewCollectionButton() {
+  const router = useRouter()
+  const [open, setOpen] = React.useState(false)
+  const [name, setName] = React.useState("")
+  const [purpose, setPurpose] = React.useState("")
+  const [error, setError] = React.useState<string | null>(null)
+  const [pending, startTransition] = React.useTransition()
+
+  function reset() {
+    setName("")
+    setPurpose("")
+    setError(null)
+  }
+
+  return (
+    <>
+      <Button
+        variant="primary"
+        onClick={() => setOpen(true)}
+        data-testid="collection-new"
+      >
+        <PlusIcon aria-hidden data-icon="inline-start" />
+        New collection
+      </Button>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (pending) return
+          if (!next) reset()
+          setOpen(next)
+        }}
+      >
+        <DialogContent>
+          <form
+            className="grid gap-4"
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault()
+              setError(null)
+              startTransition(async () => {
+                const r = await saveCollectionAction({
+                  name,
+                  purpose: purpose || null,
+                })
+                if (!r.ok) setError(r.error)
+                else {
+                  reset()
+                  setOpen(false)
+                  router.refresh()
+                }
+              })
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>New collection</DialogTitle>
+              <DialogDescription>
+                A collection points at photos; it never copies or deletes them.
+              </DialogDescription>
+            </DialogHeader>
+            <FormField label="Name" error={error}>
+              <Input
+                value={name}
+                maxLength={80}
+                onChange={(e) => setName(e.currentTarget.value)}
+              />
+            </FormField>
+            <FormField label="What it is for" optional>
+              <Textarea
+                value={purpose}
+                maxLength={500}
+                rows={2}
+                onChange={(e) => setPurpose(e.currentTarget.value)}
+              />
+            </FormField>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setOpen(false)}
+                disabled={pending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" loading={pending}>
+                Add collection
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+/** "12 photos · The Old Crown 8 · The Bell 4"; past two venues, a count. */
+function collectionLine(c: LibraryCollection) {
+  const photos = `${c.assetCount} ${c.assetCount === 1 ? "photo" : "photos"}`
+  if (c.venues.length === 0) return photos
+  const shown = c.venues.slice(0, 2).map((v) => `${v.venueName} ${v.count}`)
+  const rest = c.venues.length - shown.length
+  return [
+    photos,
+    ...shown,
+    ...(rest > 0 ? [`${rest} more ${rest === 1 ? "venue" : "venues"}`] : []),
+  ].join(" · ")
 }
 
 export function CollectionsView({
@@ -108,53 +226,46 @@ export function CollectionsView({
 }) {
   return (
     <div className="grid gap-6">
-      <CreateForm
-        kind="collection"
-        onCreate={(name, purpose) =>
-          saveCollectionAction({ name, purpose: purpose || null })
-        }
-      />
       {collections.length === 0 ? (
         <EmptyState
           title={
             showArchived ? "No collections yet." : "No open collections yet."
           }
           description={
-            <p>Add photos to a collection from a photo&apos;s details page.</p>
+            <p>
+              Start one with New collection, then add photos to it from a
+              photo&apos;s details page.
+            </p>
           }
         />
       ) : (
-        <ul className="grid gap-3" data-testid="collections">
-          {collections.map((c) => (
-            <li
-              key={c.id}
-              className="grid gap-2 rounded-card border border-line bg-surface p-4"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <Link
-                  href={`/admin/library/collections/${c.id}`}
-                  className="text-body font-semibold [overflow-wrap:anywhere] text-accent-text underline underline-offset-4"
-                >
-                  {c.name}
-                </Link>
-                {c.archivedAt ? (
-                  <StatusChip tone="closed">Archived</StatusChip>
-                ) : null}
-              </div>
-              {c.purpose ? (
-                <p className="text-body [overflow-wrap:anywhere] text-ink-muted">
-                  {c.purpose}
-                </p>
-              ) : null}
-              <p className="font-mono text-meta text-ink-muted">
-                {c.assetCount} {c.assetCount === 1 ? "photo" : "photos"}
-                {c.venues.length > 0
-                  ? ` · ${c.venues.map((v) => `${v.venueName} ${v.count}`).join(" · ")}`
-                  : ""}
-              </p>
-            </li>
-          ))}
-        </ul>
+        <div data-testid="collections" className="contents">
+          <RowList list>
+            {collections.map((c) => (
+              <Row
+                key={c.id}
+                icon={<FolderSimpleIcon />}
+                href={`/admin/library/collections/${c.id}`}
+                title={c.name}
+                subtitle={
+                  <>
+                    {c.purpose ? (
+                      <span className="block [overflow-wrap:anywhere]">
+                        {c.purpose}
+                      </span>
+                    ) : null}
+                    <span className="block font-mono">{collectionLine(c)}</span>
+                  </>
+                }
+                chips={
+                  c.archivedAt ? (
+                    <StatusChip tone="closed">Archived</StatusChip>
+                  ) : undefined
+                }
+              />
+            ))}
+          </RowList>
+        </div>
       )}
       <Link
         href={
@@ -162,7 +273,7 @@ export function CollectionsView({
             ? "/admin/library/collections"
             : "/admin/library/collections?archived=1"
         }
-        className="text-body text-accent-text underline underline-offset-4"
+        className="inline-flex min-h-11 w-fit items-center px-1 text-body text-accent-text underline underline-offset-4"
       >
         {showArchived
           ? "Hide archived collections"
@@ -214,54 +325,80 @@ export function CollectionDetailView({
     })
   }
 
+  const exports = [...byVenue.entries()]
+  const photoCount = `${collection.assetCount} ${collection.assetCount === 1 ? "photo" : "photos"}`
+
   return (
     <div className="grid gap-6">
-      <div className="flex flex-wrap gap-2">
-        {[...byVenue.entries()].map(([venueId, v]) => (
-          <Link
-            key={venueId}
-            href={`/admin/publishing/new?venue=${venueId}&assets=${v.ids.join(",")}`}
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            <DownloadSimpleIcon aria-hidden />
-            Export {v.ids.length} from {v.name}
-          </Link>
-        ))}
-        <Link
-          href={`/admin?collection=${collection.id}&use=all`}
-          className={buttonVariants({ variant: "secondary" })}
-        >
-          Open in the library
-        </Link>
-        <Button
-          variant="secondary"
-          loading={pending}
-          onClick={() =>
-            run(() =>
-              saveCollectionAction({
-                collectionId: collection.id,
-                name: collection.name,
-                purpose: collection.purpose,
-                archived: !archived,
-                revision: collection.revision,
-              })
-            )
-          }
-        >
-          {archived ? (
-            <ArrowCounterClockwiseIcon aria-hidden />
-          ) : (
-            <ArchiveIcon aria-hidden />
-          )}
-          {archived ? "Restore collection" : "Archive collection"}
-        </Button>
-      </div>
+      {/* Second handoff: the exports are the title row's buttons, the first
+          one the bottle; Archive moves behind the menu. */}
+      <PageHeader
+        scope="Collection"
+        title={collection.name}
+        summary={
+          <p>{[collection.purpose, photoCount].filter(Boolean).join(" · ")}</p>
+        }
+        actions={
+          <>
+            {exports.map(([venueId, v], i) => (
+              <Link
+                key={venueId}
+                href={`/admin/publishing/new?venue=${venueId}&assets=${v.ids.join(",")}`}
+                className={buttonVariants({
+                  variant: i === 0 ? "primary" : "secondary",
+                })}
+              >
+                <DownloadSimpleIcon aria-hidden data-icon="inline-start" />
+                Export {v.ids.length} from {v.name}
+              </Link>
+            ))}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="quiet"
+                    size="icon"
+                    loading={pending}
+                    aria-label={`More actions for ${collection.name}`}
+                  />
+                }
+              >
+                <DotsThreeIcon weight="bold" aria-hidden />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-56">
+                <DropdownMenuItem
+                  onClick={() =>
+                    run(() =>
+                      saveCollectionAction({
+                        collectionId: collection.id,
+                        name: collection.name,
+                        purpose: collection.purpose,
+                        archived: !archived,
+                        revision: collection.revision,
+                      })
+                    )
+                  }
+                >
+                  {archived ? (
+                    <ArrowCounterClockwiseIcon aria-hidden />
+                  ) : (
+                    <ArchiveIcon aria-hidden />
+                  )}
+                  {archived ? "Restore collection" : "Archive collection"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+        className="pb-0 md:pb-0"
+      />
+      {archived ? <StatusChip tone="closed">Archived</StatusChip> : null}
       {byVenue.size > 1 ? (
-        <p className="text-body text-ink-muted">
+        <Notice tone="info">
           An export package holds one venue&apos;s photos, so each venue is
           exported on its own. Only photos approved for public use can be chosen
           there.
-        </p>
+        </Notice>
       ) : null}
       {error ? (
         <Notice tone="negative" role="alert">
@@ -277,7 +414,7 @@ export function CollectionDetailView({
         />
       ) : (
         <ul
-          className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
           data-testid="collection-photos"
         >
           {photos.map((p) => (
@@ -331,6 +468,12 @@ export function CollectionDetailView({
       <p className="text-body text-ink-muted">
         Taking a photo out of a collection never deletes it.
       </p>
+      <Link
+        href={`/admin?collection=${collection.id}&use=all`}
+        className={cn(buttonVariants({ variant: "secondary" }), "w-fit")}
+      >
+        Open in the library
+      </Link>
     </div>
   )
 }
@@ -363,87 +506,114 @@ export function TagsView({ tags }: { tags: LibraryTag[] }) {
 
   return (
     <div className="grid gap-6">
-      <CreateForm kind="tag" onCreate={(name) => saveTagAction({ name })} />
+      <AddTagForm />
       {error ? (
         <Notice tone="negative" role="alert">
           {error}
         </Notice>
       ) : null}
       {tags.length === 0 ? (
-        <EmptyState title="No tags yet." />
+        <EmptyState
+          title="No tags yet."
+          description={<p>Add the first one above.</p>}
+        />
       ) : (
-        <ul className="grid gap-2" data-testid="tags">
-          {tags.map((t) => (
-            <li
-              key={t.id}
-              className="grid gap-2 rounded-card border border-line bg-surface p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-            >
-              {editing?.id === t.id ? (
-                <form
-                  className="flex flex-wrap items-end gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    save(t, { name: editing.name })
-                  }}
-                >
-                  <FormField label="Tag name" className="min-w-0 flex-1">
-                    <Input
-                      value={editing.name}
-                      maxLength={40}
-                      onChange={(e) =>
-                        setEditing({ id: t.id, name: e.currentTarget.value })
-                      }
-                    />
-                  </FormField>
-                  <Button type="submit" variant="primary" loading={pending}>
-                    Save
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setEditing(null)}
-                  >
-                    Cancel
-                  </Button>
-                </form>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Link
-                    href={`/admin?tag=${t.id}&use=all`}
-                    className="text-body font-semibold text-accent-text underline underline-offset-4"
-                  >
-                    {t.name}
-                  </Link>
-                  <span className="font-mono text-meta text-ink-muted">
-                    {t.assetCount} {t.assetCount === 1 ? "photo" : "photos"}
-                  </span>
+        // Second handoff: a DataTable so the photo counts line up; stacked
+        // rows on a phone.
+        <Table stacked framed aria-label="Tags" data-testid="tags">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tag</TableHead>
+              <TableHead numeric>Photos</TableHead>
+              <TableHead>
+                <span className="sr-only">State</span>
+              </TableHead>
+              <TableHead>
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tags.map((t) => (
+              <TableRow key={t.id}>
+                <TableHead scope="row" className="h-auto whitespace-normal">
+                  {editing?.id === t.id ? (
+                    <form
+                      className="flex flex-wrap items-end gap-2 py-2"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        save(t, { name: editing.name })
+                      }}
+                    >
+                      <FormField label="Tag name" className="min-w-0 flex-1">
+                        <Input
+                          value={editing.name}
+                          maxLength={40}
+                          onChange={(e) =>
+                            setEditing({
+                              id: t.id,
+                              name: e.currentTarget.value,
+                            })
+                          }
+                        />
+                      </FormField>
+                      <Button
+                        type="submit"
+                        variant="secondary"
+                        loading={pending}
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="quiet"
+                        onClick={() => setEditing(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </form>
+                  ) : (
+                    <Link
+                      href={`/admin?tag=${t.id}&use=all`}
+                      className="inline-flex min-h-11 items-center text-label [overflow-wrap:anywhere] text-accent-text underline underline-offset-4"
+                    >
+                      {t.name}
+                    </Link>
+                  )}
+                </TableHead>
+                <TableCell label="Photos" numeric>
+                  {t.assetCount} {t.assetCount === 1 ? "photo" : "photos"}
+                </TableCell>
+                <TableCell label="State">
                   {t.active ? null : (
                     <StatusChip tone="closed">Retired</StatusChip>
                   )}
-                </div>
-              )}
-              {editing?.id === t.id ? null : (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setEditing({ id: t.id, name: t.name })}
-                  >
-                    Rename
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={pending}
-                    onClick={() => save(t, { active: !t.active })}
-                  >
-                    {t.active ? "Retire" : "Restore"}
-                  </Button>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+                </TableCell>
+                <TableCell label="Actions">
+                  {editing?.id === t.id ? null : (
+                    <span className="flex flex-wrap justify-end gap-2 max-md:justify-start">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setEditing({ id: t.id, name: t.name })}
+                      >
+                        Rename
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={pending}
+                        onClick={() => save(t, { active: !t.active })}
+                      >
+                        {t.active ? "Retire" : "Restore"}
+                      </Button>
+                    </span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
       <p className="text-body text-ink-muted">
         Retiring a tag keeps it on the photos that have it; it can no longer be

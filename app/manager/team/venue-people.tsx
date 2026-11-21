@@ -85,7 +85,7 @@ export function VenuePeople({
   return (
     <section aria-labelledby="venue-people" className="grid gap-gutter">
       <div className={MANAGER_SECTION_HEAD}>
-        <h2 id="venue-people" className="type-section-title text-ink">
+        <h2 id="venue-people" className="text-heading text-ink">
           {`People at ${venue.name}`}
         </h2>
         <Button variant="secondary" size="sm" onClick={() => setInviting(true)}>

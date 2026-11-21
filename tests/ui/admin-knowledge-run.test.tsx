@@ -82,11 +82,15 @@ describe("a run page", () => {
       run(new Date(Date.now() - 60 * 60 * 1000).toISOString())
     )
     await show()
-    expect(
-      screen.getByText(
-        "3 would be imported for managers to decide · 0 skipped · 1 disagree with what's recorded · 1 agree and would be recorded as seen"
-      )
-    ).toBeTruthy()
+    // The four counts are tallies (second handoff).
+    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(
+      expect.arrayContaining([
+        "Would be imported3for managers to decide",
+        "Disagree1with what's recorded",
+        "Agree1recorded as seen",
+        "Skipped0not checked or no mapping",
+      ])
+    )
     expect(
       screen.getByRole("button", { name: "Import 3 for managers to decide" })
     ).toBeTruthy()

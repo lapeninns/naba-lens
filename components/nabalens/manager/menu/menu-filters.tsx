@@ -99,7 +99,8 @@ export function MenuFilters({
     }, SEARCH_DEBOUNCE_MS)
   }
 
-  const choices: (MenuStatusFilter | null)[] = [null, ...MENU_STATUS_ORDER]
+  // Gaps first, All last (the handoff's Album filters).
+  const choices: (MenuStatusFilter | null)[] = [...MENU_STATUS_ORDER, null]
 
   return (
     <div className="grid gap-3">

@@ -82,7 +82,11 @@ export const COVERAGE_STATES: ReadonlyArray<CoverageState> = [
   "inactive",
 ]
 
-/** The spec's five staff-facing categories (§4.1, FA-6), in order. */
+/**
+ * The spec's five staff-facing categories (§4.1, FA-6), in order. The one
+ * source of their words: `facilities` reads "Amenities" (D22; screens-2
+ * decision 7).
+ */
 export type CoverageCategory =
   "food" | "drinks" | "spaces" | "facilities" | "other"
 
@@ -93,7 +97,7 @@ export const COVERAGE_CATEGORIES: ReadonlyArray<{
   { key: "food", label: "Food" },
   { key: "drinks", label: "Drinks" },
   { key: "spaces", label: "Spaces" },
-  { key: "facilities", label: "Facilities" },
+  { key: "facilities", label: "Amenities" },
   { key: "other", label: "Other" },
 ]
 
@@ -191,6 +195,15 @@ export type AlbumSlot = {
    * manager's shelf choice is kept by (DESIGN.md §5d, album_shelves).
    */
   sectionKey?: string
+  /**
+   * An amenity question's progress and the answer in use, for Album's
+   * Amenities rows (screens-2 handoff): the question and its answer are what
+   * a person reads there, not a photo tile.
+   */
+  question?: {
+    progress: AmenityInput["progress"]
+    answer: AmenityInput["answer"]
+  }
 }
 
 export type AlbumGroup = {
@@ -699,6 +712,7 @@ export function buildAlbum(input: AlbumInput): AlbumView {
           slotBrief({ kind: "amenity", key: check.key ?? null }, briefs)
         ),
         target: { kind: "amenity", checkId: check.checkId },
+        question: { progress: check.progress, answer: check.answer },
         category: check.coverageCategory ?? "facilities",
         pendingCount: check.pendingCount ?? 0,
         needsUpdate: needsUpdate(check.coverage, state),

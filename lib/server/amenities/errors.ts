@@ -142,7 +142,7 @@ const STATE_CONFLICT_MESSAGES: Record<string, string> = {
 }
 
 const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
-  invalid_answer: ["answer", "Choose Yes, No or Not applicable."],
+  invalid_answer: ["answer", "Choose Yes, No or Doesn't apply here."],
   reason_required: ["reason", "Enter a reason."],
   invalid_reason: ["reason", "Use up to 500 characters."],
   reason_too_long: ["reason", "Use up to 500 characters."],

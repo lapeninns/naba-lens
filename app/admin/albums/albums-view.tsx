@@ -26,8 +26,9 @@ import {
 /*
  * Admin albums (DESIGN.md §6.6). First what is missing across the group
  * (§11 rule 3), then the matrix, venues down and Food, Drinks, Amenities,
- * Areas across, each cell "filled of total" on a tint that darkens as it
- * fills, then the biggest gaps. Colour is never alone (§4, §8): every cell
+ * Spaces across, each cell "filled of total" on a tint that darkens as it
+ * fills, with the biggest gaps beside it (second handoff: above it on a
+ * phone, because it is the list people act on). Colour is never alone (§4, §8): every cell
  * writes its numbers, and None yet, Full and the waiting count in words.
  * The table scrolls inside its own box on a narrow screen (§8).
  *
@@ -263,71 +264,77 @@ export function AdminAlbumsView({ albums }: { albums: AdminAlbums }) {
         </p>
       </section>
 
-      <section aria-labelledby="albums-matrix-title" className="grid gap-3">
-        <h2
-          id="albums-matrix-title"
-          className="px-1 type-section-title text-ink"
-        >
-          {ADMIN_ALBUMS_COPY.matrixTitle}
-        </h2>
-        <div className="px-1">
-          <Legend />
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="min-w-0 lg:order-last">
+          <Gaps gaps={albums.gaps} />
         </div>
-        {unavailable ? (
-          <p className="px-1 text-body text-warn-fg">
-            {ADMIN_ALBUMS_COPY.unavailableNote}
-          </p>
-        ) : null}
-        <Table
-          framed
+        <section
           aria-labelledby="albums-matrix-title"
-          className="min-w-[40rem]"
+          className="grid min-w-0 gap-3"
         >
-          <TableHeader>
-            <TableRow>
-              <TableHead>{ADMIN_ALBUMS_COPY.venue}</TableHead>
-              {ALBUM_COLUMNS.map((c) => (
-                <TableHead key={c.key} className="border-l border-line">
-                  {c.label}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {albums.rows.map((row) => (
-              <TableRow key={row.venueId} className="hover:bg-transparent">
-                <TableHead scope="row" className="align-top text-ink">
-                  <Link
-                    href={`/admin/coverage/${row.venueId}`}
-                    className="inline-flex min-h-12 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
-                  >
-                    {row.venueName}
-                  </Link>
-                </TableHead>
+          <h2
+            id="albums-matrix-title"
+            className="px-1 type-section-title text-ink"
+          >
+            {ADMIN_ALBUMS_COPY.matrixTitle}
+          </h2>
+          <div className="px-1">
+            <Legend />
+          </div>
+          {unavailable ? (
+            <p className="px-1 text-body text-warn-fg">
+              {ADMIN_ALBUMS_COPY.unavailableNote}
+            </p>
+          ) : null}
+          <Table
+            framed
+            aria-labelledby="albums-matrix-title"
+            className="min-w-[40rem]"
+          >
+            <TableHeader>
+              <TableRow>
+                <TableHead>{ADMIN_ALBUMS_COPY.venue}</TableHead>
                 {ALBUM_COLUMNS.map((c) => (
-                  <Cell key={c.key} cell={row.cells[c.key]} label={c.label} />
+                  <TableHead key={c.key} className="border-l border-line">
+                    {c.label}
+                  </TableHead>
                 ))}
               </TableRow>
-            ))}
-          </TableBody>
-          <TableFooter>
-            <TableRow className="hover:bg-transparent">
-              <TableHead scope="row" className="text-ink">
-                {ADMIN_ALBUMS_COPY.allVenues}
-              </TableHead>
-              {ALBUM_COLUMNS.map((c) => (
-                <CountsCell
-                  key={c.key}
-                  counts={albums.totals[c.key]}
-                  label={c.label}
-                />
+            </TableHeader>
+            <TableBody>
+              {albums.rows.map((row) => (
+                <TableRow key={row.venueId} className="hover:bg-transparent">
+                  <TableHead scope="row" className="align-top text-ink">
+                    <Link
+                      href={`/admin/coverage/${row.venueId}`}
+                      className="inline-flex min-h-12 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+                    >
+                      {row.venueName}
+                    </Link>
+                  </TableHead>
+                  {ALBUM_COLUMNS.map((c) => (
+                    <Cell key={c.key} cell={row.cells[c.key]} label={c.label} />
+                  ))}
+                </TableRow>
               ))}
-            </TableRow>
-          </TableFooter>
-        </Table>
-      </section>
-
-      <Gaps gaps={albums.gaps} />
+            </TableBody>
+            <TableFooter>
+              <TableRow className="hover:bg-transparent">
+                <TableHead scope="row" className="text-ink">
+                  {ADMIN_ALBUMS_COPY.allVenues}
+                </TableHead>
+                {ALBUM_COLUMNS.map((c) => (
+                  <CountsCell
+                    key={c.key}
+                    counts={albums.totals[c.key]}
+                    label={c.label}
+                  />
+                ))}
+              </TableRow>
+            </TableFooter>
+          </Table>
+        </section>
+      </div>
     </div>
   )
 }

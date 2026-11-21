@@ -1,6 +1,4 @@
-import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import {
   changeUploadSlotAction,
@@ -11,6 +9,7 @@ import {
 } from "@/app/staff/_me/actions"
 import { loadMatchBoardAction } from "@/app/staff/_shell/match-actions"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { BackLink } from "@/components/nabalens/back-link"
 import {
   AlbumPostFeedback,
   AlbumPostStatus,
@@ -29,9 +28,11 @@ import { ownMonth, staffShellStatus } from "../../_shell/shell-status"
 export const metadata = { title: "Photo · My photos" }
 
 /**
- * One of the person's photos (DESIGN.md §5e "One photo", D19): the photo
- * large, what happened to it, and every action it allows. Someone else's
- * photo, or one that no longer exists, is not found.
+ * One of the person's photos (DESIGN.md §5e "One photo", D19; screens-2
+ * handoff): the photo uncropped, its label as the title, its chips, the
+ * manager's feedback, then the actions it allows in a fixed order and an
+ * Open in Album row. Someone else's photo, or one that no longer exists, is
+ * not found.
  */
 export default async function StaffPhotoPage({
   params,
@@ -79,21 +80,22 @@ export default async function StaffPhotoPage({
       monthly={monthly}
     >
       <div className="mx-auto grid w-full max-w-feed gap-3 pb-4">
-        <Link
-          href="/staff/photos"
-          className="inline-flex min-h-12 items-center gap-1.5 justify-self-start text-label text-ink focus-ring"
-        >
-          <ArrowLeftIcon aria-hidden className="size-5" />
-          {MY_PHOTOS_COPY.back}
-        </Link>
-        <h1 className="sr-only">Photo</h1>
-        {post && !post.removed ? (
-          <AlbumPostStatus needsAttention={upload.albumPost?.needs_attention} />
-        ) : null}
+        <BackLink href="/staff/photos">{MY_PHOTOS_COPY.back}</BackLink>
         <MyUploads
           layout="detail"
           showTitle={false}
           headingLevel={2}
+          detailParts={{
+            status:
+              post && !post.removed ? (
+                <AlbumPostStatus
+                  needsAttention={upload.albumPost?.needs_attention}
+                />
+              ) : null,
+            feedback: post ? (
+              <AlbumPostFeedback notes={post.feedback} removed={post.removed} />
+            ) : null,
+          }}
           initial={{ items: [upload], next: null }}
           currentVenueId={profile.venueId ?? null}
           correctionsAsked={
@@ -114,9 +116,6 @@ export default async function StaffPhotoPage({
             report: reportSlotChangeAction,
           }}
         />
-        {post ? (
-          <AlbumPostFeedback notes={post.feedback} removed={post.removed} />
-        ) : null}
       </div>
     </AppShell>
   )

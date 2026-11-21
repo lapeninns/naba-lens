@@ -45,6 +45,7 @@ import {
   type SubmittedFinding,
   type WorkingSlot,
 } from "@/lib/knowledge-client/contract"
+import { ActionDock } from "@/components/nabalens/common-room/action-dock"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -2305,7 +2306,7 @@ export function CaptureForm({
               ? missing
               : knowledge
                 ? `Needed for Yes: ${EVIDENCE_RULE_LABEL[rule]}. Optional for the other answers.`
-                : `Needed for Yes: ${EVIDENCE_RULE_LABEL[rule]}. Optional for No and Not applicable.`}
+                : `Needed for Yes: ${EVIDENCE_RULE_LABEL[rule]}. Optional for No and Doesn't apply here.`}
         </p>
 
         {canUpload ? (
@@ -2534,9 +2535,11 @@ export function CaptureForm({
         <p className={MUTED}>{dockNote(slot, knowledge.role)}</p>
       ) : null}
 
-      <div className="sticky bottom-0 z-sticky -mx-4 flex flex-col gap-3 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      {/* The pinned dock above the TabBar on phones, a plain row from md
+          (screens-2 handoff): grey first, the one primary last. */}
+      <ActionDock>
         {afterSend ? (
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
+          <>
             <Button
               type="button"
               variant="secondary"
@@ -2555,9 +2558,9 @@ export function CaptureForm({
             >
               Done
             </Button>
-          </div>
+          </>
         ) : (
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
+          <>
             {knowledge?.saveDraft ? (
               <Button
                 ref={saveButtonRef}
@@ -2596,9 +2599,9 @@ export function CaptureForm({
                             ? "Submit and confirm"
                             : UI_TEXT.submit}
             </Button>
-          </div>
+          </>
         )}
-      </div>
+      </ActionDock>
 
       {canUpload && !upload.addQueue ? (
         <UploadDialog

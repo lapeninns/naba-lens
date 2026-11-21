@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/nabalens/empty-state"
 import { Notice } from "@/components/nabalens/notice"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Photo } from "@/components/ui/photo"
 import type { RemovalImpact, RemovalRequest } from "@/lib/media/removal"
 
 import { formatWhen } from "./format"
@@ -186,58 +187,94 @@ export function RemovalForm({
 /** Open removal requests (from uploaders and managers), oldest first. */
 export function RemovalRequestList({
   requests,
+  labels = {},
 }: {
   requests: RemovalRequest[]
+  /** Each asset's label (its menu item, place or slot), by asset id. */
+  labels?: Record<string, string>
 }) {
   const router = useRouter()
   const [declining, setDeclining] = React.useState<RemovalRequest | null>(null)
 
   if (requests.length === 0) {
-    return <EmptyState title="No open removal requests." />
+    return (
+      <EmptyState
+        title="No open removal requests."
+        description={
+          <p>
+            When a person or a manager asks to remove an accepted photo, the
+            request waits here.
+          </p>
+        }
+      />
+    )
   }
   return (
     <>
-      <ul className="grid gap-3" data-testid="removal-requests">
-        {requests.map((r) => (
-          <li
-            key={r.requestId}
-            className="grid gap-2 rounded-card border border-line bg-surface p-4"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-body font-semibold">{r.venueName}</span>
-              <StatusChip tone="pending">Open</StatusChip>
-            </div>
-            <p className="text-body [overflow-wrap:anywhere]">
-              {r.requesterName} asked {formatWhen(r.createdAt)}: {r.reason}
-            </p>
-            <div className="flex flex-wrap gap-2">
+      {/* Second handoff: each request shows the photo, so the admin knows
+          what is asked without opening it. */}
+      <ul
+        className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
+        data-testid="removal-requests"
+      >
+        {requests.map((r) => {
+          const label = labels[r.assetId] ?? "Photo"
+          return (
+            <li
+              key={r.requestId}
+              className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 px-4 py-3 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center"
+            >
               <Link
                 href={`/admin/library/${r.assetId}`}
-                className={buttonVariants({ variant: "secondary", size: "sm" })}
+                className="block size-14 shrink-0 overflow-hidden rounded-square bg-media-placeholder focus-ring outline-none"
               >
-                Open photo
+                <Photo
+                  src={`/api/media/${r.assetId}/thumb`}
+                  alt={`Open ${label}`}
+                  ratio="1/1"
+                />
               </Link>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setDeclining(r)}
-              >
-                Keep the photo
-              </Button>
-              <Link
-                href={`/admin/library/${r.assetId}/remove`}
-                className={buttonVariants({
-                  variant: "danger-quiet",
-                  size: "sm",
-                })}
-              >
-                <TrashIcon aria-hidden />
-                Review removal
-              </Link>
-            </div>
-          </li>
-        ))}
+              <div className="grid min-w-0 gap-0.5">
+                <p className="flex flex-wrap items-center gap-2">
+                  <span className="text-label [overflow-wrap:anywhere] text-ink">
+                    {label} · {r.venueName}
+                  </span>
+                  <StatusChip tone="pending">Open</StatusChip>
+                </p>
+                <p className="text-meta text-ink-muted">
+                  {r.requesterName} asked on {formatWhen(r.createdAt)}
+                </p>
+                <p className="text-body [overflow-wrap:anywhere] text-ink">
+                  &ldquo;{r.reason}&rdquo;
+                </p>
+              </div>
+              <div className="col-span-2 flex flex-wrap gap-2 md:col-span-1 md:justify-end">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setDeclining(r)}
+                >
+                  Keep the photo
+                </Button>
+                <Link
+                  href={`/admin/library/${r.assetId}/remove`}
+                  className={buttonVariants({
+                    variant: "danger-quiet",
+                    size: "sm",
+                  })}
+                >
+                  <TrashIcon aria-hidden />
+                  Review removal
+                </Link>
+              </div>
+            </li>
+          )
+        })}
       </ul>
+      <p className="px-1 text-body text-ink-muted">
+        Keep the photo closes the request, and the person who asked sees your
+        reason. Review removal opens the photo&apos;s removal page.
+      </p>
       <ReasonDialog
         open={declining !== null}
         onOpenChange={(o) => {

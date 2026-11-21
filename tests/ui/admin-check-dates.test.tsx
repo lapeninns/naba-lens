@@ -154,15 +154,20 @@ describe("admin check dates preview", () => {
       key: "onsite_parking",
       policy: { internal: "offering_90", public: null },
     })
-    expect(screen.getByText("⟨Venue A⟩")).toBeTruthy()
-    expect(screen.getByText("For staff and internal tools")).toBeTruthy()
-    expect(
-      screen.getByText("2 answers would be past their check date")
-    ).toBeTruthy()
-    expect(
-      screen.getByText("1 would be not in use because they have no check date")
-    ).toBeTruthy()
-    expect(screen.getByText("4 rechecks would open")).toBeTruthy()
+    // The result is a table of four numbers per venue and use (second
+    // handoff, "What it would do").
+    const table = screen.getByRole("table", { name: "What it would do" })
+    const row = within(table).getByRole("row", { name: /⟨Venue A⟩/ })
+    expect(within(row).getByText("For staff and internal tools")).toBeTruthy()
+    const value = (column: string) =>
+      within(row)
+        .getAllByRole("cell")
+        .find((cell) => cell.getAttribute("data-label") === column)
+        ?.textContent?.replace(column, "")
+    expect(value("Answers in use")).toBe("5")
+    expect(value("Past their check date")).toBe("2")
+    expect(value("No check date")).toBe("1")
+    expect(value("Rechecks would open")).toBe("4")
   })
 
   it("offers Try again only when the read may work again", async () => {

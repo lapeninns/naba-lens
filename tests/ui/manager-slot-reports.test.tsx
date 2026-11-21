@@ -89,9 +89,15 @@ describe("SlotReportsList", () => {
       />
     )
     const pie = screen.getAllByRole("listitem")[0]!
-    await user.type(within(pie).getByLabelText(/Note/), "  Taken off the menu ")
+    // Dealt with opens the optional note; the confirm button decides.
+    expect(within(pie).queryByLabelText(/Note/)).toBeNull()
     await user.click(
       within(pie).getByRole("button", { name: "Dealt with: Steak pie" })
+    )
+    expect(onDecide).not.toHaveBeenCalled()
+    await user.type(within(pie).getByLabelText(/Note/), "  Taken off the menu ")
+    await user.click(
+      within(pie).getByRole("button", { name: "Mark dealt with: Steak pie" })
     )
     expect(onDecide).toHaveBeenCalledWith({
       reportId: "r1",
@@ -106,6 +112,9 @@ describe("SlotReportsList", () => {
     const garden = screen.getAllByRole("listitem")[1]!
     await user.click(
       within(garden).getByRole("button", { name: "Dismiss: Garden" })
+    )
+    await user.click(
+      within(garden).getByRole("button", { name: "Dismiss report: Garden" })
     )
     expect(onDecide).toHaveBeenLastCalledWith({
       reportId: "r2",
@@ -165,11 +174,14 @@ describe("SlotReportsList", () => {
     await user.click(
       screen.getByRole("button", { name: "Dealt with: Steak pie" })
     )
+    await user.click(
+      screen.getByRole("button", { name: "Mark dealt with: Steak pie" })
+    )
     expect((await screen.findByRole("alert")).textContent).toMatch(
       /already dealt with/
     )
     expect(
-      screen.getByRole("button", { name: "Dealt with: Steak pie" })
+      screen.getByRole("button", { name: "Mark dealt with: Steak pie" })
     ).toBeTruthy()
   })
 })

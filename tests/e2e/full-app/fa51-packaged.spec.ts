@@ -144,6 +144,12 @@ test("FA-51: a packaged drink without Photo wanted reads Optional and leaves eve
     coverage.locator(":scope > div").first().locator("span").first()
   ).toContainText(ofN(all))
   const how = report.locator("section#how-counted")
+  // A folded reference section since handoff 2: open it first.
+  await report
+    .locator('[data-slot="disclosure"]')
+    .filter({ has: how })
+    .locator(":scope > summary")
+    .click()
   await expect(how.locator('[data-slot="reproduced"]')).toHaveText(
     `Counting the slots below gives ${all.covered} of ${all.total} covered.`
   )

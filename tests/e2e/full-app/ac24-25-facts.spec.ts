@@ -49,6 +49,8 @@ async function applyVenueTemplate(
 ) {
   const admin = await as(browser, w.admin, DESKTOP)
   await admin.goto(`/admin/venues/${w.venueA.id}`)
+  // What this venue collects is a closed disclosure on Setup (second handoff).
+  await admin.locator("#collect summary").click()
   const template = admin.getByTestId("venue-template")
   await template.getByTestId("template-preview-button").click()
   await expect(template.getByTestId("template-preview")).toBeVisible()
@@ -171,7 +173,9 @@ test("AC25: a router photo leaves guest Wi-Fi unconfirmed until the manager veri
   expect(fact(w.venueA.id, "guest_wifi")).not.toMatch(/\|confirmed$/)
 
   // Verified separately by the manager: now confirmed.
-  await toConfirm.getByRole("button", { name: "Confirm", exact: true }).click()
+  await toConfirm
+    .getByRole("button", { name: "Use this answer", exact: true })
+    .click()
   await expect
     .poll(() => fact(w.venueA.id, "guest_wifi"))
     .toMatch(/\|confirmed$/)

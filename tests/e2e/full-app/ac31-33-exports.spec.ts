@@ -215,6 +215,8 @@ test("AC33 (deferred, FA-40): a published photo that is withdrawn stops being ex
 
   const admin = await as(browser, w.admin, DESKTOP)
   await admin.goto("/admin/publishing")
+  // Destinations is a closed disclosure on Publishing (second handoff).
+  await admin.locator("#destinations summary").click()
   const add = admin
     .locator("details")
     .filter({ has: admin.getByText("Add a destination", { exact: true }) })
@@ -229,7 +231,12 @@ test("AC33 (deferred, FA-40): a published photo that is withdrawn stops being ex
     ["Soup"],
     w.venueA.id
   )
-  await admin.getByText("Record where it's published").click()
+  // One "Record where it's published" form beside the photos (second
+  // handoff); the row's Record where chooses the photo.
+  await admin
+    .getByRole("link", { name: /^Record where/ })
+    .first()
+    .click()
   await admin.getByRole("combobox", { name: "Where" }).click()
   await admin.getByRole("option", { name: destination }).click()
   await admin
@@ -255,11 +262,13 @@ test("AC33 (deferred, FA-40): a published photo that is withdrawn stops being ex
   await mgr.goto("/manager/exports/new")
   await expect(mgr.getByText("Soup", { exact: true })).toHaveCount(0)
   await mgr.goto("/manager/exports")
-  const follow = mgr.getByRole("region", { name: "Needs following up" })
+  // One Notice when there are follow-ups (second handoff); an admin
+  // confirms the removal, so the manager's page has no chip or form.
+  const follow = mgr
+    .locator('[data-slot="notice"]')
+    .filter({ hasText: "1 photo needs taking down" })
   await expect(follow).toContainText(destination)
-  await expect(
-    chip(follow, "publication_withdrawal_pending").first()
-  ).toHaveText("Withdrawal pending")
+  await expect(follow).toContainText("an admin confirms it here")
   await evidence(mgr, "ac33-withdrawal-pending")
 
   // The old package can't be downloaded either.

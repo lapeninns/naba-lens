@@ -19,6 +19,10 @@ import { getMediaActor } from "@/lib/server/media/context"
 
 export const metadata = { title: "To confirm" }
 
+const Count = ({ n }: { n: number }) => (
+  <span className="text-meta font-normal text-ink-muted tabular-nums">{n}</span>
+)
+
 const settle = <T,>(p: Promise<T>): Promise<T | null> => p.catch(() => null)
 
 /**
@@ -66,40 +70,55 @@ export default async function ManagerVenueFactsPage() {
           className="pb-0 md:pb-0"
         />
       </div>
-      <section aria-labelledby="confirm-facts" className="grid gap-3">
-        <h2 id="confirm-facts" className="type-section-title text-ink">
-          {copy.factsTitle}
-        </h2>
-        {facts === null ? (
-          <p role="status" className="text-body text-ink-muted">
-            {copy.factsFailed}
-          </p>
-        ) : (
-          <StillRightList
-            label={copy.factsTitle}
-            empty={copy.factsEmpty}
-            items={facts}
-            onConfirm={reconfirmFactAction}
-          />
-        )}
-      </section>
-      <section aria-labelledby="confirm-spaces" className="grid gap-3">
-        <h2 id="confirm-spaces" className="type-section-title text-ink">
-          {copy.spacesTitle}
-        </h2>
-        {places === null ? (
-          <p role="status" className="text-body text-ink-muted">
-            {copy.spacesFailed}
-          </p>
-        ) : (
-          <StillRightList
-            label={copy.spacesTitle}
-            empty={copy.spacesEmpty}
-            items={places}
-            onConfirm={reconfirmSpaceAction}
-          />
-        )}
-      </section>
+      {/* Side by side from 768px, the count in each heading (second
+          handoff). */}
+      <div className="grid items-start gap-8 md:grid-cols-2 md:gap-gutter">
+        <section aria-labelledby="confirm-facts" className="grid min-w-0 gap-3">
+          <h2
+            id="confirm-facts"
+            className="flex flex-wrap items-baseline gap-x-3 type-section-title text-ink"
+          >
+            {copy.factsTitle}
+            {facts ? <Count n={facts.length} /> : null}
+          </h2>
+          {facts === null ? (
+            <p role="status" className="text-body text-ink-muted">
+              {copy.factsFailed}
+            </p>
+          ) : (
+            <StillRightList
+              label={copy.factsTitle}
+              empty={copy.factsEmpty}
+              items={facts}
+              onConfirm={reconfirmFactAction}
+            />
+          )}
+        </section>
+        <section
+          aria-labelledby="confirm-spaces"
+          className="grid min-w-0 gap-3"
+        >
+          <h2
+            id="confirm-spaces"
+            className="flex flex-wrap items-baseline gap-x-3 type-section-title text-ink"
+          >
+            {copy.spacesTitle}
+            {places ? <Count n={places.length} /> : null}
+          </h2>
+          {places === null ? (
+            <p role="status" className="text-body text-ink-muted">
+              {copy.spacesFailed}
+            </p>
+          ) : (
+            <StillRightList
+              label={copy.spacesTitle}
+              empty={copy.spacesEmpty}
+              items={places}
+              onConfirm={reconfirmSpaceAction}
+            />
+          )}
+        </section>
+      </div>
     </div>
   )
 }

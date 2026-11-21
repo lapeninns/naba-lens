@@ -199,7 +199,7 @@ export function BacklogPanel({ split }: { split: BacklogSplit }) {
       data-slot="overview-backlog"
       className="grid gap-3"
     >
-      <h2 id="overview-backlog" className="type-section-title text-ink">
+      <h2 id="overview-backlog" className="text-heading text-ink">
         {copy.backlogTitle}
       </h2>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -230,7 +230,7 @@ export function CategoryCoverage({ rows }: { rows: CategoryRow[] | null }) {
       className="grid gap-3"
     >
       <div className="grid gap-1">
-        <h2 id="overview-coverage" className="type-section-title text-ink">
+        <h2 id="overview-coverage" className="text-heading text-ink">
           {copy.coverageTitle}
         </h2>
         <p className="text-body text-ink-muted">{copy.coverageNote}</p>
@@ -292,7 +292,7 @@ export function VenueAtAGlance({
   if (!summary)
     return (
       <section aria-labelledby="overview-venue" className="grid gap-3">
-        <h2 id="overview-venue" className="type-section-title text-ink">
+        <h2 id="overview-venue" className="text-heading text-ink">
           {copy.venueTitle}
         </h2>
         <p role="status" className="text-body text-ink-muted">
@@ -307,7 +307,7 @@ export function VenueAtAGlance({
       data-slot="overview-venue"
       className="grid gap-3"
     >
-      <h2 id="overview-venue" className="type-section-title text-ink">
+      <h2 id="overview-venue" className="text-heading text-ink">
         <Link
           href={venueHref}
           className="rounded-control focus-ring hover:underline"

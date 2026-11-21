@@ -24,12 +24,15 @@ export default async function AdminPackagePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ download?: string }>
+  searchParams: Promise<{ download?: string; record?: string }>
 }) {
   const profile = await requireActiveAdmin()
   const auth = await getCoverageActor()
   if (!auth.ok) unexpected(auth)
-  const [{ id }, { download }] = await Promise.all([params, searchParams])
+  const [{ id }, { download, record }] = await Promise.all([
+    params,
+    searchParams,
+  ])
   const [read, overview] = await Promise.all([
     getExportPackage(auth.actor, id),
     getPublicationOverview(auth.actor),
@@ -61,6 +64,7 @@ export default async function AdminPackagePage({
             notice={download ?? null}
             destinations={overview.ok ? overview.overview.destinations : []}
             today={londonToday()}
+            record={typeof record === "string" ? record : null}
           />
         ) : (
           <Notice tone="negative" role="alert">

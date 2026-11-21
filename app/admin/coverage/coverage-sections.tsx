@@ -334,17 +334,17 @@ export function VenueList({
                 <VenueFlags row={row} />
               </div>
               <Frames
-                label={COVERAGE_COPY.venueCoverage}
+                label={COVERAGE_COPY.meterChecklist}
                 count={row.coverage.satisfied}
                 total={row.coverage.applicable}
-                of={COVERAGE_COPY.itemsComplete(row.coverage.applicable)}
+                of={COVERAGE_COPY.meterOf(row.coverage.applicable)}
               />
               {menus ? <MenuFrames totals={menus.get(row.venue.id)} /> : null}
               <Frames
-                label={COVERAGE_COPY.staffParticipation}
+                label={COVERAGE_COPY.meterStaff}
                 count={row.participation.complete}
                 total={row.participation.staff}
-                of={COVERAGE_COPY.metTheirTarget(row.participation.staff)}
+                of={COVERAGE_COPY.meterOf(row.participation.staff)}
               />
               <CaretRightIcon
                 aria-hidden

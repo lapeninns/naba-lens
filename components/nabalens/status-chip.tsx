@@ -434,8 +434,9 @@ export const CHIP_STATES = {
     icon: MinusCircleIcon,
     shape: "closed",
   },
+  // D22: the staff answer words (screens-2 decision 2).
   couldnt_establish: {
-    word: "Couldn't establish",
+    word: "I couldn't find out",
     tone: "neutral",
     icon: MinusIcon,
     shape: "na",
@@ -722,6 +723,38 @@ export const CHIP_STATES = {
   },
   request_cancelled: {
     word: "Cancelled",
+    tone: "closed",
+    icon: XIcon,
+    shape: "closed",
+  },
+  // A menu change request's state (second handoff, decision 8): the album's
+  // words on a manager's own requests. Keyed by the service's status.
+  change_request_open: {
+    word: "Waiting",
+    tone: "pending",
+    icon: ArrowUpIcon,
+    shape: "waiting",
+  },
+  change_request_accepted: {
+    word: "Accepted",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "accepted",
+  },
+  change_request_declined: {
+    word: "Declined",
+    tone: "closed",
+    icon: MinusCircleIcon,
+    shape: "closed",
+  },
+  change_request_clarification_requested: {
+    word: "Needs attention",
+    tone: "attention",
+    icon: WarningCircleIcon,
+    shape: "needs",
+  },
+  change_request_withdrawn: {
+    word: "Withdrawn",
     tone: "closed",
     icon: XIcon,
     shape: "closed",

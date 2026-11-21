@@ -77,6 +77,9 @@ import { signedInPage } from "./helpers/world"
  * unchanged.
  */
 
+/** A literal string inside a RegExp. */
+const escapeRe = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
 const DESK = { viewport: { width: 1280, height: 800 } }
 const PHONE = { viewport: { width: 390, height: 844 } }
 
@@ -105,6 +108,14 @@ const oldFactsTitle = (n: number) => `From the old facts list (${n})`
  */
 async function settled(page: Page) {
   await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
+  // Second handoff: the check page folds its reference sections (capture
+  // brief, notes, the answer on a date, history) shut. Open them, so the
+  // sections below read as before.
+  await page
+    .locator('details[data-slot="disclosure"]')
+    .evaluateAll((folds) =>
+      folds.forEach((d) => ((d as HTMLDetailsElement).open = true))
+    )
 }
 
 /**
@@ -336,7 +347,7 @@ test.describe("knowledge B03 E and F", () => {
     const emptySlot = slotRead(w.venueA, toilets)
     expect(emptySlot.currentSubmissionId).toBeNull()
     await toiletsCard
-      .getByRole("button", { name: "Confirm", exact: true })
+      .getByRole("button", { name: "Use this answer", exact: true })
       .click()
     await expect(
       toConfirm(manager).getByText(
@@ -400,7 +411,7 @@ test.describe("knowledge B03 E and F", () => {
     await settled(manager)
     const parkingCard = cardWith(manager, PARKING_NOTE)
     const staleConfirm = parkingCard.getByRole("button", {
-      name: "Confirm",
+      name: "Use this answer",
       exact: true,
     })
     await expect(staleConfirm).toBeEnabled()
@@ -461,7 +472,7 @@ test.describe("knowledge B03 E and F", () => {
       parkingCard.getByText(IMPORT_TEXT.notAdoptable, { exact: true })
     ).toBeVisible()
     await expect(
-      parkingCard.getByRole("button", { name: "Confirm", exact: true })
+      parkingCard.getByRole("button", { name: "Use this answer", exact: true })
     ).toHaveCount(0)
     await expect(
       parkingCard.getByRole("button", { name: IMPORT_TEXT.dontUse })
@@ -613,11 +624,16 @@ test.describe("knowledge B03 E and F", () => {
     await expect(admin).toHaveURL(
       /\/admin\/knowledge\/runs\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
     )
+    // The run's title is its kind and mode; the venue is in the summary
+    // under it (second handoff).
     await expect(
       admin.getByRole("heading", {
-        name: `${RECONCILE_COPY.runKind.legacy} · ${RECONCILE_COPY.runMode.dry_run} · ${w.venueA.name}`,
+        name: `${RECONCILE_COPY.runKind.legacy} · ${RECONCILE_COPY.runMode.dry_run}`,
         exact: true,
       })
+    ).toBeVisible()
+    await expect(
+      admin.getByText(new RegExp(`^${escapeRe(w.venueA.name)} · `))
     ).toBeVisible()
     expect(held.count(), "one dry run request").toBe(1)
     expect(runsAt(w.venueA)).toBe(runsBefore + 1)
@@ -1024,7 +1040,7 @@ test.describe("knowledge B03 E and F", () => {
         }),
       })
     await unconfirmed
-      .getByRole("button", { name: "Confirm", exact: true })
+      .getByRole("button", { name: "Use this answer", exact: true })
       .click()
     await expect(
       toConfirm(admin).getByText(

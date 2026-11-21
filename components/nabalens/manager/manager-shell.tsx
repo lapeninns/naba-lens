@@ -8,6 +8,7 @@ import { ProfileAvatar } from "../profile-avatar"
 import { MANAGER_COPY } from "./copy"
 import { managerHrefs } from "./hrefs"
 import { ManagerAddButton, ManagerNav } from "./manager-nav"
+import { AlbumCountsProvider } from "./album-counts"
 import { ReviewCountProvider } from "./review-count"
 
 const FOCUS = "outline-none focus-ring"
@@ -27,11 +28,14 @@ export function ManagerShell({
   userName,
   reviewCount,
   confirmCount,
+  missingCount,
   loadedAt,
   children,
 }: {
   venueName: string
   userName: string
+  /** Menu dishes still Missing, for Album's Menu tab; omitted when unread. */
+  missingCount?: number
   /** Photos waiting for a decision; omitted when it could not be read. */
   reviewCount?: number
   /** Amenity findings waiting for a decision; omitted when it could not be read. */
@@ -46,97 +50,112 @@ export function ManagerShell({
 }) {
   return (
     <ReviewCountProvider count={reviewCount}>
-      {/* data-density: manager controls take v2's compact size (V2-4). */}
-      <div
-        data-density="compact"
-        className="flex min-h-svh flex-col bg-canvas text-ink desktop:pl-rail"
+      <AlbumCountsProvider
+        counts={{ menu: missingCount, amenities: confirmCount }}
       >
-        <a
-          href="#main"
-          className="sr-only z-overlay rounded-control bg-accent px-4 py-3 text-button text-on-accent focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+        {/* data-density: manager controls take v2's compact size (V2-4). */}
+        <div
+          data-density="compact"
+          className="flex min-h-svh flex-col bg-canvas text-ink desktop:pl-rail"
         >
-          Skip to content
-        </a>
-        <ManagerNav
-          kind="rail"
-          reviewCount={reviewCount}
-          confirmCount={confirmCount}
-        />
-        {/* v2 VenueBar: surface, a line under it, the venue named in full.
+          <a
+            href="#main"
+            className="sr-only z-overlay rounded-control bg-accent px-4 py-3 text-button text-on-accent focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+          >
+            Skip to content
+          </a>
+          <ManagerNav
+            kind="rail"
+            reviewCount={reviewCount}
+            confirmCount={confirmCount}
+          />
+          {/* v2 VenueBar: surface, a line under it, the venue named in full.
             From bp-desktop the name Naba-Lens moves to the SideNav. */}
-        <header className="relative z-local bg-surface shadow-[0_1px_0_var(--line)]">
-          <div className="mx-auto flex min-h-15 w-full max-w-page items-center gap-3 px-3 md:gap-4 md:px-6">
-            <Link
-              href={managerHrefs.overview}
-              className={`inline-flex flex-none items-baseline rounded-control type-title whitespace-nowrap text-ink max-md:py-2.5 desktop:hidden ${FOCUS}`}
-            >
-              Naba-Lens
-            </Link>
-            {/* Two lines, then the full name on hover; each page's header
-                names the venue in full too. */}
-            <p
-              data-slot="venue-name"
-              title={venueName}
-              // Below 352px the header holds Add beside the account; every
-              // page header names the venue there instead (S2-MGR).
-              className="line-clamp-2 min-w-0 border-l border-edge-strong pl-3 text-heading [overflow-wrap:anywhere] text-ink max-[22rem]:sr-only desktop:border-l-0 desktop:pl-0"
-            >
-              {venueName}
-            </p>
-            <div className="ml-auto flex flex-none items-center gap-2">
-              <ManagerAddButton />
-              <span className="hidden max-w-48 truncate text-meta text-ink-muted lg:inline">
-                {userName}
-              </span>
+          <header className="relative z-local bg-surface shadow-[0_1px_0_var(--line)]">
+            <div className="mx-auto flex min-h-15 w-full max-w-page items-center gap-3 px-3 md:gap-4 md:px-6">
               <Link
-                href={managerHrefs.account}
-                className={`-mr-1 grid size-12 place-items-center rounded-round ${FOCUS}`}
+                href={managerHrefs.overview}
+                className={`inline-flex flex-none items-baseline rounded-control type-title whitespace-nowrap text-ink max-md:py-2.5 desktop:hidden ${FOCUS}`}
               >
-                {/* The avatar is aria-hidden, so this text is the whole name. */}
-                <span className="sr-only">
-                  {MANAGER_COPY.account}: {userName}
-                </span>
-                <ProfileAvatar name={userName} size="sm" />
+                Naba-Lens
               </Link>
-              <form
-                action="/auth/logout"
-                method="post"
-                data-logout
-                className="hidden md:block"
+              {/* v2 VenueBar, on every manager screen above the title (the
+                handoff's page frame): the venue's name, two lines then the
+                full name on hover, and the person's role there. Each page's
+                header names the venue in full too. */}
+              <div
+                // Below 352px the header holds Add beside the account; every
+                // page header names the venue there instead (S2-MGR).
+                className="grid min-w-0 border-l border-edge-strong pl-3 max-[22rem]:sr-only desktop:border-l-0 desktop:pl-0"
               >
-                <Button
-                  type="submit"
-                  variant="quiet"
-                  className="lg:whitespace-nowrap"
+                <p
+                  data-slot="venue-name"
+                  title={venueName}
+                  className="line-clamp-1 text-heading [overflow-wrap:anywhere] text-ink sm:line-clamp-2"
                 >
-                  <SignOutIcon data-icon="inline-start" aria-hidden />
-                  {MANAGER_COPY.logOut}
-                </Button>
-              </form>
+                  {venueName}
+                </p>
+                {/* No room beside Add on phones: the page's venue scope
+                    says the venue there. */}
+                <p className="hidden text-meta text-ink-muted sm:block">
+                  {MANAGER_COPY.venueRole}
+                </p>
+              </div>
+              <div className="ml-auto flex flex-none items-center gap-2">
+                <ManagerAddButton />
+                <span className="hidden max-w-48 truncate text-meta text-ink-muted lg:inline">
+                  {userName}
+                </span>
+                <Link
+                  href={managerHrefs.account}
+                  className={`-mr-1 grid size-12 place-items-center rounded-round ${FOCUS}`}
+                >
+                  {/* The avatar is aria-hidden, so this text is the whole name. */}
+                  <span className="sr-only">
+                    {MANAGER_COPY.account}: {userName}
+                  </span>
+                  <ProfileAvatar name={userName} size="sm" />
+                </Link>
+                <form
+                  action="/auth/logout"
+                  method="post"
+                  data-logout
+                  className="hidden md:block"
+                >
+                  <Button
+                    type="submit"
+                    variant="quiet"
+                    className="lg:whitespace-nowrap"
+                  >
+                    <SignOutIcon data-icon="inline-start" aria-hidden />
+                    {MANAGER_COPY.logOut}
+                  </Button>
+                </form>
+              </div>
             </div>
-          </div>
-          <div className="mx-auto hidden w-full max-w-page px-2 md:block md:px-4 desktop:hidden">
-            <ManagerNav
-              kind="tabs"
-              reviewCount={reviewCount}
-              confirmCount={confirmCount}
-            />
-          </div>
-        </header>
-        <main
-          id="main"
-          className="mx-auto w-full max-w-page flex-1 overflow-x-clip px-page-gutter pt-4 pb-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6 md:py-8"
-        >
-          <LayoutOfflineShell loadedAt={loadedAt}>
-            {children}
-          </LayoutOfflineShell>
-        </main>
-        <ManagerNav
-          kind="bar"
-          reviewCount={reviewCount}
-          confirmCount={confirmCount}
-        />
-      </div>
+            <div className="mx-auto hidden w-full max-w-page px-2 md:block md:px-4 desktop:hidden">
+              <ManagerNav
+                kind="tabs"
+                reviewCount={reviewCount}
+                confirmCount={confirmCount}
+              />
+            </div>
+          </header>
+          <main
+            id="main"
+            className="mx-auto w-full max-w-page flex-1 overflow-x-clip px-page-gutter pt-4 pb-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6 md:py-8"
+          >
+            <LayoutOfflineShell loadedAt={loadedAt}>
+              {children}
+            </LayoutOfflineShell>
+          </main>
+          <ManagerNav
+            kind="bar"
+            reviewCount={reviewCount}
+            confirmCount={confirmCount}
+          />
+        </div>
+      </AlbumCountsProvider>
     </ReviewCountProvider>
   )
 }

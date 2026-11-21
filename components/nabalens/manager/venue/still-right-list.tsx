@@ -38,6 +38,8 @@ export type StillRightItem = {
   payload: Record<string, unknown> | null
   /** Where to answer or change it. */
   href: string | null
+  /** A photo the row is about, shown before its title. */
+  thumb?: string | null
 }
 
 type Confirm = (
@@ -63,28 +65,47 @@ function Row({
       data-state={state}
       className="grid gap-3 rounded-card bg-surface p-4 edge sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
     >
-      <div className="grid min-w-0 gap-1">
-        <p className="text-label [overflow-wrap:anywhere] text-ink">
-          {item.title}
-        </p>
-        {item.lines.map((line, i) => (
-          <p key={i} className="text-body text-ink-muted">
-            {line}
-          </p>
-        ))}
-        {state === "done" ? (
-          <p
-            role="status"
-            className="flex items-center gap-2 text-body text-ink"
-          >
-            <CheckIcon aria-hidden className="size-5 text-ok-fg" />
-            {STILL_RIGHT_COPY.done}
-          </p>
-        ) : state === "error" ? (
-          <p role="alert" className="text-body text-warn-fg">
-            {message ?? STILL_RIGHT_COPY.failed}
-          </p>
+      <div
+        className={
+          item.thumb
+            ? "grid grid-cols-[4rem_minmax(0,1fr)] items-start gap-3"
+            : "contents"
+        }
+      >
+        {item.thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a short-lived signed URL behind an authorised route
+          <img
+            src={item.thumb}
+            alt=""
+            width={64}
+            height={64}
+            loading="lazy"
+            className="size-16 rounded-control bg-surface-2 object-cover"
+          />
         ) : null}
+        <div className="grid min-w-0 gap-1">
+          <p className="text-label [overflow-wrap:anywhere] text-ink">
+            {item.title}
+          </p>
+          {item.lines.map((line, i) => (
+            <p key={i} className="text-body text-ink-muted">
+              {line}
+            </p>
+          ))}
+          {state === "done" ? (
+            <p
+              role="status"
+              className="flex items-center gap-2 text-body text-ink"
+            >
+              <CheckIcon aria-hidden className="size-5 text-ok-fg" />
+              {STILL_RIGHT_COPY.done}
+            </p>
+          ) : state === "error" ? (
+            <p role="alert" className="text-body text-warn-fg">
+              {message ?? STILL_RIGHT_COPY.failed}
+            </p>
+          ) : null}
+        </div>
       </div>
       {state === "done" ? null : item.payload ? (
         <Button

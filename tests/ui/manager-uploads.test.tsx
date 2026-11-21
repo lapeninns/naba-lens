@@ -170,7 +170,7 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe("My uploads list", () => {
-  it("lists the photo rows in server order with their lines, and leaves task sends and findings out", () => {
+  it("lists photos needing labels first, each with one chip, and leaves task sends and findings out", () => {
     render(
       <MyUploads
         initial={page([
@@ -217,31 +217,50 @@ describe("My uploads list", () => {
         loadMore={vi.fn()}
       />
     )
-    const list = screen.getByRole("list", { name: copy.title })
-    const rows = within(list)
-      .getAllByRole("listitem")
-      .filter((li) => li.parentElement === list)
-    expect(rows.map((r) => within(r).getByRole("heading").textContent)).toEqual(
-      ["Fish pie", "Burger"]
-    )
-    expect(within(rows[0]).getByText("Labels: Labelled")).toBeTruthy()
-    expect(within(rows[0]).getByText("Fish pie: Waiting")).toBeTruthy()
-    expect(within(rows[1]).getByText("Labels: Needs labels")).toBeTruthy()
-    expect(
-      within(rows[1]).getByText("Burger: Accepted for menu use")
-    ).toBeTruthy()
-    expect(within(rows[1]).getByText("Accepted for menu use")).toBeTruthy()
+    // Second handoff: Needs labels first, then Labelled; one chip a row.
+    const needs = screen.getByRole("list", { name: "Needs labels" })
+    const labelled = screen.getByRole("list", { name: copy.labelledTitle })
+    const chip = (row: HTMLElement) =>
+      row.querySelector('[data-slot="status-chip"]')?.textContent
+    const [burger] = within(needs).getAllByRole("listitem")
+    const [fish] = within(labelled).getAllByRole("listitem")
+    expect(within(burger!).getByRole("heading").textContent).toBe("Burger")
+    expect(within(fish!).getByRole("heading").textContent).toBe("Fish pie")
+    expect(chip(burger!)).toBe("Needs labels")
+    expect(chip(fish!)).toBe("Waiting")
     expect(screen.queryByText(/Bar at opening/)).toBeNull()
     // The thumbnail goes through the own-media route.
-    expect(rows[1].querySelector("img")?.getAttribute("src")).toBe(
+    expect(burger!.querySelector("img")?.getAttribute("src")).toBe(
       "/api/media/a1/thumb"
     )
     expect(
-      within(rows[0]).getByRole("button", { name: copy.editLabels })
+      within(fish!).getByRole("button", { name: copy.editLabels })
     ).toBeTruthy()
     expect(
-      within(rows[1]).getByRole("button", { name: copy.addLabels })
+      within(burger!).getByRole("button", { name: copy.addLabels })
     ).toBeTruthy()
+  })
+
+  it("says In the album for a labelled photo accepted for menu use", () => {
+    render(
+      <MyUploads
+        initial={page([
+          photo({
+            labels: {
+              hasLabels: true,
+              needsLabels: false,
+              needsAttention: false,
+            },
+            menuUseAccepted: true,
+          }),
+        ])}
+        venue={VENUE}
+        loadMore={vi.fn()}
+      />
+    )
+    expect(
+      document.querySelector('[data-slot="status-chip"]')?.textContent
+    ).toBe("In the album")
   })
 
   it("offers no delete anywhere", () => {
@@ -284,8 +303,12 @@ describe("My uploads list", () => {
     expect(editor.opened.at(-1)).toEqual(["a1"])
     fireEvent.click(screen.getByRole("button", { name: "Save labels" }))
     expect(screen.queryByRole("dialog")).toBeNull()
-    expect(screen.getAllByText("Labels: Needs labels")).toHaveLength(1)
-    expect(screen.getAllByText("Labels: Labelled")).toHaveLength(1)
+    const chips = (state: string) =>
+      document.querySelectorAll(
+        `[data-slot="status-chip"][data-state="${state}"]`
+      )
+    expect(chips("needs_labels")).toHaveLength(1)
+    expect(chips("outcome_waiting")).toHaveLength(1)
     expect(
       screen.getAllByRole("button", { name: copy.editLabels })
     ).toHaveLength(1)
@@ -318,7 +341,7 @@ describe("My uploads list", () => {
         page: page([taskSend, photo({ key: "p:a0", assetId: "a0" })]),
       })
     )
-    const heading = screen.getAllByRole("heading")[1]
+    const heading = screen.getAllByRole("heading", { level: 3 })[1]
     expect(document.activeElement).toBe(heading)
     expect(screen.queryByRole("button", { name: "Show more" })).toBeNull()
   })

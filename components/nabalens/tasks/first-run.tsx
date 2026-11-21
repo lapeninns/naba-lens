@@ -4,16 +4,19 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
-  CaretLeftIcon,
-  CheckIcon,
+  BriefcaseIcon,
   CircleDashedIcon,
   MapPinIcon,
+  UserCircleIcon,
 } from "@phosphor-icons/react"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
+import { BackLink } from "../back-link"
+import { ActionDock } from "../common-room/action-dock"
+import { Row, RowList } from "../common-room/row"
 import { Notice } from "../notice"
 import { PhotoSourceActions } from "../photo-source"
 import { useAdd } from "../shell/add-context"
@@ -38,8 +41,10 @@ const MILESTONES = [
 ] as const
 
 /**
- * The welcome guide: what the portfolio is for, the work details step, then
- * the photo pickers, with a quiet Skip for now. It is dismissed only by an
+ * The welcome guide (screens-2 handoff): name and venue, the welcome, how
+ * photos are used with its "I understand" tick box, the three steps, the
+ * work details row, then a dock with a quiet Skip for now and the one
+ * bottle button, Choose from your photos. It is dismissed only by an
  * actual file pick or by Skip; cancelling the picker leaves it on offer.
  * Anyone can reopen it from Me.
  */
@@ -221,15 +226,7 @@ export function FirstRun({
     <div className="flex min-h-dvh w-full flex-col">
       <header className="border-b border-line bg-surface">
         <div className="mx-auto grid w-full max-w-xl gap-1 px-4 py-3">
-          {back ? (
-            <Link
-              href={back.href}
-              className="-ml-1 inline-flex min-h-11 w-fit items-center gap-1 rounded-control px-1 text-label text-ink focus-ring outline-none hover:underline"
-            >
-              <CaretLeftIcon aria-hidden weight="bold" className="size-5" />
-              {back.label}
-            </Link>
-          ) : null}
+          {back ? <BackLink href={back.href}>{back.label}</BackLink> : null}
           <p className="type-title text-ink">Naba-Lens</p>
           <p className="flex flex-wrap items-center gap-x-1.5 text-meta text-ink-muted">
             {venueName ? (
@@ -273,41 +270,40 @@ export function FirstRun({
           <h2 id="work-heading" className={sectionTitle}>
             What do you do at {venue}?
           </h2>
-          {workRole ? (
-            <p className="flex items-center gap-2 text-body font-semibold text-ink">
-              <span
-                aria-hidden
-                className="grid size-8 place-items-center rounded-round bg-ok-bg text-ok-fg [&_svg]:size-5"
-              >
-                <CheckIcon weight="bold" />
-              </span>
-              {workRole}
-            </p>
-          ) : (
+          {workRole ? null : (
             <p className="text-body text-ink-muted">
-              Your main job sets the question Home asks you and which dishes
+              Your main job sets the question Today asks you and which dishes
               come first when you label. It never changes what you can see or
               do.
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <Link
+          <RowList className="shadow-none edge">
+            <Row
               href={workProfileHref}
-              className={buttonVariants({ variant: "secondary", size: "sm" })}
-            >
-              {workRole ? "Change work details" : "Add your work details"}
-            </Link>
-            <Link
+              icon={<BriefcaseIcon />}
+              title={workRole ? "Change work details" : "Add your work details"}
+              subtitle={workRole ?? undefined}
+            />
+            <Row
               href={profileHref}
-              className="inline-flex min-h-11 items-center rounded-control text-body font-semibold text-ink underline underline-offset-3 focus-ring outline-none"
-            >
-              {hasAvatar ? "Change profile photo" : "Add a profile photo"}{" "}
-              (optional)
-            </Link>
-          </div>
+              icon={<UserCircleIcon />}
+              title={hasAvatar ? "Change profile photo" : "Add a profile photo"}
+              subtitle="Optional"
+            />
+          </RowList>
         </section>
 
-        <div className="mt-1 grid gap-2 rounded-card bg-surface p-3 shadow-card">
+        {/* Grey first, the one bottle button last (ActionDock). */}
+        <ActionDock overTabBar={false} className="mt-1">
+          <Button
+            type="button"
+            variant="quiet"
+            className="w-full"
+            disabled={skipping}
+            onClick={skip}
+          >
+            {skipping ? "Going to Today…" : "Skip for now"}
+          </Button>
           {uploadBlocked ? (
             <PhotoSourceActions
               onChoose={() => undefined}
@@ -327,16 +323,7 @@ export function FirstRun({
               Add your first photo
             </Link>
           )}
-          <Button
-            type="button"
-            variant="quiet"
-            className="w-full"
-            disabled={skipping}
-            onClick={skip}
-          >
-            {skipping ? "Going to Home…" : "Skip for now"}
-          </Button>
-        </div>
+        </ActionDock>
       </main>
     </div>
   )

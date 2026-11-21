@@ -83,25 +83,28 @@ export default async function LibraryCollectionPage({
   return (
     <AppShell variant="admin" active="content" userName={profile.displayName}>
       <div className="flex flex-col gap-6">
-        {/* Library, detail page: back to Collections (redesign R5). */}
+        {/* Library, detail page: back to Collections (redesign R5). The
+            view draws the title row, which carries the export buttons. */}
         <div className="grid min-w-0 gap-1">
           <BackLink href="/admin/library/collections" compact>
             Collections
           </BackLink>
-          <PageHeader
-            scope="Collection"
-            title={collection?.name ?? "Collection"}
-            summary={collection?.purpose ? <p>{collection.purpose}</p> : null}
-            className="pb-0 md:pb-0"
-          />
+          {collection && page.ok ? (
+            <CollectionDetailView
+              collection={collection}
+              photos={photos}
+              more={page.nextCursor !== null}
+            />
+          ) : (
+            <PageHeader
+              scope="Collection"
+              title={collection?.name ?? "Collection"}
+              summary={collection?.purpose ? <p>{collection.purpose}</p> : null}
+              className="pb-0 md:pb-0"
+            />
+          )}
         </div>
-        {collection && page.ok ? (
-          <CollectionDetailView
-            collection={collection}
-            photos={photos}
-            more={page.nextCursor !== null}
-          />
-        ) : (
+        {collection && page.ok ? null : (
           <Notice tone="negative" role="alert">
             {!page.ok
               ? page.message

@@ -25,7 +25,7 @@ export type AllowEntry = {
  * no token or recipe fits, and expect to be asked. Do not raise it to get a
  * red test to pass.
  */
-export const MAX_ALLOWED = 29
+export const MAX_ALLOWED = 28
 export const MAX_ALLOWED_DEV = 9
 
 const HEADER_HAIRLINE =
@@ -210,12 +210,6 @@ export const ALLOW: AllowEntry[] = [
   },
 
   /* ---------------------------------------------------------- hand-focus */
-  {
-    file: "components/nabalens/work-profile-form.tsx",
-    rule: "hand-focus",
-    match: "has-focus-visible:outline-focus",
-    reason: WRAPPER_INSET_FOCUS,
-  },
   {
     file: "components/nabalens/manager/review/item-picker-dialog.tsx",
     rule: "hand-focus",

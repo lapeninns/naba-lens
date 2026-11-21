@@ -188,7 +188,7 @@ function EditForm({
         void run(() => save(changes))
       }}
     >
-      <h2 className="type-section-title text-ink">Change the request</h2>
+      <h2 className="text-heading text-ink">Change the request</h2>
       {error && !error.field ? (
         <Notice tone="negative" role="alert">
           {error.message}
@@ -282,7 +282,7 @@ function ReasonForm({
         void run(() => submit(reason.trim()))
       }}
     >
-      <h2 className="type-section-title text-ink">{title}</h2>
+      <h2 className="text-heading text-ink">{title}</h2>
       <p className="text-body text-ink-muted">{description}</p>
       {error && error.field !== "reason" ? (
         <Notice tone="negative" role="alert">
@@ -309,7 +309,7 @@ function ReasonForm({
       ) : null}
       <Button
         type="submit"
-        variant={danger ? "danger-quiet" : "secondary"}
+        variant={danger ? "danger" : "secondary"}
         loading={busy}
         disabled={busy}
       >

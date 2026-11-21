@@ -16,7 +16,8 @@ import {
   UsersThreeIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
-import { Card, Row, SectionHeader } from "@/components/nabalens/common-room"
+// v2 ListRow (catalogue.md); its file still sits in the Common Room folder.
+import { Row } from "@/components/nabalens/common-room/row"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { waitingFor } from "@/components/nabalens/menu-photos/copy"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -33,6 +34,7 @@ import type { ManagerOverview } from "@/lib/server/menu-photos/types"
 
 import { MANAGER_COPY } from "../copy"
 import { managerHrefs } from "../hrefs"
+import { MANAGER_CARD, MANAGER_SECTION_HEAD } from "../surface"
 import { WorkspacePending } from "../workspace-pending"
 import { ActivationBanner, menuMeta } from "./activation-banner"
 import { MANAGER_ROW_LIST } from "./overview-panels"
@@ -325,10 +327,10 @@ export function OverviewBody({
       {confirm}
       <ActivationBanner overview={overview} now={now} />
       <section aria-labelledby="overview-photos" className="grid gap-gutter">
-        <Card>
+        <div className={MANAGER_CARD}>
           <h2
             id="overview-photos"
-            className="type-section-title [overflow-wrap:anywhere] text-ink"
+            className="text-heading [overflow-wrap:anywhere] text-ink"
           >
             {heading}
           </h2>
@@ -351,7 +353,7 @@ export function OverviewBody({
               {copy.reviewPhotos}
             </Link>
           ) : null}
-        </Card>
+        </div>
         <ul className={ROW_LIST}>
           {tallies.map((tally) => (
             <li key={tally.key} data-tally={tally.key}>
@@ -403,7 +405,11 @@ export function OverviewBody({
           aria-labelledby="overview-sections"
           className="grid gap-gutter"
         >
-          <SectionHeader id="overview-sections" title={copy.sectionsTitle} />
+          <div className={MANAGER_SECTION_HEAD}>
+            <h2 id="overview-sections" className="text-heading text-ink">
+              {copy.sectionsTitle}
+            </h2>
+          </div>
           <ul className={ROW_LIST}>
             {overview.sections.map((section) => (
               <li key={section.sectionId}>

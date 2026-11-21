@@ -4,6 +4,7 @@ import { AppShell, MenuVenueList, MenuVenueTally } from "@/components/nabalens"
 import { ErrorState, ERROR_COPY } from "@/components/nabalens/error-state"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { requireActiveAdmin } from "@/lib/auth"
+import type { MenuVenueSummary } from "@/lib/menus/types"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listMenuVenues } from "@/lib/server/menus"
 
@@ -14,6 +15,16 @@ export const metadata: Metadata = { title: "Menus" }
 
 const venueHref = (venueId: string) =>
   `/admin/menus/${encodeURIComponent(venueId)}`
+
+/**
+ * Problems first (second handoff): venues with no active menu, then those
+ * with suggestions waiting, then the rest, each group in the read's order.
+ */
+function problemsFirst(venues: MenuVenueSummary[]): MenuVenueSummary[] {
+  const rank = (v: MenuVenueSummary) =>
+    !v.active ? 0 : v.openSuggestionCount > 0 ? 1 : 2
+  return [...venues].sort((a, b) => rank(a) - rank(b))
+}
 
 /** Admin → Menus: every venue with its active menu, drafts and suggestions. */
 export default async function MenusPage() {
@@ -32,7 +43,10 @@ export default async function MenusPage() {
             {result.venues.length > 0 ? (
               <MenuVenueTally venues={result.venues} />
             ) : null}
-            <MenuVenueList venues={result.venues} getVenueHref={venueHref} />
+            <MenuVenueList
+              venues={problemsFirst(result.venues)}
+              getVenueHref={venueHref}
+            />
           </>
         ) : (
           <ErrorState

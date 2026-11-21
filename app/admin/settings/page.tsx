@@ -14,11 +14,13 @@ import { loadShotTemplates } from "@/lib/server/shot-templates"
 import { integrationStatus } from "@/lib/server/ops/integrations"
 
 import {
+  AttentionNotice,
   CategoriesPanel,
-  ExceptionsPanel,
   IntegrationsPanel,
+  JobsPanel,
   LimitsPanel,
   OperationsPanel,
+  SharedSetupPanel,
 } from "./ops-panel"
 import { AdminTabs } from "../_components/admin-tabs"
 import { SettingsFormView } from "./settings-form"
@@ -64,11 +66,10 @@ export default async function AdminSettingsPage() {
           <OfflineNotice />
         </div>
 
+        {/* Handoff "Settings › Rules": what needs attention is a notice at
+            the top; the rules beside operations and the shared set-up. */}
         {status.ok ? (
-          <>
-            <ExceptionsPanel status={status.status} />
-            <OperationsPanel status={status.status} />
-          </>
+          <AttentionNotice status={status.status} />
         ) : (
           <Notice
             tone="negative"
@@ -79,10 +80,17 @@ export default async function AdminSettingsPage() {
           </Notice>
         )}
 
-        <CoverageSection id="settings" title="Rules for every venue">
-          <SettingsFormView settings={settings.settings} />
-        </CoverageSection>
+        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+          <CoverageSection id="settings" title="Rules for every venue">
+            <SettingsFormView settings={settings.settings} />
+          </CoverageSection>
+          <div className="grid min-w-0 gap-8">
+            {status.ok ? <OperationsPanel status={status.status} /> : null}
+            <SharedSetupPanel />
+          </div>
+        </div>
 
+        {status.ok ? <JobsPanel status={status.status} /> : null}
         <LimitsPanel
           limits={{
             photoBytes: MEDIA_LIMITS.maxPhotoBytes,

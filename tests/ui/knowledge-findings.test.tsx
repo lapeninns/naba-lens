@@ -154,7 +154,7 @@ describe("Your findings", () => {
     // Priya's answer is never shown as this person's send (HM-05).
     expect(closed.queryByText(/^Sent /)).toBeNull()
     const unknown = within(rowOf("Is there a hearing loop?"))
-    expect(unknown.getByText("Answer: Couldn't establish")).toBeTruthy()
+    expect(unknown.getByText("Answer: I couldn't find out")).toBeTruthy()
     expect(
       unknown.getByText(
         "Couldn't-establish findings don't count toward targets."

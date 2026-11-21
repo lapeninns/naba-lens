@@ -119,37 +119,39 @@ export default async function StaffPortfolioPage({
         venueGrants={effectiveGrants(grants)}
         role={member.role}
         accountType={
-          <>
-            <AccountTypePanel
-              member={{
-                id: member.id,
-                displayName: member.displayName,
-                status: member.status,
-                venueId: member.venueId,
-                venueName: member.venueName,
-              }}
-              role={member.role}
-              venues={venues.ok ? venues.venues : []}
-              grant={grant}
-              history={history.ok ? history.changes : null}
-            />
-            <VenueAccessPanel
-              member={{
-                id: member.id,
-                displayName: member.displayName,
-                active: member.status !== "inactive",
-              }}
-              privileges={privileges.ok ? privileges.venues : null}
-              venues={venues.ok ? venues.venues : []}
-              onSetRole={setVenueMembershipAction}
-              onRemove={removeVenueMembershipAction}
-              onMakeAdmin={grantAdminAction}
-            />
-            {/* S2-ADMIN: a lost authenticator (FA-23); never one's own. */}
-            {member.id !== admin.id && member.status !== "invited" ? (
-              <MfaResetPanel profileId={member.id} firstName={first} />
-            ) : null}
-          </>
+          <AccountTypePanel
+            member={{
+              id: member.id,
+              displayName: member.displayName,
+              status: member.status,
+              venueId: member.venueId,
+              venueName: member.venueName,
+            }}
+            role={member.role}
+            venues={venues.ok ? venues.venues : []}
+            grant={grant}
+            history={history.ok ? history.changes : null}
+          />
+        }
+        venueAccess={
+          <VenueAccessPanel
+            member={{
+              id: member.id,
+              displayName: member.displayName,
+              active: member.status !== "inactive",
+            }}
+            privileges={privileges.ok ? privileges.venues : null}
+            venues={venues.ok ? venues.venues : []}
+            onSetRole={setVenueMembershipAction}
+            onRemove={removeVenueMembershipAction}
+            onMakeAdmin={grantAdminAction}
+          />
+        }
+        security={
+          // S2-ADMIN: a lost authenticator (FA-23); never one's own.
+          member.id !== admin.id && member.status !== "invited" ? (
+            <MfaResetPanel profileId={member.id} firstName={first} />
+          ) : null
         }
         month={
           monthly ? (

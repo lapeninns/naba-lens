@@ -120,6 +120,10 @@ export default async function StaffHomePage({
         )
       : []
 
+  // Things only this person can do: retakes, requests, other jobs. Failed
+  // uploads live on this phone, so their row counts itself.
+  const needs = (retakes?.length ?? 0) + asked.length + (otherJobs ?? 0)
+
   return (
     <AppShell
       variant="staff"
@@ -148,14 +152,35 @@ export default async function StaffHomePage({
             returnFocusId={TODAY_TOP_ID}
           />
         ) : null}
+        <p className="text-body text-ink-muted" data-slot="today-summary">
+          {needs === 0
+            ? "Nothing is waiting for you."
+            : needs === 1
+              ? "1 thing needs you."
+              : `${needs} things need you.`}
+        </p>
         <StartHereRow href={showWelcome ? WELCOME_PATH : null} />
-        {canAdd ? <UnfinishedRow /> : null}
-        <HomeRetakes retakes={retakes ?? []} canAdd={canAdd} />
-        <AskedFor
-          items={asked}
-          today={requests?.ok ? requests.list.today : ""}
-          canAdd={canAdd}
-        />
+        {/* Today as the staff prototype draws it (redesign batch S, Open
+            Design "NabaLens staff photo workflow"): what needs you, in one
+            place, then adding, then labelling, then what you sent. */}
+        {needs > 0 ? (
+          <section aria-labelledby="needs-you" className="grid gap-3">
+            <h2 id="needs-you" className="type-section-title text-ink">
+              Needs you
+            </h2>
+            {canAdd ? <UnfinishedRow /> : null}
+            <HomeRetakes retakes={retakes ?? []} canAdd={canAdd} />
+            <AskedFor
+              items={asked}
+              today={requests?.ok ? requests.list.today : ""}
+              canAdd={canAdd}
+              headingLevel={3}
+            />
+            <OtherJobsRow count={otherJobs} href={OTHER_JOBS_PATH} />
+          </section>
+        ) : canAdd ? (
+          <UnfinishedRow />
+        ) : null}
         <AddReminder
           reminder={addReminder(
             items,
@@ -168,7 +193,6 @@ export default async function StaffHomePage({
           blocked={blocked ? ADD_BLOCKED[blocked] : null}
         />
         <MatchLaterRow count={later?.length ?? 0} />
-        <OtherJobsRow count={otherJobs} href={OTHER_JOBS_PATH} />
         <RecentActivity items={here} />
       </div>
     </AppShell>

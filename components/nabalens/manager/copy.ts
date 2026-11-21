@@ -9,6 +9,8 @@ export const MANAGER_COPY = {
     count === 1 ? "photo waiting" : "photos waiting",
   account: "Account",
   logOut: "Log out",
+  /** The VenueBar's role line. */
+  venueRole: "You manage this venue",
   /** Every manager error notice's action (redesign R4, ia.md decision 11). */
   retry: "Retry",
   unavailable: {
@@ -131,11 +133,11 @@ export const MANAGER_COPY = {
     spacesUnknown: "Where staff photograph each part of the venue.",
     placesLink: "Places and briefs",
     placesLine: "Where staff stand to photograph each section, and its brief.",
-    facilitiesTitle: "Facilities and policies",
+    facilitiesTitle: "Amenities and policies",
     factsLine: (text: string, percent: string | null, waiting: number) =>
       `${text} facts confirmed${percent ? ` (${percent})` : ""} · ${waiting} to confirm`,
     factsUnknown: "We couldn't count the facts.",
-    amenitiesLink: "Facilities and questions",
+    amenitiesLink: "Amenities and questions",
     amenitiesLine: "Answer questions, mark what is not here, assign checks.",
     toConfirmLink: "To confirm",
     toConfirmLine: (n: number | null) =>
@@ -144,6 +146,13 @@ export const MANAGER_COPY = {
         : n === 0
           ? "Nothing to confirm"
           : `${n} to confirm as still right`,
+    /** Beside the To confirm heading on Details (the handoff). */
+    toConfirmMeta: (facts: number | null) =>
+      facts === null || facts === 0
+        ? null
+        : `${plural(facts, "fact")} · say whether each is still right`,
+    reportsMeta: (n: number | null) =>
+      n === null || n === 0 ? null : `${n} from staff`,
     // S3-R5 (K3): staff reports of a changed slot or photo detail.
     reportsLink: "Reported changes",
     reportsLine: (n: number | null) =>
@@ -192,6 +201,8 @@ export const MANAGER_COPY = {
     loading: "Loading the venue's history",
     summary: "Every recorded change at this venue, newest first.",
     all: "All changes",
+    kindLabel: "Kind of change",
+    moreKinds: "More kinds",
     empty: "No changes of this kind yet.",
     more: "Show older changes",
     loadingMore: "Loading",
@@ -218,14 +229,21 @@ export const MANAGER_COPY = {
     search: "Search items",
     searchPlaceholder: "Item name",
     statusLabel: "Show",
+    // ia.md decision 4: filters and row chips say the StatusChip words
+    // (Missing, Waiting, In the album, All), so a filter and the chip it
+    // selects read the same. The menu read has no Retake state to filter
+    // on, so the two finer filters keep their own words.
     status: {
       all: "All",
-      needs_photo: "Still needs a photo",
-      awaiting_review: "Awaiting review",
-      covered: "Has a photo",
+      needs_photo: "Missing",
+      awaiting_review: "Waiting",
+      covered: "In the album",
       replacement: "New photo waiting",
       recheck: "Needs a recheck",
     },
+    /** A gap's one action: a New request with the slot filled in. */
+    ask: "Ask",
+    askFor: (name: string) => `for a photo of ${name}`,
     sectionLabel: "Section",
     allSections: "All sections",
     sectionCount: (covered: number, eligible: number) =>
@@ -247,6 +265,8 @@ export const MANAGER_COPY = {
     loading: "Loading this menu item",
     /** The BackLink names the tab it opens (redesign R4, ia.md). */
     back: "Menu",
+    /** The detail page's one bottle button: a New request for the dish. */
+    askForPhoto: "Ask for a photo",
     menuPhoto: "Menu photo",
     noMenuPhoto: "No menu photo yet",
     fallback: "Showing the earliest accepted photo",
@@ -325,6 +345,7 @@ export const MANAGER_COPY = {
     loadingPage: "Loading your photos",
     addLabels: "Add labels",
     editLabels: "Edit labels",
+    labelledTitle: "Labelled",
   },
   team: {
     title: "Team targets",
@@ -381,5 +402,15 @@ export const MANAGER_COPY = {
     venue: "Venue",
     venueNote: "Only an admin can change your venue.",
     signOut: "Sign out",
+    photosLine: (needsLabels: number | null) =>
+      needsLabels
+        ? `Photos and videos you've added · ${needsLabels} need${needsLabels === 1 ? "s" : ""} labels`
+        : "Photos and videos you've added",
+    twoStep: "Two-step sign-in",
+    twoStepOn:
+      "On. You enter a code from your authenticator app each time you sign in.",
+    twoStepOff:
+      "Off. Turn it on to enter a code from an authenticator app each time you sign in.",
+    twoStepTurnOn: "Turn on two-step sign-in",
   },
 } as const

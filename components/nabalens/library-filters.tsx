@@ -3,7 +3,7 @@
 import { SegmentedControl } from "@/components/ui/segmented-control"
 import { SearchField } from "@/components/ui/search-field"
 import * as React from "react"
-import { FunnelSimpleIcon, XIcon } from "@phosphor-icons/react"
+import { SlidersHorizontalIcon, XIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils"
 
 import { formatDate } from "./format"
 import { OptionSelect } from "./option-select"
-import { CountBadge } from "./status-chip"
 import type { MediaType, Option } from "./types"
 
 /**
@@ -230,6 +229,20 @@ type LibraryFiltersProps = {
    * change still loading) those two controls wait.
    */
   menuOptions?: LibraryMenuOptions | null
+  /**
+   * Filters the page keeps itself (the admin's use, review and collection
+   * filters), shown at the end of the More filters panel.
+   */
+  more?: React.ReactNode
+  /** How many of `more` are on: counted on the More filters button. */
+  moreCount?: number
+  /**
+   * The row under the search: the page's folder pick chips. The filters in
+   * words and Clear filters sit at the end of the same row.
+   */
+  children?: React.ReactNode
+  /** Clears `more` as well; without it Clear filters clears these only. */
+  onClearAll?: () => void
   className?: string
 }
 
@@ -256,12 +269,22 @@ const HINT = "text-body text-ink-muted"
 /** Same normalisation as the search box sends: trimmed, single spaces. */
 const tidy = (text: string) => text.replace(/\s+/g, " ").trim()
 
+/**
+ * Library › Photos filters (handoff "Library › Photos"): the search and the
+ * three most used filters (search, venue, staff member) in one row, the rest
+ * behind More filters, which counts what is on inside it. Under the row the
+ * page's folder chips, then the filters in words and Clear filters.
+ */
 export function LibraryFilters({
   venues,
   staff,
   value,
   onChange,
   menuOptions = null,
+  more,
+  moreCount: extraCount = 0,
+  children,
+  onClearAll,
   className,
 }: LibraryFiltersProps) {
   const id = React.useId()
@@ -269,8 +292,12 @@ export function LibraryFilters({
   const set = (patch: Partial<LibraryFilterValue>) =>
     onChange({ ...v, ...patch })
 
-  const total = countActiveFilters(v)
-  const moreCount = MORE_KEYS.filter((k) => v[k]).length
+  const total = countActiveFilters(v) + extraCount
+  // Media type sits behind More filters too, so it is counted there.
+  const moreCount =
+    MORE_KEYS.filter((k) => v[k]).length +
+    (v.type !== "all" ? 1 : 0) +
+    extraCount
   const [open, setOpen] = React.useState(moreCount > 0)
 
   const menu =
@@ -292,11 +319,20 @@ export function LibraryFilters({
       aria-label="Filter library"
       className={cn("flex flex-col gap-3", className)}
     >
-      <div className="grid grid-cols-2 gap-x-3 gap-y-4 md:flex md:flex-wrap md:items-end">
+      <div className="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:items-center">
+        <div className="col-span-2 min-w-0 md:min-w-60 md:flex-1">
+          <SearchBox
+            formId={searchFormId}
+            inputId={`${id}-q`}
+            value={v.query}
+            onSearch={(query) => set({ query })}
+          />
+        </div>
         <Field
           label="Venue"
           htmlFor={`${id}-venue`}
-          className="md:w-44 xl:w-48"
+          hideLabel
+          className="md:w-56"
         >
           <OptionSelect
             id={`${id}-venue`}
@@ -312,7 +348,8 @@ export function LibraryFilters({
         <Field
           label="Staff member"
           htmlFor={`${id}-staff`}
-          className="md:w-44 xl:w-48"
+          hideLabel
+          className="md:w-40"
         >
           <OptionSelect
             id={`${id}-staff`}
@@ -322,166 +359,157 @@ export function LibraryFilters({
             onValueChange={(staffId) => set({ staffId })}
           />
         </Field>
-        <div className="col-span-2 grid content-start gap-1.5 md:col-auto">
-          <span aria-hidden className={FIELD_LABEL}>
-            Media
-          </span>
-          <SegmentedControl
-            // The visible label is "Media"; the name keeps it as its start.
-            label="Media type"
-            options={TYPES}
-            value={v.type}
-            onValueChange={(type) => set({ type })}
-          />
-        </div>
-        <Field
-          label="Search"
-          htmlFor={`${id}-q`}
-          className="col-span-2 md:w-44 md:grow"
+        <Button
+          type="button"
+          variant="secondary"
+          aria-expanded={open}
+          aria-controls={`${id}-more`}
+          className="col-span-2 md:col-auto"
+          onClick={() => setOpen((o) => !o)}
         >
-          <SearchBox
-            formId={searchFormId}
-            inputId={`${id}-q`}
-            value={v.query}
-            onSearch={(query) => set({ query })}
-          />
-        </Field>
-        <div className="col-span-2 flex gap-2 *:flex-1 md:*:flex-none">
-          <Button
-            type="button"
-            variant="secondary"
-            aria-expanded={open}
-            aria-controls={`${id}-more`}
-            onClick={() => setOpen((o) => !o)}
-          >
-            <FunnelSimpleIcon aria-hidden />
-            More filters
-            <CountBadge count={moreCount} label="on" />
-          </Button>
-          {/* Selects and segments apply at once; this sends the typed search. */}
-          <Button type="submit" form={searchFormId} variant="secondary">
-            Apply filters
-          </Button>
-        </div>
+          <SlidersHorizontalIcon aria-hidden />
+          More filters
+          {moreCount > 0 ? <span>· {moreCount} on</span> : null}
+        </Button>
       </div>
-
-      <p role="status" className={HINT}>
-        {total > 0 ? (
-          <>
-            Showing{" "}
-            <FilterPhrases
-              phrases={describeLibraryFilters(v, {
-                venues,
-                staff,
-                menuOptions,
-              })}
-            />
-            , newest first.{" "}
-            <Button
-              type="button"
-              variant="link"
-              className="ml-1 align-baseline"
-              onClick={() => onChange(EMPTY_LIBRARY_FILTERS)}
-            >
-              Clear filters
-            </Button>
-          </>
-        ) : null}
-      </p>
 
       <div
         id={`${id}-more`}
         hidden={!open}
-        className="grid gap-4 rounded-card bg-surface p-4 shadow-card sm:grid-cols-2 lg:grid-cols-3"
+        className="grid gap-4 rounded-card border border-line bg-surface p-4"
       >
-        <div className="grid content-start gap-1.5 sm:col-span-2 lg:col-span-1">
-          <MenuItemFilter
-            items={menu?.items ?? []}
-            selected={selectedItem}
-            selectedId={v.itemId}
-            disabled={menuState !== "ready"}
-            describedBy={menuHint ? hintId : undefined}
-            onSelect={(itemId) => set({ itemId, variantId: null })}
-          />
-          {menuHint ? (
-            <p id={hintId} className={HINT}>
-              {menuHint}
-            </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid content-start gap-1.5">
+            <span aria-hidden className={FIELD_LABEL}>
+              Media
+            </span>
+            <SegmentedControl
+              // The visible label is "Media"; the name keeps it as its start.
+              label="Media type"
+              options={TYPES}
+              value={v.type}
+              onValueChange={(type) => set({ type })}
+            />
+          </div>
+          <div className="grid content-start gap-1.5">
+            <MenuItemFilter
+              items={menu?.items ?? []}
+              selected={selectedItem}
+              selectedId={v.itemId}
+              disabled={menuState !== "ready"}
+              describedBy={menuHint ? hintId : undefined}
+              onSelect={(itemId) => set({ itemId, variantId: null })}
+            />
+            {menuHint ? (
+              <p id={hintId} className={HINT}>
+                {menuHint}
+              </p>
+            ) : null}
+          </div>
+          {selectedItem && selectedItem.variants.length > 0 ? (
+            <Field label="Variant" htmlFor={`${id}-variant`}>
+              <OptionSelect
+                id={`${id}-variant`}
+                options={selectedItem.variants}
+                value={v.variantId}
+                emptyLabel="Any variant"
+                onValueChange={(variantId) => set({ variantId })}
+              />
+            </Field>
           ) : null}
-        </div>
-        {selectedItem && selectedItem.variants.length > 0 ? (
-          <Field label="Variant" htmlFor={`${id}-variant`}>
+          <Field label="Category" htmlFor={`${id}-category`}>
             <OptionSelect
-              id={`${id}-variant`}
-              options={selectedItem.variants}
-              value={v.variantId}
-              emptyLabel="Any variant"
-              onValueChange={(variantId) => set({ variantId })}
+              id={`${id}-category`}
+              options={(menu?.categories ?? []).map((c) => ({
+                id: c.slug,
+                name: c.name,
+              }))}
+              value={menu ? v.category : null}
+              emptyLabel="All categories"
+              disabled={menuState !== "ready"}
+              aria-describedby={menuHint ? hintId : undefined}
+              onValueChange={(category) => set({ category })}
             />
           </Field>
-        ) : null}
-        <Field label="Category" htmlFor={`${id}-category`}>
-          <OptionSelect
-            id={`${id}-category`}
-            options={(menu?.categories ?? []).map((c) => ({
-              id: c.slug,
-              name: c.name,
-            }))}
-            value={menu ? v.category : null}
-            emptyLabel="All categories"
-            disabled={menuState !== "ready"}
-            aria-describedby={menuHint ? hintId : undefined}
-            onValueChange={(category) => set({ category })}
-          />
-        </Field>
-        <Field label="Content type" htmlFor={`${id}-content`}>
-          <OptionSelect
-            id={`${id}-content`}
-            options={CONTENT_OPTIONS}
-            value={v.contentType}
-            emptyLabel="Any content type"
-            onValueChange={(code) =>
-              set({ contentType: code as ContentType | null })
-            }
-          />
-        </Field>
-        <div className="grid content-start gap-1.5">
-          <span id={`${id}-labels`} className={FIELD_LABEL}>
-            Labels
-          </span>
-          <SegmentedControl<LabelState | "all">
-            aria-labelledby={`${id}-labels`}
-            options={LABEL_STATES}
-            value={v.labelState ?? "all"}
-            onValueChange={(state) =>
-              set({ labelState: state === "all" ? null : state })
-            }
-          />
+          <Field label="Content type" htmlFor={`${id}-content`}>
+            <OptionSelect
+              id={`${id}-content`}
+              options={CONTENT_OPTIONS}
+              value={v.contentType}
+              emptyLabel="Any content type"
+              onValueChange={(code) =>
+                set({ contentType: code as ContentType | null })
+              }
+            />
+          </Field>
+          <div className="grid content-start gap-1.5">
+            <span id={`${id}-labels`} className={FIELD_LABEL}>
+              Labels
+            </span>
+            <SegmentedControl<LabelState | "all">
+              aria-labelledby={`${id}-labels`}
+              options={LABEL_STATES}
+              value={v.labelState ?? "all"}
+              onValueChange={(state) =>
+                set({ labelState: state === "all" ? null : state })
+              }
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="From" htmlFor={`${id}-from`}>
+              <Input
+                id={`${id}-from`}
+                type="date"
+                value={v.from ?? ""}
+                max={v.to ?? undefined}
+                onChange={(e) => set({ from: e.currentTarget.value || null })}
+              />
+            </Field>
+            <Field label="To" htmlFor={`${id}-to`}>
+              <Input
+                id={`${id}-to`}
+                type="date"
+                value={v.to ?? ""}
+                min={v.from ?? undefined}
+                onChange={(e) => set({ to: e.currentTarget.value || null })}
+              />
+            </Field>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="From" htmlFor={`${id}-from`}>
-            <Input
-              id={`${id}-from`}
-              type="date"
-              value={v.from ?? ""}
-              max={v.to ?? undefined}
-              onChange={(e) => set({ from: e.currentTarget.value || null })}
-            />
-          </Field>
-          <Field label="To" htmlFor={`${id}-to`}>
-            <Input
-              id={`${id}-to`}
-              type="date"
-              value={v.to ?? ""}
-              min={v.from ?? undefined}
-              onChange={(e) => set({ to: e.currentTarget.value || null })}
-            />
-          </Field>
-        </div>
-        <p className={cn(HINT, "sm:col-span-2 lg:col-span-3")}>
+        <p className={HINT}>
           A label describes what is in the file. It is not a claim about
           allergens, dietary suitability, price or availability, and not
           permission to publish.
+        </p>
+        {more}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        {children ? <div className="min-w-0 flex-1">{children}</div> : null}
+        <p role="status" className={cn(HINT, "min-w-0 text-meta")}>
+          {total > 0 ? (
+            <>
+              Showing{" "}
+              <FilterPhrases
+                phrases={describeLibraryFilters(v, {
+                  venues,
+                  staff,
+                  menuOptions,
+                })}
+              />
+              , newest first.{" "}
+              <Button
+                type="button"
+                variant="link"
+                className="ml-1 align-baseline"
+                onClick={() =>
+                  onClearAll ? onClearAll() : onChange(EMPTY_LIBRARY_FILTERS)
+                }
+              >
+                Clear filters
+              </Button>
+            </>
+          ) : null}
         </p>
       </div>
     </div>
@@ -491,17 +519,20 @@ export function LibraryFilters({
 function Field({
   label,
   htmlFor,
+  hideLabel = false,
   className,
   children,
 }: {
   label: string
   htmlFor: string
+  /** In the search row the chosen value says what the control is. */
+  hideLabel?: boolean
   className?: string
   children: React.ReactNode
 }) {
   return (
     <div className={cn("grid min-w-0 content-start gap-1.5", className)}>
-      <label htmlFor={htmlFor} className={FIELD_LABEL}>
+      <label htmlFor={htmlFor} className={hideLabel ? "sr-only" : FIELD_LABEL}>
         {label}
       </label>
       {children}
@@ -510,8 +541,8 @@ function Field({
 }
 
 /**
- * Label/note search. Applies on Enter, on "Apply filters" (which submits this
- * form from outside it) and when the box loses focus with changed text;
+ * Label/note search. Applies on Enter and when the box loses focus with
+ * changed text;
  * Escape clears it (and the filter).
  */
 function SearchBox({

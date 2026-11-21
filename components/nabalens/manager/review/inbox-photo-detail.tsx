@@ -483,10 +483,7 @@ export function InboxPhotoDetail({
       >
         <EvidenceThumb src={mainThumb} className="w-full rounded-card" />
         <div className="grid content-start gap-3">
-          <h2
-            id="review-photo-provenance"
-            className="type-section-title text-ink"
-          >
+          <h2 id="review-photo-provenance" className="text-heading text-ink">
             {C.provenance}
           </h2>
           <div className="flex flex-wrap gap-1.5">
@@ -577,7 +574,7 @@ export function InboxPhotoDetail({
 
       {staffAlbum}
       <section aria-labelledby="review-photo-slots" className="grid gap-3">
-        <h2 id="review-photo-slots" className="type-section-title text-ink">
+        <h2 id="review-photo-slots" className="text-heading text-ink">
           {staffAlbum ? "Website and marketing review" : C.slots}
         </h2>
         {detail.dishes.length === 0 &&
@@ -806,7 +803,7 @@ export function InboxPhotoDetail({
       ) : null}
 
       <section aria-labelledby="review-photo-group" className="grid gap-2">
-        <h2 id="review-photo-group" className="type-section-title text-ink">
+        <h2 id="review-photo-group" className="text-heading text-ink">
           {C.group}
         </h2>
         {detail.group.length === 0 ? (
@@ -845,7 +842,7 @@ export function InboxPhotoDetail({
       </section>
 
       <section aria-labelledby="review-photo-history" className="grid gap-2">
-        <h2 id="review-photo-history" className="type-section-title text-ink">
+        <h2 id="review-photo-history" className="text-heading text-ink">
           {C.history}
         </h2>
         {detail.history.length === 0 ? (

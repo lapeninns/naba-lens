@@ -32,6 +32,7 @@ export { MenuDiffView, countUnresolved } from "./menu-diff-view"
 export {
   MenuDocumentEditor,
   type MenuDocumentEditorProps,
+  type MenuItemChange,
 } from "./menu-document-editor"
 export { editorIssues, itemMatches } from "./editor-ops"
 export {

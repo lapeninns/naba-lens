@@ -79,6 +79,14 @@ const DESKTOP = { viewport: { width: 1280, height: 900 } }
  */
 async function settled(page: Page) {
   await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
+  // Second handoff: the check page folds its reference sections (capture
+  // brief, notes, the answer on a date, history) shut. Open them, so the
+  // sections below read as before.
+  await page
+    .locator('details[data-slot="disclosure"]')
+    .evaluateAll((folds) =>
+      folds.forEach((d) => ((d as HTMLDetailsElement).open = true))
+    )
 }
 
 /** The capture form on a page, and its one submit control (label changes). */
@@ -336,7 +344,9 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     const card = manager.getByRole("article", {
       name: new RegExp(`from ${escape(w.staffA.name)}`),
     })
-    await card.getByRole("button", { name: "Confirm", exact: true }).click()
+    await card
+      .getByRole("button", { name: "Use this answer", exact: true })
+      .click()
     await expect(
       manager.getByText(
         `Confirmed. This is now the answer for ${w.venueA.name}.`
@@ -578,7 +588,7 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     const block = policyConfirmBlock(["conditions", "authority", "stated_on"])!
     await expect(card).toContainText(block)
     const blockedConfirm = card.getByRole("button", {
-      name: "Confirm",
+      name: "Use this answer",
       exact: true,
     })
     // Unavailable but still focusable, and it says why.

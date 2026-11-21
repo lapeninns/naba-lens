@@ -32,6 +32,8 @@ export const SLOT_BRIEF_COPY = {
   network:
     "Not saved: the connection dropped. Check your signal and try again.",
   count: (n: number) => `${n} of ${BRIEF_MAX} characters`,
+  placeholder: (name: string) =>
+    `Brief for ${name}, up to ${BRIEF_MAX} characters`,
 } as const
 
 export type SlotBriefSaver = (
@@ -51,6 +53,7 @@ export function SlotBriefField({
   label,
   hint,
   onSave,
+  compact = false,
 }: {
   /** What the slot or section is called, for the saved line: "Desserts". */
   name: string
@@ -61,6 +64,13 @@ export function SlotBriefField({
   /** Replaces the standard hint, for example to say a section's brief is the fallback. */
   hint?: string
   onSave: SlotBriefSaver
+  /**
+   * One row for a list of many (Places and briefs, second handoff): the
+   * label is read by assistive tech only, the hint is said once above the
+   * list, and Save brief sits beside the field. The count shows near the
+   * limit.
+   */
+  compact?: boolean
 }) {
   const [saved, setSaved] = React.useState(brief)
   const [value, setValue] = React.useState(brief ?? "")
@@ -100,22 +110,27 @@ export function SlotBriefField({
     void run(trimmed || null, "save")
   }
 
-  return (
-    <form onSubmit={submit} className="grid gap-2" noValidate>
-      <FormField
-        label={label ?? SLOT_BRIEF_COPY.label}
-        optional
-        description={hint ?? SLOT_BRIEF_COPY.hint}
-        error={tooLong ? SLOT_BRIEF_COPY.tooLong : undefined}
-      >
-        <Input
-          type="text"
-          value={value}
-          autoComplete="off"
-          enterKeyHint="done"
-          onChange={(event) => setValue(event.currentTarget.value)}
-        />
-      </FormField>
+  const field = (
+    <FormField
+      label={label ?? SLOT_BRIEF_COPY.label}
+      optional
+      hideLabel={compact}
+      description={compact ? undefined : (hint ?? SLOT_BRIEF_COPY.hint)}
+      error={tooLong ? SLOT_BRIEF_COPY.tooLong : undefined}
+      className={compact ? "min-w-0 flex-1" : undefined}
+    >
+      <Input
+        type="text"
+        value={value}
+        autoComplete="off"
+        enterKeyHint="done"
+        placeholder={compact ? SLOT_BRIEF_COPY.placeholder(name) : undefined}
+        onChange={(event) => setValue(event.currentTarget.value)}
+      />
+    </FormField>
+  )
+  const count =
+    !compact || length > BRIEF_MAX - 20 ? (
       <p
         className={
           tooLong ? "text-meta text-warn-fg" : "text-meta text-ink-muted"
@@ -123,30 +138,49 @@ export function SlotBriefField({
       >
         {SLOT_BRIEF_COPY.count(length)}
       </p>
-      <div className="flex flex-wrap gap-2">
+    ) : null
+  const buttons = (
+    <>
+      <Button
+        type="submit"
+        variant="secondary"
+        loading={busy === "save"}
+        loadingLabel={SLOT_BRIEF_COPY.saving}
+        disabled={(busy !== null && busy !== "save") || tooLong || unchanged}
+        aria-describedby={statusId}
+      >
+        {SLOT_BRIEF_COPY.save}
+      </Button>
+      {saved ? (
         <Button
-          type="submit"
-          variant="secondary"
-          loading={busy === "save"}
-          loadingLabel={SLOT_BRIEF_COPY.saving}
-          disabled={(busy !== null && busy !== "save") || tooLong || unchanged}
-          aria-describedby={statusId}
+          type="button"
+          variant="quiet"
+          loading={busy === "clear"}
+          loadingLabel={SLOT_BRIEF_COPY.clearing}
+          disabled={busy !== null && busy !== "clear"}
+          onClick={() => void run(null, "clear")}
         >
-          {SLOT_BRIEF_COPY.save}
+          {SLOT_BRIEF_COPY.clear}
         </Button>
-        {saved ? (
-          <Button
-            type="button"
-            variant="quiet"
-            loading={busy === "clear"}
-            loadingLabel={SLOT_BRIEF_COPY.clearing}
-            disabled={busy !== null && busy !== "clear"}
-            onClick={() => void run(null, "clear")}
-          >
-            {SLOT_BRIEF_COPY.clear}
-          </Button>
-        ) : null}
-      </div>
+      ) : null}
+    </>
+  )
+
+  return (
+    <form onSubmit={submit} className="grid gap-2" noValidate>
+      {compact ? (
+        <div className="flex flex-wrap items-start gap-2">
+          {field}
+          {buttons}
+        </div>
+      ) : (
+        <>
+          {field}
+          {count}
+          <div className="flex flex-wrap gap-2">{buttons}</div>
+        </>
+      )}
+      {compact ? count : null}
       <div id={statusId} role="status" aria-live="polite">
         {status.kind === "saved" ? (
           <p className="text-meta text-ink-muted">

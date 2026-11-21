@@ -254,8 +254,8 @@ describe("knowledge capture: before sending", () => {
     for (const [name, hint] of [
       ["Yes", "True for guests today."],
       ["No", "Not true today."],
-      ["Not applicable", "The question doesn't fit this venue."],
-      ["Couldn't establish", "You tried and couldn't find out."],
+      ["Doesn't apply here", "The question doesn't fit this venue."],
+      ["I couldn't find out", "You tried and couldn't find out."],
     ]) {
       const input = radio(name)
       const described = document.getElementById(
@@ -292,7 +292,7 @@ describe("knowledge capture: sending", () => {
     const { user, onDone, legacySubmit } = setup({ submit })
     await user.click(radio("Yes"))
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(lastInput(submit)).toEqual({
       checkId: CHECK_ID,
       slotRevision: 7,
@@ -312,8 +312,8 @@ describe("knowledge capture: sending", () => {
       sent({ outcome: "recorded", recognition: { kind: "not_scored" } })
     )
     const { user } = setup({ submit })
-    await user.click(radio("Couldn't establish"))
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(radio("I couldn't find out"))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(submit).not.toHaveBeenCalled()
     expect(
       screen.getByText("Choose why you couldn't establish it.")
@@ -324,7 +324,7 @@ describe("knowledge capture: sending", () => {
       screen.getByRole("textbox", { name: /What did you try\?/ }),
       "The car park gate was locked"
     )
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(lastInput(submit)).toMatchObject({
       answer: "unknown",
       unknownPreset: "could_not_access",
@@ -393,12 +393,12 @@ describe("knowledge capture: a manager's own answer on a confirmation-required q
       canSelfConfirm: true,
       knowledgeSlot: stepFree,
     })
-    await user.click(radio("Not applicable"))
+    await user.click(radio("Doesn't apply here"))
     await user.type(
       screen.getByRole("textbox", { name: /^Reason/ }),
       "No entrance"
     )
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(submit).not.toHaveBeenCalled()
     expect(screen.getByText("Choose who confirms this answer.")).toBeTruthy()
     await user.click(radio("I confirm it now"))
@@ -420,7 +420,7 @@ describe("knowledge capture: a manager's own answer on a confirmation-required q
       canSelfConfirm: true,
       knowledgeSlot: stepFree,
     })
-    await user.click(radio("Not applicable"))
+    await user.click(radio("Doesn't apply here"))
     await user.type(
       screen.getByRole("textbox", { name: /^Reason/ }),
       "No entrance"
@@ -441,7 +441,7 @@ describe("knowledge capture: a manager's own answer on a confirmation-required q
     )
     expect(document.activeElement).toBe(group)
     await user.click(radio("Leave it for another manager or an admin"))
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(lastInput(submit)).toMatchObject({ confirmOwn: false })
     expect(status()).toContain(
       "Finding sent. It waits for another manager or an admin to confirm it."
@@ -453,7 +453,7 @@ describe("knowledge capture: refusals are never retried", () => {
   async function sendYes(user: ReturnType<typeof userEvent.setup>) {
     await user.click(radio("Yes"))
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
   }
 
   it("a question taken off the list says nothing was sent and offers only Reload (R1)", async () => {
@@ -586,7 +586,7 @@ describe("knowledge capture: refusals are never retried", () => {
     const user = userEvent.setup()
     await user.click(radio("Yes"))
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     const alert = screen.getByRole("alert")
     expect(alert.textContent).toContain("This question has a new form")
     expect(alert.textContent).toContain(
@@ -761,7 +761,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
       "Residents only"
     )
     await pick()
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(submit).not.toHaveBeenCalled()
     expect(
       screen.getByText(
@@ -776,7 +776,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     const { user, submit, pick } = withUpload()
     await user.click(radio("Yes"))
     await pick()
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(submit).not.toHaveBeenCalled()
     expect(
       screen.getByText(
@@ -791,7 +791,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     const { user, submit, pick, ready, onDone } = withUpload()
     await user.click(radio("Yes"))
     await pick()
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     await user.click(screen.getByRole("button", { name: "Wait for it" }))
     expect(
       screen.getByText(
@@ -837,7 +837,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
         "No guest network"
       )
       await pick()
-      await user.click(screen.getByRole("button", { name: "Submit finding" }))
+      await user.click(screen.getByRole("button", { name: "Send answer" }))
       expect(submit).not.toHaveBeenCalled()
       expect(screen.getByText(LINE)).toBeTruthy()
       expect(screen.queryByRole("button", { name: "Wait for it" })).toBeNull()
@@ -853,7 +853,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
       expect(tick().getAttribute("aria-checked")).toBe("false")
 
       await user.click(tick())
-      await user.click(screen.getByRole("button", { name: "Submit finding" }))
+      await user.click(screen.getByRole("button", { name: "Send answer" }))
       expect(submit).toHaveBeenCalledTimes(1)
       expect(lastInput(submit)).toMatchObject({
         answer: "no",
@@ -879,7 +879,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
         "10"
       )
       await pick()
-      await user.click(screen.getByRole("button", { name: "Submit finding" }))
+      await user.click(screen.getByRole("button", { name: "Send answer" }))
       expect(submit).not.toHaveBeenCalled()
       // Only the evidence is missing, so the pending-upload notice is what shows.
       expect(screen.getByText(LINE)).toBeTruthy()
@@ -910,7 +910,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     })
     await user.click(radio("Yes"))
     await pick()
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     await user.click(screen.getByRole("button", { name: "Wait for it" }))
     expect(
       screen.getByText(
@@ -930,7 +930,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     const { user, submit, pick, ready } = withUpload()
     await user.click(radio("Yes"))
     await pick()
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     await user.click(screen.getByRole("button", { name: "Wait for it" }))
     await user.click(
       screen.getByRole("button", { name: "Stop waiting and edit" })
@@ -938,14 +938,14 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     expect(radio("No").getAttribute("aria-disabled")).toBeNull()
     await ready()
     expect(submit).not.toHaveBeenCalled()
-    expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Send answer" })).toBeTruthy()
   })
 
   it("ends the wait with the list error when the photos can't be read, sending nothing (L3)", async () => {
     const { user, submit, pick, ready } = withUpload()
     await user.click(radio("Yes"))
     await pick()
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     await user.click(screen.getByRole("button", { name: "Wait for it" }))
     await ready({ failReload: true })
     expect(submit).not.toHaveBeenCalled()
@@ -966,7 +966,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     )
     await user.click(radio("Yes"))
     await pick()
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     await user.click(screen.getByRole("button", { name: "Wait for it" }))
     await ready()
     const alert = screen.getByRole("alert")
@@ -1057,7 +1057,7 @@ describe("knowledge capture: a send removes the saved draft (CA-01, CA-02, CA-04
         .getByRole("button", { name: "Saving…" })
         .getAttribute("aria-disabled")
     ).toBe("true")
-    const submitButton = screen.getByRole("button", { name: "Submit finding" })
+    const submitButton = screen.getByRole("button", { name: "Send answer" })
     expect(submitButton.getAttribute("aria-disabled")).toBe("true")
     await user.click(submitButton)
     expect(submit).not.toHaveBeenCalled()
@@ -1068,7 +1068,7 @@ describe("knowledge capture: a send removes the saved draft (CA-01, CA-02, CA-04
         savedAt: "2026-11-06T09:00:00.000Z",
       })
     )
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(submit).toHaveBeenCalledTimes(1)
     expect(saveDraft).toHaveBeenCalledTimes(1)
   })
@@ -1086,7 +1086,7 @@ describe("knowledge capture: a send removes the saved draft (CA-01, CA-02, CA-04
     expect(status()).toContain(
       "It's saved to your account when you're back online with this page open."
     )
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     online.mockReturnValue(true)
     await act(async () => {
       window.dispatchEvent(new Event("online"))
@@ -1203,7 +1203,7 @@ describe("knowledge capture: facility detail and Checked on (B03-b)", () => {
     expect(
       (screen.getByLabelText("When did you check?") as HTMLInputElement).value
     ).toBe(today)
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(lastInput(submit)).toMatchObject({
       answer: "yes",
       detail: { locations: [{ subjectId: BAR.subjectId }] },
@@ -1221,7 +1221,7 @@ describe("knowledge capture: facility detail and Checked on (B03-b)", () => {
     await user.clear(date)
     await user.type(date, daysBefore(today, 2))
     await user.type(screen.getByLabelText(/Reason/), "⟨Reason⟩")
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     const input = lastInput(submit)
     expect(input).toMatchObject({
       answer: "no",
@@ -1246,7 +1246,7 @@ describe("knowledge capture: facility detail and Checked on (B03-b)", () => {
     await user.click(radio("Yes"))
     await user.click(screen.getByRole("checkbox", { name: "⟨Back bar⟩" }))
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(
       await screen.findByText("Choose a place at this venue.")
     ).toBeTruthy()
@@ -1283,7 +1283,7 @@ describe("knowledge capture: facility detail and Checked on (B03-b)", () => {
         `This draft was started on ${longDate(started)}. Choose the day you checked.`
       )
     ).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(submit).not.toHaveBeenCalled()
     expect(screen.getByText("Choose the day you checked.")).toBeTruthy()
     await waitFor(() => expect(document.activeElement).toBe(date))
@@ -1364,7 +1364,7 @@ describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => 
     ).toBeNull()
     expect(screen.queryByText("Features")).toBeNull()
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(submit).not.toHaveBeenCalled()
     expect(
       screen.getByText(
@@ -1382,7 +1382,7 @@ describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => 
         "Yes says ⟨Main entrance⟩ is step-free. It says nothing about the others."
       )
     ).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     const input = lastInput(submit)
     expect(input.detail).toMatchObject({
       entrances: [
@@ -1408,11 +1408,11 @@ describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => 
       )
     ).toBeTruthy()
     await user.type(screen.getByLabelText(/Reason/), "⟨Reason⟩")
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(submit).not.toHaveBeenCalled()
     expect(
       screen.getByText(
-        "No needs The Old Crown's entrances to be listed first. Ask your manager to add them under Places, or send Couldn't establish."
+        "No needs The Old Crown's entrances to be listed first. Ask your manager to add them under Places, or answer I couldn't find out."
       )
     ).toBeTruthy()
   })
@@ -1436,7 +1436,7 @@ describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => 
       knowledgeSlot: stepFreeSlot(),
       detailForm: stepFreeForm(),
     })
-    await user.click(radio("Couldn't establish"))
+    await user.click(radio("I couldn't find out"))
     expect(
       screen.queryByRole("group", { name: "Which entrances did you check?" })
     ).toBeNull()
@@ -1454,7 +1454,7 @@ describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => 
     })
     await user.click(radio("Yes"))
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(submit).not.toHaveBeenCalled()
     expect(
       screen.getByText("Choose what you checked, or name it.")
@@ -1476,7 +1476,7 @@ describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => 
         { name: "Yes" }
       )
     )
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(lastInput(submit).detail).toMatchObject({
       scope: { subjectId: TOILET.subjectId },
       features: { grab_rails: "yes", alarm_cord: "not_checked" },
@@ -1510,7 +1510,7 @@ describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => 
     await user.click(radio("Yes"))
     await user.click(entrance("⟨Side door⟩", "Step-free"))
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(await screen.findByText("Mark every listed entrance.")).toBeTruthy()
   })
 
@@ -1606,7 +1606,7 @@ describe("knowledge capture: policy (B03 UI §4)", () => {
     await user.click(screen.getByRole("radio", { name: "Written policy" }))
     expect(screen.getByText("Nothing is missing.")).toBeTruthy()
     await user.type(screen.getByLabelText(/Reason/), "⟨Reason⟩")
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(lastInput(submit)).toMatchObject({
       answer: "no",
       detail: {
@@ -1702,12 +1702,13 @@ describe("knowledge capture: policy (B03 UI §4)", () => {
       )
     ).toBeTruthy()
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(lastInput(submit).detail).toEqual({ stance: "allowed" })
   })
 
   it("records Couldn't establish with its reason and no policy sections", async () => {
     const { user } = setup({ role: "manager", detailForm: statement() })
+    // The policy's own stance list keeps its words (POLICY_COPY).
     await user.click(screen.getByRole("radio", { name: "Couldn't establish" }))
     expect(screen.queryByRole("group", { name: "Areas" })).toBeNull()
     expect(screen.getByText("a rule (not Couldn't establish)")).toBeTruthy()
@@ -1769,7 +1770,7 @@ describe("knowledge capture: services and fixture showings (B03 UI §5)", () => 
     expect(screen.queryByText("Where is it?")).toBeNull()
     expect(screen.queryByLabelText("How to ask for it")).toBeNull()
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(lastInput(submit)).toMatchObject({
       answer: "yes",
       detail: {
@@ -1789,7 +1790,7 @@ describe("knowledge capture: services and fixture showings (B03 UI §5)", () => 
     await user.click(radio("Yes"))
     await user.click(screen.getByRole("checkbox", { name: "Sunday" }))
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(submit).not.toHaveBeenCalled()
     expect(screen.getByText("Choose the day it starts.")).toBeTruthy()
     await waitFor(() =>
@@ -1806,7 +1807,7 @@ describe("knowledge capture: services and fixture showings (B03 UI §5)", () => 
       screen.getByRole("radio", { name: "Temporarily unavailable" })
     )
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(submit).not.toHaveBeenCalled()
     expect(
       screen.getByText("Add the day it's back, or say what's happening.")
@@ -1851,7 +1852,7 @@ describe("knowledge capture: services and fixture showings (B03 UI §5)", () => 
     await user.type(screen.getByLabelText("Fixture"), "⟨Fixture⟩")
     await user.type(screen.getByLabelText("Date"), "2026-11-21")
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     const input = lastInput(submit)
     expect(input.detail).toEqual({
       event: { title: "⟨Fixture⟩", localDate: "2026-11-21" },
@@ -1885,7 +1886,7 @@ describe("knowledge capture: a recheck's sent notice (B03 UI §6.2)", () => {
     const { user } = setup({ submit })
     await user.click(radio("Yes"))
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(await screen.findByText("Recheck done.")).toBeTruthy()
   })
 
@@ -1896,7 +1897,7 @@ describe("knowledge capture: a recheck's sent notice (B03 UI §6.2)", () => {
     const { user } = setup({ submit, openRechecks: 1 })
     await user.click(radio("Yes"))
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     expect(
       await screen.findByText(
         "Recheck sent. It stays open until a manager or an admin confirms your finding."
@@ -1910,7 +1911,7 @@ describe("knowledge capture: a recheck's sent notice (B03 UI §6.2)", () => {
     const { user } = setup({ submit })
     await user.click(radio("Yes"))
     await user.click(photoBox())
-    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Send answer" }))
     await screen.findByText(/Finding sent/)
     expect(screen.queryByText(/Recheck/)).toBeNull()
   })

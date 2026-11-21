@@ -21,8 +21,10 @@ vi.mock("@/app/admin/settings/actions", () => ({
 
 import { ActivityList } from "@/app/admin/activity/activity-list"
 import {
+  AttentionNotice,
   ExceptionsPanel,
   IntegrationsPanel,
+  JobsPanel,
   OperationsPanel,
 } from "@/app/admin/settings/ops-panel"
 import { SettingsFormView } from "@/app/admin/settings/settings-form"
@@ -80,10 +82,31 @@ describe("Settings panels", () => {
     expect(screen.getByText("Nothing needs attention.")).toBeTruthy()
   })
 
+  it("puts what needs attention in one notice at the top of Rules", () => {
+    const { unmount } = render(<AttentionNotice status={status} />)
+    const notice = screen.getByTestId("settings-attention")
+    expect(notice.textContent).toContain("2 things need attention")
+    expect(notice.textContent).toContain("Storage is nearly full")
+    expect(notice.textContent).toContain("The Bell: no manager.")
+    unmount()
+    // Nothing to say: no notice (Operations shows the rest is fine).
+    const { container } = render(
+      <AttentionNotice status={{ ...status, exceptions: [] }} />
+    )
+    expect(container.textContent).toBe("")
+  })
+
   it("shows storage against the quota, stuck work and failed jobs", () => {
-    render(<OperationsPanel status={status} />)
+    render(
+      <>
+        <OperationsPanel status={status} />
+        <JobsPanel status={status} />
+      </>
+    )
     expect(screen.getByText(/85\.0 GB of 100\.0 GB/)).toBeTruthy()
     expect(screen.getByText("Stuck processing")).toBeTruthy()
+    // The jobs table moved out of Operations into Scheduled jobs.
+    expect(screen.getByRole("heading", { name: "Scheduled jobs" })).toBeTruthy()
     expect(screen.getByText("Upload cleanup")).toBeTruthy()
     expect(screen.getByText("storage_remove_failed")).toBeTruthy()
     expect(screen.getByText(/none recorded/)).toBeTruthy()

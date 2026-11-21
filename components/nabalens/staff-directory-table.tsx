@@ -59,24 +59,22 @@ type StaffDirectoryTableProps = StaffActions & {
   className?: string
 }
 
-const TEAM_SHORT: Record<Department, { short: string; long: string }> = {
-  foh: { short: "FOH", long: "Front of house" },
-  boh: { short: "BOH", long: "Back of house" },
+const TEAM_WORDS: Record<Department, string> = {
+  foh: "Front of house",
+  boh: "Back of house",
 }
 
-/** FOH, BOH or Unassigned, in the quiet weight of a fact. */
+/**
+ * Front of house, Back of house or Unassigned (handoff "People › Accounts"
+ * spells the team out; there is room for it in a desktop column).
+ */
 export function TeamLabel({
   department,
 }: {
   department: Department | null | undefined
 }) {
   if (!department) return <span className="text-ink-muted">Unassigned</span>
-  const team = TEAM_SHORT[department]
-  return (
-    <abbr title={team.long} className="font-semibold no-underline">
-      {team.short}
-    </abbr>
-  )
+  return <span>{TEAM_WORDS[department]}</span>
 }
 
 /**
@@ -257,8 +255,8 @@ export function StaffDirectoryTable({
         ))}
       </ul>
 
-      <div className="hidden overflow-hidden rounded-card bg-surface px-2 shadow-card md:block">
-        <Table aria-label="People">
+      <div className="hidden md:block">
+        <Table framed aria-label="People">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead scope="col" className="pl-4">

@@ -98,6 +98,25 @@ function needSetupText(venue: VenuePreparation) {
   return PREPARATION_COPY.needSetupDetail(venue.needSetup, why)
 }
 
+function Frame({
+  bare,
+  children,
+}: {
+  bare: boolean
+  children: React.ReactNode
+}) {
+  if (bare) return <div className="grid gap-4">{children}</div>
+  return (
+    <section
+      id="preparation"
+      aria-labelledby="preparation-title"
+      className="grid scroll-mt-20 gap-4"
+    >
+      {children}
+    </section>
+  )
+}
+
 /**
  * A17: whether every venue's month is set up, and what failed and why. The
  * venue table and Recent runs both read `model.entries`, so they always agree.
@@ -108,6 +127,7 @@ export function PreparationSection({
   venueNames,
   allRuns,
   primary,
+  bare = false,
 }: {
   model: PreparationModel
   period: PeriodView
@@ -116,20 +136,23 @@ export function PreparationSection({
   allRuns: Page<PreparationRunView>
   /** The page header already offers Prepare this month. */
   primary: boolean
+  /**
+   * Inside a disclosure that already names the section (second handoff):
+   * no section landmark or title of its own.
+   */
+  bare?: boolean
 }) {
   const month = monthName(period.label)
   const failed = model.unfinished
   return (
-    <section
-      id="preparation"
-      aria-labelledby="preparation-title"
-      className="grid scroll-mt-20 gap-4"
-    >
+    <Frame bare={bare}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid gap-1">
-          <h2 id="preparation-title" className="type-section-title text-ink">
-            {PREPARATION_COPY.title}
-          </h2>
+          {bare ? null : (
+            <h2 id="preparation-title" className="type-section-title text-ink">
+              {PREPARATION_COPY.title}
+            </h2>
+          )}
           <p className="max-w-reading text-body text-ink-muted">
             {PREPARATION_COPY.summary}
           </p>
@@ -290,6 +313,6 @@ export function PreparationSection({
           </div>
         </details>
       </div>
-    </section>
+    </Frame>
   )
 }

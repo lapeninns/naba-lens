@@ -11,6 +11,7 @@ import { getAssetDetail } from "@/lib/server/library/service"
 import { getMediaActor } from "@/lib/server/media/context"
 
 import { CompareView } from "../_components/compare"
+import { assetTitle } from "../_components/format"
 
 export const metadata: Metadata = { title: "Compare · Library" }
 
@@ -37,8 +38,9 @@ export default async function LibraryComparePage({
       <div className="flex flex-col gap-6">
         {/* Library, detail page: back to the first photo (redesign R5). */}
         <div className="grid min-w-0 gap-1">
+          {/* Second handoff: the back link names photo A (was "The photo"). */}
           <BackLink href={`/admin/library/${encodeURIComponent(a)}`} compact>
-            Photo details
+            {left.ok ? assetTitle(left.value) : "The photo"}
           </BackLink>
           <PageHeader
             scope="Library"

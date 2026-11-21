@@ -243,9 +243,18 @@ describe("menu version page", () => {
         "Pie needs a decision. Activation stays unavailable until it is decided."
       )
     ).toBeTruthy()
+    // Handoff "Version editor": Activate is shown disabled, with its reason.
+    const blocked = screen.getByRole("button", {
+      name: "Activate for labelling",
+    }) as HTMLButtonElement
+    // aria-disabled, not disabled: it stays focusable so the reason can be
+    // reached (DESIGN.md §8); the button holds the click.
+    expect(blocked.getAttribute("aria-disabled")).toBe("true")
+    expect(blocked.getAttribute("aria-describedby")).toBeTruthy()
     expect(
-      screen.queryByRole("button", { name: "Activate for labelling" })
-    ).toBeNull()
+      window.document.getElementById(blocked.getAttribute("aria-describedby")!)
+        ?.textContent
+    ).toBe("Resolve 1 uncertain match first.")
     await user.click(screen.getByRole("button", { name: "Review 1 item" }))
     expect(window.document.activeElement).toBe(
       screen.getByRole("region", { name: "Needs a decision" })

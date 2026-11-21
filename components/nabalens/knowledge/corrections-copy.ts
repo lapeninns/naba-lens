@@ -142,7 +142,7 @@ export function eventLine(e: SlotEventView): string {
       return `Withdrawn by ${by}.${why}`
     case "contribution":
       return e.answer
-        ? `Finding sent by ${by}: ${e.answer === "unknown" ? "Couldn't establish" : ANSWER_LABEL[e.answer]}.`
+        ? `Finding sent by ${by}: ${e.answer === "unknown" ? "I couldn't find out" : ANSWER_LABEL[e.answer]}.`
         : `Finding sent by ${by}.`
     case "correction_sent":
       return `Correction recorded by ${by}.`

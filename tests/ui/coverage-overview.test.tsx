@@ -173,6 +173,25 @@ describe("OverviewBody", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy()
   })
 
+  it("gives the menu one row with its state as a chip, linking to Menu", () => {
+    body()
+    const row = screen.getByTestId("overview-menu-row")
+    expect(row.getAttribute("href")).toBe(hrefs.menu)
+    expect(within(row).getByText("Menu coverage is current")).toBeTruthy()
+    cleanup()
+    body({
+      summary: summary({
+        menuState: "reconciliation_pending",
+        pendingReconciliation: 2,
+      }),
+    })
+    const changed = screen.getByTestId("overview-menu-row")
+    expect(within(changed).getByText("2 sections to decide")).toBeTruthy()
+    expect(
+      within(changed).getByText("Menu changed — review coverage")
+    ).toBeTruthy()
+  })
+
   it("announces a changed menu, with the date when known", () => {
     body({ menuChange: { changedOn: "1 Nov 2026" } })
     expect(screen.getByText("Menu changed — review coverage")).toBeTruthy()

@@ -3,6 +3,8 @@ import { CaretRightIcon, WarningIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { cn } from "@/lib/utils"
 
+import { Disclosure, DisclosureList } from "../disclosure"
+
 /** A titled block on a coverage page (`nl-section`). */
 export function CoverageSection({
   title,
@@ -12,6 +14,7 @@ export function CoverageSection({
   children,
   className,
   focusableTitle = false,
+  collapsed = false,
 }: {
   title: React.ReactNode
   /** Quiet text after the title: a count, a month or a state. */
@@ -22,8 +25,39 @@ export function CoverageSection({
   className?: string
   /** The title takes focus when an action removes the control that had it. */
   focusableTitle?: boolean
+  /**
+   * A reference section folded shut (second handoff, decision 4): a closed
+   * disclosure whose summary is the title and its count line. The section
+   * inside is unchanged; nothing is removed.
+   */
+  collapsed?: boolean
 }) {
   const titleId = id ? `${id}-title` : undefined
+  if (collapsed) {
+    // One disclosure implementation (components/nabalens/disclosure.tsx);
+    // the section keeps its landmark and h2, and the details carries the id.
+    return (
+      <section
+        aria-labelledby={titleId}
+        className={cn("min-w-0 scroll-mt-4", className)}
+      >
+        <DisclosureList>
+          <Disclosure
+            id={id}
+            title={
+              <h2 id={titleId} className="inline text-balance">
+                {title}
+              </h2>
+            }
+            summary={count}
+          >
+            {action ? <div className="flex justify-end">{action}</div> : null}
+            {children}
+          </Disclosure>
+        </DisclosureList>
+      </section>
+    )
+  }
   return (
     <section
       id={id}

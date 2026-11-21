@@ -427,6 +427,13 @@ export function DecisionPanel({
   const undecided = answers.length + unknowns.length
   const disputing = pending.filter((p) => p.disputes).length
   const readers = readersNow(answer, pending)
+  /**
+   * D22: not using a finding reads "Keep the current answer" when there is
+   * one to keep. With nothing in use, or when the finding is the answer in
+   * use itself (declining reopens it), it stays "Don't confirm".
+   */
+  const keepsCurrent = (f: PendingFinding) =>
+    Boolean(answer.value) && f.kind !== "answer_unconfirmed"
 
   const decide = (
     finding: PendingFinding,
@@ -484,8 +491,9 @@ export function DecisionPanel({
   }
 
   /**
-   * Confirm, or on a policy that still needs content an unavailable Confirm
-   * that says why (§4.4); Ask for more detail stays offered.
+   * Use this answer (D22: was Confirm), or on a policy that still needs
+   * content an unavailable one that says why (§4.4); Ask for more detail
+   * stays offered.
    */
   const confirmButton = (finding: PendingFinding) => {
     const blocked = policyConfirmBlock(finding.policyMissing)
@@ -500,7 +508,7 @@ export function DecisionPanel({
         }}
       >
         <CheckIcon aria-hidden />
-        Confirm
+        Use this answer
       </Button>
     )
   }
@@ -679,7 +687,11 @@ export function DecisionPanel({
             ) : (
               <XIcon aria-hidden />
             )}
-            {finding.disputes ? "Keep the answer in use" : "Don't confirm"}
+            {finding.disputes
+              ? "Keep the answer in use"
+              : keepsCurrent(finding)
+                ? "Keep the current answer"
+                : "Don't confirm"}
           </Button>
         ) : null}
         {permissions.canConfirm ? confirmButton(finding) : null}
@@ -828,7 +840,9 @@ export function DecisionPanel({
                 "finding" in ask &&
                 (ask.kind === "keep_single" || ask.finding.disputes)
               ? "Keep the answer in use?"
-              : "Don't confirm this finding?"
+              : ask && "finding" in ask && keepsCurrent(ask.finding)
+                ? "Keep this answer?"
+                : "Don't confirm this finding?"
         }
         label="Why not?"
         help={
@@ -857,7 +871,9 @@ export function DecisionPanel({
                 "finding" in ask &&
                 (ask.kind === "keep_single" || ask.finding.disputes)
               ? "Keep the answer in use"
-              : "Don't confirm"
+              : ask && "finding" in ask && keepsCurrent(ask.finding)
+                ? "Keep the current answer"
+                : "Don't confirm"
         }
         pendingLabel="Saving…"
         reportFocus={panelHeading}
@@ -930,7 +946,7 @@ export function DecisionPanel({
             ? `“${ANSWER_LABEL[answer.value]}” stops being used and stays in the history. “${KNOWLEDGE_ANSWER_LABEL[ask.finding.answer]}” is used from now.`
             : ""
         }
-        confirmLabel="Confirm and replace"
+        confirmLabel="Use this answer"
         onConfirm={async (note) => {
           if (ask?.kind !== "confirm_replace") return null
           const outcome = await decide(

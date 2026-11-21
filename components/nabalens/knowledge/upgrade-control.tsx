@@ -2,7 +2,11 @@
 
 import * as React from "react"
 
-import { CoverageNotice } from "@/components/nabalens/coverage"
+import {
+  CoverageNotice,
+  Tally,
+  TallyItem,
+} from "@/components/nabalens/coverage"
 import type { Notice as CoverageNoticeValue } from "@/components/nabalens/coverage"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
@@ -38,6 +42,17 @@ export const UPGRADE_COPY = {
       `${c.alreadyUpgraded} already upgraded`,
       `${c.currentSchema} already on the new form`,
     ].join(" · "),
+  // The dry run's five figures (second handoff, Question changes).
+  tally: {
+    answers: "Answers",
+    lossless: "Kept",
+    losslessNote: "details not recorded",
+    needsChecking: "Need checking again",
+    needsCheckingNote: "a recheck opens",
+    alreadyUpgraded: "Already upgraded",
+    currentSchema: "On the new form",
+  },
+  dryRunResult: "Dry run",
   apply: "Apply upgrade",
   applyTitle: "Apply this upgrade?",
   applyBody:
@@ -155,44 +170,69 @@ export function UpgradeControl({
     <div className="grid min-w-0 gap-4 rounded-card bg-surface p-4 shadow-card">
       <p className={MUTED}>{UPGRADE_COPY.intro}</p>
       <CoverageNotice notice={notice} onDismiss={() => setNotice(null)} />
-      <div className="grid min-w-0 gap-1.5">
-        <label htmlFor={`${id}-key`} className={LABEL}>
-          {UPGRADE_COPY.question}
-        </label>
-        <select
-          id={`${id}-key`}
-          value={key}
-          disabled={pending}
-          className={INPUT}
-          onChange={(e) => {
-            setKey(e.currentTarget.value)
-            setDry(null)
-          }}
-        >
-          <option value="">Choose…</option>
-          {questions.map((q) => (
-            <option key={q.key} value={q.key}>
-              {q.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={pending}
-          aria-busy={pending || undefined}
-          onClick={() => void run("dry_run")}
-        >
-          {pending && !open ? UPGRADE_COPY.running : UPGRADE_COPY.dryRun}
-        </Button>
+      {/* Second handoff: one form row from md, the question and its button. */}
+      <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+        <div className="grid min-w-0 gap-1.5">
+          <label htmlFor={`${id}-key`} className={LABEL}>
+            {UPGRADE_COPY.question}
+          </label>
+          <select
+            id={`${id}-key`}
+            value={key}
+            disabled={pending}
+            className={INPUT}
+            onChange={(e) => {
+              setKey(e.currentTarget.value)
+              setDry(null)
+            }}
+          >
+            <option value="">Choose…</option>
+            {questions.map((q) => (
+              <option key={q.key} value={q.key}>
+                {q.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={pending}
+            aria-busy={pending || undefined}
+            onClick={() => void run("dry_run")}
+          >
+            {pending && !open ? UPGRADE_COPY.running : UPGRADE_COPY.dryRun}
+          </Button>
+        </div>
       </div>
       {dry && dry.key === key ? (
-        <div className="grid gap-2">
-          <p className="text-body text-ink">
-            {UPGRADE_COPY.counts(dry.counts)}
-          </p>
+        <section aria-label={UPGRADE_COPY.dryRunResult} className="grid gap-3">
+          <Tally>
+            <TallyItem
+              label={UPGRADE_COPY.tally.answers}
+              value={dry.counts.answers}
+            />
+            <TallyItem
+              label={UPGRADE_COPY.tally.lossless}
+              value={dry.counts.lossless}
+              note={UPGRADE_COPY.tally.losslessNote}
+            />
+            <TallyItem
+              label={UPGRADE_COPY.tally.needsChecking}
+              value={dry.counts.needsChecking}
+              note={UPGRADE_COPY.tally.needsCheckingNote}
+              tone="attention"
+            />
+            <TallyItem
+              label={UPGRADE_COPY.tally.alreadyUpgraded}
+              value={dry.counts.alreadyUpgraded}
+            />
+            <TallyItem
+              label={UPGRADE_COPY.tally.currentSchema}
+              value={dry.counts.currentSchema}
+            />
+          </Tally>
           <div>
             <Button
               variant="primary"
@@ -205,7 +245,7 @@ export function UpgradeControl({
               {UPGRADE_COPY.apply}
             </Button>
           </div>
-        </div>
+        </section>
       ) : null}
       <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
         <DialogContent>

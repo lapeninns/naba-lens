@@ -4,7 +4,7 @@ import { SEARCH_COPY } from "./search-copy"
 
 /** The result list's columns, so the placeholder holds its place. */
 export const RESULTS_GRID =
-  "grid min-w-0 grid-cols-1 gap-gutter md:grid-cols-2 xl:grid-cols-3"
+  "grid min-w-0 grid-cols-2 gap-3 md:grid-cols-3 md:gap-gutter lg:grid-cols-4"
 
 /** Twelve card placeholders while the first page loads. */
 export function SearchGridSkeleton() {
@@ -13,10 +13,10 @@ export function SearchGridSkeleton() {
       {Array.from({ length: 12 }, (_, i) => (
         <div
           key={i}
-          className="flex gap-3 rounded-card bg-surface p-3 shadow-card"
+          className="grid overflow-hidden rounded-card bg-surface edge"
         >
-          <Skeleton className="size-24 shrink-0 rounded-control md:size-28" />
-          <div className="grid flex-1 content-start gap-2">
+          <Skeleton className="aspect-square w-full rounded-none" />
+          <div className="grid content-start gap-2 p-3">
             <Skeleton shape="line" className="w-3/4" />
             <Skeleton shape="line" className="w-1/2" />
             <Skeleton shape="line" className="w-2/3" />

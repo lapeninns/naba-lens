@@ -250,7 +250,7 @@ export function CorrectionForm({
 
   async function save() {
     const next: Record<string, string> = {}
-    if (!headline) next.headline = "Choose Yes, No or Not applicable."
+    if (!headline) next.headline = "Choose Yes, No or Doesn't apply here."
     if (!reason.trim()) next.reason = COPY.whyEmpty
     else if (reason.trim().length > 500)
       next.reason = "Use up to 500 characters."

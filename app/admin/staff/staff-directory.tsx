@@ -13,7 +13,6 @@ import {
   type Option,
   type StaffMember,
 } from "@/components/nabalens"
-import { SectionHeader } from "@/components/nabalens/common-room"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -230,13 +229,24 @@ export function StaffDirectory({
           <form
             role="search"
             aria-label="Filter staff"
-            className="flex flex-wrap items-end gap-3"
+            // Handoff "People › Accounts": search, venue, team and status in
+            // one row on desktop.
+            className="flex flex-wrap items-end gap-3 lg:flex-nowrap"
             onSubmit={(event) => {
               event.preventDefault()
               setApplied(draft)
             }}
           >
-            <Field className="w-full gap-1.5 sm:w-44">
+            <SearchField
+              id={`${id}-search`}
+              label="Search"
+              value={draft.query}
+              onValueChange={(query) => setDraft((d) => ({ ...d, query }))}
+              placeholder="Name or email"
+              autoComplete="off"
+              className="w-full min-w-48 sm:flex-1"
+            />
+            <Field className="w-full gap-1.5 sm:w-56">
               <FieldLabel htmlFor={`${id}-venue`}>Venue</FieldLabel>
               <OptionSelect
                 id={`${id}-venue`}
@@ -248,7 +258,7 @@ export function StaffDirectory({
                 emptyLabel="All venues"
               />
             </Field>
-            <Field className="w-full gap-1.5 sm:w-44">
+            <Field className="w-full gap-1.5 sm:w-40">
               <FieldLabel htmlFor={`${id}-team`}>Team</FieldLabel>
               <OptionSelect
                 id={`${id}-team`}
@@ -260,7 +270,7 @@ export function StaffDirectory({
                 emptyLabel="All teams"
               />
             </Field>
-            <Field className="w-full gap-1.5 sm:w-44">
+            <Field className="w-full gap-1.5 sm:w-40">
               <FieldLabel htmlFor={`${id}-status`}>Status</FieldLabel>
               <OptionSelect
                 id={`${id}-status`}
@@ -275,15 +285,6 @@ export function StaffDirectory({
                 emptyLabel="All statuses"
               />
             </Field>
-            <SearchField
-              id={`${id}-search`}
-              label="Search"
-              value={draft.query}
-              onValueChange={(query) => setDraft((d) => ({ ...d, query }))}
-              placeholder="Name or email"
-              autoComplete="off"
-              className="min-w-48 flex-1"
-            />
             <Button
               type="submit"
               variant="secondary"
@@ -325,17 +326,15 @@ export function StaffDirectory({
               }
             />
           ) : (
-            <section aria-labelledby={`${id}-accounts`} className="grid gap-3">
-              <SectionHeader
-                id={`${id}-accounts`}
-                title="Accounts"
-                className="pt-0"
-                action={
-                  <span className="text-meta text-ink-muted">
-                    {countLine(shown, filtered, authDetails)}
-                  </span>
-                }
-              />
+            <section aria-labelledby={`${id}-accounts`} className="grid gap-2">
+              {/* The tab already says Accounts: the heading is for screen
+                  readers, the count line is what shows. */}
+              <h2 id={`${id}-accounts`} className="sr-only">
+                Accounts
+              </h2>
+              <p className="px-1 text-meta text-ink-muted tabular-nums">
+                {countLine(shown, filtered, authDetails)}
+              </p>
               <StaffDirectoryTable
                 staff={shown}
                 managerIds={managers}
@@ -347,7 +346,7 @@ export function StaffDirectory({
                 onSetActive={controls.setActive}
                 pending={controls.busy}
               />
-              <p className="px-1 text-body text-ink-muted">
+              <p className="px-1 text-meta text-ink-muted">
                 Needs setup and Invited first, then A to Z by surname.
               </p>
             </section>

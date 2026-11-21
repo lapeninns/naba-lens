@@ -4,6 +4,7 @@
 // Managers and admins see "n of N" with the percentage as secondary text
 // (FA-8); nothing here ranks or compares people (DESIGN.md §9).
 
+import { COVERAGE_CATEGORIES } from "@/lib/album/model"
 import { coverageWords } from "@/lib/knowledge/facts"
 
 export const METRIC_CATEGORIES = [
@@ -15,13 +16,10 @@ export const METRIC_CATEGORIES = [
 ] as const
 export type MetricCategory = (typeof METRIC_CATEGORIES)[number]
 
-export const CATEGORY_WORDS: Record<MetricCategory, string> = {
-  food: "Food",
-  drinks: "Drinks",
-  spaces: "Spaces",
-  facilities: "Facilities",
-  other: "Other",
-}
+/** The album's category words (one source: lib/album/model). */
+export const CATEGORY_WORDS = Object.fromEntries(
+  COVERAGE_CATEGORIES.map((c) => [c.key, c.label])
+) as Record<MetricCategory, string>
 
 /** The periods a report can cover, in days (the database allows 1 to 366). */
 export const METRIC_PERIODS = [7, 30, 90] as const
@@ -484,7 +482,7 @@ export const routeWords = (route: string) => ROUTE_WORDS[route] ?? route
 export const REVIEW_KIND_WORDS: Record<string, string> = {
   dish: "Dishes and drinks",
   area: "Spaces",
-  amenity: "Facilities",
+  amenity: "Amenities",
   checklist: "Checklists",
 }
 

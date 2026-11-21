@@ -5,6 +5,7 @@
 // on a website (§10 inv. 9); nothing here claims a downloaded copy can be
 // recalled (§14.2).
 
+import { COVERAGE_CATEGORIES } from "@/lib/album/model"
 import type { ExportArea } from "@/lib/server/exports/hrefs"
 import type {
   ExportCategory,
@@ -15,13 +16,10 @@ import type {
   StaleReason,
 } from "@/lib/server/exports/model"
 
-export const CATEGORY_WORDS: Record<ExportCategory, string> = {
-  food: "Food",
-  drinks: "Drinks",
-  spaces: "Spaces",
-  facilities: "Facilities",
-  other: "Other",
-}
+/** The album's category words (one source: lib/album/model). */
+export const CATEGORY_WORDS = Object.fromEntries(
+  COVERAGE_CATEGORIES.map((c) => [c.key, c.label])
+) as Record<ExportCategory, string>
 
 export const PACKAGE_CHIP: Record<PackageState, string> = {
   ready: "package_ready",
@@ -82,6 +80,11 @@ export const EXPORTS_COPY = {
   publishedTitle: "Published",
   noPublished: "Nothing is recorded as published yet.",
   recentTitle: "Latest records",
+  // One package, admin (second handoff): one form for the chosen photo.
+  recordWhere: "Record where",
+  recordWhereTitle: "Record where it's published",
+  recordWhereNote:
+    "Exported is not Published. Choose a photo's Record where to say where it went.",
   profilesTitle: "Output sizes",
   profilesIntro:
     "Presets for resized files. They are our own settings, not a platform's rules.",
@@ -103,6 +106,16 @@ export const EXPORTS_COPY = {
   confirmRemoved: "Confirm it's taken down",
   removedNote: "Note (optional)",
   since: (when: string) => `Since ${when}`,
+  // The manager's follow-up Notice (second handoff): only admins confirm.
+  takeDownTitle: (n: number) =>
+    n === 1 ? "1 photo needs taking down" : `${n} photos need taking down`,
+  takeDownText:
+    "It is no longer approved for public use, or its publishing couldn't be confirmed. Take it down where it is used; an admin confirms it here. A copy someone has already downloaded can't be recalled.",
+  takeDownTextMany:
+    "They are no longer approved for public use, or their publishing couldn't be confirmed. Take them down where they are used; an admin confirms it here. A copy someone has already downloaded can't be recalled.",
+  notDownloaded: "Not downloaded yet",
+  publicationLabel: "Where photos are published",
+  lastOn: (when: string) => `Last on ${when}`,
 } as const
 
 /** "18 Nov 2026" in Europe/London. */
@@ -123,7 +136,17 @@ export function londonToday(): string {
   }).format(new Date())
 }
 
-export function packageTitle(pkg: ExportPackageSummary): string {
+/**
+ * A package's title. A manager's leads with the output size and what it is
+ * for, since the venue is already in the venue bar (second handoff); an
+ * admin's names the venue first.
+ */
+export function packageTitle(
+  pkg: Pick<ExportPackageSummary, "venueName" | "profile" | "note">,
+  area: ExportArea = "admin"
+): string {
+  if (area === "manager")
+    return pkg.note ? `${pkg.profile.label} · ${pkg.note}` : pkg.profile.label
   const where = pkg.venueName ?? EXPORTS_COPY.allVenues
   return `${where} · ${pkg.profile.label}`
 }

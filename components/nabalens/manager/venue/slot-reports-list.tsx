@@ -19,11 +19,13 @@ import { reasonWords, type SlotReport } from "@/lib/staff/slot-reports"
 /*
  * S3-R5 (K3): Venue › Reported changes (spec §6 S3, S4, §7 M5). Staff told
  * the manager that a slot or one of their photos has changed. A report never
- * changes anything by itself: the manager opens the dish, space, facility or
+ * changes anything by itself: the manager opens the dish, space, amenity or
  * photo to change it, then marks the report dealt with, or dismisses it, with
  * an optional note. A decided row stays and says what happened in place, so
  * the outcome is announced (DESIGN.md §6.7); the page drops it on the next
- * visit.
+ * visit. Second handoff: Dealt with is the one outlined action and Dismiss
+ * a quiet one, so the two are not mistaken for each other; either opens the
+ * optional note, and the choice is made with its confirm button.
  */
 
 export const SLOT_REPORTS_COPY = {
@@ -31,6 +33,9 @@ export const SLOT_REPORTS_COPY = {
   dismiss: "Dismiss",
   saving: "Saving",
   note: "Note",
+  cancel: "Cancel",
+  confirmResolve: "Mark dealt with",
+  confirmDismiss: "Dismiss report",
   resolved: "Marked as dealt with.",
   dismissed: "Dismissed. Nothing was changed.",
   failed: "That didn't save. Reload the page and try again.",
@@ -55,11 +60,10 @@ function Row({ report, onDecide }: { report: SlotReport; onDecide: Decide }) {
   const [done, setDone] = useState<SlotReportDecision | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
-  const [choice, setChoice] = useState<SlotReportDecision | null>(null)
+  const [asking, setAsking] = useState<SlotReportDecision | null>(null)
   const kind = REPORT_KIND_WORDS[report.subjectKind]
 
   function decide(action: SlotReportDecision) {
-    setChoice(action)
     start(async () => {
       setError(null)
       const result = await onDecide({
@@ -72,37 +76,58 @@ function Row({ report, onDecide }: { report: SlotReport; onDecide: Decide }) {
     })
   }
 
+  // The photo itself when the report is about one (the subject is the
+  // asset); other kinds have no photo loaded with the report.
+  const thumb =
+    report.subjectKind === "photo"
+      ? `/api/media/${encodeURIComponent(report.subjectId)}/thumb`
+      : null
+  const confirmLabel =
+    asking === "resolved"
+      ? SLOT_REPORTS_COPY.confirmResolve
+      : SLOT_REPORTS_COPY.confirmDismiss
+
   return (
     <li
       data-report={report.id}
       data-state={done ?? "open"}
       className="grid gap-3 rounded-card bg-surface p-4 edge"
     >
-      <div className="grid min-w-0 gap-1">
-        <p className="text-label [overflow-wrap:anywhere] text-ink">
-          {report.subjectName}
-        </p>
-        <p className="text-body text-ink">
-          {kind} · {reasonWords(report.reason)}
-        </p>
-        {report.note ? (
-          <p className="text-body [overflow-wrap:anywhere] text-ink-muted">
-            “{report.note}”
-          </p>
+      <div
+        className={
+          thumb ? "grid grid-cols-[4rem_minmax(0,1fr)] gap-3" : "contents"
+        }
+      >
+        {thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a short-lived signed URL behind an authorised route
+          <img
+            src={thumb}
+            alt=""
+            width={64}
+            height={64}
+            loading="lazy"
+            className="size-16 rounded-control bg-surface-2 object-cover"
+          />
         ) : null}
-        <p className="text-body text-ink-muted">
-          {SLOT_REPORTS_COPY.reportedBy(
-            report.reporterName,
-            when(report.createdAt)
-          )}
-        </p>
-        <Link
-          href={reportSubjectHref(report)}
-          aria-label={`${SLOT_REPORTS_COPY.open(kind)}: ${report.subjectName}`}
-          className="inline-flex min-h-12 items-center justify-self-start rounded-control text-body font-semibold text-accent-text underline underline-offset-4 focus-ring"
-        >
-          {SLOT_REPORTS_COPY.open(kind)}
-        </Link>
+        <div className="grid min-w-0 gap-1">
+          <p className="text-label [overflow-wrap:anywhere] text-ink">
+            {report.subjectName}
+          </p>
+          <p className="text-body text-ink">
+            {kind} · {reasonWords(report.reason)}
+          </p>
+          {report.note ? (
+            <p className="text-body [overflow-wrap:anywhere] text-ink-muted">
+              “{report.note}”
+            </p>
+          ) : null}
+          <p className="text-meta text-ink-muted">
+            {SLOT_REPORTS_COPY.reportedBy(
+              report.reporterName,
+              when(report.createdAt)
+            )}
+          </p>
+        </div>
       </div>
       {done ? (
         <p role="status" className="flex items-center gap-2 text-body text-ink">
@@ -111,10 +136,11 @@ function Row({ report, onDecide }: { report: SlotReport; onDecide: Decide }) {
             ? SLOT_REPORTS_COPY.resolved
             : SLOT_REPORTS_COPY.dismissed}
         </p>
-      ) : (
+      ) : asking ? (
         <div className="grid gap-3">
           <FormField label={SLOT_REPORTS_COPY.note} optional>
             <Input
+              autoFocus
               value={note}
               maxLength={DECISION_NOTE_MAX}
               onChange={(event) => setNote(event.target.value)}
@@ -125,25 +151,27 @@ function Row({ report, onDecide }: { report: SlotReport; onDecide: Decide }) {
             <Button
               variant="secondary"
               className="max-sm:w-full"
-              loading={pending && choice === "resolved"}
+              loading={pending}
               loadingLabel={SLOT_REPORTS_COPY.saving}
               disabled={pending}
-              aria-label={`${SLOT_REPORTS_COPY.resolve}: ${report.subjectName}`}
-              onClick={() => decide("resolved")}
+              aria-label={`${confirmLabel}: ${report.subjectName}`}
+              onClick={() => decide(asking)}
             >
-              <CheckIcon data-icon="inline-start" aria-hidden />
-              {SLOT_REPORTS_COPY.resolve}
+              {asking === "resolved" ? (
+                <CheckIcon data-icon="inline-start" aria-hidden />
+              ) : null}
+              {confirmLabel}
             </Button>
             <Button
               variant="quiet"
               className="max-sm:w-full"
-              loading={pending && choice === "dismissed"}
-              loadingLabel={SLOT_REPORTS_COPY.saving}
               disabled={pending}
-              aria-label={`${SLOT_REPORTS_COPY.dismiss}: ${report.subjectName}`}
-              onClick={() => decide("dismissed")}
+              onClick={() => {
+                setAsking(null)
+                setError(null)
+              }}
             >
-              {SLOT_REPORTS_COPY.dismiss}
+              {SLOT_REPORTS_COPY.cancel}
             </Button>
           </div>
           {error ? (
@@ -151,6 +179,33 @@ function Row({ report, onDecide }: { report: SlotReport; onDecide: Decide }) {
               {error}
             </p>
           ) : null}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={reportSubjectHref(report)}
+            aria-label={`${SLOT_REPORTS_COPY.open(kind)}: ${report.subjectName}`}
+            className="inline-flex min-h-11 items-center rounded-control px-1 text-body font-semibold text-accent-text underline underline-offset-4 focus-ring max-sm:w-full"
+          >
+            {SLOT_REPORTS_COPY.open(kind)}
+          </Link>
+          <Button
+            variant="secondary"
+            className="max-sm:flex-1 sm:ms-auto"
+            aria-label={`${SLOT_REPORTS_COPY.resolve}: ${report.subjectName}`}
+            onClick={() => setAsking("resolved")}
+          >
+            <CheckIcon data-icon="inline-start" aria-hidden />
+            {SLOT_REPORTS_COPY.resolve}
+          </Button>
+          <Button
+            variant="quiet"
+            className="max-sm:flex-1"
+            aria-label={`${SLOT_REPORTS_COPY.dismiss}: ${report.subjectName}`}
+            onClick={() => setAsking("dismissed")}
+          >
+            {SLOT_REPORTS_COPY.dismiss}
+          </Button>
         </div>
       )}
     </li>

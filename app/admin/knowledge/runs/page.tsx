@@ -11,6 +11,14 @@ import { RECONCILE_COPY as COPY } from "@/components/nabalens/knowledge/reconcil
 import { Notice } from "@/components/nabalens/notice"
 import { VenueFactsHeader } from "@/app/admin/_components/admin-tabs"
 import { buttonVariants } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { requireActiveAdmin } from "@/lib/auth"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCoverageActor } from "@/lib/server/coverage"
@@ -21,7 +29,6 @@ export const metadata: Metadata = { title: "Imports · Venue facts" }
 
 const PATH = "/admin/knowledge/runs"
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const MUTED = "text-meta text-ink-muted"
 
 type RunRow = {
   runId: string
@@ -61,6 +68,16 @@ function runRow(raw: Record<string, unknown>): RunRow | null {
   }
 }
 
+/** The runs table's columns (second handoff, Venue facts › Imports). */
+const RUN_COLUMNS = {
+  run: "Import",
+  started: "Started",
+  proposals: "Would be imported",
+  skipped: "Skipped",
+  conflicting: "Disagree",
+  corroborating: "Agree",
+}
+
 /** Admin (B03 UI design §7.4): reconciliation runs, and a new dry run. */
 export default async function RunsPage({
   searchParams,
@@ -86,7 +103,7 @@ export default async function RunsPage({
 
   return (
     <AppShell variant="admin" active="settings" userName={profile.displayName}>
-      <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
+      <div className="grid w-full min-w-0 gap-gutter">
         <VenueFactsHeader active="imports" />
         <StartDryRunForm
           venues={venues}
@@ -99,28 +116,58 @@ export default async function RunsPage({
           ) : rows.length === 0 ? (
             <p className="text-body text-ink">{COPY.noRuns}</p>
           ) : (
-            <ul className="grid gap-3">
-              {rows.map((r) => (
-                <li
-                  key={r.runId}
-                  className="grid gap-1 rounded-card bg-surface p-4 shadow-card"
-                >
-                  <Link
-                    href={`${PATH}/${r.runId}`}
-                    className="text-item-title text-ink underline-offset-2 hover:underline"
-                  >
-                    {COPY.runKind[r.kind]} · {COPY.runMode[r.mode]} ·{" "}
-                    {r.venueId
-                      ? (venueName.get(r.venueId) ?? COPY.aVenue)
-                      : COPY.allOfThem}
-                  </Link>
-                  <p className={MUTED}>
-                    {COPY.started(r.startedBy, dateAndTime(r.startedAt))}
-                  </p>
-                  <p className="text-body text-ink">{COPY.summary(r.counts)}</p>
-                </li>
-              ))}
-            </ul>
+            // Second handoff: a DataTable with the four counts as columns.
+            <Table stacked framed aria-label={COPY.runs}>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{RUN_COLUMNS.run}</TableHead>
+                  <TableHead>{RUN_COLUMNS.started}</TableHead>
+                  <TableHead numeric>{RUN_COLUMNS.proposals}</TableHead>
+                  <TableHead numeric>{RUN_COLUMNS.skipped}</TableHead>
+                  <TableHead numeric>{RUN_COLUMNS.conflicting}</TableHead>
+                  <TableHead numeric>{RUN_COLUMNS.corroborating}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.runId}>
+                    <TableHead scope="row" className="h-auto whitespace-normal">
+                      <span className="grid gap-0.5 py-1">
+                        <Link
+                          href={`${PATH}/${r.runId}`}
+                          className="inline-flex min-h-11 items-center text-label text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+                        >
+                          {COPY.runKind[r.kind]} · {COPY.runMode[r.mode]}
+                        </Link>
+                        <span className="text-meta font-normal text-ink-muted">
+                          {r.venueId
+                            ? (venueName.get(r.venueId) ?? COPY.aVenue)
+                            : COPY.allOfThem}
+                        </span>
+                      </span>
+                    </TableHead>
+                    <TableCell
+                      label={RUN_COLUMNS.started}
+                      className="whitespace-normal text-ink-muted"
+                    >
+                      {r.startedBy}, {dateAndTime(r.startedAt)}
+                    </TableCell>
+                    <TableCell label={RUN_COLUMNS.proposals} numeric>
+                      {r.counts.proposals}
+                    </TableCell>
+                    <TableCell label={RUN_COLUMNS.skipped} numeric>
+                      {r.counts.skipped}
+                    </TableCell>
+                    <TableCell label={RUN_COLUMNS.conflicting} numeric>
+                      {r.counts.conflicting}
+                    </TableCell>
+                    <TableCell label={RUN_COLUMNS.corroborating} numeric>
+                      {r.counts.corroborating}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
           {runs?.ok && runs.page.nextCursor ? (
             <div>

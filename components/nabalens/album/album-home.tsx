@@ -155,7 +155,7 @@ export function AlbumHome({
       {!ALBUM_UPLOAD_TRAY ? (
         <VenueBar
           name={ALBUM_COPY.albumOf(venueName)}
-          className="-mx-page-gutter md:mx-0 md:rounded-card md:border md:border-line"
+          className="-mx-page-gutter max-md:hidden md:mx-0 md:rounded-card md:border md:border-line"
         />
       ) : null}
       <section aria-labelledby="album-count" className="grid gap-2.5">

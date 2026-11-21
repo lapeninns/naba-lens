@@ -123,6 +123,8 @@ export function AccountHeader({
   photos,
   month,
   accountType,
+  venueAccess,
+  security,
   role = "staff",
 }: {
   member: StaffMember
@@ -139,8 +141,12 @@ export function AccountHeader({
   photos?: React.ReactNode
   /** The person's month section, rendered on the server, under Account. */
   month?: React.ReactNode
-  /** The Account type section, under Account. */
+  /** The Account type section, beside Account. */
   accountType?: React.ReactNode
+  /** Venues and what they can do: full width, first under the header. */
+  venueAccess?: React.ReactNode
+  /** The authenticator reset, under Account. */
+  security?: React.ReactNode
   /** "manager": a venue manager account (converted from staff). */
   role?: "staff" | "manager"
 }) {
@@ -190,10 +196,15 @@ export function AccountHeader({
         title={member.displayName}
         className="pb-0 md:pb-0"
         summary={
+          // Handoff "One person": the status chips, then job and venue.
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            {member.jobTitle ? <span>{member.jobTitle} ·</span> : null}
             <StaffStatusBadge status={member.status} />
             {isManager ? <StatusChip state="venue_manager" /> : null}
+            <span className="text-meta text-ink-muted">
+              {[member.jobTitle, venueName ?? "No venue"]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
           </span>
         }
         actions={
@@ -272,9 +283,16 @@ export function AccountHeader({
         </Notice>
       ) : null}
 
-      <div className="grid items-start gap-gutter lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
-        {photos}
-        <div className="grid gap-gutter">
+      {/* Handoff "One person": venues and what they can do first, full
+          width; then account type beside the details and authenticator;
+          the person's month and photos below. */}
+      {venueAccess}
+      <div className="grid items-start gap-gutter lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <div className="grid min-w-0 gap-gutter">
+          {accountType}
+          {month}
+        </div>
+        <div className="grid min-w-0 gap-gutter">
           <section
             aria-labelledby="account-heading"
             className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
@@ -319,10 +337,10 @@ export function AccountHeader({
               ]}
             />
           </section>
-          {accountType}
-          {month}
+          {security}
         </div>
       </div>
+      {photos}
       {controls.dialogs}
     </div>
   )

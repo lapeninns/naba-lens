@@ -14,7 +14,7 @@ export type SlotReportDecision = "resolved" | "dismissed"
 export const REPORT_KIND_WORDS: Record<SlotReportKind, string> = {
   dish: "Dish",
   area: "Space",
-  amenity: "Facility",
+  amenity: "Amenity",
   photo: "Photo",
 }
 

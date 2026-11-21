@@ -146,7 +146,7 @@ export function VenueDetailsForm({ venue }: { venue?: AdminVenue }) {
       <div>
         <Button
           type="submit"
-          variant="primary"
+          variant={venue ? "secondary" : "primary"}
           loading={pending}
           data-testid="venue-save"
         >
@@ -159,74 +159,140 @@ export function VenueDetailsForm({ venue }: { venue?: AdminVenue }) {
 
 // ---- reviewers ---------------------------------------------------------------
 
-export function ReviewerForm({
+const REVIEWER_WORDS: Record<
+  ReviewerResponsibility,
+  { label: string; description: string }
+> = {
+  main: {
+    label: "Main reviewer",
+    description: "Reviews this venue's photos first.",
+  },
+  backup: {
+    label: "Backup reviewer",
+    description: "Reviews when the main reviewer is away.",
+  },
+}
+
+/** A named reviewer who no longer reviews here stays in the list, marked. */
+function reviewerOptions(
+  current: VenueReviewer | null,
+  candidates: ReviewerCandidate[]
+) {
+  return current && !candidates.some((c) => c.profileId === current.profileId)
+    ? [
+        {
+          profileId: current.profileId,
+          name: `${current.name} (no longer reviews here)`,
+          role: "manager" as const,
+        },
+        ...candidates,
+      ]
+    : candidates
+}
+
+/**
+ * Main and backup reviewer in one form with one "Save reviewers" (second
+ * handoff, venue Setup). Each reviewer is still saved by its own
+ * setReviewerAction call, only for the ones that changed, so the action and
+ * its revision check are unchanged.
+ */
+export function ReviewersForm({
   venueId,
-  responsibility,
-  current,
+  main,
+  backup,
   candidates,
 }: {
   venueId: string
-  responsibility: ReviewerResponsibility
-  current: VenueReviewer | null
+  main: VenueReviewer | null
+  backup: VenueReviewer | null
   candidates: ReviewerCandidate[]
 }) {
-  const [state, action, pending] = useActionState(setReviewerAction, IDLE)
+  const [state, setState] = useState<FormState>(IDLE)
+  const [pending, startTransition] = useTransition()
   const errors = fieldErrors(state)
-  const label = responsibility === "main" ? "Main reviewer" : "Backup reviewer"
-  const listed =
-    current && !candidates.some((c) => c.profileId === current.profileId)
-      ? [
-          {
-            profileId: current.profileId,
-            name: `${current.name} (no longer reviews here)`,
-            role: "manager" as const,
-          },
-          ...candidates,
-        ]
-      : candidates
+  const current = { main, backup }
+
+  function submit(form: FormData) {
+    startTransition(async () => {
+      const reason = String(form.get("reason") ?? "")
+      let changed = false
+      for (const responsibility of ["main", "backup"] as const) {
+        const was = current[responsibility]
+        const picked = String(form.get(responsibility) ?? "")
+        if (picked === (was?.profileId ?? "")) continue
+        const one = new FormData()
+        one.set("venueId", venueId)
+        one.set("responsibility", responsibility)
+        one.set("revision", String(was?.revision ?? 0))
+        one.set("profileId", picked)
+        one.set("reason", reason)
+        const result = await setReviewerAction(IDLE, one)
+        if (result.status === "error") {
+          setState(result)
+          return
+        }
+        if (result.status === "saved" && result.changed) changed = true
+      }
+      setState({ status: "saved", changed })
+    })
+  }
+
   return (
     <form
-      action={action}
+      action={submit}
       className={BOX}
       noValidate
-      data-testid={`reviewer-${responsibility}`}
+      data-testid="reviewers-form"
     >
-      <input type="hidden" name="venueId" value={venueId} />
-      <input type="hidden" name="responsibility" value={responsibility} />
-      <input type="hidden" name="revision" value={current?.revision ?? 0} />
+      {(["main", "backup"] as const).map((responsibility) => {
+        const reviewer = current[responsibility]
+        const words = REVIEWER_WORDS[responsibility]
+        return (
+          <div
+            key={responsibility}
+            className="grid gap-2"
+            data-testid={`reviewer-${responsibility}`}
+          >
+            <FormField label={words.label} description={words.description}>
+              <select
+                name={responsibility}
+                defaultValue={reviewer?.profileId ?? ""}
+                className={SELECT}
+              >
+                <option value="">Nobody named</option>
+                {reviewerOptions(reviewer, candidates).map((c) => (
+                  <option key={c.profileId} value={c.profileId}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            {reviewer && !reviewer.eligible ? (
+              <Notice tone="attention">
+                {reviewer.name} no longer reviews at this venue. Name someone
+                who does.
+              </Notice>
+            ) : null}
+          </div>
+        )
+      })}
       <FormField
-        label={label}
-        description={
-          responsibility === "main"
-            ? "Reviews this venue's photos first."
-            : "Reviews when the main reviewer is away."
-        }
+        label="Reason"
+        optional
+        description="Kept in Activity."
+        error={errors.reason}
       >
-        <select
-          name="profileId"
-          defaultValue={current?.profileId ?? ""}
-          className={SELECT}
-        >
-          <option value="">Nobody named</option>
-          {listed.map((c) => (
-            <option key={c.profileId} value={c.profileId}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </FormField>
-      {current && !current.eligible ? (
-        <Notice tone="attention">
-          {current.name} no longer reviews at this venue. Name someone who does.
-        </Notice>
-      ) : null}
-      <FormField label="Reason" optional error={errors.reason}>
         <Input name="reason" maxLength={500} />
       </FormField>
       <Result state={state} saved="Saved. The change is in Activity." />
       <div>
-        <Button type="submit" variant="secondary" loading={pending}>
-          Save {label.toLowerCase()}
+        <Button
+          type="submit"
+          variant="primary"
+          loading={pending}
+          data-testid="reviewers-save"
+        >
+          Save reviewers
         </Button>
       </div>
     </form>

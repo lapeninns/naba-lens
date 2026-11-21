@@ -546,7 +546,10 @@ export function captureForm(page: Page) {
       download: page.getByLabel("Download (Mbps)", { exact: true }),
       upload: page.getByLabel("Upload (Mbps)", { exact: true }),
     },
-    submit: page.getByRole("button", { name: UI_TEXT.submit }),
+    // Everyone sends an answer (D22).
+    submit: page.getByRole("button", {
+      name: UI_TEXT.submit,
+    }),
   }
 }
 

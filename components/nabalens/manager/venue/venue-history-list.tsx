@@ -18,32 +18,48 @@ import { MANAGER_COPY } from "../copy"
  * changes" loads the next page in place.
  */
 
-const when = (iso: string) =>
+const LONDON = { timeZone: "Europe/London" } as const
+const day = (iso: string) =>
   new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
+    ...LONDON,
     day: "numeric",
     month: "short",
     year: "numeric",
+  }).format(new Date(iso))
+const clock = (iso: string) =>
+  new Intl.DateTimeFormat("en-GB", {
+    ...LONDON,
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(iso))
 
+/** Each row leads with its time in a fixed column, so a day can be scanned
+ * (second handoff). */
 function Item({ item }: { item: VenueHistoryItem }) {
   const copy = MANAGER_COPY.venueHistory
   return (
-    <li data-history={item.source} className="grid gap-0.5 px-4 py-3 text-body">
-      <p className="text-label [overflow-wrap:anywhere] text-ink">
-        {historyActionWords(item.action)}
-      </p>
-      <p className="font-mono text-meta text-ink-muted">
-        <time dateTime={item.at}>{when(item.at)}</time> ·{" "}
-        {copy.by(item.actorName)}
-      </p>
-      {item.reason ? (
-        <p className="[overflow-wrap:anywhere] text-ink-muted">
-          “{item.reason}”
+    <li
+      data-history={item.source}
+      className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3 px-4 py-3 text-body"
+    >
+      <time
+        dateTime={item.at}
+        className="grid content-start font-mono text-meta text-ink-muted tabular-nums"
+      >
+        <span>{day(item.at)}</span>
+        <span>{clock(item.at)}</span>
+      </time>
+      <div className="grid min-w-0 gap-0.5">
+        <p className="text-label [overflow-wrap:anywhere] text-ink">
+          {historyActionWords(item.action)}
         </p>
-      ) : null}
+        <p className="text-meta text-ink-muted">{copy.by(item.actorName)}</p>
+        {item.reason ? (
+          <p className="[overflow-wrap:anywhere] text-ink-muted">
+            “{item.reason}”
+          </p>
+        ) : null}
+      </div>
     </li>
   )
 }

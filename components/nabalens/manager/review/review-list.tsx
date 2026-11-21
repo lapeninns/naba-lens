@@ -598,7 +598,7 @@ export function ReviewList({
                   <section aria-labelledby={headingId} className="grid gap-3">
                     <h2
                       id={headingId}
-                      className="type-section-title break-words text-ink"
+                      className="text-heading break-words text-ink"
                     >
                       {REVIEW_COPY.groupHeading(group.name ?? "", total)}
                     </h2>

@@ -4,7 +4,10 @@ import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
 import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
 
-/** Exceptions, then the operations tiles and the form (spec §8 A7). */
+/**
+ * Settings › Rules in its real layout (handoff "Loading"): the rules card
+ * beside Operations and Shared set-up, as sunken blocks in their shape.
+ */
 export default function AdminSettingsLoading() {
   return (
     <AppShell variant="admin" active="settings">
@@ -16,17 +19,36 @@ export default function AdminSettingsLoading() {
         >
           <AdminTabs set="settings" active="rules" />
         </PageHeader>
-        <SkeletonRegion label="Loading settings" className="grid gap-6">
-          <Skeleton shape="title" className="w-48" />
-          <div className="grid gap-2 rounded-card border border-line bg-surface p-3 sm:grid-cols-4">
-            {Array.from({ length: 4 }, (_, i) => (
-              <Skeleton key={i} shape="line" className="h-16" />
+        <SkeletonRegion
+          label="Loading settings"
+          className="grid items-start gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]"
+        >
+          <div className="grid gap-3">
+            <Skeleton shape="title" className="w-56" />
+            <div className="grid gap-4 rounded-card bg-surface p-4 shadow-card sm:grid-cols-2">
+              {Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className="grid gap-1.5">
+                  <Skeleton shape="line" className="w-2/3" />
+                  <Skeleton className="h-10" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-8">
+            {[4, 4].map((rows, block) => (
+              <div key={block} className="grid gap-3">
+                <Skeleton shape="title" className="w-36" />
+                <div className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card">
+                  {Array.from({ length: rows }, (_, i) => (
+                    <div key={i} className="grid min-h-14 gap-2 px-4 py-3">
+                      <Skeleton shape="line" className="w-1/2" />
+                      <Skeleton shape="line" className="w-1/3" />
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-          <Skeleton shape="title" className="w-64" />
-          {Array.from({ length: 3 }, (_, i) => (
-            <Skeleton key={i} shape="line" className="h-24" />
-          ))}
         </SkeletonRegion>
       </div>
     </AppShell>

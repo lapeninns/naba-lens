@@ -3,7 +3,9 @@ import {
   Tally,
   TallyItem,
 } from "@/components/nabalens/coverage"
+import { Disclosure, DisclosureList } from "@/components/nabalens/disclosure"
 import { EmptyState } from "@/components/nabalens/empty-state"
+import { LinkSelect } from "@/components/nabalens/link-select"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
 import {
@@ -74,6 +76,8 @@ export function OfNumber({ n, d }: { n: number; d: number }) {
   )
 }
 
+const ALL = "all"
+
 export function MetricsFilters({
   days,
   category,
@@ -102,27 +106,29 @@ export function MetricsFilters({
         ))}
       </PillGroup>
       {categories ? (
-        <PillGroup label={C.categoryLabel}>
-          <FilterPill
-            href={hrefs.filter({ category: null })}
-            selected={category === null}
-            current="true"
-            scroll={false}
-          >
-            {C.allCategories}
-          </FilterPill>
-          {METRIC_CATEGORIES.map((c) => (
-            <FilterPill
-              key={c}
-              href={hrefs.filter({ category: c })}
-              selected={category === c}
-              current="true"
-              scroll={false}
-            >
-              {CATEGORY_WORDS[c]}
-            </FilterPill>
-          ))}
-        </PillGroup>
+        // A Select, not seven pills (handoff 2): it is changed less often
+        // than the period, and fits one row on a phone.
+        <div className="grid max-w-xs gap-1.5">
+          <span aria-hidden className="text-label text-ink">
+            {C.categoryLabel}
+          </span>
+          <LinkSelect
+            aria-label={C.categoryLabel}
+            value={category ?? ALL}
+            options={[
+              {
+                id: ALL,
+                name: C.allCategories,
+                href: hrefs.filter({ category: null }),
+              },
+              ...METRIC_CATEGORIES.map((c) => ({
+                id: c,
+                name: CATEGORY_WORDS[c],
+                href: hrefs.filter({ category: c }),
+              })),
+            ]}
+          />
+        </div>
       ) : null}
     </div>
   )
@@ -211,7 +217,7 @@ function CoverageTable({
             <TableHead>{C.covered}</TableHead>
             <TableHead numeric>{C.awaitingReview}</TableHead>
             <TableHead numeric>{C.checkDue}</TableHead>
-            <TableHead numeric>{C.anotherPhoto}</TableHead>
+            <TableHead numeric>{C.retakeColumn}</TableHead>
             <TableHead numeric>{C.missing}</TableHead>
             <TableHead numeric>{C.notCounted}</TableHead>
           </TableRow>
@@ -231,7 +237,7 @@ function CoverageTable({
               <TableCell label={C.checkDue} numeric>
                 {c.checkDue}
               </TableCell>
-              <TableCell label={C.anotherPhoto} numeric>
+              <TableCell label={C.retakeColumn} numeric>
                 {c.replacementNeeded}
               </TableCell>
               <TableCell label={C.missing} numeric>
@@ -557,12 +563,40 @@ export function MetricsReport({
       <AttentionTally m={metrics} category={category} hrefs={hrefs} />
       <MetricsFilters days={metrics.days} category={category} hrefs={hrefs} />
       <CoverageTable m={metrics} category={category} />
-      <CompletenessSection m={metrics} category={category} />
       <ReviewSection m={metrics} />
-      <UseSection m={metrics} />
-      <ReliabilitySection m={metrics} />
-      <HowCounted m={metrics} category={category} />
-      <FlowSection m={metrics} />
+      {/* Reference sections fold shut (handoff 2, decision 4); each holds
+          its whole section. A link to #reliability or #how-counted opens
+          its disclosure (the browser reveals a fragment's details). */}
+      <DisclosureList label={C.moreLabel}>
+        {/* D22: Items and facts folds like the other references. */}
+        <Disclosure title={C.completenessTitle} summary={C.completenessSummary}>
+          <CompletenessSection m={metrics} category={category} />
+        </Disclosure>
+        <Disclosure
+          title={C.useTitle}
+          summary={C.useSummary(
+            metrics.contributions.useful,
+            metrics.contentUse.exports.downloads
+          )}
+        >
+          <UseSection m={metrics} />
+        </Disclosure>
+        <Disclosure
+          title={C.reliabilityTitle}
+          summary={C.reliabilitySummary(
+            metrics.reliability.failed,
+            metrics.reliability.uploads
+          )}
+        >
+          <ReliabilitySection m={metrics} />
+        </Disclosure>
+        <Disclosure title={C.howCountedTitle} summary={C.howCountedSummary}>
+          <HowCounted m={metrics} category={category} />
+        </Disclosure>
+        <Disclosure title={C.flowTitle} summary={C.flowSummary}>
+          <FlowSection m={metrics} />
+        </Disclosure>
+      </DisclosureList>
       <p className="px-1 text-meta text-ink-muted">
         {C.generated(DATE.format(new Date(metrics.generatedAt)))}
       </p>

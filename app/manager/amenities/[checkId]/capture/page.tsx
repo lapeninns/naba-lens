@@ -44,7 +44,7 @@ export default async function ManagerAmenityCapturePage({
       venueId={ctx.venueId}
       venueName={ctx.venue.name}
       backHref={checkHref}
-      backLabel="Back to the check"
+      backLabel="The question"
       doneHref={checkHref}
       complete={typeof complete === "string" ? complete : null}
       correct={search?.correct === "1"}

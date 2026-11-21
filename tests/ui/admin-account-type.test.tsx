@@ -399,6 +399,10 @@ describe("Venue managers", () => {
         basePath="/admin/coverage/managers"
       />
     )
+    // The grant form opens in a Dialog from its button (second handoff).
+    await user.click(
+      screen.getByRole("button", { name: "Make someone a venue manager" })
+    )
     expect(
       screen.getByText("Manager accounts at this venue without access.")
     ).toBeTruthy()

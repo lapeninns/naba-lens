@@ -1,9 +1,7 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
 import {
-  ArrowLeftIcon,
   ArrowUUpLeftIcon,
   ImagesIcon,
   MegaphoneSimpleIcon,
@@ -14,6 +12,8 @@ import {
   type ReportSender,
 } from "@/components/nabalens/album/report-change-dialog"
 import { SlotTile } from "@/components/nabalens/album/slot-tile"
+import { BackLink } from "@/components/nabalens/back-link"
+import { ActionDock } from "@/components/nabalens/common-room/action-dock"
 import { Notice } from "@/components/nabalens/notice"
 import { useAdd } from "@/components/nabalens/shell/add-context"
 import { StatusChip } from "@/components/nabalens/status-chip"
@@ -31,11 +31,12 @@ import { REPORT_COPY } from "@/lib/staff/slot-reports"
 
 /*
  * A slot's own page (spec §6 S3; DESIGN.md §5 "tapping a filled slot opens
- * the slot"; S2-STAFF): the photo in the album, the brief, how many photos
- * wait for review (a number, never a colleague's photo: FA-20), the
- * reviewer's reason when the person was asked to retake it (AC17), the
- * person's own photos of it, Add a photo (gallery first, §2) and Report a
- * change. An amenity slot keeps its question page (§6.3).
+ * the slot"; S2-STAFF): the VenueBar, a back link naming the shelf it came
+ * from, the caption path, then the reviewer's reason first when the person
+ * was asked to retake it (AC17), the brief, the photos (posted photos, or
+ * the album's photo, the waiting count and the person's own: FA-20), Report
+ * a change under "Has this … changed?", and Add photos (gallery first, §2)
+ * pinned. An amenity slot keeps its question page (§6.3).
  */
 
 export const SLOT_COPY = {
@@ -57,6 +58,15 @@ export const SLOT_COPY = {
   add: "Add a photo for this slot",
   addAnother: "Add another photo",
   report: REPORT_COPY.slotTitle,
+  changedTitle: (kind: "dish" | "area" | "amenity") =>
+    kind === "area" ? "Has this space changed?" : "Has this dish changed?",
+  changedText: (kind: "dish" | "area" | "amenity") =>
+    kind === "area"
+      ? "Tell your manager if it isn't available, looks different or is named wrongly."
+      : "Tell your manager if it is no longer served, looks different or is named wrongly.",
+  addFor: "Add photos for this slot",
+  addMore: "Add more photos",
+  role: "You're staff here",
 } as const
 
 export type SlotOwnPhoto = {
@@ -69,6 +79,7 @@ export function AlbumSlotScreen({
   venueName,
   placeLabel,
   placeHref,
+  path = null,
   slot,
   retake,
   ownPhotos,
@@ -79,8 +90,11 @@ export function AlbumSlotScreen({
   headingLevel = 1,
 }: {
   venueName: string
+  /** The back link's words: the shelf the slot sits on ("Mains"). */
   placeLabel: string
   placeHref: string
+  /** Where it sits, as a caption ("Menu · Mains · Chef's selection"). */
+  path?: string | null
   slot: AlbumSlot
   /** The reviewer's exact reason, when the person was asked to retake it. */
   retake: { reason: string | null } | null
@@ -115,20 +129,15 @@ export function AlbumSlotScreen({
     <div className="grid gap-5 pb-4" data-slot="album-slot">
       <VenueBar
         name={venueName}
-        className="-mx-page-gutter md:mx-0 md:rounded-card md:border md:border-line"
+        role={SLOT_COPY.role}
+        className="-mx-page-gutter max-md:hidden md:mx-0 md:rounded-card md:border md:border-line"
       />
       <div className="-mt-3">
-        <Link
-          href={placeHref}
-          className="inline-flex min-h-12 items-center gap-1 text-label text-ink focus-ring"
-        >
-          <ArrowLeftIcon aria-hidden className="size-5" />
-          {SLOT_COPY.back(placeLabel)}
-        </Link>
+        <BackLink href={placeHref}>{SLOT_COPY.back(placeLabel)}</BackLink>
       </div>
       <header className="grid gap-0.5">
         <p className="text-caption text-ink-muted">
-          {venueName} · {slot.group}
+          {path ?? `${venueName} · ${slot.group}`}
         </p>
         <Title className="type-display [overflow-wrap:anywhere] text-ink">
           {slot.name}
@@ -136,29 +145,24 @@ export function AlbumSlotScreen({
       </header>
 
       {retake ? (
-        <section
+        // The reason leads, above the brief (screens-2 handoff).
+        <Notice
+          tone="attention"
+          role="note"
+          icon={ArrowUUpLeftIcon}
+          title={SLOT_COPY.retakeTitle}
           aria-label={SLOT_COPY.retakeTitle}
-          // Drawn as v2 Notice (attention): brass soft ground, brass icon and
-          // title, the reviewer's words in ink.
-          className="flex items-start gap-3 rounded-card bg-warn-bg p-4 text-ink"
           data-slot="slot-retake"
         >
-          <ArrowUUpLeftIcon
-            aria-hidden
-            weight="bold"
-            className="mt-0.5 size-6 shrink-0 text-warn-fg"
-          />
-          <span className="grid gap-0.5">
-            <span className="text-heading text-warn-fg">
-              {SLOT_COPY.retakeTitle}
-            </span>
-            <span className="text-body [overflow-wrap:anywhere]">
-              {retake.reason ?? SLOT_COPY.retakeNoReason}
-            </span>
-          </span>
-        </section>
+          <p className="[overflow-wrap:anywhere]">
+            {retake.reason ?? SLOT_COPY.retakeNoReason}
+          </p>
+        </Notice>
       ) : null}
 
+      {postedPhotos !== undefined ? (
+        <SlotBrief slot={slot} Section={Section} />
+      ) : null}
       {postedPhotos}
       {/* FA-51: an optional slot says so with posted photos too (D21). */}
       {postedPhotos !== undefined && slot.optional ? (
@@ -198,34 +202,9 @@ export function AlbumSlotScreen({
         ) : null}
 
         <div className="grid content-start gap-4">
-          <section aria-labelledby="slot-brief" className="grid gap-1">
-            <Section id="slot-brief" className="type-section-title text-ink">
-              {SLOT_COPY.briefTitle}
-            </Section>
-            <p className="text-body [overflow-wrap:anywhere] text-ink">
-              {slot.brief ?? SLOT_COPY.noBrief}
-            </p>
-            {slot.neededBy ? (
-              <p className="text-meta text-ink-muted">{slot.neededBy}</p>
-            ) : null}
-            {slot.exampleAssetId ? (
-              // FA-52 (spec §5.2 step 2): an approved example beside the brief.
-              <figure
-                className="mt-1 grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-3"
-                data-slot="slot-example"
-              >
-                <Photo
-                  src={`/api/media/${encodeURIComponent(slot.exampleAssetId)}/thumb`}
-                  alt=""
-                  ratio="1/1"
-                  radius="square"
-                />
-                <figcaption className="text-meta text-ink-muted">
-                  {SLOT_COPY.example}
-                </figcaption>
-              </figure>
-            ) : null}
-          </section>
+          {postedPhotos === undefined ? (
+            <SlotBrief slot={slot} Section={Section} />
+          ) : null}
 
           {postedPhotos === undefined && slot.pendingCount > 0 ? (
             <p className="text-body text-ink-muted" data-slot="slot-pending">
@@ -269,17 +248,27 @@ export function AlbumSlotScreen({
           ) : null}
           {blocked ? <Notice tone="attention">{blocked}</Notice> : null}
 
-          <div className="grid gap-2 sm:flex sm:flex-wrap">
-            <Button variant="secondary" onClick={() => setReporting(true)}>
+          <section aria-labelledby="slot-changed" className="grid gap-2">
+            <Section id="slot-changed" className="type-section-title text-ink">
+              {SLOT_COPY.changedTitle(target.kind)}
+            </Section>
+            <p className="text-body text-ink-muted">
+              {SLOT_COPY.changedText(target.kind)}
+            </p>
+            <Button
+              variant="secondary"
+              className="justify-self-start"
+              onClick={() => setReporting(true)}
+            >
               <MegaphoneSimpleIcon data-icon="inline-start" aria-hidden />
               {SLOT_COPY.report}
             </Button>
-          </div>
+          </section>
         </div>
       </div>
 
       {target.kind !== "amenity" ? (
-        <div className="sticky bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+0.5rem)] z-dock md:static">
+        <ActionDock>
           <Button
             variant="primary"
             size="lg"
@@ -288,9 +277,9 @@ export function AlbumSlotScreen({
             onClick={add}
           >
             <ImagesIcon data-icon="inline-start" aria-hidden />
-            {empty ? "Add photos for this slot" : "Add more photos"}
+            {empty ? SLOT_COPY.addFor : SLOT_COPY.addMore}
           </Button>
-        </div>
+        </ActionDock>
       ) : null}
 
       <ReportChangeDialog
@@ -310,5 +299,45 @@ export function AlbumSlotScreen({
         onSent={(created) => setSent(created ? "created" : "open")}
       />
     </div>
+  )
+}
+
+/** What the photo must show (DESIGN.md §5 Brief), with the example photo. */
+function SlotBrief({
+  slot,
+  Section,
+}: {
+  slot: AlbumSlot
+  Section: "h2" | "h3" | "h4" | "h5"
+}) {
+  return (
+    <section aria-labelledby="slot-brief" className="grid gap-1">
+      <Section id="slot-brief" className="type-section-title text-ink">
+        {SLOT_COPY.briefTitle}
+      </Section>
+      <p className="text-body [overflow-wrap:anywhere] text-ink">
+        {slot.brief ?? SLOT_COPY.noBrief}
+      </p>
+      {slot.neededBy ? (
+        <p className="text-meta text-ink-muted">{slot.neededBy}</p>
+      ) : null}
+      {slot.exampleAssetId ? (
+        // FA-52 (spec §5.2 step 2): an approved example beside the brief.
+        <figure
+          className="mt-1 grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-3"
+          data-slot="slot-example"
+        >
+          <Photo
+            src={`/api/media/${encodeURIComponent(slot.exampleAssetId)}/thumb`}
+            alt=""
+            ratio="1/1"
+            radius="square"
+          />
+          <figcaption className="text-meta text-ink-muted">
+            {SLOT_COPY.example}
+          </figcaption>
+        </figure>
+      ) : null}
+    </section>
   )
 }

@@ -2,6 +2,7 @@ import { Card } from "@/components/nabalens/common-room/card"
 import { formatBytes } from "@/components/nabalens/format"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 
+import { CantAddDisclosure } from "./cant-add-disclosure"
 import { GUIDE_PATH } from "./task-photo-guide"
 
 /** Where "If you can't add photos" lives: a section of the Photo guide. */
@@ -17,6 +18,8 @@ export const CANT_ADD_HREF = `${GUIDE_PATH}#${CANT_ADD_ID}`
  */
 export const CANT_ADD_COPY = {
   title: "If you can't add photos",
+  /** The row's second line when the section is folded (screens-2). */
+  summary: "Photo access, file types and sizes",
   access: {
     title: "Photo access on your phone",
     points: [
@@ -43,18 +46,22 @@ export const CANT_ADD_COPY = {
   },
 } as const
 
-export function CantAddHelp() {
+/**
+ * The help section. `folded`: a row on the Photo guide that opens to the
+ * same section (screens-2 handoff); a link to `#cant-add` opens it.
+ */
+export function CantAddHelp({ folded = false }: { folded?: boolean } = {}) {
   const groups = [
     CANT_ADD_COPY.access,
     CANT_ADD_COPY.files,
     CANT_ADD_COPY.account,
   ]
-  return (
+  const section = (
     <Card
       as="section"
-      id={CANT_ADD_ID}
+      id={folded ? undefined : CANT_ADD_ID}
       aria-labelledby={`${CANT_ADD_ID}-heading`}
-      className="scroll-mt-20"
+      className={folded ? "shadow-none" : "scroll-mt-20"}
     >
       <h2 id={`${CANT_ADD_ID}-heading`} className="type-section-title text-ink">
         {CANT_ADD_COPY.title}
@@ -70,5 +77,16 @@ export function CantAddHelp() {
         </div>
       ))}
     </Card>
+  )
+  return folded ? (
+    <CantAddDisclosure
+      id={CANT_ADD_ID}
+      title={CANT_ADD_COPY.title}
+      summary={CANT_ADD_COPY.summary}
+    >
+      {section}
+    </CantAddDisclosure>
+  ) : (
+    section
   )
 }

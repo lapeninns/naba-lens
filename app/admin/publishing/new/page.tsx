@@ -84,7 +84,7 @@ export default async function AdminNewPackagePage({
             <p>
               {mode === "internal"
                 ? "Internal export: every photo at the venue, including ones not approved for public use. Each file is marked internal only."
-                : "Only photos approved for public use now can be chosen."}
+                : "Only photos approved for public use now can be chosen. Exported means downloaded; it is not Published."}
             </p>
           }
           className="pb-0 md:pb-0"
