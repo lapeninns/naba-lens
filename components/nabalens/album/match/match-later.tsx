@@ -231,7 +231,13 @@ export function MatchLaterScreen({
     })
     if (result.ok) {
       if (result.state !== "saved") return MATCH_LATER_COPY.saveFailed
-      savedAt.current.set(item.id, result.labels.revision)
+      const revision = result.labels.revision
+      savedAt.current.set(item.id, revision)
+      // A photo that stays here after a later step fails (the note saved,
+      // then the manager handoff failed) must retry with the new revision.
+      setPhotos((list) =>
+        list.map((p) => (p.id === item.id ? { ...p, revision } : p))
+      )
       return null
     }
     if (result.code === "catalogue_changed") target.current = null

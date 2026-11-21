@@ -303,4 +303,40 @@ describe("Label photos after posting (D21)", () => {
     ).toBeTruthy()
     expect(screen.getAllByRole("checkbox")).toHaveLength(1)
   })
+
+  it("retries a failed handoff with the revision the note save returned", async () => {
+    const user = userEvent.setup()
+    revisions()
+    match.requestLabelHelpAction.mockResolvedValueOnce({
+      ok: false,
+      message: "Connection lost",
+    })
+    render(<MatchLaterScreen photos={PHOTOS} />)
+    await user.click(screen.getByRole("checkbox", { name: "Select photo 1" }))
+    await user.type(
+      await screen.findByLabelText("Search dishes, drinks and spaces"),
+      "lamb shank"
+    )
+    const ask = await screen.findByRole("button", {
+      name: /^Ask my manager about “lamb shank”/,
+    })
+    await user.click(ask)
+    expect(await screen.findByText("Connection lost")).toBeTruthy()
+    // The photo stays ticked; only the search is typed again.
+    const search = await screen.findByLabelText(
+      "Search dishes, drinks and spaces"
+    )
+    await user.clear(search)
+    await user.type(search, "lamb shank")
+    await user.click(
+      await screen.findByRole("button", {
+        name: /^Ask my manager about “lamb shank”/,
+      })
+    )
+    await waitFor(() =>
+      expect(match.requestLabelHelpAction).toHaveBeenCalledTimes(2)
+    )
+    // The first note save took revision 0 to 1; the retry must send 1.
+    expect(posted.map((p) => p.input.expectedRevision)).toEqual([0, 1])
+  })
 })
