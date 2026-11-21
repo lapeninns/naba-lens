@@ -186,10 +186,13 @@ export const meAddButton = meSheetButton
 export const addSheet = (page: Page) =>
   page.getByRole("dialog", { name: "Add photos", exact: true })
 
-/** The upload sheet once files are picked: "Saving 1 photo", "Saving 2 files". */
+/**
+ * The upload sheet once files are picked: "Saving 1 photo", "Saving 2
+ * files", and for staff "2 files added" once every one finished (D21).
+ */
 export const savingSheet = (page: Page, title?: string) =>
   page.getByRole("dialog", {
-    name: title ?? /^Saving \d+ (photo|file)s?$/,
+    name: title ?? /^(Saving \d+ (photo|file)s?|\d+ (photo|file)s? added)$/,
   })
 
 export const fileRow = (sheet: Locator, fileName: string) =>

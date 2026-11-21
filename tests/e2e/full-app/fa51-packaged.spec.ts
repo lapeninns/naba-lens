@@ -56,21 +56,6 @@ function counts(venueId: string, category: string | null): Counts {
 
 const ofN = ({ covered, total }: Counts) => `${covered} of ${total}`
 
-const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`
-
-/** The rule's dish rows: covered, counted and empty (nothing waiting). */
-function dishCounts(venueId: string) {
-  const [covered, total, empty] = psql(`select
-      count(*) filter (where state = 'covered'),
-      count(*) filter (where state <> 'inactive'),
-      count(*) filter (where state in ('missing', 'replacement_needed'))
-    from private.coverage_slot_rows(${sql(venueId)}::uuid)
-    where slot_kind = 'dish'`)
-    .split("|")
-    .map(Number)
-  return { covered: covered!, total: total!, empty: empty! }
-}
-
 /** A dish's row on a menu list, found by its exact name. */
 const dishRow = (page: Page, name: string) =>
   page
@@ -174,15 +159,12 @@ test("FA-51: a packaged drink without Photo wanted reads Optional and leaves eve
   await expect(overview.locator('li[data-category="food"]')).toContainText(
     ofN(food)
   )
-  // Y1: the Overview's own Menu photos heading and tally read the rule too.
-  const dishes = dishCounts(w.venueA.id)
+  // Y1: the Overview's Food meter (redesign R4: coverage by category)
+  // reads the rule too.
   await expect(
-    desk.getByRole("heading", {
-      name: `Menu photos · ${dishes.covered} of ${items(dishes.total)} covered`,
+    overview.getByRole("progressbar", {
+      name: new RegExp(`^Food: ${ofN(food)}, `),
     })
-  ).toBeVisible()
-  await expect(
-    desk.getByText(`${items(dishes.empty)} with no ready photo`)
   ).toBeVisible()
   await evidence(desk, "fa51-manager-overview-1280")
 

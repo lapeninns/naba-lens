@@ -59,7 +59,11 @@ const BOARD: MatchBoard = {
 
 const { replace, match, area } = vi.hoisted(() => ({
   replace: vi.fn(),
-  match: { loadMatchBoardAction: vi.fn(), requestLabelHelpAction: vi.fn() },
+  match: {
+    loadMatchBoardAction: vi.fn(),
+    requestLabelHelpAction: vi.fn(),
+    suggestSpecialAction: vi.fn(),
+  },
   area: { setAreaLabelAction: vi.fn(), loadAreaLabelsAction: vi.fn() },
 }))
 vi.mock("next/navigation", () => ({
@@ -266,5 +270,37 @@ describe("Label photos after posting (D21)", () => {
       await screen.findByText("The label could not be removed. Try again.")
     ).toBeTruthy()
     expect(screen.getByText("2 photos labelled The garden")).toBeTruthy()
+  })
+
+  it("sends a photo to the manager with the words searched for, and says so (AC03)", async () => {
+    const user = userEvent.setup()
+    render(<MatchLaterScreen photos={PHOTOS} />)
+    await user.click(screen.getByRole("checkbox", { name: "Select photo 1" }))
+    await user.type(
+      await screen.findByLabelText("Search dishes, drinks and spaces"),
+      "lamb shank"
+    )
+    await user.click(
+      await screen.findByRole("button", {
+        name: /^Ask my manager about “lamb shank”/,
+      })
+    )
+    await waitFor(() =>
+      expect(match.requestLabelHelpAction).toHaveBeenCalledWith(A1)
+    )
+    // The note goes first, with no label.
+    expect(posted).toHaveLength(1)
+    expect(posted[0]!.input).toMatchObject({
+      assetId: A1,
+      note: "lamb shank",
+      items: [],
+      contentTypes: [],
+    })
+    expect(
+      await screen.findByText(
+        "1 photo is with your manager, who will choose its label."
+      )
+    ).toBeTruthy()
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1)
   })
 })

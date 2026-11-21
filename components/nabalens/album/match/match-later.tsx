@@ -13,6 +13,7 @@ import { setAreaLabelAction } from "@/app/_labels/area-actions"
 import {
   loadMatchBoardAction,
   requestLabelHelpAction,
+  suggestSpecialAction,
 } from "@/app/staff/_shell/match-actions"
 import {
   loadUploadLabelContext,
@@ -144,6 +145,8 @@ export function MatchLaterScreen({
     items: MatchLaterPhoto[]
   } | null>(null)
   const [undone, setUndone] = React.useState<number | null>(null)
+  // Photos just sent to the manager as I'm not sure (FA-4).
+  const [handed, setHanded] = React.useState<number | null>(null)
   const [board, setBoard] = React.useState<BoardState>({ state: "loading" })
   const [boardTry, setBoardTry] = React.useState(0)
   // Slots matched on this screen, newest first: marked, and first under
@@ -213,7 +216,8 @@ export function MatchLaterScreen({
 
   const saveLabels = async (
     item: MatchLaterPhoto,
-    labels: Pick<SaveLabelsInput, "items" | "contentTypes">
+    labels: Pick<SaveLabelsInput, "items" | "contentTypes"> &
+      Partial<Pick<SaveLabelsInput, "note">>
   ): Promise<string | null> => {
     const where = await labelTarget()
     if (!where) return MATCH_LATER_COPY.saveFailed
@@ -239,13 +243,14 @@ export function MatchLaterScreen({
   const settle = async (
     send: (item: MatchLaterPhoto) => Promise<string | null>,
     slot: MatchSlot | null
-  ) => {
-    if (saving.current || chosen.length === 0) return
+  ): Promise<number> => {
+    if (saving.current || chosen.length === 0) return 0
     saving.current = true
     setBusy(true)
     setProblem(null)
     setReceipt(null)
     setUndone(null)
+    setHanded(null)
     setPending(null)
     const saved = new Set<string>()
     const failures: string[] = []
@@ -267,7 +272,7 @@ export function MatchLaterScreen({
           : MATCH_LATER_COPY.batchFailed(failures.length, failures[0]!)
       )
     }
-    if (saved.size === 0) return
+    if (saved.size === 0) return 0
     if (slot) {
       setReceipt({
         count: saved.size,
@@ -286,6 +291,7 @@ export function MatchLaterScreen({
     setSelected((list) => new Set([...list].filter((id) => !saved.has(id))))
     setShown(null)
     if (focused && photo) router.replace(photoHref(photo.id))
+    return saved.size
   }
 
   // Posting: a chosen result only fills the confirm bar; Save applies it.
@@ -363,11 +369,24 @@ export function MatchLaterScreen({
   // I'm not sure (FA-4, spec §5.3): the manager chooses the slot, here too
   // (S3-R12: a photo that reached Match later because the first request
   // failed is offered it again).
-  const unsure = () => {
+  // I'm not sure (FA-4, AC03): the photo goes to the manager as Needs
+  // label. While labelling posted photos (D21) the words searched for, when
+  // nothing matched, go with it as the note for the manager.
+  const unsure = (note?: string) => {
     void settle(async (item) => {
+      if (note) {
+        const noted = await saveLabels(item, {
+          items: [],
+          contentTypes: [],
+          note,
+        })
+        if (noted) return noted
+      }
       const result = await requestLabelHelpAction(item.id)
       return result.ok ? null : result.message || MATCH_LATER_COPY.saveFailed
-    }, null)
+    }, null).then((n) => {
+      if (n > 0) setHanded(n)
+    })
   }
 
   const share = (kind: SharedKind) => {
@@ -474,6 +493,15 @@ export function MatchLaterScreen({
           {MATCH_LATER_COPY.undone(undone)}
         </p>
       ) : null}
+      {handed ? (
+        <p
+          role="status"
+          className="text-body text-ink"
+          data-slot="label-handed"
+        >
+          {MATCH_LATER_COPY.handed(handed)}
+        </p>
+      ) : null}
       {problem ? (
         <Notice tone="negative" role="alert">
           {problem}
@@ -523,7 +551,7 @@ export function MatchLaterScreen({
             aria-label={MATCH_LATER_COPY.batchMode}
           >
             {photos.map((item, i) => (
-              <li key={item.id}>
+              <li key={item.id} data-asset-id={item.id}>
                 <SelectableTile
                   label={`photo ${i + 1}`}
                   checked={selected.has(item.id)}
@@ -623,7 +651,8 @@ export function MatchLaterScreen({
           onMatch={choose}
           labelling={posting}
           onShared={share}
-          onUnsure={STAFF_ALBUM_POSTS ? undefined : unsure}
+          onUnsure={unsure}
+          onSuggestSpecial={(name, kind) => suggestSpecialAction(name, kind)}
         />
       ) : photos.length === 0 && !receipt ? (
         <p className="text-body text-ink" role="status">

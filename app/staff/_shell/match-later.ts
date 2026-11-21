@@ -55,12 +55,16 @@ async function toPhotos(
   // manager as "I'm not sure" (FA-4) is theirs to label now.
   const ids = items.slice(0, 100).map((item) => item.id)
   if (STAFF_ALBUM_POSTS && ids.length) {
-    const { data, error } = await actor.db.rpc("staff_album_own_states", {
-      p_asset_ids: ids,
-    })
+    const [{ data, error }, help] = await Promise.all([
+      actor.db.rpc("staff_album_own_states", { p_asset_ids: ids }),
+      myLabelHelp(actor, ids).catch(() => null),
+    ])
     if (error) throw new Error("Could not load unlabelled photos.")
+    const withManager = help?.ok ? help.assetIds : new Set<string>()
     const eligible = new Set(
-      (data ?? []).filter((p) => !p.labelled && !p.removed).map((p) => p.id)
+      (data ?? [])
+        .filter((p) => !p.labelled && !p.removed && !withManager.has(p.id))
+        .map((p) => p.id)
     )
     return items.filter((item) => eligible.has(item.id)).map(asPhoto)
   }

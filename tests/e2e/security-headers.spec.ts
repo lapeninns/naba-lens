@@ -9,6 +9,7 @@ import sharp from "sharp"
 import { openEmailLink } from "./helpers/email-link"
 import { assetNamed } from "./helpers/full-app"
 import {
+  closeSheet,
   myPhotoLink,
   myPhotos,
   openMyPhotos,
@@ -134,12 +135,11 @@ test("security headers are sent and the CSP allows upload, thumbnails and previe
   await dialog
     .getByLabel("Choose photos or videos")
     .setInputFiles([jpegPath, video])
-  await expect(dialog).toHaveAccessibleName("Saving 2 files")
-  await expect(dialog.getByRole("status")).toHaveText("2 saved", {
+  await expect(dialog).toHaveAccessibleName(/^(Saving 2 files|2 files added)$/)
+  await expect(dialog.getByRole("status")).toHaveText("1 posted · 1 saved", {
     timeout: 60_000,
   })
-  await dialog.getByRole("button", { name: "Done" }).click()
-  await expect(dialog).toBeHidden()
+  await closeSheet(dialog)
 
   // Thumbnail (302 to a 60 s signed Storage URL on the Supabase origin) on
   // My photos' grid. The list streams in, so reload once the upload is in.

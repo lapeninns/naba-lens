@@ -2,16 +2,20 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { signIn } from "../../support/identities"
 import {
+  addSheet,
   albumAdd,
   assetNamed,
   dishesOn,
   keep,
-  matchScreen,
-  matchSummary,
+  labelConfirm,
+  labelScreen,
+  labelSearch,
   openAlbum,
+  photoTick,
   SIZES,
   sql,
   uploadStateOf,
+  waitPosted,
 } from "../helpers/full-app"
 import { provisionManagerWorld } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
@@ -20,11 +24,12 @@ import { myPhotos, openMyPhotos } from "../helpers/ui"
 import { signedInPage } from "../helpers/world"
 
 /**
- * AC37, staff flows (spec §15.1): upload, label grouping and feedback work
- * from the keyboard alone, with names a screen reader reads: the Add
- * trigger, Match's grouping buttons (aria-pressed) and its polite hint,
- * the photo strip's per-photo answers, the end, and a manager's Retake
- * reason on My photos with its Retake link. (Review flows are S3-E2E-2's.)
+ * AC37, staff flows (spec §15.1), for posting first (D21, DESIGN.md §6.1):
+ * upload, labelling a group and feedback work from the keyboard alone, with
+ * names a screen reader reads: the Add trigger, the add sheet and its Label
+ * now, Label photos' tick boxes and their polite count, the confirm bar and
+ * its receipt, I'm not sure, and a manager's Retake reason on My photos
+ * with its Retake link. (Review flows are S3-E2E-2's.)
  */
 
 test.skip(({ browserName }) => browserName !== "chromium", "Chromium only")
@@ -63,69 +68,67 @@ for (const size of ["desktop", "phone"] as const) {
     const chooser = page.waitForEvent("filechooser")
     await page.keyboard.press("Enter")
     await (await chooser).setFiles(files.map((f) => f.path))
-    const match = matchScreen(page)
-    await expect(match).toBeVisible()
-    await expect(match).toHaveAccessibleName("Photo 1 of 3")
-    // Focus is inside Match (a modal dialog), not left behind on the page.
+    const sheet = addSheet(page)
+    await expect(sheet).toBeVisible()
+    // Focus is inside the sheet (a modal dialog), not left on the page.
     await expect
-      .poll(() => match.evaluate((el) => el.contains(document.activeElement)))
+      .poll(() => sheet.evaluate((el) => el.contains(document.activeElement)))
       .toBe(true)
+    await waitPosted(page, 3)
+    const ids = await Promise.all(files.map((f) => assetNamed(f.name)))
+    const labelNow = sheet.getByRole("link", { name: "Label now" })
+    await tabTo(page, labelNow)
+    await page.keyboard.press("Enter")
+    const screen = labelScreen(page)
+    await expect(screen).toBeVisible()
 
-    // Group photos 1 and 2 with the keyboard: a toggle button with a state.
-    const photo2 = match.getByRole("button", { name: "Photo 2 too" })
-    await tabTo(page, photo2)
-    await page.keyboard.press("Space")
-    await expect(photo2).toHaveAttribute("aria-pressed", "true")
-    const hint = match.locator('[data-slot="match-group"] [aria-live="polite"]')
-    await expect(hint).toHaveText(
-      "This photo and the next one get the same answer."
-    )
+    // Tick photos 1 and 2 with the keyboard: tick boxes with a state, and
+    // a polite count.
+    for (const id of [ids[0]!, ids[1]!]) {
+      const tick = photoTick(screen, id)
+      await tabTo(page, tick, 120)
+      await page.keyboard.press("Space")
+      await expect(tick).toBeChecked()
+    }
+    await expect(
+      screen.getByRole("status").filter({ hasText: /selected/ })
+    ).toHaveText("2 photos selected")
 
-    // Search and choose Soup by keyboard.
-    const search = match.getByRole("searchbox", {
-      name: "Search all slots",
-    })
+    // Search and choose Soup by keyboard; the confirm bar's Save takes focus.
+    const search = labelSearch(screen)
     await tabTo(page, search)
     await page.keyboard.type("soup")
     await expect(
-      match.getByRole("status").filter({ hasText: /^\d+ slots?$/ })
+      screen.getByRole("status").filter({ hasText: /^\d+ slots?$/ })
     ).toHaveText("1 slot")
-    const soup = match
-      .getByRole("list", { name: "Search all slots" })
+    const soup = screen
+      .getByRole("list", { name: "Search dishes, drinks and spaces" })
       .getByRole("button", { name: /^Soup\b/ })
     await tabTo(page, soup)
     await page.keyboard.press("Enter")
-
-    // The strip names each photo's answer for a screen reader.
-    await expect(match).toHaveAccessibleName("Photo 3 of 3")
-    const strip = match.getByRole("list", { name: "Your photos" })
+    const save = labelConfirm(screen).getByRole("button", {
+      name: "Save label",
+    })
+    await expect(labelConfirm(screen)).toContainText("Label 2 photos as Soup")
+    await expect(save).toBeFocused()
+    await page.keyboard.press("Enter")
     await expect(
-      strip.getByRole("button", { name: "Photo 1 of 3: in Soup" })
-    ).toBeVisible()
-    await expect(
-      strip.getByRole("button", { name: "Photo 2 of 3: in Soup" })
-    ).toBeVisible()
-    await expect(
-      strip.getByRole("button", { name: "Photo 3 of 3: not matched yet" })
+      screen.getByText("2 photos labelled Soup", { exact: true })
     ).toBeVisible()
 
     // The third: I'm not sure, by keyboard.
-    const unsure = match.getByRole("button", { name: /^I'm not sure/ })
-    await tabTo(page, unsure)
+    const third = photoTick(screen, ids[2]!)
+    await tabTo(page, third, 120)
+    await page.keyboard.press("Space")
+    const unsure = screen.getByRole("button", {
+      name: /^(I'm not sure|Ask my manager)/,
+    })
+    await tabTo(page, unsure, 120)
     await page.keyboard.press("Enter")
-    const summary = matchSummary(page)
-    await expect(summary).toBeVisible()
-    await expect(summary).toHaveAttribute("aria-live", "polite")
-    await expect(summary).toContainText("1 slot filled")
-    await expect(
-      page.locator('[data-slot="match-summary-unsure"]')
-    ).toBeVisible()
-    await keep(page, info, `ac37-${size}-summary`)
-    // Leave with the keyboard.
-    const seeAlbum = page.getByRole("link", { name: "See the album" })
-    await tabTo(page, seeAlbum)
-    await page.keyboard.press("Enter")
-    await expect(match).toBeHidden()
+    await expect(screen.locator('[data-slot="label-handed"]')).toHaveText(
+      "1 photo is with your manager, who will choose its label."
+    )
+    await keep(page, info, `ac37-${size}-labelled`)
 
     // Feedback: the manager asks for another photo of photo 2 (the newer of
     // the two Soup photos), with a reason.
@@ -153,7 +156,9 @@ for (const size of ["desktop", "phone"] as const) {
     // On My photos (DESIGN.md §5e), the Needs you row reads the reason, and
     // Retake opens the same slot (lib/staff/my-photos.ts).
     await openMyPhotos(page)
-    const needsYou = myPhotos(page).getByRole("region", { name: /^Needs you/ })
+    const needsYou = myPhotos(page).getByRole("region", {
+      name: /^Needs attention/,
+    })
     await expect(needsYou).toBeVisible()
     const row = needsYou.getByRole("listitem").filter({ hasText: reason })
     await expect(row).toBeVisible()

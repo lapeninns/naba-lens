@@ -160,6 +160,12 @@ export function AlbumSlotScreen({
       ) : null}
 
       {postedPhotos}
+      {/* FA-51: an optional slot says so with posted photos too (D21). */}
+      {postedPhotos !== undefined && slot.optional ? (
+        <p className="text-body text-ink" data-slot="slot-optional">
+          {SLOT_COPY.optional}
+        </p>
+      ) : null}
       <div
         className={
           postedPhotos === undefined

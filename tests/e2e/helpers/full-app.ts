@@ -56,14 +56,21 @@ export async function openAlbum(page: Page) {
 export const albumAdd = (page: Page) =>
   page.locator('[data-slot="album-add"]').filter({ visible: true }).first()
 
-export const matchScreen = (page: Page) =>
-  page.locator('[data-slot="match-screen"]')
+/**
+ * The add sheet while it posts (D21, DESIGN.md §6.1): "Saving 2 photos",
+ * then "2 photos added" once every photo has finished.
+ */
+export const addSheet = (page: Page) =>
+  page.getByRole("dialog", {
+    name: /^(Saving \d+ (photos?|files?)|\d+ (photos?|files?) added)$/,
+  })
 
 /**
- * Album's Add photos, the phone's gallery (never a camera), then Match.
- * Returns what the gallery input asked for.
+ * Album's Add photos, the phone's gallery (never a camera). Each ready photo
+ * posts to the venue's private Album at once (D21); labelling is then or
+ * later. Returns the sheet and what the gallery input asked for.
  */
-export async function startMatch(
+export async function addPhotos(
   page: Page,
   paths: string[],
   trigger: Locator = albumAdd(page)
@@ -77,9 +84,113 @@ export async function startMatch(
     accept: (await fc.element().getAttribute("accept")) ?? "",
   }
   await fc.setFiles(paths)
-  const match = matchScreen(page)
-  await expect(match).toBeVisible()
-  return { match, input }
+  const sheet = addSheet(page)
+  await expect(sheet).toBeVisible()
+  return { sheet, input }
+}
+
+/** The sheet's running count once `n` photos have posted ("2 posted"). */
+export async function waitPosted(page: Page, n: number, timeout = 60_000) {
+  await expect(
+    addSheet(page)
+      .getByRole("status")
+      .filter({ hasText: /posted/ })
+  ).toHaveText(new RegExp(`^${n} posted$`), { timeout })
+}
+
+/** Label photos (DESIGN.md §6.1, D21): tick photos, choose one label, Save. */
+export const labelScreen = (page: Page) =>
+  page.locator('[data-slot="match-later"]')
+
+/** The sheet's Label now, once its photos have posted: Label photos. */
+export async function labelNow(page: Page) {
+  await addSheet(page).getByRole("link", { name: "Label now" }).click()
+  const screen = labelScreen(page)
+  await expect(screen).toBeVisible()
+  return screen
+}
+
+/** Label photos straight from its route (Today's and My photos' way in). */
+export async function openLabelPhotos(page: Page) {
+  await page.goto("/staff/album/match-later?select=1")
+  const screen = labelScreen(page)
+  await expect(screen).toBeVisible()
+  return screen
+}
+
+/** One photo's tick box on Label photos, found by its asset id. */
+export const photoTick = (screen: Locator, assetId: string) =>
+  screen.locator(`li[data-asset-id="${assetId}"]`).getByRole("checkbox")
+
+/** Ticks these photos on Label photos (by asset id). */
+export async function tickPhotos(screen: Locator, assetIds: string[]) {
+  for (const id of assetIds) {
+    const tick = photoTick(screen, id)
+    await expect(tick).toBeVisible({ timeout: 30_000 })
+    await tick.check()
+  }
+}
+
+/** Label photos' search over the venue's dishes, drinks and spaces. */
+export const labelSearch = (screen: Locator) =>
+  screen.getByRole("searchbox", { name: "Search dishes, drinks and spaces" })
+
+/** The confirm bar a chosen label fills; Save applies it (D21). */
+export const labelConfirm = (screen: Locator) =>
+  screen.locator('[data-slot="label-confirm"]')
+
+/** The receipt after a save ("2 photos labelled Soup"). */
+export const labelledWords = (count: number, slot: string) =>
+  count === 1 ? `1 photo labelled ${slot}` : `${count} photos labelled ${slot}`
+
+/** Saves the chosen label and waits for its receipt. */
+export async function saveLabel(screen: Locator, count: number, slot: string) {
+  const bar = labelConfirm(screen)
+  await expect(bar).toContainText(
+    count === 1
+      ? `Label 1 photo as ${slot}`
+      : `Label ${count} photos as ${slot}`
+  )
+  await bar.getByRole("button", { name: "Save label" }).click()
+  await expect(
+    screen.getByText(labelledWords(count, slot), { exact: true })
+  ).toBeVisible({ timeout: 30_000 })
+}
+
+/** Ticks the photos, finds the slot by search and saves it as their label. */
+export async function labelBySearch(
+  screen: Locator,
+  assetIds: string[],
+  query: string,
+  slot: string
+) {
+  await tickPhotos(screen, assetIds)
+  await labelSearch(screen).fill(query)
+  await slotChoice(screen, slot).click()
+  await saveLabel(screen, assetIds.length, slot)
+}
+
+/**
+ * Adds the photos, waits for them to post and labels them all as one slot
+ * found by search: the D21 way to a labelled photo. Returns the asset ids.
+ */
+export async function postAndLabel(
+  page: Page,
+  files: { path: string; name: string }[],
+  query: string,
+  slot: string,
+  trigger?: Locator
+) {
+  await addPhotos(
+    page,
+    files.map((f) => f.path),
+    trigger
+  )
+  await waitPosted(page, files.length)
+  const ids = await Promise.all(files.map((f) => assetNamed(f.name)))
+  const screen = await labelNow(page)
+  await labelBySearch(screen, ids, query, slot)
+  return { ids, screen }
 }
 
 /** The picker's slot buttons ("Soup Not placed yet · Starters"). */
@@ -88,20 +199,6 @@ export const slotChoice = (scope: Locator, name: string) =>
     .locator('[data-slot="match-picker"]')
     .getByRole("button", { name: new RegExp(`^${escape(name)}\\b`) })
     .first()
-
-/** Answers the shown photo with a slot found by search (spec §5.3). */
-export async function matchBySearch(
-  match: Locator,
-  query: string,
-  slot: string
-) {
-  await match.getByRole("searchbox", { name: "Search all slots" }).fill(query)
-  await slotChoice(match, slot).click()
-}
-
-/** Match's end, once every photo has an answer. */
-export const matchSummary = (page: Page) =>
-  page.locator('[data-slot="match-summary"]')
 
 /** Waits for the newest live asset with this file name and returns its id. */
 export async function assetNamed(fileName: string, timeout = 30_000) {

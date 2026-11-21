@@ -566,7 +566,8 @@ test.describe("B03 browser charters C and D", () => {
     const manager = await signedInPage(browser, w.managerA, DESKTOP)
     await manager.goto("/manager")
     await settled(manager)
-    const triage = manager.getByRole("main").locator('[data-triage="rechecks"]')
+    // Overview's Needs you today row (redesign R4).
+    const triage = manager.getByRole("main").locator('[data-action="rechecks"]')
     // The archived check's older task is neither counted nor the oldest.
     await expect(triage).toContainText(
       `Rechecks due: 2, oldest due ${longDate(staleTask!.dueAt)}`

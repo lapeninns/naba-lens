@@ -104,7 +104,9 @@ test.describe("amenity checks", () => {
     const w = await provisionAmenitiesWorld()
     const admin = await signedInPage(browser, w.admin)
     await admin.goto(`/admin/coverage/${w.venueA.id}`)
-    await admin.getByRole("link", { name: UI_TEXT.navTab }).click()
+    // One venue's tabs (redesign R5): Album, then its Amenities pick.
+    await admin.getByRole("link", { name: "Album", exact: true }).click()
+    await admin.getByRole("link", { name: UI_TEXT.navTab, exact: true }).click()
     await expect(admin).toHaveURL(new RegExp(`${escape(adminHrefs(w).list)}$`))
 
     await admin.getByRole("button", { name: UI_TEXT.enable }).click()

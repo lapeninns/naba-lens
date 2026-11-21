@@ -8,6 +8,7 @@ import { assetNamed } from "./helpers/full-app"
 import { supportedMp4, syntheticJpeg, type SourceFile } from "./helpers/media"
 import { appBarFit, horizontalOverflow } from "./helpers/overflow"
 import {
+  closeSheet,
   ADMIN_LANDING,
   libraryList,
   myPhotoLink,
@@ -231,18 +232,18 @@ for (const width of WIDTHS) {
       .getByLabel("Choose photos or videos")
       .setInputFiles(sheetPhoto.path)
     await expect(uploadDialog).toHaveAccessibleName("Saving 1 photo")
-    await expect(uploadDialog.getByRole("status")).toHaveText("1 saved", {
+    await expect(uploadDialog.getByRole("status")).toHaveText("1 posted", {
       timeout: 60_000,
     })
     await check(
       staff,
       width,
       "staff-upload-saving",
-      uploadDialog.getByRole("button", { name: "Done" }),
+      // Posted with no label yet (D21): Label now is the primary action.
+      uploadDialog.getByRole("link", { name: "Label now" }),
       { scope: uploadDialog }
     )
-    await uploadDialog.getByRole("button", { name: "Done" }).click()
-    await expect(uploadDialog).toBeHidden()
+    await closeSheet(uploadDialog)
 
     // --- A photo's own page and its Withdraw confirmation (§5e "One photo")
     await ownPhoto.click()
@@ -447,11 +448,12 @@ test("keyboard only: upload, open the photo's page, download", async () => {
   ])
   // The pick starts saving at once; there is no separate start step.
   await chooser.setFiles(extra.path)
-  await expect(dialog).toHaveAccessibleName("Saving 1 photo")
-  await expect(dialog.getByRole("status")).toHaveText("1 saved", {
+  await expect(dialog).toHaveAccessibleName(/^(Saving 1 photo|1 photo added)$/)
+  await expect(dialog.getByRole("status")).toHaveText("1 posted", {
     timeout: 90_000,
   })
-  await tabTo(staff, /^Done$/)
+  // Posted with no label yet (D21): Label later leaves it under Unlabelled.
+  await tabTo(staff, /^Label later$/)
   await staff.keyboard.press("Enter")
   await expect(dialog).toBeHidden()
 

@@ -115,6 +115,28 @@ describe("slot page", () => {
     expect(thumbs()).toContain(`/api/media/${EX}/thumb`)
   })
 
+  it("says an optional slot is optional beside posted photos too (FA-51, D21)", () => {
+    render(
+      <AddProvider value={{ openAdd: vi.fn() }}>
+        <AlbumSlotScreen
+          venueName="The Bell"
+          placeLabel="Kitchen"
+          placeHref="/staff/album/x"
+          slot={slot({ optional: true })}
+          retake={null}
+          ownPhotos={[]}
+          postedPhotos={<section aria-label="Posted photos" />}
+          canAdd
+          blocked={null}
+          sendReport={vi.fn()}
+        />
+      </AddProvider>
+    )
+    expect(
+      document.querySelector('[data-slot="slot-optional"]')?.textContent
+    ).toBe("Optional: a photo is welcome, but none is needed.")
+  })
+
   it("shows no example when there is none", () => {
     render(
       <AddProvider value={{ openAdd: vi.fn() }}>

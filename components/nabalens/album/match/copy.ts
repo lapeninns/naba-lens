@@ -260,6 +260,11 @@ export const MATCH_LATER_COPY = {
       ? "Label removed. The photo is back in To label."
       : `Labels removed. The ${n} photos are back in To label.`,
   undoFailed: "The label could not be removed. Try again.",
+  // I'm not sure while labelling posted photos (FA-4, AC03).
+  handed: (n: number) =>
+    n === 1
+      ? "1 photo is with your manager, who will choose its label."
+      : `${n} photos are with your manager, who will choose their label.`,
 } as const
 
 /** Where a labelled photo is filed: Album → place → section → slot. */

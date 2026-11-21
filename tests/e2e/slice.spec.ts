@@ -25,6 +25,7 @@ import {
   myPhotos,
   openMyPhotos,
   STAFF_LANDING,
+  closeUploadSheet,
   uploadSheet,
 } from "./helpers/ui"
 import { passMfaIfAsked } from "./helpers/mfa"
@@ -145,12 +146,13 @@ test.describe("vertical slice: upload, My photos, library, download, isolation",
     await dialog
       .getByLabel("Choose photos or videos")
       .setInputFiles([jpeg.path, video])
-    await expect(dialog).toHaveAccessibleName("Saving 2 files")
-    await expect(dialog.getByRole("status")).toHaveText("2 saved", {
+    await expect(dialog).toHaveAccessibleName(
+      /^(Saving 2 files|2 files added)$/
+    )
+    await expect(dialog.getByRole("status")).toHaveText("1 posted · 1 saved", {
       timeout: 60_000,
     })
-    await dialog.getByRole("button", { name: "Done" }).click()
-    await expect(dialog).toBeHidden()
+    await closeUploadSheet(staffPage)
 
     const ownPhoto = await myPhotoTile(staffPage, "curry-dish.jpg", staffA.id)
     const ownVideo = await myPhotoTile(staffPage, "synthetic.mp4", staffA.id)

@@ -6,8 +6,12 @@ import {
 } from "../helpers/manager-world"
 import { syntheticJpeg } from "../helpers/media"
 import { psql, requireIsolatedStack } from "../helpers/stack"
-import { matchSummary, openToday, startMatch } from "../helpers/full-app"
-import { photoPagePath } from "../helpers/ui"
+import {
+  addPhotos as addFromGallery,
+  openToday,
+  waitPosted,
+} from "../helpers/full-app"
+import { closeUploadSheet, photoPagePath } from "../helpers/ui"
 import {
   acceptAsManager,
   as,
@@ -21,8 +25,8 @@ import {
 /**
  * AC21 (spec §12.4, §22; FA-35): an exact duplicate, found by the SHA-256 of
  * its original at finalisation, never adds coverage or contribution credit.
- * The same file is uploaded twice through Add photos (the gallery, then
- * Match; S3-R12), so the hash is computed by the app, not the fixture. The
+ * The same file is uploaded twice through Add photos (the gallery, posted
+ * at once; D21), so the hash is computed by the app, not the fixture. The
  * staff member reads the note on the copy's own page under My photos
  * (DESIGN.md §5e).
  */
@@ -41,16 +45,14 @@ const assetsNamed = (uploaderId: string, name: string) =>
     .filter(Boolean)
 
 /**
- * Add photos (S3-R12: the tab bar's gallery and Match), answered Match
- * later so the photo is sent without a label, as the old sheet sent it.
+ * Add photos (the tab bar's gallery): the photo posts at once, and Label
+ * later leaves it without a label (D21), as the old sheet sent it.
  */
 async function addPhotos(page: Page, path: string) {
   await openToday(page)
-  const { match } = await startMatch(page, [path])
-  await match.getByRole("button", { name: "Match later" }).click()
-  await expect(matchSummary(page)).toBeVisible()
-  await page.keyboard.press("Escape")
-  await expect(match).toBeHidden()
+  await addFromGallery(page, [path])
+  await waitPosted(page, 1)
+  await closeUploadSheet(page)
 }
 
 test("AC21: an exact duplicate does not inflate coverage or contribution counts, and the manager can mark it", async ({

@@ -73,8 +73,12 @@ export function matchesShow(item: MyUpload, show: PhotoShow): boolean {
   if (show === "all") return true
   if (show === "posted") return !!item.albumPost && !item.albumPost.removed
   if (show === "unlabelled")
+    // A photo with the manager (I'm not sure) is theirs to label now.
     return (
-      !!item.albumPost && !item.albumPost.removed && !item.albumPost.labelled
+      !!item.albumPost &&
+      !item.albumPost.removed &&
+      !item.albumPost.labelled &&
+      !item.labelHelp
     )
   return photoMark(item) === show
 }

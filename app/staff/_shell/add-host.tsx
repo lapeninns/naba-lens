@@ -1298,10 +1298,20 @@ export function AddHost({
     if (!open) sheetOwner.current = null
     setSheetOpen(open)
   }, [])
-  const closeUpload = React.useCallback((open: boolean) => {
-    if (!open) sheetOwner.current = null
-    setUploadOpen(open)
-  }, [])
+  // Posted photos skip the refresh while the sheet is open (D21), so
+  // closing it shows them on the page behind.
+  const postedWhileOpen = React.useRef(false)
+  const closeUpload = React.useCallback(
+    (open: boolean) => {
+      if (!open) {
+        sheetOwner.current = null
+        if (postedWhileOpen.current) router.refresh()
+        postedWhileOpen.current = false
+      }
+      setUploadOpen(open)
+    },
+    [router]
+  )
 
   // B05-01d: files picked to replace a set's photo, and how each went, by
   // the replaced row.
@@ -1943,6 +1953,7 @@ export function AddHost({
                   setRefreshSignal((signal) => signal + 1)
                   if (!STAFF_ALBUM_POSTS || role !== "staff" || !uploadOpen)
                     router.refresh()
+                  else postedWhileOpen.current = true
                 }}
                 albumPosting={STAFF_ALBUM_POSTS && role === "staff"}
                 onReady={handleReady}

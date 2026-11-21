@@ -271,7 +271,7 @@ test.describe("release negatives", () => {
     )
     expect(found).toBe("0")
     // Same copy an invited address gets (no account directory).
-    await page.getByRole("button", { name: "Use a different email" }).click()
+    await page.getByRole("link", { name: "Use a different email" }).click()
     await requestLinkViaForm(page, world.staffA.email)
   })
 
@@ -360,7 +360,7 @@ test.describe("release negatives", () => {
     // Upload from the already-open page: refused as soon as it is picked,
     // nothing reserved. The row needs attention and says why.
     await uploadThroughDialog(staff, [late], {
-      expectSettled: "0 saved · 1 need attention",
+      expectSettled: "0 posted · 1 need attention",
       close: false,
     })
     const sheet = uploadSheet(staff)
