@@ -255,11 +255,13 @@ test("AC33 (deferred, FA-40): a published photo that is withdrawn stops being ex
   await mgr.goto("/manager/exports/new")
   await expect(mgr.getByText("Soup", { exact: true })).toHaveCount(0)
   await mgr.goto("/manager/exports")
-  const follow = mgr.getByRole("region", { name: "Needs following up" })
+  // One Notice when there are follow-ups (second handoff); an admin
+  // confirms the removal, so the manager's page has no chip or form.
+  const follow = mgr
+    .locator('[data-slot="notice"]')
+    .filter({ hasText: "1 photo needs taking down" })
   await expect(follow).toContainText(destination)
-  await expect(
-    chip(follow, "publication_withdrawal_pending").first()
-  ).toHaveText("Withdrawal pending")
+  await expect(follow).toContainText("an admin confirms it here")
   await evidence(mgr, "ac33-withdrawal-pending")
 
   // The old package can't be downloaded either.

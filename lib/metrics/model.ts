@@ -19,7 +19,7 @@ export const CATEGORY_WORDS: Record<MetricCategory, string> = {
   food: "Food",
   drinks: "Drinks",
   spaces: "Spaces",
-  facilities: "Facilities",
+  facilities: "Amenities",
   other: "Other",
 }
 

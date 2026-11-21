@@ -36,6 +36,7 @@ export function PackageDetail({
   notice,
   destinations,
   today,
+  summary = true,
 }: {
   area: ExportArea
   pkg: ExportPackageDetail
@@ -44,70 +45,86 @@ export function PackageDetail({
   /** Admins: the destinations they can record against. Null for managers. */
   destinations: PublicationDestination[] | null
   today: string
+  /**
+   * False where the page's title row carries the state and the one action
+   * and a Notice says what is wrong (the manager's package, second
+   * handoff); this then starts at the photos.
+   */
+  summary?: boolean
 }) {
   const blocked = pkg.state === "invalidated" || pkg.state === "needs_rebuild"
   const stale = new Set(pkg.staleAssets)
   return (
     <div className="grid gap-6">
-      {notice && DOWNLOAD_NOTICES[notice] ? (
+      {summary && notice && DOWNLOAD_NOTICES[notice] ? (
         <Notice tone="attention" role="alert">
           {DOWNLOAD_NOTICES[notice]}
         </Notice>
       ) : null}
 
-      <section className="grid gap-3 rounded-card border border-line bg-surface p-4">
-        <div className="flex flex-wrap gap-1.5">
-          <StatusChip state={PACKAGE_CHIP[pkg.state]} />
-          {pkg.mode === "internal" ? (
-            <StatusChip state="internal_only" />
-          ) : null}
-        </div>
-        <p className="text-body text-ink">
-          {EXPORTS_COPY.items(pkg.itemCount)} · {pkg.profile.label}
-          {pkg.profile.maxWidth && pkg.profile.maxHeight
-            ? ` (fits ${pkg.profile.maxWidth} × ${pkg.profile.maxHeight})`
-            : ""}
-        </p>
-        {pkg.note ? <p className="text-body text-ink">{pkg.note}</p> : null}
-        <p className="text-meta text-ink-muted">
-          {EXPORTS_COPY.madeBy(pkg.createdBy, londonDate(pkg.createdAt))}
-          {pkg.rebuiltFrom ? ` · ${EXPORTS_COPY.rebuilt}` : ""}
-        </p>
-        {blocked ? (
-          <>
-            <p className="text-body text-ink">
-              {pkg.staleAssets.length === 1
-                ? "1 photo in this package was withdrawn or changed after it was made, so the package can't be downloaded."
-                : `${pkg.staleAssets.length} photos in this package were withdrawn or changed after it was made, so the package can't be downloaded.`}
-            </p>
-            {pkg.staleAssets.length < pkg.itemCount ? (
-              <RebuildButton area={area} packageId={pkg.id} primary />
-            ) : (
+      {summary ? (
+        <section className="grid gap-3 rounded-card border border-line bg-surface p-4">
+          <div className="flex flex-wrap gap-1.5">
+            <StatusChip state={PACKAGE_CHIP[pkg.state]} />
+            {pkg.mode === "internal" ? (
+              <StatusChip state="internal_only" />
+            ) : null}
+          </div>
+          <p className="text-body text-ink">
+            {EXPORTS_COPY.items(pkg.itemCount)} · {pkg.profile.label}
+            {pkg.profile.maxWidth && pkg.profile.maxHeight
+              ? ` (fits ${pkg.profile.maxWidth} × ${pkg.profile.maxHeight})`
+              : ""}
+          </p>
+          {pkg.note ? <p className="text-body text-ink">{pkg.note}</p> : null}
+          <p className="text-meta text-ink-muted">
+            {EXPORTS_COPY.madeBy(pkg.createdBy, londonDate(pkg.createdAt))}
+            {pkg.rebuiltFrom ? ` · ${EXPORTS_COPY.rebuilt}` : ""}
+          </p>
+          {blocked ? (
+            <>
               <p className="text-body text-ink">
-                No photo in it can be downloaded now. Make a new package
-                instead.
+                {pkg.staleAssets.length === 1
+                  ? "1 photo in this package was withdrawn or changed after it was made, so the package can't be downloaded."
+                  : `${pkg.staleAssets.length} photos in this package were withdrawn or changed after it was made, so the package can't be downloaded.`}
               </p>
-            )}
-          </>
-        ) : (
-          <a
-            href={downloadHref(area, pkg.id)}
-            className={cn(
-              buttonVariants({ variant: "primary", size: "lg" }),
-              "w-full sm:w-auto"
-            )}
-            download
-          >
-            <DownloadSimpleIcon aria-hidden weight="bold" />
-            {EXPORTS_COPY.download}
-          </a>
-        )}
-        <p className="text-meta text-ink-muted">{EXPORTS_COPY.readMe(area)}</p>
-      </section>
+              {pkg.staleAssets.length < pkg.itemCount ? (
+                <RebuildButton area={area} packageId={pkg.id} primary />
+              ) : (
+                <p className="text-body text-ink">
+                  No photo in it can be downloaded now. Make a new package
+                  instead.
+                </p>
+              )}
+            </>
+          ) : (
+            <a
+              href={downloadHref(area, pkg.id)}
+              className={cn(
+                buttonVariants({ variant: "primary", size: "lg" }),
+                "w-full sm:w-auto"
+              )}
+              download
+            >
+              <DownloadSimpleIcon aria-hidden weight="bold" />
+              {EXPORTS_COPY.download}
+            </a>
+          )}
+          <p className="text-meta text-ink-muted">
+            {EXPORTS_COPY.readMe(area)}
+          </p>
+        </section>
+      ) : null}
 
       <section aria-labelledby="package-photos" className="grid gap-3">
-        <h2 id="package-photos" className="type-section-title text-ink">
+        <h2
+          id="package-photos"
+          className="flex flex-wrap items-baseline gap-x-3 type-section-title text-ink"
+        >
           Photos
+          <span className="text-meta font-normal text-ink-muted tabular-nums">
+            {pkg.items.length}
+          </span>
         </h2>
         <ul className="grid gap-3">
           {pkg.items.map((item) => (
