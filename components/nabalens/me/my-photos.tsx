@@ -122,6 +122,14 @@ export function MyPhotos({
     items.filter((item) => canLabelUpload(item, currentVenueId)).length > 1
   const shows = posting ? POSTED_PHOTO_SHOWS : PHOTO_SHOWS
   const shown = items.filter((i) => matchesShow(i, show))
+  // Unlabelled first (D21; the 20 Nov 2026 Open Design handoff): one list,
+  // one count, the same as the Unlabelled view and Label photos.
+  const unlabelled = posting
+    ? items.filter((i) => matchesShow(i, "unlabelled"))
+    : []
+  const canLabelNow = unlabelled.some((item) =>
+    canLabelUpload(item, currentVenueId)
+  )
   const days = groupByDay(shown)
 
   async function more() {
@@ -150,6 +158,56 @@ export function MyPhotos({
             ? `${postedCount}${next ? "+" : ""} posted`
             : MY_PHOTOS_COPY.summary(summary, next !== null)}
         </p>
+      ) : null}
+
+      {unlabelled.length > 0 ? (
+        <section
+          aria-labelledby="unlabelled"
+          data-slot="unlabelled"
+          className="grid gap-3 rounded-card bg-surface p-4 edge"
+        >
+          <div className="grid gap-1">
+            <h2
+              id="unlabelled"
+              className="flex items-center gap-2 type-section-title text-ink"
+            >
+              Unlabelled
+              <span className="rounded-round bg-warn-bg px-2 text-label text-warn-fg tabular-nums">
+                {unlabelled.length}
+                {next ? "+" : ""}
+              </span>
+            </h2>
+            <p className="text-body text-ink-muted">
+              Already in the Album. Label them so each is filed under its dish,
+              drink or space.
+            </p>
+          </div>
+          <ul className="flex gap-1.5 overflow-hidden" aria-hidden>
+            {unlabelled.slice(0, 6).map((item) => (
+              <li key={item.assetId}>
+                <SmallThumb item={item} />
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {canLabelNow ? (
+              <LinkButton
+                variant="primary"
+                href={`${MATCH_LATER_HREF}?select=1`}
+              >
+                Label photos
+              </LinkButton>
+            ) : null}
+            {show !== "unlabelled" ? (
+              <Link
+                href="/staff/photos?show=unlabelled"
+                className="inline-flex min-h-12 items-center text-label text-accent-text underline-offset-4 focus-ring hover:underline"
+              >
+                See them all
+              </Link>
+            ) : null}
+          </div>
+        </section>
       ) : null}
 
       {inbox.length > 0 ? (
@@ -295,17 +353,6 @@ export function MyPhotos({
             }))}
           />
 
-          {posting &&
-          show === "unlabelled" &&
-          shown.some((item) => canLabelUpload(item, currentVenueId)) ? (
-            <LinkButton
-              variant="secondary"
-              href={`${MATCH_LATER_HREF}?select=1`}
-              className="justify-self-start"
-            >
-              Label photos
-            </LinkButton>
-          ) : null}
           {days.length === 0 ? (
             <p className="text-body text-ink-muted">
               {MY_PHOTOS_COPY.noneShown}
