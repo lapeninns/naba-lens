@@ -454,6 +454,15 @@ function showItem(
 const region = (name: string) => screen.getByRole("region", { name })
 
 describe("Item detail", () => {
+  it("has one bottle button, Ask for a photo, a New request for the dish", () => {
+    showItem(detail())
+    const ask = screen.getByRole("link", { name: "Ask for a photo" })
+    expect(ask.getAttribute("href")).toBe(
+      `/manager/requests/new?kind=dish&slot=${ITEM}`
+    )
+    expect(ask.dataset.variant).toBe("primary")
+  })
+
   it("shows the menu photo, alternatives, waiting and history sections", () => {
     showItem(detail())
     expect(

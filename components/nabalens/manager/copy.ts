@@ -263,6 +263,8 @@ export const MANAGER_COPY = {
     loading: "Loading this menu item",
     /** The BackLink names the tab it opens (redesign R4, ia.md). */
     back: "Menu",
+    /** The detail page's one bottle button: a New request for the dish. */
+    askForPhoto: "Ask for a photo",
     menuPhoto: "Menu photo",
     noMenuPhoto: "No menu photo yet",
     fallback: "Showing the earliest accepted photo",
