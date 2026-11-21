@@ -6,6 +6,7 @@ import {
   ArrowUUpLeftIcon,
   FilmStripIcon,
   ImageIcon,
+  ImagesIcon,
   MegaphoneSimpleIcon,
   PencilSimpleIcon,
   TrashIcon,
@@ -25,6 +26,7 @@ import {
   type ReportSender,
 } from "@/components/nabalens/album/report-change-dialog"
 import { parseMediaRoute, versioned } from "@/app/_media/preview-recovery"
+import { Row } from "@/components/nabalens/common-room/row"
 import { Notice } from "@/components/nabalens/notice"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { StatusChip } from "@/components/nabalens/status-chip"
@@ -282,6 +284,7 @@ export function MyUploads({
   headingLevel = 2,
   showTitle = true,
   layout = "list",
+  detailParts,
 }: {
   /** The first page, read on the server; null when it couldn't be read. */
   initial: MyUploadsPage | null
@@ -300,6 +303,12 @@ export function MyUploads({
    * large with every action as a full-width button; no filters, no paging.
    */
   layout?: "list" | "detail"
+  /**
+   * On a photo's own page (screens-2 handoff): the photo's title is the
+   * page's h1, `status` (its chips) sits under it and `feedback` (the
+   * manager's notes) before the actions. Only with layout "detail".
+   */
+  detailParts?: { status?: React.ReactNode; feedback?: React.ReactNode }
 }) {
   const router = useRouter()
   const sessionEnded = useSessionEndedCatch()
@@ -391,12 +400,15 @@ export function MyUploads({
       className="grid gap-3"
       data-slot="my-uploads"
     >
-      <Heading
-        id={headingId}
-        className={showTitle ? "px-1 type-section-title text-ink" : "sr-only"}
-      >
-        {MY_UPLOADS_COPY.title}
-      </Heading>
+      {/* On its own page the photo's title is the page heading. */}
+      {detailParts && layout === "detail" ? null : (
+        <Heading
+          id={headingId}
+          className={showTitle ? "px-1 type-section-title text-ink" : "sr-only"}
+        >
+          {MY_UPLOADS_COPY.title}
+        </Heading>
+      )}
       {initial === null ? (
         <Notice tone="negative" role="alert">
           {MY_UPLOADS_COPY.readFailed}
@@ -406,6 +418,7 @@ export function MyUploads({
           <ul ref={attachThumbs} onError={onThumbError} className="grid">
             <UploadRow
               detail
+              parts={detailParts}
               item={items[0]}
               thumb={thumbs[items[0].assetId]}
               currentVenueId={currentVenueId}
@@ -591,6 +604,25 @@ export function MyUploads({
   )
 }
 
+/** The slots a photo is in, for its Open in Album rows (screens-2 handoff). */
+function openInAlbum(
+  item: MyUpload
+): { kind: "dish" | "area" | "amenity"; slotId: string; name: string }[] {
+  if (item.albumPost) {
+    if (item.albumPost.removed) return []
+    return (item.albumPost.labels ?? []).map(({ kind, id, name }) => ({
+      kind,
+      slotId: id,
+      name,
+    }))
+  }
+  return item.slots.map((s) => ({
+    kind: s.kind,
+    slotId: s.slotId,
+    name: s.name,
+  }))
+}
+
 function UploadRow({
   item,
   thumb,
@@ -600,9 +632,12 @@ function UploadRow({
   error,
   onOpen,
   detail = false,
+  parts,
 }: {
   /** One photo on its own page: large, with full-width actions. */
   detail?: boolean
+  /** The page's chips and feedback; with them the title is the h1. */
+  parts?: { status?: React.ReactNode; feedback?: React.ReactNode }
   item: MyUpload
   thumb: ThumbState | undefined
   currentVenueId: string | null
@@ -640,7 +675,11 @@ function UploadRow({
         <Thumb item={item} state={thumb} />
       )}
       <div className={detail ? "grid min-w-0 gap-2" : "grid min-w-0 gap-1.5"}>
-        {detail ? (
+        {detail && parts ? (
+          <h1 className="type-page-title [overflow-wrap:anywhere] text-ink">
+            {title}
+          </h1>
+        ) : detail ? (
           <h2 className="type-page-title [overflow-wrap:anywhere] text-ink">
             {title}
           </h2>
@@ -657,9 +696,11 @@ function UploadRow({
             {receiptWord(item)}
           </StatusChip>
         ) : null}
+        {detail && parts?.status ? parts.status : null}
         {item.albumPost &&
         !item.albumPost.removed &&
         detail &&
+        !parts &&
         item.venueId === currentVenueId ? (
           <div className="flex flex-wrap gap-1.5">
             {item.albumPost.labels?.map(({ kind, id, name }) => (
@@ -681,7 +722,7 @@ function UploadRow({
                 className="flex flex-wrap items-center gap-2"
               >
                 <StatusChip state={OUTCOME_CHIP[s.outcome]} />
-                {detail && item.venueId === currentVenueId ? (
+                {detail && !parts && item.venueId === currentVenueId ? (
                   <LinkButton variant="quiet" href={slotPageHref(s)}>
                     Open {s.name} in Album
                   </LinkButton>
@@ -746,6 +787,7 @@ function UploadRow({
             {REPORT_COPY.photoTitle}: sent
           </StatusChip>
         ) : null}
+        {detail && parts?.feedback ? parts.feedback : null}
         <div
           className={
             detail
@@ -807,7 +849,8 @@ function UploadRow({
           ) : null}
           {can.withdraw ? (
             <Button
-              variant="quiet"
+              // Destructive: the danger style, never filled (screens-2).
+              variant={detail && parts ? "danger" : "quiet"}
               size="sm"
               onClick={() => onOpen({ kind: "withdraw", item })}
             >
@@ -821,6 +864,17 @@ function UploadRow({
             {note}
           </Notice>
         ) : null}
+        {detail && parts && item.venueId === currentVenueId
+          ? openInAlbum(item).map((slot) => (
+              <Row
+                key={`${slot.kind}:${slot.slotId}`}
+                href={slotPageHref(slot)}
+                icon={<ImagesIcon />}
+                title={`Open ${slot.name} in Album`}
+                className="mt-2"
+              />
+            ))
+          : null}
         {error ? (
           <Notice tone="negative" role="alert">
             {error}

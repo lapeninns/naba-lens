@@ -6,6 +6,9 @@ import {
 } from "@/components/nabalens/album/posted-photos"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { BackLink } from "@/components/nabalens/back-link"
+import { Row } from "@/components/nabalens/common-room/row"
+import { ImagesIcon } from "@phosphor-icons/react/dist/ssr"
+
 import { LinkButton } from "@/components/ui/link-button"
 import { Photo } from "@/components/ui/photo"
 import { requireActiveStaff } from "@/lib/auth"
@@ -21,6 +24,7 @@ import {
   LABEL_PHOTO,
   labelPhotoHref,
   photoHref,
+  shortDay,
   slotPageHref,
 } from "@/lib/staff/my-uploads"
 
@@ -28,6 +32,18 @@ import { staffShellStatus } from "../../../_shell/shell-status"
 
 export const metadata = { title: "Album photo" }
 
+const RECENT_PHOTO_COPY = {
+  by: (name: string, day: string) =>
+    day ? `By ${name} · posted ${day}` : `By ${name}`,
+  colleague:
+    "This is a colleague's photo. Only they and your manager can change it.",
+} as const
+
+/**
+ * A photo from Recent photos (D21; screens-2 handoff): the photo uncropped,
+ * its label, who posted it and when, Open in Album, and for a colleague's
+ * photo one line saying why there is nothing to press.
+ */
 export default async function AlbumPhotoPage({
   params,
 }: {
@@ -56,17 +72,6 @@ export default async function AlbumPhotoPage({
     >
       <div className="grid gap-4">
         <BackLink href={RECENT_STAFF_POSTS}>Recent photos</BackLink>
-        <header className="grid gap-1">
-          <h1 className="type-display wrap-break-word text-ink">{title}</h1>
-          <p className="text-body text-ink-muted">{post.uploaderName}</p>
-          {!post.removed ? (
-            <AlbumPostStatus
-              needsAttention={post.feedback.some(
-                ({ action }) => action === "feedback" || action === "retake"
-              )}
-            />
-          ) : null}
-        </header>
         {!post.removed ? (
           <Photo
             src={
@@ -78,17 +83,35 @@ export default async function AlbumPhotoPage({
             imgClassName="object-contain"
           />
         ) : null}
-        <div className="flex flex-wrap gap-2">
-          {!post.removed
-            ? post.labels.map((label) => (
-                <LinkButton
-                  key={`${label.kind}:${label.id}`}
-                  href={slotPageHref({ kind: label.kind, slotId: label.id })}
-                >
-                  Open {label.name} in Album
-                </LinkButton>
-              ))
-            : null}
+        <header className="grid gap-2">
+          <h1 className="type-page-title wrap-break-word text-ink">{title}</h1>
+          {!post.removed ? (
+            <AlbumPostStatus
+              needsAttention={post.feedback.some(
+                ({ action }) => action === "feedback" || action === "retake"
+              )}
+            />
+          ) : null}
+          <p className="text-meta text-ink-muted">
+            {RECENT_PHOTO_COPY.by(post.uploaderName, shortDay(post.postedAt))}
+          </p>
+        </header>
+        {!post.removed
+          ? post.labels.map((label) => (
+              <Row
+                key={`${label.kind}:${label.id}`}
+                href={slotPageHref({ kind: label.kind, slotId: label.id })}
+                icon={<ImagesIcon />}
+                title={`Open ${label.name} in Album`}
+              />
+            ))
+          : null}
+        {own ? null : (
+          <p className="text-body text-ink-muted" data-slot="recent-colleague">
+            {RECENT_PHOTO_COPY.colleague}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2 empty:hidden">
           {own && !post.removed && post.labels.length === 0 ? (
             <LinkButton href={labelPhotoHref(assetId)}>
               {LABEL_PHOTO}

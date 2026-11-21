@@ -58,6 +58,28 @@ export function reasonsFor(kind: SlotReportKind) {
   return kind === "photo" ? PHOTO_REASONS : SLOT_REASONS
 }
 
+/**
+ * The four choices the sheet shows for a kind (screens-2 handoff): a dish
+ * leaves out "The space isn't available"; a space has it second, in place
+ * of "It's no longer served". The server still accepts every reason in
+ * reasonsFor, so a sheet opened before this change still sends.
+ */
+export function reasonsShown(kind: SlotReportKind) {
+  if (kind === "photo") return PHOTO_REASONS
+  const skip: SlotReportReason =
+    kind === "area" ? "no_longer_served" : "space_unavailable"
+  const shown = SLOT_REASONS.filter((r) => r.key !== skip)
+  if (kind !== "area") return shown
+  // A space: It looks different now, then The space isn't available.
+  const order: SlotReportReason[] = [
+    "appearance_changed",
+    "space_unavailable",
+    "wrong_label",
+    "other",
+  ]
+  return order.map((key) => shown.find((r) => r.key === key)!)
+}
+
 export const REPORT_NOTE_MAX = 500
 
 export const REPORT_COPY = {

@@ -3,14 +3,14 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import {
-  ArrowLeftIcon,
-  CheckIcon,
-  FunnelSimpleIcon,
-  ImagesIcon,
-} from "@phosphor-icons/react"
+import { CheckIcon, FunnelSimpleIcon, ImagesIcon } from "@phosphor-icons/react"
 
 import { AlbumSlotTile } from "@/components/nabalens/album/album-home"
+import { CheckProgressChip } from "@/components/nabalens/amenities/manage/check-row"
+import { BackLink } from "@/components/nabalens/back-link"
+import { ActionDock } from "@/components/nabalens/common-room/action-dock"
+import { Row, RowList } from "@/components/nabalens/common-room/row"
+import { SectionHeader } from "@/components/nabalens/common-room/section"
 import { Notice } from "@/components/nabalens/notice"
 import {
   useAdd,
@@ -27,7 +27,14 @@ import {
 import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
 import { Photo } from "@/components/ui/photo"
 import { SegmentedControl } from "@/components/ui/segmented-control"
-import { ALBUM_SHOWS, slotMatchesShow, type AlbumShow } from "@/lib/album/model"
+import { ANSWER_LABEL } from "@/lib/amenities/contract"
+import {
+  ALBUM_SHOWS,
+  slotHref,
+  slotMatchesShow,
+  type AlbumShow,
+  type AlbumSlot,
+} from "@/lib/album/model"
 import type {
   AlbumPart as AlbumPartView,
   AlbumType,
@@ -42,10 +49,13 @@ import { LENS_COPY, PlaceLensPills, type LensPlace } from "./album-lens"
 /*
  * One part of the album (DESIGN.md §5d "A part"): Menu (with its Food |
  * Drinks switch), Amenities or Spaces. The filter row, a sticky jump bar of
- * shelves, then each shelf and its sections as three-up slot tiles, with a
- * Done mark on a finished section (§2 principle 6). Adding is
- * gallery first (§2, D9): a Needed tile opens the gallery for its slot; the
- * main button opens it for many, then Match (§6.1).
+ * shelves, then each shelf and its sections as slot tiles (three-up; Spaces
+ * two-up, as rooms are wide), with a Done mark on a finished section (§2
+ * principle 6). Amenities lists its questions as rows by group, each with
+ * its answer line and one chip: the thing to read is the question, not a
+ * photo (screens-2 handoff). Adding is gallery first (§2, D9): a Needed tile
+ * opens the gallery for its slot; the main button opens it for many, then
+ * Match (§6.1).
  */
 
 export const PART_COPY = {
@@ -63,7 +73,9 @@ export const PART_COPY = {
       ? "Nothing yet"
       : empty === 0
         ? `All ${total} in`
-        : `${filled} of ${total} in · ${empty} empty`,
+        : filled === 0
+          ? `Nothing yet · ${empty} to add`
+          : `${filled} of ${total} in · ${empty} empty`,
   sectionCount: (filled: number, total: number) => `${filled} of ${total}`,
   done: "Done",
   filter: "Filter",
@@ -71,6 +83,27 @@ export const PART_COPY = {
   showTitle: "Show",
   noneShown: "Nothing here matches this filter. Choose All to see every slot.",
   addMain: "Add photos from your gallery",
+  questionsOf: (open: number, total: number) =>
+    total === 0
+      ? "No questions here yet."
+      : open > 0
+        ? `${open} ${open === 1 ? "question" : "questions"} still to answer of ${total}`
+        : "Every question answered",
+  answeredOf: (answered: number, total: number) => `${answered} of ${total}`,
+  needsPhoto: "A Yes needs a photo",
+  recheck: "Your manager asked for a recheck",
+  waiting: "Your answer is waiting for your manager",
+  currentAnswer: (answer: string) => `Current answer: ${answer}`,
+}
+
+/** The one line under an amenity question (screens-2 handoff). */
+export function questionLine(slot: AlbumSlot): string {
+  const q = slot.question
+  if (slot.state === "waiting") return PART_COPY.waiting
+  if (q?.progress === "needs_recheck") return PART_COPY.recheck
+  if (q?.progress === "complete" && q.answer)
+    return PART_COPY.currentAnswer(ANSWER_LABEL[q.answer])
+  return PART_COPY.needsPhoto
 }
 
 function query(
@@ -124,12 +157,15 @@ export function AlbumPart({
   const switched = part.key === "menu" && type !== null
   const kind = switched ? type.category : null
   const allShelves = switched ? type.shelves : part.shelves
+  // Amenities lists every question by group, never folders.
+  const questions = part.key === "amenities"
   // A part with one shelf (Spaces) opens straight onto it; otherwise the
   // shelves are folders until one is chosen (§5d "A part" steps 4 and 5).
-  const open =
-    allShelves.find((s) => s.key === shelfKey) ??
-    (allShelves.length === 1 ? allShelves[0]! : null)
-  const folders = open === null
+  const open = questions
+    ? null
+    : (allShelves.find((s) => s.key === shelfKey) ??
+      (allShelves.length === 1 ? allShelves[0]! : null))
+  const folders = open === null && !questions
   const sections = (open?.sections ?? [])
     .map((section) => ({
       ...section,
@@ -185,23 +221,23 @@ export function AlbumPart({
       data-slot="album-part"
     >
       <div className="grid gap-1">
-        <Link
+        <BackLink
           href={
             backToFolders
               ? href({ shelf: null, show: null })
               : `/staff/album${query(lens, null)}`
           }
-          className="inline-flex min-h-12 items-center gap-1.5 justify-self-start text-label text-ink focus-ring"
         >
-          <ArrowLeftIcon aria-hidden className="size-5" />
           {backToFolders ? eyebrow : PART_COPY.back}
-        </Link>
+        </BackLink>
         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
           <h1 className="type-page-title text-ink">
             {open && allShelves.length > 1 ? open.label : part.label}
           </h1>
           <p className="text-meta text-ink-muted tabular-nums">
-            {PART_COPY.stillEmptyOf(head.empty, head.total)}
+            {questions
+              ? PART_COPY.questionsOf(head.empty, head.total)
+              : PART_COPY.stillEmptyOf(head.empty, head.total)}
           </p>
         </div>
       </div>
@@ -232,9 +268,9 @@ export function AlbumPart({
 
       {blocked ? <Notice tone="attention">{blocked}</Notice> : null}
 
-      {part.total === 0 ? null : (
+      {part.total === 0 || (questions && places.length < 2) ? null : (
         <FilterRow
-          withShow={!folders}
+          withShow={!folders && !questions}
           posting={posting}
           show={show}
           defaultShow={defaultShow}
@@ -256,7 +292,9 @@ export function AlbumPart({
         </ul>
       ) : null}
 
-      {!folders && sections.length > 1 ? (
+      {questions ? <AmenityQuestions shelves={allShelves} /> : null}
+
+      {!folders && !questions && sections.length > 1 ? (
         <nav
           aria-label="Jump to"
           className="sticky top-0 z-sticky -mx-page-gutter border-b border-line bg-canvas/95 px-page-gutter py-2 backdrop-blur"
@@ -289,11 +327,11 @@ export function AlbumPart({
         </nav>
       ) : null}
 
-      {!folders && sections.length === 0 && head.total > 0 ? (
+      {!folders && !questions && sections.length === 0 && head.total > 0 ? (
         <p className="text-body text-ink-muted">{PART_COPY.noneShown}</p>
       ) : null}
 
-      {!folders
+      {!folders && !questions
         ? sections.map((section) => {
             const done = section.total > 0 && section.filled === section.total
             return (
@@ -328,7 +366,15 @@ export function AlbumPart({
                     </span>
                   )}
                 </div>
-                <ul className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-x-2 gap-y-3 md:grid-cols-[repeat(5,minmax(0,1fr))] lg:grid-cols-[repeat(6,minmax(0,1fr))]">
+                <ul
+                  className={cn(
+                    "grid gap-x-2 gap-y-3",
+                    // Rooms are wide: Spaces is two-up (screens-2 handoff).
+                    part.key === "spaces"
+                      ? "grid-cols-[repeat(2,minmax(0,1fr))] md:grid-cols-[repeat(3,minmax(0,1fr))] lg:grid-cols-[repeat(4,minmax(0,1fr))]"
+                      : "grid-cols-[repeat(3,minmax(0,1fr))] md:grid-cols-[repeat(5,minmax(0,1fr))] lg:grid-cols-[repeat(6,minmax(0,1fr))]"
+                  )}
+                >
                   {section.shown.map((slot) => (
                     <li key={slot.id}>
                       <AlbumSlotTile slot={slot} add={add} />
@@ -340,20 +386,67 @@ export function AlbumPart({
           })
         : null}
 
-      <div className="sticky bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px)+0.5rem)] z-dock md:static">
-        <Button
-          variant="primary"
-          size="lg"
-          className="min-h-14 w-full"
-          disabled={!canAdd}
-          onClick={() =>
-            add({ match: { place: lens === "unplaced" ? null : lens } })
-          }
-        >
-          <ImagesIcon data-icon="inline-start" aria-hidden />
-          {PART_COPY.addMain}
-        </Button>
-      </div>
+      {/* Amenities are answered on each question's page, not added here. */}
+      {questions ? null : (
+        <ActionDock>
+          <Button
+            variant="primary"
+            size="lg"
+            className="min-h-14 w-full"
+            disabled={!canAdd}
+            onClick={() =>
+              add({ match: { place: lens === "unplaced" ? null : lens } })
+            }
+          >
+            <ImagesIcon data-icon="inline-start" aria-hidden />
+            {PART_COPY.addMain}
+          </Button>
+        </ActionDock>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Amenities as questions (screens-2 handoff): one RowList per amenity group,
+ * its heading with how many are answered, each row the question, its answer
+ * line and one progress chip. A row opens the question's page.
+ */
+function AmenityQuestions({ shelves }: { shelves: AlbumShelf[] }) {
+  return (
+    <div className="grid gap-5" data-slot="album-questions">
+      {shelves.map((shelf) => {
+        const slots = shelf.sections.flatMap((s) => s.slots)
+        const id = `questions-${sectionAnchor(shelf.key)}`
+        return (
+          <section key={shelf.key} aria-labelledby={id} className="grid gap-2">
+            <SectionHeader
+              id={id}
+              title={shelf.label}
+              action={
+                <span className="text-meta text-ink-muted tabular-nums">
+                  {PART_COPY.answeredOf(shelf.filled, shelf.total)}
+                </span>
+              }
+            />
+            <RowList list>
+              {slots.map((slot) => (
+                <Row
+                  key={slot.id}
+                  href={slotHref(slot)}
+                  title={slot.name}
+                  subtitle={questionLine(slot)}
+                  chips={
+                    slot.question ? (
+                      <CheckProgressChip progress={slot.question.progress} />
+                    ) : null
+                  }
+                />
+              ))}
+            </RowList>
+          </section>
+        )
+      })}
     </div>
   )
 }
