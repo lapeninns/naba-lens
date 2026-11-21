@@ -21,11 +21,14 @@ import {
   photosWord,
   takenWords,
 } from "./bits"
-import { VENUE } from "./catalogue"
+import { SHELVES, VENUE, folderById, folderHref } from "./catalogue"
 import { LabelFlow } from "./label-flow"
+import { resetWorld } from "./world"
 import {
   DEMO_BATCH,
   addFiles,
+  dismissLastRun,
+  saveLabel,
   resetAll,
   retryUpload,
   seedDemo,
@@ -60,10 +63,38 @@ export function Launcher({ state }: { state: PhoneState }) {
             size="lg"
             onClick={() => {
               seedDemo()
+              resetWorld()
               router.push(`${BASE}/batch/${DEMO_BATCH}`)
             }}
           >
             Start the demo
+          </Button>
+        </section>
+
+        <section className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
+          <h2 className="text-heading">The whole staff app</h2>
+          <p className="text-body">
+            Today, Album, My photos and Me with sample data: a manager’s request
+            for another photo, two asked-for photos, venue questions and
+            notices.
+          </p>
+          <Button
+            onClick={() => {
+              seedDemo()
+              resetWorld()
+              router.push(`${BASE}/today`)
+            }}
+          >
+            Open Today
+          </Button>
+          <Button
+            onClick={() => {
+              resetAll()
+              resetWorld(true)
+              router.push(`${BASE}/sign-in`)
+            }}
+          >
+            Start from first sign-in
           </Button>
         </section>
 
@@ -119,6 +150,7 @@ export function DemoStart() {
     if (started.current) return
     started.current = true
     seedDemo()
+    resetWorld()
     router.replace(`${BASE}/batch/${DEMO_BATCH}`)
   }, [router])
   return (
@@ -138,6 +170,9 @@ export function AddScreen({ state }: { state: PhoneState }) {
   const input = useRef<HTMLInputElement | null>(null)
   const [busy, setBusy] = useState<number | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
+  const params = useSearchParams()
+  // Opened from a folder: the photos take that folder's label as they land.
+  const into = folderById(params.get("for"))
 
   const onFiles = async (list: FileList | null) => {
     const files = Array.from(list ?? [])
@@ -155,6 +190,12 @@ export function AddScreen({ state }: { state: PhoneState }) {
       )
       return
     }
+    if (into) {
+      saveLabel(result.photoIds, { type: "folder", folderId: into.id })
+      dismissLastRun()
+      router.push(`${folderHref(BASE, into)}?added=${result.kept}`)
+      return
+    }
     const query = new URLSearchParams()
     if (result.notPhotos.length > 0)
       query.set("left", String(result.notPhotos.length))
@@ -167,10 +208,16 @@ export function AddScreen({ state }: { state: PhoneState }) {
   return (
     <Screen>
       <VenueBar name={VENUE} role="Photos you add go to this pub’s album" />
-      <TopBar title="Add photos">
-        <p className="text-body text-ink-muted">
-          Choose as many as you like in one go. You decide afterwards whether to
-          label them now or later.
+      <TopBar
+        back={
+          into ? { href: folderHref(BASE, into), label: into.name } : undefined
+        }
+        title={into ? `Add photos of ${into.name}` : "Add photos"}
+      >
+        <p className="text-body text-ink-muted" data-add-intro="">
+          {into
+            ? `They go straight into ${SHELVES[into.shelf].name} → ${into.groupName} → ${into.name}. No labelling needed.`
+            : "Choose as many as you like in one go. They post to the Album as they upload; you can label them now or later."}
         </p>
       </TopBar>
       <div className="grid gap-4 px-gutter pt-2">

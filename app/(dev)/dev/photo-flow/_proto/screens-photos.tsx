@@ -7,6 +7,15 @@ import { ArrowLeftIcon, CaretRightIcon } from "@phosphor-icons/react"
 
 import { Notice } from "@/components/nabalens/notice"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { LinkButton } from "@/components/ui/link-button"
 
 import {
@@ -33,10 +42,12 @@ import {
 } from "./catalogue"
 import { LabelFlow } from "./label-flow"
 import { LabelPicker } from "./label-picker"
+import { MANAGER, feedbackFor, feedbackTitle, useWorld } from "./world"
 import { FailedNotice, Missing } from "./screens-add"
 import {
   failed,
   folderOf,
+  removePhoto,
   retryUpload,
   saveLabel,
   stageOf,
@@ -51,6 +62,7 @@ import {
 export function MyPhotos({ state }: { state: PhoneState }) {
   const params = useSearchParams()
   const later = Number(params.get("later") ?? 0)
+  const removed = params.get("removed") === "1"
   const withoutLabels = unlabelled(state)
   const failedPhotos = failed(state)
   const byFolder = new Map<string, { folder: Folder; photos: Photo[] }>()
@@ -82,6 +94,17 @@ export function MyPhotos({ state }: { state: PhoneState }) {
           >
             Nothing else to do now. Label {later === 1 ? "it" : "them"} here
             when you have a minute.
+          </Notice>
+        ) : null}
+
+        {removed ? (
+          <Notice
+            tone="plain"
+            role="status"
+            data-removed-notice=""
+            title="Photo removed"
+          >
+            It is out of the Album and off this phone.
           </Notice>
         ) : null}
 
@@ -189,10 +212,16 @@ export function MyPhotos({ state }: { state: PhoneState }) {
 export function PhotoGrid({
   photos,
   justRun,
+  caption,
+  linkTo,
 }: {
   photos: Photo[]
   /** The save whose photos are marked "Labelled just now". */
   justRun?: string | null
+  /** Words under the photo in place of its capture date. */
+  caption?: (photo: Photo) => string
+  /** Where a tile goes, when it is not the person's own photo page. */
+  linkTo?: (photo: Photo) => string
 }) {
   return (
     <ul className="grid grid-cols-2 gap-x-2 gap-y-4">
@@ -204,7 +233,7 @@ export function PhotoGrid({
           className="grid content-start gap-1.5"
         >
           <Link
-            href={`${BASE}/photo/${photo.id}`}
+            href={linkTo ? linkTo(photo) : `${BASE}/photo/${photo.id}`}
             className="block rounded-card focus-ring"
             aria-label={`Open photo: ${altOf(photo)}`}
           >
@@ -218,7 +247,9 @@ export function PhotoGrid({
               Labelled just now
             </p>
           ) : null}
-          <p className="text-meta text-ink-muted">Taken: {takenWords(photo)}</p>
+          <p className="text-meta text-ink-muted">
+            {caption ? caption(photo) : `Taken: ${takenWords(photo)}`}
+          </p>
         </li>
       ))}
     </ul>
@@ -272,7 +303,9 @@ export function PhotoDetail({
   photoId: string
 }) {
   const router = useRouter()
+  const world = useWorld()
   const [picking, setPicking] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const noticeRef = useRef<HTMLDivElement | null>(null)
   const saved = useRef(false)
   const photo = state.photos.find((p) => p.id === photoId)
@@ -304,6 +337,8 @@ export function PhotoDetail({
   const folder = folderOf(photo)
   const stage = stageOf(photo)
   const title = folder?.name ?? "Unlabelled photo"
+  const said = world ? feedbackFor(world, photo.id) : []
+  const takenDown = said.find((item) => item.kind === "remove")
   const justSaved =
     state.lastRun?.photoIds.length === 1 &&
     state.lastRun.photoIds[0] === photo.id
@@ -351,6 +386,43 @@ export function PhotoDetail({
               Undo
             </Button>
           </Notice>
+        ) : null}
+
+        {said.length > 0 ? (
+          <section aria-labelledby="manager-said" className="grid gap-2">
+            <h2 id="manager-said" className="text-heading">
+              From your manager
+            </h2>
+            {said.map((item) => (
+              <Notice
+                key={item.id}
+                data-feedback={item.kind}
+                tone={
+                  item.kind === "feedback"
+                    ? "plain"
+                    : item.kind === "remove"
+                      ? "negative"
+                      : "attention"
+                }
+                role="note"
+                title={feedbackTitle(item.kind)}
+              >
+                <p>{item.note}</p>
+                <p className="mt-1 text-meta text-ink-muted">
+                  {MANAGER}, {dayWords(item.at)}
+                </p>
+                {item.kind === "retake" && folder ? (
+                  <LinkButton
+                    href={`${BASE}/add?for=${encodeURIComponent(folder.id)}`}
+                    size="sm"
+                    className="mt-3"
+                  >
+                    Add another photo of {folder.name}
+                  </LinkButton>
+                ) : null}
+              </Notice>
+            ))}
+          </section>
         ) : null}
 
         {stage === "failed" ? (
@@ -410,20 +482,57 @@ export function PhotoDetail({
           </Fact>
         </dl>
 
-        <Button
-          variant={photo.label ? "secondary" : "primary"}
-          size="lg"
-          className="w-full"
-          onClick={() => setPicking(true)}
-        >
-          {photo.label ? "Change label" : "Label this photo"}
-        </Button>
+        {takenDown ? null : (
+          <Button
+            variant={photo.label ? "secondary" : "primary"}
+            size="lg"
+            className="w-full"
+            onClick={() => setPicking(true)}
+          >
+            {photo.label ? "Change label" : "Label this photo"}
+          </Button>
+        )}
         {folder ? (
           <LinkButton href={folderHref(BASE, folder)} className="w-full">
             Open folder
           </LinkButton>
         ) : null}
+        <div className="grid gap-1">
+          <Button variant="danger-quiet" onClick={() => setRemoving(true)}>
+            Remove this photo
+          </Button>
+          <p className="text-center text-meta text-ink-muted">
+            Takes it out of the Album for everyone. Photos already used on a
+            website or menu are not affected.
+          </p>
+        </div>
       </div>
+
+      <Dialog open={removing} onOpenChange={setRemoving}>
+        <DialogContent size="sm" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle className="pr-0">Remove this photo?</DialogTitle>
+            <DialogDescription>
+              It leaves the Album and this phone. This can’t be undone. The
+              original stays in your phone’s gallery.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="secondary" />}>
+              Keep it
+            </DialogClose>
+            <Button
+              variant="danger"
+              onClick={() => {
+                removePhoto(photo.id)
+                router.replace(`${BASE}/my-photos?removed=1`)
+              }}
+            >
+              Remove photo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <TabBar active={null} state={state} />
     </Screen>
   )

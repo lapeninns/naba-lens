@@ -5,6 +5,8 @@ import { useEffect, useState } from "react"
 import {
   ArrowLeftIcon,
   ArrowUpIcon,
+  HouseIcon,
+  UserCircleIcon,
   CaretRightIcon,
   CheckIcon,
   DeviceMobileIcon,
@@ -22,10 +24,10 @@ import { cn } from "@/lib/utils"
 
 import { loadBlob } from "./blobs"
 import { SAMPLES } from "./samples"
+import { notices, useWorld } from "./world"
 import {
   failed,
   stageOf,
-  unlabelled,
   useProgress,
   type PhoneState,
   type Photo,
@@ -351,19 +353,21 @@ export function trailWords(steps: string[]): string {
 }
 
 const TABS = [
+  { id: "today", label: "Today", href: `${BASE}/today`, Icon: HouseIcon },
   {
     id: "album",
     label: "Album",
     href: `${BASE}/album`,
     Icon: ImagesSquareIcon,
   },
-  { id: "add", label: "Add photos", href: `${BASE}/add`, Icon: PlusIcon },
+  { id: "add", label: "Add", href: `${BASE}/add`, Icon: PlusIcon },
   {
     id: "my-photos",
     label: "My photos",
     href: `${BASE}/my-photos`,
     Icon: ImagesIcon,
   },
+  { id: "me", label: "Me", href: `${BASE}/me`, Icon: UserCircleIcon },
 ] as const
 
 export type TabId = (typeof TABS)[number]["id"]
@@ -375,16 +379,18 @@ export function TabBar({
   active: TabId | null
   state: PhoneState
 }) {
-  // A photo that is both unlabelled and not uploaded is one thing to do.
-  const needsYou = new Set(
-    [...unlabelled(state), ...failed(state)].map((photo) => photo.id)
-  ).size
+  const world = useWorld()
+  // My photos counts what is stuck on the phone; Me counts unread notices.
+  const stuck = failed(state).length
+  const unread = world
+    ? notices(world, state, BASE).filter((item) => item.unread).length
+    : 0
   return (
     <nav
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-nav mx-auto w-full max-w-feed bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-bar"
     >
-      <ul className="grid grid-cols-3">
+      <ul className="grid grid-cols-5">
         {TABS.map(({ id, label, href, Icon }) => {
           const on = id === active
           return (
@@ -409,11 +415,19 @@ export function TabBar({
                       className="size-6"
                     />
                   )}
-                  {id === "my-photos" && needsYou > 0 ? (
+                  {id === "my-photos" && !on ? (
                     <CountBadge
                       tone="warn"
-                      count={needsYou}
-                      label="need you"
+                      count={stuck}
+                      label={stuck === 1 ? "didn’t upload" : "didn’t upload"}
+                      className="absolute -top-1.5 -right-3"
+                    />
+                  ) : null}
+                  {id === "me" && !on ? (
+                    <CountBadge
+                      tone="warn"
+                      count={unread}
+                      label={unread === 1 ? "new notice" : "new notices"}
                       className="absolute -top-1.5 -right-3"
                     />
                   ) : null}

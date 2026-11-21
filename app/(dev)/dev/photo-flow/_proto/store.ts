@@ -307,6 +307,8 @@ async function takenAtOf(file: File): Promise<string | null> {
 export type AddResult = {
   batchId: string
   kept: number
+  /** The photos that were added, in the order chosen. */
+  photoIds: string[]
   /** Files that are not photos. */
   notPhotos: string[]
   /** Photos this phone could not store, so they were not added at all. */
@@ -364,7 +366,13 @@ export async function addFiles(files: File[]): Promise<AddResult> {
     })
     pump()
   }
-  return { batchId, kept: photos.length, notPhotos, notKept }
+  return {
+    batchId,
+    kept: photos.length,
+    photoIds: photos.map((photo) => photo.id),
+    notPhotos,
+    notKept,
+  }
 }
 
 /* -------------------------------------------------------------- labelling */
@@ -406,6 +414,25 @@ export function undoLastRun() {
   )
   commit({ ...now, photos, lastRun: null })
   photos.filter((photo) => run.photoIds.includes(photo.id)).forEach(syncLabel)
+}
+
+/** Take one's own photo out of the Album and off this phone. */
+export function removePhoto(id: string) {
+  const now = current()
+  const photo = now.photos.find((p) => p.id === id)
+  if (!photo) return
+  commit({
+    ...now,
+    photos: now.photos.filter((p) => p.id !== id),
+    lastRun: now.lastRun?.photoIds.includes(id) ? null : now.lastRun,
+  })
+  const held = server()
+  const received = { ...held.received }
+  const labels = { ...held.labels }
+  delete received[id]
+  delete labels[id]
+  writeServer({ received, labels })
+  if (photo.source.kind === "file") void deleteBlob(id)
 }
 
 export function dismissLastRun() {

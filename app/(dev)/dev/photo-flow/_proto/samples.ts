@@ -12,6 +12,11 @@ import hotWings from "../_samples/hot-wings.jpg"
 import momoAngle from "../_samples/momo-angle.jpg"
 import momoClose from "../_samples/momo-close.jpg"
 import momoOverhead from "../_samples/momo-overhead.jpg"
+import carPark from "../_samples/car-park.jpg"
+import chickenCurry from "../_samples/chicken-curry.jpg"
+import front from "../_samples/front.jpg"
+import patio from "../_samples/patio.jpg"
+import playArea from "../_samples/play-area.jpg"
 
 /*
  * The demo's photos (sources in ../_samples/SOURCES.md). `alt` says what is
@@ -78,6 +83,31 @@ export const SAMPLES = {
     image: diningRoom,
     file: "IMG_3988.jpg",
     alt: "Dining room with laid tables and doors onto a terrace",
+  },
+  "chicken-curry": {
+    image: chickenCurry,
+    file: "IMG_3901.jpg",
+    alt: "Bowl of red-brown curry topped with shredded ginger",
+  },
+  patio: {
+    image: patio,
+    file: "IMG_3902.jpg",
+    alt: "Patio with tables and chairs in sunshine",
+  },
+  "play-area": {
+    image: playArea,
+    file: "IMG_3903.jpg",
+    alt: "Wooden climbing frame with a slide in a garden",
+  },
+  front: {
+    image: front,
+    file: "IMG_3904.jpg",
+    alt: "Front of a pub with a garden beside it",
+  },
+  "car-park": {
+    image: carPark,
+    file: "IMG_3905.jpg",
+    alt: "Gravel car park beside a pub",
   },
 } satisfies Record<
   string,
