@@ -233,7 +233,7 @@ export function Welcome({ world }: { world: World }) {
           <ul className="grid gap-2 text-body text-ink-muted">
             <li>
               Photos you add belong to Lapen Inns and may be used on our
-              websites, menus and social media, once a manager approves them.
+              websites, menus and social media, once a manager has checked them.
             </li>
             <li>
               Your name stays on what you added, for credit. It is not shown to

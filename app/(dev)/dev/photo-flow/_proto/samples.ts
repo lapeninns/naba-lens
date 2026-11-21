@@ -1,4 +1,4 @@
-import type { StaticImageData } from "next/image"
+type StaticImageData = { src: string; width: number; height: number }
 
 import barLounge from "../_samples/bar-lounge.jpg"
 import beerGarden from "../_samples/beer-garden.jpg"

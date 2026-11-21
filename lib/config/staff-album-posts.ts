@@ -1,7 +1,7 @@
-// D20: local preview of immediate staff Album posting (DESIGN.md §6.1).
+// D20: immediate staff Album posting (DESIGN.md §6.1), on by default since
+// 21 Nov 2026. Set NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS=0 to turn it off.
 export const STAFF_ALBUM_POSTS =
-  process.env.NODE_ENV === "development" &&
-  process.env.NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS === "1"
+  process.env.NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS !== "0"
 
 export const RECENT_STAFF_POSTS = "/staff/album/recent"
 export const MANAGER_STAFF_ALBUM = "/manager/review/album"

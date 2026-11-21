@@ -23,6 +23,15 @@ import { MATCH_LATER_HREF } from "@/lib/staff/my-uploads"
 
 import { CATALOGUE } from "./labels-fixtures"
 
+// These tests cover the match-before-send flow (D9), which is what staff get
+// when immediate posting (D20) is switched off with
+// NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS=0.
+vi.mock("@/lib/config/staff-album-posts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/config/staff-album-posts")>()),
+  STAFF_ALBUM_POSTS: false,
+}))
+
+
 const GARDEN = "00000000-0000-4000-8000-00000000b003"
 const PASS = "00000000-0000-4000-8000-00000000b002"
 const A1 = "00000000-0000-4000-8000-0000000a0001"

@@ -98,6 +98,15 @@ import type { FeedPhotoItem } from "@/lib/knowledge/contract"
 import type { DecisionOutcome, QueueCard } from "@/lib/server/menu-photos/types"
 import type { EntryMenu } from "@/lib/work-client/entry"
 
+// These tests cover the match-before-send flow (D9), which is what staff get
+// when immediate posting (D20) is switched off with
+// NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS=0.
+vi.mock("@/lib/config/staff-album-posts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/config/staff-album-posts")>()),
+  STAFF_ALBUM_POSTS: false,
+}))
+
+
 const jpeg = (name: string) =>
   new File([new Uint8Array(64)], name, { type: "image/jpeg" })
 

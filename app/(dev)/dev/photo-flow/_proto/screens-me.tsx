@@ -593,7 +593,7 @@ export function Help({ state, world }: Props) {
           </p>
           <p className="text-body text-ink-muted">
             If a dish or space has changed, open its folder in Album and use
-            Report a change. It reaches them without a conversation.
+            Report a change. The manager sees it on that folder.
           </p>
         </section>
       </div>

@@ -116,3 +116,11 @@ These were settled in the Common Room spec before it came into the repo. They bi
   Managers moderate posted photos. Approval for public use is separate.
   The trial is enabled with `NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS=1`
   in the dev harness (departure A-POST1).
+
+- **D21** (21 Nov 2026, Aman Kumar Shrestha). D20's immediate posting is
+  the default everywhere, production included. It replaces D9's Match
+  before send: staff add photos from the gallery, each ready photo posts
+  to the venue's private Album, and labelling can happen then or later
+  (the Open Design handoff "NabaLens staff photo workflow", 20 Nov 2026).
+  `NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS=0` switches back to D9's flow,
+  which stays in the code and its tests until it is retired.

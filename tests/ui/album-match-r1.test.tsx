@@ -33,6 +33,15 @@ import type { Uploader } from "@/components/nabalens/upload-queue"
 
 import { CATALOGUE, savedAnswer } from "./labels-fixtures"
 
+// These tests cover the match-before-send flow (D9), which is what staff get
+// when immediate posting (D20) is switched off with
+// NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS=0.
+vi.mock("@/lib/config/staff-album-posts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/config/staff-album-posts")>()),
+  STAFF_ALBUM_POSTS: false,
+}))
+
+
 const PASS = "00000000-0000-4000-8000-00000000b002"
 const GARDEN = "00000000-0000-4000-8000-00000000b003"
 const BAR = "00000000-0000-4000-8000-00000000b001"
