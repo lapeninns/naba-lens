@@ -17,6 +17,8 @@ export type ToConfirm = {
   lines: string[]
   payload: Record<string, unknown> | null
   href: string | null
+  /** The photo the row is about (space photos), shown beside its title. */
+  thumb?: string | null
 }
 
 const ANSWER_WORDS: Record<string, string> = {
@@ -60,6 +62,9 @@ export function factsToConfirm(
             answer ? `Answer: ${answer}` : "No answer yet",
           ].join(" · "),
           ...(checked ? [`Last checked ${checked}`] : []),
+          // Why there is no "Still right" button, and where to answer it
+          // (second handoff).
+          ...(answer ? [] : ["Answer it on the question's page"]),
         ],
         // Only a recorded answer can be reconfirmed unchanged.
         payload: answer
@@ -93,6 +98,7 @@ export function spacesToConfirm(
       ],
       payload: { subjectId },
       href: placesHref,
+      thumb: `/api/media/${encodeURIComponent(first.asset_id)}/thumb`,
     }
   })
 }

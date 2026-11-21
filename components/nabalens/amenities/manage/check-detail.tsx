@@ -19,6 +19,7 @@ import {
   ReasonField,
 } from "@/components/nabalens/coverage"
 import { REPORTED } from "@/components/nabalens/coverage/use-coverage-action"
+import { Disclosure, DisclosureList } from "@/components/nabalens/disclosure"
 import { Notice } from "@/components/nabalens/notice"
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { useStillWaiting } from "@/components/nabalens/use-still-waiting"
@@ -140,6 +141,18 @@ export type CheckDetailHandlers = {
 
 const NOTES_DRAFT_PREFIX = "nabalens.amenity-notes."
 
+const AT_DATE_TITLE = "See the answer on a date"
+
+/** "6 events", or "More than 20 events" when older ones are still to load. */
+const eventsSummary = (n: number, more: boolean) =>
+  more
+    ? `More than ${n} events`
+    : n === 0
+      ? "Nothing recorded yet"
+      : n === 1
+        ? "1 event"
+        : `${n} events`
+
 function readNotesDraft(checkId: string): string | null {
   try {
     return window.sessionStorage.getItem(NOTES_DRAFT_PREFIX + checkId)
@@ -184,6 +197,10 @@ function writeNotesDraft(checkId: string, notes: string | null) {
  * `canUpload` is false for viewers who can only attach media already on
  * Naba-Lens (manager accounts, admins): Capture myself is then a secondary
  * action and the page says new evidence comes from assigned staff.
+ *
+ * Second handoff: what is to confirm leads; where it stands and who
+ * captures it sit side by side from 768px; the capture brief, notes, the
+ * answer on a date and the history fold shut, each whole inside.
  */
 export function AmenityCheckDetail({
   detail,
@@ -251,6 +268,10 @@ export function AmenityCheckDetail({
     setRestored(true)
     if (storedNotes.trim() !== savedNotes) setNotes(storedNotes)
   }
+  // Unsaved notes (typed, or restored from this tab) open their
+  // disclosure, and it stays open after they are saved.
+  const [notesShown, setNotesShown] = React.useState(false)
+  if (!notesShown && notes.trim() !== savedNotes) setNotesShown(true)
   function editNotes(value: string) {
     setNotes(value)
     writeNotesDraft(check.id, value.trim() === savedNotes ? null : value)
@@ -500,188 +521,286 @@ export function AmenityCheckDetail({
         />
       ) : null}
 
-      <CoverageSection
-        id="amenity-status"
-        title="Where it stands"
-        focusableTitle
-      >
-        {SPORT_LINES[check.entry.key] ? (
-          <p className="text-body text-ink">{SPORT_LINES[check.entry.key]}</p>
-        ) : null}
-        {knowledge?.view.slot.answerInUse.policyMissing?.length ? (
-          <PolicyNeedsPanel
-            needs={knowledge.view.slot.answerInUse.policyMissing}
-          />
-        ) : null}
-        <dl className="grid gap-3 sm:grid-cols-2">
-          <div className="grid gap-1">
-            <dt className="text-meta text-ink-muted">Progress</dt>
-            <dd>
-              <ProgressChip check={check} notConfirmed={notConfirmed} />
-            </dd>
-          </div>
-          <div className="grid gap-1">
-            <dt className="text-meta text-ink-muted">Answer</dt>
-            <dd className="text-body text-ink">
-              {stepFree ? (
-                <span className="block">{`Current answer: ${stepFree}.`}</span>
-              ) : knowledge ? (
-                answerInUseLines(
-                  knowledge.view.slot.answerInUse,
-                  knowledge.view.slot
-                ).map((line) => (
-                  <span key={line} className="block">
-                    {line}
-                  </span>
-                ))
-              ) : check.qualification ? (
-                LEGACY_QUALIFICATION_WORD[check.qualification]
-              ) : (
-                ANSWER_LABEL[check.answer]
-              )}
-              {/* A step-free Yes says Checked on and Recorded below, with
-                  no staff name (§3.5, D3). */}
-              {answered && !stepFree ? (
-                <span className="block text-meta text-ink-muted">
-                  {answered}
-                </span>
-              ) : null}
-            </dd>
-          </div>
-          {policyRows.map((row) => (
-            <div key={row.term} className="grid gap-1">
-              <dt className="text-meta text-ink-muted">{row.term}</dt>
-              <dd className="text-body break-words text-ink">{row.value}</dd>
-            </div>
-          ))}
-          {stepFree && inUse ? (
-            <>
-              <div className="grid gap-1">
-                <dt className="text-meta text-ink-muted">Checked on</dt>
-                <dd className="text-body text-ink">
-                  {inUse.observedOn
-                    ? longDate(inUse.observedOn)
-                    : "Not recorded"}
-                </dd>
-              </div>
-              <div className="grid gap-1">
-                <dt className="text-meta text-ink-muted">Recorded</dt>
-                <dd className="text-body text-ink">
-                  {inUse.savedAt ? longDate(inUse.savedAt) : "Not recorded"}
-                </dd>
-              </div>
-            </>
+      <div className="grid items-start gap-6 md:grid-cols-2 md:gap-gutter">
+        <CoverageSection
+          id="amenity-status"
+          title="Where it stands"
+          focusableTitle
+        >
+          {SPORT_LINES[check.entry.key] ? (
+            <p className="text-body text-ink">{SPORT_LINES[check.entry.key]}</p>
           ) : null}
-          <div className="grid gap-1">
-            <dt className="text-meta text-ink-muted">Evidence needed</dt>
-            <dd className="text-body text-ink">
-              {EVIDENCE_RULE_LABEL[check.entry.evidenceRule]}
-            </dd>
-          </div>
-          <div className="grid gap-1">
-            <dt className="text-meta text-ink-muted">Category</dt>
-            <dd className="text-body break-words text-ink">
-              {check.entry.category}
-            </dd>
-          </div>
-        </dl>
-        {inUse && stepFreeCoversLine(inUse) ? (
-          <p className="text-body text-ink-muted">
-            {stepFreeCoversLine(inUse)}
-          </p>
-        ) : null}
-        {check.progress === "needs_recheck" &&
-        check.recheckReason &&
-        !qualifiedInUse(check.qualification) ? (
-          <Notice tone="attention" role="note" title="Recheck reason">
-            <span className="break-words">{check.recheckReason}</span>
-          </Notice>
-        ) : null}
-        {!active ? (
-          <Notice>
-            Archived: hidden from staff and the counts. Its history is kept;
-            restoring brings it back as it was.
-          </Notice>
-        ) : null}
-        <div className="flex flex-wrap gap-3">
-          {permissions.canSubmit && active ? (
-            <Link
-              href={hrefs.capture(check.id)}
-              className={buttonVariants({
-                variant: canUpload || statesPolicy ? "primary" : "secondary",
-              })}
-            >
-              <CameraIcon aria-hidden />
-              {statesPolicy ? POLICY_COPY.statePolicy : UI_TEXT.captureMyself}
-            </Link>
-          ) : null}
-          {knowledge?.corrections?.canCorrect &&
-          active &&
-          knowledge.view.slot.answerInUse.value &&
-          knowledge.view.slot.answerInUse.detail !== "answer_withdrawn" ? (
-            <Link
-              href={`${hrefs.capture(check.id)}?correct=1`}
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              <PencilSimpleIcon aria-hidden />
-              {CORRECT_COPY.open}
-            </Link>
-          ) : null}
-          {knowledge?.corrections?.canWithdraw &&
-          active &&
-          knowledge.view.slot.answerInUse.value &&
-          knowledge.view.slot.answerInUse.detail !== "answer_withdrawn" ? (
-            <WithdrawControl
-              checkId={check.id}
-              slotRevision={knowledge.view.slot.slotRevision}
-              value={ANSWER_LABEL[knowledge.view.slot.answerInUse.value]}
-              onWithdraw={knowledge.corrections.withdraw}
-              focusId="amenity-status-title"
+          {knowledge?.view.slot.answerInUse.policyMissing?.length ? (
+            <PolicyNeedsPanel
+              needs={knowledge.view.slot.answerInUse.policyMissing}
             />
           ) : null}
-          {canReopen ? (
-            <Button
-              variant="secondary"
-              onClick={() => setReopenOpen(true)}
-              disabled={action.pending}
-            >
-              <ArrowCounterClockwiseIcon aria-hidden />
-              {UI_TEXT.reopen}
-            </Button>
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1">
+              <dt className="text-meta text-ink-muted">Progress</dt>
+              <dd>
+                <ProgressChip check={check} notConfirmed={notConfirmed} />
+              </dd>
+            </div>
+            <div className="grid gap-1">
+              <dt className="text-meta text-ink-muted">Answer</dt>
+              <dd className="text-body text-ink">
+                {stepFree ? (
+                  <span className="block">{`Current answer: ${stepFree}.`}</span>
+                ) : knowledge ? (
+                  answerInUseLines(
+                    knowledge.view.slot.answerInUse,
+                    knowledge.view.slot
+                  ).map((line) => (
+                    <span key={line} className="block">
+                      {line}
+                    </span>
+                  ))
+                ) : check.qualification ? (
+                  LEGACY_QUALIFICATION_WORD[check.qualification]
+                ) : (
+                  ANSWER_LABEL[check.answer]
+                )}
+                {/* A step-free Yes says Checked on and Recorded below, with
+                  no staff name (§3.5, D3). */}
+                {answered && !stepFree ? (
+                  <span className="block text-meta text-ink-muted">
+                    {answered}
+                  </span>
+                ) : null}
+              </dd>
+            </div>
+            {policyRows.map((row) => (
+              <div key={row.term} className="grid gap-1">
+                <dt className="text-meta text-ink-muted">{row.term}</dt>
+                <dd className="text-body break-words text-ink">{row.value}</dd>
+              </div>
+            ))}
+            {stepFree && inUse ? (
+              <>
+                <div className="grid gap-1">
+                  <dt className="text-meta text-ink-muted">Checked on</dt>
+                  <dd className="text-body text-ink">
+                    {inUse.observedOn
+                      ? longDate(inUse.observedOn)
+                      : "Not recorded"}
+                  </dd>
+                </div>
+                <div className="grid gap-1">
+                  <dt className="text-meta text-ink-muted">Recorded</dt>
+                  <dd className="text-body text-ink">
+                    {inUse.savedAt ? longDate(inUse.savedAt) : "Not recorded"}
+                  </dd>
+                </div>
+              </>
+            ) : null}
+            <div className="grid gap-1">
+              <dt className="text-meta text-ink-muted">Evidence needed</dt>
+              <dd className="text-body text-ink">
+                {EVIDENCE_RULE_LABEL[check.entry.evidenceRule]}
+              </dd>
+            </div>
+            <div className="grid gap-1">
+              <dt className="text-meta text-ink-muted">Category</dt>
+              <dd className="text-body break-words text-ink">
+                {check.entry.category}
+              </dd>
+            </div>
+          </dl>
+          {inUse && stepFreeCoversLine(inUse) ? (
+            <p className="text-body text-ink-muted">
+              {stepFreeCoversLine(inUse)}
+            </p>
           ) : null}
-          {permissions.canArchive && active ? (
-            <Button
-              variant="secondary"
-              onClick={() => setScopeOpen("archive")}
-              disabled={action.pending}
-              loading={busy === "archive"}
-              loadingLabel={SAVING}
-            >
-              <ArchiveIcon aria-hidden />
-              {UI_TEXT.archive}
-            </Button>
+          {check.progress === "needs_recheck" &&
+          check.recheckReason &&
+          !qualifiedInUse(check.qualification) ? (
+            <Notice tone="attention" role="note" title="Recheck reason">
+              <span className="break-words">{check.recheckReason}</span>
+            </Notice>
           ) : null}
-          {permissions.canRestore && !active ? (
-            <Button
-              variant="secondary"
-              onClick={() => setScopeOpen("restore")}
-              disabled={action.pending}
-              loading={busy === "restore"}
-              loadingLabel={SAVING}
-            >
-              <ArrowCounterClockwiseIcon aria-hidden />
-              {UI_TEXT.restore}
-            </Button>
+          {!active ? (
+            <Notice>
+              Archived: hidden from staff and the counts. Its history is kept;
+              restoring brings it back as it was.
+            </Notice>
           ) : null}
-        </div>
-        {stillSaving("archive", "restore")}
-        {permissions.canSubmit && active && !canUpload && !statesPolicy ? (
-          <p className={muted}>
-            {UI_TEXT.captureMyself} attaches photos and videos already on
-            Naba-Lens. For new ones, assign this check to staff.
+          <div className="flex flex-wrap gap-3">
+            {permissions.canSubmit && active ? (
+              <Link
+                href={hrefs.capture(check.id)}
+                className={buttonVariants({
+                  variant: canUpload || statesPolicy ? "primary" : "secondary",
+                })}
+              >
+                <CameraIcon aria-hidden />
+                {statesPolicy ? POLICY_COPY.statePolicy : UI_TEXT.captureMyself}
+              </Link>
+            ) : null}
+            {knowledge?.corrections?.canCorrect &&
+            active &&
+            knowledge.view.slot.answerInUse.value &&
+            knowledge.view.slot.answerInUse.detail !== "answer_withdrawn" ? (
+              <Link
+                href={`${hrefs.capture(check.id)}?correct=1`}
+                className={buttonVariants({ variant: "secondary" })}
+              >
+                <PencilSimpleIcon aria-hidden />
+                {CORRECT_COPY.open}
+              </Link>
+            ) : null}
+            {knowledge?.corrections?.canWithdraw &&
+            active &&
+            knowledge.view.slot.answerInUse.value &&
+            knowledge.view.slot.answerInUse.detail !== "answer_withdrawn" ? (
+              <WithdrawControl
+                checkId={check.id}
+                slotRevision={knowledge.view.slot.slotRevision}
+                value={ANSWER_LABEL[knowledge.view.slot.answerInUse.value]}
+                onWithdraw={knowledge.corrections.withdraw}
+                focusId="amenity-status-title"
+              />
+            ) : null}
+            {canReopen ? (
+              <Button
+                variant="secondary"
+                onClick={() => setReopenOpen(true)}
+                disabled={action.pending}
+              >
+                <ArrowCounterClockwiseIcon aria-hidden />
+                {UI_TEXT.reopen}
+              </Button>
+            ) : null}
+            {permissions.canArchive && active ? (
+              <Button
+                variant="secondary"
+                onClick={() => setScopeOpen("archive")}
+                disabled={action.pending}
+                loading={busy === "archive"}
+                loadingLabel={SAVING}
+              >
+                <ArchiveIcon aria-hidden />
+                {UI_TEXT.archive}
+              </Button>
+            ) : null}
+            {permissions.canRestore && !active ? (
+              <Button
+                variant="secondary"
+                onClick={() => setScopeOpen("restore")}
+                disabled={action.pending}
+                loading={busy === "restore"}
+                loadingLabel={SAVING}
+              >
+                <ArrowCounterClockwiseIcon aria-hidden />
+                {UI_TEXT.restore}
+              </Button>
+            ) : null}
+          </div>
+          {stillSaving("archive", "restore")}
+          {permissions.canSubmit && active && !canUpload && !statesPolicy ? (
+            <p className={muted}>
+              {UI_TEXT.captureMyself} attaches photos and videos already on
+              Naba-Lens. For new ones, assign this check to staff.
+            </p>
+          ) : null}
+        </CoverageSection>
+
+        <CoverageSection id="amenity-assignee" title="Who captures it">
+          <p className="text-body text-ink">
+            {check.assignee
+              ? `Assigned to ${check.assignee.displayName ?? "a former team member"}.`
+              : "No one is assigned."}
           </p>
-        ) : null}
-      </CoverageSection>
+          {qualifiedInUse(check.qualification) &&
+          permissions.canAssign &&
+          active ? (
+            <p className="text-body text-ink-muted">
+              Assigning doesn&apos;t change the answer in use. Whoever you
+              assign is asked to look again; what they send goes through this
+              question&apos;s usual confirmation.
+            </p>
+          ) : null}
+          {permissions.canAssign && active ? (
+            <div className="grid max-w-md gap-3">
+              <div className="grid gap-1.5">
+                <label
+                  htmlFor={`${id}-assignee`}
+                  className="text-label text-ink"
+                >
+                  Assignee
+                </label>
+                <OptionSelect
+                  id={`${id}-assignee`}
+                  options={detail.assigneeOptions.map((o) => ({
+                    id: o.id,
+                    name: o.jobTitle
+                      ? `${o.displayName} (${o.jobTitle})`
+                      : o.displayName,
+                  }))}
+                  value={assigneeId}
+                  onValueChange={setAssigneeId}
+                  placeholder={
+                    detail.assigneeOptions.length
+                      ? "Choose a person…"
+                      : "No active staff at this venue"
+                  }
+                  invalid={!!action.fieldErrors.assigneeId}
+                  disabled={
+                    action.pending || detail.assigneeOptions.length === 0
+                  }
+                  aria-describedby={
+                    action.fieldErrors.assigneeId
+                      ? `${id}-assignee-error`
+                      : undefined
+                  }
+                />
+                {action.fieldErrors.assigneeId ? (
+                  <p
+                    id={`${id}-assignee-error`}
+                    role="alert"
+                    className="text-meta font-semibold text-warn-fg"
+                  >
+                    {action.fieldErrors.assigneeId}
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="primary"
+                  onClick={() => assign(assigneeId)}
+                  disabled={
+                    action.pending ||
+                    !assigneeId ||
+                    assigneeId === check.assignee?.id
+                  }
+                  loading={busy === "assign"}
+                  loadingLabel={SAVING}
+                >
+                  <UserPlusIcon aria-hidden />
+                  {UI_TEXT.assign}
+                </Button>
+                {check.assignee ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => assign(null)}
+                    disabled={action.pending}
+                    loading={busy === "unassign"}
+                    loadingLabel={SAVING}
+                  >
+                    <UserMinusIcon aria-hidden />
+                    {UI_TEXT.unassign}
+                  </Button>
+                ) : null}
+              </div>
+              {stillSaving("assign", "unassign")}
+              <p className={muted}>
+                Only active staff at this venue can be assigned. Anyone can be
+                changed later; their submissions are kept.
+              </p>
+            </div>
+          ) : null}
+        </CoverageSection>
+      </div>
 
       {knowledge?.view.slot.freshness ? (
         <CheckDatesSection
@@ -712,170 +831,103 @@ export function AmenityCheckDetail({
         </>
       ) : null}
 
-      <CoverageSection id="amenity-brief" title="Capture brief">
-        <p className="max-w-reading text-body break-words whitespace-pre-line text-ink">
-          {check.entry.captureBrief}
-        </p>
-      </CoverageSection>
-
-      <CoverageSection id="amenity-assignee" title="Who captures it">
-        <p className="text-body text-ink">
-          {check.assignee
-            ? `Assigned to ${check.assignee.displayName ?? "a former team member"}.`
-            : "No one is assigned."}
-        </p>
-        {qualifiedInUse(check.qualification) &&
-        permissions.canAssign &&
-        active ? (
-          <p className="text-body text-ink-muted">
-            Assigning doesn&apos;t change the answer in use. Whoever you assign
-            is asked to look again; what they send goes through this
-            question&apos;s usual confirmation.
-          </p>
+      <DisclosureList>
+        <Disclosure title="Capture brief">
+          <CoverageSection id="amenity-brief" title="Capture brief">
+            <p className="max-w-reading text-body break-words whitespace-pre-line text-ink">
+              {check.entry.captureBrief}
+            </p>
+          </CoverageSection>
+        </Disclosure>
+        {permissions.canAssign ? (
+          <Disclosure
+            title="Notes for this venue"
+            summary={check.notes ? undefined : "None yet"}
+            defaultOpen={notesShown}
+          >
+            <CoverageSection id="amenity-notes" title="Notes">
+              <form
+                onSubmit={saveNotes}
+                className="grid max-w-reading gap-3"
+                noValidate
+              >
+                <ReasonField
+                  id={`${id}-notes`}
+                  label="Notes for this venue"
+                  help="Kept with this check, for whoever manages the venue."
+                  value={notes}
+                  onChange={editNotes}
+                  error={action.fieldErrors.notes}
+                  required={false}
+                  maxLength={LIMITS.notes}
+                  disabled={action.pending}
+                />
+                <div>
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    disabled={
+                      action.pending || notes.trim() === (check.notes ?? "")
+                    }
+                    loading={busy === "notes"}
+                    loadingLabel={SAVING}
+                  >
+                    <FloppyDiskIcon aria-hidden />
+                    Save notes
+                  </Button>
+                </div>
+                {stillSaving("notes")}
+              </form>
+            </CoverageSection>
+          </Disclosure>
         ) : null}
-        {permissions.canAssign && active ? (
-          <div className="grid max-w-md gap-3">
-            <div className="grid gap-1.5">
-              <label htmlFor={`${id}-assignee`} className="text-label text-ink">
-                Assignee
-              </label>
-              <OptionSelect
-                id={`${id}-assignee`}
-                options={detail.assigneeOptions.map((o) => ({
-                  id: o.id,
-                  name: o.jobTitle
-                    ? `${o.displayName} (${o.jobTitle})`
-                    : o.displayName,
-                }))}
-                value={assigneeId}
-                onValueChange={setAssigneeId}
-                placeholder={
-                  detail.assigneeOptions.length
-                    ? "Choose a person…"
-                    : "No active staff at this venue"
-                }
-                invalid={!!action.fieldErrors.assigneeId}
-                disabled={action.pending || detail.assigneeOptions.length === 0}
-                aria-describedby={
-                  action.fieldErrors.assigneeId
-                    ? `${id}-assignee-error`
-                    : undefined
+        {knowledge?.corrections?.canReadHistory ? (
+          <Disclosure title={AT_DATE_TITLE}>
+            <AnswerOnDate
+              checkId={check.id}
+              today={knowledge.corrections.today}
+              load={knowledge.corrections.loadAt}
+              policy={knowledge.policy ?? null}
+            />
+          </Disclosure>
+        ) : null}
+        <Disclosure
+          title="History"
+          summary={
+            knowledge?.corrections?.canReadHistory
+              ? eventsSummary(
+                  knowledge.corrections.events?.items.length ?? 0,
+                  Boolean(knowledge.corrections.events?.nextCursor)
+                )
+              : eventsSummary(detail.events.length, false)
+          }
+        >
+          {knowledge?.corrections?.canReadHistory ? (
+            <>
+              <HistorySection
+                checkId={check.id}
+                first={knowledge.corrections.events}
+                loadOlder={knowledge.corrections.loadOlder}
+                checkDatesApply={
+                  knowledge.view.slot.freshness?.some(
+                    (entry) => entry.state !== "unrated"
+                  ) ?? false
                 }
               />
-              {action.fieldErrors.assigneeId ? (
-                <p
-                  id={`${id}-assignee-error`}
-                  role="alert"
-                  className="text-meta font-semibold text-warn-fg"
-                >
-                  {action.fieldErrors.assigneeId}
-                </p>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button
-                variant="primary"
-                onClick={() => assign(assigneeId)}
-                disabled={
-                  action.pending ||
-                  !assigneeId ||
-                  assigneeId === check.assignee?.id
-                }
-                loading={busy === "assign"}
-                loadingLabel={SAVING}
-              >
-                <UserPlusIcon aria-hidden />
-                {UI_TEXT.assign}
-              </Button>
-              {check.assignee ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => assign(null)}
-                  disabled={action.pending}
-                  loading={busy === "unassign"}
-                  loadingLabel={SAVING}
-                >
-                  <UserMinusIcon aria-hidden />
-                  {UI_TEXT.unassign}
-                </Button>
-              ) : null}
-            </div>
-            {stillSaving("assign", "unassign")}
-            <p className={muted}>
-              Only active staff at this venue can be assigned. Anyone can be
-              changed later; their submissions are kept.
-            </p>
-          </div>
-        ) : null}
-      </CoverageSection>
+            </>
+          ) : null}
 
-      {permissions.canAssign ? (
-        <CoverageSection id="amenity-notes" title="Notes">
-          <form
-            onSubmit={saveNotes}
-            className="grid max-w-reading gap-3"
-            noValidate
-          >
-            <ReasonField
-              id={`${id}-notes`}
-              label="Notes for this venue"
-              help="Kept with this check, for whoever manages the venue."
-              value={notes}
-              onChange={editNotes}
-              error={action.fieldErrors.notes}
-              required={false}
-              maxLength={LIMITS.notes}
-              disabled={action.pending}
-            />
-            <div>
-              <Button
-                type="submit"
-                variant="secondary"
-                disabled={
-                  action.pending || notes.trim() === (check.notes ?? "")
-                }
-                loading={busy === "notes"}
-                loadingLabel={SAVING}
-              >
-                <FloppyDiskIcon aria-hidden />
-                Save notes
-              </Button>
-            </div>
-            {stillSaving("notes")}
-          </form>
-        </CoverageSection>
-      ) : null}
+          {knowledge && knowledge.oldFacts !== undefined ? (
+            <OldFactsSection items={knowledge.oldFacts} />
+          ) : null}
 
-      {knowledge?.corrections?.canReadHistory ? (
-        <>
-          <HistorySection
-            checkId={check.id}
-            first={knowledge.corrections.events}
-            loadOlder={knowledge.corrections.loadOlder}
-            checkDatesApply={
-              knowledge.view.slot.freshness?.some(
-                (entry) => entry.state !== "unrated"
-              ) ?? false
-            }
+          <SubmissionHistory
+            submissions={detail.submissions}
+            currentNotConfirmed={notConfirmed}
           />
-          <AnswerOnDate
-            checkId={check.id}
-            today={knowledge.corrections.today}
-            load={knowledge.corrections.loadAt}
-            policy={knowledge.policy ?? null}
-          />
-        </>
-      ) : null}
-
-      {knowledge && knowledge.oldFacts !== undefined ? (
-        <OldFactsSection items={knowledge.oldFacts} />
-      ) : null}
-
-      <SubmissionHistory
-        submissions={detail.submissions}
-        currentNotConfirmed={notConfirmed}
-      />
-      <EventHistory events={detail.events} people={people} />
+          <EventHistory events={detail.events} people={people} />
+        </Disclosure>
+      </DisclosureList>
 
       <ReasonDialog
         open={scopeOpen !== null}

@@ -31,7 +31,7 @@ export const METRICS_COPY = {
   periodLabel: "Period",
   period: (days: number) => `Last ${days} days`,
   categoryLabel: "Category",
-  allCategories: "All",
+  allCategories: "All categories",
   inPeriod: (days: number) => `last ${days} days`,
   oldest: (age: string) => `oldest ${age}`,
   generated: (when: string) => `Counted on ${when}.`,
@@ -56,6 +56,8 @@ export const METRICS_COPY = {
   category: "Category",
   covered: SLOT.covered,
   anotherPhoto: SLOT.replacement,
+  /** The coverage column for slots waiting on another photo (handoff 2). */
+  retakeColumn: "Retake",
   notCounted: "Not counted",
   unavailable: (n: number) =>
     `${plural(n, "slot is", "slots are")} temporarily unavailable and still counted.`,
@@ -124,6 +126,15 @@ export const METRICS_COPY = {
   noFlow: "Nothing recorded in this period.",
   flowRule:
     "Counts of steps in Add photos and Match. Only the step, how it started and counts are recorded: never location, file names or what a photo shows.",
+
+  // The quiet line on each folded reference section (handoff 2, decision 4).
+  moreLabel: "More about these numbers",
+  useSummary: (useful: number, downloads: number) =>
+    `${useful} useful · ${plural(downloads, "package", "packages")} downloaded`,
+  reliabilitySummary: (failed: number, uploads: number) =>
+    `${plural(failed, "upload", "uploads")} failed of ${uploads}`,
+  howCountedSummary: "Every slot, by state",
+  flowSummary: "Steps in Add photos",
 
   loadFailedTitle: "Metrics couldn't be loaded",
   loadFailed: "Try again in a moment. Nothing has been changed.",

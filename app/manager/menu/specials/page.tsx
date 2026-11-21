@@ -13,7 +13,7 @@ import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 import { listSpecials } from "@/lib/server/menus/local"
 
 import { isRefusal } from "../../load-overview"
-import { CreateSpecialForm, SpecialsList } from "../_components/specials-panel"
+import { AddSpecialDialog, SpecialsList } from "../_components/specials-panel"
 import {
   createSpecialAction,
   decideSpecialAction,
@@ -26,6 +26,8 @@ export const metadata = { title: "Local specials" }
  * Local specials (spec §4.3, §7 M5): add a dated special, accept or decline
  * staff suggestions, and end or extend one at its end date. `?archived=1`
  * also lists ended and declined specials (spec §4.1 archive filter).
+ * Second handoff: Add a special opens a Dialog from the title row; the list
+ * is grouped, what needs a decision first.
  */
 export default async function ManagerSpecialsPage({
   searchParams,
@@ -67,10 +69,12 @@ export default async function ManagerSpecialsPage({
               ? `${due === 1 ? "1 special has" : `${due} specials have`} reached the end date. End or extend ${due === 1 ? "it" : "them"}.`
               : "Dated dishes and drinks on at this venue for a while."
           }
+          actions={
+            <AddSpecialDialog today={read.today} create={createSpecialAction} />
+          }
           className="pb-0 md:pb-0"
         />
       </div>
-      <CreateSpecialForm today={read.today} create={createSpecialAction} />
       <SpecialsList
         specials={read.specials}
         today={read.today}

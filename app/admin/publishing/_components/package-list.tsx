@@ -42,9 +42,9 @@ export function PackageList({
           >
             <span className="grid min-w-0 gap-1">
               <span className="text-label break-words text-ink">
-                {packageTitle(p)}
+                {packageTitle(p, area)}
               </span>
-              {p.note ? (
+              {p.note && area !== "manager" ? (
                 <span className="text-body break-words text-ink">{p.note}</span>
               ) : null}
               <span className="text-meta text-ink-muted">
@@ -52,7 +52,9 @@ export function PackageList({
                 {EXPORTS_COPY.madeBy(p.createdBy, londonDate(p.createdAt))}
                 {p.lastExportedAt
                   ? ` · ${EXPORTS_COPY.exportedOn(londonDate(p.lastExportedAt))}`
-                  : ""}
+                  : area === "manager"
+                    ? ` · ${EXPORTS_COPY.notDownloaded}`
+                    : ""}
               </span>
               <span className="flex flex-wrap gap-1.5">
                 <StatusChip state={PACKAGE_CHIP[p.state]} />

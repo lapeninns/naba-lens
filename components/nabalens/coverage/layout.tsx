@@ -3,6 +3,8 @@ import { CaretRightIcon, WarningIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { cn } from "@/lib/utils"
 
+import { Disclosure, DisclosureList } from "../disclosure"
+
 /** A titled block on a coverage page (`nl-section`). */
 export function CoverageSection({
   title,
@@ -32,32 +34,27 @@ export function CoverageSection({
 }) {
   const titleId = id ? `${id}-title` : undefined
   if (collapsed) {
+    // One disclosure implementation (components/nabalens/disclosure.tsx);
+    // the section keeps its landmark and h2, and the details carries the id.
     return (
       <section
-        id={id}
         aria-labelledby={titleId}
         className={cn("min-w-0 scroll-mt-4", className)}
       >
-        <details className="group rounded-card border border-line bg-surface">
-          <summary className="flex min-h-12 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-card px-4 py-2.5 focus-ring outline-none [&::-webkit-details-marker]:hidden">
-            <CaretRightIcon
-              aria-hidden
-              className="size-5 shrink-0 text-ink-muted transition-transform group-open:rotate-90 motion-reduce:transition-none"
-            />
-            <h2 id={titleId} className="text-label text-balance text-ink">
-              {title}
-            </h2>
-            {count != null ? (
-              <span className="text-meta text-ink-muted tabular-nums">
-                {count}
-              </span>
-            ) : null}
-          </summary>
-          <div className="grid min-w-0 gap-gutter border-t border-line p-4">
+        <DisclosureList>
+          <Disclosure
+            id={id}
+            title={
+              <h2 id={titleId} className="inline text-balance">
+                {title}
+              </h2>
+            }
+            summary={count}
+          >
             {action ? <div className="flex justify-end">{action}</div> : null}
             {children}
-          </div>
-        </details>
+          </Disclosure>
+        </DisclosureList>
       </section>
     )
   }

@@ -74,6 +74,12 @@ test("AC39: the coverage numbers on metrics, Overview and admin Overview reprodu
 
   // How this is counted: the slots, by state, give the same numbers.
   const how = report.locator("section#how-counted")
+  // A folded reference section since handoff 2: open it first.
+  await report
+    .locator('[data-slot="disclosure"]')
+    .filter({ has: how })
+    .locator(":scope > summary")
+    .click()
   await expect(how.locator('[data-slot="reproduced"]')).toHaveText(
     `Counting the slots below gives ${all.covered} of ${all.total} covered.`
   )

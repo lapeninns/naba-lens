@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { DownloadSimpleIcon } from "@phosphor-icons/react"
 
+import { ActionDock } from "@/components/nabalens/common-room/action-dock"
 import { Notice } from "@/components/nabalens/notice"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
@@ -141,7 +142,7 @@ export function ExportBuilder({
 
   return (
     <form
-      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:items-start"
+      className="grid gap-6 md:grid-cols-[minmax(0,1fr)_20rem] md:items-start lg:grid-cols-[minmax(0,1fr)_22.5rem]"
       onSubmit={(e) => {
         e.preventDefault()
         submit()
@@ -207,7 +208,7 @@ export function ExportBuilder({
             </Button>
           </div>
         </div>
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <ul className="grid gap-2 sm:grid-cols-2 md:max-lg:grid-cols-1">
           {shown.map((c) => {
             const k = keyFor(c)
             const on = chosen.has(k)
@@ -275,10 +276,12 @@ export function ExportBuilder({
         </ul>
       </section>
 
-      {/* Steps 2 and 3 in the side column, so the button that makes the
-          package stays beside the photos it counts (handoff "Publishing
-          builder"). */}
-      <div className="grid min-w-0 gap-4 lg:sticky lg:top-4">
+      {/* Steps 2 and 3 in the side column from 768px, so the button that
+          makes the package stays beside the photos it counts (handoff
+          "Publishing builder"; second handoff). On phones the column
+          dissolves into the form, so the ActionDock can stick over the
+          whole page, not just the last card. */}
+      <div className="contents md:sticky md:top-4 md:grid md:min-w-0 md:gap-4">
         <section
           aria-labelledby="export-size"
           className="grid gap-3 rounded-card border border-line bg-surface p-4"
@@ -351,28 +354,33 @@ export function ExportBuilder({
               onChange={(e) => setNote(e.target.value)}
             />
           </FormField>
-          {error ? (
-            <Notice tone="negative" role="alert">
-              {error}
-            </Notice>
-          ) : null}
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            className="w-full"
-            disabled={chosen.size === 0 || pending}
-            aria-busy={pending || undefined}
-          >
-            <DownloadSimpleIcon aria-hidden weight="bold" />
-            {chosen.size === 0
-              ? "Choose photos to make a package"
-              : `Make package · ${EXPORTS_COPY.items(chosen.size)}`}
-          </Button>
           <p className="text-meta text-ink-muted">
             {EXPORTS_COPY.readMe(area)}
           </p>
         </section>
+
+        <ActionDock className="md:bg-transparent md:p-0 md:shadow-none">
+          <div className="grid gap-2">
+            {error ? (
+              <Notice tone="negative" role="alert">
+                {error}
+              </Notice>
+            ) : null}
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              className="w-full"
+              disabled={chosen.size === 0 || pending}
+              aria-busy={pending || undefined}
+            >
+              <DownloadSimpleIcon aria-hidden weight="bold" />
+              {chosen.size === 0
+                ? "Choose photos to make a package"
+                : `Make package · ${EXPORTS_COPY.items(chosen.size)}`}
+            </Button>
+          </div>
+        </ActionDock>
       </div>
     </form>
   )

@@ -268,6 +268,8 @@ describe("SpecialsList", () => {
         review={vi.fn()}
       />
     )
+    // Decline asks for its reason first (second handoff).
+    await user.click(screen.getByRole("button", { name: "Decline" }))
     await user.type(
       screen.getByLabelText("Reason (needed to decline)"),
       "Not this week"
@@ -276,6 +278,7 @@ describe("SpecialsList", () => {
     expect(decide).toHaveBeenLastCalledWith(
       expect.objectContaining({ accept: false, reason: "Not this week" })
     )
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
     await user.click(screen.getByRole("button", { name: "Accept" }))
     expect(decide).toHaveBeenLastCalledWith(
       expect.objectContaining({ accept: true, reason: null })

@@ -338,7 +338,10 @@ describe("To confirm lists (spec §9.3)", () => {
       href: "/check/c1",
     })
     expect(items[1]).toMatchObject({
-      lines: ["Unconfirmed · No answer yet"],
+      lines: [
+        "Unconfirmed · No answer yet",
+        "Answer it on the question's page",
+      ],
       payload: null,
     })
   })
@@ -375,6 +378,7 @@ describe("To confirm lists (spec §9.3)", () => {
         lines: ["2 photos due a check", "Last checked 1 Aug 2026"],
         payload: { subjectId: "s1" },
         href: "/places",
+        thumb: "/api/media/a/thumb",
       },
     ])
   })

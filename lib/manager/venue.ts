@@ -231,7 +231,7 @@ export const HISTORY_SOURCES: ReadonlyArray<{ key: string; label: string }> = [
   { key: "menu_photo", label: "Dish photos" },
   { key: "special", label: "Specials" },
   { key: "change_request", label: "Menu changes" },
-  { key: "amenity", label: "Facilities" },
+  { key: "amenity", label: "Amenities" },
   { key: "amenity_scope", label: "Not here" },
   { key: "fact_check", label: "Facts" },
   { key: "area_photo", label: "Space photos" },

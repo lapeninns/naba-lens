@@ -4,7 +4,11 @@
 // links, the counted slots behind the number, the admin overview with a link
 // per venue, and an empty venue. Nobody is named or ranked.
 import { cleanup, render, screen, within } from "@testing-library/react"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
+}))
 
 import { metricsHrefs } from "@/components/nabalens/metrics/hrefs"
 import { MetricsOverviewTable } from "@/components/nabalens/metrics/metrics-overview"
@@ -60,7 +64,7 @@ describe("MetricsReport", () => {
     expect(table.textContent).toContain("1 slot is temporarily unavailable")
   })
 
-  it("narrows to one category through a link that keeps the period", () => {
+  it("narrows to one category and keeps the period in its links", () => {
     render(
       <MetricsReport
         metrics={fixtureMetrics()}
@@ -70,12 +74,9 @@ describe("MetricsReport", () => {
     )
     const table = screen.getByRole("region", { name: /Photo coverage/ })
     expect(table.querySelectorAll("[data-category]")).toHaveLength(1)
-    const filters = screen.getByRole("group", { name: "Category" })
-    expect(
-      within(filters)
-        .getByRole("link", { name: /Drinks/ })
-        .getAttribute("href")
-    ).toBe("/manager/metrics?category=drinks")
+    // Category is a Select (handoff 2); its choice shows on the trigger.
+    const category = screen.getByRole("combobox", { name: "Category" })
+    expect(category.textContent).toContain("Spaces")
     const periods = screen.getByRole("group", { name: "Period" })
     expect(
       within(periods)
@@ -101,6 +102,25 @@ describe("MetricsReport", () => {
     expect(covered.textContent).toContain("Steak and ale pie")
     const notHere = how.querySelector('details[data-state="not_here"]')!
     expect(notHere.textContent).toContain("not in the total")
+  })
+
+  it("folds the reference sections shut, each whole inside", () => {
+    render(
+      <MetricsReport metrics={fixtureMetrics()} category={null} hrefs={hrefs} />
+    )
+    const more = screen.getByRole("group", { name: "More about these numbers" })
+    const folds = more.querySelectorAll<HTMLDetailsElement>(":scope > details")
+    expect(
+      Array.from(folds, (d) => d.querySelector("summary")!.textContent)
+    ).toEqual([
+      expect.stringContaining("Contributions and use"),
+      expect.stringContaining("Reliability"),
+      expect.stringContaining("How this is counted"),
+      expect.stringContaining("How photos are added"),
+    ])
+    for (const d of Array.from(folds)) expect(d.open).toBe(false)
+    const table = screen.getByRole("region", { name: /Photo coverage/ })
+    expect(within(table).getAllByText("Retake").length).toBeGreaterThan(0)
   })
 
   it("separates technical failures from editorial retakes", () => {
