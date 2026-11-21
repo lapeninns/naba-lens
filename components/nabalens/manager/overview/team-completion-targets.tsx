@@ -1,4 +1,3 @@
-import { Card } from "@/components/nabalens/common-room"
 import { Frames } from "@/components/nabalens/coverage/layout"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { completionBreakdown } from "@/components/nabalens/tasks/copy"
@@ -26,7 +25,8 @@ export function TeamCompletionTargets({
           Each accepted menu item and completed amenity check counts once.
         </p>
       </div>
-      <Card>
+      {/* v2's flat card (the Overview panels' recipe), off Common Room. */}
+      <div className="rounded-card bg-surface p-4 edge">
         <ul className="grid divide-y divide-line">
           {roster.map(
             ({ person, completionProgress, targetCount, complete, status }) =>
@@ -58,7 +58,7 @@ export function TeamCompletionTargets({
               ) : null
           )}
         </ul>
-      </Card>
+      </div>
     </section>
   )
 }
