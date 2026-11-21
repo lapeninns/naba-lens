@@ -9,7 +9,7 @@ export default function AmenityCaptureNotFound() {
         We can&apos;t find this question for your venue.
       </h1>
       <p className="text-body text-ink-muted">
-        Your amenity checks are on Home.
+        Your amenity questions are in Album.
       </p>
       <Link
         href="/staff/album/amenities"

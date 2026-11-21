@@ -12,9 +12,10 @@ import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { LinkButton } from "@/components/ui/link-button"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { findSlot } from "@/lib/album/model"
+import { buildShelves, slotPlace } from "@/lib/album/shelves"
 import { STAFF_PHOTO_ROUTES } from "@/lib/config/album-upload-tray"
 import { STAFF_ALBUM_POSTS } from "@/lib/config/staff-album-posts"
-import { loadAlbum } from "@/lib/server/album"
+import { albumShelvesOrNone, loadAlbum } from "@/lib/server/album"
 import { getCoverageActor } from "@/lib/server/coverage"
 import { getMySlotUploads } from "@/lib/server/staff"
 import { albumPostCursor, listAlbumPosts } from "@/lib/server/staff-album-posts"
@@ -49,9 +50,10 @@ export default async function AlbumSlotPage({
   if (!auth.ok) notFound()
   const { actor } = auth
   const cursor = albumPostCursor(await searchParams)
-  const [shell, album, mine, posts] = await Promise.all([
+  const [shell, album, chosen, mine, posts] = await Promise.all([
     staffShellStatus(actor, profile),
     loadAlbum(actor),
+    albumShelvesOrNone(actor).catch(() => new Map<string, string>()),
     // Own photos are a help on this page, never a reason to fail it.
     getMySlotUploads(actor, { kind, slotId }).catch(() => null),
     STAFF_ALBUM_POSTS
@@ -60,6 +62,17 @@ export default async function AlbumSlotPage({
   ])
   const found = album.ok ? findSlot(album.album, `${kind}:${slotId}`) : null
   if (album.ok && !found) notFound()
+  // The shelf it sits on names the back link; the path is the caption.
+  const place =
+    album.ok && found
+      ? slotPlace(
+          buildShelves(album.album, {
+            chosen,
+            sectionOrder: album.placements.sections.map((s) => s.slug),
+          }),
+          found.slot.id
+        )
+      : null
 
   const items = mine?.ok ? mine.page.items : []
   const ownPhotos = items.flatMap((item) =>
@@ -88,8 +101,15 @@ export default async function AlbumSlotPage({
       {album.ok && found ? (
         <AlbumSlotScreen
           venueName={profile.venue?.name ?? ""}
-          placeLabel="Album"
-          placeHref={STAFF_PHOTO_ROUTES.album}
+          placeLabel={place?.label ?? "Album"}
+          placeHref={place?.href ?? STAFF_PHOTO_ROUTES.album}
+          path={
+            place
+              ? [place.part.label, place.shelf?.label, place.section.name]
+                  .filter((part, i, all) => part && all.indexOf(part) === i)
+                  .join(" · ")
+              : null
+          }
           slot={found.slot}
           retake={
             retakeOf
@@ -105,7 +125,10 @@ export default async function AlbumSlotPage({
           }))}
           postedPhotos={
             STAFF_ALBUM_POSTS ? (
-              <section aria-label="Posted photos" className="grid gap-3">
+              <section aria-labelledby="slot-posted" className="grid gap-3">
+                <h2 id="slot-posted" className="type-section-title text-ink">
+                  Posted photos
+                </h2>
                 <PostedPhotos
                   posts={posts?.posts ?? null}
                   label="Posted photos"

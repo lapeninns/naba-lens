@@ -110,8 +110,10 @@ function finding(over: Partial<FindingSummary> = {}): FindingSummary {
 }
 
 describe("knowledge words", () => {
-  it("calls an unknown finding Couldn't establish, never a legacy word", () => {
-    expect(KNOWLEDGE_ANSWER_LABEL.unknown).toBe("Couldn't establish")
+  it("calls an unknown answer I couldn't find out, never a legacy word", () => {
+    // Decision 2 of the screens-2 handoff: the answer's label; the stored
+    // value is still `unknown` and the finding's chip keeps its word.
+    expect(KNOWLEDGE_ANSWER_LABEL.unknown).toBe("I couldn't find out")
     expect(Object.values(KNOWLEDGE_ANSWER_LABEL)).not.toContain(
       "Needs verification"
     )

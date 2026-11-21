@@ -12,6 +12,7 @@ import {
   sectionAnchor,
   sectionShelf,
   shelfOf,
+  slotPlace,
   suggestShelf,
 } from "@/lib/album/shelves"
 
@@ -250,5 +251,42 @@ describe("sectionShelf (old section links, DESIGN.md §5d)", () => {
   it("is null for a section with no slots", () => {
     const v = buildShelves(view([place("bar", [slot("dish:gin")])]))
     expect(sectionShelf(v, "puddings")).toBeNull()
+  })
+})
+
+describe("slotPlace (screens-2 handoff): the slot page's back link and path", () => {
+  const bar = place("bar", [
+    slot("dish:gin1"),
+    slot("dish:red1", { group: "Red Wine", sectionKey: "red-wine" }),
+    slot("area:garden", {
+      category: "spaces",
+      group: "The space",
+      sectionKey: undefined,
+    }),
+    slot("amenity:dogs", { category: "facilities", group: "Pets" }),
+  ])
+  const v = buildShelves(view([bar]))
+
+  it("names the shelf and links to it when the type has several", () => {
+    const at = slotPlace(v, "dish:gin1")!
+    expect(at.label).toBe("Spirits")
+    expect(at.href).toBe("/staff/album/menu?kind=drinks&shelf=drinks.spirits")
+    expect([at.part.label, at.shelf?.label, at.section.name]).toEqual([
+      "Menu",
+      "Spirits",
+      "Gin",
+    ])
+  })
+
+  it("names the part when it opens straight onto its one shelf", () => {
+    const at = slotPlace(v, "area:garden")!
+    expect(at.label).toBe("Spaces")
+    expect(at.shelf).toBeNull()
+    expect(at.href).toBe("/staff/album/spaces")
+  })
+
+  it("has no place for an amenity question or an unknown slot", () => {
+    expect(slotPlace(v, "amenity:dogs")).toBeNull()
+    expect(slotPlace(v, "dish:nope")).toBeNull()
   })
 })

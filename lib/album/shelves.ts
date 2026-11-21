@@ -442,3 +442,48 @@ export function sectionShelf(
         return { category: type.category, shelf: shelf.key }
   return null
 }
+
+/**
+ * Where one slot sits in Album (screens-2 handoff): its part, and its shelf
+ * when the part (or Menu's type) has more than one. The slot page's back
+ * link names the shelf it came from and its caption is the path. Null when
+ * the slot is not on any shelf (an amenity question, or not in the view).
+ */
+export function slotPlace(
+  view: ShelfView,
+  slotId: string
+): {
+  part: AlbumPart
+  type: AlbumType
+  /** Null when the part opens straight onto its one shelf (Spaces). */
+  shelf: Shelf | null
+  section: ShelfSection
+  /** The page the back link goes to. */
+  href: string
+  /** The back link's words: the shelf, else the part. */
+  label: string
+} | null {
+  for (const part of albumParts(view)) {
+    if (part.key === "amenities") continue
+    for (const type of part.types)
+      for (const shelf of type.shelves)
+        for (const section of shelf.sections) {
+          if (!section.slots.some((s) => s.id === slotId)) continue
+          const siblings = part.key === "menu" ? type.shelves : part.shelves
+          const many = siblings.length > 1
+          const q = new URLSearchParams()
+          if (part.key === "menu") q.set("kind", type.category)
+          if (many) q.set("shelf", shelf.key)
+          const rest = q.toString()
+          return {
+            part,
+            type,
+            shelf: many ? shelf : null,
+            section,
+            href: `/staff/album/${part.key}${rest ? `?${rest}` : ""}`,
+            label: many ? shelf.label : part.label,
+          }
+        }
+  }
+  return null
+}

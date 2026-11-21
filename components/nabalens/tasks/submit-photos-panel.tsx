@@ -518,7 +518,9 @@ export function SubmitPhotosPanel({
 
         <div className="flex flex-col gap-1 border-t border-line pt-4">
           <h3 className="font-display text-item-title text-ink">
-            Or send photos you&apos;ve already added
+            {replacesSubmissionId
+              ? "Or send a photo you've already added"
+              : "Or send photos you've already added"}
           </h3>
           <p className="text-meta text-ink-muted">
             {monthly

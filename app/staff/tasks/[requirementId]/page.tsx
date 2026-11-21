@@ -15,6 +15,7 @@ import {
   ReplacementNote,
   SECTION_SEND_COPY,
   SubmissionList,
+  submissionTitle,
   submitBlockedCopy,
   TaskSummary,
   type MyAssignment,
@@ -126,7 +127,9 @@ export default async function TaskPage({
               scope.venue?.name ?? null,
               monthFormatter.format(new Date()),
             ]}
-            title="Send another photo"
+            title={`Send another photo of ${submissionTitle(
+              (replacing ?? closedRequest)!
+            )}`}
           />
         ) : null}
         {closedRequest ? (

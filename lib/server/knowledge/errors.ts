@@ -95,7 +95,7 @@ const KNOWLEDGE: Record<string, Mapping> = {
   ],
   knowledge_not_adoptable: [
     "state_conflict",
-    "A Couldn't establish finding can't become the answer in use.",
+    "“I couldn't find out” can't become the answer in use.",
   ],
   knowledge_not_current: [
     "state_conflict",
@@ -186,7 +186,7 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   invalid_kind: ["kind", "Choose what you are sending."],
   invalid_answer: [
     "answer",
-    "Choose Yes, No, Not applicable or Couldn't establish.",
+    "Choose Yes, No, Doesn't apply here or I couldn't find out.",
   ],
   invalid_unknown_preset: [
     "unknownPreset",
@@ -263,7 +263,7 @@ const PROBLEM_TEXT: Record<string, string> = {
   too_long: "This is too long.",
   out_of_range: "This is out of range.",
   no_entrances_listed:
-    "Add the venue's entrances under Places first, or send Couldn't establish.",
+    "Add the venue's entrances under Places first, or answer I couldn't find out.",
   unknown_subject: "Choose a place at this venue.",
 }
 

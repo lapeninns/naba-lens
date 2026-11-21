@@ -32,7 +32,6 @@ export default async function WorkProfilePage({
   const next = safeNext(params.next)
   const { initial, suggestedFrom } = initialWorkValues(profile)
   const venueName = profile.venue?.name ?? null
-  const avatar = shell.avatarUrl
 
   return (
     <AppShell
@@ -51,9 +50,7 @@ export default async function WorkProfilePage({
           summary="Only you and admins see your work details. Your admin still sets your job title, team and venue."
         />
         <WorkProfileForm
-          displayName={profile.displayName}
           venueName={venueName}
-          avatarUrl={avatar}
           initial={initial}
           suggestedFrom={suggestedFrom}
           next={next}

@@ -146,7 +146,10 @@ describe("menu-section task pages (G-4)", () => {
     const page = await visit(mine.requirement.id, { replaces: asked.id })
     render(page as React.ReactElement)
     expect(
-      screen.getByRole("heading", { level: 1, name: "Send another photo" })
+      screen.getByRole("heading", {
+        level: 1,
+        name: /^Send another photo of /,
+      })
     ).toBeTruthy()
     expect(
       screen.getAllByText("Too dark, use the pass lights.").length

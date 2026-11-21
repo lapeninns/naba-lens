@@ -94,7 +94,7 @@ async function open(page: Page, path: string) {
   await settled(page)
 }
 
-/** A shelf (folder) link on Album's Menu part: "Mains 0 of 1 in · 1 empty". */
+/** A shelf (folder) link on Album's Menu part: "Mains Nothing yet · 1 to add". */
 const shelf = (page: Page, name: string, line: string) =>
   page
     .getByRole("main")
@@ -124,7 +124,7 @@ test.describe("Menu completion: menu items with an accepted photo", () => {
     await expect(
       shelf(staff, "Starters & small plates", "1 of 2 in · 1 empty")
     ).toBeVisible()
-    await expect(shelf(staff, "Mains", "0 of 1 in · 1 empty")).toBeVisible()
+    await expect(shelf(staff, "Mains", "Nothing yet · 1 to add")).toBeVisible()
     await shelf(staff, "Starters & small plates", "1 of 2 in · 1 empty").click()
     await expect(staff).toHaveURL(/shelf=food\.starters/)
     await settled(staff)

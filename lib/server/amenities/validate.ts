@@ -205,7 +205,7 @@ export function parseSubmit(
       "This request is invalid. Reload the page."
     )
   if (!oneOf(SUBMIT_ANSWERS, raw.answer))
-    return invalid({ answer: "Choose Yes, No or Not applicable." })
+    return invalid({ answer: "Choose Yes, No or Doesn't apply here." })
   const answer = raw.answer
   const errors: Record<string, string> = {}
   const finding = optionalText(raw.finding, LIMITS.finding)

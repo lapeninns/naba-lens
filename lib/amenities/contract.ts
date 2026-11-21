@@ -167,7 +167,7 @@ export const ANSWER_LABEL: Record<CheckAnswer, string> = {
   to_check: "To check",
   yes: "Yes",
   no: "No",
-  not_applicable: "Not applicable",
+  not_applicable: "Doesn't apply here",
 }
 export const EVIDENCE_RULE_LABEL: Record<EvidenceRule, string> = {
   photo: "Photo",
@@ -195,6 +195,8 @@ export const UI_TEXT = {
   reopen: "Reopen",
   captureMyself: "Capture myself",
   submit: "Submit finding",
+  /** Staff send an answer (screens-2 handoff); managers keep Submit finding. */
+  sendAnswer: "Send answer",
   retry: "Try again",
   recentlyCompleted: "Recently completed",
   archived: "Archived",

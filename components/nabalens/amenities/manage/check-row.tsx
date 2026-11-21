@@ -63,6 +63,19 @@ export function ProgressChip({
   )
 }
 
+/**
+ * The progress word alone (Needs capture / Needs recheck / Complete), for a
+ * question listed outside the check list: staff Album's Amenities rows
+ * (screens-2 handoff). The chip draws its tone's icon itself.
+ */
+export function CheckProgressChip({ progress }: { progress: CheckProgress }) {
+  return (
+    <StatusChip tone={PROGRESS_TONE[progress]}>
+      {PROGRESS_LABEL[progress]}
+    </StatusChip>
+  )
+}
+
 export function assigneeText(check: CheckSummary) {
   return check.assignee
     ? `Assigned to ${check.assignee.displayName ?? "a former team member"}`

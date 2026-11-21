@@ -1,9 +1,10 @@
 import { AlbumLanding } from "@/components/nabalens/album/album-landing"
 import { MatchLaterRow } from "@/components/nabalens/album/match/match-later"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { Row } from "@/components/nabalens/common-room/row"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
-import { LinkButton } from "@/components/ui/link-button"
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/dist/ssr"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import {
   RECENT_STAFF_POSTS,
@@ -49,11 +50,6 @@ export default async function StaffAlbumPage({
       monthly={monthly}
     >
       <OfflineNotice className="mb-3" />
-      {STAFF_ALBUM_POSTS ? (
-        <div className="mb-4">
-          <LinkButton href={RECENT_STAFF_POSTS}>Recent photos</LinkButton>
-        </div>
-      ) : null}
       {shelves.ok ? (
         <AlbumLanding
           venueName={profile.venue?.name ?? ""}
@@ -64,6 +60,16 @@ export default async function StaffAlbumPage({
           canAdd={blocked === null}
           blocked={blocked ? ADD_BLOCKED[blocked] : null}
           matchLater={<MatchLaterRow count={later?.length ?? 0} />}
+          recent={
+            STAFF_ALBUM_POSTS ? (
+              <Row
+                href={RECENT_STAFF_POSTS}
+                icon={<ClockCounterClockwiseIcon />}
+                title="Recent photos"
+                subtitle="What the team posted, newest first"
+              />
+            ) : null
+          }
         />
       ) : blocked === "no_venue" ? (
         <Notice role="status">{ADD_BLOCKED.no_venue}</Notice>

@@ -114,7 +114,7 @@ export function periodMonth(period: string): string {
 
 export const KNOWLEDGE_ANSWER_LABEL: Record<KnowledgeAnswer, string> = {
   ...ANSWER_LABEL,
-  unknown: "Couldn't establish",
+  unknown: "I couldn't find out",
 }
 
 export const ANSWER_HINT: Record<KnowledgeAnswer, string> = {
@@ -470,7 +470,7 @@ export function findingExplanation(
     case "saved":
       return "Not sent yet. Only you can see it."
     case "submitted":
-      return "Recorded as Couldn't establish. The question stays open."
+      return "Recorded: you couldn't find out. The question stays open."
     case "awaiting_confirmation":
       return compared === "differs"
         ? "Sent. The recorded answer is marked as being checked until your manager decides."

@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   REPORT_COPY,
   REPORT_NOTE_MAX,
-  reasonsFor,
+  reasonsShown,
   reportProblem,
   type SlotReportKind,
   type SlotReportReason,
@@ -177,7 +177,7 @@ export function ReportChangeDialog({
                 setError(null)
               }}
             >
-              {reasonsFor(kind).map((r) => (
+              {reasonsShown(kind).map((r) => (
                 <OptionRow
                   key={r.key}
                   type="radio"

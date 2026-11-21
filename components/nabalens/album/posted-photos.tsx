@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { Notice } from "@/components/nabalens/notice"
+import { StatusChip } from "@/components/nabalens/status-chip"
 import { Photo } from "@/components/ui/photo"
 import {
   STAFF_POSTED,
@@ -91,17 +92,16 @@ export function AlbumPostFeedback({
   )
 }
 
+/** A posted photo's chips (screens-2 handoff): Posted, and Needs attention. */
 export function AlbumPostStatus({
   needsAttention = false,
 }: {
   needsAttention?: boolean
 }) {
   return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1">
-      <p className="text-label text-ok-fg">{STAFF_POSTED}</p>
-      {needsAttention ? (
-        <p className="text-label text-warn-fg">Needs attention</p>
-      ) : null}
+    <div className="flex flex-wrap gap-1.5" data-slot="album-post-status">
+      <StatusChip tone="positive">{STAFF_POSTED}</StatusChip>
+      {needsAttention ? <StatusChip state="needs_attention" /> : null}
     </div>
   )
 }
