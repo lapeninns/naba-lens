@@ -38,6 +38,7 @@ import {
   parseSlotReports,
   PHOTO_REASONS,
   reasonsFor,
+  reasonsShown,
   reasonWords,
   reportProblem,
   SLOT_REASONS,
@@ -379,6 +380,26 @@ describe("Report a change", () => {
     expect(reasonsFor("photo")).toBe(PHOTO_REASONS)
     expect(reasonsFor("area")).toBe(SLOT_REASONS)
     expect(reasonWords("wrong_date")).toBe("The date it was taken is wrong")
+  })
+
+  it("shows four choices: a dish without the space one, a space with it second", () => {
+    expect(reasonsShown("dish").map((r) => r.label)).toEqual([
+      "It's no longer served",
+      "It looks different now",
+      "The name or label is wrong",
+      "Something else",
+    ])
+    expect(reasonsShown("area").map((r) => r.label)).toEqual([
+      "It looks different now",
+      "The space isn't available",
+      "The name or label is wrong",
+      "Something else",
+    ])
+    expect(reasonsShown("photo")).toBe(PHOTO_REASONS)
+    // The server still accepts every slot reason (reasonsFor).
+    for (const kind of ["dish", "area"] as const)
+      for (const r of reasonsShown(kind))
+        expect(reasonsFor(kind).some((x) => x.key === r.key)).toBe(true)
   })
 
   it("needs a reason from the kind's list, and a note for Something else", () => {

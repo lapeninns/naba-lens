@@ -12,6 +12,7 @@ import {
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { AlbumPart } from "@/components/nabalens/album/album-part"
 import { AlbumPlaceScreen } from "@/components/nabalens/album/album-place"
 import { AlbumSlotScreen } from "@/components/nabalens/album/slot-screen"
 import { ContributionNoticeCard } from "@/components/nabalens/me/contribution-notice"
@@ -26,6 +27,7 @@ import {
   type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { buildAlbum, findSlot, type AlbumInput } from "@/lib/album/model"
+import { albumParts, buildShelves } from "@/lib/album/shelves"
 import { CHIP_STATES } from "@/components/nabalens/status-chip"
 import type { MyUpload } from "@/lib/staff/my-uploads"
 
@@ -759,5 +761,107 @@ describe("First sign-in notice (spec §3.2)", () => {
         .getByRole("checkbox", { name: "I understand" })
         .getAttribute("aria-checked")
     ).toBe("true")
+  })
+})
+
+describe("Album's Amenities and a slot's changes (screens-2 handoff)", () => {
+  const C1 = "00000000-0000-4000-8000-0000000c0c01"
+  const C2 = "00000000-0000-4000-8000-0000000c0c02"
+  const C3 = "00000000-0000-4000-8000-0000000c0c03"
+  const album = buildAlbum({
+    ...input,
+    amenities: [
+      {
+        checkId: C1,
+        question: "Is there step-free access?",
+        category: "Getting in",
+        progress: "needs_capture",
+        answer: null,
+        myLatestState: null,
+      },
+      {
+        checkId: C2,
+        question: "Is there a car park?",
+        category: "Getting in",
+        progress: "complete",
+        answer: "yes",
+        myLatestState: null,
+      },
+      {
+        checkId: C3,
+        question: "Is there baby change?",
+        category: "Families",
+        progress: "needs_recheck",
+        answer: null,
+        myLatestState: null,
+      },
+    ],
+  })
+
+  it("lists amenity questions as rows by group, each with a line and a chip", () => {
+    const part = albumParts(buildShelves(album)).find(
+      (p) => p.key === "amenities"
+    )!
+    withAdd(
+      <AlbumPart
+        part={part}
+        type={null}
+        shelfKey={null}
+        show="all"
+        defaultShow="all"
+        lens={null}
+        places={[]}
+        canAdd
+        blocked={null}
+      />
+    )
+    expect(screen.getByRole("heading", { name: "Getting in" })).toBeTruthy()
+    expect(screen.getByRole("heading", { name: "Families" })).toBeTruthy()
+    const step = screen.getByRole("link", { name: /step-free access/ })
+    expect(step.getAttribute("href")).toBe(`/staff/tasks/amenities/${C1}`)
+    expect(step.textContent).toContain("A Yes needs a photo")
+    expect(step.textContent).toContain("Needs capture")
+    expect(
+      screen.getByRole("link", { name: /car park/ }).textContent
+    ).toContain("Current answer: Yes")
+    expect(
+      screen.getByRole("link", { name: /baby change/ }).textContent
+    ).toContain("Needs recheck")
+    // No photo tiles and no Add button: questions are answered on their page.
+    expect(
+      screen.queryByRole("button", { name: "Add photos from your gallery" })
+    ).toBeNull()
+  })
+
+  it("asks whether a space has changed, offering The space isn't available second", async () => {
+    const user = userEvent.setup()
+    const { slot } = findSlot(album, `area:${BAR}`)!
+    withAdd(
+      <AlbumSlotScreen
+        venueName="The Bell"
+        placeLabel="Spaces"
+        placeHref="/staff/album/spaces"
+        path="Spaces · The space"
+        slot={slot}
+        retake={null}
+        ownPhotos={[]}
+        canAdd
+        blocked={null}
+        sendReport={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByRole("link", { name: "Spaces" }).getAttribute("href")
+    ).toBe("/staff/album/spaces")
+    expect(screen.getByText("Spaces · The space")).toBeTruthy()
+    expect(
+      screen.getByRole("heading", { name: "Has this space changed?" })
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Report a change" }))
+    const radios = screen.getAllByRole("radio")
+    expect(radios).toHaveLength(4)
+    expect(
+      screen.getByRole("radio", { name: "The space isn't available" })
+    ).toBe(radios[1])
   })
 })
