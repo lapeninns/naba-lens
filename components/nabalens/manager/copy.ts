@@ -146,6 +146,13 @@ export const MANAGER_COPY = {
         : n === 0
           ? "Nothing to confirm"
           : `${n} to confirm as still right`,
+    /** Beside the To confirm heading on Details (the handoff). */
+    toConfirmMeta: (facts: number | null) =>
+      facts === null || facts === 0
+        ? null
+        : `${plural(facts, "fact")} · say whether each is still right`,
+    reportsMeta: (n: number | null) =>
+      n === null || n === 0 ? null : `${n} from staff`,
     // S3-R5 (K3): staff reports of a changed slot or photo detail.
     reportsLink: "Reported changes",
     reportsLine: (n: number | null) =>
