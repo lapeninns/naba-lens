@@ -124,3 +124,16 @@ These were settled in the Common Room spec before it came into the repo. They bi
   (the Open Design handoff "NabaLens staff photo workflow", 20 Nov 2026).
   `NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS=0` switches back to D9's flow,
   which stays in the code and its tests until it is retired.
+
+- **D22** (21 Nov 2026, owner approved the second Open Design handoff's
+  recommendations). Words only; behaviour and server actions are
+  unchanged. On an amenity question's To confirm panel (manager and admin)
+  Confirm reads "Use this answer" (its replace dialog "Replace the current
+  answer?"), and Don't confirm reads "Keep the current answer" (dialog
+  "Keep this answer?") when there is an answer in use; with none, or on
+  the answer in use itself, it stays Don't confirm. Ask for more detail is
+  kept. Manager and admin capture say "Send answer", as staff do. The
+  finding chip "Couldn't establish" reads "I couldn't find out", the staff
+  answer word (screens-2 decision 2). Also adopted: the shared category
+  label says Amenities (one source, `lib/album/model.ts`), and Progress
+  folds "Items and facts" like the other references.

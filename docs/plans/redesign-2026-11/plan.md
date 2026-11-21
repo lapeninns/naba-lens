@@ -60,22 +60,24 @@ Partly done, with the reason:
 
 - Manager reported changes: a dish or space report shows no photo (one more
   read needed).
-- Manager amenity question: the decision buttons keep Confirm / Don't
-  confirm (the new labels are an open question below).
 - Manager search keeps today's filter row (already one row on desktop).
 - Admin This month keeps two tally groups instead of six tallies in one.
 - Admin Collections rows have no cover photos (needs a light read of two
   cover ids per collection).
 
+Resolved by the owner (21 Nov 2026, D22; `redesign/s2-decisions`):
+
+- Amenity finding decisions read "Use this answer" / "Keep the current
+  answer" instead of Confirm / Don't confirm.
+- Manager and admin capture also say "Send answer".
+- The finding chip "Couldn't establish" reads "I couldn't find out".
+- "Items and facts" on Progress folds like the other references.
+- The shared category label in `lib/album/model.ts` says Amenities; the
+  admin override (`adminCategoryLabel`) and the separate category word
+  lists now read it.
+
 Open for the owner:
 
-- Amenity finding decisions: "Use this answer" / "Keep the current answer"
-  instead of Confirm / Don't confirm.
-- Whether manager and admin capture also say "Send answer", and whether the
-  finding chip "Couldn't establish" takes the new answer words.
-- Whether "Items and facts" on Progress folds like the other references.
-- The shared category label in `lib/album/model.ts` still says Facilities;
-  admin and manager screens override it to Amenities.
 - Removal requests read each photo's label with one detail read (capped at
   50); a label field on the request would be the lasting fix.
 - Staff folder covers are the newest post, not the manager's menu photo,
