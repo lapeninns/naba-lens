@@ -19,8 +19,15 @@ import { fieldControlVariants } from "@/components/ui/field-control"
  * popup of our own. Album AL-4 (§5 Brief): each menu section also has its
  * one-line brief, which every dish in it uses unless the dish has its own.
  * Briefs do not depend on places: with no places listed yet, each group says
- * "Not placed" and the section briefs can still be written.
+ * "Not placed" and the section briefs can still be written. Second handoff:
+ * one row per section (its place, its shelf, its brief with Save brief),
+ * the count in each heading; amenities below with a place only.
  */
+
+/** One row: the name, then place, shelf and brief side by side on a wide
+ * screen; two by two from 768px; stacked on a phone. */
+const ROW =
+  "grid gap-x-3 gap-y-2 px-4 py-3 md:grid-cols-2 lg:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.6fr)] lg:items-start"
 
 export type AlbumPlacesGroup = {
   source: "menu_section" | "amenity_category"
@@ -96,6 +103,7 @@ export function AlbumPlacesForm({
       <GroupList
         title="Menu sections"
         empty="No active menu yet. Sections appear here once a menu is active."
+        intro={onSetBrief ? SECTION_BRIEF_HINT : undefined}
         groups={menu}
         places={places}
         onSet={onSet}
@@ -104,6 +112,7 @@ export function AlbumPlacesForm({
       />
       <GroupList
         title="Amenities"
+        intro="Where each group is photographed."
         empty="No amenity checks at this venue yet."
         groups={amenities}
         places={places}
@@ -115,6 +124,7 @@ export function AlbumPlacesForm({
 
 function GroupList({
   title,
+  intro,
   empty,
   groups,
   places,
@@ -123,6 +133,7 @@ function GroupList({
   onSetShelf,
 }: {
   title: string
+  intro?: string
   empty: string
   groups: AlbumPlacesGroup[]
   places: Array<{ subjectId: string; label: string }>
@@ -132,13 +143,26 @@ function GroupList({
 }) {
   return (
     <section className="grid gap-3" aria-labelledby={`album-${title}`}>
-      <h2 id={`album-${title}`} className="type-section-title text-ink">
-        {title}
-      </h2>
+      <div className="grid gap-1 px-1">
+        <h2
+          id={`album-${title}`}
+          className="flex flex-wrap items-baseline gap-x-3 type-section-title text-ink"
+        >
+          {title}
+          {groups.length > 0 ? (
+            <span className="text-meta font-normal text-ink-muted tabular-nums">
+              {groups.length}
+            </span>
+          ) : null}
+        </h2>
+        {intro && groups.length > 0 ? (
+          <p className="text-meta text-ink-muted">{intro}</p>
+        ) : null}
+      </div>
       {groups.length === 0 ? (
         <p className="text-body text-ink-muted">{empty}</p>
       ) : (
-        <ul className="divide-y divide-line rounded-card bg-surface shadow-card">
+        <ul className="divide-y divide-line overflow-hidden rounded-card bg-surface edge">
           {groups.map((group) => (
             <GroupRow
               key={`${group.source}:${group.key}`}
@@ -193,8 +217,9 @@ function GroupRow({
 
   const brief =
     onSetBrief && group.source === "menu_section" ? (
-      <div className="sm:col-span-2">
+      <div className="min-w-0 md:col-span-2 lg:col-span-1">
         <SlotBriefField
+          compact
           name={group.name}
           brief={group.brief ?? null}
           label={SLOT_BRIEF_COPY.labelFor(group.name)}
@@ -212,7 +237,7 @@ function GroupRow({
     ) : null
 
   const shelf = group.shelf ? (
-    <div className="sm:col-span-2">
+    <div className="min-w-0">
       <ShelfField
         name={group.name}
         sectionKey={group.key}
@@ -220,25 +245,33 @@ function GroupRow({
         onSet={onSetShelf}
       />
     </div>
+  ) : brief ? (
+    // Keeps the brief in its own column on a wide screen.
+    <div aria-hidden className="hidden lg:block" />
   ) : null
 
   // No places to choose from yet: the group is not placed, nothing to pick.
   if (places.length === 0)
     return (
-      <li className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] sm:items-center">
-        <p className="text-label text-ink">{group.name}</p>
-        <p className="text-meta text-ink-muted">Not placed</p>
+      <li className={ROW}>
+        <p className="text-label text-ink md:col-span-2 lg:col-span-1 lg:pt-3">
+          {group.name}
+        </p>
+        <p className="text-meta text-ink-muted lg:pt-3.5">Not placed</p>
         {shelf}
         {brief}
       </li>
     )
 
   return (
-    <li className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] sm:items-center">
-      <label htmlFor={id} className="text-label text-ink">
+    <li className={ROW}>
+      <label
+        htmlFor={id}
+        className="text-label text-ink md:col-span-2 lg:col-span-1 lg:pt-3"
+      >
         {group.name}
       </label>
-      <div className="grid gap-1.5">
+      <div className="grid min-w-0 gap-1.5">
         <select
           id={id}
           value={value}
@@ -301,7 +334,7 @@ function ShelfField({
 
   if (!onSet)
     return (
-      <p className="text-meta text-ink-muted">
+      <p className="text-meta text-ink-muted lg:pt-3.5">
         Shelf in Album: {label(shelf.chosen ?? shelf.suggested)}
         {shelf.chosen ? "" : " (suggested)"}
       </p>
@@ -321,8 +354,8 @@ function ShelfField({
   }
 
   return (
-    <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] sm:items-center">
-      <label htmlFor={id} className="text-meta text-ink-muted">
+    <div className="grid gap-1.5">
+      <label htmlFor={id} className="sr-only">
         Shelf in Album
       </label>
       <div className="grid gap-1.5">

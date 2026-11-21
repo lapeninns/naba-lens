@@ -53,7 +53,8 @@ export default async function ManagerAlbumPlacesPage() {
         venueScope
         scope={ctx.venue.name}
         title="Places and briefs"
-        summary="Choose where staff photograph each menu section and amenity, which shelf each section sits on in Album, and write a one-line brief for each section."
+        summary="Where staff photograph each menu section, which shelf it sits on in Album, and one line on what each photo must show."
+        className="pb-0 md:pb-0"
       />
     </div>
   )
@@ -128,16 +129,16 @@ export default async function ManagerAlbumPlacesPage() {
           written now.
         </Notice>
       ) : (
-        <p className="text-body text-ink-muted">
-          Missing a place?{" "}
+        <Notice tone="info" role="note">
+          Missing a place? Add it on the{" "}
           <Link
-            href="/manager/amenities/places"
-            className="font-semibold text-accent-text underline underline-offset-4"
+            href={managerHrefs.spaces}
+            className="font-semibold underline underline-offset-4"
           >
-            Add it under Places
+            Spaces tab
           </Link>
           .
-        </p>
+        </Notice>
       )}
       {shelves.ok ? null : (
         <Notice tone="info" role="note">
