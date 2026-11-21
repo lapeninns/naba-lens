@@ -30,6 +30,8 @@ export const ME_COPY = {
   venueGroup: "Your venue",
   colleaguesPhotos: "Colleagues' photos",
   colleaguesPhotosLine: "Accepted photos from your venue, newest first",
+  // Posting (D21): the venue's Album posts, newest first.
+  colleaguesPostsLine: "Photos your venue posted to the Album, newest first",
   people: "People",
   peopleLine: "Your colleagues and their photos",
   youGroup: "You",

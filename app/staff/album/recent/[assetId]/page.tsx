@@ -5,6 +5,7 @@ import {
   AlbumPostStatus,
 } from "@/components/nabalens/album/posted-photos"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { BackLink } from "@/components/nabalens/back-link"
 import { LinkButton } from "@/components/ui/link-button"
 import { Photo } from "@/components/ui/photo"
 import { requireActiveStaff } from "@/lib/auth"
@@ -54,13 +55,7 @@ export default async function AlbumPhotoPage({
       venueName={profile.venue?.name}
     >
       <div className="grid gap-4">
-        <LinkButton
-          variant="quiet"
-          href={RECENT_STAFF_POSTS}
-          className="justify-self-start"
-        >
-          Recent photos
-        </LinkButton>
+        <BackLink href={RECENT_STAFF_POSTS}>Recent photos</BackLink>
         <header className="grid gap-1">
           <h1 className="type-display wrap-break-word text-ink">{title}</h1>
           <p className="text-body text-ink-muted">{post.uploaderName}</p>

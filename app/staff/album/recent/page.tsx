@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 
 import { PostedPhotos } from "@/components/nabalens/album/posted-photos"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { BackLink } from "@/components/nabalens/back-link"
 import { LinkButton } from "@/components/ui/link-button"
 import { requireActiveStaff } from "@/lib/auth"
 import {
@@ -38,13 +39,7 @@ export default async function RecentPhotosPage({
       venueName={profile.venue?.name}
     >
       <div className="grid gap-4">
-        <LinkButton
-          variant="quiet"
-          href="/staff/album"
-          className="justify-self-start"
-        >
-          Back to Album
-        </LinkButton>
+        <BackLink href="/staff/album">Album</BackLink>
         <h1 className="type-display text-ink">Recent photos</h1>
         <PostedPhotos posts={page?.posts ?? null} label="Recent photos" />
         {page?.next ? (
