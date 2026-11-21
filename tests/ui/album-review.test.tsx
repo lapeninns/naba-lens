@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Album AL-3: Review in a thumb (DESIGN.md §6.5). One waiting photo on the
-// stage, Accept or Ask again with a reason chip, then the next; the existing
+// stage, Keep in the album or Ask for another photo with a reason chip, then the next; the existing
 // decision actions do the deciding, and nobody reviews their own photo.
 import { cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
@@ -210,21 +210,21 @@ describe("Review in a thumb", () => {
     expect(
       screen.getByRole("img", { name: "Soup, photo by TEST Sam Lee" })
     ).toBeTruthy()
-    // Ask again (secondary) and Accept (main), in that order.
+    // Ask for another photo (secondary) and Keep in the album (main).
     const buttons = screen
       .getAllByRole("button")
       .map((b) => b.textContent?.trim())
-    expect(buttons).toEqual(["Ask again", "Accept"])
-    expect(screen.getByRole("button", { name: "Accept" }).dataset.variant).toBe(
-      "primary"
-    )
+    expect(buttons).toEqual(["Ask for another photo", "Keep in the album"])
+    expect(
+      screen.getByRole("button", { name: "Keep in the album" }).dataset.variant
+    ).toBe("primary")
   })
 
-  it("Accept sends the existing accept decision and brings up the next photo", async () => {
+  it("Keep in the album sends the existing accept decision and brings up the next photo", async () => {
     const user = userEvent.setup()
     actions.decideMenuPhotoAction.mockResolvedValue(accepted(SOUP, 4))
     renderReview({ menuCards: [dish(1), dish(2)], total: 2 })
-    await user.click(screen.getByRole("button", { name: "Accept" }))
+    await user.click(screen.getByRole("button", { name: "Keep in the album" }))
     expect(actions.decideMenuPhotoAction).toHaveBeenCalledTimes(1)
     const [payload, view] = actions.decideMenuPhotoAction.mock.calls[0]!
     expect(payload).toMatchObject({
@@ -241,7 +241,7 @@ describe("Review in a thumb", () => {
     ).toBeTruthy()
     expect(screen.getByRole("status").textContent).toBe("Soup is in the album.")
     // The second photo of the same dish now carries the dish's new revision.
-    await user.click(screen.getByRole("button", { name: "Accept" }))
+    await user.click(screen.getByRole("button", { name: "Keep in the album" }))
     expect(actions.decideMenuPhotoAction.mock.calls[1]![0]).toMatchObject({
       assetId: id(0xa02),
       expectedRevision: 4,
@@ -251,7 +251,7 @@ describe("Review in a thumb", () => {
     ).toBeTruthy()
   })
 
-  it("Ask again shows the reason chips; choosing one sends the decision with that reason", async () => {
+  it("Ask for another photo shows the reason chips; choosing one sends the decision with that reason", async () => {
     const user = userEvent.setup()
     actions.decideMenuPhotoAction.mockResolvedValue({
       ...accepted(),
@@ -261,7 +261,9 @@ describe("Review in a thumb", () => {
       menuCards: [dish(1), dish(2, {}, { itemId: PIE, name: "Pie" })],
       total: 2,
     })
-    await user.click(screen.getByRole("button", { name: "Ask again" }))
+    await user.click(
+      screen.getByRole("button", { name: "Ask for another photo" })
+    )
     const group = screen.getByRole("group", { name: C.reasonsHeading })
     expect(
       within(group)
@@ -287,10 +289,12 @@ describe("Review in a thumb", () => {
     })
     expect(screen.getByRole("heading", { level: 2, name: "Pie" })).toBeTruthy()
     expect(screen.getByRole("status").textContent).toBe(
-      "Asked again for Soup: Too dark."
+      "Asked for another photo of Soup: Too dark."
     )
     // The bar is back for the next photo.
-    expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Keep in the album" })
+    ).toBeTruthy()
   })
 
   it("Other asks for words and sends them as the reason", async () => {
@@ -303,7 +307,9 @@ describe("Review in a thumb", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Beer garden" })
     ).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: "Ask again" }))
+    await user.click(
+      screen.getByRole("button", { name: "Ask for another photo" })
+    )
     await user.click(screen.getByRole("button", { name: "Other" }))
     const field = screen.getByRole("textbox", { name: C.otherLabel })
     // Empty words are not sent.
@@ -322,14 +328,14 @@ describe("Review in a thumb", () => {
     ).toBeTruthy()
   })
 
-  it("Accept on an area photo sends the area decision", async () => {
+  it("Keep in the album on an area photo sends the area decision", async () => {
     const user = userEvent.setup()
     areaActions.decideAreaPhotoAction.mockResolvedValue({
       ok: true,
       state: "accepted",
     })
     renderReview({ menuCards: [], areaCards: [area()], total: 1 })
-    await user.click(screen.getByRole("button", { name: "Accept" }))
+    await user.click(screen.getByRole("button", { name: "Keep in the album" }))
     expect(areaActions.decideAreaPhotoAction).toHaveBeenCalledWith({
       labelId: GARDEN_LABEL,
       decision: "accepted",
@@ -349,7 +355,9 @@ describe("Review in a thumb", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Nothing to review" })
     ).toBeTruthy()
-    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Keep in the album" })
+    ).toBeNull()
     expect(screen.getByText(C.own(2))).toBeTruthy()
   })
 
@@ -365,12 +373,16 @@ describe("Review in a thumb", () => {
       menuCards: [dish(1), dish(2, {}, { itemId: PIE, name: "Pie" })],
       total: 2,
     })
-    await user.click(screen.getByRole("button", { name: "Accept" }))
+    await user.click(screen.getByRole("button", { name: "Keep in the album" }))
     expect(screen.getByRole("alert").textContent).toContain(
       "This is your photo. Another reviewer decides on it."
     )
-    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull()
-    expect(screen.queryByRole("button", { name: "Ask again" })).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Keep in the album" })
+    ).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Ask for another photo" })
+    ).toBeNull()
     await user.click(screen.getByRole("button", { name: C.next }))
     expect(screen.getByRole("heading", { level: 2, name: "Pie" })).toBeTruthy()
     expect(screen.getByText(C.own(1))).toBeTruthy()
@@ -396,7 +408,7 @@ describe("Review in a thumb", () => {
       nextCursor: null,
     })
     renderReview({ menuCards: [dish(1)], menuCursor: "next", total: 2 })
-    await user.click(screen.getByRole("button", { name: "Accept" }))
+    await user.click(screen.getByRole("button", { name: "Keep in the album" }))
     expect(actions.loadReviewPageAction).toHaveBeenCalledWith({
       status: "pending",
       cursor: "next",
@@ -431,7 +443,7 @@ describe("Review in a thumb", () => {
       areaMore: true,
       total: 1,
     })
-    await user.click(screen.getByRole("button", { name: "Accept" }))
+    await user.click(screen.getByRole("button", { name: "Keep in the album" }))
     expect(areaActions.loadAreaReviewAction).toHaveBeenCalledTimes(1)
     expect(
       await screen.findByRole("heading", { level: 2, name: "Bar" })
@@ -440,7 +452,7 @@ describe("Review in a thumb", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
       C.title(1)
     )
-    await user.click(screen.getByRole("button", { name: "Accept" }))
+    await user.click(screen.getByRole("button", { name: "Keep in the album" }))
     expect(await screen.findByText(C.emptyTitle)).toBeTruthy()
     expect(areaActions.loadAreaReviewAction).toHaveBeenCalledTimes(1)
   })
@@ -452,7 +464,7 @@ describe("Review in a thumb", () => {
       state: "accepted",
     })
     renderReview({ menuCards: [], areaCards: [area()], total: 1 })
-    await user.click(screen.getByRole("button", { name: "Accept" }))
+    await user.click(screen.getByRole("button", { name: "Keep in the album" }))
     expect(screen.getByText(C.emptyTitle)).toBeTruthy()
     expect(areaActions.loadAreaReviewAction).not.toHaveBeenCalled()
   })
@@ -461,15 +473,17 @@ describe("Review in a thumb", () => {
     const user = userEvent.setup()
     actions.decideMenuPhotoAction.mockRejectedValue(new Error("offline"))
     renderReview()
-    await user.click(screen.getByRole("button", { name: "Accept" }))
+    await user.click(screen.getByRole("button", { name: "Keep in the album" }))
     expect(screen.getByRole("alert").textContent).toContain(
       "That decision wasn't sent"
     )
     expect(screen.getByRole("heading", { level: 2, name: "Soup" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Keep in the album" })
+    ).toBeTruthy()
   })
 
-  it("uses Album's words: Accept and Ask again, never approve or reject", () => {
+  it("uses Album's words: Keep in the album and Ask for another photo, never approve or reject", () => {
     renderReview({ areaCards: [area()], total: 2 })
     const text = document.body.textContent ?? ""
     expect(text).not.toMatch(/approve|reject|pending|upload/i)

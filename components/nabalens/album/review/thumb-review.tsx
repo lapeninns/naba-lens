@@ -44,8 +44,9 @@ import {
 /*
  * Review in a thumb (DESIGN.md §6.5, §5 Reason chips and Review bar). The
  * queue count is the page title. One photo on the stage with its slot name,
- * brief, author, time and place; Ask again (secondary) and Accept (main) at
- * the bottom. Ask again shows the reason chips; choosing one sends the
+ * brief, author, time and place; Ask for another photo (secondary) and Keep
+ * in the album (main) at the bottom (ia.md decision 3). Ask for another
+ * photo shows the reason chips; choosing one sends the
  * decision with that reason and the next photo comes up. Decisions go
  * through the existing actions (decideMenuPhotoAction, decideAreaPhotoAction);
  * the database refuses a decision on the reviewer's own photo, and own
@@ -170,7 +171,8 @@ export function ThumbReview({
   const uid = React.useId()
 
   const current = line[0] ?? null
-  // A dish photo to recheck may offer Accept alone (the card model's rule).
+  // A dish photo to recheck may offer Keep in the album alone (the card
+  // model's rule).
   const askable =
     current !== null &&
     (current.subject.kind === "area" || current.subject.askAgain)
