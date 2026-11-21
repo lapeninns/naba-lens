@@ -80,10 +80,23 @@ const DECISION_TONE: Record<SearchMenuDecision["state"], ChipTone> = {
   invalidated: "closed",
 }
 
+/** The tile's title: the slot first ("Himali Lamb · Large"), else what it
+ * is evidence for, else the media word (second handoff). */
+function tileTitle(item: AssetSearchItem, media: string): string {
+  const first = item.subjects.menuItems[0]
+  if (first)
+    return first.variantName
+      ? `${first.itemName} · ${first.variantName}`
+      : first.itemName
+  return subjectLines(item)[0] ?? media
+}
+
 /**
- * One read-only search result: the thumbnail and what is known about the
- * asset. Never a link to a viewer, preview, stream or download; no ids,
- * notes, clearance, granter or full names.
+ * One read-only search result as an album-style tile (second handoff): the
+ * photo, the slot's name first, then "{Photo|Video} · By {name} · {date}",
+ * the use line and each menu decision's chip. Never a link to a viewer,
+ * preview, stream or download; no ids, notes, clearance, granter or full
+ * names.
  */
 export function SearchCard({
   item,
@@ -97,8 +110,12 @@ export function SearchCard({
 }) {
   const media = MEDIA_WORD[item.mediaType]
   const when = uploadedWhen(item.uploadedAt, now)
-  const subjects = subjectLines(item)
   const first = item.subjects.menuItems[0]
+  const title = tileTitle(item, media)
+  // The title names the first menu item; the rest still say what it is for.
+  const subjects = subjectLines(item).filter((line, i) =>
+    first ? i > 0 : line !== title
+  )
   const alt = first
     ? SEARCH_COPY.thumbAlt(media, first.itemName)
     : SEARCH_COPY.thumbAltPlain(media, when)
@@ -107,14 +124,12 @@ export function SearchCard({
     <article
       tabIndex={-1}
       data-asset-card
-      aria-label={`${media}, ${SEARCH_COPY.uploadedAt(when)}`}
-      className="flex h-full min-w-0 gap-3 rounded-card bg-surface p-3 shadow-card focus-ring outline-none"
+      aria-label={`${title}, ${SEARCH_COPY.uploadedAt(when)}`}
+      className="grid h-full min-w-0 content-start overflow-hidden rounded-card bg-surface edge focus-ring outline-none"
     >
       <Thumb url={item.thumbnailUrl} alt={alt} mediaType={item.mediaType} />
-      <div className="grid min-w-0 flex-1 content-start gap-1.5 text-body [overflow-wrap:anywhere]">
-        <h3 className="font-display text-label text-ink">
-          {SEARCH_COPY.uploadedAt(when)}
-        </h3>
+      <div className="grid min-w-0 content-start gap-1 p-3 text-meta [overflow-wrap:anywhere]">
+        <h3 className="text-label text-ink">{title}</h3>
         <p className="text-ink-muted">
           {[
             media,
@@ -122,24 +137,27 @@ export function SearchCard({
             item.uploaderFirstName
               ? SEARCH_COPY.by(item.uploaderFirstName)
               : null,
+            when,
           ]
             .filter(Boolean)
             .join(" · ")}
         </p>
         {subjects.length > 0 ? (
-          <ul className="grid gap-0.5 text-ink">
+          <ul className="grid gap-0.5 text-ink-muted">
             {subjects.map((text, i) => (
               <li key={i}>{text}</li>
             ))}
           </ul>
         ) : null}
-        <ul
-          aria-label={SEARCH_COPY.useHeading}
-          className="flex flex-wrap gap-1.5"
-        >
+        <ul aria-label={SEARCH_COPY.useHeading} className="grid gap-0.5">
           {useLines(item).map((line) => (
-            <li key={line.key} className="max-w-full">
-              <StatusChip tone={line.tone}>{line.text}</StatusChip>
+            <li
+              key={line.key}
+              className={
+                line.tone === "positive" ? "text-ink" : "text-ink-muted"
+              }
+            >
+              {line.text}
             </li>
           ))}
         </ul>
@@ -153,31 +171,43 @@ export function SearchCard({
           </ul>
         ) : null}
         {item.menuDecisions.length > 0 ? (
-          <ul aria-label={SEARCH_COPY.decisionsHeading} className="grid gap-1">
-            {item.menuDecisions.map((d) => (
-              <li
-                key={`${d.itemId}:${d.variantId ?? ""}`}
-                className="flex flex-wrap items-center gap-x-2 gap-y-1"
-              >
-                <span className="text-ink">
-                  {d.variantName
-                    ? `${d.itemName} · ${d.variantName}`
-                    : d.itemName}
-                </span>
-                {d.state === "accepted" ? (
-                  <StatusChip state="accepted" />
-                ) : (
-                  <StatusChip tone={DECISION_TONE[d.state]}>
-                    {DECISION_LABEL[d.state]}
-                  </StatusChip>
-                )}
-                {d.isPrimary ? (
-                  <span className="text-meta font-semibold text-ink">
-                    {SEARCH_COPY.menuPhoto}
-                  </span>
-                ) : null}
-              </li>
-            ))}
+          <ul
+            aria-label={SEARCH_COPY.decisionsHeading}
+            className="mt-1 grid gap-1"
+          >
+            {item.menuDecisions.map((d) => {
+              // The tile's title already names a lone decision's dish.
+              const named =
+                item.menuDecisions.length > 1 ||
+                d.itemId !== first?.itemId ||
+                (d.variantId ?? null) !== (first?.variantId ?? null)
+              return (
+                <li
+                  key={`${d.itemId}:${d.variantId ?? ""}`}
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1"
+                >
+                  {d.state === "accepted" ? (
+                    <StatusChip state="accepted" />
+                  ) : (
+                    <StatusChip tone={DECISION_TONE[d.state]}>
+                      {DECISION_LABEL[d.state]}
+                    </StatusChip>
+                  )}
+                  {named ? (
+                    <span className="text-ink">
+                      {d.variantName
+                        ? `${d.itemName} · ${d.variantName}`
+                        : d.itemName}
+                    </span>
+                  ) : null}
+                  {d.isPrimary ? (
+                    <span className="font-semibold text-ink">
+                      {SEARCH_COPY.menuPhoto}
+                    </span>
+                  ) : null}
+                </li>
+              )
+            })}
           </ul>
         ) : null}
       </div>
@@ -202,7 +232,7 @@ function Thumb({
   const [attempt, setAttempt] = React.useState(0)
   const Icon = mediaType === "video" ? FilmStripIcon : ImageIcon
   const frame =
-    "relative block size-24 shrink-0 overflow-hidden rounded-control bg-media-placeholder md:size-28"
+    "relative block aspect-square w-full overflow-hidden bg-media-placeholder"
   if (!url || attempt > 1) {
     return (
       <span className={cn(frame, "grid place-items-center text-ink-muted")}>

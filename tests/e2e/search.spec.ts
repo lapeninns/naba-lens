@@ -276,11 +276,15 @@ test("(a) an admin finds the soup photo in use by venue, menu item and use", asy
 
   const card = cards(page).filter({ hasText: "Accepted" })
   await expect(card).toHaveCount(1)
-  await expect(card).toContainText(/Uploaded \d{1,2} [A-Z][a-z]{2}/)
+  // An album-style tile (second handoff): the slot first, then
+  // "Photo · {venue} · By {name} · {date}".
+  await expect(card).toContainText(
+    /\d{1,2} [A-Z][a-z]{2}(?: \d{4})?, \d{2}:\d{2}/
+  )
   await expect(card).toContainText(`By ${firstName(w.staffA1.name)}`)
   await expect(card).not.toContainText(w.staffA1.name)
   await expect(card).toContainText(w.venueA.name)
-  await expect(card).toContainText("For Soup")
+  await expect(card.getByRole("heading", { name: "Soup" })).toBeVisible()
   await expect(card).toContainText(`In use on ${w.place.label}`)
   await expect(card).toContainText("Accepted")
   await expect(card).not.toContainText(w.soupInUse)
@@ -386,7 +390,9 @@ test("(c) a manager filters the venue's search by Use", async ({
   )
   await expect(page).toHaveURL(/rights=not_granted/)
   await expect(cards(page)).toHaveCount(1)
-  await expect(cards(page).first()).toContainText("For Soup")
+  await expect(
+    cards(page).first().getByRole("heading", { name: "Soup" })
+  ).toBeVisible()
   await expect(cards(page).first()).toContainText("No use agreed")
   await expect(status(page)).toHaveText("1 shown")
   await readOnly(page)
