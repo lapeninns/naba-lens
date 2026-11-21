@@ -7,7 +7,7 @@ import { StarIcon } from "@phosphor-icons/react"
 import { EvidenceThumb } from "@/components/nabalens/coverage/evidence-image"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 import { waitingFor } from "@/components/nabalens/menu-photos/copy"
-import { Card } from "@/components/nabalens/common-room"
+import { MANAGER_CARD } from "@/components/nabalens/manager/surface"
 import { Notice } from "@/components/nabalens/notice"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
@@ -111,13 +111,11 @@ export function ReviewCard({
 
   if (card.settled) {
     return (
-      <Card
-        as="article"
-        variant="tint"
-        tight
+      // A settled card sits back on surface-2 (v2's quiet box).
+      <article
         data-card-key={card.key}
         aria-labelledby={titleId}
-        className="flex items-center gap-3"
+        className="flex min-w-0 items-center gap-3 rounded-card bg-surface-2 p-3"
       >
         <EvidenceThumb
           src={card.asset.thumbnailUrl}
@@ -135,16 +133,18 @@ export function ReviewCard({
             </span>
           </div>
         </div>
-      </Card>
+      </article>
     )
   }
 
   return (
-    <Card
-      as="article"
+    <article
       data-card-key={card.key}
       aria-labelledby={titleId}
-      className="gap-4 @wide:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+      className={cn(
+        MANAGER_CARD,
+        "gap-4 @wide:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+      )}
     >
       <div className="relative">
         <EvidenceThumb src={card.asset.thumbnailUrl ?? card.asset.previewUrl} />
@@ -265,6 +265,6 @@ export function ReviewCard({
           </div>
         ) : null}
       </div>
-    </Card>
+    </article>
   )
 }
