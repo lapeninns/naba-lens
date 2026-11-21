@@ -17,7 +17,7 @@ import { periodKeyOf } from "@/lib/server/coverage/time"
 import { loadOpsSettings, loadOpsStatus } from "@/lib/server/ops"
 
 import { AdminTabs } from "../_components/admin-tabs"
-import { ExceptionsPanel } from "../settings/ops-panel"
+import { AttentionNotice } from "../settings/ops-panel"
 import {
   OVERVIEW_COPY,
   OverviewFiltersForm,
@@ -74,7 +74,7 @@ export default async function AdminOverviewPage({
         </div>
 
         {status.ok ? (
-          <ExceptionsPanel status={status.status} />
+          <AttentionNotice status={status.status} />
         ) : (
           <Notice
             tone="negative"
@@ -85,12 +85,6 @@ export default async function AdminOverviewPage({
           </Notice>
         )}
 
-        <OverviewFiltersForm
-          filters={filters}
-          venues={(venues.data ?? []) as { id: string; name: string }[]}
-          periods={recentPeriods(current)}
-        />
-
         <OverviewView
           rows={read.rows}
           filters={filters}
@@ -99,6 +93,13 @@ export default async function AdminOverviewPage({
             settings.ok
               ? settings.settings.backlogAlertDays
               : DEFAULT_BACKLOG_ALERT_DAYS
+          }
+          controls={
+            <OverviewFiltersForm
+              filters={filters}
+              venues={(venues.data ?? []) as { id: string; name: string }[]}
+              periods={recentPeriods(current)}
+            />
           }
         />
       </div>

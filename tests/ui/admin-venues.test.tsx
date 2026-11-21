@@ -145,8 +145,11 @@ describe("Overview (A1)", () => {
     const [bell] = screen.getAllByTestId("overview-row")
     const food = within(bell).getByTestId("overview-food")
     expect(food.textContent).toContain("4 of 10")
-    expect(food.textContent).toContain("40%")
     expect(food.textContent).toContain("2 waiting")
+    // The cell reads "4 of 10"; the share is in the link's name.
+    expect(within(food).getByRole("link").getAttribute("aria-label")).toContain(
+      "4 of 10 covered, 40%"
+    )
     expect(within(food).getByRole("link").getAttribute("href")).toBe(
       `/admin/coverage/${V1}/menu-photos`
     )
@@ -177,16 +180,42 @@ describe("Overview (A1)", () => {
     expect(table.textContent).toContain("6 of 12 · 50%")
   })
 
-  it("draws the focus ring in on-ok inside a full (bottle) cell (review Z4)", () => {
+  it("tints each cell as a second signal: bottle when full, brass outline under half (review Z4)", () => {
     render(<OverviewView rows={rows()} filters={filters} now={NOW} />)
     const [bell] = screen.getAllByTestId("overview-row")
     // Drinks is 4 of 4: the bottle fill, where the ink ring is under 3:1.
-    const full = within(bell).getByTestId("overview-drinks")
-    expect(full.className).toContain("md:bg-ok-fg")
-    expect(full.className).toContain("md:[--focus:var(--on-ok)]")
-    // A partial cell keeps the ink ring (at least 9.6:1 on ok-bg).
-    const part = within(bell).getByTestId("overview-food")
-    expect(part.className).not.toContain("--focus")
+    const full = within(
+      within(bell).getByTestId("overview-drinks")
+    ).getByTestId("overview-cell")
+    expect(full.textContent).toBe("4 of 4")
+    expect(full.className).toContain("bg-ok-fg")
+    expect(full.className).toContain("[--focus:var(--on-ok)]")
+    // Food is 4 of 10, under half: brass outline, ink focus ring.
+    const low = within(within(bell).getByTestId("overview-food")).getByTestId(
+      "overview-cell"
+    )
+    expect(low.className).toContain("ring-brass")
+    expect(low.className).not.toContain("--focus")
+    expect(screen.getByText(/a brass outline is under half/)).toBeTruthy()
+  })
+
+  it("gives each venue one meter on a phone, folding the rest away", () => {
+    render(<OverviewView rows={rows()} filters={filters} now={NOW} />)
+    const phone = screen.getByTestId("overview-phone")
+    expect(phone.className).toContain("md:hidden")
+    const [bell] = within(phone).getAllByTestId("overview-phone-row")
+    // Food 4 of 10, Drinks 4 of 4, Facilities 0 of 5: 8 of 19 in the album.
+    expect(bell.textContent).toContain("In the album")
+    expect(bell.textContent).toContain("8 of 19")
+    expect(within(bell).getByRole("progressbar")).toBeTruthy()
+  })
+
+  it("counts the venues needing attention and gives each one chip", () => {
+    render(<OverviewView rows={rows()} filters={filters} now={NOW} />)
+    expect(screen.getByText("1 of 2")).toBeTruthy()
+    const attention = screen.getByTestId("overview-attention")
+    // A publication error outranks the missing setup step.
+    expect(within(attention).getByText("Failed or unknown")).toBeTruthy()
   })
 
   it("flags a long wait from the admin's backlog alert setting (V21)", () => {

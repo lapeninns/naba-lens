@@ -1,11 +1,15 @@
 import Link from "next/link"
-import { CaretRightIcon } from "@phosphor-icons/react/dist/ssr"
+import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { EmptyState } from "@/components/nabalens/empty-state"
-import { StatusChip } from "@/components/nabalens/status-chip"
-import { Button } from "@/components/ui/button"
+import {
+  StatusChip,
+  type ChipStateKey as ChipState,
+} from "@/components/nabalens/status-chip"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { fieldControlVariants } from "@/components/ui/field-control"
 import { OptionRow } from "@/components/ui/option-row"
+import { Progress } from "@/components/ui/progress"
 import {
   Table,
   TableBody,
@@ -28,6 +32,7 @@ import {
   periodLabel,
   rowAttention,
   rowHrefs,
+  type Attention,
   type CategoryCounts,
   type OverviewFilters,
   type OverviewRow,
@@ -42,16 +47,18 @@ import { cn } from "@/lib/utils"
  * oldest review, checks due, publication errors and photos added in the
  * period across. Every number is a link to the records behind it, and each
  * category number is the one slot rule's own "n of N" (FA-8, AC39). Venues
- * are in name order; nothing ranks people (§18). Below md the table stacks
- * into one labelled block per venue (DESIGN.md §8: 320px).
+ * are in name order; nothing ranks people (§18). Below md the table becomes
+ * one row per venue with a single meter; the category split is one tap away
+ * on the venue (handoff, Overview 390px).
  */
 
 export const OVERVIEW_COPY = {
   title: "Overview",
   scope: "All venues",
   summary:
-    "Every venue's coverage and backlog. Each number opens the records behind it.",
+    "Every venue's album and backlog. Each number opens the records behind it.",
   attentionTitle: "Venues needing attention",
+  attentionOf: (n: number, of: number) => `${n} of ${of}`,
   attentionNone:
     "No venue has blocked setup, errors, checks due or a long wait.",
   tableTitle: "By venue",
@@ -68,12 +75,17 @@ export const OVERVIEW_COPY = {
   noNextMenu: "No menu scheduled",
   waiting: (n: number) => (n === 1 ? "1 waiting" : `${n} waiting`),
   checkDue: (n: number) => (n === 1 ? "1 check due" : `${n} checks due`),
+  inAlbum: "In the album",
+  tableKey:
+    "In the album, of every slot the venue has. Darker cells are fuller; a brass outline is under half.",
+  showMore: (n: number) =>
+    n === 1 ? "Show 1 more venue" : `Show ${n} more venues`,
   emptyTitle: "No venues match",
   emptyText: "Choose all venues, or add a venue under Venues.",
 }
 
 const NUMBER_LINK =
-  "inline-flex min-h-12 flex-wrap items-center gap-x-1 font-mono text-mono font-semibold tabular-nums text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+  "inline-flex min-h-10 flex-wrap items-center gap-x-1 font-mono text-mono font-semibold tabular-nums text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
 
 function NumberLink({
   href,
@@ -98,16 +110,28 @@ function NumberLink({
   )
 }
 
-/** Shades as the albums matrix (DESIGN.md §6.6): the tint repeats the words. */
-function tint(c: { covered: number; total: number }) {
-  // From md only: a stacked phone block keeps its labels readable on surface.
-  if (c.total === 0 || c.covered === 0) return ""
-  // A full cell is bottle: the link's words and its focus ring take on-ok,
-  // since the ink ring is under 3:1 on bottle (review Z4).
-  if (c.covered >= c.total)
-    return "md:bg-ok-fg md:text-on-ok md:[&_a]:text-on-ok md:[--focus:var(--on-ok)]"
-  return c.covered * 2 < c.total ? "md:bg-ok-bg" : "md:bg-ok-half"
+/*
+ * The cell is a tinted block that reads "30 of 34" (handoff, Overview › By
+ * venue). The tint is a second signal, never the only one: darker is fuller,
+ * a full cell is bottle, and under half takes the brass outline. The words
+ * carry the meaning. The tint is drawn from md only: below md the table is
+ * not shown (the phone list has one meter per venue).
+ */
+export const CELL_BASE =
+  "inline-grid min-h-8 min-w-16 place-items-center rounded-square px-2 font-sans text-meta font-semibold whitespace-nowrap tabular-nums"
+
+export function cellTint(c: { covered: number; total: number }) {
+  if (c.total === 0) return "bg-surface-2 text-ink"
+  // A full cell is bottle: its words and focus ring take on-ok, since the ink
+  // ring is under 3:1 on bottle (review Z4).
+  if (c.covered >= c.total) return "bg-ok-fg text-on-ok [--focus:var(--on-ok)]"
+  if (c.covered * 2 < c.total)
+    return "bg-warn-bg text-warn-fg ring-1 ring-brass ring-inset"
+  return "bg-ok-half text-ink"
 }
+
+const CELL_LINK =
+  "inline-flex min-h-10 items-center rounded-square focus-ring outline-none"
 
 function CategoryCell({
   row,
@@ -127,13 +151,13 @@ function CategoryCell({
     ["food", "drinks", "other"].includes(counts.category)
   )
     return (
-      <TableCell label={label} className="border-l border-line text-ink-muted">
+      <TableCell label={label} className="text-meta text-ink-muted">
         {OVERVIEW_COPY.noNextMenu}
       </TableCell>
     )
   if (!counts || counts.total === 0)
     return (
-      <TableCell label={label} className="border-l border-line text-ink-muted">
+      <TableCell label={label} className="text-meta text-ink-muted">
         {OVERVIEW_COPY.noSlots}
       </TableCell>
     )
@@ -143,30 +167,29 @@ function CategoryCell({
     counts.checkDue > 0 ? OVERVIEW_COPY.checkDue(counts.checkDue) : null,
   ].filter(Boolean)
   return (
-    <TableCell
-      label={label}
-      className={cn("min-w-32 border-l border-line", tint(counts))}
-      data-testid={`overview-${counts.category}`}
-    >
-      <span className="grid gap-0.5">
-        <NumberLink
+    <TableCell label={label} data-testid={`overview-${counts.category}`}>
+      <span className="grid justify-items-start gap-0.5">
+        <Link
           href={categoryHref(
             row.venueId,
             counts.category,
             filters.menu,
             row.nextMenu?.versionId ?? null
           )}
-          label={`${label} at ${row.name}: ${words.main} covered`}
+          aria-label={`${label} at ${row.name}: ${words.main} covered${
+            words.pct ? `, ${words.pct}` : ""
+          }`}
+          className={CELL_LINK}
         >
-          <span className="whitespace-nowrap">{words.main}</span>
-          {words.pct ? (
-            <span className="font-sans text-meta font-normal">
-              · {words.pct}
-            </span>
-          ) : null}
-        </NumberLink>
+          <span
+            className={cn(CELL_BASE, cellTint(counts))}
+            data-testid="overview-cell"
+          >
+            {words.main}
+          </span>
+        </Link>
         {notes.length ? (
-          <span className="text-meta">{notes.join(" · ")}</span>
+          <span className="text-meta text-ink-muted">{notes.join(" · ")}</span>
         ) : null}
       </span>
     </TableCell>
@@ -186,46 +209,26 @@ function OverviewTable({
     filters.categories.includes(c.key)
   )
   return (
-    <section aria-labelledby="overview-table-title" className="grid gap-3">
-      <h2
-        id="overview-table-title"
-        className="px-1 type-section-title text-ink"
-      >
-        {OVERVIEW_COPY.tableTitle}
-      </h2>
+    <div className="hidden gap-2 md:grid">
       <Table
-        stacked
         framed
         aria-labelledby="overview-table-title"
-        className="md:min-w-[60rem]"
+        className="min-w-[60rem]"
+        aria-describedby="overview-table-key"
         data-testid="overview-table"
       >
         <TableHeader>
           <TableRow>
             <TableHead>{OVERVIEW_COPY.venue}</TableHead>
             {columns.map((c) => (
-              <TableHead key={c.key} className="border-l border-line">
-                {c.label}
-              </TableHead>
+              <TableHead key={c.key}>{c.label}</TableHead>
             ))}
-            <TableHead className="border-l border-line">
-              {OVERVIEW_COPY.facts}
-            </TableHead>
-            <TableHead className="border-l border-line">
-              {OVERVIEW_COPY.unlabelled}
-            </TableHead>
-            <TableHead className="border-l border-line">
-              {OVERVIEW_COPY.review}
-            </TableHead>
-            <TableHead className="border-l border-line">
-              {OVERVIEW_COPY.checks}
-            </TableHead>
-            <TableHead className="border-l border-line">
-              {OVERVIEW_COPY.publication}
-            </TableHead>
-            <TableHead className="border-l border-line">
-              {OVERVIEW_COPY.added(filters.period)}
-            </TableHead>
+            <TableHead>{OVERVIEW_COPY.facts}</TableHead>
+            <TableHead>{OVERVIEW_COPY.unlabelled}</TableHead>
+            <TableHead>{OVERVIEW_COPY.review}</TableHead>
+            <TableHead>{OVERVIEW_COPY.checks}</TableHead>
+            <TableHead>{OVERVIEW_COPY.publication}</TableHead>
+            <TableHead>{OVERVIEW_COPY.added(filters.period)}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -244,7 +247,7 @@ function OverviewTable({
                   <span className="grid gap-1">
                     <Link
                       href={href.venue}
-                      className="inline-flex min-h-12 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+                      className="inline-flex min-h-10 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
                     >
                       {row.name}
                     </Link>
@@ -271,10 +274,7 @@ function OverviewTable({
                     filters={filters}
                   />
                 ))}
-                <TableCell
-                  label={OVERVIEW_COPY.facts}
-                  className="border-l border-line"
-                >
+                <TableCell label={OVERVIEW_COPY.facts}>
                   {row.facts.total === 0 ? (
                     <span className="text-ink-muted">
                       {OVERVIEW_COPY.noSlots}
@@ -294,10 +294,7 @@ function OverviewTable({
                     </NumberLink>
                   )}
                 </TableCell>
-                <TableCell
-                  label={OVERVIEW_COPY.unlabelled}
-                  className="border-l border-line"
-                >
+                <TableCell label={OVERVIEW_COPY.unlabelled}>
                   <NumberLink
                     href={href.unlabelled}
                     label={`Unlabelled at ${row.name}: ${row.unlabelled}`}
@@ -306,10 +303,7 @@ function OverviewTable({
                     {row.unlabelled}
                   </NumberLink>
                 </TableCell>
-                <TableCell
-                  label={OVERVIEW_COPY.review}
-                  className="border-l border-line"
-                >
+                <TableCell label={OVERVIEW_COPY.review}>
                   {age ? (
                     <span className="grid gap-0.5">
                       <NumberLink
@@ -335,10 +329,7 @@ function OverviewTable({
                     </NumberLink>
                   )}
                 </TableCell>
-                <TableCell
-                  label={OVERVIEW_COPY.checks}
-                  className="border-l border-line"
-                >
+                <TableCell label={OVERVIEW_COPY.checks}>
                   <span className="grid gap-0.5">
                     <NumberLink
                       href={href.checksDue}
@@ -359,7 +350,7 @@ function OverviewTable({
                             key={p.key}
                             href={href.checkParts[p.key]}
                             data-part={p.key}
-                            className="inline-flex min-h-12 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+                            className="inline-flex min-h-10 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
                           >
                             {p.words(row.checksDue[p.key])}
                           </Link>
@@ -368,10 +359,7 @@ function OverviewTable({
                     ) : null}
                   </span>
                 </TableCell>
-                <TableCell
-                  label={OVERVIEW_COPY.publication}
-                  className="border-l border-line"
-                >
+                <TableCell label={OVERVIEW_COPY.publication}>
                   <span className="grid gap-0.5">
                     <NumberLink
                       href={href.publication}
@@ -388,10 +376,7 @@ function OverviewTable({
                     ) : null}
                   </span>
                 </TableCell>
-                <TableCell
-                  label={OVERVIEW_COPY.added(filters.period)}
-                  className="border-l border-line"
-                >
+                <TableCell label={OVERVIEW_COPY.added(filters.period)}>
                   <NumberLink
                     href={href.added}
                     label={`Photos added at ${row.name} in ${periodLabel(filters.period)}: ${row.added ?? 0}`}
@@ -417,7 +402,7 @@ function OverviewTable({
                   <TableCell
                     key={c.key}
                     label={c.label}
-                    className="border-l border-line font-mono tabular-nums"
+                    className="font-mono tabular-nums"
                   >
                     {t.total ? `${w.main} · ${w.pct}` : OVERVIEW_COPY.noSlots}
                   </TableCell>
@@ -425,7 +410,7 @@ function OverviewTable({
               })}
               <TableCell
                 label={OVERVIEW_COPY.facts}
-                className="border-l border-line font-mono tabular-nums"
+                className="font-mono tabular-nums"
               >
                 {(() => {
                   const n = rows.reduce((s, r) => s + r.facts.confirmed, 0)
@@ -436,13 +421,13 @@ function OverviewTable({
               </TableCell>
               <TableCell
                 label={OVERVIEW_COPY.unlabelled}
-                className="border-l border-line font-mono tabular-nums"
+                className="font-mono tabular-nums"
               >
                 {rows.reduce((s, r) => s + r.unlabelled, 0)}
               </TableCell>
               <TableCell
                 label={OVERVIEW_COPY.review}
-                className="border-l border-line font-mono tabular-nums"
+                className="font-mono tabular-nums"
               >
                 {OVERVIEW_COPY.waiting(
                   rows.reduce((s, r) => s + r.review.waiting, 0)
@@ -450,19 +435,19 @@ function OverviewTable({
               </TableCell>
               <TableCell
                 label={OVERVIEW_COPY.checks}
-                className="border-l border-line font-mono tabular-nums"
+                className="font-mono tabular-nums"
               >
                 {rows.reduce((s, r) => s + r.checksDue.total, 0)}
               </TableCell>
               <TableCell
                 label={OVERVIEW_COPY.publication}
-                className="border-l border-line font-mono tabular-nums"
+                className="font-mono tabular-nums"
               >
                 {rows.reduce((s, r) => s + r.publication.total, 0)}
               </TableCell>
               <TableCell
                 label={OVERVIEW_COPY.added(filters.period)}
-                className="border-l border-line font-mono tabular-nums"
+                className="font-mono tabular-nums"
               >
                 {rows.reduce((s, r) => s + (r.added ?? 0), 0)}
               </TableCell>
@@ -470,37 +455,61 @@ function OverviewTable({
           </TableFooter>
         ) : null}
       </Table>
-    </section>
+      <p id="overview-table-key" className="px-1 text-meta text-ink-muted">
+        {OVERVIEW_COPY.tableKey}
+      </p>
+    </div>
   )
 }
 
+/*
+ * The one chip a venue needing attention takes: the most serious problem it
+ * has. A publication error outranks missing setup, which outranks a check
+ * due, which outranks a long wait. The words beside it list every problem.
+ */
+function attentionChip(list: Attention[]): ChipState {
+  const kinds = new Set(list.map((a) => a.kind))
+  if (kinds.has("publication")) return "publication_failed_unknown"
+  if (kinds.has("setup")) return "needs_setup"
+  if (kinds.has("checks")) return "coverage_check_due"
+  return "outcome_waiting"
+}
+
+const ROW_LINK =
+  "inline-flex min-h-10 items-center underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+
 function AttentionList({
   rows,
+  of,
   now,
   reviewAlertDays,
 }: {
   rows: OverviewRow[]
+  /** How many venues the overview shows: "3 of 9". */
+  of: number
   now: Date
   reviewAlertDays: number
 }) {
   return (
-    <section aria-labelledby="overview-attention-title" className="grid gap-3">
-      <h2
-        id="overview-attention-title"
-        className="px-1 type-section-title text-ink"
-      >
-        {OVERVIEW_COPY.attentionTitle}
+    <section aria-labelledby="overview-attention-title" className="grid gap-2">
+      <div className="flex items-baseline gap-3 px-1">
+        <h2
+          id="overview-attention-title"
+          className="flex-1 type-heading-sm text-ink"
+        >
+          {OVERVIEW_COPY.attentionTitle}
+        </h2>
         {rows.length ? (
-          <span className="ml-2 font-sans text-meta text-ink-muted">
-            {rows.length}
+          <span className="text-meta text-ink-muted tabular-nums">
+            {OVERVIEW_COPY.attentionOf(rows.length, of)}
           </span>
         ) : null}
-      </h2>
+      </div>
       {rows.length === 0 ? (
         <EmptyState variant="done" title={OVERVIEW_COPY.attentionNone} />
       ) : (
         <ul
-          className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
+          className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface"
           data-testid="overview-attention"
         >
           {rows.map((row) => {
@@ -510,51 +519,42 @@ function AttentionList({
               menu: "current",
               period: "2000-01",
             })
+            const problems = rowAttention(row, now, reviewAlertDays)
             return (
               <li
                 key={row.venueId}
-                className="flex flex-wrap items-center gap-x-4 gap-y-0 px-4 py-1"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2"
               >
-                <Link
-                  href={hrefs.venue}
-                  className="inline-flex min-h-12 items-center gap-2 text-label text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
-                >
-                  {row.name}
-                  <CaretRightIcon
-                    aria-hidden
-                    className="size-5 text-ink-muted"
-                  />
-                </Link>
-                <ul className="flex flex-wrap gap-2">
-                  {rowAttention(row, now, reviewAlertDays).map((a) => {
-                    const href =
-                      a.kind === "setup"
-                        ? hrefs.setup
-                        : a.kind === "publication"
-                          ? hrefs.publication
-                          : a.kind === "checks"
-                            ? hrefs.checksDue
-                            : hrefs.review
-                    return (
-                      <li key={a.kind}>
-                        <Link
-                          href={href}
-                          className="inline-flex min-h-12 items-center rounded-control focus-ring outline-none"
-                        >
-                          <StatusChip
-                            state={
-                              a.kind === "setup"
-                                ? "needs_setup"
-                                : "needs_attention"
-                            }
-                          >
+                <div className="grid min-w-0 flex-[1_1_16rem]">
+                  <Link
+                    href={hrefs.venue}
+                    className={cn(ROW_LINK, "text-label text-ink")}
+                  >
+                    {row.name}
+                  </Link>
+                  <ul className="flex flex-wrap items-center gap-x-1 text-meta text-ink-muted">
+                    {problems.map((a, i) => {
+                      const href =
+                        a.kind === "setup"
+                          ? hrefs.setup
+                          : a.kind === "publication"
+                            ? hrefs.publication
+                            : a.kind === "checks"
+                              ? hrefs.checksDue
+                              : hrefs.review
+                      return (
+                        <li key={a.kind} className="flex items-center gap-x-1">
+                          {i > 0 ? <span aria-hidden>·</span> : null}
+                          <Link href={href} className={ROW_LINK}>
                             {attentionWords(a)}
-                          </StatusChip>
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </ul>
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+                <StatusChip state={attentionChip(problems)} />
+                <CaretRightIcon aria-hidden className="size-5 text-ink-muted" />
               </li>
             )
           })}
@@ -564,6 +564,11 @@ function AttentionList({
   )
 }
 
+/*
+ * The filters sit in the By venue heading row (handoff): venue, menu and
+ * period as selects, the categories folded behind one disclosure, then Show.
+ * A plain GET form, so it works before the page's script has loaded.
+ */
 export function OverviewFiltersForm({
   filters,
   venues,
@@ -574,54 +579,78 @@ export function OverviewFiltersForm({
   periods: string[]
 }) {
   const select = fieldControlVariants()
+  const chosen = OVERVIEW_CATEGORIES.filter((c) =>
+    filters.categories.includes(c.key)
+  )
   return (
     <form
       method="get"
-      className="grid gap-4 rounded-card bg-surface p-4 shadow-card"
+      action="/admin/overview"
+      className="flex flex-wrap items-start gap-2"
       aria-label="Filters"
       data-testid="overview-filters"
     >
-      <div className="grid gap-4 md:grid-cols-3">
-        <label className="grid gap-1.5">
-          <span className="text-label text-ink">Venue</span>
-          <select
-            name="venue"
-            defaultValue={filters.venueId ?? ""}
-            className={select}
-          >
-            <option value="">All venues</option>
-            {venues.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1.5">
-          <span className="text-label text-ink">Menu</span>
-          <select name="menu" defaultValue={filters.menu} className={select}>
-            <option value="current">Current menu</option>
-            <option value="next">Next scheduled menu</option>
-          </select>
-        </label>
-        <label className="grid gap-1.5">
-          <span className="text-label text-ink">Reporting period</span>
-          <select
-            name="period"
-            defaultValue={filters.period}
-            className={select}
-          >
-            {periods.map((p) => (
-              <option key={p} value={p}>
-                {periodLabel(p)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <fieldset className="grid gap-2">
-        <legend className="mb-1.5 text-label text-ink">Categories</legend>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      <label className="grid">
+        <span className="sr-only">Venue</span>
+        <select
+          name="venue"
+          defaultValue={filters.venueId ?? ""}
+          className={cn(select, "w-48")}
+        >
+          <option value="">All venues</option>
+          {venues.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="grid">
+        <span className="sr-only">Menu</span>
+        <select
+          name="menu"
+          defaultValue={filters.menu}
+          className={cn(select, "w-48")}
+        >
+          <option value="current">Current menu</option>
+          <option value="next">Next scheduled menu</option>
+        </select>
+      </label>
+      <label className="grid">
+        <span className="sr-only">Reporting period</span>
+        <select
+          name="period"
+          defaultValue={filters.period}
+          className={cn(select, "w-44")}
+        >
+          {periods.map((p) => (
+            <option key={p} value={p}>
+              {periodLabel(p)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <details className="group relative">
+        <summary
+          className={cn(
+            select,
+            "flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden"
+          )}
+        >
+          <span>
+            Categories
+            <span className="text-ink-muted">
+              {" "}
+              · {chosen.length} of {OVERVIEW_CATEGORIES.length}
+            </span>
+          </span>
+          <CaretDownIcon
+            aria-hidden
+            className="size-4 transition-transform group-open:rotate-180"
+          />
+        </summary>
+        <fieldset className="mt-2 grid gap-2 rounded-card border border-line bg-surface p-3 md:absolute md:right-0 md:z-local md:w-64 md:shadow-float">
+          <legend className="sr-only">Categories</legend>
           {OVERVIEW_CATEGORIES.map((c) => (
             <OptionRow
               key={c.key}
@@ -632,20 +661,112 @@ export function OverviewFiltersForm({
               defaultChecked={filters.categories.includes(c.key)}
             />
           ))}
-        </div>
-      </fieldset>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" variant="secondary">
-          Show
-        </Button>
-        <Link
-          href="/admin/overview"
-          className="inline-flex min-h-12 items-center text-accent-text underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
-        >
-          Clear filters
-        </Link>
-      </div>
+        </fieldset>
+      </details>
+      <Button type="submit" variant="secondary">
+        Show
+      </Button>
+      <Link
+        href="/admin/overview"
+        className="inline-flex min-h-10 items-center px-1 text-accent-text underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+      >
+        Clear filters
+      </Link>
     </form>
+  )
+}
+
+/** Covered and total across the shown categories, for one venue's meter. */
+function albumTotal(row: OverviewRow, filters: OverviewFilters) {
+  return row.categories
+    .filter((c) => filters.categories.includes(c.category))
+    .reduce(
+      (t, c) => ({ covered: t.covered + c.covered, total: t.total + c.total }),
+      { covered: 0, total: 0 }
+    )
+}
+
+/** Below md: one row per venue with a single meter; the rest fold away. */
+const PHONE_SHOWN = 4
+
+function PhoneVenueRow({
+  row,
+  filters,
+}: {
+  row: OverviewRow
+  filters: OverviewFilters
+}) {
+  const t = albumTotal(row, filters)
+  const words = ofWords(t.covered, t.total)
+  const href = rowHrefs(row, filters).venue
+  const id = `overview-meter-${row.venueId}`
+  return (
+    <li className="grid gap-2 px-4 py-3" data-testid="overview-phone-row">
+      <Link href={href} className={cn(ROW_LINK, "text-label text-ink")}>
+        {row.name}
+      </Link>
+      {t.total === 0 ? (
+        <p className="text-meta text-ink-muted">{OVERVIEW_COPY.noSlots}</p>
+      ) : (
+        <div className="grid gap-1">
+          <p id={id} className="flex items-baseline gap-2 text-meta">
+            <span className="flex-1 text-ink-muted">
+              {OVERVIEW_COPY.inAlbum}
+            </span>
+            <span className="font-semibold text-ink tabular-nums">
+              {words.main}
+            </span>
+            {words.pct ? (
+              <span className="text-ink-muted tabular-nums">{words.pct}</span>
+            ) : null}
+          </p>
+          <Progress
+            value={t.covered}
+            max={t.total}
+            tone="ok"
+            size="sm"
+            aria-labelledby={id}
+          />
+        </div>
+      )}
+    </li>
+  )
+}
+
+function PhoneVenueList({
+  rows,
+  filters,
+}: {
+  rows: OverviewRow[]
+  filters: OverviewFilters
+}) {
+  const shown = rows.slice(0, PHONE_SHOWN)
+  const rest = rows.slice(PHONE_SHOWN)
+  return (
+    <div className="grid gap-2 md:hidden" data-testid="overview-phone">
+      <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
+        {shown.map((row) => (
+          <PhoneVenueRow key={row.venueId} row={row} filters={filters} />
+        ))}
+      </ul>
+      {rest.length ? (
+        <details className="group grid gap-2">
+          <summary
+            className={cn(
+              buttonVariants({ variant: "secondary" }),
+              "w-full cursor-pointer list-none group-open:hidden [&::-webkit-details-marker]:hidden"
+            )}
+          >
+            {OVERVIEW_COPY.showMore(rest.length)}
+          </summary>
+          <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
+            {rest.map((row) => (
+              <PhoneVenueRow key={row.venueId} row={row} filters={filters} />
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </div>
   )
 }
 
@@ -654,29 +775,51 @@ export function OverviewView({
   filters,
   now,
   reviewAlertDays = DEFAULT_BACKLOG_ALERT_DAYS,
+  controls,
 }: {
   rows: OverviewRow[]
   filters: OverviewFilters
   now: Date
   /** ops_settings.backlog_alert_days (S3-R6, V21). */
   reviewAlertDays?: number
+  /** The filters form, drawn in the By venue heading row. */
+  controls?: React.ReactNode
 }) {
+  const header = (
+    <div className="flex flex-wrap items-start gap-3 px-1">
+      <h2
+        id="overview-table-title"
+        className="flex-1 py-2 type-heading-sm text-ink"
+      >
+        {OVERVIEW_COPY.tableTitle}
+      </h2>
+      {controls}
+    </div>
+  )
   if (rows.length === 0)
     return (
-      <EmptyState
-        title={OVERVIEW_COPY.emptyTitle}
-        description={<p>{OVERVIEW_COPY.emptyText}</p>}
-      />
+      <section aria-labelledby="overview-table-title" className="grid gap-3">
+        {header}
+        <EmptyState
+          title={OVERVIEW_COPY.emptyTitle}
+          description={<p>{OVERVIEW_COPY.emptyText}</p>}
+        />
+      </section>
     )
   const { attention } = attentionFirst(rows, now, reviewAlertDays)
   return (
     <div className="grid gap-8">
       <AttentionList
         rows={attention}
+        of={rows.length}
         now={now}
         reviewAlertDays={reviewAlertDays}
       />
-      <OverviewTable rows={rows} filters={filters} now={now} />
+      <section aria-labelledby="overview-table-title" className="grid gap-3">
+        {header}
+        <PhoneVenueList rows={rows} filters={filters} />
+        <OverviewTable rows={rows} filters={filters} now={now} />
+      </section>
     </div>
   )
 }

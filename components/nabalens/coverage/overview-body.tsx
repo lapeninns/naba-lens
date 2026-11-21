@@ -1,10 +1,13 @@
 import Link from "next/link"
-import { ClockCountdownIcon, WarningIcon } from "@phosphor-icons/react/dist/ssr"
+import {
+  CaretRightIcon,
+  ClockCountdownIcon,
+  WarningIcon,
+} from "@phosphor-icons/react/dist/ssr"
 
-import { Card, LeadCard } from "../common-room"
 import { OfflineNotice } from "../offline-notice"
 import { Notice } from "../notice"
-import { StatusChip } from "../status-chip"
+import { StatusChip, type ChipStateKey } from "../status-chip"
 import { buttonVariants } from "@/components/ui/button"
 
 import { SETUP_ISSUE_LABEL, labelFor, plural } from "./copy"
@@ -68,6 +71,15 @@ export type PreparationState =
       copied: number
       total: number
     }
+
+/** The menu row's chip (handoff, Venue › Coverage): one per menu state. */
+const MENU_CHIP: Record<VenueCoverageSummary["menuState"], ChipStateKey> = {
+  current: "coverage_current",
+  menu_changed: "menu_changed",
+  reconciliation_pending: "menu_changed",
+  needs_setup: "coverage_needs_setup",
+  no_menu: "no_active_menu",
+}
 
 /** "November 2026" → "November". */
 export const monthName = (label: string) => label.split(" ")[0]
@@ -208,13 +220,13 @@ export function OverviewBody({
 
       {preparation.kind === "unprepared" ? (
         leadAction ? (
-          <LeadCard
-            tone="warn"
+          <Notice
+            tone="attention"
             title={`${month} isn’t prepared yet`}
-            actions={leadAction}
+            action={leadAction}
           >
             <p>{unpreparedText}</p>
-          </LeadCard>
+          </Notice>
         ) : (
           <Notice tone="attention" title={`${month} isn’t prepared yet`}>
             <p>{unpreparedText}</p>
@@ -240,13 +252,13 @@ export function OverviewBody({
 
       {menuChange ? (
         menuLeads ? (
-          <LeadCard
-            tone="warn"
+          <Notice
+            tone="attention"
             title="Menu changed — review coverage"
-            actions={leadAction}
+            action={leadAction}
           >
             <p>{menuText(menuChange)}</p>
-          </LeadCard>
+          </Notice>
         ) : (
           <Notice tone="attention" title="Menu changed — review coverage">
             <p>{menuText(menuChange)}</p>
@@ -255,12 +267,12 @@ export function OverviewBody({
       ) : null}
 
       {allDone ? (
-        <Card tone="ok">
-          <p role="status" className="text-body text-ink">
+        <Notice tone="positive" role="status">
+          <p>
             Everything at {venueName} is complete for {month}. New photos still
             appear in Review as they’re sent.
           </p>
-        </Card>
+        </Notice>
       ) : null}
 
       <div className="grid gap-gutter md:grid-cols-2 md:gap-4">
@@ -338,6 +350,27 @@ export function OverviewBody({
         </CoverageSection>
       </div>
 
+      <Link
+        href={hrefs.menu}
+        className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 rounded-card border border-line bg-surface px-4 py-2.5 text-ink no-underline focus-ring transition-colors duration-quick outline-none hover:bg-raised"
+        data-testid="overview-menu-row"
+      >
+        <span className="grid min-w-0 flex-[1_1_12rem]">
+          <span className="text-label">Menu</span>
+          <span className="text-meta text-ink-muted">
+            {summary.pendingReconciliation > 0
+              ? plural(
+                  summary.pendingReconciliation,
+                  "section to decide",
+                  "sections to decide"
+                )
+              : `Menu coverage at ${venueName}`}
+          </span>
+        </span>
+        <StatusChip state={MENU_CHIP[summary.menuState]} />
+        <CaretRightIcon aria-hidden className="size-5 text-ink-muted" />
+      </Link>
+
       {allDone ? null : (
         <CoverageSection
           id="attention"
@@ -378,13 +411,11 @@ export function OverviewBody({
               ))}
             </ItemList>
           ) : (
-            <Card>
-              <p className="text-body text-ink-muted">
-                {staffSetup > 0
-                  ? "No checklist items need setup, reassignment or follow-up."
-                  : "Nothing needs setup, reassignment or follow-up."}
-              </p>
-            </Card>
+            <p className="rounded-card border border-line bg-surface px-4 py-3 text-body text-ink-muted">
+              {staffSetup > 0
+                ? "No checklist items need setup, reassignment or follow-up."
+                : "Nothing needs setup, reassignment or follow-up."}
+            </p>
           )}
         </CoverageSection>
       )}
