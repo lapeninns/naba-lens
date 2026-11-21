@@ -307,6 +307,8 @@ describe("LibraryFilters", () => {
       />
     )
     expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull()
+    // Media sits behind More filters (batch S, the Library photos row).
+    await userEvent.click(screen.getByRole("button", { name: /More filters/ }))
     await userEvent.click(screen.getByRole("radio", { name: "Videos" }))
     expect(onChange).toHaveBeenLastCalledWith({
       ...EMPTY_LIBRARY_FILTERS,
