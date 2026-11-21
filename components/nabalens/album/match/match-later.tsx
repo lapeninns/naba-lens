@@ -59,12 +59,25 @@ export type MatchLaterPhoto = {
  */
 export function MatchLaterRow({
   count,
-  href = MATCH_LATER_HREF,
+  href = STAFF_ALBUM_POSTS ? `${MATCH_LATER_HREF}?select=1` : MATCH_LATER_HREF,
 }: {
   count: number
   href?: string
 }) {
   if (count <= 0) return null
+  // Posting (D21): these photos are in the Album already, waiting for a label.
+  const words = STAFF_ALBUM_POSTS
+    ? {
+        title: "Label photos",
+        row: (n: number) =>
+          n === 1 ? "1 photo to label" : `${n} photos to label`,
+        action: "Label",
+      }
+    : {
+        title: MATCH_LATER_COPY.title,
+        row: MATCH_LATER_COPY.row,
+        action: MATCH_LATER_COPY.rowAction,
+      }
   return (
     <Link
       href={href}
@@ -76,14 +89,12 @@ export function MatchLaterRow({
         <ImagesIcon aria-hidden className="size-6" />
       </span>
       <span className="grid min-w-0 flex-1">
-        <span className="text-heading">{MATCH_LATER_COPY.title}</span>
+        <span className="text-heading">{words.title}</span>
         <span className="text-body text-ink-muted tabular-nums">
-          {MATCH_LATER_COPY.row(count)}
+          {words.row(count)}
         </span>
       </span>
-      <span className="text-label text-accent-text">
-        {MATCH_LATER_COPY.rowAction}
-      </span>
+      <span className="text-label text-accent-text">{words.action}</span>
       <CaretRightIcon aria-hidden className="size-5 shrink-0" />
     </Link>
   )

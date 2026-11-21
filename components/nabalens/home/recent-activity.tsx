@@ -51,6 +51,12 @@ export function RecentActivity({ items }: { items: MyUpload[] | null }) {
               item.slots[0]
             const name =
               item.slots.map(({ name }) => name).join(", ") ||
+              (item.albumPost?.labels ?? [])
+                .map(({ name }) => name)
+                .join(", ") ||
+              (item.albumPost && !item.albumPost.labelled
+                ? "Unlabelled photo"
+                : null) ||
               (item.labelHelp
                 ? "With your manager"
                 : item.sharedKinds.length

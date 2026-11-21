@@ -24,6 +24,8 @@ import { loadAlbum } from "@/lib/server/album"
 import { getCoverageActor } from "@/lib/server/coverage"
 import { listMyRequests } from "@/lib/server/requests"
 import { getMyUploads } from "@/lib/server/staff"
+import { withStaffAlbumStates } from "@/lib/server/staff-album-posts"
+import { STAFF_ALBUM_POSTS } from "@/lib/config/staff-album-posts"
 import { addReminder } from "@/lib/staff/home"
 
 import { hasOwnMedia } from "../_shell/album-rows"
@@ -94,7 +96,17 @@ export default async function StaffHomePage({
     }) ||
     (onboarding !== null && !onboarding.noticeAcknowledgedAt)
   const view = album.ok ? album.album : null
-  const items = uploads?.ok ? uploads.page.items : null
+  // Posting (D21): Recent activity names a posted photo by its label or as
+  // Unlabelled, as My photos does.
+  const page =
+    uploads?.ok && STAFF_ALBUM_POSTS
+      ? await withStaffAlbumStates(actor.db, uploads.page).catch(
+          () => uploads.page
+        )
+      : uploads?.ok
+        ? uploads.page
+        : null
+  const items = page?.items ?? null
   const here = items?.filter((item) => item.venueId === profile.venueId) ?? null
   const asked =
     view && requests?.ok
