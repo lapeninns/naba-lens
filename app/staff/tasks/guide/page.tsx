@@ -17,9 +17,9 @@ import { unwrap } from "../result"
 export const metadata = { title: "Photo guide" }
 
 /**
- * How to photograph a dish: the checklist and the four example angles, with
- * no angle marked. Static examples only; linked from food menu-section tasks
- * and Monthly photos.
+ * How to photograph a dish (screens-2 handoff): the safety notice first, the
+ * example dishes and the four angles two-up, the checklist, then "If you
+ * can't add photos" as a row. Static examples only; no angle is marked.
  */
 export default async function PhotoGuidePage() {
   const profile = await requireActiveStaff()
@@ -39,6 +39,24 @@ export default async function PhotoGuidePage() {
           title="Photo guide"
           summary="How to photograph a dish so every venue's photos look alike. Four angles, always in this order."
         />
+
+        {/* Safety first, above the angles (screens-2 handoff). */}
+        <Notice tone="attention" role="note">
+          {GUIDE_SAFETY}
+        </Notice>
+
+        <section aria-labelledby="angles-heading" className="grid gap-gutter">
+          <h2
+            id="angles-heading"
+            className="px-1 pt-2 type-section-title text-ink"
+          >
+            The four angles
+          </h2>
+          <DishGuide suggested={[]} layout="grid" />
+          <p className="max-w-reading px-1 text-body text-ink-muted">
+            Examples, not your menu.
+          </p>
+        </section>
 
         <Card as="section" aria-labelledby="every-shot-heading">
           <h2 id="every-shot-heading" className="type-section-title text-ink">
@@ -61,25 +79,9 @@ export default async function PhotoGuidePage() {
           </ul>
         </Card>
 
-        <Notice tone="attention" role="note">
-          {GUIDE_SAFETY}
-        </Notice>
-
-        <section aria-labelledby="angles-heading" className="grid gap-gutter">
-          <h2
-            id="angles-heading"
-            className="px-1 pt-2 type-section-title text-ink"
-          >
-            The four angles
-          </h2>
-          <DishGuide suggested={[]} layout="posts" />
-          <p className="max-w-reading px-1 text-body text-ink-muted">
-            Examples, not your menu.
-          </p>
-        </section>
-
-        {/* Spec §6 S5, §15.3: permission and file-format help (S2-STAFF). */}
-        <CantAddHelp />
+        {/* Spec §6 S5, §15.3: permission and file-format help (S2-STAFF),
+            folded into a row that opens to it. */}
+        <CantAddHelp folded />
       </div>
     </AppShell>
   )

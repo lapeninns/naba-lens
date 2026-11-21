@@ -67,14 +67,15 @@ describe("FirstRun", () => {
       screen.getByRole("heading", { name: "What do you do at The Railway?" })
     ).toBeTruthy()
 
-    // Document order: work details, library (primary), Skip. Gallery first:
-    // no in-app camera (DESIGN.md §2, §9; AL-6).
+    // Document order: work details, then the dock: Skip (quiet) first and
+    // the one primary, the library, last (screens-2 handoff). Gallery
+    // first: no in-app camera (DESIGN.md §2, §9; AL-6).
     const library = screen.getByRole("button", {
       name: "Choose from your photos",
     })
     expect(screen.queryByRole("button", { name: "Take a photo" })).toBeNull()
     const skip = screen.getByRole("button", { name: "Skip for now" })
-    const order = [work, library, skip]
+    const order = [work, skip, library]
     for (let i = 1; i < order.length; i++) {
       expect(
         order[i - 1].compareDocumentPosition(order[i]) &
@@ -205,16 +206,16 @@ describe("FirstRun", () => {
       <FirstRun
         {...props({
           workRole: "Curry chef",
-          back: { href: "/staff", label: "Back to Me" },
+          back: { href: "/staff", label: "Me" },
         })}
       />
     )
-    expect(
-      screen.getByRole("link", { name: "Back to Me" }).getAttribute("href")
-    ).toBe("/staff")
+    expect(screen.getByRole("link", { name: "Me" }).getAttribute("href")).toBe(
+      "/staff"
+    )
     expect(screen.getByText("Curry chef")).toBeTruthy()
     expect(
-      screen.getByRole("link", { name: "Change work details" })
+      screen.getByRole("link", { name: /^Change work details/ })
     ).toBeTruthy()
   })
 
@@ -227,7 +228,7 @@ describe("FirstRun", () => {
     ).toBe("/staff")
     expect(
       screen
-        .getByRole("link", { name: "Add a profile photo (optional)" })
+        .getByRole("link", { name: /^Add a profile photo/ })
         .getAttribute("href")
     ).toBe("/staff?edit=profile")
   })
@@ -249,7 +250,7 @@ describe("FirstRun", () => {
     ).toBeTruthy()
     expect(screen.getByText("No target yet: your manager sets it")).toBeTruthy()
     expect(
-      screen.getByRole("link", { name: "Change profile photo (optional)" })
+      screen.getByRole("link", { name: /^Change profile photo/ })
     ).toBeTruthy()
   })
 

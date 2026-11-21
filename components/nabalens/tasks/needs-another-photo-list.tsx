@@ -3,12 +3,12 @@ import { ArrowUUpLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { Notice } from "@/components/nabalens/notice"
 import { ProfileAvatar } from "@/components/nabalens/profile-avatar"
+import { StatusChip } from "@/components/nabalens/status-chip"
 import { buttonVariants } from "@/components/ui/button"
 
 import { formatDate } from "../format"
 import { EvidenceThumb } from "./evidence-thumb"
 import { periodLabel } from "./copy"
-import { StatusChip } from "./status-badges"
 import { decisionText, ReviewReason, submissionTitle } from "./submission-list"
 import type { PeriodKey, SubmissionView } from "./types"
 
@@ -95,7 +95,8 @@ export function ReplacementNote({
             </p>
           ) : null}
         </div>
-        <StatusChip tone="warning">Needs another photo</StatusChip>
+        {/* The album's chip word (screens-2 handoff, decision 8). */}
+        <StatusChip state="outcome_retake" />
       </div>
       <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-3">
         <EvidenceThumb
@@ -174,7 +175,7 @@ export function ReplacementClosed({
               className: "w-full sm:w-auto",
             })}
           >
-            Back to Home
+            Today
           </Link>
         }
       >

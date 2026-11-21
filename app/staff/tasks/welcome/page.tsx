@@ -81,7 +81,7 @@ export default async function WelcomePage({
       profileHref={`${PORTFOLIO_PATH}?edit=profile`}
       workProfileHref={`/staff/profile?next=${encodeURIComponent(here)}`}
       homeHref={STAFF_PHOTO_ROUTES.home}
-      back={fromMe ? { href: PORTFOLIO_PATH, label: "Back to Me" } : null}
+      back={fromMe ? { href: PORTFOLIO_PATH, label: "Me" } : null}
       dismiss={setWelcomeDismissedAction}
       notice={
         <ContributionNoticeCard

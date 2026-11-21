@@ -1,10 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { CheckIcon } from "@phosphor-icons/react"
 
 import { Notice } from "@/components/nabalens/notice"
-import { Button } from "@/components/ui/button"
+import { OptionRow } from "@/components/ui/option-row"
 import { CONTRIBUTION_NOTICE } from "@/lib/auth/venues"
 
 /*
@@ -12,7 +11,10 @@ import { CONTRIBUTION_NOTICE } from "@/lib/auth/venues"
  * screen): where the person works and as what, and how their photos are
  * used, with "I understand" recorded once per notice version
  * (acknowledge_contribution_notice). Shown on the welcome, and as Start
- * here on Album until it is accepted.
+ * here on Album until it is accepted. "I understand" is a tick box, so the
+ * page's one bottle button stays Choose from your photos (screens-2
+ * handoff, decision 10); ticking it records it, and once recorded it stays
+ * ticked.
  */
 export const NOTICE_COPY = {
   workingAt: (venue: string, role: string) =>
@@ -60,36 +62,27 @@ export function ContributionNoticeCard({
           <li key={point}>{point}</li>
         ))}
       </ul>
-      {done ? (
-        <p
-          className="flex items-center gap-2 text-body text-ink-muted"
-          role="status"
-        >
-          <CheckIcon aria-hidden weight="bold" className="size-5 text-ok-fg" />
-          {NOTICE_COPY.accepted}
-        </p>
-      ) : (
-        <Button
-          variant="secondary"
-          className="justify-self-start"
-          loading={pending}
-          onClick={async () => {
-            setPending(true)
-            setError(false)
-            try {
-              const result = await acknowledge()
-              if (result.ok) setDone(true)
-              else setError(true)
-            } catch {
-              setError(true)
-            } finally {
-              setPending(false)
-            }
-          }}
-        >
-          {NOTICE_COPY.accept}
-        </Button>
-      )}
+      <OptionRow
+        type="checkbox"
+        label={NOTICE_COPY.accept}
+        hint={done ? NOTICE_COPY.accepted : undefined}
+        checked={done || pending}
+        aria-disabled={done || pending || undefined}
+        onCheckedChange={async (checked) => {
+          if (!checked || done || pending) return
+          setPending(true)
+          setError(false)
+          try {
+            const result = await acknowledge()
+            if (result.ok) setDone(true)
+            else setError(true)
+          } catch {
+            setError(true)
+          } finally {
+            setPending(false)
+          }
+        }}
+      />
       {error ? (
         <Notice tone="negative" role="alert">
           {NOTICE_COPY.failed}

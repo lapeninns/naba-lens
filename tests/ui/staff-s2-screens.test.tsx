@@ -749,8 +749,15 @@ describe("First sign-in notice (spec §3.2)", () => {
     )
     expect(screen.getByText("You work at The Bell as staff.")).toBeTruthy()
     expect(screen.getByText("How your photos are used")).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: "I understand" }))
+    // A tick box, not a button (screens-2 handoff, decision 10).
+    expect(screen.queryByRole("button", { name: "I understand" })).toBeNull()
+    await user.click(screen.getByRole("checkbox", { name: "I understand" }))
     expect(acknowledge).toHaveBeenCalled()
     expect(await screen.findByText("You have read this.")).toBeTruthy()
+    expect(
+      screen
+        .getByRole("checkbox", { name: "I understand" })
+        .getAttribute("aria-checked")
+    ).toBe("true")
   })
 })
