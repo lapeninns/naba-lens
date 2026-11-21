@@ -129,6 +129,7 @@ export const METRICS_COPY = {
 
   // The quiet line on each folded reference section (handoff 2, decision 4).
   moreLabel: "More about these numbers",
+  completenessSummary: "Complete items and confirmed facts",
   useSummary: (useful: number, downloads: number) =>
     `${useful} useful · ${plural(downloads, "package", "packages")} downloaded`,
   reliabilitySummary: (failed: number, uploads: number) =>

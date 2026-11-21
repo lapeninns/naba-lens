@@ -563,12 +563,15 @@ export function MetricsReport({
       <AttentionTally m={metrics} category={category} hrefs={hrefs} />
       <MetricsFilters days={metrics.days} category={category} hrefs={hrefs} />
       <CoverageTable m={metrics} category={category} />
-      <CompletenessSection m={metrics} category={category} />
       <ReviewSection m={metrics} />
       {/* Reference sections fold shut (handoff 2, decision 4); each holds
           its whole section. A link to #reliability or #how-counted opens
           its disclosure (the browser reveals a fragment's details). */}
       <DisclosureList label={C.moreLabel}>
+        {/* D22: Items and facts folds like the other references. */}
+        <Disclosure title={C.completenessTitle} summary={C.completenessSummary}>
+          <CompletenessSection m={metrics} category={category} />
+        </Disclosure>
         <Disclosure
           title={C.useTitle}
           summary={C.useSummary(

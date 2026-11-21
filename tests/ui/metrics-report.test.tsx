@@ -104,7 +104,7 @@ describe("MetricsReport", () => {
     expect(notHere.textContent).toContain("not in the total")
   })
 
-  it("folds the reference sections shut, each whole inside", () => {
+  it("folds the reference sections shut, Items and facts too (D22), each whole inside", () => {
     render(
       <MetricsReport metrics={fixtureMetrics()} category={null} hrefs={hrefs} />
     )
@@ -113,6 +113,7 @@ describe("MetricsReport", () => {
     expect(
       Array.from(folds, (d) => d.querySelector("summary")!.textContent)
     ).toEqual([
+      expect.stringContaining("Items and facts"),
       expect.stringContaining("Contributions and use"),
       expect.stringContaining("Reliability"),
       expect.stringContaining("How this is counted"),
