@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CaretDownIcon, WarningIcon } from "@phosphor-icons/react"
+import { QuestionIcon, WarningIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import type {
@@ -53,6 +53,11 @@ type MenuDiffViewProps = {
   source?: React.ReactNode
   /** Id for the "Needs a decision" group, so a page action can move to it. */
   decisionsId?: string
+  /**
+   * Keep the heading only as the region's name: the import page names the
+   * file and what it is compared with in its own row above.
+   */
+  hideTitle?: boolean
   readOnly?: boolean
   /**
    * Decisions are briefly unavailable (for example while a draft saves): the
@@ -73,6 +78,7 @@ export function MenuDiffView({
   hasBase = true,
   source,
   decisionsId,
+  hideTitle = false,
   readOnly = false,
   locked = false,
   className,
@@ -131,17 +137,24 @@ export function MenuDiffView({
       aria-labelledby={headingId}
       className={cn("grid min-w-0 gap-3", className)}
     >
-      <MenuSectionHead
-        id={headingId}
-        title="Changes from the active menu"
-        count={source}
-        className="pb-0"
-      />
-      <p className="flex flex-wrap gap-1.5">
+      {hideTitle ? (
+        <h2 id={headingId} className="sr-only">
+          Changes from the active menu
+        </h2>
+      ) : (
+        <MenuSectionHead
+          id={headingId}
+          title="Changes from the active menu"
+          count={source}
+          className="pb-0"
+        />
+      )}
+      {/* The five counts; uncertain leads, in brass while any is open. */}
+      <p className="flex flex-wrap gap-2">
         {chips.map((chip) => (
           <span key={chip.key} data-testid={`diff-count-${chip.key}`}>
             <StatusChip tone={chip.tone}>
-              {chip.tone === "attention" ? <WarningIcon aria-hidden /> : null}
+              {chip.tone === "attention" ? <QuestionIcon aria-hidden /> : null}
               {chip.text}
             </StatusChip>
           </span>
@@ -160,127 +173,132 @@ export function MenuDiffView({
         </p>
       ) : null}
 
-      <div className="grid gap-2">
-        {diff.uncertain.length > 0 ? (
-          <DiffGroup
-            id={decisionsId}
-            title="Needs a decision"
-            count={
-              unresolved === 0
-                ? `${diff.uncertain.length} decided`
-                : `${plural(diff.uncertain.length, "item")} · decide before activating`
-            }
-            defaultOpen
-          >
-            {diff.uncertain.map((u) => (
-              <UncertainRow
-                key={u.sourceKey}
-                match={u}
-                decision={decisions?.[u.sourceKey]}
-                onDecide={readOnly ? undefined : onDecide}
-                locked={locked}
-              />
-            ))}
-          </DiffGroup>
-        ) : null}
-
-        {split.presentation.length > 0 ? (
-          <DiffGroup
-            title="Changed presentation"
-            count={`${plural(split.presentation.length, "item")} · accepted photos go back for a recheck`}
-            defaultOpen
-            rows={split.presentation}
-            more={(n) => `Show ${plural(n, "more changed item")}`}
-            render={(c) => (
-              <ChangedRow
-                key={c.sourceKey}
-                change={c}
-                after={itemsByKey.get(c.sourceKey)}
-              />
-            )}
-          />
-        ) : null}
-
-        {split.other.length > 0 ? (
-          <DiffGroup
-            title="Changed"
-            count={`${plural(split.other.length, "item")} · photos are kept`}
-            defaultOpen
-            rows={split.other}
-            more={(n) => `Show ${plural(n, "more changed item")}`}
-            render={(c) => (
-              <ChangedRow
-                key={c.sourceKey}
-                change={c}
-                after={itemsByKey.get(c.sourceKey)}
-              />
-            )}
-          />
-        ) : null}
-
-        {diff.removed.length > 0 ? (
-          <DiffGroup
-            title="Proposed retirements"
-            count={`${plural(diff.removed.length, "item")} · confirmed when you activate · labels on them are kept`}
-            rows={diff.removed}
-            more={(n) => `Show ${plural(n, "more removed item")}`}
-            render={(r) => {
-              const labelled = labelCounts[r.itemId] ?? 0
-              return (
-                <DiffRow
-                  key={r.itemId}
-                  sign="−"
-                  name={r.name}
-                  detail={
-                    <>
-                      From {r.sectionName}. Removed from this version only; the
-                      item is not deleted.
-                      {labelled > 0 ? (
-                        <span className="mt-0.5 flex items-center gap-1.5 text-ink">
-                          <WarningIcon
-                            className="size-5 shrink-0 text-warn-fg"
-                            aria-hidden
-                          />
-                          {labelledFilesCopy(labelled)} keep this item. Staff
-                          cannot add it to new labels while it is off the active
-                          menu.
-                        </span>
-                      ) : null}
-                    </>
-                  }
+      {/* Handoff "Import a menu": what needs a decision and what changed on
+          the left, retirements and additions on the right. */}
+      <div className="grid items-start gap-4 lg:grid-cols-2 lg:gap-6">
+        <div className="grid min-w-0 gap-4">
+          {diff.uncertain.length > 0 ? (
+            <DiffGroup
+              id={decisionsId}
+              title="Needs a decision"
+              count={
+                unresolved === 0
+                  ? `${diff.uncertain.length} decided`
+                  : `${plural(diff.uncertain.length, "item")} · decide before activating`
+              }
+            >
+              {diff.uncertain.map((u) => (
+                <UncertainRow
+                  key={u.sourceKey}
+                  match={u}
+                  decision={decisions?.[u.sourceKey]}
+                  onDecide={readOnly ? undefined : onDecide}
+                  locked={locked}
                 />
-              )
-            }}
-          />
-        ) : null}
+              ))}
+            </DiffGroup>
+          ) : null}
 
-        {diff.added.length > 0 ? (
-          <DiffGroup
-            title="Added"
-            count={plural(diff.added.length, "item")}
-            defaultOpen={!hasBase}
-            rows={diff.added}
-            more={(n) => `Show ${plural(n, "more added item")}`}
-            render={(a: DiffItemRef) => (
-              <DiffRow
-                key={a.sourceKey}
-                sign="+"
-                name={a.name}
-                detail={a.sectionName}
-              />
-            )}
-          />
-        ) : null}
+          {split.presentation.length > 0 ? (
+            <DiffGroup
+              title="Changed presentation"
+              count={`${plural(split.presentation.length, "item")} · photos in the album go back for a recheck`}
+              rows={split.presentation}
+              more={(n) => `Show ${plural(n, "more changed item")}`}
+              render={(c) => (
+                <ChangedRow
+                  key={c.sourceKey}
+                  change={c}
+                  after={itemsByKey.get(c.sourceKey)}
+                />
+              )}
+            />
+          ) : null}
+
+          {split.other.length > 0 ? (
+            <DiffGroup
+              title="Changed"
+              count={`${plural(split.other.length, "item")} · photos are kept`}
+              rows={split.other}
+              more={(n) => `Show ${plural(n, "more changed item")}`}
+              render={(c) => (
+                <ChangedRow
+                  key={c.sourceKey}
+                  change={c}
+                  after={itemsByKey.get(c.sourceKey)}
+                />
+              )}
+            />
+          ) : null}
+        </div>
+        <div className="grid min-w-0 gap-4">
+          {diff.removed.length > 0 ? (
+            <DiffGroup
+              title="Proposed retirements"
+              count={`${plural(diff.removed.length, "item")} · confirmed when you activate · labels are kept`}
+              rows={diff.removed}
+              more={(n) => `Show ${plural(n, "more removed item")}`}
+              render={(r) => {
+                const labelled = labelCounts[r.itemId] ?? 0
+                return (
+                  <DiffRow
+                    key={r.itemId}
+                    sign="−"
+                    name={r.name}
+                    detail={
+                      <>
+                        From {r.sectionName}. Removed from this version only;
+                        the item is not deleted.
+                        {labelled > 0 ? (
+                          <span className="mt-0.5 flex items-center gap-1.5 text-ink">
+                            <WarningIcon
+                              className="size-5 shrink-0 text-warn-fg"
+                              aria-hidden
+                            />
+                            {labelledFilesCopy(labelled)} keep this item. Staff
+                            cannot add it to new labels while it is off the
+                            active menu.
+                          </span>
+                        ) : null}
+                      </>
+                    }
+                  />
+                )
+              }}
+            />
+          ) : null}
+
+          {diff.added.length > 0 ? (
+            <DiffGroup
+              title="Added"
+              count={plural(diff.added.length, "item")}
+              rows={diff.added}
+              more={(n) => `Show ${plural(n, "more added item")}`}
+              render={(a: DiffItemRef) => (
+                <DiffRow
+                  key={a.sourceKey}
+                  sign="+"
+                  name={a.name}
+                  detail={a.sectionName}
+                />
+              )}
+            />
+          ) : null}
+        </div>
       </div>
     </section>
   )
 }
 
+/**
+ * One group of the diff (handoff "Import a menu"): its name with a quiet
+ * count on the right, then a row card. Every group is open; a long one shows
+ * its first rows and a "Show N more" link.
+ */
 function DiffGroup<T>({
   id,
   title,
   count,
-  defaultOpen = false,
   children,
   rows,
   render,
@@ -289,7 +307,6 @@ function DiffGroup<T>({
   id?: string
   title: string
   count: React.ReactNode
-  defaultOpen?: boolean
   children?: React.ReactNode
   rows?: T[]
   render?: (row: T) => React.ReactNode
@@ -304,20 +321,16 @@ function DiffGroup<T>({
       id={id}
       tabIndex={id ? -1 : undefined}
       aria-labelledby={titleId}
-      className="overflow-hidden rounded-card bg-surface shadow-card focus-ring outline-none"
+      className="grid min-w-0 gap-2 rounded-card focus-ring outline-none"
     >
-      <details open={defaultOpen} className="group">
-        <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-baseline gap-x-2 px-4 py-3 focus-ring-inset outline-none hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
-          <span id={titleId} className="font-display text-item-title text-ink">
-            {title}
-          </span>
-          <span className="text-meta text-ink-muted">{count}</span>
-          <CaretDownIcon
-            aria-hidden
-            className="ml-auto size-5 self-center text-ink-muted transition-transform group-open:rotate-180 motion-reduce:transition-none"
-          />
-        </summary>
-        <ul className="divide-y divide-line border-t border-line">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-1">
+        <h3 id={titleId} className="type-heading-sm text-ink">
+          {title}
+        </h3>
+        <span className="text-meta text-ink-muted md:ml-auto">{count}</span>
+      </div>
+      <div className="overflow-hidden rounded-card bg-surface edge">
+        <ul className="divide-y divide-line">
           {children}
           {render ? shown.map(render) : null}
         </ul>
@@ -328,7 +341,7 @@ function DiffGroup<T>({
             </Button>
           </div>
         ) : null}
-      </details>
+      </div>
     </section>
   )
 }
@@ -348,7 +361,9 @@ function DiffRow({
   group?: { label: string; disabled: boolean }
 }) {
   const layout =
-    "grid grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 md:grid-cols-[1.75rem_minmax(0,1fr)_auto]"
+    // Choices sit under the words (handoff "Needs a decision"): the groups
+    // share the page in two columns, too narrow for a row of buttons beside.
+    "grid grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2"
   const content = (
     <>
       <span
@@ -364,9 +379,7 @@ function DiffRow({
         ) : null}
       </div>
       {actions ? (
-        <div className="col-start-2 flex flex-wrap gap-2 md:col-start-3 md:justify-end">
-          {actions}
-        </div>
+        <div className="col-start-2 flex flex-wrap gap-2">{actions}</div>
       ) : null}
     </>
   )
@@ -580,7 +593,7 @@ function UncertainRow({
               </Button>
             ))}
             <Button
-              variant="quiet"
+              variant="secondary"
               size="sm"
               onClick={() => decide({ kind: "new" })}
               aria-label={`Treat as new item: ${match.name}`}

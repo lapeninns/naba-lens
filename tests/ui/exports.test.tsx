@@ -168,6 +168,29 @@ describe("ExportBuilder", () => {
     )
   })
 
+  it("numbers its three steps and counts what is chosen (handoff)", () => {
+    render(
+      <ExportBuilder
+        area="admin"
+        mode="public"
+        candidates={items}
+        profiles={profiles}
+      />
+    )
+    expect(
+      screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)
+    ).toEqual(["1. Choose photos", "2. Output size", "3. What it’s for"])
+    expect(screen.getByText("0 of 2 chosen")).toBeTruthy()
+    fireEvent.click(screen.getAllByRole("checkbox", { name: "Include" })[0]!)
+    expect(screen.getByText("1 of 2 chosen")).toBeTruthy()
+    fireEvent.change(screen.getByRole("textbox", { name: /What it's for/ }), {
+      target: { value: "Winter menu" },
+    })
+    expect(
+      screen.getByText("Shown in the package list. 11 of 200 characters.")
+    ).toBeTruthy()
+  })
+
   it("keeps the choice and says why when the server refuses", async () => {
     createPackageAction.mockResolvedValue({
       ok: false,

@@ -22,3 +22,22 @@ export function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+/**
+ * What one photo is called (handoff "One photo"): its first menu label,
+ * else its first place, else the first slot it fills, else "Photo". The
+ * page is titled with this, not "Photo details".
+ */
+export function assetTitle(detail: {
+  labels: {
+    items: { itemName: string }[]
+    places: { label: string; removedAt: string | null }[]
+  }
+  slots: { name: string }[]
+}): string {
+  const item = detail.labels.items.find((i) => i.itemName)
+  if (item) return item.itemName
+  const place = detail.labels.places.find((p) => p.label && !p.removedAt)
+  if (place) return place.label
+  return detail.slots.find((s) => s.name)?.name ?? "Photo"
+}

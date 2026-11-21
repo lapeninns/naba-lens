@@ -15,6 +15,7 @@ import {
 } from "@/components/nabalens"
 import { Notice } from "@/components/nabalens/notice"
 import { useOnline } from "@/components/nabalens/offline-notice"
+import { PageHeader } from "@/components/nabalens/page-header"
 import { Button } from "@/components/ui/button"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 import type { ImportIssue, ReviewDecision } from "@/lib/menus/types"
@@ -155,33 +156,40 @@ export function ImportFlow({
     ? preview.document.sections.reduce((n, s) => n + s.items.length, 0)
     : 0
   const unresolved = preview ? countUnresolved(preview.diff, decisions) : 0
-  const fileName = preview?.source.label ?? null
 
   return (
-    <section
-      aria-labelledby={titleId}
-      className="grid gap-5 rounded-card bg-surface p-4 shadow-card md:p-6"
-    >
-      <div className="grid gap-1">
-        <h2 id={titleId} className="type-section-title text-ink">
-          Import a menu
-        </h2>
-        <p className="max-w-reading text-body text-ink-muted">
-          Compares a file with {possessive(venueName)} active menu. Items match
-          only by their source key. Nothing is saved until you create the draft.
-        </p>
-        <p className="max-w-reading text-body text-ink-muted">
-          <a
-            href="/admin/menus/csv-template"
-            download
-            className="rounded-square font-semibold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
-          >
-            Download the CSV template
-          </a>{" "}
-          with every column (venue, menu, section, item, item_id, variants,
-          active dates).
-        </p>
-      </div>
+    // Handoff "Import a menu": a detail page of {Venue} menus. Its back link
+    // is drawn by VenueMenusView, which closes the import.
+    <section aria-labelledby={titleId} className="grid gap-6">
+      <PageHeader
+        venueScope
+        scope={venueName}
+        titleId={titleId}
+        title="Import a menu"
+        className="pb-0 md:pb-0"
+        summary={
+          <>
+            <p>
+              Compares a file with {possessive(venueName)} active menu. Items
+              match only by their source key. Nothing is saved until you create
+              the draft.
+            </p>
+            {preview ? null : (
+              <p>
+                <a
+                  href="/admin/menus/csv-template"
+                  download
+                  className="rounded-square font-semibold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
+                >
+                  Download the CSV template
+                </a>{" "}
+                with every column (venue, menu, section, item, item_id,
+                variants, active dates).
+              </p>
+            )}
+          </>
+        }
+      />
 
       {createError ? (
         <Notice
@@ -211,6 +219,16 @@ export function ImportFlow({
         error={error}
         issues={preview ? [] : rejectedIssues}
         disabled={creating}
+        compared={
+          preview
+            ? [
+                `${plural(preview.document.sections.length, "section")}, ${plural(itemTotal, "item")}`,
+                activeTitle ? `compared with ${activeTitle}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            : undefined
+        }
       />
 
       {!preview && !pending && !error ? (
@@ -237,12 +255,6 @@ export function ImportFlow({
 
       {preview && resolved ? (
         <>
-          {unresolved > 0 ? (
-            <Notice>
-              Uncertain items can wait for the draft, but it can&apos;t be
-              activated until each is decided.
-            </Notice>
-          ) : null}
           {preview.duplicate ? (
             <Notice tone="attention" title="This file was already imported">
               {preview.duplicate.status === "active"
@@ -265,34 +277,26 @@ export function ImportFlow({
             document={preview.document}
             decisions={decisions}
             hasBase={hasActive}
-            source={
-              <>
-                {activeTitle ? `${activeTitle} · ` : null}
-                <span className="font-mono">{fileName}</span>
-                {` · ${plural(preview.document.sections.length, "section")}, ${plural(itemTotal, "item")}`}
-              </>
-            }
+            hideTitle
             onDecide={(sourceKey, decision) =>
               setDecisions((prev) => ({ ...prev, [sourceKey]: decision }))
             }
           />
+          {unresolved > 0 ? (
+            <Notice>
+              {unresolved === 1
+                ? "The uncertain item can wait for the draft, but the draft can't be activated until it is decided."
+                : "Uncertain items can wait for the draft, but the draft can't be activated until each is decided."}
+            </Notice>
+          ) : null}
           {resolved.error ? (
             <Notice tone="negative">{resolved.error}</Notice>
           ) : null}
         </>
       ) : null}
 
-      <div className="flex flex-col gap-2 md:flex-row md:justify-end">
-        <Button
-          variant="quiet"
-          disabled={creating}
-          onClick={() => {
-            request.current?.abort()
-            onClose()
-          }}
-        >
-          Cancel
-        </Button>
+      {/* Create draft is the page's one bottle button, then Cancel. */}
+      <div className="flex flex-col gap-2 md:flex-row">
         {preview && resolved ? (
           <Button
             variant="primary"
@@ -303,6 +307,16 @@ export function ImportFlow({
             {creating ? "Creating draft…" : "Create draft"}
           </Button>
         ) : null}
+        <Button
+          variant="quiet"
+          disabled={creating}
+          onClick={() => {
+            request.current?.abort()
+            onClose()
+          }}
+        >
+          Cancel
+        </Button>
       </div>
     </section>
   )

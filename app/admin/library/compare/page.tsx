@@ -38,7 +38,7 @@ export default async function LibraryComparePage({
         {/* Library, detail page: back to the first photo (redesign R5). */}
         <div className="grid min-w-0 gap-1">
           <BackLink href={`/admin/library/${encodeURIComponent(a)}`} compact>
-            Photo details
+            The photo
           </BackLink>
           <PageHeader
             scope="Library"

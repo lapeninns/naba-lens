@@ -3,6 +3,7 @@
 import { Spinner } from "@/components/ui/spinner"
 import * as React from "react"
 import {
+  CheckIcon,
   FileTextIcon,
   PaperclipIcon,
   WarningCircleIcon,
@@ -136,6 +137,12 @@ type MenuImportPanelProps = {
   issues?: ImportIssue[]
   maxBytes?: number
   disabled?: boolean
+  /**
+   * Once the file is compared: what it holds and what it was compared with
+   * ("49 items · compared with Autumn menu 2026"), in place of its size. The
+   * format help and limits are then hidden: the file has been read.
+   */
+  compared?: React.ReactNode
   className?: string
 }
 
@@ -147,6 +154,7 @@ export function MenuImportPanel({
   issues = [],
   maxBytes = MENU_IMPORT_LIMITS.maxBytes,
   disabled = false,
+  compared,
   className,
 }: MenuImportPanelProps) {
   const input = React.useRef<HTMLInputElement>(null)
@@ -189,30 +197,39 @@ export function MenuImportPanel({
         {file ? (
           <div
             className={cn(
-              "flex items-center gap-3 rounded-card bg-surface-2 px-3 py-2",
-              file.rejection ? "edge-invalid" : "edge-strong"
+              // Handoff "Import a menu": the file is a row on the card, with
+              // what it holds once it is compared.
+              "flex min-h-14 flex-wrap items-center gap-3 rounded-card bg-surface px-4 py-2",
+              file.rejection ? "edge-invalid" : "edge"
             )}
           >
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-round bg-surface text-ink-muted">
-              <FileTextIcon aria-hidden className="size-5" />
-            </span>
-            <span className="grid min-w-0 flex-1 gap-0.5">
-              <span className="font-mono text-body break-all text-ink">
+            {compared && !pending && !file.rejection ? (
+              <CheckIcon aria-hidden className="size-5 shrink-0 text-ok-fg" />
+            ) : (
+              <FileTextIcon
+                aria-hidden
+                className="size-5 shrink-0 text-ink-muted"
+              />
+            )}
+            <span className="grid min-w-0 flex-1 basis-40 gap-0.5">
+              <span className="font-semibold break-all text-ink">
                 {file.name}
               </span>
-              <span className="flex items-center gap-1.5 font-mono text-meta text-ink-muted tabular-nums">
+              <span className="flex items-center gap-1.5 text-meta text-ink-muted tabular-nums">
                 {pending ? (
                   <>
                     <Spinner />
                     Comparing…
                   </>
+                ) : compared && !file.rejection ? (
+                  compared
                 ) : (
                   formatBytes(file.size)
                 )}
               </span>
             </span>
             <Button
-              variant="quiet"
+              variant="secondary"
               size="sm"
               onClick={open}
               disabled={disabled || pending}
@@ -267,7 +284,7 @@ export function MenuImportPanel({
         </Notice>
       ) : null}
 
-      <details className="group rounded-card bg-surface-2">
+      <details hidden={!!compared} className="group rounded-card bg-surface-2">
         <summary className="flex min-h-11 cursor-pointer items-center rounded-card px-4 text-label text-ink focus-ring outline-none">
           Supported formats
         </summary>

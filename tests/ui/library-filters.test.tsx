@@ -96,13 +96,18 @@ describe("LibraryFilters label search", () => {
     expect(onChange).toHaveBeenCalledTimes(1)
   })
 
-  it("applies with Apply filters and on blur with changed text", async () => {
+  // The handoff's search row has no Apply button: Enter or leaving the box
+  // applies the search, and every other filter applies when it changes.
+  it("applies on blur with changed text, with no Apply button", async () => {
     const { onChange, user } = setup()
     const box = screen.getByRole("searchbox", {
       name: "Search labels and notes",
     })
     await user.type(box, "platter")
-    await user.click(screen.getByRole("button", { name: "Apply filters" }))
+    expect(screen.queryByRole("button", { name: "Apply filters" })).toBeNull()
+    // Away to the venue select, the next control in the row.
+    await user.tab()
+    await user.tab()
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ query: "platter" })
@@ -205,6 +210,23 @@ describe("LibraryFilters more filters", () => {
     expect(screen.getByRole("status").textContent).toBe(
       "Showing photos and videos from The Railway that need labels uploaded since 1 Oct 2026, newest first. Clear filters"
     )
+  })
+
+  it("counts media type and the page's own filters on More filters", () => {
+    render(
+      <LibraryFilters
+        venues={VENUES}
+        staff={STAFF}
+        value={{ ...EMPTY_LIBRARY_FILTERS, type: "image" }}
+        onChange={vi.fn()}
+        more={<p>Page filters</p>}
+        moreCount={1}
+      />
+    )
+    const more = screen.getByRole("button", { name: /More filters/ })
+    expect(more.textContent).toBe("More filters· 2 on")
+    expect(more.getAttribute("aria-expanded")).toBe("true")
+    expect(screen.getByText("Page filters")).toBeTruthy()
   })
 
   it("waits for the menu of a newly chosen venue", async () => {

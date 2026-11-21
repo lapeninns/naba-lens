@@ -43,6 +43,7 @@ vi.mock("@/app/_media/removal-actions", () => ({
 
 import { LibraryMoreFilters } from "@/app/admin/library-more-filters"
 import { AssetDetailView } from "@/app/admin/library/_components/asset-detail"
+import { assetTitle } from "@/app/admin/library/_components/format"
 import { CollectionDetailView } from "@/app/admin/library/_components/collections"
 import {
   impactLines,
@@ -146,7 +147,8 @@ describe("asset detail", () => {
         .closest("[data-slot=status-chip]")
         ?.getAttribute("data-state")
     ).toBe("review_public")
-    expect(within(state).getByText("Can be exported")).toBeTruthy()
+    // The file line under the title says whether it can be exported.
+    expect(within(state).getByText("IMG_1.jpg · can be exported")).toBeTruthy()
     const slots = screen.getByTestId("asset-slots")
     expect(within(slots).getByText("Dish: Chicken momo")).toBeTruthy()
     expect(within(slots).getByText("Main photo")).toBeTruthy()
@@ -156,6 +158,38 @@ describe("asset detail", () => {
         .getByRole("link", { name: /Export this photo/ })
         .getAttribute("href")
     ).toBe(`/admin/publishing/new?venue=${V}&assets=${A}`)
+  })
+
+  it("is titled with its label and groups the ways out of use (handoff)", () => {
+    expect(assetTitle(detail())).toBe("Chicken momo")
+    expect(
+      assetTitle(
+        detail({
+          labels: {
+            items: [{ itemId: DISH, itemName: "Himali Lamb" }],
+            places: [],
+          },
+        })
+      )
+    ).toBe("Himali Lamb")
+    expect(assetTitle(detail({ slots: [] }))).toBe("Photo")
+    render(<AssetDetailView detail={detail()} options={options} />)
+    const out = screen.getByRole("region", { name: "Take it out of use" })
+    expect(within(out).getByText(/Withdraw keeps the photo/)).toBeTruthy()
+    expect(
+      within(out)
+        .getByRole("link", { name: "Remove permanently" })
+        .getAttribute("href")
+    ).toBe(`/admin/library/${A}/remove`)
+    expect(
+      within(out).getByRole("button", { name: "Correct venue" })
+    ).toBeTruthy()
+    expect(
+      screen.getByRole("region", { name: "Original and provenance" })
+    ).toBeTruthy()
+    expect(
+      screen.getByRole("region", { name: "Tags and collections" })
+    ).toBeTruthy()
   })
 
   it("selects the primary photo of a dish with its item revision", async () => {
@@ -419,9 +453,11 @@ describe("collections", () => {
 })
 
 describe("A4 filters", () => {
-  it("opens when a filter is on and clears them all", () => {
+  // Since the handoff's Library › Photos these sit inside More filters, which
+  // opens itself when one is on; this section only names and counts them.
+  it("counts the filters that are on and clears them all", () => {
     const onChange = vi.fn()
-    const { container } = render(
+    render(
       <LibraryMoreFilters
         value={{ ...NO_EXTRA_FILTERS, withdrawn: "withdrawn" }}
         options={{
@@ -434,7 +470,9 @@ describe("A4 filters", () => {
         onChange={onChange}
       />
     )
-    expect(container.querySelector("details")?.open).toBe(true)
+    expect(
+      screen.getByRole("region", { name: /Use, review and collections/ })
+    ).toBeTruthy()
     expect(screen.getByText("1 on")).toBeTruthy()
     fireEvent.change(screen.getByLabelText(/Taken from/), {
       target: { value: "2026-06-01" },

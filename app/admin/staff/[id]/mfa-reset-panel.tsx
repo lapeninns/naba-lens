@@ -37,7 +37,7 @@ export function MfaResetPanel({
       </h2>
       <p className="text-body text-ink-muted">
         If {firstName} lost the phone with their authenticator, reset it. They
-        set up a new one the next time they sign in. Kept in Activity.
+        set it up again when they next sign in.
       </p>
       {state.status === "done" ? (
         <Notice tone="positive" role="status">
@@ -50,6 +50,7 @@ export function MfaResetPanel({
           <input type="hidden" name="profileId" value={profileId} />
           <FormField
             label="Why are you resetting it?"
+            description="Kept in Activity"
             error={
               state.status === "error" && state.field
                 ? state.message
@@ -64,7 +65,7 @@ export function MfaResetPanel({
             </Notice>
           ) : null}
           <div>
-            <Button type="submit" variant="secondary" loading={pending}>
+            <Button type="submit" variant="danger" loading={pending}>
               Reset authenticator
             </Button>
           </div>

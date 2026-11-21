@@ -25,7 +25,7 @@ function useLibraryFrame() {
   const collection = pathname.startsWith("/admin/library/collections/")
   return {
     section: "content" as const,
-    title: collection ? "Collection" : "Photo details",
+    title: collection ? "Collection" : "Photo",
     back: collection
       ? { href: "/admin/library/collections", label: "Collections" }
       : { href: "/admin", label: ADMIN_SECTION_TITLES.library },

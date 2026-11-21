@@ -140,6 +140,48 @@ export function VenueMenusView({
 
   const busy = draft.pending !== null
   const title = `${venueName} menus`
+  const importButtonId = React.useId()
+  const closeImport = React.useCallback(() => {
+    setImporting(false)
+    // Back on the venue's menus, focus returns to what opened the import.
+    requestAnimationFrame(() =>
+      document.getElementById(importButtonId)?.focus()
+    )
+  }, [importButtonId])
+
+  // Handoff "Import a menu": a detail page of {Venue} menus, in place (the
+  // URL stays the venue's). Its back link names the page it closes to.
+  if (importing)
+    return (
+      <>
+        <BackLink
+          href={`/admin/menus/${encodeURIComponent(venueId)}`}
+          compact
+          onClick={(event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey) return
+            event.preventDefault()
+            closeImport()
+          }}
+        >
+          {title}
+        </BackLink>
+        <div className="grid grid-cols-1 gap-6">
+          <OfflineNotice />
+          <div
+            ref={importRef}
+            tabIndex={-1}
+            className="rounded-card outline-none"
+          >
+            <ImportFlow
+              venueId={venueId}
+              venueName={venueName}
+              activeTitle={active?.title ?? null}
+              onClose={closeImport}
+            />
+          </div>
+        </div>
+      </>
+    )
 
   return (
     <>
@@ -195,8 +237,8 @@ export function VenueMenusView({
             )}
             <Button
               variant="primary"
+              id={importButtonId}
               onClick={() => setImporting(true)}
-              disabled={importing}
             >
               <UploadSimpleIcon aria-hidden />
               Import a menu
@@ -231,20 +273,6 @@ export function VenueMenusView({
       <div className="grid grid-cols-1 gap-6">
         <OfflineNotice />
         {draft.error ? <Notice tone="negative">{draft.error}</Notice> : null}
-        {importing ? (
-          <div
-            ref={importRef}
-            tabIndex={-1}
-            className="rounded-card outline-none"
-          >
-            <ImportFlow
-              venueId={venueId}
-              venueName={venueName}
-              activeTitle={active?.title ?? null}
-              onClose={() => setImporting(false)}
-            />
-          </div>
-        ) : null}
         {children}
       </div>
     </>

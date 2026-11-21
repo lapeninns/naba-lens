@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { CheckIcon } from "@phosphor-icons/react"
 
 import {
   ReasonDialog,
@@ -29,7 +30,21 @@ const ROLE_WORD: Record<string, string> = {
   admin: "Admin",
 }
 
-const yes = (value: boolean) => (value ? "Yes" : "No")
+/**
+ * One privilege cell (handoff "One person"): a real tick for yes, the word
+ * No in ink-muted for no. The tick is named "Yes", so the table still reads
+ * Yes and No to a screen reader.
+ */
+function Allowed({ value }: { value: boolean }) {
+  return value ? (
+    <span className="inline-flex items-center text-accent-text">
+      <CheckIcon weight="bold" aria-hidden className="size-5" />
+      <span className="sr-only">Yes</span>
+    </span>
+  ) : (
+    <span className="text-ink-muted">No</span>
+  )
+}
 
 /**
  * Venues and privileges (spec §8 A6; FA-22). One row per venue the person
@@ -116,12 +131,14 @@ export function VenueAccessPanel({
   return (
     <section
       aria-labelledby={`${id}-title`}
-      className="grid min-w-0 gap-4 rounded-card bg-surface p-4 shadow-card"
+      // Handoff "One person": the heading over a framed table of real ticks
+      // and the word No, then the form to add a venue or change the role.
+      className="grid min-w-0 gap-3"
     >
-      <h2 id={`${id}-title`} className="type-section-title text-ink">
+      <h2 id={`${id}-title`} className="px-1 type-section-title text-ink">
         Venues and what they can do
       </h2>
-      <p className="text-body text-ink-muted">
+      <p className="px-1 text-body text-ink-muted">
         Roles are per venue. Manager rights apply only at the venue named, and
         only while they are working there.
       </p>
@@ -169,11 +186,21 @@ export function VenueAccessPanel({
                       ? ROLE_WORD[row.effectiveRole]
                       : `${ROLE_WORD[row.membershipRole] ?? ""} (no access now)`}
                   </TableCell>
-                  <TableCell>{yes(row.isActiveVenue)}</TableCell>
-                  <TableCell>{yes(row.canUpload)}</TableCell>
-                  <TableCell>{yes(row.canReview)}</TableCell>
-                  <TableCell>{yes(row.canInviteStaff)}</TableCell>
-                  <TableCell>{yes(row.canExport)}</TableCell>
+                  <TableCell>
+                    <Allowed value={row.isActiveVenue} />
+                  </TableCell>
+                  <TableCell>
+                    <Allowed value={row.canUpload} />
+                  </TableCell>
+                  <TableCell>
+                    <Allowed value={row.canReview} />
+                  </TableCell>
+                  <TableCell>
+                    <Allowed value={row.canInviteStaff} />
+                  </TableCell>
+                  <TableCell>
+                    <Allowed value={row.canExport} />
+                  </TableCell>
                   <TableCell>
                     {row.venueId ? (
                       <Button
@@ -193,8 +220,12 @@ export function VenueAccessPanel({
       )}
 
       {member.active && privileges !== null ? (
-        <form onSubmit={save} className="grid gap-3" noValidate>
-          <h3 className="text-heading-sm font-semibold text-ink">
+        <form
+          onSubmit={save}
+          className="grid gap-3 rounded-card bg-surface p-4 shadow-card lg:grid-cols-3 lg:items-start"
+          noValidate
+        >
+          <h3 className="text-heading-sm font-semibold text-ink lg:col-span-3">
             Add a venue or change the role
           </h3>
           <div className="grid gap-1.5">
@@ -233,8 +264,12 @@ export function VenueAccessPanel({
             required={role === "manager"}
             disabled={saving}
           />
-          {formError ? <Notice tone="negative">{formError}</Notice> : null}
-          <div className="flex flex-wrap gap-2">
+          {formError ? (
+            <Notice tone="negative" className="lg:col-span-3">
+              {formError}
+            </Notice>
+          ) : null}
+          <div className="flex flex-wrap gap-2 lg:col-span-3">
             <Button type="submit" variant="secondary" loading={saving}>
               Save venue role
             </Button>

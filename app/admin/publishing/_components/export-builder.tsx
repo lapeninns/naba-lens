@@ -12,6 +12,7 @@ import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
 import { Input } from "@/components/ui/input"
 import { OptionRow } from "@/components/ui/option-row"
 import { RadioGroup } from "@/components/ui/radio-group"
+import { cn } from "@/lib/utils"
 import { packageHref, type ExportArea } from "@/lib/server/exports/hrefs"
 import type {
   ExportCandidate,
@@ -30,6 +31,8 @@ import { CATEGORY_WORDS, EXPORTS_COPY, publicationChip } from "./copy"
  * (DESIGN.md §11 rule 2): "Make package". Alt text is written and reviewed
  * by the person here; nothing is proposed automatically (Release 2).
  * Selections are kept while the request runs and after an error (§6.7).
+ * Three numbered steps on one page (handoff "Publishing builder"): choose
+ * photos, output size, what it's for; the button counts what it will make.
  */
 
 const keyFor = (
@@ -138,70 +141,83 @@ export function ExportBuilder({
 
   return (
     <form
-      className="grid gap-6"
+      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:items-start"
       onSubmit={(e) => {
         e.preventDefault()
         submit()
       }}
     >
-      <section aria-labelledby="export-choose" className="grid gap-3">
-        <h2 id="export-choose" className="type-section-title text-ink">
-          Choose photos
-        </h2>
-        <PillGroup label="Category">
-          <FilterPill
-            selected={category === "all"}
-            count={candidates.length}
-            onClick={() => setCategory("all")}
+      <section aria-labelledby="export-choose" className="grid min-w-0 gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1">
+          <h2 id="export-choose" className="type-section-title text-ink">
+            1. Choose photos
+          </h2>
+          <p
+            className="text-meta text-ink-muted tabular-nums"
+            aria-live="polite"
           >
-            All
-          </FilterPill>
-          {categories.map(([cat, n]) => (
-            <FilterPill
-              key={cat}
-              selected={category === cat}
-              count={n}
-              onClick={() => setCategory(cat)}
-            >
-              {CATEGORY_WORDS[cat]}
-            </FilterPill>
-          ))}
-        </PillGroup>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="quiet"
-            size="sm"
-            onClick={() => {
-              requestKey.current = newKey()
-              setChosen(
-                (prev) => new Set([...prev, ...shown.map((c) => keyFor(c))])
-              )
-            }}
-          >
-            Choose all shown
-          </Button>
-          <Button
-            type="button"
-            variant="quiet"
-            size="sm"
-            disabled={chosen.size === 0}
-            onClick={() => {
-              requestKey.current = newKey()
-              setChosen(new Set())
-            }}
-          >
-            Clear
-          </Button>
+            {chosen.size} of {candidates.length} chosen
+          </p>
         </div>
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <PillGroup label="Category" className="flex-1">
+            <FilterPill
+              selected={category === "all"}
+              count={candidates.length}
+              onClick={() => setCategory("all")}
+            >
+              All
+            </FilterPill>
+            {categories.map(([cat, n]) => (
+              <FilterPill
+                key={cat}
+                selected={category === cat}
+                count={n}
+                onClick={() => setCategory(cat)}
+              >
+                {CATEGORY_WORDS[cat]}
+              </FilterPill>
+            ))}
+          </PillGroup>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="quiet"
+              size="sm"
+              onClick={() => {
+                requestKey.current = newKey()
+                setChosen(
+                  (prev) => new Set([...prev, ...shown.map((c) => keyFor(c))])
+                )
+              }}
+            >
+              Choose all shown
+            </Button>
+            <Button
+              type="button"
+              variant="quiet"
+              size="sm"
+              disabled={chosen.size === 0}
+              onClick={() => {
+                requestKey.current = newKey()
+                setChosen(new Set())
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+        <ul className="grid gap-2 sm:grid-cols-2">
           {shown.map((c) => {
             const k = keyFor(c)
             const on = chosen.has(k)
             return (
               <li
                 key={k}
-                className="grid gap-2 rounded-card border border-line bg-surface p-3"
+                className={cn(
+                  "grid content-start gap-2 rounded-card border bg-surface p-3",
+                  on ? "border-ink" : "border-line"
+                )}
               >
                 <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3">
                   {/* eslint-disable-next-line @next/next/no-img-element -- signed, short-lived URL behind an authorised route */}
@@ -259,85 +275,104 @@ export function ExportBuilder({
         </ul>
       </section>
 
-      <section aria-labelledby="export-size" className="grid gap-3">
-        <h2 id="export-size" className="type-section-title text-ink">
-          Output size
-        </h2>
-        <RadioGroup
+      {/* Steps 2 and 3 in the side column, so the button that makes the
+          package stays beside the photos it counts (handoff "Publishing
+          builder"). */}
+      <div className="grid min-w-0 gap-4 lg:sticky lg:top-4">
+        <section
           aria-labelledby="export-size"
-          value={profileKey}
-          onValueChange={(v) => {
-            requestKey.current = newKey()
-            setProfileKey(String(v))
-          }}
-          className="grid gap-2 sm:grid-cols-2"
+          className="grid gap-3 rounded-card border border-line bg-surface p-4"
         >
-          {profiles.map((p) => (
-            <OptionRow
-              key={p.key}
-              type="radio"
-              value={p.key}
-              label={p.label}
-              hint={
-                p.format === "original"
-                  ? "The unchanged file. It may keep camera details, including location."
-                  : p.maxWidth && p.maxHeight
-                    ? `${p.format === "webp" ? "WebP" : "JPEG"}, fits ${p.maxWidth} × ${p.maxHeight}, no camera details or location`
-                    : `${p.format === "webp" ? "WebP" : "JPEG"}, a size you choose, no camera details or location`
-              }
-            />
-          ))}
-        </RadioGroup>
-        {custom ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label="Width in pixels" description="64 to 8192">
-              <Input
-                inputMode="numeric"
-                value={width}
-                onChange={(e) => setWidth(e.target.value.replace(/\D/g, ""))}
+          <h2 id="export-size" className="type-heading-sm text-ink">
+            2. Output size
+          </h2>
+          <RadioGroup
+            aria-labelledby="export-size"
+            value={profileKey}
+            onValueChange={(v) => {
+              requestKey.current = newKey()
+              setProfileKey(String(v))
+            }}
+            className="grid gap-2"
+          >
+            {profiles.map((p) => (
+              <OptionRow
+                key={p.key}
+                type="radio"
+                value={p.key}
+                label={p.label}
+                hint={
+                  p.format === "original"
+                    ? "The unchanged file. It may keep camera details, including location."
+                    : p.maxWidth && p.maxHeight
+                      ? `${p.format === "webp" ? "WebP" : "JPEG"}, fits ${p.maxWidth} × ${p.maxHeight}, no camera details or location`
+                      : `${p.format === "webp" ? "WebP" : "JPEG"}, a size you choose, no camera details or location`
+                }
               />
-            </FormField>
-            <FormField label="Height in pixels" description="64 to 8192">
-              <Input
-                inputMode="numeric"
-                value={height}
-                onChange={(e) => setHeight(e.target.value.replace(/\D/g, ""))}
-              />
-            </FormField>
-          </div>
-        ) : null}
-        <FormField
-          label="What it's for"
-          optional
-          description="Shown in the package list. Up to 200 characters."
-        >
-          <Input
-            value={note}
-            maxLength={200}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </FormField>
-      </section>
+            ))}
+          </RadioGroup>
+          {custom ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <FormField label="Width in pixels" description="64 to 8192">
+                <Input
+                  inputMode="numeric"
+                  value={width}
+                  onChange={(e) => setWidth(e.target.value.replace(/\D/g, ""))}
+                />
+              </FormField>
+              <FormField label="Height in pixels" description="64 to 8192">
+                <Input
+                  inputMode="numeric"
+                  value={height}
+                  onChange={(e) => setHeight(e.target.value.replace(/\D/g, ""))}
+                />
+              </FormField>
+            </div>
+          ) : null}
+        </section>
 
-      <div className="grid gap-2">
-        {error ? (
-          <Notice tone="negative" role="alert">
-            {error}
-          </Notice>
-        ) : null}
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          disabled={chosen.size === 0 || pending}
-          aria-busy={pending || undefined}
+        <section
+          aria-labelledby="export-for"
+          className="grid gap-3 rounded-card border border-line bg-surface p-4"
         >
-          <DownloadSimpleIcon aria-hidden weight="bold" />
-          {chosen.size === 0
-            ? "Choose photos to make a package"
-            : `Make package · ${EXPORTS_COPY.items(chosen.size)}`}
-        </Button>
-        <p className="text-meta text-ink-muted">{EXPORTS_COPY.readMe(area)}</p>
+          <h2 id="export-for" className="type-heading-sm text-ink">
+            3. What it&rsquo;s for
+          </h2>
+          {/* The step's heading is the field's visible label. */}
+          <FormField
+            label="What it's for"
+            hideLabel
+            optional
+            description={`Shown in the package list. ${note.length} of 200 characters.`}
+          >
+            <Input
+              value={note}
+              maxLength={200}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </FormField>
+          {error ? (
+            <Notice tone="negative" role="alert">
+              {error}
+            </Notice>
+          ) : null}
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            className="w-full"
+            disabled={chosen.size === 0 || pending}
+            aria-busy={pending || undefined}
+          >
+            <DownloadSimpleIcon aria-hidden weight="bold" />
+            {chosen.size === 0
+              ? "Choose photos to make a package"
+              : `Make package · ${EXPORTS_COPY.items(chosen.size)}`}
+          </Button>
+          <p className="text-meta text-ink-muted">
+            {EXPORTS_COPY.readMe(area)}
+          </p>
+        </section>
       </div>
     </form>
   )

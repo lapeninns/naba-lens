@@ -72,8 +72,16 @@ export type MenuDocumentEditorProps = {
   labelCounts?: Record<string, number>
   /** Extra per-item controls, e.g. ArchiveItemControl (shown when expanded). */
   renderItemActions?: (item: MenuDocItem) => React.ReactNode
+  /**
+   * What changed from the active menu, by source key, for the items list's
+   * Change column (handoff "Version editor"). From the last saved diff.
+   */
+  itemChanges?: Record<string, MenuItemChange>
   className?: string
 }
+
+/** An item's change from the active menu, shown in its Change column. */
+export type MenuItemChange = "added" | "recheck" | "changed"
 
 /**
  * Controlled editor for a draft menu. Existing itemId/variantId values are
@@ -90,6 +98,7 @@ export function MenuDocumentEditor({
   archivedItemIds = [],
   labelCounts = {},
   renderItemActions,
+  itemChanges,
   className,
 }: MenuDocumentEditorProps) {
   const base = React.useId()
@@ -346,6 +355,7 @@ export function MenuDocumentEditor({
                 labelCounts={labelCounts}
                 expandedItems={expandedItems}
                 renderItemActions={renderItemActions}
+                itemChanges={itemChanges}
                 onToggle={() => toggle(setExpandedSections, section.slug)}
                 onToggleItem={(key) => toggle(setExpandedItems, key)}
                 onRename={(name) =>
@@ -413,6 +423,7 @@ function SectionPanel({
   labelCounts,
   expandedItems,
   renderItemActions,
+  itemChanges,
   onToggle,
   onToggleItem,
   onRename,
@@ -439,6 +450,7 @@ function SectionPanel({
   labelCounts: Record<string, number>
   expandedItems: Set<string>
   renderItemActions?: (item: MenuDocItem) => React.ReactNode
+  itemChanges?: Record<string, MenuItemChange>
   onToggle: () => void
   onToggleItem: (key: string) => void
   onRename: (name: string) => void
@@ -613,6 +625,18 @@ function SectionPanel({
               aria-label={`Items in ${sectionLabel}`}
               className="divide-y divide-line overflow-hidden rounded-card edge"
             >
+              {/* Handoff "Version editor": Item, Options and Change as
+                  columns from md. Each row is a button that opens the item,
+                  so the header is for the eye; each cell still says what it
+                  is to a screen reader through its words. */}
+              <li
+                aria-hidden
+                className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)] gap-x-3 px-3 py-2 text-meta font-semibold text-ink-muted md:grid"
+              >
+                <span>Item</span>
+                <span>Options</span>
+                <span>Change</span>
+              </li>
               {items.map((item) => (
                 <ItemRow
                   key={item.sourceKey}
@@ -628,6 +652,7 @@ function SectionPanel({
                   isArchived={item.itemId ? archived.has(item.itemId) : false}
                   labelCount={item.itemId ? (labelCounts[item.itemId] ?? 0) : 0}
                   renderItemActions={renderItemActions}
+                  change={itemChanges?.[item.sourceKey]}
                   onToggle={() => onToggleItem(item.sourceKey)}
                   onChange={(patch) => onItemChange(item, patch)}
                   onMove={(delta) => onItemMove(item, delta)}
@@ -671,12 +696,14 @@ function ItemRow({
   isArchived,
   labelCount,
   renderItemActions,
+  change,
   onToggle,
   onChange,
   onMove,
   onMoveTo,
   onRemove,
 }: {
+  change?: MenuItemChange
   item: MenuDocItem
   index: number
   total: number
@@ -708,21 +735,35 @@ function ItemRow({
         aria-expanded={expanded}
         aria-controls={panelId}
         onClick={onToggle}
-        className="flex min-h-12 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-body focus-ring-inset outline-none hover:bg-surface-2"
+        className="flex min-h-12 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-body focus-ring-inset outline-none hover:bg-surface-2 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)] md:gap-x-3"
       >
         <span className="min-w-0 font-bold break-words text-ink">{name}</span>
-        {variants.length > 0 ? (
-          <span className="min-w-0 text-meta break-words text-ink-muted">
-            {variants.join(" · ")}
-          </span>
-        ) : null}
-        {item.itemId === null ? <Flag tone="info">New</Flag> : null}
-        {isArchived ? <Flag tone="muted">Archived</Flag> : null}
-        {labelCount > 0 ? (
-          <Flag tone="muted">{labelledFilesCopy(labelCount)}</Flag>
-        ) : null}
-        {item.review ? <Flag tone="warning">Needs a decision</Flag> : null}
-        {hasErrors ? <Flag tone="error">Has errors</Flag> : null}
+        <span className="min-w-0 text-meta break-words text-ink-muted md:text-body">
+          {variants.length > 0 ? (
+            variants.join(" · ")
+          ) : (
+            <span className="hidden md:inline">
+              <span aria-hidden>—</span>
+              <span className="sr-only">No options</span>
+            </span>
+          )}
+        </span>
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {item.itemId === null ? <Flag tone="info">New</Flag> : null}
+          {change === "recheck" ? (
+            <Flag tone="warning">Needs a recheck</Flag>
+          ) : change === "changed" ? (
+            <Flag tone="muted">Changed</Flag>
+          ) : change === "added" && item.itemId !== null ? (
+            <Flag tone="info">Added</Flag>
+          ) : null}
+          {isArchived ? <Flag tone="muted">Archived</Flag> : null}
+          {labelCount > 0 ? (
+            <Flag tone="muted">{labelledFilesCopy(labelCount)}</Flag>
+          ) : null}
+          {item.review ? <Flag tone="warning">Needs a decision</Flag> : null}
+          {hasErrors ? <Flag tone="error">Has errors</Flag> : null}
+        </span>
       </button>
 
       {expanded ? (
