@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation"
 
 import { PostedPhotos } from "@/components/nabalens/album/posted-photos"
+import { ALBUM_REVIEW_COPY } from "@/components/nabalens/album/review/copy"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
+import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
+import { ReviewCountTitle } from "@/components/nabalens/manager/review-count"
+import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { LinkButton } from "@/components/ui/link-button"
 import { requireManagerVenue } from "@/lib/auth/manager"
@@ -14,7 +18,9 @@ import { albumPostCursor, listAlbumPosts } from "@/lib/server/staff-album-posts"
 
 import { failedRead } from "../../load-overview"
 
-export const metadata = { title: "Staff Album" }
+export const metadata = { title: "Posted by staff" }
+
+/** Review › Posted by staff (D20; redesign R4, ia.md: was "Staff Album"). */
 
 export default async function ManagerStaffAlbumPage({
   searchParams,
@@ -24,19 +30,23 @@ export default async function ManagerStaffAlbumPage({
   if (!STAFF_ALBUM_POSTS) notFound()
   const { venue } = await requireManagerVenue()
   const scope = await getManagerPhotoCtx()
-  if (!scope.ok) failedRead(scope.code, "Staff Album", MANAGER_STAFF_ALBUM)
+  if (!scope.ok) failedRead(scope.code, "Posted by staff", MANAGER_STAFF_ALBUM)
   const cursor = albumPostCursor(await searchParams)
   const page = await listAlbumPosts(scope.ctx.actor.db, { cursor })
   return (
     <div className="grid gap-4">
-      <LinkButton
-        href={managerHrefs.review()}
-        variant="quiet"
-        className="justify-self-start"
-      >
-        Back to Review
-      </LinkButton>
-      <PageHeader title="Staff Album" scope={venue.name} venueScope />
+      <PageHeader
+        title={
+          <ReviewCountTitle
+            title={ALBUM_REVIEW_COPY.title}
+            fallback={REVIEW_COPY.title}
+          />
+        }
+        scope={venue.name}
+        venueScope
+        className="pb-0 md:pb-0"
+      />
+      <ManagerTabs section="review" active="posted" />
       <PostedPhotos
         posts={page?.posts ?? null}
         label="Recent photos"

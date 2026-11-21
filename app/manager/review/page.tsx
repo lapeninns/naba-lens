@@ -9,6 +9,9 @@ import {
   ReviewBody,
   type ReviewSearch,
 } from "@/app/manager/review/_shared/review-page"
+import { ALBUM_REVIEW_COPY } from "@/components/nabalens/album/review/copy"
+import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
+import { ReviewCountTitle } from "@/components/nabalens/manager/review-count"
 import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
 import {
   AllView,
@@ -24,14 +27,9 @@ import {
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { LinkButton } from "@/components/ui/link-button"
 import { requireManagerVenue } from "@/lib/auth/manager"
 import { ROUTES } from "@/lib/auth/routes"
 import { managerTriageSurface } from "@/lib/config/manager-triage"
-import {
-  MANAGER_STAFF_ALBUM,
-  STAFF_ALBUM_POSTS,
-} from "@/lib/config/staff-album-posts"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getAmenityActor } from "@/lib/server/amenities"
 import {
@@ -48,7 +46,7 @@ export const metadata = { title: "Review" }
 /**
  * Review: photos staff labelled with a menu item or a venue area at the
  * manager's venue. The bare page is Review in a thumb (DESIGN.md §6.5): one
- * waiting photo at a time, Accept or Ask again. Any filter (`?status=
+ * waiting photo at a time, Keep in the album or Ask for another photo. Any filter (`?status=
  * &section=&contributor=&item=`) or `?view=list` opens the full list, where
  * decisions update the list in place.
  */
@@ -114,11 +112,6 @@ export default async function ManagerReviewPage({
   const triage = managerTriageSurface() === "b02"
   const kind = triage ? reviewKindOf(search.kind) : "photos"
   const filter = triage ? <ReviewKindFilter active={kind} /> : null
-  const staffAlbum = STAFF_ALBUM_POSTS ? (
-    <LinkButton href={MANAGER_STAFF_ALBUM} className="justify-self-start">
-      Staff Album
-    </LinkButton>
-  ) : null
   if (kind === "photos" && reviewModeOf(search) === "thumb")
     return (
       <div className="grid gap-6">
@@ -126,11 +119,15 @@ export default async function ManagerReviewPage({
           className={OFFLINE_BANNER_CLASS}
           loadedAt={new Date().toISOString()}
         />
-        {staffAlbum}
         <AlbumReviewBody
           ctx={scope.ctx}
           venueName={venue.name}
-          filter={filter}
+          filter={
+            <>
+              <ManagerTabs section="review" active="one" />
+              {filter}
+            </>
+          }
         />
       </div>
     )
@@ -143,11 +140,16 @@ export default async function ManagerReviewPage({
       <PageHeader
         scope={venue.name}
         venueScope
-        title={REVIEW_COPY.title}
+        title={
+          <ReviewCountTitle
+            title={ALBUM_REVIEW_COPY.title}
+            fallback={REVIEW_COPY.title}
+          />
+        }
         summary={<p>{REVIEW_COPY.summary}</p>}
         className="pb-0 md:pb-0"
       />
-      {staffAlbum}
+      <ManagerTabs section="review" active="list" />
       {filter}
       {kind === "photos" ? (
         <>

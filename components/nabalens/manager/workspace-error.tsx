@@ -1,11 +1,13 @@
 "use client"
 
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowClockwiseIcon, ArrowLeftIcon } from "@phosphor-icons/react"
+import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
+import { BackLink } from "@/components/nabalens/back-link"
 import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
+
+import { MANAGER_COPY } from "./copy"
 
 /**
  * Try again unmounts this boundary (the page renders, or the error comes
@@ -35,7 +37,7 @@ function focusHeadingAfterRetry(button: HTMLElement) {
 
 /**
  * Body of a workspace segment's error boundary: the page's title, what failed
- * and Try again, with a way back on detail pages. The layout, and so the
+ * and Retry (redesign R4, ia.md decision 11), with a BackLink on detail pages. The layout, and so the
  * shell, stays in place. A refused read (access ended) never lands here: the
  * pages send it to Overview, which shows Venue access unavailable.
  */
@@ -62,16 +64,9 @@ export function ManagerWorkspaceError({
   return (
     <div className="grid gap-5">
       {back ? (
-        <Link
-          href={back.href}
-          className={buttonVariants({
-            variant: "link",
-            className: "justify-self-start",
-          })}
-        >
-          <ArrowLeftIcon data-icon="inline-start" aria-hidden />
+        <BackLink href={back.href} compact className="-mb-4">
           {back.label}
-        </Link>
+        </BackLink>
       ) : null}
       <h1
         tabIndex={-1}
@@ -93,7 +88,7 @@ export function ManagerWorkspaceError({
             }}
           >
             <ArrowClockwiseIcon aria-hidden />
-            {ERROR_COPY.tryAgain}
+            {MANAGER_COPY.retry}
           </Button>
         }
         detail={digest ? `Request ID ${digest}` : undefined}

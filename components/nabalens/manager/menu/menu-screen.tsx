@@ -30,6 +30,8 @@ export function MenuScreen({
   items,
   loadItems,
   now,
+  tabs,
+  actions,
 }: {
   overview: ManagerOverview
   filter: MenuFilter
@@ -38,6 +40,10 @@ export function MenuScreen({
   loadItems: LoadMenuItems
   /** ISO instant of the render, so server and browser agree. */
   now: string
+  /** Album's tabs, under the title (redesign R4, ia.md). */
+  tabs?: React.ReactNode
+  /** The header's action: Search photos opens from Album. */
+  actions?: React.ReactNode
 }) {
   const copy = MANAGER_COPY.menu
   if (overview.menuState === "no_menu") {
@@ -47,18 +53,23 @@ export function MenuScreen({
         title={copy.title}
         noteTitle={MANAGER_COPY.overview.noMenuTitle}
         note={MANAGER_COPY.overview.noMenuBody}
+        tabs={tabs}
       />
     )
   }
   const meta = menuMeta(overview.menu)
   const header = (
-    <PageHeader
-      scope={overview.venueName}
-      venueScope
-      title={copy.title}
-      summary={meta ? <p>{meta}</p> : undefined}
-      className="pb-0 md:pb-0"
-    />
+    <div className="grid gap-4">
+      <PageHeader
+        scope={overview.venueName}
+        venueScope
+        title={copy.title}
+        summary={meta ? <p>{meta}</p> : undefined}
+        actions={actions}
+        className="pb-0 md:pb-0"
+      />
+      {tabs}
+    </div>
   )
   if (overview.menuState === "empty" || !items) {
     return (

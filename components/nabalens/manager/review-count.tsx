@@ -51,3 +51,19 @@ export function ReviewCountProvider({
 export function useReviewCount(): ReviewCount {
   return React.useContext(ReviewCountContext)
 }
+
+/**
+ * Review's one title on every tab, "{n} photos to review" (redesign R4,
+ * ia.md), from the workspace's count so it moves as decisions land. Without
+ * a count it says what the page is.
+ */
+export function ReviewCountTitle({
+  title,
+  fallback,
+}: {
+  title: (count: number) => string
+  fallback: string
+}) {
+  const { count } = useReviewCount()
+  return <>{count === undefined ? fallback : title(count)}</>
+}

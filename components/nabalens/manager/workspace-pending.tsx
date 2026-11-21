@@ -1,8 +1,4 @@
-import Link from "next/link"
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
-
-import { buttonVariants } from "@/components/ui/button"
-
+import { BackLink } from "../back-link"
 import { Notice } from "../notice"
 import { PageHeader } from "../page-header"
 
@@ -17,26 +13,22 @@ export function WorkspacePending({
   noteTitle,
   note,
   back,
+  tabs,
 }: {
   venueName: string
   title: string
   noteTitle?: string
   note: string
   back?: { href: string; label: string }
+  /** The section's tabs, under the title (redesign R4, ia.md). */
+  tabs?: React.ReactNode
 }) {
   return (
     <div className="grid gap-gutter">
       {back ? (
-        <Link
-          href={back.href}
-          className={buttonVariants({
-            variant: "link",
-            className: "justify-self-start",
-          })}
-        >
-          <ArrowLeftIcon data-icon="inline-start" aria-hidden />
+        <BackLink href={back.href} compact className="-mb-4">
           {back.label}
-        </Link>
+        </BackLink>
       ) : null}
       <PageHeader
         scope={venueName}
@@ -44,6 +36,7 @@ export function WorkspacePending({
         title={title}
         className="pb-0 md:pb-0"
       />
+      {tabs}
       <Notice tone="plain" title={noteTitle} className="max-w-reading">
         <p>{note}</p>
       </Notice>

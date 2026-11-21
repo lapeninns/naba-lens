@@ -1,10 +1,10 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { workspaceManagerContext } from "@/app/staff/manage/_shared/context"
 import { ErrorState } from "@/components/nabalens/error-state"
 import { Notice } from "@/components/nabalens/notice"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { requestHrefs } from "@/components/nabalens/requests/hrefs"
 import {
@@ -88,13 +88,9 @@ export default async function NewRequestPage({
 
   const header = (
     <>
-      <Link
-        href={requestHrefs.list()}
-        className="inline-flex min-h-12 items-center gap-1 justify-self-start font-semibold text-ink focus-ring"
-      >
-        <ArrowLeftIcon aria-hidden className="size-5" />
+      <BackLink href={requestHrefs.list()} compact>
         Requests
-      </Link>
+      </BackLink>
       <PageHeader
         scope={ctx.venue.name}
         venueScope

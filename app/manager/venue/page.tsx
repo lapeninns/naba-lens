@@ -1,25 +1,18 @@
-import Link from "next/link"
 import {
   CalendarCheckIcon,
-  ClockCounterClockwiseIcon,
-  ExportIcon,
   FlagIcon,
   ForkKnifeIcon,
-  ListChecksIcon,
-  MapPinIcon,
   SealCheckIcon,
   StarIcon,
-  UsersThreeIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
-import { Row } from "@/components/nabalens/common-room/row"
-import { MANAGER_ROW_LIST } from "@/components/nabalens/manager/overview/overview-panels"
+import { HomeRow } from "@/components/nabalens/album/home-rows"
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
+import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
 import { MenuMonthCheckControl } from "@/components/nabalens/manager/venue/menu-month-check"
 import { ReviewersForm } from "@/components/nabalens/manager/venue/reviewers-form"
-import { VenueHistoryList } from "@/components/nabalens/manager/venue/venue-history-list"
 import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
@@ -27,16 +20,13 @@ import {
 import { PageHeader } from "@/components/nabalens/page-header"
 import { amenityHrefs } from "@/lib/amenities/contract"
 import { getManagerWorkspace } from "@/lib/auth/manager"
-import { coverageWords } from "@/lib/knowledge/facts"
 import { factsToConfirm, spacesToConfirm } from "@/lib/manager/to-confirm"
 import {
-  getFactCoverage,
   getFactStates,
   listSpacePhotoFreshness,
 } from "@/lib/server/knowledge/facts"
 import {
   getManagerVenueSummary,
-  getVenueHistory,
   getVenueReviewers,
 } from "@/lib/server/manager/venue"
 import { getMediaActor } from "@/lib/server/media/context"
@@ -81,10 +71,12 @@ function Section({
 }
 
 /**
- * The Venue hub (spec §7 M5; S2-MGR): Current menus with the monthly check,
- * Local specials, Spaces, Facilities and policies, Team, Review assignments
- * and History. Each section links the screen that does the work; reads fail
- * one at a time and say so in their own section.
+ * Venue › Details (spec §7 M5; S2-MGR; redesign R4, ia.md and the handoff):
+ * facts to confirm and reported changes, the menu with its monthly check,
+ * menus and local specials, and the reviewers. Spaces and amenities are
+ * Album's tabs; Team, Progress, Exports and History are this section's. No
+ * bottle button: nothing here is the one job of the page. Each row links the
+ * screen that does the work; reads fail one at a time and say so in place.
  */
 export default async function ManagerVenuePage() {
   const workspace = await getManagerWorkspace()
@@ -100,27 +92,16 @@ export default async function ManagerVenuePage() {
   const venueId = workspace.venue.id
   const copy = MANAGER_COPY.venue
 
-  const [
-    versions,
-    summary,
-    specials,
-    spaces,
-    factCoverage,
-    factStates,
-    reviewers,
-    history,
-    reports,
-  ] = await Promise.all([
-    settle(listVenueMenuVersions(actor, { venueId })),
-    settle(getManagerVenueSummary(actor)),
-    settle(listSpecials(actor, { venueId })),
-    settle(listSpacePhotoFreshness(actor, { venueId })),
-    settle(getFactCoverage(actor, { venueId })),
-    settle(getFactStates(actor, { venueId })),
-    settle(getVenueReviewers(actor)),
-    settle(getVenueHistory(actor, { limit: 5 })),
-    settle(listVenueSlotReports(actor, { venueId, state: "open" })),
-  ])
+  const [versions, summary, specials, spaces, factStates, reviewers, reports] =
+    await Promise.all([
+      settle(listVenueMenuVersions(actor, { venueId })),
+      settle(getManagerVenueSummary(actor)),
+      settle(listSpecials(actor, { venueId })),
+      settle(listSpacePhotoFreshness(actor, { venueId })),
+      settle(getFactStates(actor, { venueId })),
+      settle(getVenueReviewers(actor)),
+      settle(listVenueSlotReports(actor, { venueId, state: "open" })),
+    ])
 
   // A refusal on the reads that every manager can make means the grant ended.
   if (reviewers && !reviewers.ok && reviewers.code === "forbidden")
@@ -136,13 +117,6 @@ export default async function ManagerVenuePage() {
   const waiting = specialList?.filter((s) => s.state === "suggested").length
 
   const spaceRows = spaces?.ok ? spaces.photos : null
-  const spacesCurrent = spaceRows?.filter((r) => r.state === "current").length
-  const spacesDue = spaceRows?.filter((r) => r.state === "check_due").length
-
-  const facts = factCoverage?.ok ? factCoverage.coverage : null
-  const factWords = facts
-    ? coverageWords(facts.numerator, facts.denominator)
-    : null
   const checkHref = amenityHrefs(managerHrefs.overview).check
   const toConfirm =
     factStates?.ok && spaceRows
@@ -154,13 +128,41 @@ export default async function ManagerVenuePage() {
   return (
     <div className="grid gap-8">
       <OfflineNotice className={OFFLINE_BANNER_CLASS} loadedAt={now} />
-      <PageHeader
-        scope={workspace.venue.name}
-        venueScope
-        title={copy.title}
-        summary={copy.summary}
-        className="pb-0 md:pb-0"
-      />
+      <div className="grid gap-4">
+        <PageHeader
+          scope={workspace.venue.name}
+          venueScope
+          title={copy.title}
+          summary={copy.summary}
+          className="pb-0 md:pb-0"
+        />
+        <ManagerTabs section="venue" active="details" />
+      </div>
+
+      <Section id="to-confirm" title={copy.toConfirmLink}>
+        <ul className="grid gap-2">
+          <li>
+            <HomeRow
+              href={managerHrefs.venueFacts}
+              slot="venue-to-confirm"
+              icon={<SealCheckIcon aria-hidden />}
+              title={copy.toConfirmLink}
+              line={copy.toConfirmLine(toConfirm)}
+            />
+          </li>
+          <li>
+            <HomeRow
+              href={managerHrefs.venueReports}
+              slot="venue-reports"
+              icon={<FlagIcon aria-hidden />}
+              title={copy.reportsLink}
+              line={copy.reportsLine(
+                reports?.ok ? reports.reports.length : null
+              )}
+            />
+          </li>
+        </ul>
+      </Section>
 
       <Section id="menus" title={copy.menusTitle}>
         <div
@@ -191,123 +193,36 @@ export default async function ManagerVenuePage() {
             </p>
           ))}
         </div>
-        <ul className={MANAGER_ROW_LIST}>
+        <ul className="grid gap-2">
           <li>
-            <Row
+            <HomeRow
               href={managerHrefs.menuVersions}
+              slot="venue-menu-versions"
               icon={<CalendarCheckIcon aria-hidden />}
               title={copy.menusLink}
-              subtitle={copy.menusLine}
+              line={copy.menusLine}
             />
           </li>
           <li>
-            <Row
-              href={managerHrefs.menu()}
-              icon={<ForkKnifeIcon aria-hidden />}
-              title={copy.availabilityLink}
-              subtitle={copy.availabilityLine}
-            />
-          </li>
-        </ul>
-      </Section>
-
-      <Section id="specials" title={copy.specialsTitle}>
-        <ul className={MANAGER_ROW_LIST}>
-          <li>
-            <Row
+            <HomeRow
               href={managerHrefs.specials}
+              slot="venue-specials"
               icon={<StarIcon aria-hidden />}
               title={copy.specialsTitle}
-              subtitle={
+              line={
                 running === undefined || waiting === undefined
                   ? copy.specialsUnknown
                   : copy.specialsLine(running, waiting)
               }
             />
           </li>
-        </ul>
-      </Section>
-
-      <Section id="spaces" title={copy.spacesTitle}>
-        <ul className={MANAGER_ROW_LIST}>
           <li>
-            <Row
-              href={`${managerHrefs.overview}/amenities/places`}
-              icon={<MapPinIcon aria-hidden />}
-              title={copy.spacesTitle}
-              subtitle={
-                spacesCurrent === undefined || spacesDue === undefined
-                  ? copy.spacesUnknown
-                  : copy.spacesLine(spacesCurrent, spacesDue)
-              }
-            />
-          </li>
-          <li>
-            <Row
-              href={managerHrefs.albumPlaces}
-              icon={<MapPinIcon aria-hidden />}
-              title={copy.placesLink}
-              subtitle={copy.placesLine}
-            />
-          </li>
-        </ul>
-      </Section>
-
-      <Section id="facilities" title={copy.facilitiesTitle}>
-        <ul className={MANAGER_ROW_LIST}>
-          <li>
-            <Row
-              href={managerHrefs.venueFacts}
-              icon={<SealCheckIcon aria-hidden />}
-              title={copy.toConfirmLink}
-              subtitle={copy.toConfirmLine(toConfirm)}
-            />
-          </li>
-          <li>
-            <Row
-              href={managerHrefs.venueReports}
-              icon={<FlagIcon aria-hidden />}
-              title={copy.reportsLink}
-              subtitle={copy.reportsLine(
-                reports?.ok ? reports.reports.length : null
-              )}
-            />
-          </li>
-          <li>
-            <Row
-              href={amenityHrefs(managerHrefs.overview).list}
-              icon={<ListChecksIcon aria-hidden />}
-              title={copy.amenitiesLink}
-              subtitle={
-                facts && factWords
-                  ? copy.factsLine(
-                      factWords.text,
-                      factWords.percent,
-                      facts.unconfirmed + facts.checkDue
-                    )
-                  : copy.factsUnknown
-              }
-            />
-          </li>
-        </ul>
-      </Section>
-
-      <Section id="team" title={copy.teamTitle}>
-        <ul className={MANAGER_ROW_LIST}>
-          <li>
-            <Row
-              href={managerHrefs.team}
-              icon={<UsersThreeIcon aria-hidden />}
-              title={copy.teamLink}
-              subtitle={copy.teamLine}
-            />
-          </li>
-          <li>
-            <Row
-              href={managerHrefs.exports}
-              icon={<ExportIcon aria-hidden />}
-              title={copy.exportsLink}
-              subtitle={copy.exportsLine}
+            <HomeRow
+              href={managerHrefs.menu()}
+              slot="venue-availability"
+              icon={<ForkKnifeIcon aria-hidden />}
+              title={copy.availabilityLink}
+              line={copy.availabilityLine}
             />
           </li>
         </ul>
@@ -323,27 +238,6 @@ export default async function ManagerVenuePage() {
             </p>
           )}
         </div>
-      </Section>
-
-      <Section id="history" title={copy.historyTitle}>
-        {history?.ok ? (
-          history.page.items.length ? (
-            <VenueHistoryList items={history.page.items} />
-          ) : (
-            <p className="text-body text-ink-muted">{copy.historyEmpty}</p>
-          )
-        ) : (
-          <p role="status" className="text-body text-ink-muted">
-            {copy.historyFailed}
-          </p>
-        )}
-        <Link
-          href={managerHrefs.venueHistory}
-          className="inline-flex min-h-12 items-center gap-2 justify-self-start rounded-control text-body font-semibold text-accent-text underline underline-offset-4 focus-ring"
-        >
-          <ClockCounterClockwiseIcon aria-hidden className="size-5" />
-          {copy.historyAll}
-        </Link>
       </Section>
     </div>
   )

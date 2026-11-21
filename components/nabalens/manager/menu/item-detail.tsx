@@ -1,10 +1,9 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeftIcon } from "@phosphor-icons/react"
 
+import { BackLink } from "@/components/nabalens/back-link"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { EvidencePreviewButton } from "@/components/nabalens/coverage/evidence-image"
 import {
@@ -21,7 +20,7 @@ import { useRequestIds } from "@/components/nabalens/coverage/use-request-id"
 import { formatDate } from "@/components/nabalens/format"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { StatusChip } from "@/components/nabalens/status-chip"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 
 import type {
   DecisionAction,
@@ -170,16 +169,9 @@ export function ItemDetail({
 
   return (
     <div className="grid gap-6">
-      <Link
-        href={backHref}
-        className={buttonVariants({
-          variant: "link",
-          className: "justify-self-start",
-        })}
-      >
-        <ArrowLeftIcon data-icon="inline-start" aria-hidden />
+      <BackLink href={backHref} compact className="-mb-4">
         {copy.back}
-      </Link>
+      </BackLink>
       <PageHeader
         scope={item.section.name}
         title={item.name}

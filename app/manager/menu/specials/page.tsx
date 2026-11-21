@@ -5,6 +5,8 @@ import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
+import { BackLink } from "@/components/nabalens/back-link"
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
@@ -18,7 +20,7 @@ import {
   reviewSpecialAction,
 } from "../local-actions"
 
-export const metadata = { title: "Specials" }
+export const metadata = { title: "Local specials" }
 
 /**
  * Local specials (spec §4.3, §7 M5): add a dated special, accept or decline
@@ -52,17 +54,22 @@ export default async function ManagerSpecialsPage({
         className={OFFLINE_BANNER_CLASS}
         loadedAt={new Date().toISOString()}
       />
-      <PageHeader
-        scope={workspace.venue.name}
-        venueScope
-        title="Specials"
-        summary={
-          due > 0
-            ? `${due === 1 ? "1 special has" : `${due} specials have`} reached the end date. End or extend ${due === 1 ? "it" : "them"}.`
-            : "Dated dishes and drinks on at this venue for a while."
-        }
-        className="pb-0 md:pb-0"
-      />
+      <div className="grid gap-1">
+        <BackLink href={managerHrefs.venue} compact>
+          Venue
+        </BackLink>
+        <PageHeader
+          scope={workspace.venue.name}
+          venueScope
+          title="Local specials"
+          summary={
+            due > 0
+              ? `${due === 1 ? "1 special has" : `${due} specials have`} reached the end date. End or extend ${due === 1 ? "it" : "them"}.`
+              : "Dated dishes and drinks on at this venue for a while."
+          }
+          className="pb-0 md:pb-0"
+        />
+      </div>
       <CreateSpecialForm today={read.today} create={createSpecialAction} />
       <SpecialsList
         specials={read.specials}

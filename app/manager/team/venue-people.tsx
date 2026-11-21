@@ -4,7 +4,10 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { UserPlusIcon } from "@phosphor-icons/react"
 
-import { Card, SectionHeader } from "@/components/nabalens/common-room"
+import {
+  MANAGER_CARD,
+  MANAGER_SECTION_HEAD,
+} from "@/components/nabalens/manager/surface"
 import { ReasonDialog } from "@/components/nabalens/coverage/reason-dialog"
 import {
   InviteStaffDialog,
@@ -81,20 +84,15 @@ export function VenuePeople({
 
   return (
     <section aria-labelledby="venue-people" className="grid gap-gutter">
-      <SectionHeader
-        id="venue-people"
-        title={`People at ${venue.name}`}
-        action={
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setInviting(true)}
-          >
-            <UserPlusIcon aria-hidden />
-            Invite staff
-          </Button>
-        }
-      />
+      <div className={MANAGER_SECTION_HEAD}>
+        <h2 id="venue-people" className="type-section-title text-ink">
+          {`People at ${venue.name}`}
+        </h2>
+        <Button variant="secondary" size="sm" onClick={() => setInviting(true)}>
+          <UserPlusIcon aria-hidden />
+          Invite staff
+        </Button>
+      </div>
       <p className="px-1 text-body text-ink-muted">
         You can invite and remove staff here. Only an admin can make someone a
         manager.
@@ -104,7 +102,7 @@ export function VenuePeople({
           {done}
         </Notice>
       ) : null}
-      <Card className="py-1">
+      <div className={`${MANAGER_CARD} py-1`}>
         <ul ref={listRef} className="grid divide-y divide-line" tabIndex={-1}>
           {people.map((person) => (
             <li
@@ -140,7 +138,7 @@ export function VenuePeople({
             </li>
           ))}
         </ul>
-      </Card>
+      </div>
 
       <InviteStaffDialog
         open={inviting}

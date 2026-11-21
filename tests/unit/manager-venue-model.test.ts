@@ -92,9 +92,9 @@ describe("overviewActions (spec §7 M1)", () => {
   it("lists the four actions in the spec's order with their counts", () => {
     const actions = overviewActions(input(), HREFS)
     expect(actions.map((a) => [a.key, a.title])).toEqual([
-      ["review", "Review next"],
+      ["review", "Review photos"],
       ["venue", "Check venue details"],
-      ["request", "Request missing photos"],
+      ["request", "Ask for missing photos"],
       ["outdated", "Resolve outdated public content"],
     ])
     expect(actions[0]).toMatchObject({

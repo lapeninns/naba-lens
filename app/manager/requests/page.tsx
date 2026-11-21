@@ -36,8 +36,8 @@ const FILTERS: { id: RequestFilterParam; label: string }[] = [
 /**
  * Requests and shot lists (spec §7 M4; FA-5; S2-REQ). Open requests first:
  * Blocked, Open, Submitted, by priority and date. A request on a slot never
- * turns Overdue; a New brief or shot list with a due date can. No nav tab
- * (the phone bar is full); linked from Overview.
+ * turns Overdue; a New brief or shot list with a due date can. A nav section
+ * of its own (redesign R4, ia.md).
  */
 export default async function ManagerRequestsPage({
   searchParams,

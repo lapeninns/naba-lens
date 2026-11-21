@@ -42,9 +42,14 @@ describe("NotManagerPage", () => {
       "Manage is for venue managers. To manage your venue, ask an admin to change your account to a venue manager account."
     )
     expect(main.textContent).not.toMatch(/make you a venue manager/)
+    expect(main.textContent).toContain(
+      "Your account can still add photos and see what your venue's album needs."
+    )
+    // Redesign R4: no tab names, and the link goes to Today itself.
+    expect(main.textContent).not.toMatch(/Home|Photos, Add|People and Me/)
     expect(
-      screen.getByRole("link", { name: "Go to Home" }).getAttribute("href")
-    ).toBe("/staff/tasks")
+      screen.getByRole("link", { name: "Go to Today" }).getAttribute("href")
+    ).toBe("/staff/home")
   })
 
   it("keeps Home's badge and the avatar in the shell", async () => {

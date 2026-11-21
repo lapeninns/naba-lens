@@ -3,8 +3,8 @@
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { ManagerWorkspaceError } from "@/components/nabalens/manager/workspace-error"
 
-/** A failed Team targets read. */
-export default function ManagerTeamError({
+/** Venue › Team failed to load (redesign R4, ia.md). */
+export default function ErrorBoundary({
   error,
   retry,
 }: {
@@ -13,7 +13,7 @@ export default function ManagerTeamError({
 }) {
   return (
     <ManagerWorkspaceError
-      title={MANAGER_COPY.team.title}
+      title={MANAGER_COPY.venue.title}
       what={MANAGER_COPY.couldNotLoad.team}
       error={error}
       retry={retry}

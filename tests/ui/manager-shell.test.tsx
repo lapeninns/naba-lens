@@ -248,4 +248,36 @@ describe("managerHrefs", () => {
     expect(managerSectionFor("/manager/reviewers")).toBeNull()
     expect(managerSectionFor("/manager/account")).toBeNull()
   })
+
+  // Redesign R4: every route lights the section of the ia.md route map.
+  it.each([
+    ["/manager", "overview"],
+    ["/manager/review", "review"],
+    ["/manager/review/album", "review"],
+    ["/manager/review/photo/a1", "review"],
+    ["/manager/review/contributors/s1", "review"],
+    ["/manager/menu", "album"],
+    ["/manager/menu/i1", "album"],
+    ["/manager/amenities", "album"],
+    ["/manager/amenities/places", "album"],
+    ["/manager/amenities/c1/capture", "album"],
+    ["/manager/album", "album"],
+    ["/manager/search", "album"],
+    ["/manager/requests", "requests"],
+    ["/manager/requests/new", "requests"],
+    ["/manager/venue", "venue"],
+    ["/manager/venue/facts", "venue"],
+    ["/manager/venue/reports", "venue"],
+    ["/manager/venue/history", "venue"],
+    ["/manager/menu/versions", "venue"],
+    ["/manager/menu/specials", "venue"],
+    ["/manager/team", "venue"],
+    ["/manager/metrics", "venue"],
+    ["/manager/exports", "venue"],
+    ["/manager/exports/packages/p1", "venue"],
+    ["/manager/account", null],
+    ["/manager/uploads", null],
+  ])("%s lights %s", (path, section) => {
+    expect(managerSectionFor(path)).toBe(section)
+  })
 })

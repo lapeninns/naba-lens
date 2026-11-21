@@ -1,5 +1,7 @@
-import Link from "next/link"
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr"
 
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
+import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
 import { MenuScreen } from "@/components/nabalens/manager/menu/menu-screen"
 import {
   menuHref,
@@ -9,6 +11,7 @@ import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
+import { LinkButton } from "@/components/ui/link-button"
 import { requireManagerVenue } from "@/lib/auth/manager"
 import {
   getManagerPhotoCtx,
@@ -21,13 +24,11 @@ import { failedRead, loadManagerOverview } from "../load-overview"
 
 export const metadata = { title: "Album" }
 
-const MORE_LINK =
-  "rounded-square font-semibold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
-
 type MenuSearch = Record<string, string | string[] | undefined>
 
 /**
- * Menu: the active menu's items and their photo state. `?status=&section=&q=`
+ * Album › Menu (redesign R4, ia.md): the active menu's items and their photo
+ * state. Specials and menus live under Venue › Details; search opens here. `?status=&section=&q=`
  * filter the list; unknown values fall back to the defaults. A failed read
  * goes to error.tsx (Try again).
  */
@@ -67,18 +68,14 @@ export default async function ManagerMenuPage({
   return (
     <>
       <OfflineNotice className={OFFLINE_BANNER_CLASS} loadedAt={now} />
-      <nav
-        aria-label="More about the menu"
-        className="flex flex-wrap gap-x-4 gap-y-1 px-1 pb-3 text-body"
-      >
-        <Link href="/manager/menu/specials" className={MORE_LINK}>
-          Specials
-        </Link>
-        <Link href="/manager/menu/versions" className={MORE_LINK}>
-          Current and future menus
-        </Link>
-      </nav>
       <MenuScreen
+        tabs={<ManagerTabs section="album" active="menu" />}
+        actions={
+          <LinkButton href={managerHrefs.search} size="sm">
+            <MagnifyingGlassIcon data-icon="inline-start" aria-hidden />
+            Search photos
+          </LinkButton>
+        }
         overview={overview}
         filter={filter}
         items={items}
