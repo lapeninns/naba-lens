@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 
 import { workspaceManagerContext } from "@/app/staff/manage/_shared/context"
 import { AmenitiesScreen } from "@/app/staff/manage/_shared/screens/amenities"
+import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
 import { ManagerEntrySection } from "@/components/nabalens/shell/manager-entry"
 import { contributionEntry } from "@/lib/config/contribution-entry"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
@@ -10,6 +11,9 @@ import { entryMenu, type EntryMenu } from "@/lib/work-client/entry"
 import { workServices } from "@/lib/work-client/services"
 
 export const metadata: Metadata = { title: "Amenities" }
+
+// Album › Amenities (redesign R4, ia.md). The shared screen draws the title,
+// so the section's tabs sit above it here.
 
 type Workspace = Awaited<ReturnType<typeof workspaceManagerContext>>
 
@@ -46,6 +50,7 @@ export default async function ManagerAmenitiesPage() {
   const ctx = await workspaceManagerContext()
   return (
     <div className="grid gap-6">
+      <ManagerTabs section="album" active="amenities" />
       <AmenitiesScreen ctx={ctx} />
       {/* Read alongside the screen; it never holds the checks back. */}
       <Suspense fallback={null}>

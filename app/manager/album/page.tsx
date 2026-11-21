@@ -6,6 +6,8 @@ import {
   AlbumPlacesForm,
   type AlbumPlacesGroup,
 } from "@/components/nabalens/album/album-places-form"
+import { BackLink } from "@/components/nabalens/back-link"
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
@@ -22,10 +24,11 @@ import {
   setAlbumShelfAction,
 } from "./actions"
 
-export const metadata: Metadata = { title: "Album places" }
+export const metadata: Metadata = { title: "Places and briefs" }
 
 /**
- * Album places (DESIGN.md §6.2, Album A2): where staff stand to photograph
+ * Places and briefs, a detail page of Album › Spaces (redesign R4, ia.md;
+ * was "Album places"; DESIGN.md §6.2, Album A2): where staff stand to photograph
  * each menu section and amenity category. Album groups every slot by these
  * places; a group with no place shows under "Not placed yet". Each menu
  * section also has its one-line brief (§5 Brief, Album AL-4), which can be
@@ -42,12 +45,17 @@ export default async function ManagerAlbumPlacesPage() {
   const chosen = shelves.ok ? shelves.chosen : new Map<string, string>()
 
   const header = (
-    <PageHeader
-      venueScope
-      scope={ctx.venue.name}
-      title="Album places"
-      summary="Choose where staff photograph each menu section and amenity, which shelf each section sits on in Album, and write a one-line brief for each section."
-    />
+    <div className="grid gap-1">
+      <BackLink href={managerHrefs.spaces} compact>
+        Spaces
+      </BackLink>
+      <PageHeader
+        venueScope
+        scope={ctx.venue.name}
+        title="Places and briefs"
+        summary="Choose where staff photograph each menu section and amenity, which shelf each section sits on in Album, and write a one-line brief for each section."
+      />
+    </div>
   )
 
   if (!placements.ok)

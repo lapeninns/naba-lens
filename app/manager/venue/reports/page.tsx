@@ -1,9 +1,8 @@
-import Link from "next/link"
-
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
 import { SlotReportsList } from "@/components/nabalens/manager/venue/slot-reports-list"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 import { getMediaActor } from "@/lib/server/media/context"
@@ -38,22 +37,18 @@ export default async function ManagerVenueReportsPage() {
 
   return (
     <div className="grid gap-8">
-      <PageHeader
-        scope={[
-          workspace.venue.name,
-          <Link
-            key="venue"
-            href={managerHrefs.venue}
-            className="rounded-control underline underline-offset-4 focus-ring"
-          >
-            {MANAGER_COPY.venue.title}
-          </Link>,
-        ]}
-        venueScope
-        title={copy.title}
-        summary={copy.summary}
-        className="pb-0 md:pb-0"
-      />
+      <div className="grid gap-1">
+        <BackLink href={managerHrefs.venue} compact>
+          Venue
+        </BackLink>
+        <PageHeader
+          scope={workspace.venue.name}
+          venueScope
+          title={copy.title}
+          summary={copy.summary}
+          className="pb-0 md:pb-0"
+        />
+      </div>
       {reports === null ? (
         <p role="status" className="text-body text-ink-muted">
           {copy.failed}

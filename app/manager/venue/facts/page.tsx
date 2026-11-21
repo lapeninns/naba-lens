@@ -1,5 +1,3 @@
-import Link from "next/link"
-
 import {
   reconfirmFactAction,
   reconfirmSpaceAction,
@@ -8,6 +6,7 @@ import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
 import { StillRightList } from "@/components/nabalens/manager/venue/still-right-list"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { amenityHrefs } from "@/lib/amenities/contract"
 import { getManagerWorkspace } from "@/lib/auth/manager"
@@ -55,22 +54,18 @@ export default async function ManagerVenueFactsPage() {
 
   return (
     <div className="grid gap-8">
-      <PageHeader
-        scope={[
-          workspace.venue.name,
-          <Link
-            key="venue"
-            href={managerHrefs.venue}
-            className="rounded-control underline underline-offset-4 focus-ring"
-          >
-            {MANAGER_COPY.venue.title}
-          </Link>,
-        ]}
-        venueScope
-        title={copy.title}
-        summary={copy.summary}
-        className="pb-0 md:pb-0"
-      />
+      <div className="grid gap-1">
+        <BackLink href={managerHrefs.venue} compact>
+          Venue
+        </BackLink>
+        <PageHeader
+          scope={workspace.venue.name}
+          venueScope
+          title={copy.title}
+          summary={copy.summary}
+          className="pb-0 md:pb-0"
+        />
+      </div>
       <section aria-labelledby="confirm-facts" className="grid gap-3">
         <h2 id="confirm-facts" className="type-section-title text-ink">
           {copy.factsTitle}

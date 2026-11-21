@@ -20,7 +20,7 @@ export default function ManagerMenuItemError({
       retry={retry}
       back={{
         href: managerHrefs.menu(),
-        label: MANAGER_COPY.notFoundItem.back,
+        label: MANAGER_COPY.item.back,
       }}
     />
   )

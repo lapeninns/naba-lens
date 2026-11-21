@@ -12,6 +12,8 @@ import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
+import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
+import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { LinkButton } from "@/components/ui/link-button"
 import { exportHrefs } from "@/lib/server/exports/hrefs"
@@ -25,8 +27,8 @@ export const metadata: Metadata = { title: EXPORTS_COPY.managerTitle }
 /**
  * A manager's exports (spec §7 M3 download, §14.1; S1-EXPORT): approved
  * photos of their own venue as a ZIP, and where the venue's photos are
- * published (read only: only admins record publication, §3.3). No nav tab
- * (the phone bar is full); linked from Overview.
+ * published (read only: only admins record publication, §3.3). Venue ›
+ * Exports (redesign R4, ia.md).
  */
 export default async function ManagerExportsPage() {
   const ctx = await workspaceManagerContext()
@@ -48,11 +50,12 @@ export default async function ManagerExportsPage() {
       <PageHeader
         scope={ctx.venue.name}
         venueScope
-        title={EXPORTS_COPY.managerTitle}
+        title={MANAGER_COPY.venue.title}
         summary={EXPORTS_COPY.managerSummary}
         actions={make}
         className="pb-0 md:pb-0"
       />
+      <ManagerTabs section="venue" active="exports" />
       <div className="grid gap-8">
         <PublicationPanels
           part="outstanding"

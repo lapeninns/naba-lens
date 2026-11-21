@@ -141,8 +141,11 @@ describe("/manager/amenities", () => {
     expect(
       screen.getByRole("link", { name: /^Places at / }).getAttribute("href")
     ).toBe("/manager/amenities/places")
-    // The workspace layout has its own nav: no coverage tabs or staff shell.
-    expect(screen.queryByRole("navigation")).toBeNull()
+    // The workspace layout has its own nav: no coverage tabs or staff shell,
+    // only Album's tabs (redesign R4, ia.md).
+    expect(
+      screen.getAllByRole("navigation").map((n) => n.getAttribute("aria-label"))
+    ).toEqual(["Album views"])
     expect(screen.queryByRole("main")).toBeNull()
     // Active and Recently completed both list it.
     const links = screen.getAllByRole("link", { name: /Is there guest Wi-Fi/ })

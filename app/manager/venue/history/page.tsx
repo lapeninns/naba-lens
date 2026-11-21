@@ -1,9 +1,8 @@
-import Link from "next/link"
-
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
 import { VenueHistoryPager } from "@/components/nabalens/manager/venue/venue-history-pager"
+import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
 import { getManagerWorkspace } from "@/lib/auth/manager"
@@ -47,21 +46,13 @@ export default async function ManagerVenueHistoryPage({
   return (
     <div className="grid gap-gutter">
       <PageHeader
-        scope={[
-          workspace.venue.name,
-          <Link
-            key="venue"
-            href={managerHrefs.venue}
-            className="rounded-control underline underline-offset-4 focus-ring"
-          >
-            {MANAGER_COPY.venue.title}
-          </Link>,
-        ]}
+        scope={workspace.venue.name}
         venueScope
-        title={copy.title}
+        title={MANAGER_COPY.venue.title}
         summary={copy.summary}
         className="pb-0 md:pb-0"
       />
+      <ManagerTabs section="venue" active="history" />
       <PillGroup label="Kind of change">
         <FilterPill href={href(null)} selected={source === null} current="page">
           {copy.all}

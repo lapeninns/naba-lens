@@ -18,7 +18,7 @@ describe("manager not-found", () => {
       })
     ).toBeTruthy()
     expect(
-      screen.getByRole("link", { name: "Go to Overview" }).getAttribute("href")
+      screen.getByRole("link", { name: "Overview" }).getAttribute("href")
     ).toBe("/manager")
   })
 })

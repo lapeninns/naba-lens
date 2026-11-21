@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
 import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
+import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { Button } from "@/components/ui/button"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
@@ -28,7 +29,7 @@ export function AmenitiesWorkspaceLoading({ label }: { label: string }) {
   )
 }
 
-/** Segment error boundary body: what failed and "Try again". */
+/** Segment error boundary body: what failed and Retry (ia.md decision 11). */
 export function AmenitiesWorkspaceError({
   title,
   what,
@@ -55,7 +56,7 @@ export function AmenitiesWorkspaceError({
             }}
           >
             <ArrowClockwiseIcon aria-hidden />
-            {ERROR_COPY.tryAgain}
+            {MANAGER_COPY.retry}
           </Button>
         }
       />

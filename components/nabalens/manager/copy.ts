@@ -9,6 +9,8 @@ export const MANAGER_COPY = {
     count === 1 ? "photo waiting" : "photos waiting",
   account: "Account",
   logOut: "Log out",
+  /** Every manager error notice's action (redesign R4, ia.md decision 11). */
+  retry: "Retry",
   unavailable: {
     title: "Venue access unavailable",
     body: "Your account doesn't have access to a venue workspace right now. Ask an admin to check your venue access.",
@@ -35,7 +37,7 @@ export const MANAGER_COPY = {
   },
   notFound: {
     title: "This page isn't available in your workspace",
-    back: "Go to Overview",
+    back: "Overview",
   },
   overview: {
     title: "Overview",
@@ -223,7 +225,8 @@ export const MANAGER_COPY = {
   item: {
     title: "Menu item",
     loading: "Loading this menu item",
-    back: "Album",
+    /** The BackLink names the tab it opens (redesign R4, ia.md). */
+    back: "Menu",
     menuPhoto: "Menu photo",
     noMenuPhoto: "No menu photo yet",
     fallback: "Showing the earliest accepted photo",
@@ -292,7 +295,8 @@ export const MANAGER_COPY = {
     back: "Go to Menu",
   },
   uploads: {
-    title: "My uploads",
+    /** A detail page of Account (redesign R4, ia.md; was "My uploads"). */
+    title: "Your photos",
     summary: "Photos and videos you've added, with their labels and review.",
     empty: "Photos and videos you add show here.",
     missing: "Your uploads can't be shown here yet.",
