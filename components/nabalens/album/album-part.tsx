@@ -1,5 +1,6 @@
 "use client"
 
+import { EmptyState } from "@/components/nabalens/empty-state"
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -90,6 +91,9 @@ export const PART_COPY = {
         ? `${open} ${open === 1 ? "question" : "questions"} still to answer of ${total}`
         : "Every question answered",
   answeredOf: (answered: number, total: number) => `${answered} of ${total}`,
+  noQuestions: "No amenity questions yet",
+  noQuestionsText:
+    "Your manager chooses which amenities to check. Their questions will appear here.",
   needsPhoto: "A Yes needs a photo",
   recheck: "Your manager asked for a recheck",
   waiting: "Your answer is waiting for your manager",
@@ -415,6 +419,14 @@ export function AlbumPart({
  * line and one progress chip. A row opens the question's page.
  */
 function AmenityQuestions({ shelves }: { shelves: AlbumShelf[] }) {
+  // No questions yet: say so with what happens next, not a blank page.
+  if (shelves.every((shelf) => shelf.total === 0))
+    return (
+      <EmptyState
+        title={PART_COPY.noQuestions}
+        description={PART_COPY.noQuestionsText}
+      />
+    )
   return (
     <div className="grid gap-5" data-slot="album-questions">
       {shelves.map((shelf) => {

@@ -99,7 +99,6 @@ export default async function ManagerExportsPage() {
             <PackageList
               area="manager"
               packages={packages.packages}
-              emptyAction={make}
             />
           ) : (
             <Notice tone="negative" role="alert">

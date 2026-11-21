@@ -130,7 +130,7 @@ export function AlbumSlotScreen({
       <VenueBar
         name={venueName}
         role={SLOT_COPY.role}
-        className="-mx-page-gutter md:mx-0 md:rounded-card md:border md:border-line"
+        className="-mx-page-gutter max-md:hidden md:mx-0 md:rounded-card md:border md:border-line"
       />
       <div className="-mt-3">
         <BackLink href={placeHref}>{SLOT_COPY.back(placeLabel)}</BackLink>

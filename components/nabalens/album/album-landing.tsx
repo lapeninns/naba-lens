@@ -99,11 +99,16 @@ export function AlbumLanding({
         <VenueBar
           name={venueName}
           role={LANDING_COPY.role}
-          className="-mx-page-gutter md:mx-0 md:rounded-card md:border md:border-line"
+          className="-mx-page-gutter max-md:hidden md:mx-0 md:rounded-card md:border md:border-line"
         />
       ) : null}
       <div className="grid gap-1">
-        <h1 className="type-page-title text-ink">{LANDING_COPY.title}</h1>
+        {/* The staff phone header already names the venue and says Album
+            (§15): on phones the venue bar is hidden and the title is for
+            screen readers, as on My photos. */}
+        <h1 className="type-page-title text-ink max-md:sr-only">
+          {LANDING_COPY.title}
+        </h1>
         <p className="text-body text-ink-muted tabular-nums">
           {view.empty > 0
             ? LANDING_COPY.stillEmpty(view.empty)

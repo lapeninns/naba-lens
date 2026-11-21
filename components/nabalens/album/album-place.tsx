@@ -122,7 +122,7 @@ export function AlbumPlaceScreen({
     <div className="grid gap-5 pb-4" data-slot="album-place">
       <VenueBar
         name={venueName}
-        className="-mx-page-gutter md:mx-0 md:rounded-card md:border md:border-line"
+        className="-mx-page-gutter max-md:hidden md:mx-0 md:rounded-card md:border md:border-line"
       />
       <div className="-mt-3">
         <Link
