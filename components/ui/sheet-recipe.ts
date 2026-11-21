@@ -55,7 +55,8 @@ export type SheetSize = NonNullable<VariantProps<typeof sheetPopup>["size"]>
  *
  * `sticky` is for a form longer than the sheet: the row stays at the bottom
  * edge while the form scrolls under it. The popup's scroll padding keeps a
- * control brought into view (by focus, say) clear of it (WCAG 2.4.11). It bleeds over the popup's padding
+ * control brought into view (by focus, say) clear of it (WCAG 2.4.11). It
+ * bleeds over the popup's padding
  * (none in a viewer) and keeps clear of the home indicator itself.
  */
 export const sheetFooter = cva(
