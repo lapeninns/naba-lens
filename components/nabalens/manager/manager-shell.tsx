@@ -91,11 +91,13 @@ export function ManagerShell({
                 <p
                   data-slot="venue-name"
                   title={venueName}
-                  className="line-clamp-2 text-heading [overflow-wrap:anywhere] text-ink"
+                  className="line-clamp-1 text-heading [overflow-wrap:anywhere] text-ink sm:line-clamp-2"
                 >
                   {venueName}
                 </p>
-                <p className="text-meta text-ink-muted">
+                {/* No room beside Add on phones: the page's venue scope
+                    says the venue there. */}
+                <p className="hidden text-meta text-ink-muted sm:block">
                   {MANAGER_COPY.venueRole}
                 </p>
               </div>
