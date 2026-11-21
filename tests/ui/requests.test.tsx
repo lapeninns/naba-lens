@@ -22,7 +22,10 @@ vi.mock("next/navigation", () => ({
 
 import { RequestControls } from "@/components/nabalens/requests/request-controls"
 import { RequestForm } from "@/components/nabalens/requests/request-form"
-import { RequestRows } from "@/components/nabalens/requests/request-row"
+import {
+  orderRequests,
+  RequestRows,
+} from "@/components/nabalens/requests/request-row"
 import {
   NewShotListForm,
   ShotListCards,
@@ -76,6 +79,25 @@ function request(over: Record<string, unknown> = {}): RequestView {
 }
 
 describe("request rows", () => {
+  it("lists Blocked first, then Submitted, then Open, keeping the server's order within each", () => {
+    const rows = orderRequests([
+      request({ id: "o1", state: "open" }),
+      request({ id: "s1", state: "submitted" }),
+      request({ id: "o2", state: "open" }),
+      request({ id: "b1", state: "blocked" }),
+      request({ id: "c1", state: "completed" }),
+    ])
+    expect(rows.map((r) => r.id)).toEqual(["b1", "s1", "o1", "o2", "c1"])
+  })
+
+  it("draws Open as a neutral chip", () => {
+    render(<RequestRows requests={[request()]} shotLists={[]} />)
+    const chip = within(screen.getByRole("link")).getByText("Open")
+    expect(
+      chip.closest("[data-slot=status-chip]")?.getAttribute("data-v2-tone")
+    ).toBe("neutral")
+  })
+
   it("shows the state, brief and a slot request's date as Needed by", () => {
     render(<RequestRows requests={[request()]} shotLists={[]} />)
     const row = screen.getByRole("link")
