@@ -21,7 +21,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   repair pass before freezing. Do not modify, push or expand the frozen candidate
   while CI runs. A running check may finish; do not restart it through polling.
 - Iterate with `pnpm verify:change` and explicit test/spec files. Use
-  `pnpm verify:batch` to record tasks, source fingerprints, checks and review
+  `pnpm verify:change tooling <scripts/...test.mjs>` for CLI/CI changes.
+  Do not run a full gate before asking the formal gate to repeat it.
+  Use `pnpm verify:batch` to record tasks, source fingerprints, checks and review
   evidence. Full suites need a stated coverage reason, not a timer or every edit.
 - Run the actual `~/.local/bin/lci` once on the final head after rebasing on the
   latest default branch. Use `pnpm verify:release` as the normal entry point.

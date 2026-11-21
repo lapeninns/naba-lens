@@ -1,6 +1,7 @@
 /** Verification planning is an auditable workflow, not a substitute for CI gates. */
 const requiredLocalStatuses = [
   "fixtures-common",
+  "fixtures-database",
   "fixtures-chromium-1",
   "fixtures-chromium-2",
   "fixtures-firefox",

@@ -24,7 +24,7 @@ type GuideViewerProps = {
   dish: GuideDish
   /** The angle shown, 0-3. */
   index: number
-  onIndexChange: (index: number) => void
+  onIndexChange: (update: (index: number) => number) => void
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Where focus goes on close: the tile that opened the viewer. */
@@ -45,22 +45,29 @@ export function GuideViewer({
 }: GuideViewerProps) {
   const previousRef = React.useRef<HTMLButtonElement>(null)
   const nextRef = React.useRef<HTMLButtonElement>(null)
+  const navigationFocus = React.useRef<Element | null>(null)
   /** The touch or pen that started a possible swipe; a second one cancels it. */
   const swipeStart = React.useRef<{ id: number; x: number } | null>(null)
   const angle = GUIDE_ANGLES[index] ?? GUIDE_ANGLES[0]
   const image = dish.images[angle.id]
 
-  function go(to: number) {
-    const clamped = Math.max(0, Math.min(LAST, to))
-    if (clamped === index) return
-    onIndexChange(clamped)
-    // A button that becomes disabled drops focus; keep it on the other one.
-    if (clamped === 0 && document.activeElement === previousRef.current) {
+  React.useLayoutEffect(() => {
+    const from = navigationFocus.current
+    navigationFocus.current = null
+    if (!open || !from) return
+    // A newly disabled button can already have lost focus after the commit.
+    if (index === 0 && from === previousRef.current) {
       nextRef.current?.focus()
     }
-    if (clamped === LAST && document.activeElement === nextRef.current) {
+    if (index === LAST && from === nextRef.current) {
       previousRef.current?.focus()
     }
+  }, [index, open])
+
+  function go(delta: -1 | 1) {
+    navigationFocus.current = document.activeElement
+    // Several events can arrive before a render; never derive from its index.
+    onIndexChange((current) => Math.max(0, Math.min(LAST, current + delta)))
   }
 
   return (
@@ -74,10 +81,10 @@ export function GuideViewer({
             return
           if (event.key === "ArrowRight") {
             event.preventDefault()
-            go(index + 1)
+            go(1)
           } else if (event.key === "ArrowLeft") {
             event.preventDefault()
-            go(index - 1)
+            go(-1)
           }
         }}
         className={cn(
@@ -124,7 +131,7 @@ export function GuideViewer({
             if (start === null || start.id !== event.pointerId) return
             swipeStart.current = null
             const dx = event.clientX - start.x
-            if (Math.abs(dx) > SWIPE_PX) go(index + (dx < 0 ? 1 : -1))
+            if (Math.abs(dx) > SWIPE_PX) go(dx < 0 ? 1 : -1)
           }}
           onPointerCancel={() => {
             swipeStart.current = null
@@ -167,7 +174,7 @@ export function GuideViewer({
             ref={previousRef}
             variant="secondary"
             disabled={index === 0}
-            onClick={() => go(index - 1)}
+            onClick={() => go(-1)}
             className={VIEWER_BUTTON}
           >
             Previous
@@ -176,7 +183,7 @@ export function GuideViewer({
             ref={nextRef}
             variant="secondary"
             disabled={index === LAST}
-            onClick={() => go(index + 1)}
+            onClick={() => go(1)}
             className={VIEWER_BUTTON}
           >
             Next

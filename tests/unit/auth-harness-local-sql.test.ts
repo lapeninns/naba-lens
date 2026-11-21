@@ -54,7 +54,10 @@ describe("localSql process boundary", () => {
     const { localSql } = await import("../integration/auth-support")
 
     expect(localSql(sql)).toBe("first\nlast")
-    expect(readFileSync(join(dir, "stdin.sql"))).toEqual(Buffer.from(sql))
+    // Native equality checks every byte without deep-walking ~850k properties.
+    expect(readFileSync(join(dir, "stdin.sql")).equals(Buffer.from(sql))).toBe(
+      true
+    )
     const args = argv()
     expect(args.join(" ").length).toBeLessThan(200)
     expect(args.some((arg) => arg.includes("insert into"))).toBe(false)

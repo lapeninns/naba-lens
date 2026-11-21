@@ -36,14 +36,15 @@ On Linux use `pnpm exec playwright install --with-deps chromium` (or the selecte
 browser) to install operating-system dependencies. Do not run these commands
 against staging or production. Local single-lane runs default to the full
 Chromium suite. GitHub runs two Chromium shards, Firefox and WebKit on
-separate Ubuntu 24.04 runners. Each lane executes the full fixture gate,
-with its assigned browser cases. `CI result` requires all four lanes.
+separate Ubuntu 24.04 runners. Common and database checks precede the four
+browser lanes. `CI result` requires all six jobs.
 The workflow uses read-only repository permission and does not persist checkout
 credentials. Actions are pinned to commit SHAs.
 
-The gate runs frozen installation, typecheck, lint, unit tests and production
-build; then prepares and starts an isolated Supabase stack, resets only that
-stack, runs integration, lifecycle and security suites, and executes Playwright.
+The standalone gate runs frozen installation, typecheck, lint and unit tests;
+then prepares/starts/resets its isolated stack, builds against its actual URL,
+scans that build, runs integration, lifecycle and security, and executes
+Playwright using that same-stack build. No pre-stack throwaway build is made.
 The CI-owned Playwright wrapper (`scripts/ci/playwright.config.ts`) reuses the
 root config's projects unchanged and keeps only those for the requested engine:
 Chromium runs `chromium` (every spec, 1280×800) and `mobile-chromium` (Pixel 7:
@@ -53,7 +54,8 @@ and WebKit run the `@core` journey. `CI_PLAYWRIGHT_SHARD=1/2` and `2/2`
 partition both Chromium projects and keep each project's test files whole.
 `run-suites.mjs` passes the CI stack as
 `E2E_SUPABASE_WORKDIR`, and `prepare-stack.mjs` points its Auth Site URL at the
-e2e server (`E2E_PORT`, default 3457). One worker and zero retries. Phone viewport tests do not certify physical devices, camera selection,
+e2e server (`E2E_PORT`, chosen from that stack's reserved block). One worker
+and zero retries. Phone viewport tests do not certify physical devices, camera selection,
 background transfer behavior or actual phone HEIC files.
 
 The script prints a PASS/FAIL summary and log location, returns nonzero on a
@@ -75,7 +77,7 @@ bash scripts/ci/local-matrix.sh HEAD
 The launcher gives each lane a copy of the same commit, its own build and
 browser artifacts, and a disposable Supabase stack and app port. It prints the
 private evidence directory and returns nonzero if any lane fails. The shared
-`lci` runner continues to provide its existing serial gate and GitHub status
+`lci` runner continues to provide its serial gate and GitHub status
 reporting.
 
 ## Stack isolation and credentials
@@ -190,14 +192,22 @@ above and never replace it. They are documented in `docs/qa/harness.md`.
 ## Common checks once per candidate
 
 The formal workflow now runs typecheck, lint, unit, monitoring, archive and
-verification-tooling checks in one required common job. Browser jobs require its
-exact-source receipt before starting. They retain separate builds, bundle scans,
-Supabase stacks, integration/lifecycle/security suites, assigned browser cases,
-privacy runtime checks and cleanup. The aggregate result requires common and all
-browser lanes. This changes repetition, not required coverage.
+verification-tooling checks in one required common job. Hosted CI then runs a
+required database tier (integration/lifecycle/security, with its own stack,
+build, bundle scan and cleanup). Browser jobs validate both exact-run receipts
+before setup. They retain separate builds, bundle scans, Supabase stacks,
+assigned browser cases, privacy runtime and cleanup. The aggregate result
+requires common, database and all browser lanes. The local profile's steward
+owns adoption of this tier; old profiles keep running the database suites in
+every browser lane when `CI_DATABASE_RECEIPT` is absent.
 
 `CI_PHASE=full` remains the standalone default. Split jobs use `common` and
-`browser`, an absolute `CI_COMMON_RECEIPT`, and the same
+`database` and `browser`, an absolute `CI_COMMON_RECEIPT`, and the same
 `CI_VERIFICATION_RUN_ID`. Missing, stale or failed common evidence cannot satisfy
-a browser job. See [the Workstream verification policy](verification-policy.md)
+a browser job. Database reuse additionally requires an absolute
+`CI_DATABASE_RECEIPT`, published only after database cleanup succeeds. Receipt
+types cannot substitute for one another. App ports, including serial formal
+lanes without `CI_FIXTURE_LANE`, come from the stack's reserved port block,
+not the shared 3457 port. Step and sub-suite timings are retained alongside
+scrubbed logs. See [the Workstream verification policy](verification-policy.md)
 for focused iteration, the final-candidate guard and evidence accounting.

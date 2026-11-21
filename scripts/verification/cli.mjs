@@ -142,14 +142,21 @@ function focused(args) {
       ...args.map((p) => positionalPath(p, /\.[cm]?[jt]sx?$/)),
     ]
   } else if (kind === "types" && !args.length) commandArgs = ["typecheck"]
-  else if (kind === "tooling" && !args.length) {
+  else if (kind === "tooling") {
     command = process.execPath
     commandArgs = [
       "--test",
-      ...readdirSync("scripts/verification")
-        .filter((p) => p.endsWith(".test.mjs"))
-        .map((p) => "scripts/verification/" + p),
-      "scripts/ci/common-receipt.test.mjs",
+      ...(args.length
+        ? args.map((p) =>
+            positionalPath(p, /^scripts\/(verification|ci)\/.+\.test\.mjs$/)
+          )
+        : [
+            ...readdirSync("scripts/verification")
+              .filter((p) => p.endsWith(".test.mjs"))
+              .map((p) => "scripts/verification/" + p),
+            "scripts/ci/common-receipt.test.mjs",
+            "scripts/ci/run-suites.test.mjs",
+          ]),
     ]
   } else if (kind === "browser") {
     const project = args.shift()
@@ -241,7 +248,7 @@ function release() {
   // No shell, alternate runner, --force, --only, profile rewrite, merge or gate bypass.
   const result = spawnSync(
     join(homedir(), ".local/bin/lci"),
-    ["run", "naba-lens", "--pr", String(s.pr), "--post", "--comment"],
+    ["run", "naba-lens", "--pr", String(s.pr), "--post", "--comment", "--wait"],
     { stdio: "inherit" }
   )
   let passed = false

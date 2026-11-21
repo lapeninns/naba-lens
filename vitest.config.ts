@@ -19,6 +19,9 @@ export default defineConfig({
     ],
   },
   test: {
+    // HEIC workers and jsdom files otherwise fan out across all 18 cores,
+    // starving their real deadlines when CI shares the developer machine.
+    maxWorkers: 4,
     projects: [
       {
         extends: true,

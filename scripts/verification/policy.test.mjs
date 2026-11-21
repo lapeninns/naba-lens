@@ -25,9 +25,10 @@ function freeze() {
     context
   )
 }
-test("release status requires both Chromium shards and the other required jobs", () => {
+test("release status requires database proof, both Chromium shards and every original job", () => {
   const statusCheckRollup = [
     "fixtures-common",
+    "fixtures-database",
     "fixtures-chromium-1",
     "fixtures-chromium-2",
     "fixtures-firefox",
