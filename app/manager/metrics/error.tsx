@@ -1,11 +1,11 @@
 "use client"
 
-import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
-import { ManagerWorkspaceError } from "@/components/nabalens/manager/workspace-error"
 import { METRICS_COPY } from "@/components/nabalens/metrics/copy"
+import { ManagerWorkspaceError } from "@/components/nabalens/manager/workspace-error"
 
-export default function ManagerMetricsError({
+/** Venue › Progress failed to load (redesign R4, ia.md). */
+export default function ErrorBoundary({
   error,
   retry,
 }: {
@@ -14,11 +14,10 @@ export default function ManagerMetricsError({
 }) {
   return (
     <ManagerWorkspaceError
-      title={METRICS_COPY.title}
+      title={MANAGER_COPY.venue.title}
       what={METRICS_COPY.what}
       error={error}
       retry={retry}
-      back={{ href: managerHrefs.overview, label: MANAGER_COPY.overview.title }}
     />
   )
 }

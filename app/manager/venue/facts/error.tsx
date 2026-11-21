@@ -1,9 +1,10 @@
 "use client"
 
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { ManagerWorkspaceError } from "@/components/nabalens/manager/workspace-error"
 
-/** S2-MGR: a failed venueFacts read (Try again). */
+/** To confirm failed to load; the way back to Venue stays. */
 export default function ErrorBoundary({
   error,
   retry,
@@ -17,6 +18,7 @@ export default function ErrorBoundary({
       what={MANAGER_COPY.couldNotLoad.venueFacts}
       error={error}
       retry={retry}
+      back={{ href: managerHrefs.venue, label: MANAGER_COPY.venue.title }}
     />
   )
 }

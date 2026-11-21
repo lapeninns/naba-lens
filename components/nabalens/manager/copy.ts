@@ -34,7 +34,27 @@ export const MANAGER_COPY = {
     venueFacts: "what needs confirming",
     venueHistory: "the venue's history",
     venueReports: "reported changes",
+    exports: "the export packages",
+    albumPlaces: "places and briefs",
+    uploads: "your photos",
+    menuVersions: "the venue's menus",
+    specials: "local specials",
   },
+  /** Places and briefs, a detail page of Album › Spaces (redesign R4, ia.md). */
+  albumPlaces: {
+    title: "Places and briefs",
+    loading: "Loading places and briefs",
+    back: "Spaces",
+  },
+  menuVersions: {
+    title: "Menus and change requests",
+    loading: "Loading the venue's menus",
+  },
+  specials: {
+    title: "Local specials",
+    loading: "Loading local specials",
+  },
+  exports: { loading: "Loading the export packages" },
   notFound: {
     title: "This page isn't available in your workspace",
     back: "Overview",
@@ -302,6 +322,7 @@ export const MANAGER_COPY = {
     missing: "Your uploads can't be shown here yet.",
     failed: "We couldn't load your uploads.",
     loading: "Loading your uploads…",
+    loadingPage: "Loading your photos",
     addLabels: "Add labels",
     editLabels: "Edit labels",
   },

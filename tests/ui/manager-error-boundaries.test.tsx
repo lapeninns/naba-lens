@@ -13,6 +13,15 @@ vi.mock("next/navigation", () => ({
 }))
 
 import ManagerAccountError from "@/app/manager/account/error"
+import ManagerAlbumPlacesError from "@/app/manager/album/error"
+import ManagerExportsError from "@/app/manager/exports/error"
+import ManagerSpecialsError from "@/app/manager/menu/specials/error"
+import ManagerMenuVersionsError from "@/app/manager/menu/versions/error"
+import ManagerMetricsError from "@/app/manager/metrics/error"
+import ManagerTeamError from "@/app/manager/team/error"
+import ManagerUploadsError from "@/app/manager/uploads/error"
+import ManagerVenueFactsError from "@/app/manager/venue/facts/error"
+import ManagerHistoryError from "@/app/manager/venue/history/error"
 import ManagerError from "@/app/manager/error"
 import ManagerMenuItemError from "@/app/manager/menu/[itemId]/error"
 import ManagerMenuError from "@/app/manager/menu/error"
@@ -55,6 +64,58 @@ const CASES: [string, Boundary, string, string, [string, string] | null][] = [
     "Account",
     "We couldn't load your account",
     null,
+  ],
+  // Redesign R4 (ia.md): each section's boundary names its own page.
+  [
+    "Exports",
+    ManagerExportsError,
+    "Venue",
+    "We couldn't load the export packages",
+    null,
+  ],
+  ["Team", ManagerTeamError, "Venue", "We couldn't load the team", null],
+  ["Progress", ManagerMetricsError, "Venue", "We couldn't load", null],
+  [
+    "History",
+    ManagerHistoryError,
+    "Venue",
+    "We couldn't load the venue's history",
+    null,
+  ],
+  [
+    "To confirm",
+    ManagerVenueFactsError,
+    "To confirm",
+    "We couldn't load what needs confirming",
+    ["Venue", "/manager/venue"],
+  ],
+  [
+    "Places and briefs",
+    ManagerAlbumPlacesError,
+    "Places and briefs",
+    "We couldn't load places and briefs",
+    ["Spaces", "/manager/amenities/places"],
+  ],
+  [
+    "Your photos",
+    ManagerUploadsError,
+    "Your photos",
+    "We couldn't load your photos",
+    ["Account", "/manager/account"],
+  ],
+  [
+    "Menus",
+    ManagerMenuVersionsError,
+    "Menus and change requests",
+    "We couldn't load the venue's menus",
+    ["Venue", "/manager/venue"],
+  ],
+  [
+    "Specials",
+    ManagerSpecialsError,
+    "Local specials",
+    "We couldn't load local specials",
+    ["Venue", "/manager/venue"],
   ],
 ]
 
