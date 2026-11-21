@@ -260,7 +260,7 @@ describe("/manager/amenities/[checkId]/capture", () => {
       venueId: VENUE.id,
       venueName: VENUE.name,
       backHref: checkHref,
-      backLabel: "Back to the check",
+      backLabel: "The question",
       doneHref: checkHref,
     })
     // No staff AppShell around it: the workspace layout is the shell.

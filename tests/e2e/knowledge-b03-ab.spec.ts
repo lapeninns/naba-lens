@@ -79,6 +79,14 @@ const DESKTOP = { viewport: { width: 1280, height: 900 } }
  */
 async function settled(page: Page) {
   await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
+  // Second handoff: the check page folds its reference sections (capture
+  // brief, notes, the answer on a date, history) shut. Open them, so the
+  // sections below read as before.
+  await page
+    .locator('details[data-slot="disclosure"]')
+    .evaluateAll((folds) =>
+      folds.forEach((d) => ((d as HTMLDetailsElement).open = true))
+    )
 }
 
 /** The capture form on a page, and its one submit control (label changes). */
