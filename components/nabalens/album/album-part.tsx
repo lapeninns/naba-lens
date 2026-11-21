@@ -97,8 +97,10 @@ export const PART_COPY = {
 }
 
 /** The one line under an amenity question (screens-2 handoff). */
-export function questionLine(slot: AlbumSlot): string {
+export function questionLine(slot: AlbumSlot): string | null {
   const q = slot.question
+  // An Other slot that is not a question (a dish or space filed there).
+  if (slot.target.kind !== "amenity") return null
   if (slot.state === "waiting") return PART_COPY.waiting
   if (q?.progress === "needs_recheck") return PART_COPY.recheck
   if (q?.progress === "complete" && q.answer)
@@ -435,7 +437,7 @@ function AmenityQuestions({ shelves }: { shelves: AlbumShelf[] }) {
                   key={slot.id}
                   href={slotHref(slot)}
                   title={slot.name}
-                  subtitle={questionLine(slot)}
+                  subtitle={questionLine(slot) ?? undefined}
                   chips={
                     slot.question ? (
                       <CheckProgressChip progress={slot.question.progress} />
