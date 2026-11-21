@@ -189,6 +189,35 @@ describe("New request form (M4-required-fields)", () => {
     expect(create).not.toHaveBeenCalled()
   })
 
+  it("asks the three required answers first and previews what staff will see", async () => {
+    render(
+      <RequestForm
+        mode="slot"
+        today="2026-11-18"
+        slots={slots}
+        facts={[]}
+        people={people}
+        shotLists={[]}
+        initialSlot={{ kind: "dish", slotId: PIE }}
+        create={vi.fn()}
+      />
+    )
+    const labels = [
+      ...document.querySelectorAll("[data-slot=request-form] label"),
+    ].map((l) => l.textContent?.replace(/\(optional\)|Optional/i, "").trim())
+    expect(labels.slice(0, 3)).toEqual(["Slot", "Brief", "Intended use"])
+    const preview = screen.getByRole("complementary", {
+      name: "What staff will see",
+    })
+    expect(within(preview).getByText("Pie")).toBeTruthy()
+    expect(within(preview).getByText("Open")).toBeTruthy()
+    await userEvent.type(
+      screen.getByRole("textbox", { name: /Brief/ }),
+      "Whole pie"
+    )
+    expect(preview.textContent).toContain("Asked for: “Whole pie”")
+  })
+
   it("says a covered slot is Covered, the Metrics word, not In the album (X11)", () => {
     render(
       <RequestForm
