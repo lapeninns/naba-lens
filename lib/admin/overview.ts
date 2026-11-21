@@ -3,6 +3,7 @@
 // (20261118115100_admin_group_overview.sql), the URL filters, where each
 // number links, and which venues need attention first.
 
+import { COVERAGE_CATEGORIES } from "@/lib/album/model"
 import { coverageWords } from "@/lib/knowledge/facts"
 
 import {
@@ -14,16 +15,11 @@ import {
 export type OverviewCategory =
   "food" | "drinks" | "spaces" | "facilities" | "other"
 
+/** The album's categories and their words (one source: lib/album/model). */
 export const OVERVIEW_CATEGORIES: ReadonlyArray<{
   key: OverviewCategory
   label: string
-}> = [
-  { key: "food", label: "Food" },
-  { key: "drinks", label: "Drinks" },
-  { key: "spaces", label: "Spaces" },
-  { key: "facilities", label: "Facilities" },
-  { key: "other", label: "Other" },
-]
+}> = COVERAGE_CATEGORIES
 
 /** Spec §8 A1 names four; Other is a filter choice (FA-6). */
 export const DEFAULT_CATEGORIES: ReadonlyArray<OverviewCategory> = [

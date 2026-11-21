@@ -3,6 +3,8 @@
 // server sends. The database validates again; these rules mirror it so the
 // form can name the field before a round trip.
 
+import { COVERAGE_CATEGORIES } from "@/lib/album/model"
+
 export const EXPORT_PROFILES = [
   { id: "original", label: "Original" },
   { id: "website", label: "Website" },
@@ -13,13 +15,9 @@ export const EXPORT_PROFILES = [
 export type ExportProfile = (typeof EXPORT_PROFILES)[number]["id"]
 
 /** The five staff categories are fixed by the spec (§4.1, §23.3, FA-6). */
-export const CATEGORIES = [
-  "Food",
-  "Drinks",
-  "Spaces",
-  "Facilities",
-  "Other",
-] as const
+export const CATEGORIES: readonly string[] = COVERAGE_CATEGORIES.map(
+  (c) => c.label
+)
 
 export type OpsSettings = {
   quietStart: string

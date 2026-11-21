@@ -7,7 +7,7 @@ import { BackLink } from "@/components/nabalens/back-link"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { isCoverageCategory } from "@/lib/album/brief"
+import { categoryLabel, isCoverageCategory } from "@/lib/album/brief"
 import { requireActiveAdmin } from "@/lib/auth"
 import { getCoverageActor } from "@/lib/server/coverage"
 import {
@@ -15,7 +15,6 @@ import {
   loadShotTemplates,
 } from "@/lib/server/shot-templates"
 
-import { adminCategoryLabel } from "../../shot-templates-panel"
 import { ShotTemplateForm } from "./shot-template-form"
 
 export const metadata: Metadata = { title: "Shot template" }
@@ -56,7 +55,7 @@ export default async function ShotTemplatePage({
   if (!templates.ok) throw new Error(templates.message)
   const template = templates.templates.find((t) => t.category === category)
   if (!template) notFound()
-  const label = adminCategoryLabel(category)
+  const label = categoryLabel(category)
   const next = choices.ok ? choices.nextCursor : null
 
   return (

@@ -133,11 +133,11 @@ export const MANAGER_COPY = {
     spacesUnknown: "Where staff photograph each part of the venue.",
     placesLink: "Places and briefs",
     placesLine: "Where staff stand to photograph each section, and its brief.",
-    facilitiesTitle: "Facilities and policies",
+    facilitiesTitle: "Amenities and policies",
     factsLine: (text: string, percent: string | null, waiting: number) =>
       `${text} facts confirmed${percent ? ` (${percent})` : ""} · ${waiting} to confirm`,
     factsUnknown: "We couldn't count the facts.",
-    amenitiesLink: "Facilities and questions",
+    amenitiesLink: "Amenities and questions",
     amenitiesLine: "Answer questions, mark what is not here, assign checks.",
     toConfirmLink: "To confirm",
     toConfirmLine: (n: number | null) =>

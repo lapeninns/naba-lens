@@ -82,7 +82,11 @@ export const COVERAGE_STATES: ReadonlyArray<CoverageState> = [
   "inactive",
 ]
 
-/** The spec's five staff-facing categories (§4.1, FA-6), in order. */
+/**
+ * The spec's five staff-facing categories (§4.1, FA-6), in order. The one
+ * source of their words: `facilities` reads "Amenities" (D22; screens-2
+ * decision 7).
+ */
 export type CoverageCategory =
   "food" | "drinks" | "spaces" | "facilities" | "other"
 
@@ -93,7 +97,7 @@ export const COVERAGE_CATEGORIES: ReadonlyArray<{
   { key: "food", label: "Food" },
   { key: "drinks", label: "Drinks" },
   { key: "spaces", label: "Spaces" },
-  { key: "facilities", label: "Facilities" },
+  { key: "facilities", label: "Amenities" },
   { key: "other", label: "Other" },
 ]
 

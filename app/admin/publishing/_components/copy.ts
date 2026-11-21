@@ -5,6 +5,7 @@
 // on a website (§10 inv. 9); nothing here claims a downloaded copy can be
 // recalled (§14.2).
 
+import { COVERAGE_CATEGORIES } from "@/lib/album/model"
 import type { ExportArea } from "@/lib/server/exports/hrefs"
 import type {
   ExportCategory,
@@ -15,13 +16,10 @@ import type {
   StaleReason,
 } from "@/lib/server/exports/model"
 
-export const CATEGORY_WORDS: Record<ExportCategory, string> = {
-  food: "Food",
-  drinks: "Drinks",
-  spaces: "Spaces",
-  facilities: "Amenities",
-  other: "Other",
-}
+/** The album's category words (one source: lib/album/model). */
+export const CATEGORY_WORDS = Object.fromEntries(
+  COVERAGE_CATEGORIES.map((c) => [c.key, c.label])
+) as Record<ExportCategory, string>
 
 export const PACKAGE_CHIP: Record<PackageState, string> = {
   ready: "package_ready",
