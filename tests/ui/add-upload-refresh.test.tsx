@@ -17,6 +17,15 @@ import { AddTrigger } from "@/components/nabalens/shell/add-context"
 import type { MediaItemView } from "@/lib/server/media/types"
 import { photo } from "./tasks-fixtures"
 
+// These tests cover the match-before-send flow (D9), which is what staff get
+// when immediate posting (D20) is switched off with
+// NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS=0.
+vi.mock("@/lib/config/staff-album-posts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/config/staff-album-posts")>()),
+  STAFF_ALBUM_POSTS: false,
+}))
+
+
 const { refresh, settle, supabase } = vi.hoisted(() => ({
   refresh: vi.fn(),
   // What the Add sheet hears from Me's Fix labels and Discard labels.

@@ -1,12 +1,11 @@
 "use client"
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react"
+import { usePathname } from "next/navigation"
 
-import { AppShell } from "@/components/nabalens/app-shell"
-import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
-import { PageHeader } from "@/components/nabalens/page-header"
-import { Button } from "@/components/ui/button"
+import { AdminErrorPage } from "../_components/admin-boundary"
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
 
+/** Settings › Rules, or a shot template under it, that could not load. */
 export default function AdminSettingsError({
   error,
   retry,
@@ -14,21 +13,24 @@ export default function AdminSettingsError({
   error: Error & { digest?: string }
   retry: () => void
 }) {
-  return (
-    <AppShell variant="admin" active="settings">
-      <div className="flex flex-col gap-6">
-        <PageHeader title="Settings" className="pb-0 md:pb-0" />
-        <ErrorState
-          title="Settings couldn't be loaded"
-          action={
-            <Button type="button" variant="primary" onClick={() => retry()}>
-              <ArrowClockwiseIcon aria-hidden />
-              {ERROR_COPY.tryAgain}
-            </Button>
-          }
-          detail={error.digest ? `Request ID ${error.digest}` : undefined}
-        />
-      </div>
-    </AppShell>
+  const template = (usePathname() ?? "").includes("/shot-templates/")
+  return template ? (
+    <AdminErrorPage
+      section="settings"
+      title="Shot template"
+      back={{ href: "/admin/settings#shot-templates", label: "Settings" }}
+      what="This shot template couldn't be loaded"
+      error={error}
+      retry={retry}
+    />
+  ) : (
+    <AdminErrorPage
+      section="settings"
+      title={ADMIN_SECTION_TITLES.settings}
+      tabs={<AdminTabs set="settings" active="rules" />}
+      what="Settings couldn't be loaded"
+      error={error}
+      retry={retry}
+    />
   )
 }

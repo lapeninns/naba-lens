@@ -1,3 +1,4 @@
+import { STAFF_PHOTO_ROUTES } from "@/lib/config/album-upload-tray"
 import { dismissClosedAssignmentAction } from "@/app/_knowledge/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { WorkingListSection } from "@/components/nabalens/knowledge/working-list"
@@ -58,7 +59,7 @@ export default async function OtherJobsPage() {
       userName={profile.displayName}
     >
       <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter pb-4">
-        <BackToTasks href={TASKS_PATH} />
+        <BackToTasks href={STAFF_PHOTO_ROUTES.home} />
         <PageHeader
           scope={[tasks.scope.venue?.name, tasks.period.label]}
           venueScope={Boolean(tasks.scope.venue)}

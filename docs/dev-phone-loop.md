@@ -27,6 +27,9 @@ if the Mac's address changes. Save the **Workdir** shown by the command.
 Open the printed **Phone URL** on each phone. Save code as usual and refresh
 the same tab if Next's hot refresh hasn't updated it. The launcher supplies
 the LAN site and API URLs and the owned stack's keys to its Next process.
+It enables immediate posting to the private staff Album. If an existing
+workdir predates the staff Album migration, copy the migration into that
+workdir and apply it with `supabase --workdir "$PHONE_STACK" migration up --local`.
 
 ```sh
 # Set this to the Workdir printed by dev:phone --setup.

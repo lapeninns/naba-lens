@@ -41,12 +41,18 @@ vi.mock("@/app/staff/manage/_shared/frame", () => ({
   // The real frame renders the page title as the h1 inside its shell.
   ManageFrame: ({
     title,
+    adminView,
     children,
   }: {
     title: string
+    adminView?: { tab: string; pick?: string }
     children: ReactNode
   }) => (
-    <div>
+    <div
+      data-admin-view={
+        adminView ? `${adminView.tab}/${adminView.pick}` : undefined
+      }
+    >
       <h1>{title}</h1>
       {children}
     </div>
@@ -130,11 +136,33 @@ describe("Places pages", () => {
         venueId: VENUE.id,
       })
       expect(
-        screen.getByRole("heading", { level: 1, name: "Places at ⟨Venue⟩" })
+        screen.getByRole("heading", {
+          level: 1,
+          // The manager's places are Album › Spaces (redesign R4, ia.md).
+          name: name === "manager" ? "Album" : "Places at ⟨Venue⟩",
+        })
       ).toBeTruthy()
-      expect(
-        screen.getByRole("link", { name: "All amenities" }).getAttribute("href")
-      ).toBe(list)
+      if (name === "admin") {
+        // An admin's places are the venue's Album › Spaces (redesign R5,
+        // ia.md); the frame's Album pick is the way to Amenities.
+        expect(
+          document
+            .querySelector("[data-admin-view]")
+            ?.getAttribute("data-admin-view")
+        ).toBe("album/spaces")
+        expect(screen.queryByRole("link", { name: "All amenities" })).toBeNull()
+      } else {
+        // The Album tabs are the way to Amenities; Spaces is the current one.
+        expect(screen.queryByRole("link", { name: "All amenities" })).toBeNull()
+        expect(
+          screen.getByRole("link", { name: "Amenities" }).getAttribute("href")
+        ).toBe(list)
+        expect(
+          screen
+            .getByRole("link", { name: "Spaces" })
+            .getAttribute("aria-current")
+        ).toBe("page")
+      }
       expect(screen.getByText("⟨Main entrance⟩")).toBeTruthy()
     }
   )

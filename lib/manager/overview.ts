@@ -1,7 +1,7 @@
 /**
  * S2-MGR (Full App v1): what the manager Overview says and links to (spec §7
- * M1). Actions come before charts: Review next, Check venue details, Request
- * missing photos, Resolve outdated public content. A collection problem (slots
+ * M1). Actions come before charts: Review photos, Check venue details, Ask
+ * for missing photos, Resolve outdated public content. A collection problem (slots
  * nobody has sent a photo for) is shown apart from a review backlog (photos
  * sent and waiting for a decision), so fifty photos awaiting review never look
  * like staff supplied nothing.
@@ -79,7 +79,7 @@ export function overviewActions(
 
   const review: OverviewAction = {
     key: "review",
-    title: "Review next",
+    title: "Review photos",
     line:
       pending === null
         ? `${COULD_NOT} the photos waiting`
@@ -120,7 +120,8 @@ export function overviewActions(
   const replace = totals ? totals.replacementNeeded : null
   const request: OverviewAction = {
     key: "request",
-    title: "Request missing photos",
+    // Redesign R4 (the handoff's Overview): the manager asks staff.
+    title: "Ask for missing photos",
     line:
       missing === null
         ? `${COULD_NOT} the empty slots`

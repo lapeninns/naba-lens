@@ -71,8 +71,21 @@ describe("AppShell staff navigation", () => {
     )
     for (const name of ["Our menu", "Photos", "People", "Home"])
       expect(screen.queryByRole("link", { name })).toBeNull()
-    expect(current("Staff")).toEqual([])
+    // Our menu is part of the Album, so Album stays lit (redesign R1).
+    expect(current("Staff")).toEqual(["Album"])
   })
+
+  it.each(["community", "people"] as const)(
+    "lights Me on a page reached from Me (%s)",
+    (active) => {
+      render(
+        <AppShell variant="staff" active={active}>
+          x
+        </AppShell>
+      )
+      expect(current("Staff")).toEqual(["Me"])
+    }
+  )
 
   it("keeps Me current when no section is given", () => {
     render(<AppShell variant="staff">x</AppShell>)
@@ -159,14 +172,23 @@ describe("AppShell admin navigation", () => {
     ).toBe("/admin/overview")
   })
 
-  it("lights up Overview for Coverage and Albums, and More for the rest", () => {
+  // Redesign R5 (ia.md): each page passes the section it sits in; there is
+  // no alias. Coverage pages light Overview or Venues by what they show.
+  it("lights the section passed, and More for sections off the tab bar", () => {
     const { rerender } = render(
-      <AppShell variant="admin" active="coverage">
+      <AppShell variant="admin" active="overview">
         x
       </AppShell>
     )
     expect(current("Admin")).toEqual(["Overview"])
     expect(current("Admin", "tabbar")).toEqual(["Overview"])
+    rerender(
+      <AppShell variant="admin" active="staff">
+        x
+      </AppShell>
+    )
+    expect(current("Admin")).toEqual(["People"])
+    expect(current("Admin", "tabbar")).toEqual(["More"])
     rerender(
       <AppShell variant="admin" active="settings">
         x

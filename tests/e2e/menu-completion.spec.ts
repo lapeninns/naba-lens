@@ -113,7 +113,8 @@ test.describe("Menu completion: menu items with an accepted photo", () => {
     const w = await provisionCoverageWorld()
     const { soup, asset } = await menuWorld(w)
 
-    // Staff: Album's Menu, by shelf. Soup's photo waits, so it is not empty.
+    // Staff: Album's Menu, by shelf. Soup's photo is posted, so it is in
+    // the Album already (D21) and Soup is not empty.
     const staff = await signedInPage(browser, w.staffA)
     await open(staff, "/staff/album/menu")
     await expect(
@@ -121,16 +122,16 @@ test.describe("Menu completion: menu items with an accepted photo", () => {
     ).toBeVisible()
     await expect(staff.getByText("2 still empty of 3")).toBeVisible()
     await expect(
-      shelf(staff, "Starters & small plates", "0 of 2 in · 1 empty")
+      shelf(staff, "Starters & small plates", "1 of 2 in · 1 empty")
     ).toBeVisible()
     await expect(shelf(staff, "Mains", "0 of 1 in · 1 empty")).toBeVisible()
-    await shelf(staff, "Starters & small plates", "0 of 2 in · 1 empty").click()
+    await shelf(staff, "Starters & small plates", "1 of 2 in · 1 empty").click()
     await expect(staff).toHaveURL(/shelf=food\.starters/)
     await settled(staff)
     // Each slot is one tile: an empty one adds from the phone's photos; there
     // is no in-app camera (DESIGN.md §2, §9).
     await expect(
-      staff.getByRole("link", { name: "Soup: waiting for review" })
+      staff.getByRole("link", { name: "Soup: posted" })
     ).toBeVisible()
     await expect(
       staff.getByRole("button", { name: "Salad: needed" })
@@ -196,7 +197,7 @@ test.describe("Menu completion: menu items with an accepted photo", () => {
     ).toBeVisible()
     await open(staff, "/staff/album/menu?kind=food&shelf=food.starters")
     await expect(
-      staff.getByRole("link", { name: /^Soup: in the album/ })
+      staff.getByRole("link", { name: /^Soup: posted/ })
     ).toBeVisible()
 
     for (const page of [staff, manager]) await page.context().close()

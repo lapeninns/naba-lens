@@ -1,14 +1,13 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 
 import { AppShell } from "@/components/nabalens/app-shell"
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import { listCollections } from "@/lib/server/library/service"
 import { getMediaActor } from "@/lib/server/media/context"
 
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../../_components/admin-tabs"
 import { CollectionsView } from "../_components/collections"
 
 export const metadata: Metadata = { title: "Collections · Library" }
@@ -33,31 +32,17 @@ export default async function LibraryCollectionsPage({
       <div className="flex flex-col gap-6">
         <PageHeader
           scope="All venues"
-          title="Collections"
+          title={ADMIN_SECTION_TITLES.library}
           summary={
             <p>
               Gather photos for a campaign or a page. A collection points at the
               photos; it never copies or deletes them.
             </p>
           }
-          actions={
-            <>
-              <Link
-                href="/admin/library/tags"
-                className={buttonVariants({ variant: "secondary" })}
-              >
-                Tags
-              </Link>
-              <Link
-                href="/admin"
-                className={buttonVariants({ variant: "secondary" })}
-              >
-                Back to the library
-              </Link>
-            </>
-          }
           className="pb-0 md:pb-0"
-        />
+        >
+          <AdminTabs set="library" active="collections" />
+        </PageHeader>
         {read.ok ? (
           <CollectionsView
             collections={read.value}

@@ -393,7 +393,17 @@ export function AlbumSlotTile({
   add: (opts: OpenAddOptions) => void
   layout?: "tile" | "row"
 }) {
-  const fillable = slot.state === "needed" || slot.state === "retake"
+  const internal = slot.albumPostThumb !== undefined
+  const state =
+    internal &&
+    !slot.albumPostThumb &&
+    (slot.state === "accepted" ||
+      slot.state === "check-due" ||
+      slot.state === "waiting")
+      ? "needed"
+      : slot.state
+  const fillable =
+    !slot.albumPostThumb && (state === "needed" || state === "retake")
   const addContext = useAddContext()
   const send = addContext?.slots?.get(slot.id)
   const settleSlot = addContext?.settleSlot
@@ -423,8 +433,11 @@ export function AlbumSlotTile({
       <SlotTile
         layout={layout}
         name={slot.name}
-        state={slot.state}
-        photoSrc={slot.thumbnailUrl ?? undefined}
+        state={state}
+        posted={!!slot.albumPostThumb}
+        photoSrc={
+          (internal ? slot.albumPostThumb : slot.thumbnailUrl) ?? undefined
+        }
         href={slotHref(slot)}
         optional={slot.optional}
       />
@@ -434,7 +447,7 @@ export function AlbumSlotTile({
     <SlotTile
       layout={layout}
       name={slot.name}
-      state={slot.state}
+      state={state}
       onSelect={() =>
         add({
           slot:

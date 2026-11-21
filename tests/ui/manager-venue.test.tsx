@@ -79,30 +79,44 @@ const CHECK: MenuMonthCheck = {
 }
 
 describe("Overview panels", () => {
-  it("puts Review next as the one main button, then the four actions as links", () => {
+  // Redesign R4 (the handoff's Overview): Needs you today.
+  it("puts Review N photos as the one main button, then open jobs as links and finished ones with their chip", () => {
     render(
       <OverviewActions
         actions={ACTIONS}
         pendingPhotos={50}
         reviewHref="/manager/review"
+        extra={[
+          {
+            key: "confirm",
+            title: "Confirm amenity findings",
+            line: "2 findings from staff to confirm",
+            href: "/manager/amenities#amenities-to-confirm",
+            waiting: true,
+          },
+        ]}
       />
     )
-    const main = screen.getByRole("link", {
-      name: "Review next · 50 photos waiting",
-    })
+    const main = screen.getByRole("link", { name: "Review 50 photos" })
     expect(main.getAttribute("href")).toBe("/manager/review")
+    // What is waiting is said under the button, not in a second Review row.
+    expect(screen.getByText("50 photos waiting · oldest 3 days")).toBeTruthy()
     const rows = Array.from(
       document.querySelectorAll<HTMLElement>("[data-action]")
     )
     expect(rows.map((r) => r.dataset.action)).toEqual([
-      "review",
-      "venue",
       "request",
       "outdated",
+      "confirm",
+      "venue",
     ])
-    expect(within(rows[3]!).getByRole("link").getAttribute("href")).toBe(
+    expect(within(rows[1]!).getByRole("link").getAttribute("href")).toBe(
       "/manager/exports"
     )
+    // A finished job stays, with its chip, and is not a link.
+    expect(within(rows[3]!).queryByRole("link")).toBeNull()
+    expect(rows[3]!.textContent).toContain("Complete")
+    expect(rows[3]!.textContent).toContain("Facts confirmed")
   })
 
   it("draws no main button when nothing is waiting", () => {

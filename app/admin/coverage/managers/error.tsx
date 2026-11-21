@@ -1,14 +1,10 @@
 "use client"
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react"
-
-import { AppShell } from "@/components/nabalens/app-shell"
-import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
-import { PageHeader } from "@/components/nabalens/page-header"
-import { Button } from "@/components/ui/button"
-
+import { AdminErrorPage } from "../../_components/admin-boundary"
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../../_components/admin-tabs"
 import { MANAGERS_COPY } from "./managers-copy"
 
+/** People › Venue managers that could not load. */
 export default function ManagersError({
   error,
   retry,
@@ -17,28 +13,15 @@ export default function ManagersError({
   retry: () => void
 }) {
   return (
-    <AppShell variant="admin" active="coverage">
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          venueScope
-          scope={MANAGERS_COPY.scope}
-          title={MANAGERS_COPY.title}
-          summary={MANAGERS_COPY.summary}
-          className="pb-0 md:pb-0"
-        />
-        <ErrorState
-          title={MANAGERS_COPY.couldNotLoad}
-          action={
-            <Button type="button" variant="primary" onClick={() => retry()}>
-              <ArrowClockwiseIcon aria-hidden />
-              {ERROR_COPY.tryAgain}
-            </Button>
-          }
-          detail={error.digest ? `Request ID ${error.digest}` : undefined}
-        >
-          {MANAGERS_COPY.couldNotLoadBody}
-        </ErrorState>
-      </div>
-    </AppShell>
+    <AdminErrorPage
+      section="staff"
+      title={ADMIN_SECTION_TITLES.people}
+      tabs={<AdminTabs set="people" active="managers" />}
+      what={MANAGERS_COPY.couldNotLoad}
+      error={error}
+      retry={retry}
+    >
+      {MANAGERS_COPY.couldNotLoadBody}
+    </AdminErrorPage>
   )
 }

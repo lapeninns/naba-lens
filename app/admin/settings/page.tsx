@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import { AppShell } from "@/components/nabalens/app-shell"
@@ -7,7 +6,6 @@ import { CoverageSection } from "@/components/nabalens/coverage"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { buttonVariants } from "@/components/ui/button"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import { requireActiveAdmin } from "@/lib/auth"
 import { getCoverageActor } from "@/lib/server/coverage"
@@ -22,6 +20,7 @@ import {
   LimitsPanel,
   OperationsPanel,
 } from "./ops-panel"
+import { AdminTabs } from "../_components/admin-tabs"
 import { SettingsFormView } from "./settings-form"
 import { ShotTemplatesPanel } from "./shot-templates-panel"
 
@@ -58,16 +57,10 @@ export default async function AdminSettingsPage() {
                 change is kept in Activity.
               </p>
             }
-            actions={
-              <Link
-                href="/admin/activity"
-                className={buttonVariants({ variant: "secondary" })}
-              >
-                Activity
-              </Link>
-            }
             className="pb-0 md:pb-0"
-          />
+          >
+            <AdminTabs set="settings" active="rules" />
+          </PageHeader>
           <OfflineNotice />
         </div>
 

@@ -1,6 +1,4 @@
 import type { Metadata } from "next"
-import Link from "next/link"
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import {
   ContributorBody,
@@ -10,14 +8,16 @@ import { adminVenueContext } from "@/app/staff/manage/_shared/context"
 import { ManageFrame } from "@/app/staff/manage/_shared/frame"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
-import { buttonVariants } from "@/components/ui/button"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 
 export const metadata: Metadata = {
   title: "Contributor · Venue coverage",
 }
 
-/** One contributor's photos at a venue, for an admin (the manager contributor view). */
+/**
+ * One contributor's photos at a venue, for an admin (the manager contributor
+ * view). A detail page of the venue's Review tab (redesign R5, ia.md).
+ */
 export default async function AdminMenuPhotoContributorPage({
   params,
   searchParams,
@@ -32,20 +32,15 @@ export default async function AdminMenuPhotoContributorPage({
   return (
     <ManageFrame
       ctx={ctx}
-      section="menu_items"
+      section="review"
+      adminView={{ tab: "review" }}
       title={REVIEW_COPY.contributorTitle}
+      back={{
+        href: managerHrefs.adminMenuPhotos(ctx.venueId),
+        label: "Review",
+      }}
       pendingReview={ctx.coverage?.summary.pendingReview}
     >
-      <Link
-        href={managerHrefs.adminMenuPhotos(ctx.venueId)}
-        className={buttonVariants({
-          variant: "link",
-          className: "justify-self-start",
-        })}
-      >
-        <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-        {REVIEW_COPY.adminTitle}
-      </Link>
       <ContributorBody
         ctx={scope.ctx}
         scope={{ kind: "admin", venueId: ctx.venueId }}

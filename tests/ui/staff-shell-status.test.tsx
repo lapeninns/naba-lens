@@ -227,6 +227,8 @@ describe("staff pages", () => {
       "app/staff/album/match-later/page.tsx",
       "app/staff/album/menu/page.tsx",
       "app/staff/album/page.tsx",
+      "app/staff/album/recent/[assetId]/page.tsx",
+      "app/staff/album/recent/page.tsx",
       "app/staff/album/slot/[kind]/[slotId]/page.tsx",
       "app/staff/album/spaces/page.tsx",
       "app/staff/community/page.tsx",

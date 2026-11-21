@@ -75,14 +75,13 @@ function withQuery(
 export const managerHrefs = {
   overview: "/manager",
   account: "/manager/account",
-  /** Monthly photo targets (G-6), linked from Overview; no nav tab. */
+  /** People and monthly photo targets (G-6): Venue › Team (redesign R4, ia.md). */
   team: "/manager/team",
-  /** The manager account's own uploads (B02-c); no nav tab. */
+  /** Venue › Progress, the month's metrics (redesign R4, ia.md). */
+  metrics: "/manager/metrics",
+  /** The manager account's own uploads (B02-c), a detail page of Account. */
   uploads: "/manager/uploads",
-  /**
-   * B05-06 asset search, linked from Overview. No nav tab: a fifth tab beside
-   * Add does not fit the 390px phone bar.
-   */
+  /** B05-06 asset search, opened from Album (redesign R4, ia.md). */
   search: "/manager/search",
   /** S1-EXPORT: the venue's export packages, under Venue. */
   exports: "/manager/exports",
@@ -95,8 +94,16 @@ export const managerHrefs = {
   /** S1-MENUS screens, reached from the Venue hub. */
   menuVersions: "/manager/menu/versions",
   specials: "/manager/menu/specials",
-  /** Album places and briefs (Album A2), reached from the Venue hub. */
+  /** Places and briefs (Album A2), a detail page of Album › Spaces. */
   albumPlaces: "/manager/album",
+  /** Album › Spaces: the venue's places (redesign R4, ia.md). */
+  spaces: "/manager/amenities/places",
+  /** Album › Amenities. */
+  amenities: "/manager/amenities",
+  /** Review › All photos: the full list of waiting photos. */
+  reviewList: "/manager/review?view=list",
+  /** Review › Posted by staff (D20), only while staff Album posts are on. */
+  postedByStaff: "/manager/review/album",
   /** S2-REQ: requests and shot lists (spec §7 M4). */
   requests: "/manager/requests",
   review: (q?: ReviewQuery) => withQuery("/manager/review", q),
@@ -117,7 +124,10 @@ export const managerHrefs = {
     `/admin/coverage/${encodeURIComponent(venueId)}/menu-photos/contributors/${encodeURIComponent(id)}`,
 } as const
 
-/** The nav section a workspace path belongs to (Account belongs to none). */
+/**
+ * The nav section a workspace path lights (redesign R4, ia.md route map).
+ * Account and its Your photos page light none; an unknown path lights none.
+ */
 export function managerSectionFor(pathname: string): ManagerSection | null {
   const path = pathname.replace(/\/+$/, "") || "/"
   const under = (prefix: string) =>
@@ -127,6 +137,7 @@ export function managerSectionFor(pathname: string): ManagerSection | null {
   if (
     under("/manager/venue") ||
     under("/manager/team") ||
+    under("/manager/metrics") ||
     under("/manager/exports") ||
     under("/manager/menu/versions") ||
     under("/manager/menu/specials")
@@ -136,8 +147,7 @@ export function managerSectionFor(pathname: string): ManagerSection | null {
     under("/manager/menu") ||
     under("/manager/amenities") ||
     under("/manager/album") ||
-    under("/manager/search") ||
-    under("/manager/uploads")
+    under("/manager/search")
   )
     return "album"
   if (path === "/manager") return "overview"

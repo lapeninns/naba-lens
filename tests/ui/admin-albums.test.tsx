@@ -144,9 +144,16 @@ const cellsOf = (name: string) =>
 describe("/admin/albums", () => {
   it("draws venues down and Food, Drinks, Amenities, Areas across, filled of total", async () => {
     render(await AdminAlbumsPage())
+    // Overview › Albums (redesign R5, ia.md): the section's title, and the
+    // Albums tab current.
     expect(
-      screen.getByRole("heading", { level: 1, name: "Albums" })
+      screen.getByRole("heading", { level: 1, name: "Overview" })
     ).toBeTruthy()
+    expect(
+      within(screen.getByRole("navigation", { name: "Overview" }))
+        .getByRole("link", { name: "Albums" })
+        .getAttribute("aria-current")
+    ).toBe("page")
     expect(
       within(matrix())
         .getAllByRole("columnheader")
@@ -167,10 +174,10 @@ describe("/admin/albums", () => {
     expect(
       within(rowOf("The Bell")).getByRole("link", { name: "The Bell" })
     ).toHaveProperty("pathname", `/admin/coverage/${BELL}`)
-    // The page is in the admin navigation as Albums.
+    // It lights Overview in the admin navigation (no orphan).
     expect(
       document.querySelector("[data-active]")?.getAttribute("data-active")
-    ).toBe("albums")
+    ).toBe("overview")
     // Only active venues, each read with its own id.
     expect(db.eq).toHaveBeenCalledWith("active", true)
     expect(db.rpc).toHaveBeenCalledWith("album_admin_counts", {

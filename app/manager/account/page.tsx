@@ -4,6 +4,8 @@ import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
+import { BackLink } from "@/components/nabalens/back-link"
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { LinkButton } from "@/components/ui/link-button"
 import { requireManagerVenue } from "@/lib/auth/manager"
@@ -27,11 +29,16 @@ export default async function ManagerAccountPage() {
         className={OFFLINE_BANNER_CLASS}
         loadedAt={new Date().toISOString()}
       />
-      <PageHeader
-        title={copy.title}
-        summary={copy.summary}
-        className="pb-0 md:pb-0"
-      />
+      <div className="grid gap-1">
+        <BackLink href={managerHrefs.overview} compact>
+          {MANAGER_COPY.overview.title}
+        </BackLink>
+        <PageHeader
+          title={copy.title}
+          summary={copy.summary}
+          className="pb-0 md:pb-0"
+        />
+      </div>
       <ManagerAccountForm
         displayName={profile.displayName}
         email={profile.email}

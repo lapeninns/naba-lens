@@ -19,7 +19,7 @@ const ROOT = join(__dirname, "..", "..")
 // (admin coverage) and S3-R2 (knowledge upgrades). Remove each line when its
 // owner moves the copy to a server-safe module.
 const KNOWN = new Set([
-  "app/admin/coverage/page.tsx: ITEM_SELF_REVIEWS_COPY from @/components/nabalens/menu-photos/item-photo-self-reviews",
+  "app/admin/coverage/(this-month)/page.tsx: ITEM_SELF_REVIEWS_COPY from @/components/nabalens/menu-photos/item-photo-self-reviews",
   "app/admin/knowledge/upgrades/page.tsx: UPGRADE_COPY from @/components/nabalens/knowledge/upgrade-control",
 ])
 

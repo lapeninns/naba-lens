@@ -27,8 +27,11 @@ import {
   openOtherJobs,
   OTHER_JOBS_PATH,
   savingTitle,
+  closeUploadSheet,
+  settledWords,
   STAFF_LANDING,
   STAFF_TABS,
+  uploadSheet,
 } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
@@ -204,13 +207,16 @@ async function uploadForTask(page: Page, files: SourceFile[]) {
   ])
   expect(chooser.isMultiple()).toBe(true)
   await chooser.setFiles(files.map((f) => f.path))
-  const dialog = page.getByRole("dialog", { name: savingTitle(files) })
-  await expect(dialog).toBeVisible()
-  await expect(dialog.getByRole("status")).toHaveText(`${files.length} saved`, {
+  // "Saving 2 photos", then "2 photos added" once they finish; each posts
+  // to the Album as it is ready (D21).
+  const dialog = uploadSheet(page)
+  await expect(dialog).toHaveAccessibleName(
+    new RegExp(`^(${savingTitle(files)}|${files.length} photos added)$`)
+  )
+  await expect(dialog.getByRole("status")).toHaveText(settledWords(files), {
     timeout: 90_000,
   })
-  await dialog.getByRole("button", { name: "Done" }).click()
-  await expect(dialog).toBeHidden()
+  await closeUploadSheet(page)
 }
 
 async function sendSelected(page: Page, count: number) {
@@ -299,7 +305,8 @@ async function expiredLinkRecovery(page: Page) {
   const mine = page.getByRole("region", { name: "Your photos for this task" })
   const loaded = async () => {
     const images = mine.locator("img")
-    await expect(images).toHaveCount(2)
+    // A reload under load can take longer than the default to render them.
+    await expect(images).toHaveCount(2, { timeout: 30_000 })
     for (const image of await images.all()) {
       await image.scrollIntoViewIfNeeded()
       await expect

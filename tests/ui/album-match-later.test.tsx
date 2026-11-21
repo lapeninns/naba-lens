@@ -14,14 +14,23 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
-  MATCH_LATER_HREF,
   MatchLaterRow,
   MatchLaterScreen,
   type MatchLaterPhoto,
 } from "@/components/nabalens/album/match/match-later"
 import type { MatchBoard } from "@/components/nabalens/album/match/model"
+import { MATCH_LATER_HREF } from "@/lib/staff/my-uploads"
 
 import { CATALOGUE } from "./labels-fixtures"
+
+// These tests cover the match-before-send flow (D9), which is what staff get
+// when immediate posting (D20) is switched off with
+// NEXT_PUBLIC_NABALENS_STAFF_ALBUM_POSTS=0.
+vi.mock("@/lib/config/staff-album-posts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/config/staff-album-posts")>()),
+  STAFF_ALBUM_POSTS: false,
+}))
+
 
 const GARDEN = "00000000-0000-4000-8000-00000000b003"
 const PASS = "00000000-0000-4000-8000-00000000b002"
@@ -52,13 +61,13 @@ const BOARD: MatchBoard = {
   amenities: [],
 }
 
-const { refresh, match, area } = vi.hoisted(() => ({
-  refresh: vi.fn(),
+const { replace, match, area } = vi.hoisted(() => ({
+  replace: vi.fn(),
   match: { loadMatchBoardAction: vi.fn(), requestLabelHelpAction: vi.fn() },
   area: { setAreaLabelAction: vi.fn(), loadAreaLabelsAction: vi.fn() },
 }))
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh, push: vi.fn() }),
+  useRouter: () => ({ replace }),
 }))
 vi.mock("@/app/staff/_shell/match-actions", () => match)
 vi.mock("@/app/_labels/area-actions", () => area)
@@ -151,7 +160,9 @@ describe("MatchLaterScreen", () => {
       }),
     })
     expect(await screen.findByText("1 photo to match")).toBeTruthy()
-    expect(refresh).toHaveBeenCalled()
+    expect(
+      screen.getByRole("link", { name: "Open Onion Bhaji in Album" })
+    ).toBeTruthy()
     // S3-R12 (X4): the slot stays one tap away for the next photo of the
     // same dish, under Recent and marked, never as an empty suggestion.
     const recent = screen.getByRole("list", { name: "Recent" })
@@ -181,9 +192,60 @@ describe("MatchLaterScreen", () => {
       expect(area.setAreaLabelAction).toHaveBeenCalledWith(A2, GARDEN)
     )
     expect(
-      await screen.findByText("Every photo you added is matched to a slot.")
+      await screen.findByRole("link", { name: "Open The garden in Album" })
     ).toBeTruthy()
     expect(posted).toEqual([])
+  })
+
+  it("returns to the focused photo after its first label is saved", async () => {
+    const user = userEvent.setup()
+    render(<MatchLaterScreen photos={[PHOTOS[0]]} focused />)
+    await user.click(await screen.findByRole("button", { name: /Onion Bhaji/ }))
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(`/staff/photos/${A1}`)
+    )
+  })
+
+  it("labels selected photos together and only retries the photo that failed", async () => {
+    let failSecond = true
+    postAnswer = (input) =>
+      input.assetId === A2 && failSecond
+        ? { ok: false, message: "No signal. Try again." }
+        : null
+    const user = userEvent.setup()
+    render(<MatchLaterScreen photos={PHOTOS} />)
+    await user.click(screen.getByRole("button", { name: "Select photos" }))
+    expect(screen.queryByRole("searchbox")).toBeNull()
+    await user.click(screen.getByRole("checkbox", { name: "Select photo 1" }))
+    await user.click(screen.getByRole("checkbox", { name: "Select photo 2" }))
+    expect(
+      screen.getByText("Choose one label for all 2 selected photos.")
+    ).toBeTruthy()
+    await user.click(await screen.findByRole("button", { name: /Onion Bhaji/ }))
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "1 photo still needs a label"
+    )
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1)
+    expect(
+      screen.getByRole("checkbox", { name: "Selected photo 1" })
+    ).toBeTruthy()
+    expect(
+      screen
+        .getByRole("link", { name: "Open Onion Bhaji in Album" })
+        .getAttribute("href")
+    ).toBe("/staff/album/slot/dish/item-bhaji")
+
+    failSecond = false
+    await user.click(screen.getByRole("button", { name: /Onion Bhaji/ }))
+    await waitFor(() => expect(screen.queryByRole("checkbox")).toBeNull())
+    expect(
+      posted.map(({ input }) => [input.assetId, input.expectedRevision])
+    ).toEqual([
+      [A1, 0],
+      [A2, 2],
+      [A2, 2],
+    ])
   })
 
   it("Not for a slot saves what the photo shows", async () => {

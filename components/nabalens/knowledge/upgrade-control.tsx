@@ -23,7 +23,8 @@ import { LABEL, MUTED } from "../amenities/capture/field-parts"
 const INPUT = `block ${fieldControlVariants()}`
 
 export const UPGRADE_COPY = {
-  title: "Schema upgrades",
+  // Schema upgrades are called Question changes (redesign R5, decision 7).
+  title: "Question changes",
   intro:
     "A question's newer form keeps an old answer when nothing is lost; otherwise the answer needs checking again. Run a dry run first.",
   question: "Question",

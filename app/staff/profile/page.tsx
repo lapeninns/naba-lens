@@ -3,6 +3,7 @@ import {
   skipWorkProfileAction,
 } from "@/app/staff/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { WorkProfileForm } from "@/components/nabalens/work-profile-form"
 import { requireActiveStaff } from "@/lib/auth"
@@ -41,6 +42,7 @@ export default async function WorkProfilePage({
       userName={profile.displayName}
     >
       <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter">
+        <BackLink href="/staff/me/settings">Settings</BackLink>
         <PageHeader
           scope={venueName}
           venueScope={Boolean(venueName)}

@@ -11,6 +11,7 @@ import {
   FilmStripIcon,
   ImageIcon,
   ImagesIcon,
+  MinusCircleIcon,
 } from "@phosphor-icons/react"
 
 import { NeedsAttention } from "@/app/staff/needs-attention"
@@ -28,10 +29,16 @@ import {
   photoMark,
   photoSummary,
   PHOTO_SHOWS,
+  POSTED_PHOTO_SHOWS,
   type PhotoMark,
   type PhotoShow,
 } from "@/lib/staff/my-photos"
 import {
+  canLabelUpload,
+  LABEL_PHOTO,
+  labelPhotoHref,
+  MATCH_LATER_HREF,
+  photoHref,
   slotPageHref,
   type MyUpload,
   type MyUploadsPage,
@@ -47,12 +54,11 @@ import { cn } from "@/lib/utils"
 
 type Reply<T extends object> = ({ ok: true } & T) | { ok: false; error: string }
 
-export const photoHref = (assetId: string) => `/staff/photos/${assetId}`
-
 const thumbSrc = (assetId: string) => `/api/media/${assetId}/thumb`
 
 /** What a photo shows as its name: its slots, else what it is. */
 export function photoTitle(item: MyUpload): string {
+  if (item.albumPost && !item.albumPost.labelled) return "Unlabelled photo"
   if (item.slots.length > 0) return item.slots.map((s) => s.name).join(", ")
   if (item.labelHelp) return "With your manager"
   if (item.sharedKinds.length > 0) return "Shared photo"
@@ -64,12 +70,16 @@ export function photoTitle(item: MyUpload): string {
 export function MyPhotos({
   initial,
   show,
+  currentVenueId,
+  posting = false,
   canAdd,
   loadMore,
 }: {
   /** The newest page, read on the server; null when it couldn't be read. */
   initial: MyUploadsPage | null
   show: PhotoShow
+  currentVenueId: string | null
+  posting?: boolean
   canAdd: boolean
   loadMore: (cursor: {
     before: string
@@ -98,6 +108,9 @@ export function MyPhotos({
     )
 
   const summary = photoSummary(items)
+  const postedCount = items.filter(
+    ({ albumPost }) => albumPost && !albumPost.removed
+  ).length
   const inbox = items.flatMap((item) => {
     const need = needsYou(item)
     return need ? [{ item, need }] : []
@@ -105,7 +118,18 @@ export function MyPhotos({
   const sending = items.filter(
     (i) => i.uploadState === "uploading" || i.uploadState === "processing"
   ).length
+  const canLabelMultiple =
+    items.filter((item) => canLabelUpload(item, currentVenueId)).length > 1
+  const shows = posting ? POSTED_PHOTO_SHOWS : PHOTO_SHOWS
   const shown = items.filter((i) => matchesShow(i, show))
+  // Unlabelled first (D21; the 20 Nov 2026 Open Design handoff): one list,
+  // one count, the same as the Unlabelled view and Label photos.
+  const unlabelled = posting
+    ? items.filter((i) => matchesShow(i, "unlabelled"))
+    : []
+  const canLabelNow = unlabelled.some((item) =>
+    canLabelUpload(item, currentVenueId)
+  )
   const days = groupByDay(shown)
 
   async function more() {
@@ -130,21 +154,83 @@ export function MyPhotos({
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5" data-slot="my-photos">
       {items.length > 0 ? (
         <p className="text-body text-ink-muted tabular-nums">
-          {MY_PHOTOS_COPY.summary(summary, next !== null)}
+          {posting
+            ? `${postedCount}${next ? "+" : ""} posted`
+            : MY_PHOTOS_COPY.summary(summary, next !== null)}
         </p>
+      ) : null}
+
+      {unlabelled.length > 0 ? (
+        <section
+          aria-labelledby="unlabelled"
+          data-slot="unlabelled"
+          className="grid gap-3 rounded-card bg-surface p-4 edge"
+        >
+          <div className="grid gap-1">
+            <h2
+              id="unlabelled"
+              className="flex items-center gap-2 type-section-title text-ink"
+            >
+              Unlabelled
+              <span className="rounded-round bg-warn-bg px-2 text-label text-warn-fg tabular-nums">
+                {unlabelled.length}
+                {next ? "+" : ""}
+              </span>
+            </h2>
+            <p className="text-body text-ink-muted">
+              Already in the Album. Label them so each is filed under its dish,
+              drink or space.
+            </p>
+          </div>
+          <ul className="flex gap-1.5 overflow-hidden" aria-hidden>
+            {unlabelled.slice(0, 6).map((item) => (
+              <li key={item.assetId}>
+                <SmallThumb item={item} />
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {canLabelNow ? (
+              <LinkButton
+                variant="primary"
+                href={`${MATCH_LATER_HREF}?select=1`}
+              >
+                Label photos
+              </LinkButton>
+            ) : null}
+            {show !== "unlabelled" ? (
+              <Link
+                href="/staff/photos?show=unlabelled"
+                className="inline-flex min-h-12 items-center text-label text-accent-text underline-offset-4 focus-ring hover:underline"
+              >
+                See them all
+              </Link>
+            ) : null}
+          </div>
+        </section>
       ) : null}
 
       {inbox.length > 0 ? (
         <section aria-labelledby="needs-you" className="grid gap-2">
-          <h2
-            id="needs-you"
-            className="flex items-center gap-2 type-section-title text-ink"
-          >
-            {MY_PHOTOS_COPY.needsYou}
-            <span className="rounded-round bg-warn-bg px-2 text-label text-warn-fg tabular-nums">
-              {inbox.length}
-            </span>
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2
+              id="needs-you"
+              className="flex items-center gap-2 type-section-title text-ink"
+            >
+              {posting ? "Needs attention" : MY_PHOTOS_COPY.needsYou}
+              <span className="rounded-round bg-warn-bg px-2 text-label text-warn-fg tabular-nums">
+                {inbox.length}
+              </span>
+            </h2>
+            {!posting && canLabelMultiple ? (
+              <LinkButton
+                variant="secondary"
+                href={`${MATCH_LATER_HREF}?select=1`}
+              >
+                {MY_PHOTOS_COPY.labelMultiple}
+              </LinkButton>
+            ) : null}
+          </div>
           <ul className="grid divide-y divide-line overflow-hidden rounded-card bg-surface edge">
             {inbox.map(({ item, need }) => (
               <li
@@ -167,7 +253,9 @@ export function MyPhotos({
                       ? `${MY_PHOTOS_COPY.retake}${need.slot.reason ? `: ${need.slot.reason}` : ""}`
                       : need.kind === "no-slot"
                         ? MY_PHOTOS_COPY.noSlot
-                        : MY_PHOTOS_COPY.failed}
+                        : need.kind === "feedback"
+                          ? MY_PHOTOS_COPY.feedback
+                          : MY_PHOTOS_COPY.failed}
                   </span>
                 </span>
                 {need.kind === "retake" ? (
@@ -180,12 +268,28 @@ export function MyPhotos({
                     {MY_PHOTOS_COPY.retake}
                   </LinkButton>
                 ) : need.kind === "no-slot" ? (
+                  canLabelUpload(item, currentVenueId) ? (
+                    <LinkButton
+                      variant="secondary"
+                      href={labelPhotoHref(item.assetId)}
+                    >
+                      {LABEL_PHOTO}
+                    </LinkButton>
+                  ) : (
+                    <LinkButton
+                      variant="secondary"
+                      size="sm"
+                      href={photoHref(item.assetId)}
+                    >
+                      {MY_PHOTOS_COPY.viewPhoto}
+                    </LinkButton>
+                  )
+                ) : need.kind === "feedback" ? (
                   <LinkButton
                     variant="secondary"
-                    size="sm"
                     href={photoHref(item.assetId)}
                   >
-                    {MY_PHOTOS_COPY.choose}
+                    View feedback
                   </LinkButton>
                 ) : (
                   <Button
@@ -201,12 +305,17 @@ export function MyPhotos({
               </li>
             ))}
           </ul>
-          <NeedsAttention heading={MY_PHOTOS_COPY.needsYou} bare />
+          <NeedsAttention
+            heading={posting ? "Needs attention" : MY_PHOTOS_COPY.needsYou}
+            bare
+          />
         </section>
       ) : (
         // Labels the server kept but could not add are the only thing that
         // may need the person: the block brings its own Needs you heading.
-        <NeedsAttention heading={MY_PHOTOS_COPY.needsYou} />
+        <NeedsAttention
+          heading={posting ? "Needs attention" : MY_PHOTOS_COPY.needsYou}
+        />
       )}
 
       {sending > 0 ? (
@@ -238,7 +347,7 @@ export function MyPhotos({
                 { scroll: false }
               )
             }
-            options={PHOTO_SHOWS.map(({ key, label }) => ({
+            options={shows.map(({ key, label }) => ({
               value: key,
               label,
             }))}
@@ -296,12 +405,16 @@ const MARK_ICON: Record<Exclude<PhotoMark, "none">, React.ElementType> = {
   "needs-you": ExclamationMarkIcon,
   waiting: ClockIcon,
   "in-album": CheckIcon,
+  posted: CheckIcon,
+  removed: MinusCircleIcon,
 }
 
 const MARK_TONE: Record<Exclude<PhotoMark, "none">, string> = {
   "needs-you": "bg-warn-bg text-warn-fg",
   waiting: "bg-info-bg text-info-fg",
   "in-album": "bg-ok-bg text-ok-fg",
+  posted: "bg-ok-bg text-ok-fg",
+  removed: "bg-warn-bg text-warn-fg",
 }
 
 /** One photo in the grid: the photo, its corner mark, a link to its page. */

@@ -10,7 +10,7 @@ import {
   previewRechecks,
 } from "@/components/nabalens/knowledge/copy"
 import { Notice } from "@/components/nabalens/notice"
-import { PageHeader } from "@/components/nabalens/page-header"
+import { VenueFactsHeader } from "@/app/admin/_components/admin-tabs"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { fieldControlVariants } from "@/components/ui/field-control"
 import { requireActiveAdmin } from "@/lib/auth"
@@ -20,7 +20,7 @@ import { getCoverageActor } from "@/lib/server/coverage"
 import type { MediaActor } from "@/lib/server/media/types"
 
 export const metadata: Metadata = {
-  title: "Check dates · Knowledge",
+  title: "Check dates · Venue facts",
 }
 
 const PATH = "/admin/knowledge/check-dates"
@@ -134,9 +134,9 @@ export default async function CheckDatesPreviewPage({
   const listed = policies?.ok ? policies.policies : []
 
   return (
-    <AppShell variant="admin" active="coverage" userName={profile.displayName}>
+    <AppShell variant="admin" active="settings" userName={profile.displayName}>
       <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
-        <PageHeader title={COPY.title} />
+        <VenueFactsHeader active="check-dates" />
         <Notice tone="plain" role="note">
           {COPY.intro}
         </Notice>

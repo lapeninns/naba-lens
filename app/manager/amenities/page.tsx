@@ -11,6 +11,9 @@ import { workServices } from "@/lib/work-client/services"
 
 export const metadata: Metadata = { title: "Amenities" }
 
+// Album › Amenities (redesign R4, ia.md). The shared screen draws the
+// Album title and the section's tabs.
+
 type Workspace = Awaited<ReturnType<typeof workspaceManagerContext>>
 
 /**

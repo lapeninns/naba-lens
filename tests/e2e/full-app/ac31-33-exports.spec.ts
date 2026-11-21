@@ -93,8 +93,9 @@ for (const [size, options] of SIZES) {
     const asset = await acceptedDish(w, "soup", "#7a9a4b")
 
     const mgr = await as(browser, w.mgrA, options)
-    await mgr.goto("/manager")
-    await mgr.locator('[data-slot="exports-row"] a').click()
+    // Exports is one of Venue's tabs (redesign R4, ia.md).
+    await mgr.goto("/manager/venue")
+    await mgr.getByRole("link", { name: "Exports", exact: true }).click()
     await expect(mgr).toHaveURL(/\/manager\/exports$/)
     const pkg = await makePackage(mgr, "/manager/exports", ["Soup"])
 

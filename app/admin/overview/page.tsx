@@ -16,6 +16,7 @@ import { getCoverageActor } from "@/lib/server/coverage"
 import { periodKeyOf } from "@/lib/server/coverage/time"
 import { loadOpsSettings, loadOpsStatus } from "@/lib/server/ops"
 
+import { AdminTabs } from "../_components/admin-tabs"
 import { ExceptionsPanel } from "../settings/ops-panel"
 import {
   OVERVIEW_COPY,
@@ -66,7 +67,9 @@ export default async function AdminOverviewPage({
             title={OVERVIEW_COPY.title}
             summary={<p>{OVERVIEW_COPY.summary}</p>}
             className="pb-0 md:pb-0"
-          />
+          >
+            <AdminTabs set="overview" active="by-venue" />
+          </PageHeader>
           <OfflineNotice />
         </div>
 

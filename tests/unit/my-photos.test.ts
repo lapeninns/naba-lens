@@ -85,6 +85,34 @@ describe("needsYou and photoMark (DESIGN.md §5e)", () => {
     expect(matchesShow(p, "waiting")).toBe(false)
     expect(matchesShow(photo("r", { uploadState: "failed" }), "all")).toBe(true)
   })
+
+  it("keeps private posting, optional labels and uploader feedback independent", () => {
+    const albumPost = {
+      removed: false,
+      needs_attention: false,
+      labelled: false,
+    }
+    const unlabelled = photo("new", { slots: [], albumPost })
+    expect(photoMark(unlabelled)).toBe("posted")
+    expect(needsYou(unlabelled)).toBeNull()
+    expect(matchesShow(unlabelled, "unlabelled")).toBe(true)
+    const labelled = photo("labelled", {
+      albumPost: { ...albumPost, labelled: true },
+    })
+    expect(photoMark(labelled)).toBe("posted")
+    expect(matchesShow(labelled, "unlabelled")).toBe(false)
+    const feedback = photo("feedback", {
+      albumPost: { ...albumPost, needs_attention: true },
+    })
+    expect(photoMark(feedback)).toBe("needs-you")
+    expect(matchesShow(feedback, "posted")).toBe(true)
+    const removed = photo("removed", {
+      albumPost: { ...albumPost, removed: true },
+    })
+    expect(photoMark(removed)).toBe("removed")
+    expect(matchesShow(removed, "posted")).toBe(false)
+    expect(matchesShow(removed, "unlabelled")).toBe(false)
+  })
 })
 
 describe("groupByDay and dayLabel", () => {

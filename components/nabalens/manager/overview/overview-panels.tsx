@@ -3,11 +3,14 @@ import {
   ArrowsClockwiseIcon,
   ImageSquareIcon,
   ImagesIcon,
+  PencilSimpleIcon,
+  ShieldCheckIcon,
   StorefrontIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
-import { Row } from "@/components/nabalens/common-room/row"
+import { HomeRow } from "@/components/nabalens/album/home-rows"
 import { MetaList } from "@/components/nabalens/meta-list"
+import { StatusChip } from "@/components/nabalens/status-chip"
 import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import type { ManagerVenueSummary } from "@/lib/manager/venue"
@@ -19,6 +22,7 @@ import type {
 } from "@/lib/manager/overview"
 import { plural } from "@/components/nabalens/coverage/copy"
 
+import { MANAGER_CARD } from "../surface"
 import { MenuMonthCheckControl } from "../venue/menu-month-check"
 
 /*
@@ -28,14 +32,21 @@ import { MenuMonthCheckControl } from "../venue/menu-month-check"
  * the venue's facts as a MetaList. Counts are in words before any bar.
  */
 
-const ICONS: Record<OverviewActionKey, React.ReactNode> = {
+/** A row of Needs you today: one of the four actions, or a job of its own. */
+export type NeedsRowKey = OverviewActionKey | "confirm" | "rechecks" | "labels"
+export type NeedsRow = Omit<OverviewAction, "key"> & { key: NeedsRowKey }
+
+const ICONS: Record<NeedsRowKey, React.ReactNode> = {
   review: <ImagesIcon aria-hidden />,
   venue: <StorefrontIcon aria-hidden />,
   request: <ImageSquareIcon aria-hidden />,
   outdated: <ArrowsClockwiseIcon aria-hidden />,
+  confirm: <ShieldCheckIcon aria-hidden />,
+  rechecks: <ArrowsClockwiseIcon aria-hidden />,
+  labels: <PencilSimpleIcon aria-hidden />,
 }
 
-const CARD = "grid gap-3 rounded-card bg-surface p-4 edge"
+const CARD = MANAGER_CARD
 
 /**
  * v2 ListRows grouped in one box with lines between (RowList's look), for
@@ -45,8 +56,16 @@ export const MANAGER_ROW_LIST =
   "grid min-w-0 divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card [&_[data-slot=cr-row]]:rounded-none [&_[data-slot=cr-row]]:shadow-none [&_[data-slot=cr-row]]:focus-visible:-outline-offset-3"
 
 export const OVERVIEW_PANELS_COPY = {
-  actionsTitle: "Do next",
-  reviewNext: (n: number) => `Review next · ${plural(n, "photo")} waiting`,
+  /** The Overview's one display heading (redesign R4, ia.md). */
+  actionsTitle: "Needs you today",
+  /** The one bottle button: the biggest job. */
+  reviewNext: (n: number) => `Review ${plural(n, "photo")}`,
+  confirmTitle: "Confirm amenity findings",
+  confirmLine: (n: number) => `${plural(n, "finding")} from staff to confirm`,
+  rechecksTitle: "Recheck amenities",
+  labelsTitle: "Label your own photos",
+  labelsLine: (n: number) =>
+    `${plural(n, "photo")} ${n === 1 ? "needs a label" : "need labels"}`,
   backlogTitle: "Collecting and reviewing",
   toCollect: "Still to collect",
   toCollectLine: "Slots nobody has sent a photo for yet.",
@@ -70,54 +89,91 @@ export const OVERVIEW_PANELS_COPY = {
   chooseReviewers: "Choose a backup reviewer",
 } as const
 
-/** Review next as the main button, then the four actions (spec §7 M1). */
+/**
+ * Needs you today (redesign R4, the handoff's Overview): one bottle button
+ * for the biggest job (Review N photos, with what is waiting under it), then
+ * every other job as a row that opens the place where the work is done. A
+ * finished job stays as a plain line with its Complete chip, so the manager
+ * can see it was checked. Nothing lives only here. `extra` adds the jobs of
+ * their own (findings to confirm, the account's own photos to label) after
+ * the four actions of spec §7 M1.
+ */
 export function OverviewActions({
   actions,
   pendingPhotos,
   reviewHref,
+  extra = [],
+  titleId,
 }: {
   actions: OverviewAction[]
   pendingPhotos: number | null
   reviewHref: string
+  extra?: NeedsRow[]
+  /** The page's h1, when the list is the page (the Overview). */
+  titleId?: string
 }) {
   const copy = OVERVIEW_PANELS_COPY
+  const main = pendingPhotos !== null && pendingPhotos > 0
+  const review = actions.find((a) => a.key === "review")
+  const rows: NeedsRow[] = [
+    ...actions.filter((a) => !(main && a.key === "review")),
+    ...extra,
+  ]
+  // Open jobs first, then the finished ones, each keeping its order.
+  const ordered = [
+    ...rows.filter((r) => r.waiting),
+    ...rows.filter((r) => !r.waiting),
+  ]
   return (
     <section
-      aria-labelledby="overview-actions"
+      aria-labelledby={titleId}
+      aria-label={titleId ? undefined : copy.actionsTitle}
       data-slot="overview-actions"
-      className="grid gap-3"
+      className="grid content-start gap-3"
     >
-      <h2 id="overview-actions" className="type-section-title text-ink">
-        {copy.actionsTitle}
-      </h2>
-      {pendingPhotos && pendingPhotos > 0 ? (
-        <Link
-          href={reviewHref}
-          data-slot="review-next"
-          className={buttonVariants({
-            variant: "primary",
-            className: "justify-self-start max-md:w-full",
-          })}
-        >
-          <ImagesIcon data-icon="inline-start" aria-hidden />
-          {copy.reviewNext(pendingPhotos)}
-        </Link>
+      {main ? (
+        <div className="grid gap-1">
+          <Link
+            href={reviewHref}
+            data-slot="review-next"
+            className={buttonVariants({
+              variant: "primary",
+              className: "justify-self-start max-md:w-full",
+            })}
+          >
+            <ImagesIcon data-icon="inline-start" aria-hidden />
+            {copy.reviewNext(pendingPhotos)}
+          </Link>
+          {review ? (
+            <p className="text-meta text-ink-muted">{review.line}</p>
+          ) : null}
+        </div>
       ) : null}
-      <ul className={MANAGER_ROW_LIST}>
-        {actions.map((action) => (
+      <ul className="grid gap-2">
+        {ordered.map((row) => (
           <li
-            key={action.key}
-            data-action={action.key}
-            data-waiting={action.waiting || undefined}
+            key={row.key}
+            data-action={row.key}
+            data-waiting={row.waiting || undefined}
             data-slot="overview-action"
           >
-            <Row
-              href={action.href}
-              icon={ICONS[action.key]}
-              tone={action.waiting ? "warn" : "neutral"}
-              title={action.title}
-              subtitle={action.line}
-            />
+            {row.waiting ? (
+              <HomeRow
+                href={row.href}
+                slot="overview-action-row"
+                icon={ICONS[row.key]}
+                title={row.title}
+                line={row.line}
+              />
+            ) : (
+              <div className="flex min-h-16 flex-wrap items-center gap-x-3 gap-y-1 rounded-card bg-surface px-4 py-3 edge">
+                <span className="grid min-w-0 flex-1">
+                  <span className="text-heading text-ink">{row.title}</span>
+                  <span className="text-body text-ink-muted">{row.line}</span>
+                </span>
+                <StatusChip state="complete" />
+              </div>
+            )}
           </li>
         ))}
       </ul>

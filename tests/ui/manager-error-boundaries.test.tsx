@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The workspace's segment error boundaries: each names the page and what
-// failed, keeps Try again (retry plus a server refresh), and detail pages keep
+// failed, keeps Retry (retry plus a server refresh), and detail pages keep
 // their way back.
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
@@ -13,6 +13,15 @@ vi.mock("next/navigation", () => ({
 }))
 
 import ManagerAccountError from "@/app/manager/account/error"
+import ManagerAlbumPlacesError from "@/app/manager/album/error"
+import ManagerExportsError from "@/app/manager/exports/error"
+import ManagerSpecialsError from "@/app/manager/menu/specials/error"
+import ManagerMenuVersionsError from "@/app/manager/menu/versions/error"
+import ManagerMetricsError from "@/app/manager/metrics/error"
+import ManagerTeamError from "@/app/manager/team/error"
+import ManagerUploadsError from "@/app/manager/uploads/error"
+import ManagerVenueFactsError from "@/app/manager/venue/facts/error"
+import ManagerHistoryError from "@/app/manager/venue/history/error"
 import ManagerError from "@/app/manager/error"
 import ManagerMenuItemError from "@/app/manager/menu/[itemId]/error"
 import ManagerMenuError from "@/app/manager/menu/error"
@@ -47,7 +56,7 @@ const CASES: [string, Boundary, string, string, [string, string] | null][] = [
     ManagerMenuItemError,
     "Menu item",
     "We couldn't load this menu item",
-    ["Go to Menu", "/manager/menu"],
+    ["Menu", "/manager/menu"],
   ],
   [
     "Account",
@@ -56,11 +65,63 @@ const CASES: [string, Boundary, string, string, [string, string] | null][] = [
     "We couldn't load your account",
     null,
   ],
+  // Redesign R4 (ia.md): each section's boundary names its own page.
+  [
+    "Exports",
+    ManagerExportsError,
+    "Venue",
+    "We couldn't load the export packages",
+    null,
+  ],
+  ["Team", ManagerTeamError, "Venue", "We couldn't load the team", null],
+  ["Progress", ManagerMetricsError, "Venue", "We couldn't load", null],
+  [
+    "History",
+    ManagerHistoryError,
+    "Venue",
+    "We couldn't load the venue's history",
+    null,
+  ],
+  [
+    "To confirm",
+    ManagerVenueFactsError,
+    "To confirm",
+    "We couldn't load what needs confirming",
+    ["Venue", "/manager/venue"],
+  ],
+  [
+    "Places and briefs",
+    ManagerAlbumPlacesError,
+    "Places and briefs",
+    "We couldn't load places and briefs",
+    ["Spaces", "/manager/amenities/places"],
+  ],
+  [
+    "Your photos",
+    ManagerUploadsError,
+    "Your photos",
+    "We couldn't load your photos",
+    ["Account", "/manager/account"],
+  ],
+  [
+    "Menus",
+    ManagerMenuVersionsError,
+    "Menus and change requests",
+    "We couldn't load the venue's menus",
+    ["Venue", "/manager/venue"],
+  ],
+  [
+    "Specials",
+    ManagerSpecialsError,
+    "Local specials",
+    "We couldn't load local specials",
+    ["Venue", "/manager/venue"],
+  ],
 ]
 
 describe("manager error boundaries", () => {
   it.each(CASES)(
-    "%s names its own content and offers Try again",
+    "%s names its own content and offers Retry (decision 11)",
     async (_, Boundary, heading, failed, back) => {
       const user = userEvent.setup()
       const retry = vi.fn()
@@ -75,7 +136,7 @@ describe("manager error boundaries", () => {
         "Check your connection and try again."
       )
 
-      await user.click(screen.getByRole("button", { name: "Try again" }))
+      await user.click(screen.getByRole("button", { name: "Retry" }))
       expect(retry).toHaveBeenCalledTimes(1)
       expect(nav.refresh).toHaveBeenCalledTimes(1)
 
@@ -90,14 +151,14 @@ describe("manager error boundaries", () => {
     }
   )
 
-  it("keeps focus on Try again while the boundary stays mounted", async () => {
+  it("keeps focus on Retry while the boundary stays mounted", async () => {
     const user = userEvent.setup()
     render(
       <main>
         <ManagerReviewError error={new Error("boom")} retry={vi.fn()} />
       </main>
     )
-    const button = screen.getByRole("button", { name: "Try again" })
+    const button = screen.getByRole("button", { name: "Retry" })
     await user.click(button)
     expect(document.activeElement).toBe(button)
   })
@@ -127,7 +188,7 @@ describe("manager error boundaries", () => {
           <Segment />
         </main>
       )
-      await user.click(screen.getByRole("button", { name: "Try again" }))
+      await user.click(screen.getByRole("button", { name: "Retry" }))
       // The skeleton has no heading: nothing takes focus yet.
       expect(screen.getByText("Loading photos for review")).toBeTruthy()
       act(() => settle())
@@ -163,7 +224,7 @@ describe("manager error boundaries", () => {
         </main>
       </>
     )
-    await user.click(screen.getByRole("button", { name: "Try again" }))
+    await user.click(screen.getByRole("button", { name: "Retry" }))
     const tab = screen.getByRole("button", { name: "Menu tab" })
     tab.focus()
     act(() => settle())

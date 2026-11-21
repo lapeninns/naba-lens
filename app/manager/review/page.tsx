@@ -9,6 +9,8 @@ import {
   ReviewBody,
   type ReviewSearch,
 } from "@/app/manager/review/_shared/review-page"
+import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
+import { ReviewCountTitle } from "@/components/nabalens/manager/review-count"
 import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
 import {
   AllView,
@@ -43,7 +45,7 @@ export const metadata = { title: "Review" }
 /**
  * Review: photos staff labelled with a menu item or a venue area at the
  * manager's venue. The bare page is Review in a thumb (DESIGN.md §6.5): one
- * waiting photo at a time, Accept or Ask again. Any filter (`?status=
+ * waiting photo at a time, Keep in the album or Ask for another photo. Any filter (`?status=
  * &section=&contributor=&item=`) or `?view=list` opens the full list, where
  * decisions update the list in place.
  */
@@ -119,7 +121,12 @@ export default async function ManagerReviewPage({
         <AlbumReviewBody
           ctx={scope.ctx}
           venueName={venue.name}
-          filter={filter}
+          filter={
+            <>
+              <ManagerTabs section="review" active="one" />
+              {filter}
+            </>
+          }
         />
       </div>
     )
@@ -132,10 +139,11 @@ export default async function ManagerReviewPage({
       <PageHeader
         scope={venue.name}
         venueScope
-        title={REVIEW_COPY.title}
+        title={<ReviewCountTitle fallback={REVIEW_COPY.title} />}
         summary={<p>{REVIEW_COPY.summary}</p>}
         className="pb-0 md:pb-0"
       />
+      <ManagerTabs section="review" active="list" />
       {filter}
       {kind === "photos" ? (
         <>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ChartBarIcon, ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr"
+import { ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { SelfReviewsControl } from "@/app/staff/manage/_shared/controls"
 import { ItemPhotoSelfReviewsControl } from "@/app/staff/manage/_shared/menu-items-controls"
@@ -8,8 +8,6 @@ import { unexpected } from "@/app/staff/manage/_shared/context"
 import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { EmptyState } from "@/components/nabalens/empty-state"
-import { METRICS_COPY } from "@/components/nabalens/metrics/copy"
-import { metricsHrefs } from "@/components/nabalens/metrics/hrefs"
 import { ITEM_SELF_REVIEWS_COPY } from "@/components/nabalens/menu-photos/item-photo-self-reviews"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 import { Notice } from "@/components/nabalens/notice"
@@ -34,12 +32,13 @@ import {
 import type { GroupOverviewRow } from "@/lib/server/coverage/types"
 import type { MediaActor } from "@/lib/server/media/types"
 
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../../_components/admin-tabs"
 import {
   COVERAGE_COPY,
   PREPARATION_COPY,
   SELF_REVIEWS_COPY,
   monthName,
-} from "./coverage-copy"
+} from "../coverage-copy"
 import {
   MonthNav,
   SectionHead,
@@ -47,14 +46,14 @@ import {
   Tallies,
   VenueList,
   type VenueMenus,
-} from "./coverage-sections"
-import { buildPreparation, loadPeriodRuns, runsSince } from "./preparation"
-import { PreparationSection } from "./preparation-section"
+} from "../coverage-sections"
+import { buildPreparation, loadPeriodRuns, runsSince } from "../preparation"
+import { PreparationSection } from "../preparation-section"
 import {
   PrepareButton,
   PrepareProvider,
   PrepareStatus,
-} from "./prepare-control"
+} from "../prepare-control"
 
 export const metadata: Metadata = { title: "Coverage" }
 
@@ -156,7 +155,7 @@ export default async function CoverageOverviewPage({
     <PageHeader
       venueScope
       scope={[COVERAGE_COPY.allVenues, overview.period.label]}
-      title={COVERAGE_COPY.title}
+      title={ADMIN_SECTION_TITLES.overview}
       summary={
         venues.length === 0 ? undefined : (
           <p>
@@ -178,23 +177,19 @@ export default async function CoverageOverviewPage({
               <ShieldCheckIcon aria-hidden />
               {COVERAGE_COPY.venueManagers}
             </Link>
-            <Link
-              href={metricsHrefs.admin()}
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              <ChartBarIcon aria-hidden />
-              {METRICS_COPY.entry}
-            </Link>
             {needsPreparing ? <PrepareButton primary /> : null}
           </>
         )
       }
       className="pb-0 md:pb-0"
-    />
+    >
+      {/* Metrics is a sibling tab now, not a button (redesign R5). */}
+      <AdminTabs set="overview" active="this-month" />
+    </PageHeader>
   )
 
   return (
-    <AppShell variant="admin" active="coverage" userName={profile.displayName}>
+    <AppShell variant="admin" active="overview" userName={profile.displayName}>
       <PrepareProvider
         month={month}
         venues={[...model.unprepared, ...model.unfinished].map(

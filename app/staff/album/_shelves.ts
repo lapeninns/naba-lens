@@ -1,5 +1,9 @@
 import { ALBUM_MOCK_PHOTOS, withMockPhotos } from "@/lib/album/mock-photos"
 import { buildShelves, type PlaceLens } from "@/lib/album/shelves"
+import {
+  STAFF_ALBUM_POSTS,
+  staffPostImage,
+} from "@/lib/config/staff-album-posts"
 import { albumShelvesOrNone, loadAlbum } from "@/lib/server/album"
 import type { MediaActor } from "@/lib/server/media/types"
 import type { LensPlace } from "@/components/nabalens/album/album-lens"
@@ -16,9 +20,10 @@ export async function loadShelves(
   actor: MediaActor,
   params: Record<string, string | string[] | undefined>
 ) {
-  const [album, chosen] = await Promise.all([
+  const [album, chosen, covers] = await Promise.all([
     loadAlbum(actor),
     albumShelvesOrNone(actor),
+    STAFF_ALBUM_POSTS ? actor.db.rpc("staff_album_folder_covers") : null,
   ])
   if (!album.ok) return album
   // Dev-only preview of a fuller album (lib/album/mock-photos.ts).
@@ -27,6 +32,39 @@ export async function loadShelves(
     ...album.album.places,
     ...(album.album.unplaced ? [album.album.unplaced] : []),
   ]
+  if (covers?.data) {
+    const bySlot = new Map(
+      covers.data.map((cover) => [
+        `${cover.kind}:${cover.slot_id}`,
+        cover.asset_id,
+      ])
+    )
+    for (const place of all)
+      for (const group of place.groups)
+        for (const slot of group.slots) {
+          if (slot.target.kind === "amenity") continue
+          const assetId = bySlot.get(slot.id)
+          slot.albumPostThumb = assetId
+            ? staffPostImage(assetId, "thumb")
+            : null
+          // The staff shelf counts posted photos as complete. The coverage
+          // read still tracks website and marketing decisions separately.
+          slot.pendingCount = 0
+          if (slot.albumPostThumb) {
+            slot.state = "accepted"
+            slot.thumbnailUrl = slot.albumPostThumb
+            slot.needsUpdate = false
+          } else if (
+            slot.state === "waiting" ||
+            slot.state === "accepted" ||
+            slot.state === "check-due"
+          ) {
+            slot.state = "needed"
+            slot.thumbnailUrl = null
+            slot.needsUpdate = false
+          }
+        }
+  }
   const places: LensPlace[] = all.map((p) => ({
     id: p.subjectId ?? "unplaced",
     label: p.label,

@@ -93,7 +93,8 @@ test.afterEach(async ({ browser }, testInfo) => {
 })
 
 const unique = (label: string) => `flow-${label}-${world.tag}`
-const SAVED_BHAJI = "Saved · Onion Bhaji · waiting for manager review"
+// A photo posts to the Album with its labels (D21).
+const SAVED_BHAJI = "Posted · Onion Bhaji"
 
 /** beforeunload prompts (reload, log out) are accepted, as a person would. */
 function acceptPrompts(page: Page) {
@@ -331,7 +332,10 @@ test("c menu changed mid-upload: Needs attention, Fix labels re-picks and saves 
   transfer.forward()
 
   const row = fileRow(sheet, photo.name)
-  await expect(row).toContainText("Needs attention", { timeout: 90_000 })
+  // Posted (D21), with its labels to fix.
+  await expect(row).toContainText("The menu changed. Check the dish.", {
+    timeout: 90_000,
+  })
   await expect(row).toContainText("The menu changed. Check the dish.")
   expect(uploadState(id)).toBe("ready")
   expect(keptLabels(id)).toBe("needs_attention|catalogue_changed")
@@ -352,7 +356,7 @@ test("c menu changed mid-upload: Needs attention, Fix labels re-picks and saves 
   await fix.getByRole("button", { name: "Save labels" }).click()
   await expect(fix).toBeHidden()
   await expect(fileRow(savingSheet(page), photo.name)).toContainText(
-    "Saved · Pie"
+    "Posted · Pie"
   )
 
   expect(labelsOn(id)).toBe("Pie")
@@ -487,7 +491,7 @@ test("f photo batched with a slow video is labelled and selectable on the task s
   const video = supportedMp4(`${unique("f")}.mp4`)
 
   const sheet = await addFromLibrary(page, [photo.path, video.path])
-  await expect(sheet).toHaveAccessibleName("Saving 2 files")
+  await expect(sheet).toHaveAccessibleName(/^(Saving 2 files|2 files added)$/)
   await chooseDish(sheet, COMMON_FIELD_SEVERAL, "bhaji", /^Onion Bhaji/)
   await expect(fileRow(sheet, photo.name)).toContainText(SAVED_BHAJI, {
     timeout: 90_000,

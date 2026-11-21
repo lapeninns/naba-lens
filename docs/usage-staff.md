@@ -182,9 +182,11 @@ left**, or **Just this one**. Nothing is grouped unless you ask.
 
 - **I'm not sure**: **Your manager will choose the slot.** Use it when you
   can't tell which dish or place it is. You don't need to guess.
-- **Match later**: keeps the photo with you, without a slot. It waits on
-  Album under **Match later**, where you match each one or say it is **Not
-  for a slot**. A photo left there for 7 days also goes to your manager, who
+- **Match later**: sends the photo without a slot. In **My photos**, use
+  **Label photo** for one photo or **Label photos** to select several and
+  give them the same label. You can also open **Match later** from Album.
+  Labelled photos appear in their dish or space in Album under **Your photos**
+  while they wait for review. A photo left there for 7 days also goes to your manager, who
   can choose its slot.
 - **Not for a slot**: the photo is shared with the team with no slot. Match
   asks **What does it show?**.
@@ -270,8 +272,7 @@ went to when that is not your current one, and the outcome:
 | **Not used**           | Your manager decided not to use it.                         |
 | **Withdrawn**          | You took it back before it was checked.                     |
 
-A photo with no slot reads **No slot yet** (match it from Album, under Match
-later) or, after **I'm not sure**, **With your manager, who will choose its
+A photo with no slot reads **No slot yet** (choose **Label photo** to match it) or, after **I'm not sure**, **With your manager, who will choose its
 slot.** A photo sent twice reads **Already sent before: it doesn't count
 twice**.
 
@@ -283,7 +284,6 @@ What you can do from a photo:
   venue says to switch to that venue first.
 - **Withdraw**: only before it has been checked. **Withdraw this photo?** says
   it leaves the album, your manager won't check it, and this can't be undone.
-- **Fix date taken**: **When was it taken?** in UK time, or **I don't know**.
 - **Ask for a correction**: once it has been checked, if it's matched to the
   wrong slot or the date is wrong. Your manager checks it; the photo stays as
   it is until then.

@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { AppShell } from "@/components/nabalens/app-shell"
+import { BackLink } from "@/components/nabalens/back-link"
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { requireActiveAdmin } from "@/lib/auth"
@@ -36,18 +37,27 @@ export default async function LibraryRemovePage({
   return (
     <AppShell variant="admin" active="content" userName={profile.displayName}>
       <div className="flex flex-col gap-6">
-        <PageHeader
-          venueScope={detail.ok}
-          scope={detail.ok ? detail.value.asset.venueName : "Library"}
-          title="Remove permanently"
-          summary={
-            <p>
-              Removing deletes the stored files. The record, who took it, the
-              reason and its history are kept. It can&apos;t be undone.
-            </p>
-          }
-          className="pb-0 md:pb-0"
-        />
+        {/* Library, detail page: back to the photo (redesign R5, ia.md). */}
+        <div className="grid min-w-0 gap-1">
+          <BackLink
+            href={`/admin/library/${encodeURIComponent(assetId)}`}
+            compact
+          >
+            Photo details
+          </BackLink>
+          <PageHeader
+            venueScope={detail.ok}
+            scope={detail.ok ? detail.value.asset.venueName : "Library"}
+            title="Remove permanently"
+            summary={
+              <p>
+                Removing deletes the stored files. The record, who took it, the
+                reason and its history are kept. It can&apos;t be undone.
+              </p>
+            }
+            className="pb-0 md:pb-0"
+          />
+        </div>
         {impact.ok ? (
           <RemovalForm assetId={assetId} impact={impact.impact} />
         ) : (

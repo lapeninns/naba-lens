@@ -243,7 +243,8 @@ test("AC26: marking a dish sold out keeps its photo requirement and its history"
   // Back on: unchanged requirement, no longer flagged.
   await mgr.goto(`/manager/menu/${w.itemsA.soup}`)
   await mgr.getByRole("button", { name: "Back on the menu" }).click()
-  await expect(mgr.getByText("On the menu today.")).toBeVisible()
+  // Said in the availability card and in the save's status line.
+  await expect(mgr.getByText("On the menu today.").first()).toBeVisible()
   expect(slot(w.venueA.id, w.itemsA.soup)).toBe("covered:true:false")
 })
 

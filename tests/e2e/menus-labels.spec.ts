@@ -25,6 +25,7 @@ import {
   openPhotoPage,
 } from "./helpers/s3-upload"
 import {
+  closeSheet,
   chooseOption,
   escape,
   libraryList,
@@ -363,7 +364,7 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
       .toBe(`${photo.name}:2:1:${note}|${video.name}:1:2:${videoNote}`)
     finalise.release()
     // A row shows "Saved" only once its labels are on the file.
-    await expect(editor.getByRole("status")).toHaveText("2 saved", {
+    await expect(editor.getByRole("status")).toHaveText("1 posted · 1 saved", {
       timeout: 90_000,
     })
     await finalise.stop()
@@ -373,7 +374,7 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
         .getByRole("listitem")
         .filter({ has: staff.getByText(name, { exact: true }) })
     await expect(savedRow(photo.name)).toContainText(
-      /Saved · .*Momo \(Chicken\).* · waiting for manager review/
+      /Posted · .*Momo \(Chicken\)/
     )
     // Managers review photos only: the video keeps its dish, not the promise.
     await expect(savedRow(video.name)).toContainText(
@@ -382,8 +383,7 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
     await expect(savedRow(video.name)).not.toContainText(
       "waiting for manager review"
     )
-    await editor.getByRole("button", { name: "Done" }).click()
-    await expect(editor).toBeHidden()
+    await closeSheet(editor)
   })
 
   await test.step("reload: both files keep exactly what was saved", async () => {
@@ -449,13 +449,12 @@ test("row 6: skip labelling at upload; the asset is in the admin library either 
       name: "What's in these photos? (optional)",
     })
   ).toBeVisible()
-  await expect(upload.getByRole("status")).toHaveText("1 saved")
-  await upload.getByRole("button", { name: "Done" }).click()
-  await expect(upload).toBeHidden()
+  await expect(upload.getByRole("status")).toHaveText("1 posted")
+  await closeSheet(upload)
 
-  // With no label it has no slot yet: My photos asks which dish it is.
+  // With no label it is posted unlabelled (D21): My photos says so.
   await expect(await myPhotoTile(staff, photo.name)).toHaveAccessibleName(
-    "No slot yet, Needs you"
+    "Unlabelled photo, Posted"
   )
   await admin.goto("/admin")
   await expect(
@@ -493,11 +492,10 @@ test("row 8: a missing-item suggestion from the Add sheet reaches the admin", as
         { timeout: 60_000 }
       )
       .toBe("1")
-    await expect(sheet.getByRole("status")).toHaveText("1 saved", {
+    await expect(sheet.getByRole("status")).toHaveText("1 posted", {
       timeout: 60_000,
     })
-    await sheet.getByRole("button", { name: "Done" }).click()
-    await expect(sheet).toBeHidden()
+    await closeSheet(sheet)
   })
 
   await test.step("admin sees it on the venue's Menus page and links it to an item", async () => {
@@ -909,9 +907,8 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
         { timeout: 30_000 }
       )
       .toBe("team")
-    await expect(sheet.getByRole("status")).toHaveText("1 saved")
-    await sheet.getByRole("button", { name: "Done" }).click()
-    await expect(sheet).toBeHidden()
+    await expect(sheet.getByRole("status")).toHaveText("1 posted")
+    await closeSheet(sheet)
     await admin.goto(`/admin?content=team&venue=${v1}`)
     await library
       .getByRole("button", { name: tileName("Photo", photo.name) })

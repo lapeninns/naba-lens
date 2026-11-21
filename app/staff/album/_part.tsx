@@ -16,6 +16,7 @@ import {
   type AlbumPartKey,
 } from "@/lib/album/shelves"
 import type { MediaActor } from "@/lib/server/media/types"
+import { STAFF_ALBUM_POSTS } from "@/lib/config/staff-album-posts"
 
 import { ADD_BLOCKED } from "../add-blocked"
 import { loadShelves } from "./_shelves"
@@ -72,6 +73,7 @@ export async function partBody(
   // The folders have no Show of their own.
   const opensOn =
     first(query.shelf) || key === "spaces" ? "all" : defaultShow(type ?? part)
+  const posting = STAFF_ALBUM_POSTS && key !== "amenities"
   return (
     <>
       <OfflineNotice className="mb-3" />
@@ -79,8 +81,13 @@ export async function partBody(
         part={part}
         type={type}
         shelfKey={first(query.shelf) ?? null}
-        show={isAlbumShow(asked) ? asked : opensOn}
+        show={
+          isAlbumShow(asked) && (!posting || asked !== "waiting")
+            ? asked
+            : opensOn
+        }
         defaultShow={opensOn}
+        posting={posting}
         lens={shelves.lens}
         places={shelves.places}
         canAdd={blocked === null}

@@ -4,7 +4,6 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowUUpLeftIcon,
-  CalendarBlankIcon,
   FilmStripIcon,
   ImageIcon,
   MegaphoneSimpleIcon,
@@ -50,14 +49,14 @@ import {
 } from "@/components/ui/dialog"
 import { FormField } from "@/components/ui/field"
 import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
-import { Input } from "@/components/ui/input"
 import { LinkButton } from "@/components/ui/link-button"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  canLabelUpload,
   datesLine,
   groupUploads,
-  isoToLondonLocal,
-  londonLocalToIso,
+  LABEL_PHOTO,
+  labelPhotoHref,
   OUTCOME_CHIP,
   receiptWord,
   slotPageHref,
@@ -77,8 +76,8 @@ import { REPORT_COPY } from "@/lib/staff/slot-reports"
  * outcome in staff words (FA-7) with the reviewer's reason, the venue it
  * went to when that is not the current one, and when it was sent and taken.
  * Actions follow the state: Retake opens the slot with the reason (AC17),
- * Change slot and Withdraw while it waits (version-checked; FA-21), Fix the
- * date, Ask for a correction and Ask to remove once it has been checked.
+ * Label photo if it has no slot, Change slot and Withdraw while it waits
+ * (FA-21), and Ask for a correction or removal once it has been checked.
  * Every answer is written beside the row (DESIGN.md §6.7: no toasts).
  */
 
@@ -103,10 +102,6 @@ export type MyUploadsActions = {
       }
     | { ok: false; message: string }
   >
-  setCapturedAt: (
-    assetId: string,
-    capturedAt: string | null
-  ) => Promise<Reply<{ capturedAt: string | null }>>
   requestRemoval: (assetId: string, reason: string) => Promise<Reply>
   report: ReportSender
 }
@@ -122,7 +117,8 @@ export const MY_UPLOADS_COPY = {
   loadMore: "Show older photos",
   detailGone: "This photo is no longer listed. It may have been withdrawn.",
   noSlot: "No slot yet",
-  noSlotHint: "Match it to a slot from Album, under Match later.",
+  labelAtVenue: (venue: string) =>
+    `To label this photo, switch to ${venue} first.`,
   // E4: "I'm not sure" sends it to the manager, never to Match later.
   labelHelpHint: "With your manager, who will choose its slot.",
   // V13: Change slot offers the current venue's slots only.
@@ -141,7 +137,6 @@ export const MY_UPLOADS_COPY = {
   retake: "Retake",
   changeSlot: "Change slot",
   withdraw: "Withdraw",
-  fixDate: "Fix date taken",
   correction: REPORT_COPY.photoTitle,
   removal: "Ask to remove",
   removalAsked: "Removal asked for",
@@ -151,12 +146,6 @@ export const MY_UPLOADS_COPY = {
   withdrawn: "Withdrawn.",
   changed: "Slot changed. It waits for a manager under its new slot.",
   changeTitle: "Change slot",
-  dateTitle: "When was it taken?",
-  dateLabel: "Date and time taken",
-  dateHint: "In UK time. Leave it empty if you don't know.",
-  dateUnknown: "I don't know",
-  dateSaved: "Date taken saved.",
-  save: "Save",
   removalTitle: "Ask an admin to remove this photo",
   removalBody:
     "It has been checked, so it is kept. An admin decides, and tells you here if they can't remove it.",
@@ -281,7 +270,6 @@ function LargePhoto({ item }: { item: MyUpload }) {
 type Open =
   | { kind: "withdraw"; item: MyUpload }
   | { kind: "change"; item: MyUpload }
-  | { kind: "date"; item: MyUpload }
   | { kind: "removal"; item: MyUpload }
   | { kind: "correction"; item: MyUpload }
   | null
@@ -561,21 +549,6 @@ export function MyUploads({
         />
       ) : null}
 
-      {open?.kind === "date" ? (
-        <CapturedAtDialog
-          item={open.item}
-          onClose={() => setOpen(null)}
-          save={async (value) => {
-            const result = await actions.setCapturedAt(open.item.assetId, value)
-            if (result.ok) {
-              note(open.item.assetId, MY_UPLOADS_COPY.dateSaved)
-              router.refresh()
-            }
-            return result.ok ? null : result.error
-          }}
-        />
-      ) : null}
-
       {open?.kind === "removal" ? (
         <RemovalDialog
           onClose={() => setOpen(null)}
@@ -639,13 +612,16 @@ function UploadRow({
   onOpen: (open: Open) => void
 }) {
   const can = uploadActions(item, currentVenueId)
+  const canLabel = canLabelUpload(item, currentVenueId)
   // V13: it could change slot, but only from the venue it was sent to.
   const otherVenue =
     !can.changeSlot && uploadActions(item).changeSlot && item.venueName
       ? item.venueName
       : null
-  const title =
-    item.slots.length > 0
+  const title = item.albumPost?.labels
+    ? item.albumPost.labels.map(({ name }) => name).join(", ") ||
+      "Unlabelled photo"
+    : item.slots.length > 0
       ? item.slots.map((s) => s.name).join(", ")
       : item.sharedKinds.length > 0
         ? MY_UPLOADS_COPY.shared(item.sharedKinds)
@@ -681,11 +657,35 @@ function UploadRow({
             {receiptWord(item)}
           </StatusChip>
         ) : null}
-        {item.slots.length > 0 ? (
+        {item.albumPost &&
+        !item.albumPost.removed &&
+        detail &&
+        item.venueId === currentVenueId ? (
+          <div className="flex flex-wrap gap-1.5">
+            {item.albumPost.labels?.map(({ kind, id, name }) => (
+              <LinkButton
+                key={`${kind}:${id}`}
+                variant="quiet"
+                href={slotPageHref({ kind, slotId: id })}
+              >
+                Open {name} in Album
+              </LinkButton>
+            ))}
+          </div>
+        ) : null}
+        {!item.albumPost && item.slots.length > 0 ? (
           <ul className="flex flex-wrap gap-1.5">
             {item.slots.map((s) => (
-              <li key={`${s.kind}:${s.slotId}`}>
+              <li
+                key={`${s.kind}:${s.slotId}`}
+                className="flex flex-wrap items-center gap-2"
+              >
                 <StatusChip state={OUTCOME_CHIP[s.outcome]} />
+                {detail && item.venueId === currentVenueId ? (
+                  <LinkButton variant="quiet" href={slotPageHref(s)}>
+                    Open {s.name} in Album
+                  </LinkButton>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -703,11 +703,13 @@ function UploadRow({
               {s.reason}
             </p>
           ))}
-        {unmatched(item) ? (
+        {unmatched(item) && !canLabel && !item.albumPost ? (
           <p className="text-meta text-ink-muted" data-slot="my-upload-no-slot">
             {item.labelHelp
               ? MY_UPLOADS_COPY.labelHelpHint
-              : MY_UPLOADS_COPY.noSlotHint}
+              : item.venueName
+                ? MY_UPLOADS_COPY.labelAtVenue(item.venueName)
+                : null}
           </p>
         ) : null}
         {otherVenue ? (
@@ -761,7 +763,19 @@ function UploadRow({
               {MY_UPLOADS_COPY.retake}
             </LinkButton>
           ) : null}
-          {can.changeSlot ? (
+          {canLabel ? (
+            <LinkButton
+              variant="secondary"
+              size="sm"
+              href={labelPhotoHref(item.assetId)}
+            >
+              <PencilSimpleIcon data-icon="inline-start" aria-hidden />
+              {LABEL_PHOTO}
+            </LinkButton>
+          ) : null}
+          {can.changeSlot &&
+          !item.albumPost?.managerLabelled &&
+          !item.albumPost?.removed ? (
             <Button
               variant="secondary"
               size="sm"
@@ -769,16 +783,6 @@ function UploadRow({
             >
               <PencilSimpleIcon data-icon="inline-start" aria-hidden />
               {MY_UPLOADS_COPY.changeSlot}
-            </Button>
-          ) : null}
-          {can.fixDate ? (
-            <Button
-              variant="quiet"
-              size="sm"
-              onClick={() => onOpen({ kind: "date", item })}
-            >
-              <CalendarBlankIcon data-icon="inline-start" aria-hidden />
-              {MY_UPLOADS_COPY.fixDate}
             </Button>
           ) : null}
           {can.correction && !correctionAsked ? (
@@ -894,81 +898,6 @@ function ChangeSlotDialog({
           onMatch={(slot) => void choose(slot.target)}
           onShared={(kind) => void choose({ kind: "shared", sharedKind: kind })}
         />
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function CapturedAtDialog({
-  item,
-  onClose,
-  save,
-}: {
-  item: MyUpload
-  onClose: () => void
-  save: (value: string | null) => Promise<string | null>
-}) {
-  const [value, setValue] = React.useState(isoToLondonLocal(item.capturedAt))
-  const [error, setError] = React.useState<string | null>(null)
-  const [pending, setPending] = React.useState(false)
-  const submit = async (unknown: boolean) => {
-    const iso = unknown || !value ? null : londonLocalToIso(value)
-    if (!unknown && value && !iso) {
-      setError("Give a date and time.")
-      return
-    }
-    setPending(true)
-    setError(null)
-    try {
-      const problem = await save(iso)
-      if (problem) setError(problem)
-      else onClose()
-    } catch {
-      setError(REPORT_COPY.failed)
-    } finally {
-      setPending(false)
-    }
-  }
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent size="sm">
-        <form
-          noValidate
-          className="grid gap-4"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void submit(false)
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>{MY_UPLOADS_COPY.dateTitle}</DialogTitle>
-          </DialogHeader>
-          <FormField
-            label={MY_UPLOADS_COPY.dateLabel}
-            description={MY_UPLOADS_COPY.dateHint}
-            optional
-            error={error}
-          >
-            <Input
-              type="datetime-local"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-            />
-          </FormField>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={pending}
-              onClick={() => void submit(true)}
-            >
-              {MY_UPLOADS_COPY.dateUnknown}
-            </Button>
-            <Button type="submit" variant="primary" loading={pending}>
-              {MY_UPLOADS_COPY.save}
-            </Button>
-          </DialogFooter>
-        </form>
       </DialogContent>
     </Dialog>
   )

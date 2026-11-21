@@ -13,6 +13,7 @@ import {
   RECONCILE_COPY as COPY,
 } from "@/components/nabalens/knowledge/reconcile-copy"
 import { Notice } from "@/components/nabalens/notice"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
@@ -21,7 +22,7 @@ import { getCoverageActor } from "@/lib/server/coverage"
 
 import { adminVenues } from "../../admin-venues"
 
-export const metadata: Metadata = { title: "Run · Knowledge" }
+export const metadata: Metadata = { title: "Import · Venue facts" }
 
 const RUNS = "/admin/knowledge/runs"
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -62,16 +63,12 @@ export default async function RunPage({
   const fresh = run !== null && freshDryRun(run)
 
   return (
-    <AppShell variant="admin" active="coverage" userName={profile.displayName}>
+    <AppShell variant="admin" active="settings" userName={profile.displayName}>
       <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
-        <div>
-          <Link
-            href={RUNS}
-            className={buttonVariants({ variant: "row-link", size: "sm" })}
-          >
-            {COPY.runs}
-          </Link>
-        </div>
+        {/* Settings › Venue facts › Imports, detail page (redesign R5). */}
+        <BackLink href={RUNS} compact>
+          {COPY.runs}
+        </BackLink>
         {!run ? (
           <>
             <PageHeader title={COPY.runsTitle} />

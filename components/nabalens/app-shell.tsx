@@ -28,14 +28,20 @@ import { TabBadge } from "./shell/tab-badge"
 import { TAB_ITEM } from "./shell/tab-item"
 import { CountBadge } from "./status-chip"
 
-type AdminSection =
+/**
+ * The admin nav section a page lights (redesign R5, ia.md "Admin"). Overview
+ * is all venues at once (/admin/overview, albums, coverage, metrics); Venues
+ * is one venue at a time (/admin/venues/** and every
+ * /admin/coverage/[venueId]/** page); People holds /admin/coverage/managers;
+ * Settings holds /admin/activity and /admin/knowledge/**. Each page passes
+ * its section itself, so there is no alias to keep in step.
+ */
+export type AdminSection =
   | "overview"
   | "venues"
   | "content"
   | "staff"
   | "menus"
-  | "coverage"
-  | "albums"
   | "publishing"
   | "settings"
   | "more"
@@ -118,14 +124,16 @@ export type AdminNavItem = NavItem<AdminSection> & {
  * Spec §8: Overview / Venues / Menus & catalog / Library / Publishing /
  * People / Settings & activity. The bar shows the short label (the spec's
  * names don't fit beside Log out within max-w-page; departures.md A-ADMIN-1).
- * Coverage and Albums are reached from Overview, which they light up.
+ * Albums, This month and Metrics are Overview's tabs, Venue managers is a
+ * People tab, and Activity and Venue facts are Settings tabs (redesign R5,
+ * ia.md; app/admin/_components/admin-tabs.tsx).
  */
 export const ADMIN_NAV: AdminNavItem[] = [
   {
     id: "overview",
     label: "Overview",
     fullLabel: "Overview",
-    description: "Every venue's coverage, facts, backlog and exceptions.",
+    description: "Every venue at once: albums, this month and metrics.",
     href: "/admin/overview",
     icon: ChartBarIcon,
   },
@@ -133,7 +141,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     id: "venues",
     label: "Venues",
     fullLabel: "Venues",
-    description: "Names, locations, status, reviewers and setup.",
+    description: "One venue at a time: coverage, review, album and setup.",
     href: "/admin/venues",
     icon: StorefrontIcon,
   },
@@ -166,7 +174,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     id: "staff",
     label: "People",
     fullLabel: "People",
-    description: "Invite people, venue roles, admins and access.",
+    description: "Accounts, venue managers, admins and access.",
     href: "/admin/staff",
     icon: UsersIcon,
   },
@@ -175,17 +183,11 @@ export const ADMIN_NAV: AdminNavItem[] = [
     id: "settings",
     label: "Settings",
     fullLabel: "Settings & activity",
-    description: "Rules for every venue, monitoring and the activity log.",
+    description: "Rules for every venue, the activity log and venue facts.",
     href: "/admin/settings",
     icon: GearSixIcon,
   },
 ]
-
-/** Sections without their own nav item light up the one they belong to. */
-const ADMIN_ACTIVE_ALIAS: Partial<Record<AdminSection, AdminSection>> = {
-  coverage: "overview",
-  albums: "overview",
-}
 
 /** The phone and tablet tab bar: three sections and More (all of them). */
 const ADMIN_TABS: AdminSection[] = ["overview", "venues", "content"]
@@ -199,15 +201,23 @@ const ADMIN_MORE: NavItem<AdminSection> = {
 const ME: NavItem<StaffSection> = {
   id: "portfolio",
   label: "Me",
-  href: "/staff",
+  href: STAFF_PHOTO_ROUTES.me,
   icon: UserCircleIcon,
 }
-/** Album is the staff Home (DESIGN.md §5a). */
 const ALBUM: NavItem<StaffSection> = {
   id: "tasks",
   label: "Album",
-  href: "/staff/tasks",
+  href: STAFF_PHOTO_ROUTES.album,
   icon: ImagesSquareIcon,
+}
+/**
+ * Pages reached from Me (Photos, People) light the Me tab, and Our menu
+ * lights Album, so a tab is always lit (redesign audit, R1).
+ */
+const STAFF_ACTIVE_ALIAS: Partial<Record<StaffSection, StaffSection>> = {
+  community: "portfolio",
+  people: "portfolio",
+  menu: "tasks",
 }
 const PHONE_TABS: ReadonlyArray<NavItem<StaffSection>> = [
   {
@@ -291,8 +301,10 @@ export function AppShell(props: AppShellProps) {
           count: item.id === "manage" ? staff?.reviewCount : undefined,
         }))
   const active = admin
-    ? (ADMIN_ACTIVE_ALIAS[admin.active] ?? admin.active)
-    : (staff?.active ?? "portfolio")
+    ? admin.active
+    : (STAFF_ACTIVE_ALIAS[staff?.active ?? "portfolio"] ??
+      staff?.active ??
+      "portfolio")
   const navLabel = admin ? "Admin" : "Staff"
   const phoneSection = photoNav
     ? PHONE_TABS.find((item) => item.id === active)

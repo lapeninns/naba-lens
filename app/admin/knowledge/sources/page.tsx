@@ -21,7 +21,7 @@ import {
   SOURCE_KIND_LABEL,
 } from "@/components/nabalens/knowledge/reconcile-copy"
 import { Notice } from "@/components/nabalens/notice"
-import { PageHeader } from "@/components/nabalens/page-header"
+import { VenueFactsHeader } from "@/app/admin/_components/admin-tabs"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
@@ -30,7 +30,7 @@ import { getCoverageActor } from "@/lib/server/coverage"
 import { adminVenues } from "../admin-venues"
 
 export const metadata: Metadata = {
-  title: "Sources and mappings · Knowledge",
+  title: "Sources and mappings · Venue facts",
 }
 
 const PATH = "/admin/knowledge/sources"
@@ -71,9 +71,9 @@ export default async function SourcesPage({
     : []
 
   return (
-    <AppShell variant="admin" active="coverage" userName={profile.displayName}>
+    <AppShell variant="admin" active="settings" userName={profile.displayName}>
       <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
-        <PageHeader title={COPY.sourcesTitle} />
+        <VenueFactsHeader active="sources" />
 
         <CoverageSection id="sources" title={COPY.sources}>
           {!sources?.ok ? (

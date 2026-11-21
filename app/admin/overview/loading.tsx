@@ -2,6 +2,7 @@ import { AppShell } from "@/components/nabalens/app-shell"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
+import { AdminTabs } from "../_components/admin-tabs"
 import { OVERVIEW_COPY } from "./overview-view"
 
 /** Attention first, then the table's rows, while the overview loads. */
@@ -13,7 +14,9 @@ export default function AdminOverviewLoading() {
           scope={OVERVIEW_COPY.scope}
           title={OVERVIEW_COPY.title}
           className="pb-0 md:pb-0"
-        />
+        >
+          <AdminTabs set="overview" active="by-venue" />
+        </PageHeader>
         <SkeletonRegion label="Loading the overview" className="grid gap-6">
           <div className="grid gap-2 px-1">
             <Skeleton shape="title" className="w-56" />

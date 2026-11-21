@@ -8,6 +8,7 @@ import {
 import { staffShellStatus } from "@/app/staff/_shell/shell-status"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { NoticesInbox } from "@/components/nabalens/me/notices-inbox"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { requireActiveStaff } from "@/lib/auth"
 import { getCoverageActor } from "@/lib/server/coverage"
@@ -40,6 +41,7 @@ export default async function NoticesPage() {
       userName={profile.displayName}
     >
       <div className="mx-auto flex w-full max-w-feed flex-col gap-gutter pb-4">
+        <BackLink href="/staff/me">Me</BackLink>
         <PageHeader
           scope={profile.venue?.name ?? null}
           title={NOTICES_COPY.title}

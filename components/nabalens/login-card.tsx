@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { ClockIcon, EnvelopeSimpleIcon } from "@phosphor-icons/react"
 
 import {
   SIGN_IN_CARD,
@@ -24,7 +23,7 @@ import {
   recordSignInSent,
 } from "@/lib/auth/pending-sign-in"
 import { cn } from "@/lib/utils"
-import { IconDisc } from "./common-room/icon-disc"
+import { BackLink } from "./back-link"
 import { Notice } from "./notice"
 import { RESEND_COOLDOWN_SECONDS, SignInCodeStep } from "./sign-in-code-step"
 import { TurnstileChallenge } from "./turnstile-challenge"
@@ -52,6 +51,11 @@ type LoginCardProps = {
   linkExpired?: boolean
   /** Arrived here by logging out. */
   signedOut?: boolean
+  /**
+   * A choice read before the main button (the shared-device row): above
+   * "Send sign-in link" on the email step, under the code step after it.
+   */
+  deviceOption?: React.ReactNode
   className?: string
 }
 
@@ -68,6 +72,7 @@ export function LoginCard({
   signedOut = false,
   captchaRequired = false,
   captchaSiteKey,
+  deviceOption,
   className,
 }: LoginCardProps) {
   const [email, setEmail] = React.useState("")
@@ -94,7 +99,9 @@ export function LoginCard({
   const titleId = `${inputId}-title`
   const sentHeading = React.useRef<HTMLHeadingElement>(null)
   const emailInput = React.useRef<HTMLInputElement>(null)
-  const returning = React.useRef(false)
+  // Focus starts in the Email field (handoff "Email"), and returns to it
+  // after "Use a different email".
+  const returning = React.useRef(true)
 
   // A phone may reload /login while the person reads their email: come back
   // to the code step for that request instead of sending another. After
@@ -124,6 +131,7 @@ export function LoginCard({
     const value = email.trim()
     if (!EMAIL.test(value)) {
       setError(EMAIL_ERROR)
+      emailInput.current?.focus()
       return
     }
     if (requiresCaptcha && !captchaSiteKey) {
@@ -185,10 +193,18 @@ export function LoginCard({
     const sentTo = email.trim()
     return (
       <SignInCard aria-labelledby={titleId} className={className}>
-        <div role="status" className="grid gap-4">
-          <IconDisc>
-            <EnvelopeSimpleIcon />
-          </IconDisc>
+        {/* A step of this page, so it changes the step rather than reload
+            /login (which would come back to this code step). */}
+        <BackLink
+          href="/login"
+          onClick={(event) => {
+            event.preventDefault()
+            changeEmail()
+          }}
+        >
+          Use a different email
+        </BackLink>
+        <div role="status">
           <SignInHeading
             id={titleId}
             title="Check your email"
@@ -225,95 +241,84 @@ export function LoginCard({
                 recordSignInSent(sentTo, Date.now(), { pending: true })
               return result ?? undefined
             }}
-            onChangeEmail={changeEmail}
           />
-        ) : (
-          <Button variant="secondary" className="w-full" onClick={changeEmail}>
-            Use a different email
-          </Button>
-        )}
+        ) : null}
+        {deviceOption}
       </SignInCard>
     )
   }
 
   const sending = state === "sending"
   return (
-    <>
-      <form
-        onSubmit={submit}
-        noValidate
-        aria-labelledby={titleId}
-        className={cn(SIGN_IN_CARD, className)}
-      >
-        {unreachable ? (
-          <Notice tone="negative" title="We couldn't reach Naba-Lens">
-            Check your connection, then send the link again. Nothing is sent
-            twice.
-          </Notice>
-        ) : signedOut && !expired ? (
-          <Notice tone="positive">You have signed out.</Notice>
-        ) : null}
-        {expired ? (
-          // Common Room expired state: a clock disc above the heading.
-          <div className="grid gap-4">
-            <IconDisc tone="warn">
-              <ClockIcon />
-            </IconDisc>
-            <SignInHeading id={titleId} title="That sign-in link has expired">
-              Links work once and expire after a short time. Enter your email
-              and we&apos;ll send a new one.
-            </SignInHeading>
-          </div>
-        ) : (
-          <SignInHeading id={titleId} title="Sign in">
-            We&apos;ll email you a link and a code. There&apos;s no password.
-          </SignInHeading>
-        )}
-        <Field className="gap-1.5">
-          <FieldLabel htmlFor={inputId}>Email</FieldLabel>
-          <Input
-            ref={emailInput}
-            id={inputId}
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            spellCheck={false}
-            placeholder="name@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.currentTarget.value)}
-            aria-invalid={emailError || undefined}
-            aria-describedby={emailError ? errorId : undefined}
+    <form
+      onSubmit={submit}
+      noValidate
+      aria-labelledby={titleId}
+      className={cn(SIGN_IN_CARD, className)}
+    >
+      {unreachable ? (
+        <Notice tone="negative" title="We couldn't reach Naba-Lens">
+          Check your connection, then send the link again. Nothing is sent
+          twice.
+        </Notice>
+      ) : signedOut && !expired ? (
+        <Notice tone="positive">You have signed out.</Notice>
+      ) : null}
+      {expired ? (
+        <SignInHeading id={titleId} title="That sign-in link has expired">
+          Links work once and expire after a short time. Enter your email and
+          we&apos;ll send a new one.
+        </SignInHeading>
+      ) : (
+        <SignInHeading id={titleId} title="Sign in">
+          We&apos;ll email you a link and a code. There&apos;s no password.
+        </SignInHeading>
+      )}
+      <Field className="gap-1.5">
+        <FieldLabel htmlFor={inputId}>Email</FieldLabel>
+        <Input
+          ref={emailInput}
+          id={inputId}
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          spellCheck={false}
+          placeholder="name@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.currentTarget.value)}
+          aria-invalid={emailError || undefined}
+          aria-describedby={emailError ? errorId : undefined}
+        />
+        {emailError ? <FieldError id={errorId}>{error}</FieldError> : null}
+      </Field>
+      {error && !emailError ? <Notice tone="negative">{error}</Notice> : null}
+      {requiresCaptcha ? (
+        captchaSiteKey ? (
+          <TurnstileChallenge
+            key={challengeAttempt}
+            siteKey={captchaSiteKey}
+            onToken={handleCaptchaToken}
           />
-          {emailError ? <FieldError id={errorId}>{error}</FieldError> : null}
-        </Field>
-        {error && !emailError ? <Notice tone="negative">{error}</Notice> : null}
-        {requiresCaptcha ? (
-          captchaSiteKey ? (
-            <TurnstileChallenge
-              key={challengeAttempt}
-              siteKey={captchaSiteKey}
-              onToken={handleCaptchaToken}
-            />
-          ) : (
-            <Notice tone="negative">{CAPTCHA_UNAVAILABLE_MESSAGE}</Notice>
-          )
-        ) : null}
-        <Button
-          variant="primary"
-          type="submit"
-          className="w-full"
-          disabled={requiresCaptcha && !captchaToken}
-          loading={sending}
-          loadingLabel="Sending…"
-        >
-          {expired ? "Send a new link" : "Send sign-in link"}
-        </Button>
-      </form>
-      {/* On the canvas under the card, not inside it. */}
+        ) : (
+          <Notice tone="negative">{CAPTCHA_UNAVAILABLE_MESSAGE}</Notice>
+        )
+      ) : null}
+      {/* Read before the button it changes (handoff "Email"). */}
+      {deviceOption}
+      <Button
+        variant="primary"
+        type="submit"
+        className="w-full"
+        disabled={requiresCaptcha && !captchaToken}
+        loading={sending}
+        loadingLabel="Sending…"
+      >
+        {expired ? "Send a new link" : "Send sign-in link"}
+      </Button>
       {expired ? null : (
         <p className={SIGN_IN_FOOTNOTE}>Accounts are by invitation only.</p>
       )}
-    </>
+    </form>
   )
 }
 

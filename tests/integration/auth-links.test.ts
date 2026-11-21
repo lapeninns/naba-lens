@@ -101,7 +101,7 @@ describe("magic links", () => {
     expect(await open(browser, link)).toEqual({ status: 303, location: "/" })
     expect(browser.authCookies().length).toBeGreaterThan(0)
     expect((await browser.run(() => redirectOf(RootPage))).location).toBe(
-      "/staff/tasks"
+      "/staff/home"
     )
 
     // FA-23: an admin's link session is aal1, so "/" sends it to the second
@@ -133,7 +133,7 @@ describe("magic links", () => {
     browser.absorb(landed.cookies.getAll())
     expect(browser.cookieHeader()).not.toContain("nl-return-to")
     expect((await browser.run(() => redirectOf(RootPage))).location).toBe(
-      "/staff/tasks"
+      "/staff/home"
     )
 
     // Another account signing in on a browser that remembers a staff page is
@@ -320,7 +320,7 @@ describe("email link scanners (GET must not use the token)", () => {
     const person = new Browser("invitee")
     expect(await open(person, link)).toEqual({ status: 303, location: "/" })
     expect((await person.run(() => redirectOf(RootPage))).location).toBe(
-      "/staff/tasks"
+      "/staff/home"
     )
   })
 

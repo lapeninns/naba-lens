@@ -10,6 +10,8 @@ import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
+import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
+import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { parseCategory, parsePeriod } from "@/lib/metrics/model"
 import { loadVenueMetrics } from "@/lib/server/metrics"
@@ -17,8 +19,8 @@ import { loadVenueMetrics } from "@/lib/server/metrics"
 export const metadata: Metadata = { title: METRICS_COPY.title }
 
 /**
- * A manager's metrics for their own venue (spec §18.1, §7 M1; AC39). No nav
- * tab (the phone bar is full); linked from Overview. The database refuses
+ * A manager's metrics for their own venue (spec §18.1, §7 M1; AC39): Venue ›
+ * Progress (redesign R4, ia.md). The database refuses
  * any venue but the one this person manages.
  */
 export default async function ManagerMetricsPage({
@@ -40,10 +42,11 @@ export default async function ManagerMetricsPage({
       <PageHeader
         scope={ctx.venue.name}
         venueScope
-        title={METRICS_COPY.title}
+        title={MANAGER_COPY.venue.title}
         summary={METRICS_COPY.summary}
         className="pb-0 md:pb-0"
       />
+      <ManagerTabs section="venue" active="progress" />
       {read.ok ? (
         <MetricsReport
           metrics={read.metrics}

@@ -16,6 +16,7 @@ import {
 import { MetaList } from "@/components/nabalens/meta-list"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { BackLink } from "@/components/nabalens/back-link"
 import { PageHeader } from "@/components/nabalens/page-header"
 import {
   StaffActionsMenu,
@@ -179,6 +180,10 @@ export function AccountHeader({
         notice={controls.notice}
         onDismiss={controls.dismissNotice}
       />
+      {/* People, detail page (redesign R5, ia.md). */}
+      <BackLink href="/admin/staff" compact className="-mb-4">
+        People
+      </BackLink>
       <PageHeader
         venueScope
         scope={member.venueName ?? "No venue"}

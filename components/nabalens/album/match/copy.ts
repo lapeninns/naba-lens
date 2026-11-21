@@ -205,6 +205,17 @@ export const MATCH_COPY = {
 } as const
 
 /** Match later (DESIGN.md §2.8, §5a step 5). */
+/**
+ * The picker's words when labelling photos already in the Album (D21):
+ * staff look for a dish, drink or space, not an empty slot.
+ */
+export const LABEL_PICKER_COPY = {
+  question: "Choose a label",
+  searchLabel: "Search dishes, drinks and spaces",
+  searchNone: (query: string) => `Nothing called "${query}". Try another name.`,
+  noSuggestions: "Search for the dish, drink or space in these photos.",
+} as const
+
 export const MATCH_LATER_COPY = {
   title: "Match later",
   row: (n: number) => (n === 1 ? "1 photo to match" : `${n} photos to match`),
@@ -212,8 +223,60 @@ export const MATCH_LATER_COPY = {
   empty: "Every photo you added is matched to a slot.",
   intro:
     "These photos were added without a slot. Match each one, or say it is not for a slot.",
+  batchMode: "Select photos",
+  singleMode: "Label one at a time",
+  selectHint: "Select the photos that show the same thing.",
+  batchHint: (n: number) =>
+    n === 1
+      ? "Choose a label for the selected photo."
+      : `Choose one label for all ${n} selected photos.`,
+  batchFailed: (n: number, reason: string) =>
+    `${n === 1 ? "1 photo still needs a label" : `${n} photos still need a label`}. ${reason}`,
+  labelled: (n: number) =>
+    n === 1 ? "1 photo labelled." : `${n} photos labelled.`,
+  openFolder: (name: string) => `Open ${name} in Album`,
   saveFailed: "This photo could not be matched. Try again.",
   refused:
     "This photo can no longer be matched here. It stays on your profile.",
   back: "Album",
+  // Labelling after posting (D21, the 20 Nov 2026 Open Design handoff).
+  toLabel: "To label",
+  labelIntro:
+    "Tick the photos that show the same thing, then choose one label for them.",
+  selectAll: (n: number) => `Select all ${n}`,
+  clearSelection: "Clear",
+  selected: (n: number) =>
+    n === 1 ? "1 photo selected" : `${n} photos selected`,
+  confirm: (n: number, name: string) =>
+    n === 1 ? `Label 1 photo as ${name}` : `Label ${n} photos as ${name}`,
+  save: "Save label",
+  change: "Change",
+  labelledAs: (n: number, name: string) =>
+    n === 1 ? `1 photo labelled ${name}` : `${n} photos labelled ${name}`,
+  openThisFolder: "Open folder",
+  undo: "Undo",
+  undone: (n: number) =>
+    n === 1
+      ? "Label removed. The photo is back in To label."
+      : `Labels removed. The ${n} photos are back in To label.`,
+  undoFailed: "The label could not be removed. Try again.",
+  // I'm not sure while labelling posted photos (FA-4, AC03).
+  handed: (n: number) =>
+    n === 1
+      ? "1 photo is with your manager, who will choose its label."
+      : `${n} photos are with your manager, who will choose their label.`,
 } as const
+
+/** Where a labelled photo is filed: Album → place → section → slot. */
+export function folderPath(slot: {
+  name: string
+  group: string
+  target: { kind: string }
+}): string {
+  const parts = (
+    slot.target.kind === "dish"
+      ? ["Album", "Menu", slot.group, slot.name]
+      : ["Album", "Spaces", slot.name]
+  ).filter((part, i, all) => part && part !== all[i - 1])
+  return parts.join(" → ")
+}

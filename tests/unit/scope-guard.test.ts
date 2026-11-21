@@ -71,6 +71,8 @@ const ALLOWED_PAGES = new Set([
   "/staff/album/spaces",
   "/staff/album/[placeId]",
   "/staff/album/match-later",
+  "/staff/album/recent",
+  "/staff/album/recent/[assetId]",
   // Full App v1 S2-STAFF (spec §6 S3): one slot's page with its photo in the
   // album, brief, waiting count, Add a photo and Report a change.
   "/staff/album/slot/[kind]/[slotId]",
@@ -125,6 +127,7 @@ const ALLOWED_PAGES = new Set([
   // Full App v1 S2-REVIEW (spec §7 M2): one photo's review with provenance,
   // slots, history and every decision, at the manager's own venue.
   "/manager/review/photo/[assetId]",
+  "/manager/review/album",
   "/manager/menu",
   "/manager/menu/[itemId]",
   // Full App v1 S1-MENUS (spec §7 M5): local specials, and the active and
@@ -257,6 +260,7 @@ const ALLOWED_HANDLERS = new Set([
   "/api/library",
   "/api/media/[id]/download",
   "/api/media/[id]/preview",
+  "/api/media/[id]/album/[size]",
   "/api/media/[id]/stream",
   "/api/media/[id]/thumb",
   "/api/internal/cleanup",
@@ -674,6 +678,8 @@ const FEATURE_PATHS: { feature: string; prefixes: string[]; reason: string }[] =
       feature: "tagging workflow",
       prefixes: [
         "app/admin/library/",
+        // Redesign R5 (ia.md): the Library tabs link the controlled Tags page.
+        "app/admin/_components/admin-tabs.tsx",
         "app/admin/(content)/page.tsx",
         "app/admin/admin-library.tsx",
         "app/admin/library-more-filters.tsx",

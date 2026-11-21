@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { SearchField } from "@/components/ui/search-field"
 import { cn } from "@/lib/utils"
 
-import { MATCH_COPY } from "./copy"
+import { LABEL_PICKER_COPY, MATCH_COPY } from "./copy"
 import { SuggestSpecialRow, type SuggestSpecial } from "./suggest-special"
 import {
   SHARED_KINDS,
@@ -71,6 +71,7 @@ export function MatchPicker({
   onUnsure,
   onSuggestSpecial,
   traySearchRef,
+  labelling = false,
 }: {
   board: BoardState
   onRetryBoard: () => void
@@ -103,6 +104,8 @@ export function MatchPicker({
   onSuggestSpecial?: SuggestSpecial
   /** Tray sheet puts search above the choices and focuses it on open. */
   traySearchRef?: React.Ref<HTMLInputElement>
+  /** Labelling photos already posted (D21): dish, drink or space words. */
+  labelling?: boolean
 }) {
   const [query, setQuery] = React.useState("")
   const [asking, setAsking] = React.useState(false)
@@ -171,6 +174,7 @@ export function MatchPicker({
   const searching = query.trim().length > 0
   const amenity = ready && searching && searchNamesAmenity(ready, query)
 
+  const words = labelling ? LABEL_PICKER_COPY : MATCH_COPY
   const choose = (slot: MatchSlot) => {
     setQuery("")
     onMatch(slot)
@@ -178,7 +182,7 @@ export function MatchPicker({
   const search = (
     <SearchField
       ref={traySearchRef}
-      label={MATCH_COPY.searchLabel}
+      label={words.searchLabel}
       placeholder={traySearchRef ? "Search menu items or places" : undefined}
       value={query}
       onValueChange={setQuery}
@@ -187,7 +191,7 @@ export function MatchPicker({
     />
   )
   const askAbout =
-    traySearchRef && ready && searching && found.length === 0
+    (traySearchRef || labelling) && ready && searching && found.length === 0
       ? query.trim().slice(0, 120)
       : ""
 
@@ -201,7 +205,7 @@ export function MatchPicker({
         id={questionId}
         className={traySearchRef ? "sr-only" : "type-section-title text-ink"}
       >
-        {traySearchRef ? MATCH_COPY.trayChoose : MATCH_COPY.question}
+        {traySearchRef ? MATCH_COPY.trayChoose : words.question}
       </Heading>
 
       {traySearchRef ? search : null}
@@ -247,7 +251,7 @@ export function MatchPicker({
             onChoose={choose}
           />
         ) : recents.length === 0 ? (
-          <p className="text-body text-ink-muted">{MATCH_COPY.noSuggestions}</p>
+          <p className="text-body text-ink-muted">{words.noSuggestions}</p>
         ) : null
       ) : null}
 
@@ -256,7 +260,7 @@ export function MatchPicker({
       {ready && searching ? (
         found.length > 0 ? (
           <SlotChoices
-            label={MATCH_COPY.searchLabel}
+            label={words.searchLabel}
             slots={found.slice(0, 30)}
             taken={taken}
             busy={busy}
@@ -265,7 +269,7 @@ export function MatchPicker({
         ) : (
           <div className="grid gap-1" data-slot="match-search-empty">
             <p className="text-body text-ink">
-              {MATCH_COPY.searchNone(query.trim())}
+              {words.searchNone(query.trim())}
             </p>
             {amenity ? (
               <p className="text-body text-ink-muted">
@@ -323,7 +327,7 @@ export function MatchPicker({
               <QuestionIcon aria-hidden weight="bold" className="size-5" />
               {askAbout
                 ? MATCH_COPY.trayAskAbout(askAbout)
-                : traySearchRef
+                : traySearchRef || labelling
                   ? MATCH_COPY.trayAsk
                   : MATCH_COPY.notSure}
             </span>

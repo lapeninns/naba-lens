@@ -174,18 +174,62 @@ export const meSheetButton = (page: Page) =>
 /**
  * The staff upload sheet. Before a pick it is "Add photos or videos" (or
  * "Upload photos" for photos only, a task screen's sheet); once files are
- * picked it is the "Saving N photos" sheet ("files" when a video is among them).
+ * picked it is the "Saving N photos" sheet ("files" when a video is among
+ * them), and for staff "N photos added" once every one has finished (D21).
  */
 export const UPLOAD_SHEET =
-  /^(Add photos or videos|Upload photos|Saving \d+ (photos?|files?))$/
+  /^(Add photos or videos|Upload photos|Saving \d+ (photos?|files?)|\d+ (photos?|files?) added)$/
 export const uploadSheet = (page: Page) =>
   page.getByRole("dialog", { name: UPLOAD_SHEET })
+
+const isVideo = (f: { name: string }) => /\.(mp4|mov|webm)$/i.test(f.name)
 
 /** The sheet's title for these files once they are picked. */
 export function savingTitle(files: readonly { name: string }[]) {
   const n = files.length
-  const photos = files.every((f) => !/\.(mp4|mov|webm)$/i.test(f.name))
+  const photos = files.every((f) => !isVideo(f))
   return `Saving ${n} ${photos ? (n === 1 ? "photo" : "photos") : n === 1 ? "file" : "files"}`
+}
+
+/**
+ * The sheet's footer once a staff run settles with every file finished
+ * (D21): photos are posted to the Album, videos are saved ("2 posted ·
+ * 1 saved"). Pass `{ posting: false }` for a run that only saves.
+ */
+export function settledWords(
+  files: readonly { name: string }[],
+  { posting = true } = {}
+) {
+  if (!posting) return `${files.length} saved`
+  const videos = files.filter(isVideo).length
+  const photos = files.length - videos
+  return [
+    photos > 0 || videos === 0 ? `${photos} posted` : null,
+    videos > 0 ? `${videos} saved` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+}
+
+/**
+ * Closes the settled sheet: Done, or for photos posted with no label yet
+ * (D21) the sheet's own close, which leaves them under Unlabelled.
+ */
+export async function closeUploadSheet(page: Page) {
+  await closeSheet(uploadSheet(page))
+}
+
+/** The same for a sheet already found (labels chosen in it are kept). */
+export async function closeSheet(dialog: Locator) {
+  const done = dialog.getByRole("button", { name: "Done", exact: true })
+  if (await done.isVisible()) await done.click()
+  else
+    // Escape closes an open picker first, then the sheet.
+    await expect(async () => {
+      await dialog.page().keyboard.press("Escape")
+      await expect(dialog).toBeHidden({ timeout: 1_000 })
+    }).toPass({ timeout: 10_000 })
+  await expect(dialog).toBeHidden()
 }
 
 /**
@@ -193,12 +237,12 @@ export function savingTitle(files: readonly { name: string }[]) {
  * they are picked) and records every state each queue row shows, so the test
  * can assert the real technical sequence (Uploading → Processing → Saved)
  * without racing transient states. `expectSettled` is the footer once the run
- * settles ("2 saved", "0 saved · 1 need attention").
+ * settles ("2 posted", "1 posted · 1 saved", "0 posted · 1 need attention").
  */
 export async function uploadThroughDialog(
   page: Page,
   files: SourceFile[],
-  { expectSettled = `${files.length} saved`, close = true } = {}
+  { expectSettled = settledWords(files), close = true } = {}
 ): Promise<Record<string, string[]>> {
   await meSheetButton(page).click()
   const dialog = uploadSheet(page)
@@ -213,10 +257,7 @@ export async function uploadThroughDialog(
     timeout: 90_000,
   })
   const seen = await readQueueStatuses(page)
-  if (close) {
-    await dialog.getByRole("button", { name: "Done" }).click()
-    await expect(dialog).toBeHidden()
-  }
+  if (close) await closeUploadSheet(page)
   return seen
 }
 

@@ -1,22 +1,29 @@
-import { Row } from "@/components/nabalens/common-room/row"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
-import { OverviewBody } from "@/components/nabalens/manager/overview/overview-body"
+import { ActivationBanner } from "@/components/nabalens/manager/overview/activation-banner"
 import {
   BacklogPanel,
   CategoryCoverage,
-  MANAGER_ROW_LIST,
   OverviewActions,
+  OVERVIEW_PANELS_COPY,
   VenueAtAGlance,
+  type NeedsRow,
 } from "@/components/nabalens/manager/overview/overview-panels"
 import { TeamCompletionTargets } from "@/components/nabalens/manager/overview/team-completion-targets"
-import { TriageCard } from "@/components/nabalens/manager/overview/triage-card"
+import {
+  TRIAGE_COPY,
+  triageConfirmCount,
+  triageRechecks,
+} from "@/components/nabalens/manager/overview/triage-card"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
+import { waitingFor } from "@/components/nabalens/menu-photos/copy"
+import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
 import { Notice } from "@/components/nabalens/notice"
 import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
+import { PageHeader } from "@/components/nabalens/page-header"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 import { ROUTES } from "@/lib/auth/routes"
 import { amenityHrefs } from "@/lib/amenities/contract"
@@ -36,7 +43,6 @@ import { getFactCoverage } from "@/lib/server/knowledge/facts"
 import { getManagerVenueSummary } from "@/lib/server/manager/venue"
 import { getMediaActor } from "@/lib/server/media/context"
 import type { TriageRow } from "@/lib/work-client/contract"
-import { ExportIcon } from "@phosphor-icons/react/dist/ssr"
 import { workServices } from "@/lib/work-client/services"
 
 import { managerNeedsLabels } from "./entry"
@@ -44,12 +50,6 @@ import { failedRead, isRefusal, loadManagerOverview } from "./load-overview"
 
 export const metadata = { title: "Overview" }
 
-/**
- * Overview: the venue's menu photo progress and what is waiting for a
- * decision. It reads the workspace itself rather than calling
- * requireManagerVenue(), which redirects here, as does a read the database
- * refuses on any page below. A failed read goes to error.tsx (Try again).
- */
 /** Amenity findings waiting for this manager; null when unreadable (MG-03). */
 async function countToConfirm(): Promise<number | null> {
   try {
@@ -63,8 +63,8 @@ async function countToConfirm(): Promise<number | null> {
 }
 
 /**
- * The Triage queues (R3) when switched on; null keeps B01's rows (switched
- * off, the database predates B02, or the read failed and they have their own).
+ * The Triage queues (R3) when switched on; null reads the findings count on
+ * its own (switched off, the database predates B02, or the read failed).
  */
 async function readTriage(): Promise<TriageRow[] | null> {
   if (managerTriageSurface() !== "b02") return null
@@ -105,6 +105,25 @@ async function readVenueState(venueId: string) {
   }
 }
 
+/** "Saturday 21 Nov" in UK time. */
+function todayLabel(now: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+    timeZone: "Europe/London",
+  }).format(new Date(now))
+}
+
+/**
+ * Overview, titled Needs you today (redesign R4, ia.md and the handoff's
+ * Overview): one bottle button for the biggest job, then every other job as
+ * a row into the section where it is done; beside it on desktop, the two
+ * backlogs, coverage by category and the venue's menu and reviewers. It
+ * reads the workspace itself rather than calling requireManagerVenue(),
+ * which redirects here, as does a read the database refuses on any page
+ * below. A failed read goes to error.tsx (Retry).
+ */
 export default async function ManagerOverviewPage() {
   const workspace = await getManagerWorkspace()
   // After a grant ends mid-session the layout is not re-rendered on client
@@ -127,17 +146,20 @@ export default async function ManagerOverviewPage() {
     managerNeedsLabels(workspace.venue.id),
     readVenueState(workspace.venue.id),
   ])
-  const confirmCount = triage ? null : await countToConfirm()
+  const confirmCount = triage
+    ? triageConfirmCount(triage)
+    : await countToConfirm()
   if (!team.ok && isRefusal(team.code)) {
     return <VenueAccessUnavailable reason="no_grant" refreshShell />
   }
   // The layout's time stops describing a page once it is navigated to, so
   // each page says when it was rendered itself.
   const now = new Date().toISOString()
+  const { overview } = read
   const input: OverviewInput = {
     now,
-    pendingPhotos: read.overview.pendingPhotos,
-    oldestPendingAt: read.overview.oldestPendingAt,
+    pendingPhotos: overview.pendingPhotos,
+    oldestPendingAt: overview.oldestPendingAt,
     unlabelledPhotos: venueState?.summary?.unlabelledPhotos ?? null,
     coverage: venueState?.coverage ?? null,
     facts: venueState?.facts ?? null,
@@ -151,23 +173,105 @@ export default async function ManagerOverviewPage() {
     requests: managerHrefs.requests,
     exports: managerHrefs.exports,
   })
+  const P = OVERVIEW_PANELS_COPY
+  const rechecks = triageRechecks(triage)
+  // Jobs of their own, shown only when something is waiting: a count that
+  // couldn't be read says so below the list instead (MG-03).
+  const extra: NeedsRow[] = [
+    ...(confirmCount && confirmCount > 0
+      ? [
+          {
+            key: "confirm" as const,
+            title: P.confirmTitle,
+            line: P.confirmLine(confirmCount),
+            href: `${amenityHrefs(managerHrefs.overview).list}#amenities-to-confirm`,
+            waiting: true,
+          },
+        ]
+      : []),
+    // Amenity rechecks due (B03): Triage counts them, oldest first.
+    ...(rechecks
+      ? [
+          {
+            key: "rechecks" as const,
+            title: P.rechecksTitle,
+            line: TRIAGE_COPY.rechecks(rechecks.waiting, rechecks.oldest),
+            href: `${amenityHrefs(managerHrefs.overview).list}#amenities-rechecks`,
+            waiting: true,
+          },
+        ]
+      : []),
+    ...(needsLabels && needsLabels > 0
+      ? [
+          {
+            key: "labels" as const,
+            title: P.labelsTitle,
+            line: P.labelsLine(needsLabels),
+            href: managerHrefs.uploads,
+            waiting: true,
+          },
+        ]
+      : []),
+  ]
+  const waited = waitingFor(overview.oldestPendingAt, now)
+  const summary = [
+    todayLabel(now),
+    overview.pendingPhotos > 0 && waited
+      ? `the oldest photo has waited ${waited}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+  const copy = MANAGER_COPY.overview
+
   return (
     <>
       <OfflineNotice className={OFFLINE_BANNER_CLASS} loadedAt={now} />
-      <OverviewBody
-        overview={read.overview}
-        now={now}
-        confirmCount={confirmCount}
-        needsLabels={needsLabels}
-        actions={
-          <OverviewActions
-            actions={actions}
-            pendingPhotos={read.overview.pendingPhotos}
-            reviewHref={managerHrefs.review()}
-          />
-        }
-        panels={
-          <>
+      <div className="grid gap-gutter">
+        <PageHeader
+          scope={overview.venueName || workspace.venue.name}
+          venueScope
+          title={P.actionsTitle}
+          titleId="overview-title"
+          summary={<p>{summary}</p>}
+          className="pb-0 md:pb-0"
+        />
+        {overview.menuState === "no_menu" ? (
+          <Notice
+            tone="plain"
+            title={copy.noMenuTitle}
+            className="max-w-reading"
+          >
+            <p>{copy.noMenuBody}</p>
+          </Notice>
+        ) : overview.menuState === "empty" ? (
+          <Notice
+            tone="plain"
+            title={copy.emptyTitle}
+            className="max-w-reading"
+          >
+            <p>{copy.emptyBody}</p>
+          </Notice>
+        ) : (
+          <ActivationBanner overview={overview} now={now} />
+        )}
+        {/* Phones: the list, then the panels. Desktop: list left, panels right. */}
+        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+          <div className="grid gap-3">
+            <OverviewActions
+              actions={actions}
+              pendingPhotos={overview.pendingPhotos}
+              reviewHref={managerHrefs.review()}
+              extra={extra}
+              titleId="overview-title"
+            />
+            {confirmCount === null ? (
+              <Notice tone="negative" role="alert">
+                {TO_CONFIRM_COPY.failed}
+              </Notice>
+            ) : null}
+          </div>
+          <div className="grid gap-8">
             <BacklogPanel split={backlogSplit(input)} />
             <CategoryCoverage
               rows={
@@ -181,44 +285,14 @@ export default async function ManagerOverviewPage() {
               venueHref={managerHrefs.venue}
               reviewersHref={`${managerHrefs.venue}#reviewers`}
             />
-            <ul className={MANAGER_ROW_LIST}>
-              <li data-slot="exports-row">
-                <Row
-                  href={managerHrefs.exports}
-                  icon={<ExportIcon />}
-                  title={MANAGER_COPY.overview.exportsTitle}
-                  subtitle={MANAGER_COPY.overview.exportsLine}
-                />
-              </li>
-            </ul>
-          </>
-        }
-        triage={
-          triage ? (
-            <TriageCard
-              rows={triage}
-              hrefs={{
-                menu_photos: managerHrefs.review(),
-                findings: `${amenityHrefs(managerHrefs.overview).list}#amenities-to-confirm`,
-                checklist: managerHrefs.review(),
-                rechecks: `${amenityHrefs(managerHrefs.overview).list}#amenities-rechecks`,
-                suggestions: `${amenityHrefs(managerHrefs.overview).list}#amenities-to-confirm`,
-              }}
-              ownWaiting={(n) => ({
-                text: MANAGER_COPY.overview.ownWaiting(n),
-                href: managerHrefs.review({ status: "mine" }),
-              })}
-            />
-          ) : undefined
-        }
-        staffTargets={
-          team.ok ? (
-            <TeamCompletionTargets roster={team.roster} />
-          ) : (
-            <Notice role="status">Staff targets couldn’t be loaded.</Notice>
-          )
-        }
-      />
+          </div>
+        </div>
+        {team.ok ? (
+          <TeamCompletionTargets roster={team.roster} />
+        ) : (
+          <Notice role="status">Staff targets couldn’t be loaded.</Notice>
+        )}
+      </div>
     </>
   )
 }

@@ -9,6 +9,8 @@ export const MANAGER_COPY = {
     count === 1 ? "photo waiting" : "photos waiting",
   account: "Account",
   logOut: "Log out",
+  /** Every manager error notice's action (redesign R4, ia.md decision 11). */
+  retry: "Retry",
   unavailable: {
     title: "Venue access unavailable",
     body: "Your account doesn't have access to a venue workspace right now. Ask an admin to check your venue access.",
@@ -32,10 +34,30 @@ export const MANAGER_COPY = {
     venueFacts: "what needs confirming",
     venueHistory: "the venue's history",
     venueReports: "reported changes",
+    exports: "the export packages",
+    albumPlaces: "places and briefs",
+    uploads: "your photos",
+    menuVersions: "the venue's menus",
+    specials: "local specials",
   },
+  /** Places and briefs, a detail page of Album › Spaces (redesign R4, ia.md). */
+  albumPlaces: {
+    title: "Places and briefs",
+    loading: "Loading places and briefs",
+    back: "Spaces",
+  },
+  menuVersions: {
+    title: "Menus and change requests",
+    loading: "Loading the venue's menus",
+  },
+  specials: {
+    title: "Local specials",
+    loading: "Loading local specials",
+  },
+  exports: { loading: "Loading the export packages" },
   notFound: {
     title: "This page isn't available in your workspace",
-    back: "Go to Overview",
+    back: "Overview",
   },
   overview: {
     title: "Overview",
@@ -87,8 +109,8 @@ export const MANAGER_COPY = {
     title: "Venue",
     loading: "Loading the venue",
     summary:
-      "Menus, specials, spaces, facilities, the team and who reviews photos here.",
-    menusTitle: "Current menus",
+      "What is true about the venue, who reviews photos here and what has changed.",
+    menusTitle: "Menu",
     menusFailed: "Menus couldn't be loaded. Try again in a moment.",
     noMenu:
       "No menu is active yet. An admin imports and activates it; staff can keep adding photos meanwhile.",
@@ -107,7 +129,7 @@ export const MANAGER_COPY = {
     spacesLine: (current: number, due: number) =>
       `${current} photos current · ${due} due a check`,
     spacesUnknown: "Where staff photograph each part of the venue.",
-    placesLink: "Album places and briefs",
+    placesLink: "Places and briefs",
     placesLine: "Where staff stand to photograph each section, and its brief.",
     facilitiesTitle: "Facilities and policies",
     factsLine: (text: string, percent: string | null, waiting: number) =>
@@ -133,7 +155,7 @@ export const MANAGER_COPY = {
     teamTitle: "Team",
     teamLink: "People and photo targets",
     teamLine: "Invite or remove staff, switch venue, set monthly targets.",
-    reviewersTitle: "Review assignments",
+    reviewersTitle: "Reviewers",
     reviewersFailed: "Reviewers couldn't be loaded. Try again in a moment.",
     historyTitle: "History",
     historyEmpty: "No changes recorded yet.",
@@ -223,7 +245,8 @@ export const MANAGER_COPY = {
   item: {
     title: "Menu item",
     loading: "Loading this menu item",
-    back: "Album",
+    /** The BackLink names the tab it opens (redesign R4, ia.md). */
+    back: "Menu",
     menuPhoto: "Menu photo",
     noMenuPhoto: "No menu photo yet",
     fallback: "Showing the earliest accepted photo",
@@ -292,12 +315,14 @@ export const MANAGER_COPY = {
     back: "Go to Menu",
   },
   uploads: {
-    title: "My uploads",
+    /** A detail page of Account (redesign R4, ia.md; was "My uploads"). */
+    title: "Your photos",
     summary: "Photos and videos you've added, with their labels and review.",
     empty: "Photos and videos you add show here.",
     missing: "Your uploads can't be shown here yet.",
     failed: "We couldn't load your uploads.",
     loading: "Loading your uploads…",
+    loadingPage: "Loading your photos",
     addLabels: "Add labels",
     editLabels: "Edit labels",
   },

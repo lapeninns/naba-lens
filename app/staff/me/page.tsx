@@ -17,6 +17,10 @@ import { Button } from "@/components/ui/button"
 import { requireActiveStaff } from "@/lib/auth"
 import { workRoleLabel } from "@/lib/config/work-roles"
 import { getMediaActor } from "@/lib/server/media/context"
+import {
+  RECENT_STAFF_POSTS,
+  STAFF_ALBUM_POSTS,
+} from "@/lib/config/staff-album-posts"
 import { ME_COPY, monthLine } from "@/lib/staff/me"
 
 import {
@@ -119,11 +123,15 @@ export default async function StaffMePage() {
 
         <Group title={ME_COPY.venueGroup}>
           <HomeRow
-            href="/staff/community"
+            href={STAFF_ALBUM_POSTS ? RECENT_STAFF_POSTS : "/staff/community"}
             slot="me-community"
             icon={<ImagesIcon />}
             title={ME_COPY.colleaguesPhotos}
-            line={ME_COPY.colleaguesPhotosLine}
+            line={
+              STAFF_ALBUM_POSTS
+                ? ME_COPY.colleaguesPostsLine
+                : ME_COPY.colleaguesPhotosLine
+            }
           />
           <HomeRow
             href="/staff/people"

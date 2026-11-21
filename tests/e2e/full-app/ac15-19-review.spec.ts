@@ -59,7 +59,7 @@ for (const [size, options] of SIZES) {
     const mgr = await as(browser, w.mgrA, options)
     await mgr.goto(detail(asset))
     await expect(
-      mgr.getByRole("heading", { level: 1, name: "Photo review" })
+      mgr.getByRole("heading", { level: 1, name: "Soup" })
     ).toBeVisible()
     await action(mgr, "fix-label").first().click()
     const dialog = mgr.getByRole("dialog", { name: "Fix label" })

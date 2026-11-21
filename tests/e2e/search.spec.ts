@@ -329,10 +329,9 @@ test("(b) a manager sees its own venue only, with another uploader's thumbnails"
 }, info) => {
   const w = await searchWorld()
   const page = await signedInPage(browser, w.mgrA, view(info))
-  await page.goto("/manager")
-  await main(page)
-    .getByRole("link", { name: "Search photos and videos" })
-    .click()
+  // Search sits on Album's Menu (redesign R4, ia.md).
+  await page.goto("/manager/menu")
+  await main(page).getByRole("link", { name: "Search photos" }).click()
   await expect(page).toHaveURL(/\/manager\/search$/)
   await expect(main(page)).toContainText(
     `Find photos and videos from ${w.venueA.name}.`

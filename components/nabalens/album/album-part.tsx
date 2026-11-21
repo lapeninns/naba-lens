@@ -37,11 +37,7 @@ import type {
 import { sectionAnchor } from "@/lib/album/shelves"
 import { cn } from "@/lib/utils"
 
-import {
-  LENS_COPY,
-  PlaceLensPills,
-  type LensPlace,
-} from "./album-lens"
+import { LENS_COPY, PlaceLensPills, type LensPlace } from "./album-lens"
 
 /*
  * One part of the album (DESIGN.md §5d "A part"): Menu (with its Food |
@@ -98,6 +94,7 @@ export function AlbumPart({
   shelfKey,
   show,
   defaultShow,
+  posting = false,
   lens,
   places,
   canAdd,
@@ -111,6 +108,7 @@ export function AlbumPart({
   show: AlbumShow
   /** What the part opens on without `?show=` (§5d "A part" step 3). */
   defaultShow: AlbumShow
+  posting?: boolean
   lens: PlaceLens
   places: LensPlace[]
   canAdd: boolean
@@ -237,6 +235,7 @@ export function AlbumPart({
       {part.total === 0 ? null : (
         <FilterRow
           withShow={!folders}
+          posting={posting}
           show={show}
           defaultShow={defaultShow}
           lens={lens}
@@ -392,6 +391,7 @@ function useShelfInView(ids: string[]): string | null {
  */
 function FilterRow({
   withShow,
+  posting,
   show,
   defaultShow,
   lens,
@@ -402,6 +402,7 @@ function FilterRow({
 }: {
   /** The folders have no Show: it applies to a shelf's slots. */
   withShow: boolean
+  posting: boolean
   show: AlbumShow
   defaultShow: AlbumShow
   lens: PlaceLens
@@ -412,7 +413,12 @@ function FilterRow({
 }) {
   const [open, setOpen] = React.useState(false)
   const changed = (withShow && show !== defaultShow ? 1 : 0) + (lens ? 1 : 0)
-  const showLabel = ALBUM_SHOWS.find((s) => s.key === show)?.label ?? ""
+  const shows = posting
+    ? ALBUM_SHOWS.filter(({ key }) => key !== "waiting").map((option) =>
+        option.key === "in-album" ? { ...option, label: "Posted" } : option
+      )
+    : ALBUM_SHOWS
+  const showLabel = shows.find((s) => s.key === show)?.label ?? ""
   const placeLabel = lens
     ? (places.find((p) => p.id === lens)?.label ?? "")
     : LENS_COPY.allPlaces
@@ -458,7 +464,7 @@ function FilterRow({
                   {PART_COPY.showTitle}
                 </h2>
                 <PillGroup aria-labelledby="album-show">
-                  {ALBUM_SHOWS.map(({ key, label }) => (
+                  {shows.map(({ key, label }) => (
                     <FilterPill
                       key={key}
                       href={showHref(key)}

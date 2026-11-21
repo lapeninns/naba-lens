@@ -3,7 +3,12 @@ import { MatchLaterRow } from "@/components/nabalens/album/match/match-later"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { LinkButton } from "@/components/ui/link-button"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import {
+  RECENT_STAFF_POSTS,
+  STAFF_ALBUM_POSTS,
+} from "@/lib/config/staff-album-posts"
 import { getCoverageActor } from "@/lib/server/coverage"
 
 import { listMatchLater } from "../_shell/match-later"
@@ -44,6 +49,11 @@ export default async function StaffAlbumPage({
       monthly={monthly}
     >
       <OfflineNotice className="mb-3" />
+      {STAFF_ALBUM_POSTS ? (
+        <div className="mb-4">
+          <LinkButton href={RECENT_STAFF_POSTS}>Recent photos</LinkButton>
+        </div>
+      ) : null}
       {shelves.ok ? (
         <AlbumLanding
           venueName={profile.venue?.name ?? ""}

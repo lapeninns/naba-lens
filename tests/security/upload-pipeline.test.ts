@@ -1,7 +1,7 @@
 // Full App v1 S1-UPLOAD (20261118102000_upload_pipeline.sql): the batch ID
 // and limits on reserve_media_asset, the current-venue recheck in storage and
 // complete_media_finalise (AC12), the content hash and same-venue duplicate
-// link (AC21, AC23), capture time and its correction (set_media_captured_at),
+// link (AC21, AC23), capture time and historical provenance,
 // renditions, and duplicates left out of monthly credit. Real signed-in
 // identities through PostgREST and the app's own finalise; the service role
 // and psql only build fixtures and read state back.
@@ -287,6 +287,62 @@ describe("finalise through the app", () => {
     )
   })
 
+  it("posts ready photos to their venue and shares moderation notes with the uploader", async () => {
+    const up = await stored(v.staffB, await syntheticJpeg(700, 501))
+    const asset = { p_asset_id: up.id }
+    const postFor = (who: TestIdentity) =>
+      ok(who.client.rpc("staff_album_posts", asset))
+    const canView = (who: TestIdentity) =>
+      ok(who.client.rpc("staff_album_can_view", asset))
+    const moderate = (action: "feedback" | "remove", note: string) =>
+      v.manager.client.rpc("staff_album_moderate", {
+        ...asset,
+        p_action: action,
+        p_note: note,
+      })
+
+    expect(await postFor(v.staffA)).toEqual([])
+    expect(await finalise(v.staffB, up.id, up.key)).toMatchObject({
+      ok: true,
+      state: "ready",
+    })
+    expect(await postFor(v.staffA)).toMatchObject([
+      { id: up.id, labels: [], feedback: [], removed: false },
+    ])
+    expect(await canView(v.staffA)).toBe(true)
+    expect(await canView(other.staffB)).toBe(false)
+    expect(await postFor(other.staffB)).toEqual([])
+
+    const note = "Leave more space around the plate."
+    await refused(
+      v.staffA,
+      "staff_album_moderate",
+      { ...asset, p_action: "feedback", p_note: note },
+      "not_venue_manager",
+      "42501"
+    )
+    await ok(moderate("feedback", note))
+    expect(await postFor(v.staffB)).toMatchObject([
+      { feedback: [{ action: "feedback", note }], removed: false },
+    ])
+    expect(await postFor(v.staffA)).toMatchObject([{ feedback: [] }])
+    expect(await canView(v.staffA)).toBe(true)
+
+    const reason = "This angle duplicates the other photo."
+    await ok(moderate("remove", reason))
+    expect(await canView(v.staffA)).toBe(false)
+    expect(await postFor(v.staffA)).toEqual([])
+    expect(await postFor(v.staffB)).toMatchObject([
+      {
+        removed: true,
+        feedback: [
+          { action: "remove", note: reason },
+          { action: "feedback", note },
+        ],
+      },
+    ])
+  })
+
   it("marks an exact copy at the same venue as a duplicate, not one at another venue", async () => {
     const original = await stored(v.staffA)
     await finalise(v.staffA, original.id, original.key)
@@ -455,10 +511,14 @@ describe("complete_media_finalise", () => {
 
     const b = await reserve(v.staffA)
     await ok(
-      call(v.staffA, "set_media_captured_at", {
-        p_asset_id: b.id,
-        p_captured_at: "2026-06-01T12:00:00Z",
-      })
+      service
+        .from("media_assets")
+        .update({
+          captured_at: "2026-06-01T12:00:00Z",
+          captured_at_source: "supplied",
+          captured_at_set_by: v.staffA.id,
+        })
+        .eq("id", b.id)
     )
     await complete(b.id, { capturedAt: "2026-07-14T18:30:05Z" })
     expect(column(b.id, "captured_at_source")).toBe("supplied")
@@ -506,79 +566,12 @@ describe("complete_media_finalise", () => {
   })
 })
 
-describe("set_media_captured_at", () => {
-  let asset: string
-  beforeAll(async () => {
-    asset = (await reserve(v.staffA)).id
-    await markReady(service, asset)
-  })
-
-  const setAs = (who: TestIdentity, at: string | null, id = asset) =>
-    call(who, "set_media_captured_at", {
-      p_asset_id: id,
-      p_captured_at: at,
-    })
-
-  it("lets the uploader supply or clear it", async () => {
-    expect(await ok(setAs(v.staffA, "2026-05-01T09:00:00Z"))).toMatchObject({
-      assetId: asset,
-      capturedAtSource: "supplied",
-    })
-    expect(column(asset, "captured_at_set_by")).toBe(v.staffA.id)
-    expect(await ok(setAs(v.staffA, null))).toMatchObject({
-      capturedAt: null,
-      capturedAtSource: "unknown",
-    })
-  })
-
-  it("lets the venue's manager and an admin correct it", async () => {
-    await ok(setAs(v.manager, "2026-05-02T09:00:00Z"))
-    expect(column(asset, "captured_at_set_by")).toBe(v.manager.id)
-    await ok(setAs(v.admin, "2026-05-03T09:00:00Z"))
-    expect(column(asset, "captured_at_set_by")).toBe(v.admin.id)
-  })
-
-  it("is not found for a colleague, another venue's manager or staff", async () => {
-    for (const who of [v.staffB, other.staffA, other.manager])
-      await refused(
-        who,
-        "set_media_captured_at",
-        { p_asset_id: asset, p_captured_at: "2026-05-04T09:00:00Z" },
-        "media_asset_not_found",
-        "P0002"
-      )
-    expect(column(asset, "captured_at_set_by")).toBe(v.admin.id)
-  })
-
-  it("refuses an inactive account, anon and impossible dates", async () => {
-    const own = (await reserve(v.staffB)).id
-    const inactive = await createIdentity(service, {
-      label: "upl-inactive",
-      role: "staff",
-      venueId: v.venue,
-      active: false,
-    })
-    await refused(
-      inactive,
-      "set_media_captured_at",
-      { p_asset_id: own, p_captured_at: "2026-05-04T09:00:00Z" },
-      "not_active_user",
-      "42501"
+it("has retired the manual capture date RPC", () => {
+  expect(
+    psql(
+      "select to_regprocedure('public.set_media_captured_at(uuid,timestamptz)') is null"
     )
-    const { error } = await anonClient().rpc("set_media_captured_at", {
-      p_asset_id: own,
-      p_captured_at: "2026-05-04T09:00:00Z",
-    })
-    expect(error).not.toBeNull()
-    for (const at of ["2099-01-01T00:00:00Z", "1980-01-01T00:00:00Z"])
-      await refused(
-        v.staffB,
-        "set_media_captured_at",
-        { p_asset_id: own, p_captured_at: at },
-        "invalid_captured_at",
-        "22023"
-      )
-  })
+  ).toBe("t")
 })
 
 describe("monthly credit", () => {

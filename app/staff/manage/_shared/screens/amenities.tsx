@@ -14,6 +14,8 @@ import { workServices } from "@/lib/work-client/services"
 import { londonToday } from "@/lib/server/knowledge/dates"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { BackLink } from "@/components/nabalens/back-link"
+import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
 import {
@@ -37,6 +39,8 @@ import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { type ManageContext } from "../context"
 import { ManageFrame, NotManagerPage } from "../frame"
 
+import type { AdminVenueView } from "@/app/admin/_components/admin-venue-header"
+
 import {
   AmenitiesOverviewControl,
   AmenityCheckControl,
@@ -53,24 +57,44 @@ async function AmenitiesFrame({
   title,
   summary,
   pendingReview,
+  adminView,
+  back,
+  albumTab,
   children,
 }: {
   ctx: ManageContext
   title: string
   summary?: React.ReactNode
   pendingReview?: number
+  /** Admin only (redesign R5): see ManageFrame. */
+  adminView?: AdminVenueView
+  back?: { href: string; label: string }
+  /**
+   * The /manager workspace's Album tab this screen is (redesign R4, ia.md):
+   * titled Album, with the section's tabs. A detail page leaves it out and
+   * has a BackLink instead.
+   */
+  albumTab?: "spaces" | "amenities"
   children: React.ReactNode
 }) {
   if (ctx.mode === "workspace") {
     return (
       <div className="grid gap-6">
-        <PageHeader
-          scope={ctx.venue.name}
-          venueScope
-          title={title}
-          summary={summary}
-          className="pb-0 md:pb-0"
-        />
+        <div className="grid gap-1">
+          {back && !albumTab ? (
+            <BackLink href={back.href} compact>
+              {back.label}
+            </BackLink>
+          ) : null}
+          <PageHeader
+            scope={ctx.venue.name}
+            venueScope
+            title={albumTab ? "Album" : title}
+            summary={summary}
+            className="pb-0 md:pb-0"
+          />
+          {albumTab ? <ManagerTabs section="album" active={albumTab} /> : null}
+        </div>
         {children}
       </div>
     )
@@ -82,6 +106,8 @@ async function AmenitiesFrame({
       title={title}
       summary={summary}
       pendingReview={pendingReview}
+      adminView={adminView}
+      back={back}
     >
       {children}
     </ManageFrame>
@@ -146,18 +172,23 @@ export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
     <AmenitiesFrame
       ctx={ctx}
       title={UI_TEXT.navTab}
+      albumTab="amenities"
       summary={`Questions guests ask about ${venue}, each answered with photo or video evidence. Separate from the checklist and photo targets.`}
       pendingReview={ctx.coverage?.summary.pendingReview}
     >
       <OfflineNotice loadedAt={new Date().toISOString()} />
-      <div>
-        <Link
-          href={placesHref(ctx.basePath)}
-          className={buttonVariants({ variant: "secondary", size: "sm" })}
-        >
-          Places at {venue}
-        </Link>
-      </div>
+      {/* An admin reaches places from the Album pick (redesign R5), a
+          manager from the Spaces tab (R4). */}
+      {ctx.mode === "admin" || ctx.mode === "workspace" ? null : (
+        <div>
+          <Link
+            href={placesHref(ctx.basePath)}
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
+          >
+            Places at {venue}
+          </Link>
+        </div>
+      )}
       <AmenitiesOverviewControl
         view={view}
         catalogue={catalogue?.ok ? catalogue.options : null}
@@ -381,17 +412,21 @@ export async function AmenityCheckScreen({
       ctx={ctx}
       title={detail.check.entry.question}
       pendingReview={ctx.coverage?.summary.pendingReview}
+      back={{ href: hrefs.list, label: "Amenities" }}
     >
       <OfflineNotice loadedAt={new Date().toISOString()} />
-      <div>
-        <Link
-          href={hrefs.list}
-          className={buttonVariants({ variant: "row-link", size: "sm" })}
-        >
-          <ArrowLeftIcon aria-hidden />
-          All amenities
-        </Link>
-      </div>
+      {/* An admin or manager has the BackLink above the title (R4, R5). */}
+      {ctx.mode === "admin" || ctx.mode === "workspace" ? null : (
+        <div>
+          <Link
+            href={hrefs.list}
+            className={buttonVariants({ variant: "row-link", size: "sm" })}
+          >
+            <ArrowLeftIcon aria-hidden />
+            All amenities
+          </Link>
+        </div>
+      )}
       {knowledge?.ok ? null : (
         // The legacy screen still works, but findings may be waiting (MG-03).
         <Notice tone="negative" role="alert">
@@ -437,17 +472,23 @@ export async function PlacesScreen({ ctx }: { ctx: ManageContext }) {
       ctx={ctx}
       title={title}
       pendingReview={ctx.coverage?.summary.pendingReview}
+      adminView={{ tab: "album", pick: "spaces" }}
+      albumTab="spaces"
     >
       <OfflineNotice loadedAt={new Date().toISOString()} />
-      <div>
-        <Link
-          href={amenityHrefs(ctx.basePath).list}
-          className={buttonVariants({ variant: "link", size: "sm" })}
-        >
-          <ArrowLeftIcon aria-hidden />
-          All amenities
-        </Link>
-      </div>
+      {/* An admin reaches amenities from the Album pick (redesign R5), a
+          manager from the Amenities tab (R4). */}
+      {ctx.mode === "admin" || ctx.mode === "workspace" ? null : (
+        <div>
+          <Link
+            href={amenityHrefs(ctx.basePath).list}
+            className={buttonVariants({ variant: "link", size: "sm" })}
+          >
+            <ArrowLeftIcon aria-hidden />
+            All amenities
+          </Link>
+        </div>
+      )}
       {ctx.mode === "workspace" ? (
         <p className="text-body text-ink-muted">
           Staff see these places in Album.{" "}

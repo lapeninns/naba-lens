@@ -3,7 +3,7 @@
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { ManagerWorkspaceError } from "@/components/nabalens/manager/workspace-error"
 
-/** S2-MGR: a failed venueHistory read (Try again). */
+/** Venue › History failed to load (redesign R4, ia.md). */
 export default function ErrorBoundary({
   error,
   retry,
@@ -13,7 +13,7 @@ export default function ErrorBoundary({
 }) {
   return (
     <ManagerWorkspaceError
-      title={MANAGER_COPY.venueHistory.title}
+      title={MANAGER_COPY.venue.title}
       what={MANAGER_COPY.couldNotLoad.venueHistory}
       error={error}
       retry={retry}

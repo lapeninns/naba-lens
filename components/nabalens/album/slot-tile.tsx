@@ -10,6 +10,7 @@ import Link from "next/link"
 import type * as React from "react"
 
 import { Photo } from "@/components/ui/photo"
+import { STAFF_POSTED } from "@/lib/config/staff-album-posts"
 import {
   OPTIONAL_SLOT_WORD,
   SLOT_MARK_WORDS,
@@ -48,6 +49,7 @@ type SlotTileProps = {
   /** The slot's name: "Guinness, pint", "Darts board", "Bar counter". */
   name: string
   state: SlotState
+  posted?: boolean
   /** The slot's current photo. Ignored for needed and not-here. */
   photoSrc?: string
   /** Upload progress, 0 to 100, while sending. */
@@ -143,7 +145,8 @@ function StateMark({
 
 function SlotTile({
   name,
-  state,
+  state: coverState,
+  posted = false,
   photoSrc,
   progress,
   offline = false,
@@ -153,14 +156,25 @@ function SlotTile({
   layout = "tile",
   className,
 }: SlotTileProps) {
+  const state = posted ? "accepted" : coverState
+  const mark = posted ? (
+    <span className={cn(MARK, "bg-ok-bg text-ok-fg")}>
+      <CheckIcon aria-hidden weight="bold" />
+      {STAFF_POSTED}
+    </span>
+  ) : (
+    <StateMark state={state} progress={progress} offline={offline} />
+  )
   const emptyOptional = optional && state === "needed"
   // An offline sending tile shows "Saved on this phone", so its name says so too.
   const label = `${name}: ${
-    state === "sending" && offline
-      ? "saved on this phone"
-      : emptyOptional
-        ? OPTIONAL_SLOT_WORD.toLowerCase()
-        : STATE_WORDS[state]
+    posted
+      ? STAFF_POSTED.toLowerCase()
+      : state === "sending" && offline
+        ? "saved on this phone"
+        : emptyOptional
+          ? OPTIONAL_SLOT_WORD.toLowerCase()
+          : STATE_WORDS[state]
   }`
   const hasPhoto = state !== "needed" && state !== "not-here"
 
@@ -253,7 +267,7 @@ function SlotTile({
       ) : state === "not-here" ? (
         <span className="text-meta text-ink-muted">{NOT_HERE_WORD}</span>
       ) : (
-        <StateMark state={state} progress={progress} offline={offline} />
+        mark
       )}
     </>
   ) : (
@@ -263,9 +277,7 @@ function SlotTile({
         {name}
       </span>
       {hasPhoto ? (
-        <span className="max-w-full min-w-0 self-start">
-          <StateMark state={state} progress={progress} offline={offline} />
-        </span>
+        <span className="max-w-full min-w-0 self-start">{mark}</span>
       ) : emptyOptional ? (
         <span className={cn(MARK, "self-start bg-surface-2 text-ink")}>
           {OPTIONAL_SLOT_WORD}
@@ -280,7 +292,7 @@ function SlotTile({
         href={href}
         aria-label={label}
         data-slot="slot-tile"
-        data-state={state}
+        data-state={posted ? "posted" : state}
         data-optional={optional || undefined}
         className={frame}
       >
@@ -294,7 +306,7 @@ function SlotTile({
         onClick={onSelect}
         aria-label={label}
         data-slot="slot-tile"
-        data-state={state}
+        data-state={posted ? "posted" : state}
         data-optional={optional || undefined}
         className={frame}
       >

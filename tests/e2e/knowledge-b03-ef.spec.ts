@@ -570,14 +570,16 @@ test.describe("knowledge B03 E and F", () => {
     // ---- 6. Admin Runs: hold the real dry-run response, then release it.
     await admin.goto("/admin/knowledge/runs")
     await settled(admin)
-    // The page title; the runs list below has its own "Runs" heading.
+    // Settings › Venue facts › Imports (redesign R5, ia.md): the Settings
+    // title, and the Imports pick current.
     await expect(
-      admin.getByRole("heading", {
-        name: RECONCILE_COPY.runsTitle,
-        exact: true,
-        level: 1,
-      })
+      admin.getByRole("heading", { name: "Settings", exact: true, level: 1 })
     ).toBeVisible()
+    await expect(
+      admin
+        .getByRole("group", { name: "Venue facts" })
+        .getByRole("link", { name: RECONCILE_COPY.runsTitle, exact: true })
+    ).toHaveAttribute("aria-current", "page")
     const startForm = admin.getByRole("form", { name: RECONCILE_COPY.start })
     await startForm
       .getByLabel(RECONCILE_COPY.scopeVenue, { exact: true })

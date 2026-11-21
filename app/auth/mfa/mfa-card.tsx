@@ -1,10 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { ShieldCheckIcon } from "@phosphor-icons/react"
 
 import { SignInCard, SignInHeading } from "@/app/login/sign-in-frame"
-import { IconDisc } from "@/components/nabalens/common-room/icon-disc"
 import { Notice } from "@/components/nabalens/notice"
 import { Button } from "@/components/ui/button"
 import { FormField } from "@/components/ui/field"
@@ -21,7 +19,8 @@ type Enrolment = Extract<EnrolmentResult, { ok: true }>
 
 /**
  * The second sign-in step (FA-23): set up an authenticator app, or enter its
- * code. One card on the sign-in canvas, one main button per state.
+ * code. One column in the sign-in frame, one main button per state, and the
+ * code is one field (decision 10).
  */
 export function MfaCard({
   mode,
@@ -65,8 +64,9 @@ export function MfaCard({
         <Button
           type="button"
           variant="primary"
+          className="w-full"
           onClick={start}
-          disabled={starting}
+          loading={starting}
         >
           Set up with an authenticator app
         </Button>
@@ -110,14 +110,9 @@ function Heading({
   children: React.ReactNode
 }) {
   return (
-    <div className="grid gap-4">
-      <IconDisc>
-        <ShieldCheckIcon />
-      </IconDisc>
-      <SignInHeading id="mfa-title" title={title}>
-        {children}
-      </SignInHeading>
-    </div>
+    <SignInHeading id="mfa-title" title={title}>
+      {children}
+    </SignInHeading>
   )
 }
 
@@ -131,6 +126,11 @@ function CodeForm({
   submitLabel: string
 }) {
   const [state, action, pending] = React.useActionState(confirmMfaCode, INITIAL)
+  const input = React.useRef<HTMLInputElement>(null)
+  // A refused code: focus returns to the field, which names the error.
+  React.useEffect(() => {
+    if (state.error) input.current?.focus()
+  }, [state])
   return (
     <form action={action} className="grid gap-5">
       {factorId ? (
@@ -138,6 +138,7 @@ function CodeForm({
       ) : null}
       <FormField label="6-digit code" error={state.error} announce="assertive">
         <Input
+          ref={input}
           name="code"
           inputMode="numeric"
           autoComplete="one-time-code"
@@ -146,7 +147,12 @@ function CodeForm({
           spellCheck={false}
         />
       </FormField>
-      <Button type="submit" variant="primary" disabled={pending}>
+      <Button
+        type="submit"
+        variant="primary"
+        className="w-full"
+        loading={pending}
+      >
         {submitLabel}
       </Button>
     </form>

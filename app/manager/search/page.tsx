@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 
 import { workspaceManagerContext } from "@/app/staff/manage/_shared/context"
 import { SearchScreen } from "@/app/staff/manage/_shared/screens"
+import { BackLink } from "@/components/nabalens/back-link"
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 
@@ -25,5 +27,13 @@ export default async function ManagerSearchPage({
     return <VenueAccessUnavailable reason={workspace.reason} refreshShell />
   }
   const ctx = await workspaceManagerContext()
-  return <SearchScreen mode="workspace" ctx={ctx} search={await searchParams} />
+  // Search opens from Album (redesign R4, ia.md), so its BackLink names Album.
+  return (
+    <div className="grid gap-1">
+      <BackLink href={managerHrefs.menu()} compact>
+        Album
+      </BackLink>
+      <SearchScreen mode="workspace" ctx={ctx} search={await searchParams} />
+    </div>
+  )
 }

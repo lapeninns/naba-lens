@@ -6,6 +6,8 @@ import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
+import { BackLink } from "@/components/nabalens/back-link"
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
@@ -18,7 +20,7 @@ import {
 
 import { isRefusal } from "../../load-overview"
 
-export const metadata = { title: "Menus" }
+export const metadata = { title: "Menus and change requests" }
 
 const LINK =
   "rounded-square font-semibold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
@@ -90,13 +92,18 @@ export default async function ManagerMenuVersionsPage({
         className={OFFLINE_BANNER_CLASS}
         loadedAt={new Date().toISOString()}
       />
-      <PageHeader
-        scope={workspace.venue.name}
-        venueScope
-        title="Menus"
-        summary="The current menu and any that start later. An admin imports and schedules them."
-        className="pb-0 md:pb-0"
-      />
+      <div className="grid gap-1">
+        <BackLink href={managerHrefs.venue} compact>
+          Venue
+        </BackLink>
+        <PageHeader
+          scope={workspace.venue.name}
+          venueScope
+          title="Menus and change requests"
+          summary="The current menu and any that start later. An admin imports and schedules them."
+          className="pb-0 md:pb-0"
+        />
+      </div>
       <section aria-labelledby="menus-list" className="grid gap-3">
         <h2 id="menus-list" className="px-1 type-section-title text-ink">
           {archived

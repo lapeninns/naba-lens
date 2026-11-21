@@ -1,3 +1,4 @@
+import { STAFF_PHOTO_ROUTES } from "@/lib/config/album-upload-tray"
 import { setWelcomeDismissedAction } from "@/app/staff/actions"
 import { ContributionNoticeCard } from "@/components/nabalens/me/contribution-notice"
 import { FirstRun, setupGaps } from "@/components/nabalens/tasks"
@@ -9,7 +10,7 @@ import { workRoleLabel } from "@/lib/config/work-roles"
 import { getCoverageActor, getMyMonth } from "@/lib/server/coverage"
 import { periodKeyOf } from "@/lib/server/coverage/time"
 
-import { PORTFOLIO_PATH, TASKS_PATH, WELCOME_PATH, unwrap } from "../result"
+import { PORTFOLIO_PATH, WELCOME_PATH, unwrap } from "../result"
 
 export const metadata = { title: "Welcome" }
 
@@ -79,7 +80,7 @@ export default async function WelcomePage({
       photoHref={PORTFOLIO_PATH}
       profileHref={`${PORTFOLIO_PATH}?edit=profile`}
       workProfileHref={`/staff/profile?next=${encodeURIComponent(here)}`}
-      homeHref={TASKS_PATH}
+      homeHref={STAFF_PHOTO_ROUTES.home}
       back={fromMe ? { href: PORTFOLIO_PATH, label: "Back to Me" } : null}
       dismiss={setWelcomeDismissedAction}
       notice={

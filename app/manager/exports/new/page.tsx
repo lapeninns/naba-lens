@@ -4,6 +4,8 @@ import { EXPORTS_COPY } from "@/app/admin/publishing/_components/copy"
 import { ExportBuilder } from "@/app/admin/publishing/_components/export-builder"
 import { workspaceManagerContext } from "@/app/staff/manage/_shared/context"
 import { Notice } from "@/components/nabalens/notice"
+import { BackLink } from "@/components/nabalens/back-link"
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { PageHeader } from "@/components/nabalens/page-header"
 import {
   listExportCandidates,
@@ -24,13 +26,18 @@ export default async function ManagerNewPackagePage() {
   ])
   return (
     <div className="grid gap-gutter">
-      <PageHeader
-        scope={ctx.venue.name}
-        venueScope
-        title={EXPORTS_COPY.makePackage}
-        summary="Only photos approved for public use now can be chosen."
-        className="pb-0 md:pb-0"
-      />
+      <div className="grid gap-1">
+        <BackLink href={managerHrefs.exports} compact>
+          Exports
+        </BackLink>
+        <PageHeader
+          scope={ctx.venue.name}
+          venueScope
+          title={EXPORTS_COPY.makePackage}
+          summary="Only photos approved for public use now can be chosen."
+          className="pb-0 md:pb-0"
+        />
+      </div>
       {candidates.ok ? (
         <ExportBuilder
           area="manager"

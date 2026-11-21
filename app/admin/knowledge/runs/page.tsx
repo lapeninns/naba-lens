@@ -9,7 +9,7 @@ import { dateAndTime } from "@/components/nabalens/knowledge/copy"
 import { StartDryRunForm } from "@/components/nabalens/knowledge/reconcile-controls"
 import { RECONCILE_COPY as COPY } from "@/components/nabalens/knowledge/reconcile-copy"
 import { Notice } from "@/components/nabalens/notice"
-import { PageHeader } from "@/components/nabalens/page-header"
+import { VenueFactsHeader } from "@/app/admin/_components/admin-tabs"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
@@ -17,7 +17,7 @@ import { getCoverageActor } from "@/lib/server/coverage"
 
 import { adminVenues } from "../admin-venues"
 
-export const metadata: Metadata = { title: "Runs · Knowledge" }
+export const metadata: Metadata = { title: "Imports · Venue facts" }
 
 const PATH = "/admin/knowledge/runs"
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -85,9 +85,9 @@ export default async function RunsPage({
     : []
 
   return (
-    <AppShell variant="admin" active="coverage" userName={profile.displayName}>
+    <AppShell variant="admin" active="settings" userName={profile.displayName}>
       <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
-        <PageHeader title={COPY.runsTitle} />
+        <VenueFactsHeader active="imports" />
         <StartDryRunForm
           venues={venues}
           onReconcile={reconcileAction}

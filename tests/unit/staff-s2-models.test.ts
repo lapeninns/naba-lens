@@ -20,10 +20,9 @@ import {
   type AlbumSlot,
 } from "@/lib/album/model"
 import {
+  canLabelUpload,
   datesLine,
   groupUploads,
-  isoToLondonLocal,
-  londonLocalToIso,
   OUTCOME_CHIP,
   parseMyUploads,
   parseVenueManagers,
@@ -245,7 +244,6 @@ describe("My uploads actions by state", () => {
       correction: false,
       removal: false,
       retake: null,
-      fixDate: true,
     })
     const accepted = upload({ slots: [slot({ outcome: "public" })] })
     expect(uploadActions(accepted)).toMatchObject({
@@ -344,26 +342,28 @@ describe("My uploads words", () => {
     expect(receiptWord({ uploadState: "ready" })).toBeNull()
   })
 
+  it("offers a first label on own unlabelled images at the current venue", () => {
+    const deferred = upload({ slots: [] })
+    expect(canLabelUpload(deferred, V)).toBe(true)
+    expect(canLabelUpload(deferred, null)).toBe(false)
+    expect(canLabelUpload(deferred, "another venue")).toBe(false)
+    expect(canLabelUpload({ ...deferred, labelHelp: true }, V)).toBe(false)
+    expect(canLabelUpload({ ...deferred, sharedKinds: ["team"] }, V)).toBe(
+      false
+    )
+    expect(canLabelUpload({ ...deferred, mediaType: "video" }, V)).toBe(false)
+    expect(canLabelUpload({ ...deferred, uploadState: "processing" }, V)).toBe(
+      false
+    )
+    expect(canLabelUpload(upload(), V)).toBe(false)
+  })
+
   it("writes when it was sent and taken, Unknown when not known", () => {
     const now = new Date("2026-11-18T12:00:00Z")
     expect(datesLine(upload(), now)).toBe("Sent 12 Nov · date taken unknown")
     expect(datesLine(upload({ capturedAt: "2025-12-31T23:30:00Z" }), now)).toBe(
       "Sent 12 Nov · taken 31 Dec 2025"
     )
-  })
-
-  it("turns London wall time into an instant and back, across BST", () => {
-    expect(londonLocalToIso("2026-11-12T19:30")).toBe(
-      "2026-11-12T19:30:00.000Z"
-    )
-    expect(londonLocalToIso("2026-07-01T19:30")).toBe(
-      "2026-07-01T18:30:00.000Z"
-    )
-    expect(londonLocalToIso("nonsense")).toBeNull()
-    expect(isoToLondonLocal("2026-07-01T18:30:00.000Z")).toBe(
-      "2026-07-01T19:30"
-    )
-    expect(isoToLondonLocal(null)).toBe("")
   })
 })
 

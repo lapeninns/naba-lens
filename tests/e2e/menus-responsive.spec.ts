@@ -16,6 +16,7 @@ import { supportedMp4, syntheticJpeg } from "./helpers/media"
 import { requireIsolatedStack } from "./helpers/stack"
 import { myPhotoTile } from "./helpers/s3-upload"
 import {
+  closeSheet,
   chooseOption,
   libraryList,
   openMyPhotos,
@@ -202,9 +203,10 @@ for (const width of WIDTHS) {
       ? ["Library", "People", "Menus"]
       : ["Overview", "Venues", "Library", "More"]
     for (const name of names) {
-      const box = await nav
-        .getByRole("link", { name, exact: true })
-        .boundingBox()
+      const link = nav.getByRole("link", { name, exact: true })
+      // boundingBox() does not wait: let the shell finish streaming first.
+      await expect(link).toBeVisible()
+      const box = await link.boundingBox()
       expect.soft(box, `nav ${name}@${width}`).not.toBeNull()
       if (box) {
         expect
@@ -290,6 +292,11 @@ for (const width of WIDTHS) {
       })
       .fill("momo")
     await batch.getByRole("option", { name: /^Momo Appetisers/ }).click()
+    // Brought into view as focus would bring it: clear of the sticky
+    // footer, which grows to two rows with "1 posted · 1 saved" (D21).
+    await batch
+      .getByRole("button", { name: "Adjust labels for video 2" })
+      .evaluate((el) => el.scrollIntoView({ block: "nearest" }))
     await check(page, width, "label-editor-batch-variant", batch)
     await batch
       .getByRole("group", { name: /^Which Momo\?/ })
@@ -311,16 +318,14 @@ for (const width of WIDTHS) {
         .getByRole("list", { name: "Files" })
         .getByRole("listitem")
         .filter({ has: page.getByText(name, { exact: true }) })
-    await expect(savedRow(photo.name)).toContainText(
-      "Saved · Momo (Chicken) · waiting for manager review"
-    )
+    await expect(savedRow(photo.name)).toContainText("Posted · Momo (Chicken)")
     // Managers review photos only: the video keeps its dish, not the promise.
     await expect(savedRow(video.name)).toContainText("Saved · Momo (Chicken)")
     await expect(savedRow(video.name)).not.toContainText(
       "waiting for manager review"
     )
-    await expect(batch.getByRole("status")).toHaveText("2 saved")
-    await batch.getByRole("button", { name: "Done" }).click()
+    await expect(batch.getByRole("status")).toHaveText("1 posted · 1 saved")
+    await closeSheet(batch)
     await expect(batch).toBeHidden()
     await page.context().close()
   })
@@ -413,8 +418,8 @@ test("touch (Pixel 7 emulation): upload, label with taps, labels persist", async
       .getByRole("list", { name: "Files" })
       .getByRole("listitem")
       .filter({ has: page.getByText(photo.name, { exact: true }) })
-  ).toContainText("Saved · Garlic Mushroom · waiting for manager review")
-  await expect(editor.getByRole("status")).toHaveText("1 saved")
+  ).toContainText("Posted · Garlic Mushroom")
+  await expect(editor.getByRole("status")).toHaveText("1 posted")
   await editor.getByRole("button", { name: "Done" }).tap()
   await expect(editor).toBeHidden()
   // After a reload My photos names the photo by its dish slot (§5e).

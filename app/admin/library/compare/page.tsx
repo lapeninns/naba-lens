@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { AppShell } from "@/components/nabalens/app-shell"
+import { BackLink } from "@/components/nabalens/back-link"
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { requireActiveAdmin } from "@/lib/auth"
@@ -34,11 +35,17 @@ export default async function LibraryComparePage({
   return (
     <AppShell variant="admin" active="content" userName={profile.displayName}>
       <div className="flex flex-col gap-6">
-        <PageHeader
-          scope="Library"
-          title="Compare photos"
-          className="pb-0 md:pb-0"
-        />
+        {/* Library, detail page: back to the first photo (redesign R5). */}
+        <div className="grid min-w-0 gap-1">
+          <BackLink href={`/admin/library/${encodeURIComponent(a)}`} compact>
+            Photo details
+          </BackLink>
+          <PageHeader
+            scope="Library"
+            title="Compare photos"
+            className="pb-0 md:pb-0"
+          />
+        </div>
         {left.ok && right.ok ? (
           <CompareView a={left.value} b={right.value} />
         ) : (

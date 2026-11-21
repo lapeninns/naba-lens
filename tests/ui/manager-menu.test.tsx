@@ -446,7 +446,7 @@ describe("Item detail", () => {
   it("shows the menu photo, alternatives, waiting and history sections", () => {
     showItem(detail())
     expect(
-      screen.getByRole("link", { name: "Album" }).getAttribute("href")
+      screen.getByRole("link", { name: "Menu" }).getAttribute("href")
     ).toBe("/manager/menu?status=covered")
     expect(screen.getByRole("heading", { level: 1, name: "Soup" })).toBeTruthy()
     const menuPhoto = within(region("Menu photo"))

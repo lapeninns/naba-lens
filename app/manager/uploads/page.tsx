@@ -6,6 +6,8 @@ import {
   OfflineNotice,
   OFFLINE_BANNER_CLASS,
 } from "@/components/nabalens/offline-notice"
+import { BackLink } from "@/components/nabalens/back-link"
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { loadMoreContributionsAction } from "@/app/_knowledge/actions"
 import { requireManagerVenue } from "@/lib/auth/manager"
@@ -16,7 +18,7 @@ import { workServices } from "@/lib/work-client/services"
 import { managerUploadsOn } from "../entry"
 import { MyUploads } from "./my-uploads"
 
-export const metadata = { title: "My uploads" }
+export const metadata = { title: "Your photos" }
 
 /** R5's first page; null when it couldn't be read, "missing" before B02. */
 async function firstPage(): Promise<ContributionsFeedPage | null | "missing"> {
@@ -47,13 +49,18 @@ export default async function ManagerUploadsPage() {
         className={OFFLINE_BANNER_CLASS}
         loadedAt={new Date().toISOString()}
       />
-      <PageHeader
-        scope={venue.name}
-        venueScope
-        title={copy.title}
-        summary={copy.summary}
-        className="pb-0 md:pb-0"
-      />
+      <div className="grid gap-1">
+        <BackLink href={managerHrefs.account} compact>
+          {MANAGER_COPY.accountPage.title}
+        </BackLink>
+        <PageHeader
+          scope={venue.name}
+          venueScope
+          title={copy.title}
+          summary={copy.summary}
+          className="pb-0 md:pb-0"
+        />
+      </div>
       {page === "missing" ? (
         <Notice role="status">{copy.missing}</Notice>
       ) : (

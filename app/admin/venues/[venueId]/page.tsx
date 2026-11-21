@@ -8,7 +8,6 @@ import { Row, RowList } from "@/components/nabalens/common-room/row"
 import { CoverageSection } from "@/components/nabalens/coverage"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
-import { PageHeader } from "@/components/nabalens/page-header"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
@@ -24,6 +23,7 @@ import { getCoverageActor } from "@/lib/server/coverage"
 import { getVenueScope } from "@/lib/server/menus/local"
 import { getReviewSettings } from "@/lib/server/review/single-reviewer"
 
+import { AdminVenueHeader } from "../../_components/admin-venue-header"
 import {
   ReviewerForm,
   ScopeForm,
@@ -108,18 +108,14 @@ export default async function AdminVenuePage({
     <AppShell variant="admin" active="venues" userName={profile.displayName}>
       <div className="flex flex-col gap-8">
         <div className="flex flex-col gap-4">
-          <PageHeader
-            scope={[
-              <Link
-                key="venues"
-                href="/admin/venues"
-                className="underline decoration-1 underline-offset-4 focus-ring outline-none"
-              >
-                Venues
-              </Link>,
-              venue.locality ?? undefined,
-            ]}
-            title={venue.name}
+          {/* Venues › one venue › Setup (redesign R5, ia.md): the venue is
+              named in the VenueBar; the title is the tab's. */}
+          <AdminVenueHeader
+            venueId={venue.id}
+            venueName={
+              venue.locality ? `${venue.name}, ${venue.locality}` : venue.name
+            }
+            view={{ tab: "setup" }}
             summary={
               <div className="flex flex-wrap items-center gap-2">
                 <StatusChip
@@ -138,7 +134,6 @@ export default async function AdminVenuePage({
                 Activity
               </Link>
             }
-            className="pb-0 md:pb-0"
           />
           <OfflineNotice />
           {created ? (

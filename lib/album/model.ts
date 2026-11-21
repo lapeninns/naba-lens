@@ -152,6 +152,8 @@ export type AlbumSlot = {
   group: string
   state: SlotState
   thumbnailUrl: string | null
+  /** Venue Album cover, from posted photos rather than the coverage review. */
+  albumPostThumb?: string | null
   /** A manager's "needed by" date on a dish, as written (DESIGN.md §7). */
   neededBy: string | null
   /**

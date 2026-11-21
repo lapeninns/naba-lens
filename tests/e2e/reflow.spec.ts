@@ -95,7 +95,7 @@ for (const size of SIZES) {
     await reflow(anon, size, "/login")
   })
 
-  test(`staff pages, Add and Match reflow at ${size.name}`, async () => {
+  test(`staff pages, Add and Label photos reflow at ${size.name}`, async () => {
     for (const path of staffPages(m)) await reflow(staff, size, path)
     // My photos' Add a video: the upload sheet (DESIGN.md §5e).
     await reflow(staff, size, "/staff/photos")
@@ -120,7 +120,8 @@ for (const size of SIZES) {
         staff.getByRole("button", { name: "45° angle. Open example" }).click(),
       staff.getByRole("dialog", { name: "45° angle" })
     )
-    // Add: the phone's photos, then Match (DESIGN.md §6.1).
+    // Add: the phone's photos, posted at once, then Label photos (D21,
+    // DESIGN.md §6.1).
     await reflow(staff, size, "/staff/album")
     const photo = await syntheticJpeg(`reflow-${size.name}-${Date.now()}.jpg`)
     const tab = staff
@@ -131,15 +132,14 @@ for (const size of SIZES) {
     const chooser = staff.waitForEvent("filechooser")
     await tab.click()
     await (await chooser).setFiles(photo.path)
-    await dialogReflows(
-      staff,
-      size,
-      "Match",
-      async () => undefined,
-      staff.getByRole("dialog", { name: /^Photo 1 of 1$/ })
-    )
-    // Closing sent it to Match later; let it finish before the next size
-    // navigates (a running upload holds navigation at the leave guard).
+    const sheet = staff.getByRole("dialog", {
+      name: /^(Saving 1 photo|1 photo added)$/,
+    })
+    await expect(sheet).toHaveAccessibleName("1 photo added", {
+      timeout: 60_000,
+    })
+    await dialogReflows(staff, size, "Add sheet", async () => undefined, sheet)
+    await reflow(staff, size, "/staff/album/match-later")
     await expect(tab).toHaveAccessibleName("Add photos", { timeout: 60_000 })
   })
 

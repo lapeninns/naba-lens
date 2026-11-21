@@ -1,11 +1,10 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { AppShell } from "@/components/nabalens/app-shell"
+import { BackLink } from "@/components/nabalens/back-link"
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import {
   getAssetDetail,
@@ -44,27 +43,25 @@ export default async function LibraryAssetPage({
   return (
     <AppShell variant="admin" active="content" userName={profile.displayName}>
       <div className="flex flex-col gap-6">
-        <PageHeader
-          venueScope={read.ok}
-          scope={read.ok ? read.value.asset.venueName : "Library"}
-          title={read.ok ? "Photo details" : "Photo"}
-          summary={
-            read.ok ? (
-              <p className="[overflow-wrap:anywhere]">
-                {read.value.asset.originalFilename}
-              </p>
-            ) : null
-          }
-          actions={
-            <Link
-              href="/admin"
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              Back to the library
-            </Link>
-          }
-          className="pb-0 md:pb-0"
-        />
+        {/* Library, detail page (redesign R5, ia.md). */}
+        <div className="grid min-w-0 gap-1">
+          <BackLink href="/admin" compact>
+            Library
+          </BackLink>
+          <PageHeader
+            venueScope={read.ok}
+            scope={read.ok ? read.value.asset.venueName : "Library"}
+            title={read.ok ? "Photo details" : "Photo"}
+            summary={
+              read.ok ? (
+                <p className="[overflow-wrap:anywhere]">
+                  {read.value.asset.originalFilename}
+                </p>
+              ) : null
+            }
+            className="pb-0 md:pb-0"
+          />
+        </div>
         {read.ok ? (
           <AssetDetailView
             detail={read.value}

@@ -1,14 +1,10 @@
 "use client"
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react"
-
-import { AppShell } from "@/components/nabalens/app-shell"
-import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
-import { PageHeader } from "@/components/nabalens/page-header"
-import { Button } from "@/components/ui/button"
-
+import { AdminErrorPage } from "../_components/admin-boundary"
+import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
 import { COVERAGE_COPY } from "./coverage-copy"
 
+/** Overview › This month; [venueId] and /managers have their own. */
 export default function CoverageError({
   error,
   retry,
@@ -17,21 +13,13 @@ export default function CoverageError({
   retry: () => void
 }) {
   return (
-    <AppShell variant="admin" active="coverage">
-      <div className="flex flex-col gap-6">
-        {/* Also the boundary for /admin/coverage/[venueId] and /managers. */}
-        <PageHeader title={COVERAGE_COPY.title} className="pb-0 md:pb-0" />
-        <ErrorState
-          title={COVERAGE_COPY.couldNotLoad}
-          action={
-            <Button type="button" variant="primary" onClick={() => retry()}>
-              <ArrowClockwiseIcon aria-hidden />
-              {ERROR_COPY.tryAgain}
-            </Button>
-          }
-          detail={error.digest ? `Request ID ${error.digest}` : undefined}
-        />
-      </div>
-    </AppShell>
+    <AdminErrorPage
+      section="overview"
+      title={ADMIN_SECTION_TITLES.overview}
+      tabs={<AdminTabs set="overview" active="this-month" />}
+      what={COVERAGE_COPY.couldNotLoad}
+      error={error}
+      retry={retry}
+    />
   )
 }

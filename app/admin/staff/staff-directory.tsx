@@ -25,6 +25,7 @@ import {
   useAccountControls,
   type ManagerGrant,
 } from "./account-controls"
+import { AdminTabs } from "../_components/admin-tabs"
 import { inviteStaffAction } from "./actions"
 import { STAFF_SUMMARY } from "./copy"
 import { needsSetup, sortStaff } from "./staff-order"
@@ -208,7 +209,10 @@ export function StaffDirectory({
           </Button>
         }
         className="pb-0 md:pb-0"
-      />
+      >
+        {/* People › Accounts (redesign R5, ia.md). */}
+        <AdminTabs set="people" active="accounts" />
+      </PageHeader>
 
       {staff.length === 0 ? (
         <EmptyState

@@ -3,10 +3,11 @@
 import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 import { catchError, type ErrorInfo } from "next/error"
 
-import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
+import { ErrorState } from "@/components/nabalens/error-state"
 import { Button } from "@/components/ui/button"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
+import { ADMIN_BOUNDARY_COPY } from "./_components/admin-copy"
 import { LIBRARY_COPY } from "./library-copy"
 
 /** The captioned library grid's columns, so the placeholder holds its place. */
@@ -27,7 +28,7 @@ export function LibraryRetryButton({ onClick }: { onClick: () => void }) {
   return (
     <Button type="button" variant="primary" onClick={onClick}>
       <ArrowClockwiseIcon aria-hidden />
-      {ERROR_COPY.tryAgain}
+      {ADMIN_BOUNDARY_COPY.retry}
     </Button>
   )
 }

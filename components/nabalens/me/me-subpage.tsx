@@ -1,5 +1,4 @@
-import Link from "next/link"
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
+import { BackLink } from "../back-link"
 
 /**
  * The head of a page under Me (DESIGN.md §5b): "← Me", the page's title and
@@ -14,13 +13,7 @@ export function MeSubpageHeader({
 }) {
   return (
     <div className="grid gap-1">
-      <Link
-        href="/staff/me"
-        className="inline-flex min-h-12 items-center gap-1.5 justify-self-start text-label text-ink focus-ring"
-      >
-        <ArrowLeftIcon aria-hidden className="size-5" />
-        Me
-      </Link>
+      <BackLink href="/staff/me">Me</BackLink>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="type-page-title text-ink">{title}</h1>
         {action}

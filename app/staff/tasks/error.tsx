@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button"
 export default function TasksError({ retry }: { retry: () => void }) {
   return (
     <div className="mx-auto grid w-full max-w-feed min-w-0 gap-gutter px-page-gutter py-4 md:px-0 md:py-8">
-      <PageHeader title="Home" className="pb-1 md:pb-2" />
+      <PageHeader title="Jobs" className="pb-1 md:pb-2" />
       <ErrorState
-        title="We couldn't load Home"
+        title="We couldn't load this job"
         action={
           <Button variant="secondary" size="sm" onClick={() => retry()}>
             Try again
