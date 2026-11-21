@@ -218,8 +218,8 @@ export function SignInCodeStep({
         </Button>
       </form>
 
-      {/* The resend group, set apart by a hairline (Common Room card foot). */}
-      <div className="grid gap-3 border-t border-line pt-5">
+      {/* The resend group: secondary, under the one bottle button. */}
+      <div className="grid gap-3">
         {resent ? (
           <Notice tone="positive" role="status">
             New link and code sent at {sentTime(sentAt)}. Use the newest sign-in

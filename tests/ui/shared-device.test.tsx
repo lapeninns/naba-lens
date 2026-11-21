@@ -77,6 +77,17 @@ describe("sign in on a shared device", () => {
     )
   })
 
+  it("sits before Send sign-in link, so it is read first (R6)", () => {
+    render(host(false))
+    const box = screen.getByRole("checkbox", {
+      name: "This is a shared device",
+    })
+    const send = screen.getByRole("button", { name: "Send sign-in link" })
+    expect(
+      box.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
   it("remembers the choice for this device", () => {
     render(host(false))
     const box = screen.getByRole("checkbox", {

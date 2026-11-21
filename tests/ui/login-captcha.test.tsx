@@ -187,7 +187,7 @@ describe("sign-in states", () => {
       "If priya.gurung@example.test has an account, a sign-in link is on its way."
     )
     await userEvent.click(
-      screen.getByRole("button", { name: "Use a different email" })
+      screen.getByRole("link", { name: "Use a different email" })
     )
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy()
   })
@@ -232,7 +232,7 @@ describe("sign-in states", () => {
       "priya.gurung@example.test"
     )
     await userEvent.click(
-      await screen.findByRole("button", { name: "Use a different email" })
+      await screen.findByRole("link", { name: "Use a different email" })
     )
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy()
   })

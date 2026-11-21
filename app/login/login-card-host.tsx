@@ -38,7 +38,7 @@ type LoginCardHostProps = Omit<
  *
  * Every sign-out (app shell, Me, the blocked page) lands here with
  * `signed_out`, so unsent amenity drafts, upload resume keys and the capture
- * journal go with it. On a device marked shared (the option under the card,
+ * journal go with it. On a device marked shared (the option before the main button,
  * spec §3.2, AC36) any arrival here wipes, also after a session ended
  * without signing out (./shared-device.ts).
  */
@@ -81,15 +81,20 @@ export function LoginCardHost({
     [onSubmit, returnTo]
   )
   return (
-    <>
-      <LoginCard {...props} onSubmit={submit} onVerifyCode={verify} />
-      <OptionRow
-        type="checkbox"
-        label="This is a shared device"
-        hint="Signing out, or a session ending, removes anything not yet sent from this device."
-        checked={mode === "shared"}
-        onCheckedChange={(checked) => chooseMode(checked === true)}
-      />
-    </>
+    <LoginCard
+      {...props}
+      onSubmit={submit}
+      onVerifyCode={verify}
+      // Before the button, so it is read first (handoff "Email").
+      deviceOption={
+        <OptionRow
+          type="checkbox"
+          label="This is a shared device"
+          hint="Signing out, or a session ending, removes anything not yet sent from this device."
+          checked={mode === "shared"}
+          onCheckedChange={(checked) => chooseMode(checked === true)}
+        />
+      }
+    />
   )
 }
