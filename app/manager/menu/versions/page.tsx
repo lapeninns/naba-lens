@@ -9,6 +9,7 @@ import {
 import { BackLink } from "@/components/nabalens/back-link"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { PageHeader } from "@/components/nabalens/page-header"
+import { StatusChip } from "@/components/nabalens/status-chip"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 import {
@@ -25,12 +26,13 @@ export const metadata = { title: "Menus and change requests" }
 const LINK =
   "rounded-square font-semibold text-ink underline decoration-1 underline-offset-4 focus-ring outline-none hover:decoration-2"
 
-const STATUS_WORD: Record<ChangeRequestStatus, string> = {
-  open: "Waiting for an admin",
-  accepted: "Accepted",
-  declined: "Declined",
-  clarification_requested: "Admin asks for more detail",
-  withdrawn: "Withdrawn",
+/** A request's chip (status-chip.tsx holds the words; second handoff). */
+const requestChip = (status: ChangeRequestStatus) => `change_request_${status}`
+
+const VERSION_CHIP: Record<VenueMenuVersion["state"], string> = {
+  active: "active_menu",
+  scheduled: "draft",
+  retired: "retired_menu",
 }
 
 const when = (iso: string | null) =>
@@ -61,7 +63,9 @@ function versionLine(v: VenueMenuVersion): string {
 /**
  * The venue's menus (spec §7 M5): the current one, any scheduled for later
  * (a future menu changes nothing until it starts, AC27), retired ones with
- * `?archived=1`, and this venue's requests for permanent changes.
+ * `?archived=1`, and this venue's requests for permanent changes. Second
+ * handoff: the two lists sit side by side from 768px and each row carries
+ * its state as a chip.
  */
 export default async function ManagerMenuVersionsPage({
   searchParams,
@@ -104,72 +108,87 @@ export default async function ManagerMenuVersionsPage({
           className="pb-0 md:pb-0"
         />
       </div>
-      <section aria-labelledby="menus-list" className="grid gap-3">
-        <h2 id="menus-list" className="px-1 text-heading text-ink">
-          {archived
-            ? "Current, scheduled and retired"
-            : "Current and scheduled"}
-        </h2>
-        {versions.versions.length === 0 ? (
-          <Notice>No menu yet. An admin adds it.</Notice>
-        ) : (
-          <ul className="divide-y divide-line rounded-card bg-surface px-3 shadow-card sm:px-4">
-            {versions.versions.map((v) => (
-              <li key={v.versionId} className="grid gap-1 py-3">
-                <p className="text-body font-semibold break-words text-ink">
-                  {v.title}
-                </p>
-                <p className="text-body text-ink-muted">{versionLine(v)}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="px-1 text-body">
-          <Link
-            href={
-              archived
-                ? "/manager/menu/versions"
-                : "/manager/menu/versions?archived=1"
-            }
-            className={LINK}
-          >
-            {archived ? "Hide retired menus" : "Show retired menus"}
-          </Link>
-        </p>
-      </section>
-      <section aria-labelledby="menu-requests" className="grid gap-3">
-        <h2 id="menu-requests" className="px-1 text-heading text-ink">
-          Your requests
-        </h2>
-        {!requests.ok ? (
-          <Notice tone="negative">{requests.message}</Notice>
-        ) : requests.requests.length === 0 ? (
-          <Notice>
-            None. Ask for a permanent change from a dish&apos;s page.
-          </Notice>
-        ) : (
-          <ul className="divide-y divide-line rounded-card bg-surface px-3 shadow-card sm:px-4">
-            {requests.requests.map((r) => (
-              <li key={r.requestId} className="grid gap-1 py-3">
-                <p className="text-body text-ink">
-                  <span className="font-semibold">
-                    {r.itemName ?? "New dish"}
-                  </span>{" "}
-                  · {STATUS_WORD[r.status]}
-                </p>
-                <p className="text-body break-words text-ink-muted">
-                  {r.detail}
-                </p>
-                {r.decisionReason ? (
-                  <p className="text-body break-words text-ink">
-                    {r.decisionReason}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <div className="grid items-start gap-8 md:grid-cols-2 md:gap-gutter">
+        <section aria-labelledby="menus-list" className="grid min-w-0 gap-3">
+          <h2 id="menus-list" className="px-1 type-section-title text-ink">
+            {archived
+              ? "Current, scheduled and retired"
+              : "Current and scheduled"}
+          </h2>
+          {versions.versions.length === 0 ? (
+            <Notice>No menu yet. An admin adds it.</Notice>
+          ) : (
+            <ul className="divide-y divide-line overflow-hidden rounded-card bg-surface edge">
+              {versions.versions.map((v) => (
+                <li
+                  key={v.versionId}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 px-4 py-3"
+                >
+                  <div className="grid min-w-0 gap-1">
+                    <p className="text-label break-words text-ink">{v.title}</p>
+                    <p className="text-meta text-ink-muted">{versionLine(v)}</p>
+                  </div>
+                  <StatusChip state={VERSION_CHIP[v.state]} />
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="px-1 text-body">
+            <Link
+              href={
+                archived
+                  ? "/manager/menu/versions"
+                  : "/manager/menu/versions?archived=1"
+              }
+              className={LINK}
+            >
+              {archived ? "Hide retired menus" : "Show retired menus"}
+            </Link>
+          </p>
+        </section>
+        <section aria-labelledby="menu-requests" className="grid min-w-0 gap-3">
+          <h2 id="menu-requests" className="px-1 type-section-title text-ink">
+            Your requests
+          </h2>
+          {!requests.ok ? (
+            <Notice tone="negative">{requests.message}</Notice>
+          ) : requests.requests.length === 0 ? (
+            <Notice>
+              None. Ask for a permanent change from a dish&apos;s page.
+            </Notice>
+          ) : (
+            <>
+              <ul className="divide-y divide-line overflow-hidden rounded-card bg-surface edge">
+                {requests.requests.map((r) => (
+                  <li
+                    key={r.requestId}
+                    data-request={r.requestId}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 px-4 py-3"
+                  >
+                    <div className="grid min-w-0 gap-1">
+                      <p className="text-label break-words text-ink">
+                        {r.itemName ?? "New dish"}
+                      </p>
+                      <p className="text-meta break-words text-ink-muted">
+                        {r.detail}
+                      </p>
+                      {r.decisionReason ? (
+                        <p className="text-body break-words text-ink">
+                          “{r.decisionReason}”
+                        </p>
+                      ) : null}
+                    </div>
+                    <StatusChip state={requestChip(r.status)} />
+                  </li>
+                ))}
+              </ul>
+              <p className="px-1 text-meta text-ink-muted">
+                Ask for a permanent change from a dish&apos;s page.
+              </p>
+            </>
+          )}
+        </section>
+      </div>
     </div>
   )
 }
