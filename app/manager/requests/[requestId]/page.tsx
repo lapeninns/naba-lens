@@ -43,10 +43,15 @@ const WHEN = new Intl.DateTimeFormat("en-GB", {
 })
 
 function facts(r: RequestDetail): Array<[string, string]> {
-  const out: Array<[string, string]> = [
-    ["Kind", REQUEST_WORDS.type[r.type]],
-    ["Coverage", r.required ? REQUEST_WORDS.required : REQUEST_WORDS.optional],
-  ]
+  // The brief first: the one line staff read on the slot (the handoff's
+  // request detail). Kind and date are the summary line under the title.
+  const out: Array<[string, string]> = r.brief
+    ? [[r.type === "fact_confirmation" ? "Note" : "Brief", r.brief]]
+    : []
+  out.push([
+    "Coverage",
+    r.required ? REQUEST_WORDS.required : REQUEST_WORDS.optional,
+  ])
   if (r.type !== "fact_confirmation") {
     out.push(["Use", REQUEST_WORDS.use[r.intendedUse]])
     out.push(["Team", REQUEST_WORDS.team[r.team]])
@@ -57,8 +62,6 @@ function facts(r: RequestDetail): Array<[string, string]> {
     r.type === "fact_confirmation" ? "Who confirms it" : "Person",
     r.assignee?.name ?? "Anyone at the venue",
   ])
-  const date = managerDateWords(r)
-  if (date) out.push(["Date", date])
   if (r.orientation)
     out.push(["Orientation", REQUEST_WORDS.orientation[r.orientation]])
   if (r.wantsVideo) out.push(["Video", "A short video too"])
@@ -104,22 +107,34 @@ export default async function RequestPage({
   const closed = r.state === "completed" || r.state === "cancelled"
   return (
     <div className="grid gap-gutter">
-      {back}
-      <PageHeader
-        scope={ctx.venue.name}
-        venueScope
-        title={r.subject}
-        summary={r.brief}
-        className="pb-0 md:pb-0"
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusChip state={requestChip(r.state)} />
-        {r.overdue ? <StatusChip state="overdue" /> : null}
-        {r.retake && !closed ? (
-          <span className="text-meta font-semibold text-warn-fg">
-            {REQUEST_WORDS.retake}
-          </span>
-        ) : null}
+      <div className="grid gap-1">
+        {back}
+        {/* The page frame: the title, then its status chips and one
+            summary line (the kind and the date) under it. */}
+        <PageHeader
+          scope={ctx.venue.name}
+          venueScope
+          title={r.subject}
+          summary={
+            <div className="grid gap-1.5">
+              <p className="flex flex-wrap items-center gap-2">
+                <StatusChip state={requestChip(r.state)} />
+                {r.overdue ? <StatusChip state="overdue" /> : null}
+                {r.retake && !closed ? (
+                  <span className="text-meta font-semibold text-warn-fg">
+                    {REQUEST_WORDS.retake}
+                  </span>
+                ) : null}
+              </p>
+              <p>
+                {[REQUEST_WORDS.type[r.type], managerDateWords(r)]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+          }
+          className="pb-0 md:pb-0"
+        />
       </div>
       {r.state === "blocked" && r.blockedReason ? (
         <p className="text-body text-warn-fg">Blocked: {r.blockedReason}</p>
@@ -139,7 +154,7 @@ export default async function RequestPage({
       ) : null}
 
       <MetaList
-        className="rounded-card bg-surface p-4 shadow-card"
+        className="rounded-card bg-surface p-4 edge"
         items={facts(r).map(([label, value]) => ({ label, value }))}
       />
 
@@ -157,7 +172,7 @@ export default async function RequestPage({
       ) : null}
 
       <section aria-labelledby="request-history" className="grid gap-2">
-        <h2 id="request-history" className="type-section-title text-ink">
+        <h2 id="request-history" className="text-heading text-ink">
           History
         </h2>
         <ol className="grid gap-1">
