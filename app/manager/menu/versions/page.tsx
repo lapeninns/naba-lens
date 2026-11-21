@@ -105,7 +105,7 @@ export default async function ManagerMenuVersionsPage({
         />
       </div>
       <section aria-labelledby="menus-list" className="grid gap-3">
-        <h2 id="menus-list" className="px-1 type-section-title text-ink">
+        <h2 id="menus-list" className="px-1 text-heading text-ink">
           {archived
             ? "Current, scheduled and retired"
             : "Current and scheduled"}
@@ -138,7 +138,7 @@ export default async function ManagerMenuVersionsPage({
         </p>
       </section>
       <section aria-labelledby="menu-requests" className="grid gap-3">
-        <h2 id="menu-requests" className="px-1 type-section-title text-ink">
+        <h2 id="menu-requests" className="px-1 text-heading text-ink">
           Your requests
         </h2>
         {!requests.ok ? (

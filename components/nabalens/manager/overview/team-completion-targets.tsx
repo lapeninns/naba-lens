@@ -15,10 +15,7 @@ export function TeamCompletionTargets({
       className="grid gap-gutter"
     >
       <div className="grid gap-1 px-1">
-        <h2
-          id="team-completion-targets"
-          className="type-section-title text-ink"
-        >
+        <h2 id="team-completion-targets" className="text-heading text-ink">
           Staff targets for {roster[0].period.label}
         </h2>
         <p className="text-body text-ink-muted">

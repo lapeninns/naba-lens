@@ -151,7 +151,7 @@ export function MenuList({
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 pt-3.5 pb-1 sm:px-4">
               <h2
                 id={headingId}
-                className="type-section-title [overflow-wrap:anywhere] text-ink"
+                className="text-heading [overflow-wrap:anywhere] text-ink"
               >
                 {group.name}
               </h2>

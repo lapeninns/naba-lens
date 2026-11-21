@@ -128,7 +128,7 @@ function Card({
       aria-labelledby={id}
       className="grid gap-3 rounded-card bg-surface p-3 shadow-card sm:p-4"
     >
-      <h3 id={id} className="type-section-title text-ink">
+      <h3 id={id} className="text-heading text-ink">
         {title}
       </h3>
       {notice ? <Notice tone={notice.tone}>{notice.text}</Notice> : null}
@@ -162,7 +162,7 @@ export function OfferingControls(props: OfferingControlsProps) {
   const copy = OFFERING_COPY
   return (
     <section aria-labelledby="item-offering" className="grid gap-3">
-      <h2 id="item-offering" className="px-1 type-section-title text-ink">
+      <h2 id="item-offering" className="px-1 text-heading text-ink">
         {copy.title}
       </h2>
       <AvailabilityCard {...props} />

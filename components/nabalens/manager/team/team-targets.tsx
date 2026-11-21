@@ -116,7 +116,7 @@ export function TeamTargets({
       />
       <section aria-labelledby="team-people" className="grid gap-gutter">
         <div className={MANAGER_SECTION_HEAD}>
-          <h2 id="team-people" className="type-section-title text-ink">
+          <h2 id="team-people" className="text-heading text-ink">
             {copy.peopleTitle}
           </h2>
         </div>
@@ -222,7 +222,7 @@ function DefaultCard({
   return (
     <section aria-labelledby="team-default" className="grid gap-gutter">
       <div className={MANAGER_SECTION_HEAD}>
-        <h2 id="team-default" className="type-section-title text-ink">
+        <h2 id="team-default" className="text-heading text-ink">
           {copy.defaultTitle}
         </h2>
       </div>

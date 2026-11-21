@@ -50,7 +50,7 @@ export function AlbumPostModeration({
       aria-labelledby={titleId}
       className="grid gap-3 rounded-card border border-line bg-surface p-4"
     >
-      <h2 id={titleId} className="type-section-title text-ink">
+      <h2 id={titleId} className="text-heading text-ink">
         Staff Album
       </h2>
       <p className="text-body text-ink-muted">

@@ -67,7 +67,7 @@ export default async function ManagerVenueFactsPage() {
         />
       </div>
       <section aria-labelledby="confirm-facts" className="grid gap-3">
-        <h2 id="confirm-facts" className="type-section-title text-ink">
+        <h2 id="confirm-facts" className="text-heading text-ink">
           {copy.factsTitle}
         </h2>
         {facts === null ? (
@@ -84,7 +84,7 @@ export default async function ManagerVenueFactsPage() {
         )}
       </section>
       <section aria-labelledby="confirm-spaces" className="grid gap-3">
-        <h2 id="confirm-spaces" className="type-section-title text-ink">
+        <h2 id="confirm-spaces" className="text-heading text-ink">
           {copy.spacesTitle}
         </h2>
         {places === null ? (

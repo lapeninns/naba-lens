@@ -241,7 +241,7 @@ export function PackagingControl({
         "grid gap-3 rounded-card bg-surface p-3 shadow-card sm:p-4"
       )}
     >
-      <h3 id={`${id}-title`} className="type-section-title text-ink">
+      <h3 id={`${id}-title`} className="text-heading text-ink">
         {copy.title}
       </h3>
       <p className="text-body text-ink-muted">{copy.intro}</p>
