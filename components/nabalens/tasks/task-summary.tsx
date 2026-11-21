@@ -32,9 +32,7 @@ export function BackToTasks({
   /** Where `href` goes, when it isn't Today (`?from=`). */
   label?: string
 }) {
-  return (
-    <BackLink href={href}>{label}</BackLink>
-  )
+  return <BackLink href={href}>{label}</BackLink>
 }
 
 /** The kind's icon in the task post's disc (decorative). */

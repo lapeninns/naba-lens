@@ -28,7 +28,7 @@ export default function StaffError({ retry }: { retry: () => void }) {
       </ErrorState>
       <Link
         href={STAFF_PHOTO_ROUTES.home}
-        className="inline-flex min-h-12 items-center justify-self-start text-label text-accent-text underline-offset-4 hover:underline focus-ring"
+        className="inline-flex min-h-12 items-center justify-self-start text-label text-accent-text underline-offset-4 focus-ring hover:underline"
       >
         Go to Today
       </Link>

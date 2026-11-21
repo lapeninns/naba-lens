@@ -130,7 +130,10 @@ export default async function TaskPage({
           />
         ) : null}
         {closedRequest ? (
-          <ReplacementClosed submission={closedRequest} homeHref={STAFF_PHOTO_ROUTES.home} />
+          <ReplacementClosed
+            submission={closedRequest}
+            homeHref={STAFF_PHOTO_ROUTES.home}
+          />
         ) : menuSection ? (
           // No task post (title, due, Overdue) for menu work: the request
           // above says what to retake, and the guide still helps.
