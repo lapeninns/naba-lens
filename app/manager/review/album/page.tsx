@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation"
 
 import { PostedPhotos } from "@/components/nabalens/album/posted-photos"
-import { ALBUM_REVIEW_COPY } from "@/components/nabalens/album/review/copy"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
 import { ReviewCountTitle } from "@/components/nabalens/manager/review-count"

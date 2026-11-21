@@ -82,7 +82,8 @@ describe("Me is a hub of rows (DESIGN.md §5b, D17)", () => {
     expect(href(/^Your month/)).toBe("/staff/tasks/month")
     expect(href(/^Notices/)).toBe("/staff/notifications")
     expect(screen.getByText("2 unread")).toBeTruthy()
-    expect(href(/^Colleagues' photos/)).toBe("/staff/community")
+    // With immediate posting (D21) it opens the venue's Album posts.
+    expect(href(/^Colleagues' photos/)).toBe("/staff/album/recent")
     expect(href(/^People/)).toBe("/staff/people")
     expect(href(/^Settings/)).toBe("/staff/me/settings")
     expect(href(/^Help/)).toBe("/staff/me/help")
