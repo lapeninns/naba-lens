@@ -12,6 +12,7 @@ export function BackLink({
   href,
   children,
   compact = false,
+  onClick,
   className,
 }: {
   href: string
@@ -19,11 +20,18 @@ export function BackLink({
   children: React.ReactNode
   /** 40px, for manager and admin desktop pages. */
   compact?: boolean
+  /**
+   * For a step inside one page (sign-in's "Use a different email"): the
+   * handler may preventDefault and change the step instead. href is still
+   * the real page, for opening in a new tab.
+   */
+  onClick?: React.MouseEventHandler<HTMLAnchorElement>
   className?: string
 }) {
   return (
     <Link
       href={href}
+      onClick={onClick}
       className={cn(
         "-ml-1 inline-flex items-center gap-1.5 self-start justify-self-start rounded-control px-1 text-label text-ink focus-ring outline-none hover:underline",
         compact ? "min-h-10" : "min-h-12",

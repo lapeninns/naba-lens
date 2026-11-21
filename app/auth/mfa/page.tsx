@@ -49,10 +49,11 @@ export default async function MfaPage({
       <MfaCard mode={mode} required={required} />
       {required ? (
         <>
-          <SignOutButton className="grid" variant="secondary" />
+          {/* No recovery codes exist, so the screen says who can reset it. */}
           <p className={SIGN_IN_FOOTNOTE}>
             Lost your phone? Ask an admin to reset your two-step sign-in.
           </p>
+          <SignOutButton className="grid" variant="secondary" />
         </>
       ) : (
         <LinkButton href={homePathFor(state.profile.role)}>Not now</LinkButton>

@@ -271,7 +271,7 @@ describe("LoginCard with a sign-in code", () => {
   it("Use a different email returns to the email field with the email kept", async () => {
     const { user } = await sendTo(EMAIL)
     await user.click(
-      screen.getByRole("button", { name: "Use a different email" })
+      screen.getByRole("link", { name: "Use a different email" })
     )
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy()
     const email = screen.getByLabelText("Email") as HTMLInputElement
@@ -282,7 +282,7 @@ describe("LoginCard with a sign-in code", () => {
   it("does not send again for the same email inside the wait after changing it", async () => {
     const { user, onSubmit } = await sendTo(EMAIL)
     await user.click(
-      screen.getByRole("button", { name: "Use a different email" })
+      screen.getByRole("link", { name: "Use a different email" })
     )
     await user.click(screen.getByRole("button", { name: "Send sign-in link" }))
     await screen.findByRole("heading", { name: "Check your email" })
@@ -314,7 +314,7 @@ describe("LoginCard with a sign-in code", () => {
   it("starts from the email form after Use a different email and a reload", async () => {
     const { user } = await sendTo(EMAIL)
     await user.click(
-      screen.getByRole("button", { name: "Use a different email" })
+      screen.getByRole("link", { name: "Use a different email" })
     )
     cleanup()
     render(
