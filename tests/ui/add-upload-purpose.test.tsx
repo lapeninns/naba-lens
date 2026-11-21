@@ -174,8 +174,9 @@ describe("shared Add queue: upload purpose per Add call", () => {
     )
     fireEvent.click(screen.getByRole("button", { name: "Amenity" }))
     await user.upload(libraryInput(), [jpeg("evidence.jpg")])
+    // "Saving 1 photo", or "1 photo added" once it has finished (D21).
     const dialog = await screen.findByRole("dialog", {
-      name: "Saving 1 photo",
+      name: /^(Saving 1 photo|1 photo added)$/,
     })
     // A later pick in the same queue, not from that call: general.
     await user.upload(

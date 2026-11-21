@@ -15,7 +15,9 @@ import { canLabelUpload, photoHref } from "@/lib/staff/my-uploads"
 import { staffShellStatus } from "@/app/staff/_shell/shell-status"
 import { listMatchLater } from "@/app/staff/_shell/match-later"
 
-export const metadata: Metadata = { title: "Match later" }
+export const metadata: Metadata = {
+  title: STAFF_ALBUM_POSTS ? "Label photos" : "Match later",
+}
 
 async function loadPhoto(actor: MediaActor, assetId: string) {
   const result = await getMyUpload(actor, assetId)

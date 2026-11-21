@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { LinkButton } from "@/components/ui/link-button"
+import { STAFF_PHOTO_ROUTES } from "@/lib/config/album-upload-tray"
+import { MATCH_LATER_HREF } from "@/lib/staff/my-uploads"
 import { STAFF_POSTED, staffPostHref } from "@/lib/config/staff-album-posts"
 import type {
   ContributionGroupMember,
@@ -451,8 +453,11 @@ const WORD_LOOK: Record<RowWord, { icon: Icon; tone: string }> = {
   "Needs attention": { icon: WarningCircleIcon, tone: "text-warn-fg" },
 }
 
-/** "Saving 3 photos"; files when a video is among them. */
-function sheetTitle(items: readonly QueueItem[]) {
+/**
+ * "Saving 3 photos"; files when a video is among them. "3 photos added"
+ * once every one has finished (D21 handoff: Photos added).
+ */
+function sheetTitle(items: readonly QueueItem[], finished = false) {
   const n = items.length
   const noun = items.every((i) => i.kind === "image")
     ? n === 1
@@ -461,7 +466,7 @@ function sheetTitle(items: readonly QueueItem[]) {
     : n === 1
       ? "file"
       : "files"
-  return `Saving ${n} ${noun}`
+  return finished ? `${n} ${noun} added` : `Saving ${n} ${noun}`
 }
 
 const plural = (n: number, one: string, many: string) =>
@@ -1648,6 +1653,16 @@ export function UploadDialog({
   const postedCount = items.filter(
     (item) => isAlbumPhoto(item) && item.status === "done"
   ).length
+  // Posted photos with no label yet: the end offers Label now or Label
+  // later, each explained (D21; the 20 Nov 2026 Open Design handoff).
+  const toLabel = albumPosting
+    ? items.filter(
+        (item) =>
+          isAlbumPhoto(item) &&
+          item.status === "done" &&
+          viewOf(item).kind === "none"
+      ).length
+    : 0
   const saving = items.length - saved - attention - summary.selected
   const status = !started
     ? summary.selected > 0
@@ -1679,7 +1694,16 @@ export function UploadDialog({
         <DialogHeader>
           <DialogTitle ref={titleRef} tabIndex={-1} className="outline-none">
             {startOnPick && items.length > 0
-              ? sheetTitle(items)
+              ? sheetTitle(
+                  items,
+                  albumPosting &&
+                    items.every(
+                      (i) =>
+                        i.status === "done" ||
+                        i.status === "failed" ||
+                        i.status === "cancelled"
+                    )
+                )
               : imagesOnly
                 ? "Upload photos"
                 : "Add photos or videos"}
@@ -1924,7 +1948,29 @@ export function UploadDialog({
         {/* Sticky, as in the label editor: on phones the actions stay in
             reach below long rows and the labels panel. */}
         <DialogFooter className="sticky bottom-0 mx-0 mb-0 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:mx-0 md:mb-0 md:pb-4">
+          {toLabel > 0 && !closeBlocked && summary.selected === 0 ? (
+            <div
+              data-slot="label-choice"
+              className="grid w-full gap-1 pb-1 text-body text-ink-muted"
+            >
+              <p className="text-heading text-ink">
+                {toLabel === 1
+                  ? "1 photo has no label yet"
+                  : `${toLabel} photos have no label yet`}
+              </p>
+              <p>
+                <span className="font-semibold text-ink">Label now:</span> tick
+                the photos that show the same thing and choose one label.
+              </p>
+              <p>
+                <span className="font-semibold text-ink">Label later:</span>{" "}
+                they wait under Unlabelled in My photos. They are already in the
+                Album.
+              </p>
+            </div>
+          ) : null}
           {albumPosting &&
+          toLabel === 0 &&
           labelItems.some((item) => viewOf(item).kind === "none") &&
           !closeBlocked ? (
             <Button
@@ -2012,9 +2058,30 @@ export function UploadDialog({
                   Retry {retryableFailed} failed
                 </Button>
               ) : null}
-              <Button variant="primary" onClick={() => handleOpenChange(false)}>
-                Done
-              </Button>
+              {toLabel > 0 && !closeBlocked ? (
+                <>
+                  <LinkButton
+                    href={STAFF_PHOTO_ROUTES.photos}
+                    onClick={() => handleOpenChange(false)}
+                  >
+                    Label later
+                  </LinkButton>
+                  <LinkButton
+                    variant="primary"
+                    href={`${MATCH_LATER_HREF}?select=1`}
+                    onClick={() => handleOpenChange(false)}
+                  >
+                    Label now
+                  </LinkButton>
+                </>
+              ) : (
+                <Button
+                  variant="primary"
+                  onClick={() => handleOpenChange(false)}
+                >
+                  Done
+                </Button>
+              )}
             </>
           )}
         </DialogFooter>
