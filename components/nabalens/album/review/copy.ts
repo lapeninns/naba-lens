@@ -16,6 +16,17 @@ export const ALBUM_REVIEW_COPY = {
   cancel: "Cancel",
   sending: "Sending",
   reasonsHeading: "What should the next photo fix?",
+  /** Under the sheet's title: who reads the reason, and where. */
+  reasonsWho: (author: string, name: string) =>
+    `${author} sees this on the ${name} slot as Retake, with your reason.`,
+  /** The sheet's confirm, once a reason is chosen. */
+  reasonsSend: "Ask for another photo",
+  reasonsPick: "Choose what the next photo should fix.",
+  /** Before the brief on the slot line. */
+  askedFor: "asked for",
+  sizeLabel: "Size",
+  /** Beside the stage on desktop: what comes after this photo. */
+  more: (count: number) => `${count} more, oldest first`,
   other: "Other",
   otherLabel: "What should the next photo show?",
   otherSend: "Ask for another photo",
@@ -32,6 +43,12 @@ export const ALBUM_REVIEW_COPY = {
   emptyTitle: "Every photo is reviewed",
   emptyBody:
     "New photos show here as staff add them. Each one already fills its slot as Waiting.",
+  /** The empty stage with gaps in the album: what is true, then the next job. */
+  emptyGaps: (gaps: number) =>
+    `New photos show here as staff add them. ${
+      gaps === 1 ? "1 slot is" : `${gaps} slots are`
+    } still empty.`,
+  askMissing: "Ask for missing photos",
   own: (count: number) =>
     count === 1
       ? "1 of your own photos is waiting. Another reviewer decides on it."
@@ -40,7 +57,7 @@ export const ALBUM_REVIEW_COPY = {
   next: "Next photo",
   allPhotos: "See every photo as a list",
   /** S2-REVIEW: the current photo's review detail. */
-  details: "Details, Fix label and more decisions",
+  details: "Details and more decisions",
   failed: "That decision wasn't sent. Check your signal and try again.",
   moreFailed: "The next photos didn't load. Try again.",
   moreRetry: "Load the next photos",

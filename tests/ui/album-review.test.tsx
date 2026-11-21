@@ -251,7 +251,7 @@ describe("Review in a thumb", () => {
     ).toBeTruthy()
   })
 
-  it("Ask for another photo shows the reason chips; choosing one sends the decision with that reason", async () => {
+  it("Ask for another photo opens the reason sheet; choosing one and confirming sends the decision with that reason", async () => {
     const user = userEvent.setup()
     actions.decideMenuPhotoAction.mockResolvedValue({
       ...accepted(),
@@ -278,9 +278,19 @@ describe("Review in a thumb", () => {
       "Messy background",
       "People or personal details in shot",
       "Other",
-      "Cancel",
     ])
-    await user.click(within(group).getByRole("button", { name: "Too dark" }))
+    // Who reads the reason, and where.
+    expect(screen.getByText(C.reasonsWho("TEST Sam Lee", "Soup"))).toBeTruthy()
+    // Confirming before choosing says what is missing and sends nothing.
+    await user.click(screen.getByRole("button", { name: C.reasonsSend }))
+    expect(actions.decideMenuPhotoAction).not.toHaveBeenCalled()
+    expect(screen.getByRole("alert").textContent).toBe(C.reasonsPick)
+    // Choosing only picks the chip; the confirm sends it.
+    const tooDark = within(group).getByRole("button", { name: "Too dark" })
+    await user.click(tooDark)
+    expect(tooDark.getAttribute("aria-pressed")).toBe("true")
+    expect(actions.decideMenuPhotoAction).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: C.reasonsSend }))
     expect(actions.decideMenuPhotoAction.mock.calls[0]![0]).toMatchObject({
       action: "ask_another",
       assetId: id(0xa01),
@@ -397,6 +407,27 @@ describe("Review in a thumb", () => {
     expect(
       screen.getByRole("link", { name: C.allPhotos }).getAttribute("href")
     ).toBe("/manager/review?view=list")
+  })
+
+  it("an empty queue with gaps in the album says how many and offers Ask for missing photos", () => {
+    renderReview({
+      menuCards: [],
+      areaCards: [],
+      total: 0,
+      gaps: 11,
+      gapsHref: "/manager/menu?status=needs_photo",
+    })
+    expect(screen.getByText(C.emptyTitle)).toBeTruthy()
+    expect(screen.getByText(C.emptyGaps(11))).toBeTruthy()
+    expect(
+      screen.getByRole("link", { name: C.askMissing }).getAttribute("href")
+    ).toBe("/manager/menu?status=needs_photo")
+  })
+
+  it("names the slot's shelf and marks the photo Waiting beside its name", () => {
+    renderReview()
+    expect(screen.getByText("Waiting")).toBeTruthy()
+    expect(screen.getByText(/^Starters · Menu · asked for/)).toBeTruthy()
   })
 
   it("loads the next menu page as the stage runs low", async () => {

@@ -16,10 +16,14 @@ import {
 import { loadReviewPageAction } from "@/app/manager/actions"
 import { useReviewCount } from "@/components/nabalens/manager/review-count"
 import { useDecision } from "@/components/nabalens/manager/review/use-decision"
+import { EmptyState } from "@/components/nabalens/empty-state"
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
+import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
 import { FormField } from "@/components/ui/field"
+import { FilterPill } from "@/components/ui/filter-pill"
+import { LinkButton } from "@/components/ui/link-button"
 import { Photo } from "@/components/ui/photo"
 import { Textarea } from "@/components/ui/textarea"
 import type { AreaPhotoCard } from "@/lib/server/area-photos"
@@ -45,8 +49,10 @@ import {
  * Review in a thumb (DESIGN.md §6.5, §5 Reason chips and Review bar). The
  * queue count is the page title. One photo on the stage with its slot name,
  * brief, author, time and place; Ask for another photo (secondary) and Keep
- * in the album (main) at the bottom (ia.md decision 3). Ask for another
- * photo shows the reason chips; choosing one sends the
+ * in the album (main) at the bottom (ia.md decision 3), pinned above the tab
+ * bar on phones and at the foot of the details beside the photo from
+ * bp-desktop (the 21 Nov handoff's Review figures). Ask for another photo
+ * opens the reason sheet; choosing a reason and confirming sends the
  * decision with that reason and the next photo comes up. Decisions go
  * through the existing actions (decideMenuPhotoAction, decideAreaPhotoAction);
  * the database refuses a decision on the reviewer's own photo, and own
@@ -89,11 +95,18 @@ export type ThumbReviewProps = {
    * reviewed while they wait (S3-R1 E4).
    */
   waitingElsewhere?: number
+  /**
+   * Menu slots still empty (the overview's count). An empty stage says how
+   * many and offers Ask for missing photos, the next useful thing to do.
+   */
+  gaps?: number
+  /** Album › Menu on Missing, where each gap has its Ask. */
+  gapsHref?: string
   /** The zone times are written in. */
   timeZone?: string
 }
 
-type Mode = "bar" | "reasons" | "other"
+type Mode = "bar" | "reasons"
 type Choice = { kind: "accept" } | { kind: "ask"; reason: string }
 
 const when = (iso: string, timeZone: string) => {
@@ -128,6 +141,8 @@ export function ThumbReview({
   listHref,
   filter,
   waitingElsewhere = 0,
+  gaps = 0,
+  gapsHref,
   timeZone = "Europe/London",
 }: ThumbReviewProps) {
   const ctx = React.useMemo(() => toContext(context), [context])
@@ -157,6 +172,8 @@ export function ThumbReview({
   const areaLoadingRef = React.useRef(false)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [mode, setMode] = React.useState<Mode>("bar")
+  // The chip chosen on the sheet, or "other"; sent only on its confirm.
+  const [picked, setPicked] = React.useState<string | null>(null)
   const [other, setOther] = React.useState("")
   const [otherError, setOtherError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
@@ -249,6 +266,7 @@ export function ThumbReview({
 
   function resetChoice() {
     setMode("bar")
+    setPicked(null)
     setOther("")
     setOtherError(null)
     setError(null)
@@ -357,6 +375,88 @@ export function ThumbReview({
     advance(current.key)
   }
 
+  const link =
+    "inline-flex min-h-12 items-center gap-2 justify-self-start font-semibold text-accent-text underline underline-offset-4 focus-ring desktop:min-h-10"
+
+  const decisions = refused ? (
+    <Button
+      type="button"
+      variant="secondary"
+      size="lg"
+      className="w-full"
+      onClick={skipRefused}
+    >
+      {C.next}
+    </Button>
+  ) : mode === "bar" ? (
+    // Phones: side by side from 400px, the primary last, nearest the thumb.
+    // Desktop: stacked at the foot of the details, the primary first.
+    <div className="grid gap-2 min-[25rem]:grid-cols-2 desktop:grid-cols-1">
+      {askable ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="lg"
+          disabled={busy}
+          onClick={() => setMode("reasons")}
+        >
+          <ArrowUUpLeftIcon aria-hidden />
+          {C.askAgain}
+        </Button>
+      ) : null}
+      <Button
+        type="button"
+        variant="primary"
+        size="lg"
+        className={cn(
+          "desktop:order-first",
+          !askable && "min-[25rem]:col-span-2 desktop:col-span-1"
+        )}
+        disabled={busy}
+        aria-busy={busy || undefined}
+        onClick={() => void send({ kind: "accept" })}
+      >
+        <CheckIcon aria-hidden />
+        {busy ? C.sending : C.accept}
+      </Button>
+    </div>
+  ) : current ? (
+    <ReasonSheet
+      uid={uid}
+      author={current.author}
+      name={current.name}
+      busy={busy}
+      picked={picked}
+      other={other}
+      otherError={otherError}
+      onPick={(reason) => {
+        setPicked(reason)
+        setOtherError(null)
+      }}
+      onOtherChange={(value) => {
+        setOther(value)
+        setOtherError(null)
+      }}
+      onSend={() => {
+        if (picked === null) {
+          setOtherError(C.reasonsPick)
+          return
+        }
+        if (picked !== OTHER) {
+          void send({ kind: "ask", reason: picked })
+          return
+        }
+        const reason = otherReason(other)
+        if (!reason) {
+          setOtherError(C.otherEmpty)
+          return
+        }
+        void send({ kind: "ask", reason })
+      }}
+      onCancel={resetChoice}
+    />
+  ) : null
+
   return (
     <div className="grid gap-4">
       <PageHeader
@@ -375,14 +475,16 @@ export function ThumbReview({
         <section
           aria-labelledby={`${uid}-name`}
           aria-roledescription={C.stageLabel}
-          // v2 review: the photo uncropped, at most a wide sheet's width so
-          // the decision stays in view beside the SideNav.
-          className="grid w-full max-w-dialog-wide gap-4"
+          // v2 review: phones stack the photo over its details, and the
+          // decision bar is pinned above the tab bar (room is kept for it
+          // below); from bp-desktop the photo sits left and the details
+          // right, the decisions at the details' foot whatever the photo's
+          // height.
+          className="grid items-start gap-4 max-desktop:pb-32 desktop:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]"
         >
-          {/* `dark`: what sits on the stage reads the dark tokens, so the
-              heading's focus ring (focus moves here after each decision) is
-              the light ink on near-black, as media-viewer does (review Z5). */}
-          <div className="dark grid gap-3 rounded-card bg-stage p-3 text-on-stage">
+          {/* `dark`: what sits on the stage reads the dark tokens, as
+              media-viewer does (review Z5). The photo is never cropped. */}
+          <div className="dark rounded-card bg-stage p-3 text-on-stage">
             {current.imageUrl ? (
               <Photo
                 key={current.key}
@@ -400,22 +502,36 @@ export function ThumbReview({
                 {C.noPhoto}
               </p>
             )}
-            <div className="grid gap-1 px-1 pb-1">
-              <h2
-                id={`${uid}-name`}
-                ref={headingRef}
-                tabIndex={-1}
-                className="type-section-title break-words focus-ring"
-              >
-                {current.name}
-              </h2>
-              {current.brief ? (
-                <p className="text-body break-words">
-                  <span className="sr-only">{`${C.briefLabel}: `}</span>
-                  {current.brief}
-                </p>
-              ) : null}
-              <p className="font-mono text-mono font-semibold break-words text-on-stage-muted tabular-nums">
+          </div>
+
+          <div className="grid gap-4 rounded-card bg-surface p-4 edge">
+            {shown > 1 ? (
+              <p className="text-meta text-ink-muted max-desktop:hidden">
+                {C.more(shown - 1)}
+              </p>
+            ) : null}
+            <div className="grid gap-1.5">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h2
+                  id={`${uid}-name`}
+                  ref={headingRef}
+                  tabIndex={-1}
+                  className="text-heading break-words text-ink focus-ring"
+                >
+                  {current.name}
+                </h2>
+                <StatusChip state="outcome_waiting" />
+              </div>
+              <p className="text-body break-words text-ink-muted">
+                {current.group}
+                {current.brief ? (
+                  <>
+                    {` · ${C.askedFor}: “`}
+                    <span>{current.brief}</span>”
+                  </>
+                ) : null}
+              </p>
+              <p className="font-mono text-mono font-semibold break-words text-ink-muted tabular-nums">
                 {[
                   C.by(current.author),
                   when(current.addedAt, timeZone),
@@ -424,78 +540,36 @@ export function ThumbReview({
                   .filter(Boolean)
                   .join(" · ")}
               </p>
+              {current.size ? (
+                <p className="text-meta text-ink-muted max-desktop:hidden">
+                  {`${C.sizeLabel} ${current.size}`}
+                </p>
+              ) : null}
+            </div>
+            {!current.own && current.subject.assetId ? (
+              <Link
+                href={managerHrefs.photo(current.subject.assetId)}
+                data-review-details
+                className={link}
+              >
+                {C.details}
+              </Link>
+            ) : null}
+
+            <div
+              data-slot="decision-bar"
+              className="max-desktop:fixed max-desktop:inset-x-0 max-desktop:bottom-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom,0px))] max-desktop:z-dock max-desktop:max-h-[75dvh] max-desktop:overflow-y-auto max-desktop:bg-surface max-desktop:px-page-gutter max-desktop:py-3 max-desktop:shadow-bar md:max-desktop:bottom-0 md:max-desktop:px-6"
+            >
+              <div className="mx-auto grid w-full max-w-dialog-wide gap-3 desktop:max-w-none">
+                {error ? (
+                  <Notice tone="negative" role="alert">
+                    {error}
+                  </Notice>
+                ) : null}
+                {decisions}
+              </div>
             </div>
           </div>
-
-          {error ? (
-            <Notice tone="negative" role="alert">
-              {error}
-            </Notice>
-          ) : null}
-
-          {refused ? (
-            <Button
-              type="button"
-              variant="secondary"
-              className="min-h-16 w-full"
-              onClick={skipRefused}
-            >
-              {C.next}
-            </Button>
-          ) : mode === "bar" ? (
-            // Stacked on narrow phones, so the longer words of redesign R4
-            // never wrap; the primary stays last, nearest the thumb.
-            <div className="grid gap-2 min-[25rem]:grid-cols-2">
-              {askable ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  className="min-h-16"
-                  disabled={busy}
-                  onClick={() => setMode("reasons")}
-                >
-                  <ArrowUUpLeftIcon aria-hidden />
-                  {C.askAgain}
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="primary"
-                size="lg"
-                className={cn("min-h-16", !askable && "min-[25rem]:col-span-2")}
-                disabled={busy}
-                aria-busy={busy || undefined}
-                onClick={() => void send({ kind: "accept" })}
-              >
-                <CheckIcon aria-hidden />
-                {busy ? C.sending : C.accept}
-              </Button>
-            </div>
-          ) : (
-            <ReasonPicker
-              uid={uid}
-              mode={mode}
-              busy={busy}
-              other={other}
-              otherError={otherError}
-              onOther={() => setMode("other")}
-              onOtherChange={(value) => {
-                setOther(value)
-                setOtherError(null)
-              }}
-              onReason={(reason) => void send({ kind: "ask", reason })}
-              onOtherSend={() => {
-                const reason = otherReason(other)
-                if (!reason) {
-                  setOtherError(C.otherEmpty)
-                  return
-                }
-                void send({ kind: "ask", reason })
-              }}
-              onCancel={resetChoice}
-            />
-          )}
         </section>
       ) : cursor || moreAreas ? (
         <div className="grid gap-3">
@@ -508,7 +582,7 @@ export function ThumbReview({
             type="button"
             variant="primary"
             size="lg"
-            className="min-h-16 w-full"
+            className="w-full"
             disabled={loading}
             aria-busy={loading || undefined}
             onClick={() => void loadMore()}
@@ -517,104 +591,115 @@ export function ThumbReview({
           </Button>
         </div>
       ) : waitingElsewhere > 0 ? null : (
-        <Notice tone="plain" title={C.emptyTitle} className="max-w-reading">
-          <p>{C.emptyBody}</p>
-        </Notice>
+        // Says what is true, then the next useful thing to do.
+        <EmptyState
+          title={C.emptyTitle}
+          titleAs="h2"
+          description={
+            <p>{gaps > 0 && gapsHref ? C.emptyGaps(gaps) : C.emptyBody}</p>
+          }
+          action={
+            gaps > 0 && gapsHref ? (
+              <LinkButton href={gapsHref} variant="secondary">
+                {C.askMissing}
+              </LinkButton>
+            ) : undefined
+          }
+        />
       )}
 
       {own > 0 ? (
         <p className="text-body text-ink-muted">{C.own(own)}</p>
       ) : null}
 
-      <Link
-        href={listHref}
-        className="inline-flex min-h-12 items-center gap-2 justify-self-start font-semibold text-accent-text underline underline-offset-4 focus-ring"
-      >
+      <Link href={listHref} className={link}>
         <ListBulletsIcon aria-hidden className="size-5" />
         {C.allPhotos}
       </Link>
-      {current && !current.own && current.subject.assetId ? (
-        <Link
-          href={managerHrefs.photo(current.subject.assetId)}
-          data-review-details
-          className="inline-flex min-h-12 items-center gap-2 justify-self-start font-semibold text-accent-text underline underline-offset-4 focus-ring"
-        >
-          {C.details}
-        </Link>
-      ) : null}
     </div>
   )
 }
 
-/** The reason chips, and Other with its own words (DESIGN.md §5 Reason chips). */
-function ReasonPicker({
+/** The "Other" pick: its own words, sent as the reason. */
+const OTHER = "other"
+
+/**
+ * Ask for another photo (DESIGN.md §5 Reason chips; the handoff's sheet):
+ * the existing reason chips and Other; choosing one and confirming is the
+ * whole flow. The person who sent the photo reads the reason on the slot as
+ * Retake. On phones it takes the decision bar's place, pinned above the tab
+ * bar, so it opens as a sheet from the bottom edge.
+ */
+function ReasonSheet({
   uid,
-  mode,
+  author,
+  name,
   busy,
+  picked,
   other,
   otherError,
-  onOther,
+  onPick,
   onOtherChange,
-  onReason,
-  onOtherSend,
+  onSend,
   onCancel,
 }: {
   uid: string
-  mode: "reasons" | "other"
+  author: string
+  name: string
   busy: boolean
+  picked: string | null
   other: string
   otherError: string | null
-  onOther: () => void
+  onPick: (reason: string) => void
   onOtherChange: (value: string) => void
-  onReason: (reason: string) => void
-  onOtherSend: () => void
+  onSend: () => void
   onCancel: () => void
 }) {
-  const chip =
-    "inline-flex min-h-12 items-center rounded-full bg-warn-bg px-4 text-label text-warn-fg inset-ring-2 inset-ring-ring-retake focus-ring active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:active:translate-y-0 aria-pressed:bg-surface aria-pressed:text-ink"
   return (
-    <div
-      role="group"
+    <form
+      className="grid gap-4"
       aria-labelledby={`${uid}-reasons`}
-      className="grid gap-3 rounded-card bg-surface p-4 edge"
+      // Our own words say what is missing, beside the field (§6.7).
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSend()
+      }}
     >
-      <h3 id={`${uid}-reasons`} className="text-label text-ink">
-        {C.reasonsHeading}
-      </h3>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-1">
+        <h3 id={`${uid}-reasons`} className="type-title text-ink">
+          {C.reasonsHeading}
+        </h3>
+        <p className="text-meta text-ink-muted">{C.reasonsWho(author, name)}</p>
+      </div>
+      <div
+        role="group"
+        aria-labelledby={`${uid}-reasons`}
+        className="flex flex-wrap gap-2"
+      >
         {REASONS.map((reason) => (
-          <button
+          <FilterPill
             key={reason}
             type="button"
-            className={chip}
+            selected={picked === reason}
             disabled={busy}
-            onClick={() => onReason(reason)}
+            onClick={() => onPick(reason)}
           >
             {reason}
-          </button>
+          </FilterPill>
         ))}
-        <button
+        <FilterPill
           type="button"
-          className={chip}
+          selected={picked === OTHER}
           disabled={busy}
-          aria-pressed={mode === "other"}
           aria-controls={`${uid}-other`}
-          onClick={onOther}
+          onClick={() => onPick(OTHER)}
         >
           {C.other}
-        </button>
+        </FilterPill>
       </div>
-      {mode === "other" ? (
-        <form
-          id={`${uid}-other`}
-          className="grid gap-2"
-          // Our own words say what is missing, beside the field (§6.7).
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault()
-            onOtherSend()
-          }}
-        >
+      {picked === OTHER ? (
+        <div id={`${uid}-other`}>
           <FormField
             id={`${uid}-other-text`}
             label={C.otherLabel}
@@ -628,19 +713,32 @@ function ReasonPicker({
               onChange={(event) => onOtherChange(event.currentTarget.value)}
             />
           </FormField>
-          <Button
-            type="submit"
-            variant="secondary"
-            disabled={busy}
-            aria-busy={busy || undefined}
-          >
-            {busy ? C.sending : C.otherSend}
-          </Button>
-        </form>
+        </div>
+      ) : otherError ? (
+        <p role="alert" className="text-meta text-warn-fg">
+          {otherError}
+        </p>
       ) : null}
-      <Button type="button" variant="quiet" disabled={busy} onClick={onCancel}>
-        {C.cancel}
-      </Button>
-    </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          size="lg"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          {C.cancel}
+        </Button>
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          disabled={busy}
+          aria-busy={busy || undefined}
+        >
+          {busy ? C.sending : C.reasonsSend}
+        </Button>
+      </div>
+    </form>
   )
 }
