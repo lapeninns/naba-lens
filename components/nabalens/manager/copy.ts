@@ -9,6 +9,8 @@ export const MANAGER_COPY = {
     count === 1 ? "photo waiting" : "photos waiting",
   account: "Account",
   logOut: "Log out",
+  /** The VenueBar's role line. */
+  venueRole: "You manage this venue",
   /** Every manager error notice's action (redesign R4, ia.md decision 11). */
   retry: "Retry",
   unavailable: {
@@ -218,14 +220,21 @@ export const MANAGER_COPY = {
     search: "Search items",
     searchPlaceholder: "Item name",
     statusLabel: "Show",
+    // ia.md decision 4: filters and row chips say the StatusChip words
+    // (Missing, Waiting, In the album, All), so a filter and the chip it
+    // selects read the same. The menu read has no Retake state to filter
+    // on, so the two finer filters keep their own words.
     status: {
       all: "All",
-      needs_photo: "Still needs a photo",
-      awaiting_review: "Awaiting review",
-      covered: "Has a photo",
+      needs_photo: "Missing",
+      awaiting_review: "Waiting",
+      covered: "In the album",
       replacement: "New photo waiting",
       recheck: "Needs a recheck",
     },
+    /** A gap's one action: a New request with the slot filled in. */
+    ask: "Ask",
+    askFor: (name: string) => `for a photo of ${name}`,
     sectionLabel: "Section",
     allSections: "All sections",
     sectionCount: (covered: number, eligible: number) =>

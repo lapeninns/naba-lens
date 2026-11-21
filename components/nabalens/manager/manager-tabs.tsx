@@ -1,6 +1,7 @@
 import { STAFF_ALBUM_POSTS } from "@/lib/config/staff-album-posts"
 
 import { SectionTabs, type SectionTab } from "../section-tabs"
+import { AlbumSectionTabs } from "./album-counts"
 import { managerHrefs } from "./hrefs"
 
 /**
@@ -83,8 +84,10 @@ export function ManagerTabs<S extends ManagerTabSection>({
   postedByStaff?: boolean
   className?: string
 }) {
+  // Album's tabs carry counts from the workspace (AlbumCountsProvider).
+  const Tabs = section === "album" ? AlbumSectionTabs : SectionTabs
   return (
-    <SectionTabs
+    <Tabs
       label={MANAGER_TAB_LABEL[section]}
       tabs={managerTabs(section, { postedByStaff })}
       active={active}
