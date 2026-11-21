@@ -266,7 +266,7 @@ describe("capture routes and the question registry (B03 UI §2.1)", () => {
         key: "step_free_entrance",
       })
       expect(
-        screen.getByRole("radio", { name: "Couldn't establish" })
+        screen.getByRole("radio", { name: "I couldn't find out" })
       ).toBeTruthy()
     }
   )
@@ -428,11 +428,11 @@ describe("capture routes and the question registry (B03 UI §2.1)", () => {
     knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
     knowledge.getQuestion.mockRejectedValueOnce(new Error("network"))
     await show(pages.staff())
-    expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Send answer" })).toBeTruthy()
     cleanup()
     knowledge.getQuestion.mockResolvedValueOnce({ ok: true, question: null })
     await show(pages.staff())
-    expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Send answer" })).toBeTruthy()
   })
 })
 
@@ -450,7 +450,7 @@ describe("capture routes on a working-list question (G2)", () => {
         { checkId: DARTS.id, venueName: expect.any(String) }
       )
       expect(
-        screen.getByRole("radio", { name: "Couldn't establish" })
+        screen.getByRole("radio", { name: "I couldn't find out" })
       ).toBeTruthy()
       expect(
         screen.getByText(`You're answering for ${VENUE.name}.`)
@@ -477,9 +477,11 @@ describe("capture routes on a working-list question (G2)", () => {
       })
       await show(pages[name]())
       expect(
-        screen.queryByRole("radio", { name: "Couldn't establish" })
+        screen.queryByRole("radio", { name: "I couldn't find out" })
       ).toBeNull()
-      expect(screen.getByRole("radio", { name: "Not applicable" })).toBeTruthy()
+      expect(
+        screen.getByRole("radio", { name: "Doesn't apply here" })
+      ).toBeTruthy()
     }
   )
 
@@ -498,7 +500,7 @@ describe("capture routes on a working-list question (G2)", () => {
     services.getCheck.mockResolvedValue({ ok: true, detail: unassigned })
     knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
     await show(pages.staff())
-    expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Send answer" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Save for later" })).toBeTruthy()
   })
 
@@ -516,9 +518,9 @@ describe("capture routes on a working-list question (G2)", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: STEP_FREE.entry.question })
     ).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Send answer" })).toBeTruthy()
     expect(
-      screen.getByRole("radio", { name: "Couldn't establish" })
+      screen.getByRole("radio", { name: "I couldn't find out" })
     ).toBeTruthy()
   })
 
@@ -686,9 +688,11 @@ describe("capture routes on a working-list question (G2)", () => {
     knowledge.getKnowledgeCheck.mockRejectedValue(new Error("network"))
     await show(pages.staff())
     expect(
-      screen.queryByRole("radio", { name: "Couldn't establish" })
+      screen.queryByRole("radio", { name: "I couldn't find out" })
     ).toBeNull()
-    expect(screen.getByRole("radio", { name: "Not applicable" })).toBeTruthy()
+    expect(
+      screen.getByRole("radio", { name: "Doesn't apply here" })
+    ).toBeTruthy()
   })
 
   it("falls back to the legacy form when the knowledge read fails", async () => {
@@ -700,7 +704,7 @@ describe("capture routes on a working-list question (G2)", () => {
     })
     await show(pages.manager())
     expect(
-      screen.queryByRole("radio", { name: "Couldn't establish" })
+      screen.queryByRole("radio", { name: "I couldn't find out" })
     ).toBeNull()
   })
 })

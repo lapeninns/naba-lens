@@ -261,7 +261,7 @@ describe("CaptureForm", () => {
 
   it("needs a reason for No and Not applicable; evidence is optional", async () => {
     const { user, submit } = setup()
-    await user.click(screen.getByRole("radio", { name: "Not applicable" }))
+    await user.click(screen.getByRole("radio", { name: "Doesn't apply here" }))
     await user.click(submitButton())
     expect(submit).not.toHaveBeenCalled()
     expect(screen.getByText("Say why, so your manager knows.")).toBeTruthy()

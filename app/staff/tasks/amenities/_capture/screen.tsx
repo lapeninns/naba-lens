@@ -1,9 +1,8 @@
 import "server-only"
 
-import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
+import { BackLink } from "@/components/nabalens/back-link"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -11,6 +10,7 @@ import { StatusChip } from "@/components/nabalens/status-chip"
 import {
   ANSWER_LABEL,
   PROGRESS_LABEL,
+  UI_TEXT,
   type AmenityResult,
 } from "@/lib/amenities/contract"
 import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
@@ -335,18 +335,6 @@ export function unwrapAmenity<T extends object>(result: AmenityResult<T>): T {
   }
 }
 
-export function BackLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="inline-flex h-11 items-center gap-1.5 self-start rounded-control text-meta font-medium text-ink-muted focus-ring outline-none hover:text-ink md:h-9"
-    >
-      <ArrowLeftIcon className="size-4" aria-hidden />
-      {label}
-    </Link>
-  )
-}
-
 /**
  * One amenity check to capture, for staff (from Home) and for a manager or
  * admin capturing it themselves. Every read re-checks the caller's role in
@@ -443,15 +431,23 @@ export async function CaptureScreen({
       announceSent={announceSent}
       uploadRefused={mode === "manager" && !canUpload}
       knowledge={knowledge}
+      submitLabel={mode === "staff" ? UI_TEXT.sendAnswer : undefined}
     />
   )
   return (
     <div className="flex min-w-0 flex-col gap-6 pb-4">
-      <BackLink href={backHref} label={backLabel} />
+      <BackLink href={backHref} compact={mode !== "staff"}>
+        {backLabel}
+      </BackLink>
       <OfflineNotice />
       <PageHeader
-        scope={[venueName, check.entry.category]}
-        venueScope={Boolean(venueName)}
+        // Staff: the group alone; the venue is in the bar above.
+        scope={
+          mode === "staff"
+            ? check.entry.category
+            : [venueName, check.entry.category]
+        }
+        venueScope={mode !== "staff" && Boolean(venueName)}
         title={check.entry.question}
         summary={
           <span className="flex flex-wrap items-center gap-1.5">

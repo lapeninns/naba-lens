@@ -188,7 +188,7 @@ export function parseKnowledgeSubmit(
     return knowledgeInvalid({ kind: "Choose what you are sending." })
   if (!oneOf(KNOWLEDGE_ANSWERS, input.answer))
     return knowledgeInvalid({
-      answer: "Choose Yes, No, Not applicable or Couldn't establish.",
+      answer: "Choose Yes, No, Doesn't apply here or I couldn't find out.",
     })
   const answer = input.answer
   const errors: Record<string, string> = {}

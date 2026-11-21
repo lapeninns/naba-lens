@@ -182,10 +182,10 @@ export function validateDraft({
   { ok: true; input: SubmitInput } | { ok: false; errors: CaptureErrors } {
   const { errors, text } = checkCommon(common)
   const { answer } = common.draft
-  if (!answer) errors.answer = "Choose Yes, No or Not applicable."
+  if (!answer) errors.answer = "Choose Yes, No or Doesn't apply here."
   else if (answer === "unknown")
     errors.answer =
-      "Couldn't establish can't be sent with this form. Choose another answer, or ask your manager."
+      "“I couldn't find out” can't be sent with this form. Choose another answer, or ask your manager."
   if (hasErrors(errors) || !answer || answer === "unknown")
     return { ok: false, errors }
   return {

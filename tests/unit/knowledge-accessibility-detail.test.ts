@@ -61,7 +61,7 @@ describe("step-free entrance", () => {
         ctx({ answer: "no" })
       ).entrances
     ).toBe(
-      "To answer No, mark every listed entrance as having steps (2 listed). If you didn't check them all, answer Couldn't establish."
+      "To answer No, mark every listed entrance as having steps (2 listed). If you didn't check them all, answer I couldn't find out."
     )
     expect(
       accessErrors(
@@ -74,7 +74,7 @@ describe("step-free entrance", () => {
     expect(
       accessErrors(draft(), ctx({ answer: "no", entrances: [] })).entrances
     ).toBe(
-      "No needs ⟨Venue⟩'s entrances to be listed first. Ask your manager to add them under Places, or send Couldn't establish."
+      "No needs ⟨Venue⟩'s entrances to be listed first. Ask your manager to add them under Places, or answer I couldn't find out."
     )
     expect(stepFreeLine(draft(), ctx({ answer: "no" }))).toBe(
       "No says every entrance listed for ⟨Venue⟩ has steps (2 listed)."
@@ -220,13 +220,13 @@ describe("reading back and server paths", () => {
     expect(
       accessFieldErrors({
         "detail.entrances":
-          "Add the venue's entrances under Places first, or send Couldn't establish.",
+          "Add the venue's entrances under Places first, or answer I couldn't find out.",
         "detail.measurements[0].unit": "Check this value.",
         "detail.fees": "x",
       })
     ).toEqual({
       entrances:
-        "Add the venue's entrances under Places first, or send Couldn't establish.",
+        "Add the venue's entrances under Places first, or answer I couldn't find out.",
       measurements: "Check this value.",
     })
     expect(scopeName({ subjectId: MAIN.subjectId }, [MAIN])).toBe(

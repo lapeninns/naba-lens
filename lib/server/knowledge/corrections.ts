@@ -48,7 +48,7 @@ export async function correctAnswer(
   if (!isRevision(input.slotRevision))
     errors.slotRevision = "Reload the page and try again."
   if (!HEADLINES.includes(input.headline as SubmitAnswer))
-    errors.headline = "Choose Yes, No or Not applicable."
+    errors.headline = "Choose Yes, No or Doesn't apply here."
   const detail = input.detail ?? null
   if (detail !== null && !isObject(detail))
     errors.detail = "Check these details."

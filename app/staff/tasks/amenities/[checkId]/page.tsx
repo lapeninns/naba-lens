@@ -11,6 +11,8 @@ import { CaptureScreen } from "../_capture/screen"
 
 export const metadata = { title: "Amenity check" }
 
+const AMENITIES_HREF = "/staff/album/amenities"
+
 const NO_SEARCH: Record<string, string | string[] | undefined> = {}
 
 // finaliseUpload (Server Action used by the upload flow on this page) decodes
@@ -18,8 +20,10 @@ const NO_SEARCH: Record<string, string | string[] | undefined> = {}
 export const maxDuration = 120
 
 /**
- * Staff: capture one amenity check, then back to Home (which names the check
- * sent), or to the allow-listed page in `?from=` (B02-02 §4.3).
+ * Staff: capture one amenity check, then on to Today (which names the check
+ * sent), or to the allow-listed page in `?from=` (B02-02 §4.3). The back link
+ * goes to Album's Amenities, where the questions are listed (screens-2
+ * handoff), or to Today when the page was opened from there.
  */
 export default async function AmenityCapturePage({
   params,
@@ -40,6 +44,11 @@ export default async function AmenityCapturePage({
     origin && origin.origin !== "home"
       ? { href: origin.href, label: FROM_BACK_LABEL[origin.origin] }
       : null
+  const backLink = back
+    ? back
+    : origin?.origin === "home"
+      ? { href: STAFF_PHOTO_ROUTES.home, label: "Today" }
+      : { href: AMENITIES_HREF, label: "Amenities" }
   const { actor } = unwrap(await getCoverageActor())
   // CaptureScreen is an async server component without hooks. Calling it here
   // starts the check's reads alongside the shell's instead of after them.
@@ -50,8 +59,8 @@ export default async function AmenityCapturePage({
       checkId,
       mode: "staff",
       venueName: profile.venue?.name ?? null,
-      backHref: back?.href ?? STAFF_PHOTO_ROUTES.home,
-      backLabel: back?.label ?? "Home",
+      backHref: backLink.href,
+      backLabel: backLink.label,
       doneHref: back?.href ?? STAFF_PHOTO_ROUTES.home,
       announceSent: !back,
     }),

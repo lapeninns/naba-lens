@@ -546,7 +546,10 @@ export function captureForm(page: Page) {
       download: page.getByLabel("Download (Mbps)", { exact: true }),
       upload: page.getByLabel("Upload (Mbps)", { exact: true }),
     },
-    submit: page.getByRole("button", { name: UI_TEXT.submit }),
+    // Staff send an answer; a manager or admin submits a finding.
+    submit: page.getByRole("button", {
+      name: new RegExp(`^(${UI_TEXT.submit}|${UI_TEXT.sendAnswer})$`),
+    }),
   }
 }
 

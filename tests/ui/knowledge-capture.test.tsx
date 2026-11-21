@@ -254,8 +254,8 @@ describe("knowledge capture: before sending", () => {
     for (const [name, hint] of [
       ["Yes", "True for guests today."],
       ["No", "Not true today."],
-      ["Not applicable", "The question doesn't fit this venue."],
-      ["Couldn't establish", "You tried and couldn't find out."],
+      ["Doesn't apply here", "The question doesn't fit this venue."],
+      ["I couldn't find out", "You tried and couldn't find out."],
     ]) {
       const input = radio(name)
       const described = document.getElementById(
@@ -312,7 +312,7 @@ describe("knowledge capture: sending", () => {
       sent({ outcome: "recorded", recognition: { kind: "not_scored" } })
     )
     const { user } = setup({ submit })
-    await user.click(radio("Couldn't establish"))
+    await user.click(radio("I couldn't find out"))
     await user.click(screen.getByRole("button", { name: "Submit finding" }))
     expect(submit).not.toHaveBeenCalled()
     expect(
@@ -393,7 +393,7 @@ describe("knowledge capture: a manager's own answer on a confirmation-required q
       canSelfConfirm: true,
       knowledgeSlot: stepFree,
     })
-    await user.click(radio("Not applicable"))
+    await user.click(radio("Doesn't apply here"))
     await user.type(
       screen.getByRole("textbox", { name: /^Reason/ }),
       "No entrance"
@@ -420,7 +420,7 @@ describe("knowledge capture: a manager's own answer on a confirmation-required q
       canSelfConfirm: true,
       knowledgeSlot: stepFree,
     })
-    await user.click(radio("Not applicable"))
+    await user.click(radio("Doesn't apply here"))
     await user.type(
       screen.getByRole("textbox", { name: /^Reason/ }),
       "No entrance"
@@ -1412,7 +1412,7 @@ describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => 
     expect(submit).not.toHaveBeenCalled()
     expect(
       screen.getByText(
-        "No needs The Old Crown's entrances to be listed first. Ask your manager to add them under Places, or send Couldn't establish."
+        "No needs The Old Crown's entrances to be listed first. Ask your manager to add them under Places, or answer I couldn't find out."
       )
     ).toBeTruthy()
   })
@@ -1436,7 +1436,7 @@ describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => 
       knowledgeSlot: stepFreeSlot(),
       detailForm: stepFreeForm(),
     })
-    await user.click(radio("Couldn't establish"))
+    await user.click(radio("I couldn't find out"))
     expect(
       screen.queryByRole("group", { name: "Which entrances did you check?" })
     ).toBeNull()
@@ -1708,6 +1708,7 @@ describe("knowledge capture: policy (B03 UI §4)", () => {
 
   it("records Couldn't establish with its reason and no policy sections", async () => {
     const { user } = setup({ role: "manager", detailForm: statement() })
+    // The policy's own stance list keeps its words (POLICY_COPY).
     await user.click(screen.getByRole("radio", { name: "Couldn't establish" }))
     expect(screen.queryByRole("group", { name: "Areas" })).toBeNull()
     expect(screen.getByText("a rule (not Couldn't establish)")).toBeTruthy()
