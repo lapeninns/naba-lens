@@ -14,6 +14,8 @@ import { workServices } from "@/lib/work-client/services"
 import { londonToday } from "@/lib/server/knowledge/dates"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { BackLink } from "@/components/nabalens/back-link"
+import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
 import {
@@ -57,6 +59,7 @@ async function AmenitiesFrame({
   pendingReview,
   adminView,
   back,
+  albumTab,
   children,
 }: {
   ctx: ManageContext
@@ -66,18 +69,32 @@ async function AmenitiesFrame({
   /** Admin only (redesign R5): see ManageFrame. */
   adminView?: AdminVenueView
   back?: { href: string; label: string }
+  /**
+   * The /manager workspace's Album tab this screen is (redesign R4, ia.md):
+   * titled Album, with the section's tabs. A detail page leaves it out and
+   * has a BackLink instead.
+   */
+  albumTab?: "spaces" | "amenities"
   children: React.ReactNode
 }) {
   if (ctx.mode === "workspace") {
     return (
       <div className="grid gap-6">
-        <PageHeader
-          scope={ctx.venue.name}
-          venueScope
-          title={title}
-          summary={summary}
-          className="pb-0 md:pb-0"
-        />
+        <div className="grid gap-1">
+          {back && !albumTab ? (
+            <BackLink href={back.href} compact>
+              {back.label}
+            </BackLink>
+          ) : null}
+          <PageHeader
+            scope={ctx.venue.name}
+            venueScope
+            title={albumTab ? "Album" : title}
+            summary={summary}
+            className="pb-0 md:pb-0"
+          />
+          {albumTab ? <ManagerTabs section="album" active={albumTab} /> : null}
+        </div>
         {children}
       </div>
     )
@@ -155,12 +172,14 @@ export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
     <AmenitiesFrame
       ctx={ctx}
       title={UI_TEXT.navTab}
+      albumTab="amenities"
       summary={`Questions guests ask about ${venue}, each answered with photo or video evidence. Separate from the checklist and photo targets.`}
       pendingReview={ctx.coverage?.summary.pendingReview}
     >
       <OfflineNotice loadedAt={new Date().toISOString()} />
-      {/* An admin reaches places from the Album pick (redesign R5). */}
-      {ctx.mode === "admin" ? null : (
+      {/* An admin reaches places from the Album pick (redesign R5), a
+          manager from the Spaces tab (R4). */}
+      {ctx.mode === "admin" || ctx.mode === "workspace" ? null : (
         <div>
           <Link
             href={placesHref(ctx.basePath)}
@@ -396,8 +415,8 @@ export async function AmenityCheckScreen({
       back={{ href: hrefs.list, label: "Amenities" }}
     >
       <OfflineNotice loadedAt={new Date().toISOString()} />
-      {/* An admin has the BackLink above the title (redesign R5). */}
-      {ctx.mode === "admin" ? null : (
+      {/* An admin or manager has the BackLink above the title (R4, R5). */}
+      {ctx.mode === "admin" || ctx.mode === "workspace" ? null : (
         <div>
           <Link
             href={hrefs.list}
@@ -454,10 +473,12 @@ export async function PlacesScreen({ ctx }: { ctx: ManageContext }) {
       title={title}
       pendingReview={ctx.coverage?.summary.pendingReview}
       adminView={{ tab: "album", pick: "spaces" }}
+      albumTab="spaces"
     >
       <OfflineNotice loadedAt={new Date().toISOString()} />
-      {/* An admin reaches amenities from the Album pick (redesign R5). */}
-      {ctx.mode === "admin" ? null : (
+      {/* An admin reaches amenities from the Album pick (redesign R5), a
+          manager from the Amenities tab (R4). */}
+      {ctx.mode === "admin" || ctx.mode === "workspace" ? null : (
         <div>
           <Link
             href={amenityHrefs(ctx.basePath).list}

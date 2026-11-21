@@ -134,13 +134,15 @@ describe("/manager/amenities", () => {
     expect(services.getVenueAmenities).toHaveBeenCalledWith(actor, {
       venueId: VENUE.id,
     })
+    // Album › Amenities (redesign R4, ia.md): titled Album, and the Spaces
+    // tab is the way to the venue's places (B03-b).
     expect(
-      screen.getByRole("heading", { level: 1, name: UI_TEXT.navTab })
+      screen.getByRole("heading", { level: 1, name: "Album" })
     ).toBeTruthy()
-    // The way to the venue's places (B03-b).
     expect(
-      screen.getByRole("link", { name: /^Places at / }).getAttribute("href")
+      screen.getByRole("link", { name: "Spaces" }).getAttribute("href")
     ).toBe("/manager/amenities/places")
+    expect(screen.queryByRole("link", { name: /^Places at / })).toBeNull()
     // The workspace layout has its own nav: no coverage tabs or staff shell,
     // only Album's tabs (redesign R4, ia.md).
     expect(
@@ -195,9 +197,11 @@ describe("/manager/amenities/[checkId]", () => {
     expect(services.getCheck).toHaveBeenCalledWith(actor, {
       checkId: WIFI_CHECK.id,
     })
+    // The one back link, named for the page it goes to (redesign R4).
     expect(
-      screen.getByRole("link", { name: "All amenities" }).getAttribute("href")
+      screen.getByRole("link", { name: "Amenities" }).getAttribute("href")
     ).toBe("/manager/amenities")
+    expect(screen.queryByRole("link", { name: "All amenities" })).toBeNull()
     const capture = screen.getByRole("link", { name: UI_TEXT.captureMyself })
     expect(capture.getAttribute("href")).toBe(
       `/manager/amenities/${WIFI_CHECK.id}/capture`
