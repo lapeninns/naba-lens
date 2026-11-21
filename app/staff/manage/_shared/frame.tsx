@@ -113,6 +113,8 @@ export async function ManageFrame({
  * venue or deactivated. The services don't tell staff why a grant ended, so
  * one version covers every case. New grants go to venue manager accounts
  * only, so the way in is an account change, never a grant to this account.
+ * It names no tabs: it says what the account can open and links there
+ * (redesign R4, ia.md).
  */
 export async function NotManagerPage({ viewerName }: { viewerName: string }) {
   const shell = await currentStaffShell()
@@ -125,14 +127,15 @@ export async function NotManagerPage({ viewerName }: { viewerName: string }) {
           change your account to a venue manager account.
         </p>
         <p className="text-ink-muted">
-          You still have Home, Photos, Add, People and Me.
+          Your account can still add photos and see what your venue&apos;s album
+          needs.
         </p>
         <div>
           <Link
-            href="/staff/tasks"
+            href="/staff/home"
             className={buttonVariants({ variant: "primary" })}
           >
-            Go to Home
+            Go to Today
           </Link>
         </div>
       </Card>
