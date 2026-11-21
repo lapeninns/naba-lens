@@ -837,7 +837,11 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
     await admin
       .getByRole("searchbox", { name: "Search labels and notes" })
       .fill("crispy batter")
-    await admin.getByRole("button", { name: "Apply filters" }).click()
+    // The filter row has no Apply button (handoff, Library › Photos):
+    // search applies on Enter.
+    await admin
+      .getByRole("searchbox", { name: "Search labels and notes" })
+      .press("Enter")
     await expect(tiles).toHaveCount(1)
     await unique(1, new RegExp(`^Photo, qa-lib-b-img-${t}-01\\.jpg`))
     await admin.goto(`/admin?venue=${v1}&q=${encodeURIComponent("Momo")}`)

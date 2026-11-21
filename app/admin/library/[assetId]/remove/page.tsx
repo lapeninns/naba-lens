@@ -43,7 +43,7 @@ export default async function LibraryRemovePage({
             href={`/admin/library/${encodeURIComponent(assetId)}`}
             compact
           >
-            Photo details
+            The photo
           </BackLink>
           <PageHeader
             venueScope={detail.ok}

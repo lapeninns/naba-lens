@@ -64,8 +64,9 @@ export function countExtraFilters(value: LibraryExtraFilters): number {
  * The Library's A4 filters (spec §8 A4; S2-LIBRARY): use (in use or
  * withdrawn), review state, capture dates, orientation, request, collection,
  * publication destination, tag and legacy import batch ("Imported",
- * S5-IMPORT, FA-54). Folded under "Use, review and
- * collections" until one is on. Every change navigates (the URL is the
+ * S5-IMPORT, FA-54). Shown as "Use, review and collections" inside the
+ * search row's More filters panel, which counts these with its own
+ * (handoff "Library › Photos"). Every change navigates (the URL is the
  * filter), like the filters above it.
  */
 export function LibraryMoreFilters({
@@ -81,20 +82,21 @@ export function LibraryMoreFilters({
   const set = (patch: Partial<LibraryExtraFilters>) =>
     onChange({ ...value, ...patch })
 
+  const heading = React.useId()
   return (
-    <details
-      open={count > 0 || undefined}
-      className="rounded-card border border-line bg-surface p-4"
+    <section
+      aria-labelledby={heading}
+      className="border-t border-line pt-4"
       data-testid="library-more-filters"
     >
-      <summary className="min-h-12 cursor-pointer content-center text-body font-semibold text-ink">
+      <h3 id={heading} className="text-label text-ink">
         Use, review and collections
         {count > 0 ? (
-          <span className="ms-2 font-mono text-meta text-ink-muted">
+          <span className="ms-2 text-meta font-normal text-ink-muted">
             {count} on
           </span>
         ) : null}
-      </summary>
+      </h3>
       <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <FormField label="In use" optional>
           {(c) => (
@@ -226,6 +228,6 @@ export function LibraryMoreFilters({
           Clear these filters
         </Button>
       ) : null}
-    </details>
+    </section>
   )
 }

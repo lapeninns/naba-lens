@@ -15,8 +15,9 @@ import { getMediaActor } from "@/lib/server/media/context"
 import { libraryVenueOptions } from "@/lib/server/media/library"
 
 import { AssetDetailView } from "../_components/asset-detail"
+import { assetTitle } from "../_components/format"
 
-export const metadata: Metadata = { title: "Photo details · Library" }
+export const metadata: Metadata = { title: "Photo · Library" }
 
 /**
  * One asset in the admin Library (spec §8 A4, §11; S2-LIBRARY): its
@@ -48,17 +49,12 @@ export default async function LibraryAssetPage({
           <BackLink href="/admin" compact>
             Library
           </BackLink>
+          {/* Titled with the photo's label (handoff "One photo"); its
+              review, file name and actions follow in the view. */}
           <PageHeader
             venueScope={read.ok}
             scope={read.ok ? read.value.asset.venueName : "Library"}
-            title={read.ok ? "Photo details" : "Photo"}
-            summary={
-              read.ok ? (
-                <p className="[overflow-wrap:anywhere]">
-                  {read.value.asset.originalFilename}
-                </p>
-              ) : null
-            }
+            title={read.ok ? assetTitle(read.value) : "Photo"}
             className="pb-0 md:pb-0"
           />
         </div>

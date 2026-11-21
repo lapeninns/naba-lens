@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { FolderSimpleIcon, MagnifyingGlassIcon } from "@phosphor-icons/react"
+import { MagnifyingGlassIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -23,6 +23,7 @@ import {
 import { PageHeader } from "@/components/nabalens/page-header"
 import { SEARCH_COPY } from "@/components/nabalens/search/search-copy"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
 import { NO_EXTRA_FILTERS, type LibraryExtraFilters } from "@/lib/library/model"
 import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from "@/lib/menus/types"
 
@@ -31,6 +32,7 @@ import { loadLibraryPage, type LibraryPageResult } from "./library-actions"
 import { filtersToSearch, type LibrarySearchParams } from "./library-search"
 import { LIBRARY_COPY } from "./library-copy"
 import {
+  countExtraFilters,
   LibraryMoreFilters,
   type LibraryExtraOptions,
 } from "./library-more-filters"
@@ -108,23 +110,30 @@ export function AdminLibrary({
             sibling tabs (redesign R5, ia.md). */}
         <AdminTabs set="library" active="photos" />
       </PageHeader>
+      {/* Search, venue and staff in one row; the rest behind More filters,
+          the folders as pick chips under it (handoff "Library › Photos"). */}
       <LibraryFilters
         venues={venues}
         staff={staff}
         menuOptions={menuOptions}
         value={shown}
         onChange={(next) => navigate(next)}
-      />
-      <LibraryMoreFilters
-        value={shownExtra}
-        options={extraOptions}
-        onChange={(nextExtra) => navigate(shown, nextExtra)}
-      />
-      <LibraryFolders
-        filters={shown}
-        menuOptions={menuOptions}
-        onChange={(next) => navigate(next)}
-      />
+        more={
+          <LibraryMoreFilters
+            value={shownExtra}
+            options={extraOptions}
+            onChange={(nextExtra) => navigate(shown, nextExtra)}
+          />
+        }
+        moreCount={countExtraFilters(shownExtra)}
+        onClearAll={() => navigate(EMPTY_LIBRARY_FILTERS, NO_EXTRA_FILTERS)}
+      >
+        <LibraryFolders
+          filters={shown}
+          menuOptions={menuOptions}
+          onChange={(next) => navigate(next)}
+        />
+      </LibraryFilters>
       {/* While new filters load, the results on screen are on their way out:
           inert, so Load more (or a tile) can't act on a list about to be
           replaced, whose answer would be dropped. */}
@@ -224,40 +233,26 @@ function LibraryFolders({
   const current = filtersToSearch(filters)
 
   return (
-    <section aria-labelledby={heading} className="grid gap-3">
-      <div>
-        <h2 id={heading} className="type-section-title text-ink">
-          Browse folders
-        </h2>
-        <p className="text-body text-ink-muted">
-          Folders show files that match their labels. A file can appear in
-          several folders, and each card names its dishes. Choose a venue above
-          to browse its menu sections.
-        </p>
-      </div>
-      <ul className="flex flex-wrap gap-2">
+    <section aria-labelledby={heading}>
+      {/* Folders show files that match their labels; a file can be in
+          several. A venue's menu sections join them once a venue is chosen. */}
+      <h2 id={heading} className="sr-only">
+        Browse folders
+      </h2>
+      <PillGroup aria-labelledby={heading}>
         {folders.map((folder) => {
           const next = { ...base, ...folder.filters }
-          const active = current === filtersToSearch(next)
           return (
-            <li key={folder.id} className="max-w-full min-w-0">
-              <Button
-                type="button"
-                variant="secondary"
-                aria-pressed={active}
-                className="h-auto min-h-11 max-w-full text-left whitespace-normal"
-                onClick={() => onChange(next)}
-              >
-                <FolderSimpleIcon
-                  weight={active ? "fill" : "regular"}
-                  aria-hidden
-                />
-                {folder.name}
-              </Button>
-            </li>
+            <FilterPill
+              key={folder.id}
+              selected={current === filtersToSearch(next)}
+              onClick={() => onChange(next)}
+            >
+              {folder.name}
+            </FilterPill>
           )
         })}
-      </ul>
+      </PillGroup>
     </section>
   )
 }
