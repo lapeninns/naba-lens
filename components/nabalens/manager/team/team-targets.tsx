@@ -4,7 +4,10 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { PencilSimpleIcon } from "@phosphor-icons/react"
 
-import { Card, SectionHeader } from "@/components/nabalens/common-room"
+import {
+  MANAGER_CARD,
+  MANAGER_SECTION_HEAD,
+} from "@/components/nabalens/manager/surface"
 import {
   failureText,
   needsRefresh,
@@ -112,14 +115,18 @@ export function TeamTargets({
         setFeedback={setFeedback}
       />
       <section aria-labelledby="team-people" className="grid gap-gutter">
-        <SectionHeader id="team-people" title={copy.peopleTitle} />
+        <div className={MANAGER_SECTION_HEAD}>
+          <h2 id="team-people" className="type-section-title text-ink">
+            {copy.peopleTitle}
+          </h2>
+        </div>
         <p className="px-1 text-body text-ink-muted">{copy.privacy}</p>
         {people.length === 0 ? (
-          <Card>
+          <div className={MANAGER_CARD}>
             <p className="text-body text-ink-muted">{copy.peopleEmpty}</p>
-          </Card>
+          </div>
         ) : (
-          <Card className="py-1">
+          <div className={`${MANAGER_CARD} py-1`}>
             <ul className="grid divide-y divide-line">
               {people.map((row) => (
                 <PersonRow
@@ -135,7 +142,7 @@ export function TeamTargets({
                 />
               ))}
             </ul>
-          </Card>
+          </div>
         )}
       </section>
     </>
@@ -214,8 +221,12 @@ function DefaultCard({
 
   return (
     <section aria-labelledby="team-default" className="grid gap-gutter">
-      <SectionHeader id="team-default" title={copy.defaultTitle} />
-      <Card>
+      <div className={MANAGER_SECTION_HEAD}>
+        <h2 id="team-default" className="type-section-title text-ink">
+          {copy.defaultTitle}
+        </h2>
+      </div>
+      <div className={MANAGER_CARD}>
         <p className="text-body text-ink">{copy.defaultBody}</p>
         <p className="text-meta text-ink-muted">
           {current == null ? copy.defaultUnset : copy.defaultSet(current)}
@@ -289,7 +300,7 @@ function DefaultCard({
             {feedback.text}
           </Notice>
         ) : null}
-      </Card>
+      </div>
     </section>
   )
 }

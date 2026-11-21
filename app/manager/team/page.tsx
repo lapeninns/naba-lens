@@ -7,7 +7,7 @@ import {
 } from "@/components/nabalens/offline-notice"
 import { ManagerTabs } from "@/components/nabalens/manager/manager-tabs"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { Card } from "@/components/nabalens/common-room"
+import { MANAGER_CARD } from "@/components/nabalens/manager/surface"
 import { VenueSwitcher } from "@/components/nabalens/venue-switcher"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 import { switchVenueAction } from "@/lib/auth/venue-actions"
@@ -103,9 +103,9 @@ export default async function ManagerTeamPage() {
         onRemove={removeVenueStaffAction}
       />
       {venues.length > 1 ? (
-        <Card>
+        <div className={MANAGER_CARD}>
           <VenueSwitcher venues={venues} onSwitch={switchVenueAction} />
-        </Card>
+        </div>
       ) : null}
     </div>
   )

@@ -109,8 +109,8 @@ export const MANAGER_COPY = {
     title: "Venue",
     loading: "Loading the venue",
     summary:
-      "Menus, specials, spaces, facilities, the team and who reviews photos here.",
-    menusTitle: "Current menus",
+      "What is true about the venue, who reviews photos here and what has changed.",
+    menusTitle: "Menu",
     menusFailed: "Menus couldn't be loaded. Try again in a moment.",
     noMenu:
       "No menu is active yet. An admin imports and activates it; staff can keep adding photos meanwhile.",
@@ -129,7 +129,7 @@ export const MANAGER_COPY = {
     spacesLine: (current: number, due: number) =>
       `${current} photos current · ${due} due a check`,
     spacesUnknown: "Where staff photograph each part of the venue.",
-    placesLink: "Album places and briefs",
+    placesLink: "Places and briefs",
     placesLine: "Where staff stand to photograph each section, and its brief.",
     facilitiesTitle: "Facilities and policies",
     factsLine: (text: string, percent: string | null, waiting: number) =>
@@ -155,7 +155,7 @@ export const MANAGER_COPY = {
     teamTitle: "Team",
     teamLink: "People and photo targets",
     teamLine: "Invite or remove staff, switch venue, set monthly targets.",
-    reviewersTitle: "Review assignments",
+    reviewersTitle: "Reviewers",
     reviewersFailed: "Reviewers couldn't be loaded. Try again in a moment.",
     historyTitle: "History",
     historyEmpty: "No changes recorded yet.",

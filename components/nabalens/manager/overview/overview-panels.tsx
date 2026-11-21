@@ -22,6 +22,7 @@ import type {
 } from "@/lib/manager/overview"
 import { plural } from "@/components/nabalens/coverage/copy"
 
+import { MANAGER_CARD } from "../surface"
 import { MenuMonthCheckControl } from "../venue/menu-month-check"
 
 /*
@@ -44,7 +45,7 @@ const ICONS: Record<NeedsRowKey, React.ReactNode> = {
   labels: <PencilSimpleIcon aria-hidden />,
 }
 
-const CARD = "grid gap-3 rounded-card bg-surface p-4 edge"
+const CARD = MANAGER_CARD
 
 /**
  * v2 ListRows grouped in one box with lines between (RowList's look), for
