@@ -264,11 +264,11 @@ test("capture-journal: a photo closed mid-TUS continues with one tap, the same a
       .getByRole("button", { name: CAPTURE_COPY.continueLabel(PHOTO) })
       .click()
   }
-  const queue = savingSheet(again, "Saving 1 photo")
+  const queue = savingSheet(again)
   await expect(queue).toBeVisible()
   await expect(
     queue.getByRole("listitem").filter({ hasText: PHOTO })
-  ).toContainText("Saved", { timeout: 120_000 })
+  ).toContainText("Posted", { timeout: 120_000 }) // a photo posts (D21)
   // One asset, the same row, continued from where the first tab stopped.
   const rows = await rowsOf(world.staffA.id)
   expect(rows.map((r) => [r.id, r.upload_state])).toEqual([[row!.id, "ready"]])
@@ -384,7 +384,7 @@ test("capture-journal: offline then online keeps the entry's state, then complet
   await context.setOffline(false)
   await expect(
     queue.getByRole("listitem").filter({ hasText: PHOTO })
-  ).toContainText("Saved", { timeout: 120_000 })
+  ).toContainText("Posted", { timeout: 120_000 }) // a photo posts (D21)
   await expect.poll(() => journal(page)).toEqual([])
   const rows = await rowsOf(world.staffA.id)
   expect(rows.map((r) => r.upload_state)).toEqual(["ready"])
