@@ -26,3 +26,24 @@ camera, StatusChip words, no messaging or approval-workflow features
 The audit that motivated these tasks is in `audit.md` next to this file.
 Release: one bundled PR; production needs the two pending migrations
 (20261120120000, 20261120130000) applied before merge, by the owner.
+
+## Status (21 Nov 2026, end of the overnight run)
+
+| ID  | State              | Evidence                                                                                                                                                                                                      |
+| --- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R0  | Done               | `e5de55379`; legacy D9 tests pin the switch off                                                                                                                                                               |
+| R1  | Done               | staff boundaries, Today back links, tab lighting, BackLink                                                                                                                                                    |
+| R2  | Done               | tick-label-confirm-undo, Photos added with Label now/later, Unlabelled first in My photos; tried end to end on a local stack with the Old Crown menu                                                          |
+| R3  | Done (photo parts) | Today and Me speak of labelling; Recent photos and Me use BackLink. The prototype's Today "Needs you" list and Questions screens are not built                                                                |
+| R4  | Done               | Open Design route map: tabs, titles, back links, boundaries, Needs you today, review words, amenity screens as Album tabs                                                                                     |
+| R5  | Done               | Open Design route map: lit sections, tabs and picks, orphans reachable, boundaries, one Review per venue                                                                                                      |
+| R6  | Done               | sign-in on v2, one frame, Retry boundary                                                                                                                                                                      |
+| R7  | Local checks done  | typecheck, lint, 5392 unit tests; every staff, manager and admin route renders (200, no error state) as its fixture; axe WCAG 2.2 A/AA: no violations on 14 screens. Not run: integration, security, e2e, lci |
+
+Still open:
+
+- e2e specs that assert old titles or words will need updating when they run.
+- Manager: VenueBar on review, counts on Album tabs, one shared Your photos list; `triage-card`, `overview-body`, `review-card` still import Common Room.
+- Admin: the Overview cell-tint table and the shorter check-dates form from the handoff.
+- Staff: the prototype's Today "Needs you" list, venue Questions and the Me subpages' new layouts; "I'm not sure" while posting (removed by D20, the handoff wants it back with who gets the photo).
+- Open Design's open questions for the owner: whether "Keep in the album" also means approved for public use; nine or ten venues; venue names and towns.
