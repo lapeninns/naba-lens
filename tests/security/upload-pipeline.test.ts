@@ -343,6 +343,44 @@ describe("finalise through the app", () => {
     ])
   })
 
+  it("lets the venue manager, and no one else, see a post by a deactivated contributor", async () => {
+    const up = await stored(v.staffB, await syntheticJpeg(640, 480))
+    await finalise(v.staffB, up.id, up.key)
+    const asset = { p_asset_id: up.id }
+    const canView = (who: TestIdentity) =>
+      ok(who.client.rpc("staff_album_can_view", asset))
+    psql(
+      `update public.profiles set active = false where id = '${v.staffB.id}'`
+    )
+    try {
+      expect(await canView(v.manager)).toBe(true)
+      expect(await canView(v.staffA)).toBe(false)
+      expect(await canView(other.manager)).toBe(false)
+    } finally {
+      psql(
+        `update public.profiles set active = true where id = '${v.staffB.id}'`
+      )
+    }
+  })
+
+  it("counts a Not for a slot choice as labelled in My photos", async () => {
+    const up = await stored(v.staffA, await syntheticJpeg(600, 400))
+    await finalise(v.staffA, up.id, up.key)
+    const labelled = async () =>
+      (
+        (await ok(
+          v.staffA.client.rpc("staff_album_own_states", {
+            p_asset_ids: [up.id],
+          })
+        )) as { labelled: boolean }[]
+      )[0]?.labelled
+    expect(await labelled()).toBe(false)
+    psql(`insert into public.media_labels (asset_id, venue_id, content_types)
+      select id, venue_id, array['team'] from public.media_assets where id = '${up.id}'
+      on conflict (asset_id) do update set content_types = excluded.content_types`)
+    expect(await labelled()).toBe(true)
+  })
+
   it("marks an exact copy at the same venue as a duplicate, not one at another venue", async () => {
     const original = await stored(v.staffA)
     await finalise(v.staffA, original.id, original.key)

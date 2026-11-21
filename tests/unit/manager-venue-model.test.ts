@@ -159,6 +159,19 @@ describe("overviewActions (spec §7 M1)", () => {
     )
     for (const action of unread) expect(action.line).toMatch(/couldn't count/)
     expect(unread.every((a) => !a.waiting)).toBe(true)
+    // Not known to be done, so never shown as Complete (Codex, PR #43).
+    expect(unread.every((a) => a.unknown)).toBe(true)
+  })
+
+  it("marks a job unknown only when one of its own counts is unread", () => {
+    const facts = overviewActions(
+      input({ facts: null, menuCheckDue: false }),
+      HREFS
+    )
+    expect(facts[1]).toMatchObject({ waiting: false, unknown: true })
+    expect(facts[0]?.unknown).toBe(false)
+    expect(facts[2]?.unknown).toBe(false)
+    expect(facts[3]?.unknown).toBe(false)
   })
 })
 

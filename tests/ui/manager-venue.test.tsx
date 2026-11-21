@@ -119,6 +119,30 @@ describe("Overview panels", () => {
     expect(rows[3]!.textContent).toContain("Facts confirmed")
   })
 
+  it("keeps a job whose count could not be read as a link, never Complete", () => {
+    render(
+      <OverviewActions
+        actions={[
+          {
+            key: "venue",
+            title: "Check venue details",
+            line: "We couldn't count facts awaiting confirmation",
+            href: "/manager/venue",
+            waiting: false,
+            unknown: true,
+          },
+        ]}
+        pendingPhotos={0}
+        reviewHref="/r"
+      />
+    )
+    const row = document.querySelector<HTMLElement>('[data-action="venue"]')!
+    expect(within(row).getByRole("link").getAttribute("href")).toBe(
+      "/manager/venue"
+    )
+    expect(row.textContent).not.toContain("Complete")
+  })
+
   it("draws no main button when nothing is waiting", () => {
     render(
       <OverviewActions actions={ACTIONS} pendingPhotos={0} reviewHref="/r" />
