@@ -49,6 +49,8 @@ async function applyVenueTemplate(
 ) {
   const admin = await as(browser, w.admin, DESKTOP)
   await admin.goto(`/admin/venues/${w.venueA.id}`)
+  // What this venue collects is a closed disclosure on Setup (second handoff).
+  await admin.locator("#collect summary").click()
   const template = admin.getByTestId("venue-template")
   await template.getByTestId("template-preview-button").click()
   await expect(template.getByTestId("template-preview")).toBeVisible()

@@ -4,7 +4,6 @@ import { unexpected } from "@/app/staff/manage/_shared/context"
 import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { ErrorState } from "@/components/nabalens/error-state"
-import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { requireActiveAdmin } from "@/lib/auth"
 import { listAssignableVenues } from "@/lib/server/accounts"
@@ -57,19 +56,6 @@ export default async function VenueManagersPage({
   return (
     <AppShell variant="admin" active="staff" userName={profile.displayName}>
       <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4">
-          <PageHeader
-            venueScope
-            scope={MANAGERS_COPY.scope}
-            title={ADMIN_SECTION_TITLES.people}
-            summary={MANAGERS_COPY.summary}
-            className="pb-0 md:pb-0"
-          >
-            {/* People › Venue managers (redesign R5, ia.md decision 8). */}
-            <AdminTabs set="people" active="managers" />
-          </PageHeader>
-          <OfflineNotice />
-        </div>
         {venues.ok ? (
           <ManagersView
             grants={grants.grants}
@@ -78,11 +64,30 @@ export default async function VenueManagersPage({
             candidates={candidates?.people ?? []}
             includeRevoked={includeRevoked}
             basePath={BASE}
+            grantOpen={search.grant === "1"}
+            header={{
+              scope: MANAGERS_COPY.scope,
+              title: ADMIN_SECTION_TITLES.people,
+              summary: MANAGERS_COPY.summary,
+              // People › Venue managers (redesign R5, ia.md decision 8).
+              tabs: <AdminTabs set="people" active="managers" />,
+            }}
           />
         ) : (
-          <ErrorState title={MANAGERS_COPY.couldNotLoad}>
-            {MANAGERS_COPY.venuesCouldNotLoad}
-          </ErrorState>
+          <>
+            <PageHeader
+              venueScope
+              scope={MANAGERS_COPY.scope}
+              title={ADMIN_SECTION_TITLES.people}
+              summary={MANAGERS_COPY.summary}
+              className="pb-0 md:pb-0"
+            >
+              <AdminTabs set="people" active="managers" />
+            </PageHeader>
+            <ErrorState title={MANAGERS_COPY.couldNotLoad}>
+              {MANAGERS_COPY.venuesCouldNotLoad}
+            </ErrorState>
+          </>
         )}
       </div>
     </AppShell>

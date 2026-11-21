@@ -1,3 +1,4 @@
+import { CoverageSection } from "@/components/nabalens/coverage"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import type {
@@ -67,6 +68,13 @@ export function PublicationPanels(
         only?: "destinations" | "published" | "recent"
         /** Leave out the section's own heading (the disclosure names it). */
         bare?: boolean
+        /**
+         * Admin Publishing (second handoff, decision 4): every reference
+         * section folded shut under its title and a count line, each drawn
+         * as `only` + `bare` inside a collapsed CoverageSection, so the
+         * inside is the same as unfolded.
+         */
+        folded?: boolean
       }
 ) {
   const { overview, today } = props
@@ -126,6 +134,60 @@ export function PublicationPanels(
           </>
         )}
       </section>
+    )
+  }
+
+  if (props.folded) {
+    const { folded: _folded, ...rest } = props
+    void _folded
+    const inUse = overview.destinations.filter((d) => d.active).length
+    const lastRecord = overview.recent[0]?.occurredOn
+    const fold = (
+      part: "destinations" | "published" | "recent",
+      title: string,
+      count: string | undefined
+    ) => (
+      <CoverageSection id={part} title={title} count={count} collapsed>
+        <PublicationPanels {...rest} only={part} bare />
+      </CoverageSection>
+    )
+    return (
+      <>
+        {fold(
+          "destinations",
+          EXPORTS_COPY.destinationsTitle,
+          `${inUse} in use${canRecord ? " · add or change" : ""}`
+        )}
+        {fold(
+          "published",
+          EXPORTS_COPY.publishedTitle,
+          `${overview.published.length} ${overview.published.length === 1 ? "photo" : "photos"}`
+        )}
+        {overview.recent.length > 0
+          ? fold(
+              "recent",
+              EXPORTS_COPY.recentTitle,
+              lastRecord ? `Last on ${londonDate(lastRecord)}` : undefined
+            )
+          : null}
+        {canRecord && props.profiles && props.profiles.length > 0 ? (
+          <CoverageSection
+            id="profiles"
+            title={EXPORTS_COPY.profilesTitle}
+            count={props.profiles.map((p) => p.label).join(" · ")}
+            collapsed
+          >
+            <p className="text-body text-ink-muted">
+              {EXPORTS_COPY.profilesIntro}
+            </p>
+            <div className="grid gap-3 md:grid-cols-2">
+              {props.profiles.map((p) => (
+                <ProfileForm key={`${p.key}-${p.revision}`} profile={p} />
+              ))}
+            </div>
+          </CoverageSection>
+        ) : null}
+      </>
     )
   }
 

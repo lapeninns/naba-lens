@@ -11,7 +11,10 @@ const ROWS = [
   ["64%", "38%"],
 ] as const
 
-/** The grant form card, then the current grants card, as they will load. */
+/**
+ * The current grants, as they will load. The grant form is a Dialog opened
+ * from the title row (second handoff), so it has no skeleton of its own.
+ */
 export default function ManagersLoading() {
   return (
     <AppShell variant="admin" active="staff">
@@ -26,18 +29,6 @@ export default function ManagersLoading() {
           <AdminTabs set="people" active="managers" />
         </PageHeader>
         <SkeletonRegion label={MANAGERS_COPY.loading} className="grid gap-6">
-          <div className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
-            <Skeleton shape="title" className="w-64 max-w-full" />
-            <div className="grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="grid gap-1.5">
-                  <Skeleton shape="line" className="w-24" />
-                  <Skeleton className="h-14" />
-                </div>
-              ))}
-              <Skeleton className="h-13 md:w-48" />
-            </div>
-          </div>
           <div className="grid gap-3">
             <Skeleton shape="title" className="mx-1 w-48" />
             <div className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card">

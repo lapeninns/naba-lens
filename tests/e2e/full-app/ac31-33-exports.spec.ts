@@ -215,6 +215,8 @@ test("AC33 (deferred, FA-40): a published photo that is withdrawn stops being ex
 
   const admin = await as(browser, w.admin, DESKTOP)
   await admin.goto("/admin/publishing")
+  // Destinations is a closed disclosure on Publishing (second handoff).
+  await admin.locator("#destinations summary").click()
   const add = admin
     .locator("details")
     .filter({ has: admin.getByText("Add a destination", { exact: true }) })
@@ -229,7 +231,12 @@ test("AC33 (deferred, FA-40): a published photo that is withdrawn stops being ex
     ["Soup"],
     w.venueA.id
   )
-  await admin.getByText("Record where it's published").click()
+  // One "Record where it's published" form beside the photos (second
+  // handoff); the row's Record where chooses the photo.
+  await admin
+    .getByRole("link", { name: /^Record where/ })
+    .first()
+    .click()
   await admin.getByRole("combobox", { name: "Where" }).click()
   await admin.getByRole("option", { name: destination }).click()
   await admin

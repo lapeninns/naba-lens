@@ -8,7 +8,10 @@ import { listCollections } from "@/lib/server/library/service"
 import { getMediaActor } from "@/lib/server/media/context"
 
 import { ADMIN_SECTION_TITLES, AdminTabs } from "../../_components/admin-tabs"
-import { CollectionsView } from "../_components/collections"
+import {
+  CollectionsView,
+  NewCollectionButton,
+} from "../_components/collections"
 
 export const metadata: Metadata = { title: "Collections · Library" }
 
@@ -39,6 +42,7 @@ export default async function LibraryCollectionsPage({
               photos; it never copies or deletes them.
             </p>
           }
+          actions={<NewCollectionButton />}
           className="pb-0 md:pb-0"
         >
           <AdminTabs set="library" active="collections" />

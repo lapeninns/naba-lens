@@ -99,17 +99,20 @@ const RECHECK_SENT_OPEN =
 const ruleLabel = (id: string, maxAgeDays: number | null) =>
   `${id} (${maxAgeDays === null ? "until the event ends" : `due for a check after ${maxAgeDays} days`})`
 
-/** A preview row's four lines (FRESHNESS_PREVIEW_COPY answers to rechecks). */
+/**
+ * A preview row's four numbers: Answers in use, Past their check date, No
+ * check date, Rechecks would open (the result table, second handoff).
+ */
 const previewLines = (n: {
   answers: number
   expired: number
   basisMissing: number
   rechecks: number
 }) => [
-  `${n.answers} ${n.answers === 1 ? "answer" : "answers"} in use`,
-  `${n.expired} ${n.expired === 1 ? "answer" : "answers"} would be past their check date`,
-  `${n.basisMissing} would be not in use because they have no check date`,
-  `${n.rechecks} ${n.rechecks === 1 ? "recheck" : "rechecks"} would open`,
+  String(n.answers),
+  String(n.expired),
+  String(n.basisMissing),
+  String(n.rechecks),
 ]
 
 /** The Check dates form's GET, in the order the form sends its fields. */
@@ -142,8 +145,8 @@ async function settled(page: Page) {
  * settles), and the page has no submit script, so the page as it submits is
  * the page as it stays while held. The snapshot leaves through a binding, sent
  * before the request exists. The reads mirror the locators used after the
- * release: each select by its exact label, the preview's list items naming
- * the venue, and the one item naming the venue and the use with its own lines.
+ * release: each select by its exact label, the preview's table rows naming
+ * the venue, and the one row naming the venue and the use with its numbers.
  */
 async function recordOnSubmit(
   page: Page,
@@ -171,10 +174,18 @@ async function recordOnSubmit(
               : null
           return el instanceof HTMLSelectElement ? el.value : null
         }
+        // A stacked cell's value, without its phone-only column label.
+        const value = (cell: Element) => {
+          const copy = cell.cloneNode(true) as Element
+          copy.querySelector("[data-slot=table-cell-label]")?.remove()
+          return text(copy)
+        }
         const previews = document.querySelectorAll("#check-dates-preview")
-        const items = [...document.querySelectorAll("#check-dates-preview li")]
-        const venueRows = items.filter((li) => text(li).includes(venueName))
-        const rows = venueRows.filter((li) => text(li).includes(useText))
+        const items = [
+          ...document.querySelectorAll("#check-dates-preview tbody tr"),
+        ]
+        const venueRows = items.filter((tr) => text(tr).includes(venueName))
+        const rows = venueRows.filter((tr) => text(tr).includes(useText))
         return {
           path: location.pathname + location.search,
           previews: previews.length,
@@ -184,7 +195,7 @@ async function recordOnSubmit(
           venueRows: venueRows.length,
           row:
             rows.length === 1
-              ? [...rows[0]!.querySelectorAll("li")].map(text)
+              ? [...rows[0]!.querySelectorAll("td[data-numeric]")].map(value)
               : { matches: rows.length },
         }
       }
@@ -1042,15 +1053,17 @@ test.describe("B03 browser charters C and D", () => {
     const preview = admin.locator("#check-dates-preview")
     const option = (select: typeof internal, id: string) =>
       select.locator("option", { hasText: id })
-    /** Venue A's preview row for one use, by its four lines. */
+    /** Venue A's preview row for one use; its four numbers are cells. */
     const row = (use: "internal" | "public") =>
       preview
-        .getByRole("listitem")
+        .getByRole("row")
         .filter({ hasText: w.venueA.name })
         .filter({ hasText: CHECK_DATES_TEXT.use[use] })
     const venueRows = preview
-      .getByRole("listitem")
+      .getByRole("row")
       .filter({ hasText: w.venueA.name })
+    const numbers = (use: "internal" | "public") =>
+      row(use).locator("td[data-numeric]")
 
     // Each use offers only its own listed rules, worded with their basis.
     for (const r of [rule.v1, rule.v3, rule.second]) {
@@ -1109,8 +1122,9 @@ test.describe("B03 browser charters C and D", () => {
     await expect(guests).toHaveValue("")
     // What version 1's rule does to the dated answer: in use, nothing due.
     await expect(venueRows).toHaveCount(1)
-    await expect(row("internal").getByRole("listitem")).toHaveText(
-      previewLines({ answers: 1, expired: 0, basisMissing: 0, rechecks: 0 })
+    await expect(numbers("internal")).toHaveText(
+      previewLines({ answers: 1, expired: 0, basisMissing: 0, rechecks: 0 }),
+      { useInnerText: true }
     )
     await expect(preview).not.toContainText(CHECK_DATES_TEXT.none)
     // A fresh document: focus starts at the top, on no stale control.
@@ -1172,11 +1186,13 @@ test.describe("B03 browser charters C and D", () => {
     // Its own rules' outcome: up to date for staff; for guests, no event
     // date, so not in use and one recheck.
     await expect(venueRows).toHaveCount(2)
-    await expect(row("internal").getByRole("listitem")).toHaveText(
-      previewLines({ answers: 1, expired: 0, basisMissing: 0, rechecks: 0 })
+    await expect(numbers("internal")).toHaveText(
+      previewLines({ answers: 1, expired: 0, basisMissing: 0, rechecks: 0 }),
+      { useInnerText: true }
     )
-    await expect(row("public").getByRole("listitem")).toHaveText(
-      previewLines({ answers: 1, expired: 0, basisMissing: 1, rechecks: 1 })
+    await expect(numbers("public")).toHaveText(
+      previewLines({ answers: 1, expired: 0, basisMissing: 1, rechecks: 1 }),
+      { useInnerText: true }
     )
     await expect
       .poll(() =>
@@ -1202,8 +1218,9 @@ test.describe("B03 browser charters C and D", () => {
     await expect(internal).toHaveValue(rule.v1.id)
     await expect(guests).toHaveValue("")
     await expect(venueRows).toHaveCount(1)
-    await expect(row("internal").getByRole("listitem")).toHaveText(
-      previewLines({ answers: 1, expired: 0, basisMissing: 0, rechecks: 0 })
+    await expect(numbers("internal")).toHaveText(
+      previewLines({ answers: 1, expired: 0, basisMissing: 0, rechecks: 0 }),
+      { useInnerText: true }
     )
 
     // ---- The future version 3's rule, named: a different outcome ---------------
@@ -1216,8 +1233,9 @@ test.describe("B03 browser charters C and D", () => {
     await expect(internal).toHaveValue(rule.v3.id)
     await expect(guests).toHaveValue("")
     await expect(venueRows).toHaveCount(1)
-    await expect(row("internal").getByRole("listitem")).toHaveText(
-      previewLines({ answers: 1, expired: 1, basisMissing: 0, rechecks: 1 })
+    await expect(numbers("internal")).toHaveText(
+      previewLines({ answers: 1, expired: 1, basisMissing: 0, rechecks: 1 }),
+      { useInnerText: true }
     )
 
     // The previews wrote nothing: the two questions' versions, their B01 rule

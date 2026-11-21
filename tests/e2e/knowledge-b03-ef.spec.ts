@@ -77,6 +77,9 @@ import { signedInPage } from "./helpers/world"
  * unchanged.
  */
 
+/** A literal string inside a RegExp. */
+const escapeRe = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
 const DESK = { viewport: { width: 1280, height: 800 } }
 const PHONE = { viewport: { width: 390, height: 844 } }
 
@@ -621,11 +624,16 @@ test.describe("knowledge B03 E and F", () => {
     await expect(admin).toHaveURL(
       /\/admin\/knowledge\/runs\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
     )
+    // The run's title is its kind and mode; the venue is in the summary
+    // under it (second handoff).
     await expect(
       admin.getByRole("heading", {
-        name: `${RECONCILE_COPY.runKind.legacy} · ${RECONCILE_COPY.runMode.dry_run} · ${w.venueA.name}`,
+        name: `${RECONCILE_COPY.runKind.legacy} · ${RECONCILE_COPY.runMode.dry_run}`,
         exact: true,
       })
+    ).toBeVisible()
+    await expect(
+      admin.getByText(new RegExp(`^${escapeRe(w.venueA.name)} · `))
     ).toBeVisible()
     expect(held.count(), "one dry run request").toBe(1)
     expect(runsAt(w.venueA)).toBe(runsBefore + 1)

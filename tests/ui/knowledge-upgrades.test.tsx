@@ -53,11 +53,19 @@ describe("schema upgrades", () => {
       key: "onsite_parking",
       mode: "dry_run",
     })
+    // The dry run's five figures, each with its label (second handoff).
+    const result = await screen.findByRole("region", { name: "Dry run" })
     expect(
-      await screen.findByText(
-        "12 answers · 9 kept, with details not recorded · 2 need checking again · 1 already upgraded · 0 already on the new form"
-      )
-    ).toBeTruthy()
+      within(result)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent)
+    ).toEqual([
+      "Answers12",
+      "Kept9details not recorded",
+      "Need checking again2a recheck opens",
+      "Already upgraded1",
+      "On the new form0",
+    ])
     await user.click(screen.getByRole("button", { name: "Apply upgrade" }))
     const dialog = await screen.findByRole("dialog", {
       name: "Apply this upgrade?",

@@ -34,6 +34,10 @@ export const SHOT_TEMPLATE_COPY = {
   unchanged: "Nothing changed.",
   older: "Older photos",
   none: "No photos are accepted for public use yet.",
+  // The preview beside the form (second handoff).
+  preview: "What staff will read",
+  previewExample: "Example of a good photo",
+  previewEmpty: "No instruction yet.",
 } as const
 
 const photoSrc = (assetId: string) =>
@@ -84,100 +88,125 @@ export function ShotTemplateForm({
   const listed = choices.filter((c) => c.assetId !== storedExampleAssetId)
 
   return (
-    <form action={action} className="grid gap-6" noValidate>
-      <input type="hidden" name="category" value={template.category} />
-      <input type="hidden" name="revision" value={revision} />
-      <input type="hidden" name="exampleAssetId" value={example} />
+    // Second handoff: the form left; what staff will read beside it, live.
+    <div className="grid min-w-0 items-start gap-6 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <form action={action} className="grid min-w-0 gap-6" noValidate>
+        <input type="hidden" name="category" value={template.category} />
+        <input type="hidden" name="revision" value={revision} />
+        <input type="hidden" name="exampleAssetId" value={example} />
 
-      {state.status === "saved" ? (
-        <Notice tone="positive" role="status">
-          {state.changed
-            ? SHOT_TEMPLATE_COPY.saved
-            : SHOT_TEMPLATE_COPY.unchanged}
-        </Notice>
-      ) : null}
-      {state.status === "error" && !state.fieldErrors ? (
-        <Notice tone="negative" role="alert">
-          {state.message}
-        </Notice>
-      ) : null}
+        {state.status === "saved" ? (
+          <Notice tone="positive" role="status">
+            {state.changed
+              ? SHOT_TEMPLATE_COPY.saved
+              : SHOT_TEMPLATE_COPY.unchanged}
+          </Notice>
+        ) : null}
+        {state.status === "error" && !state.fieldErrors ? (
+          <Notice tone="negative" role="alert">
+            {state.message}
+          </Notice>
+        ) : null}
 
-      <FormField
-        label={SHOT_TEMPLATE_COPY.instruction}
-        description={`${SHOT_TEMPLATE_COPY.instructionHint} ${[...instruction].length} of ${SHOT_TEMPLATE_MAX}.`}
-        error={errors.instruction}
-      >
-        <Input
-          name="instruction"
-          value={instruction}
-          maxLength={SHOT_TEMPLATE_MAX}
-          onChange={(e) => setInstruction(e.target.value)}
-        />
-      </FormField>
-
-      <FieldSet className="grid gap-3">
-        <FieldLegend className="type-heading-sm">
-          {SHOT_TEMPLATE_COPY.example}
-        </FieldLegend>
-        <p className="text-meta text-ink-muted">
-          {SHOT_TEMPLATE_COPY.exampleHint}
-        </p>
-        <RadioGroup
-          aria-label={SHOT_TEMPLATE_COPY.example}
-          value={example}
-          onValueChange={(v) => setExample(typeof v === "string" ? v : "")}
-          className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
-          data-slot="example-choices"
+        <FormField
+          label={SHOT_TEMPLATE_COPY.instruction}
+          description={`${SHOT_TEMPLATE_COPY.instructionHint} ${[...instruction].length} of ${SHOT_TEMPLATE_MAX}.`}
+          error={errors.instruction}
         >
-          <label className="col-span-2 flex min-h-12 items-center gap-3 rounded-card bg-surface p-3 edge focus-ring-within sm:col-span-3 lg:col-span-4">
-            <Radio value="" focus="parent" />
-            <span className="text-body">{SHOT_TEMPLATE_COPY.noExample}</span>
-          </label>
-          {storedExampleAssetId ? (
-            <ChoiceTile
-              assetId={storedExampleAssetId}
-              caption={
-                template.exampleUnavailable
-                  ? SHOT_TEMPLATE_COPY.currentHidden
-                  : SHOT_TEMPLATE_COPY.current
-              }
-            />
-          ) : null}
-          {listed.map((c) => (
-            <ChoiceTile
-              key={c.assetId}
-              assetId={c.assetId}
-              caption={`${c.venueName} · ${uploadedOn(c.uploadedAt)}`}
-            />
-          ))}
-        </RadioGroup>
-        {choices.length === 0 && !storedExampleAssetId ? (
-          <p className="text-meta text-ink-muted">{SHOT_TEMPLATE_COPY.none}</p>
-        ) : null}
-        {olderHref ? (
-          <a
-            href={olderHref}
-            className="justify-self-start font-semibold text-ink underline focus-ring"
+          <Input
+            name="instruction"
+            value={instruction}
+            maxLength={SHOT_TEMPLATE_MAX}
+            onChange={(e) => setInstruction(e.target.value)}
+          />
+        </FormField>
+
+        <FieldSet className="grid gap-3">
+          <FieldLegend className="type-heading-sm">
+            {SHOT_TEMPLATE_COPY.example}
+          </FieldLegend>
+          <p className="text-meta text-ink-muted">
+            {SHOT_TEMPLATE_COPY.exampleHint}
+          </p>
+          <RadioGroup
+            aria-label={SHOT_TEMPLATE_COPY.example}
+            value={example}
+            onValueChange={(v) => setExample(typeof v === "string" ? v : "")}
+            className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+            data-slot="example-choices"
           >
-            {SHOT_TEMPLATE_COPY.older}
-          </a>
-        ) : null}
-      </FieldSet>
+            <label className="col-span-2 flex min-h-12 items-center gap-3 rounded-card bg-surface p-3 edge focus-ring-within sm:col-span-3">
+              <Radio value="" focus="parent" />
+              <span className="text-body">{SHOT_TEMPLATE_COPY.noExample}</span>
+            </label>
+            {storedExampleAssetId ? (
+              <ChoiceTile
+                assetId={storedExampleAssetId}
+                caption={
+                  template.exampleUnavailable
+                    ? SHOT_TEMPLATE_COPY.currentHidden
+                    : SHOT_TEMPLATE_COPY.current
+                }
+              />
+            ) : null}
+            {listed.map((c) => (
+              <ChoiceTile
+                key={c.assetId}
+                assetId={c.assetId}
+                caption={`${c.venueName} · ${uploadedOn(c.uploadedAt)}`}
+              />
+            ))}
+          </RadioGroup>
+          {choices.length === 0 && !storedExampleAssetId ? (
+            <p className="text-meta text-ink-muted">
+              {SHOT_TEMPLATE_COPY.none}
+            </p>
+          ) : null}
+          {olderHref ? (
+            <a
+              href={olderHref}
+              className="justify-self-start font-semibold text-ink underline focus-ring"
+            >
+              {SHOT_TEMPLATE_COPY.older}
+            </a>
+          ) : null}
+        </FieldSet>
 
-      <FormField
-        label={SHOT_TEMPLATE_COPY.reason}
-        optional
-        error={errors.reason}
+        <FormField
+          label={SHOT_TEMPLATE_COPY.reason}
+          optional
+          error={errors.reason}
+        >
+          <Textarea name="reason" defaultValue={start.reason} rows={2} />
+        </FormField>
+
+        <div>
+          <Button type="submit" variant="primary" disabled={pending}>
+            {SHOT_TEMPLATE_COPY.save}
+          </Button>
+        </div>
+      </form>
+      <section
+        aria-labelledby="shot-template-preview"
+        className="grid min-w-0 content-start gap-3 rounded-card border border-line bg-surface p-4 md:sticky md:top-4"
+        data-slot="shot-template-preview"
       >
-        <Textarea name="reason" defaultValue={start.reason} rows={2} />
-      </FormField>
-
-      <div>
-        <Button type="submit" variant="primary" disabled={pending}>
-          {SHOT_TEMPLATE_COPY.save}
-        </Button>
-      </div>
-    </form>
+        <h2 id="shot-template-preview" className="type-section-title text-ink">
+          {SHOT_TEMPLATE_COPY.preview}
+        </h2>
+        <p className="text-body [overflow-wrap:anywhere] text-ink">
+          {instruction.trim() || SHOT_TEMPLATE_COPY.previewEmpty}
+        </p>
+        {example ? (
+          <figure className="grid gap-1.5">
+            <Photo src={photoSrc(example)} alt="" ratio="4/3" />
+            <figcaption className="text-meta text-ink-muted">
+              {SHOT_TEMPLATE_COPY.previewExample}
+            </figcaption>
+          </figure>
+        ) : null}
+      </section>
+    </div>
   )
 }
 

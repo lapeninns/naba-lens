@@ -83,7 +83,8 @@ describe("admin coverage oversight", () => {
     const [first, second] = screen.getAllByRole("listitem")
     expect(within(first!).getByText("Our menu")).toBeTruthy()
     expect(within(first!).getByText("of 40 dishes have a photo")).toBeTruthy()
-    expect(within(first!).getByText("of 8 met their target")).toBeTruthy()
+    expect(within(first!).getByText("Checklist items complete")).toBeTruthy()
+    expect(within(first!).getByText("Staff met their target")).toBeTruthy()
     expect(within(first!).getByText("2 other jobs overdue")).toBeTruthy()
     expect(within(second!).getByText("No active menu")).toBeTruthy()
   })
@@ -91,6 +92,6 @@ describe("admin coverage oversight", () => {
   it("leaves Our menu out of a past month", () => {
     render(<VenueList rows={[row()]} />)
     expect(screen.queryByText("Our menu")).toBeNull()
-    expect(screen.getByText("of 8 met their target")).toBeTruthy()
+    expect(screen.getByText("Staff met their target")).toBeTruthy()
   })
 })

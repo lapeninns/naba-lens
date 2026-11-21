@@ -56,9 +56,12 @@ const errorsOf = (result: { fieldErrors?: Partial<Record<string, string>> }) =>
 export function DeclareSourceForm({
   venues,
   onDeclare,
+  bare = false,
 }: {
   venues: Venue[]
   onDeclare: Keyed<{ sourceId: string; replayed: boolean }>
+  /** Inside DeclareSourceDialog: no card or heading of its own. */
+  bare?: boolean
 }) {
   const id = React.useId()
   const router = useRouter()
@@ -104,17 +107,26 @@ export function DeclareSourceForm({
   return (
     <form
       noValidate
-      className="grid min-w-0 gap-4 rounded-card bg-surface p-4 shadow-card"
-      aria-labelledby={`${id}-title`}
+      className={
+        bare
+          ? "grid min-w-0 gap-4"
+          : "grid min-w-0 gap-4 rounded-card bg-surface p-4 shadow-card"
+      }
+      aria-labelledby={bare ? undefined : `${id}-title`}
+      aria-label={bare ? COPY.declare : undefined}
       onSubmit={(e) => {
         e.preventDefault()
         void submit()
       }}
     >
-      <h3 id={`${id}-title`} className={LABEL}>
-        {COPY.declare}
-      </h3>
-      <p className={MUTED}>{COPY.declareHelp}</p>
+      {bare ? null : (
+        <>
+          <h3 id={`${id}-title`} className={LABEL}>
+            {COPY.declare}
+          </h3>
+          <p className={MUTED}>{COPY.declareHelp}</p>
+        </>
+      )}
       <CoverageNotice notice={notice} onDismiss={() => setNotice(null)} />
       <div className="grid min-w-0 gap-1.5">
         <label htmlFor={`${id}-kind`} className={LABEL}>
@@ -185,6 +197,36 @@ export function DeclareSourceForm({
         </Button>
       </div>
     </form>
+  )
+}
+
+/**
+ * Declare a source from a button (second handoff, Venue facts › Sources):
+ * the same form, in a Dialog, so Sources and Mappings can sit side by side.
+ */
+export function DeclareSourceDialog({
+  venues,
+  onDeclare,
+}: {
+  venues: Venue[]
+  onDeclare: Keyed<{ sourceId: string; replayed: boolean }>
+}) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <>
+      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+        {COPY.declare}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{COPY.declare}</DialogTitle>
+            <DialogDescription>{COPY.declareHelp}</DialogDescription>
+          </DialogHeader>
+          <DeclareSourceForm venues={venues} onDeclare={onDeclare} bare />
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -415,41 +457,42 @@ export function StartDryRunForm({
         {COPY.start}
       </h3>
       <CoverageNotice notice={notice} onDismiss={() => setNotice(null)} />
-      <fieldset className="grid min-w-0 gap-1" disabled={pending}>
-        <legend className={LABEL}>{COPY.kind}</legend>
-        {(["legacy", "external"] as const).map((k) => (
-          <label key={k} className={ROW}>
-            <input
-              type="radio"
-              name={`${id}-kind`}
-              className="size-5 shrink-0 accent-accent"
-              checked={kind === k}
-              onChange={() => setKind(k)}
-            />
-            {COPY.runKind[k]}
-          </label>
-        ))}
-      </fieldset>
-      <div className="grid min-w-0 gap-1.5">
-        <label htmlFor={`${id}-venue`} className={LABEL}>
-          {COPY.scopeVenue}
-        </label>
-        <select
-          id={`${id}-venue`}
-          value={venueId}
-          disabled={pending}
-          className={INPUT}
-          onChange={(e) => setVenueId(e.currentTarget.value)}
-        >
-          <option value="">{COPY.allOfThem}</option>
-          {venues.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-            </option>
+      {/* Second handoff: one start row from md (kind, venue, button). */}
+      <div className="grid min-w-0 gap-4 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-end">
+        <fieldset className="grid min-w-0 gap-1" disabled={pending}>
+          <legend className={LABEL}>{COPY.kind}</legend>
+          {(["legacy", "external"] as const).map((k) => (
+            <label key={k} className={ROW}>
+              <input
+                type="radio"
+                name={`${id}-kind`}
+                className="size-5 shrink-0 accent-accent"
+                checked={kind === k}
+                onChange={() => setKind(k)}
+              />
+              {COPY.runKind[k]}
+            </label>
           ))}
-        </select>
-      </div>
-      <div className="grid gap-2">
+        </fieldset>
+        <div className="grid min-w-0 gap-1.5">
+          <label htmlFor={`${id}-venue`} className={LABEL}>
+            {COPY.scopeVenue}
+          </label>
+          <select
+            id={`${id}-venue`}
+            value={venueId}
+            disabled={pending}
+            className={INPUT}
+            onChange={(e) => setVenueId(e.currentTarget.value)}
+          >
+            <option value="">{COPY.allOfThem}</option>
+            {venues.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <Button
             variant="primary"
@@ -460,6 +503,8 @@ export function StartDryRunForm({
             {pending ? COPY.running : COPY.startSubmit}
           </Button>
         </div>
+      </div>
+      <div className="grid gap-2">
         <p role="status" className={MUTED}>
           {pending && slow ? COPY.stillRunning : ""}
         </p>

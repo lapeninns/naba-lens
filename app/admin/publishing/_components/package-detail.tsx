@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { DownloadSimpleIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { Notice } from "@/components/nabalens/notice"
@@ -20,7 +21,8 @@ import {
   publicationChip,
   staleChip,
 } from "./copy"
-import { RebuildButton, RecordPublishedForm } from "./publication-forms"
+import { RebuildButton } from "./publication-forms"
+import { RecordWhere, type RecordWherePhoto } from "./record-where"
 
 /*
  * One export package (spec §14.1, §8 A5). What is wrong comes first
@@ -36,6 +38,7 @@ export function PackageDetail({
   notice,
   destinations,
   today,
+  record = null,
   summary = true,
 }: {
   area: ExportArea
@@ -45,6 +48,8 @@ export function PackageDetail({
   /** Admins: the destinations they can record against. Null for managers. */
   destinations: PublicationDestination[] | null
   today: string
+  /** Admins: the photo whose "Record where" was chosen (`?record=`). */
+  record?: string | null
   /**
    * False where the page's title row carries the state and the one action
    * and a Notice says what is wrong (the manager's package, second
@@ -54,6 +59,26 @@ export function PackageDetail({
 }) {
   const blocked = pkg.state === "invalidated" || pkg.state === "needs_rebuild"
   const stale = new Set(pkg.staleAssets)
+  const recordable = (item: ExportPackageDetail["items"][number]) =>
+    destinations !== null &&
+    pkg.mode === "public" &&
+    item.eligible &&
+    !stale.has(item.assetId)
+  // Second handoff: one "Record where it's published" form, for the chosen
+  // photo (the first recordable one until a row is chosen).
+  const recordItems = pkg.items.filter(recordable)
+  const chosen =
+    recordItems.find((item) => item.assetId === record) ?? recordItems[0]
+  const recordPhoto: RecordWherePhoto | null =
+    destinations && chosen
+      ? {
+          assetId: chosen.assetId,
+          label: chosen.subjectLabel,
+          destinations: destinations.filter(
+            (d) => d.venueId === null || d.venueId === chosen.venueId
+          ),
+        }
+      : null
   return (
     <div className="grid gap-6">
       {summary && notice && DOWNLOAD_NOTICES[notice] ? (
@@ -116,105 +141,121 @@ export function PackageDetail({
         </section>
       ) : null}
 
-      <section aria-labelledby="package-photos" className="grid gap-3">
-        <h2
-          id="package-photos"
-          className="flex flex-wrap items-baseline gap-x-3 type-section-title text-ink"
+      <div
+        className={cn(
+          "grid min-w-0 items-start gap-6",
+          recordPhoto && "md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
+        )}
+      >
+        <section
+          aria-labelledby="package-photos"
+          className="grid min-w-0 gap-3"
         >
-          Photos
-          <span className="text-meta font-normal text-ink-muted tabular-nums">
-            {pkg.items.length}
-          </span>
-        </h2>
-        <ul className="grid gap-3">
-          {pkg.items.map((item) => (
-            <li
-              key={`${item.position}`}
-              className="grid gap-3 rounded-card border border-line bg-surface p-3 sm:grid-cols-[88px_minmax(0,1fr)]"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element -- signed, short-lived URL behind an authorised route */}
-              <img
-                src={`/api/exports/thumb/${item.assetId}`}
-                alt=""
-                width={88}
-                height={88}
-                loading="lazy"
-                className="size-22 rounded-control bg-surface-2 object-cover"
-              />
-              <div className="grid min-w-0 gap-1.5">
-                <p className="text-label break-words text-ink">
-                  {item.subjectLabel}
-                </p>
-                <p className="text-meta break-all text-ink-muted">
-                  {CATEGORY_WORDS[item.category]} · {item.filenameStem}
-                </p>
-                {item.altText ? (
-                  <p className="text-body text-ink">Alt text: {item.altText}</p>
-                ) : null}
-                {item.useRestrictions.length > 0 ? (
-                  <ul className="text-meta text-ink">
-                    {item.useRestrictions.map((r) => (
-                      <li key={r}>{RESTRICTION_WORDS[r] ?? r}</li>
-                    ))}
-                  </ul>
-                ) : null}
-                <div className="flex flex-wrap gap-1.5">
-                  {stale.has(item.assetId) || !item.eligible ? (
-                    <StatusChip state={staleChip(item.staleReason)} />
+          <h2 id="package-photos" className="type-section-title text-ink">
+            Photos
+          </h2>
+          <ul className="grid gap-3">
+            {pkg.items.map((item) => (
+              <li
+                key={`${item.position}`}
+                className="grid gap-3 rounded-card border border-line bg-surface p-3 sm:grid-cols-[88px_minmax(0,1fr)]"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- signed, short-lived URL behind an authorised route */}
+                <img
+                  src={`/api/exports/thumb/${item.assetId}`}
+                  alt=""
+                  width={88}
+                  height={88}
+                  loading="lazy"
+                  className="size-22 rounded-control bg-surface-2 object-cover"
+                />
+                <div className="grid min-w-0 gap-1.5">
+                  <p className="text-label break-words text-ink">
+                    {item.subjectLabel}
+                  </p>
+                  <p className="text-meta break-all text-ink-muted">
+                    {CATEGORY_WORDS[item.category]} · {item.filenameStem}
+                  </p>
+                  {item.altText ? (
+                    <p className="text-body text-ink">
+                      Alt text: {item.altText}
+                    </p>
                   ) : null}
-                  <StatusChip state={publicationChip(item.publication.state)} />
-                </div>
-                {item.publication.destinations.length > 0 ? (
-                  <ul className="grid gap-1 text-meta text-ink">
-                    {item.publication.destinations.map((d) => (
-                      <li key={d.destinationId}>
-                        {d.label}:{" "}
-                        <StatusChip state={publicationChip(d.state)} />
-                        {d.externalUrl ? (
-                          <>
-                            {" "}
-                            <a
-                              href={d.externalUrl}
-                              className="underline underline-offset-4"
-                              rel="noreferrer noopener"
-                              target="_blank"
-                            >
-                              Open page
-                            </a>
-                          </>
-                        ) : d.externalRef ? (
-                          ` ${d.externalRef}`
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                {destinations &&
-                pkg.mode === "public" &&
-                item.eligible &&
-                !stale.has(item.assetId) ? (
-                  <details className="rounded-control border border-line p-3">
-                    <summary className="cursor-pointer text-label text-ink focus-ring">
-                      Record where it&apos;s published
-                    </summary>
-                    <div className="mt-3">
-                      <RecordPublishedForm
-                        assetId={item.assetId}
-                        packageId={pkg.id}
-                        destinations={destinations.filter(
-                          (d) =>
-                            d.venueId === null || d.venueId === item.venueId
-                        )}
-                        today={today}
-                      />
+                  {item.useRestrictions.length > 0 ? (
+                    <ul className="text-meta text-ink">
+                      {item.useRestrictions.map((r) => (
+                        <li key={r}>{RESTRICTION_WORDS[r] ?? r}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <div className="flex flex-wrap gap-1.5">
+                    {stale.has(item.assetId) || !item.eligible ? (
+                      <StatusChip state={staleChip(item.staleReason)} />
+                    ) : null}
+                    <StatusChip
+                      state={publicationChip(item.publication.state)}
+                    />
+                  </div>
+                  {item.publication.destinations.length > 0 ? (
+                    <ul className="grid gap-1 text-meta text-ink">
+                      {item.publication.destinations.map((d) => (
+                        <li key={d.destinationId}>
+                          {d.label}:{" "}
+                          <StatusChip state={publicationChip(d.state)} />
+                          {d.externalUrl ? (
+                            <>
+                              {" "}
+                              <a
+                                href={d.externalUrl}
+                                className="underline underline-offset-4"
+                                rel="noreferrer noopener"
+                                target="_blank"
+                              >
+                                Open page
+                              </a>
+                            </>
+                          ) : d.externalRef ? (
+                            ` ${d.externalRef}`
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {recordable(item) ? (
+                    <div>
+                      <Link
+                        href={`?record=${encodeURIComponent(item.assetId)}#record-where`}
+                        scroll={false}
+                        aria-current={
+                          item.assetId === chosen?.assetId ? "true" : undefined
+                        }
+                        aria-label={`${EXPORTS_COPY.recordWhere}: ${item.subjectLabel}`}
+                        className={buttonVariants({
+                          variant: "secondary",
+                          size: "sm",
+                        })}
+                      >
+                        {EXPORTS_COPY.recordWhere}
+                      </Link>
                     </div>
-                  </details>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {destinations && pkg.mode === "public" ? (
+            <p className="text-meta text-ink-muted">
+              {EXPORTS_COPY.recordWhereNote}
+            </p>
+          ) : null}
+        </section>
+        <RecordWhere
+          photo={recordPhoto}
+          packageId={pkg.id}
+          today={today}
+          opened={record !== null && recordPhoto?.assetId === record}
+        />
+      </div>
 
       {pkg.downloads.length > 0 ? (
         <section aria-labelledby="package-downloads" className="grid gap-2">

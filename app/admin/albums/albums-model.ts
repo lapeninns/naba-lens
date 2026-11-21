@@ -1,6 +1,6 @@
 /*
  * Admin albums (docs/design-system/DESIGN.md §6.6): every venue's album as a
- * matrix, venues down and Food, Drinks, Amenities, Areas across, each cell
+ * matrix, venues down and Food, Drinks, Amenities, Spaces across, each cell
  * "filled of total", and the biggest gaps under it. Pure: lib/server/
  * album-admin.ts reads the sources; tests/unit/admin-albums-model.test.ts
  * covers the rules here.
@@ -25,7 +25,7 @@ export const ALBUM_COLUMNS: ReadonlyArray<{ key: AlbumColumn; label: string }> =
     { key: "food", label: "Food" },
     { key: "drinks", label: "Drinks" },
     { key: "amenities", label: "Amenities" },
-    { key: "areas", label: "Areas" },
+    { key: "areas", label: "Spaces" },
   ]
 
 export type SlotCounts = {
@@ -57,7 +57,7 @@ export type AdminAlbumGap = {
   venueId: string
   venueName: string
   column: AlbumColumn
-  /** "Desserts", "Games"; "Places" for a venue's areas. */
+  /** "Desserts", "Games"; "Spaces" for a venue's areas. */
   group: string
   /** Needed or Retake. */
   empty: number
@@ -117,7 +117,7 @@ export type AdminVenueInput = {
   areas: AdminAreaInput[] | null
 }
 
-export const AREAS_GROUP = "Places"
+export const AREAS_GROUP = "Spaces"
 
 /** How many gaps are listed under the matrix. */
 export const GAP_LIMIT = 8

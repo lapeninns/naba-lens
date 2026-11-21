@@ -399,6 +399,10 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     const admin = await signedInPage(browser, w.admin)
     await makeManager(admin, w)
     await admin.goto("/admin/coverage")
+    // Monthly preparation is a closed disclosure (second handoff); open it
+    // so its own Prepare button is reachable when the header has none.
+    const preparation = admin.locator("#preparation summary")
+    if (await preparation.count()) await preparation.click()
     // "Prepare again" once every venue is prepared; both run for all venues.
     await admin
       .getByRole("button", { name: /^Prepare (this month|again)$/ })

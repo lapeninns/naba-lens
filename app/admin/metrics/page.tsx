@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { LinkSelect } from "@/components/nabalens/link-select"
 import { METRICS_COPY } from "@/components/nabalens/metrics/copy"
 import { metricsHrefs } from "@/components/nabalens/metrics/hrefs"
 import { MetricsOverviewTable } from "@/components/nabalens/metrics/metrics-overview"
@@ -12,8 +13,8 @@ import {
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
-import { FilterPill, PillGroup } from "@/components/ui/filter-pill"
 import { LinkButton } from "@/components/ui/link-button"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { requireActiveAdmin } from "@/lib/auth"
 import { parseCategory, parsePeriod } from "@/lib/metrics/model"
 import { getCoverageActor } from "@/lib/server/coverage"
@@ -22,6 +23,9 @@ import { ADMIN_SECTION_TITLES, AdminTabs } from "../_components/admin-tabs"
 import { loadMetricsOverview, loadVenueMetrics } from "@/lib/server/metrics"
 
 export const metadata: Metadata = { title: METRICS_COPY.title }
+
+/** The "All venues" choice in the venue Select. */
+const ALL_VENUES = "all"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -90,26 +94,33 @@ export default async function AdminMetricsPage({
           <OfflineNotice />
         </div>
 
+        {/* Second handoff: the venue pills became one Select. */}
         {venues.length > 0 ? (
-          <PillGroup label={METRICS_COPY.chooseVenue} className="px-1">
-            <FilterPill
-              href={metricsHrefs.admin({ days, category })}
-              selected={venueId === null}
-              current="page"
-            >
-              {METRICS_COPY.backToAll}
-            </FilterPill>
-            {venues.map((v) => (
-              <FilterPill
-                key={v.venueId}
-                href={metricsHrefs.admin({ venue: v.venueId, days, category })}
-                selected={v.venueId === venueId}
-                current="page"
-              >
-                {v.venueName}
-              </FilterPill>
-            ))}
-          </PillGroup>
+          <Field className="grid max-w-sm min-w-0 gap-1.5 px-1">
+            <FieldLabel htmlFor="admin-metrics-venue">
+              {METRICS_COPY.chooseVenue}
+            </FieldLabel>
+            <LinkSelect
+              id="admin-metrics-venue"
+              value={venueId ?? ALL_VENUES}
+              options={[
+                {
+                  id: ALL_VENUES,
+                  name: METRICS_COPY.backToAll,
+                  href: metricsHrefs.admin({ days, category }),
+                },
+                ...venues.map((v) => ({
+                  id: v.venueId,
+                  name: v.venueName,
+                  href: metricsHrefs.admin({
+                    venue: v.venueId,
+                    days,
+                    category,
+                  }),
+                })),
+              ]}
+            />
+          </Field>
         ) : null}
 
         {venue ? (

@@ -43,6 +43,10 @@ test("AC29: a pub with no accommodation has no bedroom slots, and turning it on 
 
   const admin = await as(browser, w.admin, DESKTOP)
   await admin.goto(`/admin/venues/${w.venueA.id}`)
+  // What this venue collects is a closed disclosure on Setup (second
+  // handoff): open it after every load.
+  const openCollect = () => admin.locator("#collect summary").click()
+  await openCollect()
   const scope = admin.getByTestId("scope-accommodation")
   await expect(scope).toContainText(
     "No accommodation: no bedroom photos or facts are asked for."
@@ -55,6 +59,7 @@ test("AC29: a pub with no accommodation has no bedroom slots, and turning it on 
     // The panel shows only the saved message after a change: reload for the
     // next one.
     await admin.reload()
+    await openCollect()
     await expect(scope).toContainText(
       turn === "on"
         ? "No accommodation: no bedroom photos or facts are asked for."
