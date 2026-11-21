@@ -163,6 +163,10 @@ export function VenueFactsPicks({ active }: { active: VenueFactsPick }) {
   )
 }
 
+/** The one summary every Venue facts pick shows (second handoff). */
+export const VENUE_FACTS_SUMMARY =
+  "Where venue facts come from, and tools that import and re-date them. Used rarely, by an admin."
+
 /**
  * The top of a Venue facts view (ia.md "Settings › Venue facts"): the
  * Settings title and tabs, then the pick. The four pages were orphans; this
@@ -170,7 +174,7 @@ export function VenueFactsPicks({ active }: { active: VenueFactsPick }) {
  */
 export function VenueFactsHeader({
   active,
-  summary,
+  summary = <p>{VENUE_FACTS_SUMMARY}</p>,
 }: {
   active: VenueFactsPick
   summary?: React.ReactNode

@@ -5,7 +5,11 @@ import { notFound } from "next/navigation"
 import { reconcileAction } from "@/app/_knowledge/actions"
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import { AppShell } from "@/components/nabalens/app-shell"
-import { CoverageSection } from "@/components/nabalens/coverage"
+import {
+  CoverageSection,
+  Tally,
+  TallyItem,
+} from "@/components/nabalens/coverage"
 import { dateAndTime } from "@/components/nabalens/knowledge/copy"
 import { ApplyRunControl } from "@/components/nabalens/knowledge/reconcile-controls"
 import {
@@ -26,7 +30,18 @@ export const metadata: Metadata = { title: "Import · Venue facts" }
 
 const RUNS = "/admin/knowledge/runs"
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const MUTED = "text-meta text-ink-muted"
+
+/** The run's four counts as tallies (second handoff). */
+const RUN_TALLY = {
+  proposals: "Would be imported",
+  proposalsNote: "for managers to decide",
+  conflicting: "Disagree",
+  conflictingNote: "with what's recorded",
+  corroborating: "Agree",
+  corroboratingNote: "recorded as seen",
+  skipped: "Skipped",
+  skippedNote: "not checked or no mapping",
+}
 
 /** A dry run may be applied while it is under a day old (§7.4). */
 function freshDryRun(run: { mode: string; startedAt: string }) {
@@ -88,28 +103,61 @@ export default async function RunPage({
           </>
         ) : (
           <>
+            {/* Second handoff: Import is the title row's one button; four
+                tallies; what disagrees with the record is read first. */}
             <PageHeader
-              title={`${COPY.runKind[run.kind]} · ${COPY.runMode[run.mode]} · ${name(run.venueId)}`}
+              title={`${COPY.runKind[run.kind]} · ${COPY.runMode[run.mode]}`}
+              summary={
+                <p>
+                  {name(run.venueId)} · {dateAndTime(run.startedAt)}
+                </p>
+              }
+              actions={
+                run.mode === "dry_run" && fresh ? (
+                  <ApplyRunControl
+                    count={run.counts.proposals}
+                    kind={run.kind}
+                    venueId={run.venueId}
+                    onReconcile={reconcileAction}
+                    runsHref={RUNS}
+                  />
+                ) : undefined
+              }
             />
-            <p className={MUTED}>{dateAndTime(run.startedAt)}</p>
-            <p className="text-body text-ink">{COPY.summary(run.counts)}</p>
-            {run.mode === "dry_run" ? (
-              fresh ? (
-                <ApplyRunControl
-                  count={run.counts.proposals}
-                  kind={run.kind}
-                  venueId={run.venueId}
-                  onReconcile={reconcileAction}
-                  runsHref={RUNS}
-                />
-              ) : (
-                <p className="text-body text-ink">{COPY.applyStale}</p>
-              )
+            {run.mode === "dry_run" && !fresh ? (
+              <p className="text-body text-ink">{COPY.applyStale}</p>
             ) : null}
-            <CoverageSection id="would-create" title={COPY.wouldCreate}>
-              {run.wouldCreate.length ? (
+            <Tally>
+              <TallyItem
+                label={RUN_TALLY.proposals}
+                value={run.counts.proposals}
+                note={RUN_TALLY.proposalsNote}
+              />
+              <TallyItem
+                label={RUN_TALLY.conflicting}
+                value={run.counts.conflicting}
+                note={RUN_TALLY.conflictingNote}
+                tone="attention"
+              />
+              <TallyItem
+                label={RUN_TALLY.corroborating}
+                value={run.counts.corroborating}
+                note={RUN_TALLY.corroboratingNote}
+              />
+              <TallyItem
+                label={RUN_TALLY.skipped}
+                value={run.counts.skipped}
+                note={RUN_TALLY.skippedNote}
+              />
+            </Tally>
+            <CoverageSection
+              id="conflicts"
+              title={COPY.conflicts}
+              count={run.conflicts.length}
+            >
+              {run.conflicts.length ? (
                 <ul className="grid gap-1 text-body text-ink">
-                  {run.wouldCreate.map((p, i) => (
+                  {run.conflicts.map((p, i) => (
                     <li key={i}>{COPY.proposal(p, name(p.venueId))}</li>
                   ))}
                 </ul>
@@ -117,10 +165,14 @@ export default async function RunPage({
                 <p className="text-body text-ink">{COPY.noneListed}</p>
               )}
             </CoverageSection>
-            <CoverageSection id="conflicts" title={COPY.conflicts}>
-              {run.conflicts.length ? (
+            <CoverageSection
+              id="would-create"
+              title={COPY.wouldCreate}
+              count={run.wouldCreate.length}
+            >
+              {run.wouldCreate.length ? (
                 <ul className="grid gap-1 text-body text-ink">
-                  {run.conflicts.map((p, i) => (
+                  {run.wouldCreate.map((p, i) => (
                     <li key={i}>{COPY.proposal(p, name(p.venueId))}</li>
                   ))}
                 </ul>

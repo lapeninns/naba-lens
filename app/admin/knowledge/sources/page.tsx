@@ -11,7 +11,7 @@ import { AppShell } from "@/components/nabalens/app-shell"
 import { CoverageSection } from "@/components/nabalens/coverage"
 import { longDate } from "@/components/nabalens/knowledge/copy"
 import {
-  DeclareSourceForm,
+  DeclareSourceDialog,
   MappingReviewControl,
   RetireSourceControl,
 } from "@/components/nabalens/knowledge/reconcile-controls"
@@ -72,108 +72,121 @@ export default async function SourcesPage({
 
   return (
     <AppShell variant="admin" active="settings" userName={profile.displayName}>
-      <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
+      <div className="grid w-full min-w-0 gap-gutter">
         <VenueFactsHeader active="sources" />
 
-        <CoverageSection id="sources" title={COPY.sources}>
-          {!sources?.ok ? (
-            <Notice tone="negative">{COPY.failed}</Notice>
-          ) : sources.sources.length === 0 ? (
-            <p className="text-body text-ink">{COPY.noSources}</p>
-          ) : (
-            <ul className="grid gap-3">
-              {sources.sources.map((s) => (
-                <li key={s.sourceId} className={CARD}>
-                  <p className="text-item-title [overflow-wrap:anywhere] text-ink">
-                    {s.label}
-                  </p>
-                  <p className={MUTED}>
-                    {SOURCE_KIND_LABEL[s.kind]} ·{" "}
-                    {s.venueId
-                      ? (venueName.get(s.venueId) ?? COPY.aVenue)
-                      : COPY.allVenues}
-                  </p>
-                  <p className={MUTED}>
-                    {COPY.declared(longDate(s.declaredAt), s.declaredBy)}
-                  </p>
-                  {s.retiredAt ? (
-                    <p className={MUTED}>
-                      {COPY.retired(longDate(s.retiredAt))}
+        {/* Second handoff: Sources and Mappings side by side from md;
+            Declare a source opens in a Dialog. */}
+        <div className="grid min-w-0 items-start gap-gutter md:grid-cols-2">
+          <CoverageSection
+            id="sources"
+            title={COPY.sources}
+            action={
+              <DeclareSourceDialog
+                venues={venues}
+                onDeclare={declareSourceAction}
+              />
+            }
+          >
+            {!sources?.ok ? (
+              <Notice tone="negative">{COPY.failed}</Notice>
+            ) : sources.sources.length === 0 ? (
+              <p className="text-body text-ink">{COPY.noSources}</p>
+            ) : (
+              <ul className="grid gap-3">
+                {sources.sources.map((s) => (
+                  <li key={s.sourceId} className={CARD}>
+                    <p className="text-item-title [overflow-wrap:anywhere] text-ink">
+                      {s.label}
                     </p>
-                  ) : (
+                    <p className={MUTED}>
+                      {SOURCE_KIND_LABEL[s.kind]} ·{" "}
+                      {s.venueId
+                        ? (venueName.get(s.venueId) ?? COPY.aVenue)
+                        : COPY.allVenues}
+                    </p>
+                    <p className={MUTED}>
+                      {COPY.declared(longDate(s.declaredAt), s.declaredBy)}
+                    </p>
+                    {s.retiredAt ? (
+                      <p className={MUTED}>
+                        {COPY.retired(longDate(s.retiredAt))}
+                      </p>
+                    ) : (
+                      <div>
+                        <RetireSourceControl
+                          sourceId={s.sourceId}
+                          label={s.label}
+                          onRetire={retireSourceAction}
+                        />
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className={MUTED}>{COPY.declareHelp}</p>
+          </CoverageSection>
+
+          <CoverageSection id="mappings" title={COPY.mappings}>
+            <p className="text-body text-ink">{COPY.mappingsLine}</p>
+            {!mappings?.ok ? (
+              <Notice tone="negative">{COPY.failed}</Notice>
+            ) : mappings.page.items.length === 0 ? (
+              <p className="text-body text-ink">{COPY.noMappings}</p>
+            ) : (
+              <ul className="grid gap-3">
+                {mappings.page.items.map((item) => (
+                  <li
+                    key={`${item.legacyFactId}-${item.legacyRevision}`}
+                    className={CARD}
+                  >
+                    <p className="text-item-title [overflow-wrap:anywhere] text-ink">
+                      {item.legacyKey}: {COPY.presence[item.presence]}
+                    </p>
+                    <p className={MUTED}>
+                      {venueName.get(item.venueId) ?? COPY.aVenue}
+                    </p>
+                    {item.mappings.length ? (
+                      <ul className="grid gap-1 text-body text-ink">
+                        {item.mappings.map((m) => (
+                          <li key={m.questionKey}>
+                            {m.questionKey}:{" "}
+                            {COPY.latest(
+                              MAPPING_KIND_LABEL[m.kind],
+                              m.reason,
+                              m.reviewedBy,
+                              longDate(m.reviewedAt)
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                     <div>
-                      <RetireSourceControl
-                        sourceId={s.sourceId}
-                        label={s.label}
-                        onRetire={retireSourceAction}
+                      <MappingReviewControl
+                        legacyFactId={item.legacyFactId}
+                        legacyRevision={item.legacyRevision}
+                        legacyKey={item.legacyKey}
+                        questions={questions}
+                        onReview={reviewMappingAction}
                       />
                     </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          <DeclareSourceForm venues={venues} onDeclare={declareSourceAction} />
-        </CoverageSection>
-
-        <CoverageSection id="mappings" title={COPY.mappings}>
-          <p className="text-body text-ink">{COPY.mappingsLine}</p>
-          {!mappings?.ok ? (
-            <Notice tone="negative">{COPY.failed}</Notice>
-          ) : mappings.page.items.length === 0 ? (
-            <p className="text-body text-ink">{COPY.noMappings}</p>
-          ) : (
-            <ul className="grid gap-3">
-              {mappings.page.items.map((item) => (
-                <li
-                  key={`${item.legacyFactId}-${item.legacyRevision}`}
-                  className={CARD}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {mappings?.ok && mappings.page.nextCursor ? (
+              <div>
+                <Link
+                  href={`${PATH}?cursor=${encodeURIComponent(mappings.page.nextCursor)}`}
+                  className={buttonVariants({ variant: "secondary" })}
                 >
-                  <p className="text-item-title [overflow-wrap:anywhere] text-ink">
-                    {item.legacyKey}: {COPY.presence[item.presence]}
-                  </p>
-                  <p className={MUTED}>
-                    {venueName.get(item.venueId) ?? COPY.aVenue}
-                  </p>
-                  {item.mappings.length ? (
-                    <ul className="grid gap-1 text-body text-ink">
-                      {item.mappings.map((m) => (
-                        <li key={m.questionKey}>
-                          {m.questionKey}:{" "}
-                          {COPY.latest(
-                            MAPPING_KIND_LABEL[m.kind],
-                            m.reason,
-                            m.reviewedBy,
-                            longDate(m.reviewedAt)
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  <div>
-                    <MappingReviewControl
-                      legacyFactId={item.legacyFactId}
-                      legacyRevision={item.legacyRevision}
-                      legacyKey={item.legacyKey}
-                      questions={questions}
-                      onReview={reviewMappingAction}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-          {mappings?.ok && mappings.page.nextCursor ? (
-            <div>
-              <Link
-                href={`${PATH}?cursor=${encodeURIComponent(mappings.page.nextCursor)}`}
-                className={buttonVariants({ variant: "secondary" })}
-              >
-                {COPY.showOlder}
-              </Link>
-            </div>
-          ) : null}
-        </CoverageSection>
+                  {COPY.showOlder}
+                </Link>
+              </div>
+            ) : null}
+          </CoverageSection>
+        </div>
       </div>
     </AppShell>
   )

@@ -24,8 +24,9 @@ const ROLE: Record<string, string> = {
 }
 
 /**
- * One row per change: what, who (linking to their other changes), where,
- * when, the revision it moved and the reason given. A list, not a table, so
+ * One row per change: when (a fixed first column from md), what, who
+ * (linking to their other changes), where, the revision it moved and the
+ * reason given, quoted on its own line. A list, not a table, so
  * it reads at 320px without sideways scrolling (DESIGN.md §8).
  */
 export function ActivityList({
@@ -46,38 +47,51 @@ export function ActivityList({
         return (
           <li
             key={`${item.source}-${item.id}`}
-            className="grid gap-1 px-4 py-3.5"
+            className="grid gap-x-4 gap-y-1 px-4 py-3.5 md:grid-cols-[9.5rem_minmax(0,1fr)]"
           >
-            <p className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-semibold text-ink">
-                {actionWords(item.action)}
-              </span>
-              <span className="text-meta text-ink-muted">
-                {sourceWords(item.source)}
-              </span>
-            </p>
-            <p className="text-body text-ink">
-              {personHref ? (
-                <Link href={personHref} className="text-accent-text underline">
-                  {item.actorName ?? "Former account"}
-                </Link>
-              ) : (
-                "System"
-              )}{" "}
-              <span className="text-ink-muted">
-                · {ROLE[item.actorRole] ?? item.actorRole}
-              </span>
-              {item.venueName ? (
-                <span className="text-ink-muted"> · {item.venueName}</span>
-              ) : null}
-            </p>
-            <p className="font-mono text-meta text-ink-muted tabular-nums">
+            {/* Second handoff: the time is a fixed first column. */}
+            <p className="font-mono text-meta text-ink-muted tabular-nums md:pt-0.5">
               <time dateTime={item.at}>{DATE.format(new Date(item.at))}</time>
-              {revision ? ` · ${revision}` : null}
             </p>
-            {item.reason ? (
-              <p className="text-body text-ink">&ldquo;{item.reason}&rdquo;</p>
-            ) : null}
+            <div className="grid min-w-0 gap-1">
+              <p className="flex flex-wrap items-baseline gap-x-2">
+                <span className="font-semibold text-ink">
+                  {actionWords(item.action)}
+                </span>
+                <span className="text-meta text-ink-muted">
+                  {sourceWords(item.source)}
+                </span>
+              </p>
+              <p className="text-body text-ink">
+                {personHref ? (
+                  <Link
+                    href={personHref}
+                    className="text-accent-text underline"
+                  >
+                    {item.actorName ?? "Former account"}
+                  </Link>
+                ) : (
+                  "System"
+                )}{" "}
+                <span className="text-ink-muted">
+                  · {ROLE[item.actorRole] ?? item.actorRole}
+                </span>
+                {item.venueName ? (
+                  <span className="text-ink-muted"> · {item.venueName}</span>
+                ) : null}
+                {revision ? (
+                  <span className="font-mono text-meta text-ink-muted tabular-nums">
+                    {" "}
+                    · {revision}
+                  </span>
+                ) : null}
+              </p>
+              {item.reason ? (
+                <p className="text-body text-ink">
+                  &ldquo;{item.reason}&rdquo;
+                </p>
+              ) : null}
+            </div>
           </li>
         )
       })}

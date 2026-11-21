@@ -12,6 +12,14 @@ import {
 import { Notice } from "@/components/nabalens/notice"
 import { VenueFactsHeader } from "@/app/admin/_components/admin-tabs"
 import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { fieldControlVariants } from "@/components/ui/field-control"
 import { requireActiveAdmin } from "@/lib/auth"
 import type { RegistryItem } from "@/lib/knowledge-client/contract"
@@ -21,6 +29,17 @@ import type { MediaActor } from "@/lib/server/media/types"
 
 export const metadata: Metadata = {
   title: "Check dates · Venue facts",
+}
+
+/** The result table (second handoff: "What it would do", four numbers). */
+const RESULT = {
+  title: "What it would do",
+  venue: "Venue",
+  use: "Use",
+  answers: "Answers in use",
+  expired: "Past their check date",
+  basisMissing: "No check date",
+  rechecks: "Rechecks would open",
 }
 
 const PATH = "/admin/knowledge/check-dates"
@@ -135,7 +154,7 @@ export default async function CheckDatesPreviewPage({
 
   return (
     <AppShell variant="admin" active="settings" userName={profile.displayName}>
-      <div className="mx-auto grid w-full max-w-reading min-w-0 gap-gutter">
+      <div className="grid w-full min-w-0 gap-gutter">
         <VenueFactsHeader active="check-dates" />
         <Notice tone="plain" role="note">
           {COPY.intro}
@@ -151,63 +170,67 @@ export default async function CheckDatesPreviewPage({
         {current === null ? (
           <Notice tone="negative">{COPY.noRulesInForce}</Notice>
         ) : null}
+        {/* Second handoff: one form row from md (question, two rules, the
+            button), with the result as a table below. */}
         <form method="get" action={PATH} className="grid min-w-0 gap-4">
           <input type="hidden" name="for" value={key} />
-          <div className="grid min-w-0 gap-1.5">
-            <label htmlFor="key" className={LABEL}>
-              {COPY.question}
-            </label>
-            <select id="key" name="key" defaultValue={key} className={INPUT}>
-              <option value="">Choose…</option>
-              {questions.map((q) => (
-                <option key={q.key} value={q.key}>
-                  {q.guidance.question}
-                </option>
-              ))}
-            </select>
+          <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+            <div className="grid min-w-0 gap-1.5">
+              <label htmlFor="key" className={LABEL}>
+                {COPY.question}
+              </label>
+              <select id="key" name="key" defaultValue={key} className={INPUT}>
+                <option value="">Choose…</option>
+                {questions.map((q) => (
+                  <option key={q.key} value={q.key}>
+                    {q.guidance.question}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {(
+              [
+                ["internal", COPY.internal, internal],
+                ["public", COPY.public, publicRule],
+              ] as const
+            ).map(([name, label, value]) => {
+              const options = listed.filter((policy) => policy.use === name)
+              return (
+                <div key={name} className="grid min-w-0 gap-1.5">
+                  <label htmlFor={name} className={LABEL}>
+                    {label}
+                  </label>
+                  <select
+                    id={name}
+                    name={name}
+                    // Only a listed rule can be chosen; anything else reads None.
+                    defaultValue={
+                      options.some((policy) => policy.policyId === value)
+                        ? value
+                        : ""
+                    }
+                    className={INPUT}
+                    aria-describedby="rule-help"
+                  >
+                    <option value="">{COPY.noRule}</option>
+                    {options.map((policy) => (
+                      <option key={policy.policyId} value={policy.policyId}>
+                        {freshnessPolicyLabel(policy)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )
+            })}
+            <div>
+              <Button type="submit" variant="secondary">
+                {COPY.show}
+              </Button>
+            </div>
           </div>
-          {(
-            [
-              ["internal", COPY.internal, internal],
-              ["public", COPY.public, publicRule],
-            ] as const
-          ).map(([name, label, value]) => {
-            const options = listed.filter((policy) => policy.use === name)
-            return (
-              <div key={name} className="grid min-w-0 gap-1.5">
-                <label htmlFor={name} className={LABEL}>
-                  {label}
-                </label>
-                <select
-                  id={name}
-                  name={name}
-                  // Only a listed rule can be chosen; anything else reads None.
-                  defaultValue={
-                    options.some((policy) => policy.policyId === value)
-                      ? value
-                      : ""
-                  }
-                  className={INPUT}
-                  aria-describedby="rule-help"
-                >
-                  <option value="">{COPY.noRule}</option>
-                  {options.map((policy) => (
-                    <option key={policy.policyId} value={policy.policyId}>
-                      {freshnessPolicyLabel(policy)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )
-          })}
           <p id="rule-help" className={MUTED}>
             {COPY.ruleHelp}
           </p>
-          <div>
-            <Button type="submit" variant="secondary">
-              {COPY.show}
-            </Button>
-          </div>
         </form>
 
         {asked && (!preview || !preview.ok) ? (
@@ -231,29 +254,52 @@ export default async function CheckDatesPreviewPage({
         ) : null}
 
         {preview?.ok ? (
-          <CoverageSection id="check-dates-preview" title={COPY.title}>
+          <CoverageSection id="check-dates-preview" title={RESULT.title}>
             {preview.preview.items.length === 0 ? (
               <p className="text-body text-ink">{COPY.none}</p>
             ) : (
-              <ul className="grid gap-3">
-                {preview.preview.items.map((item) => (
-                  <li
-                    key={`${item.venueId}-${item.use}`}
-                    className="grid gap-1 rounded-card bg-surface p-4 shadow-card"
-                  >
-                    <p className="text-item-title [overflow-wrap:anywhere] text-ink">
-                      {names.get(item.venueId) ?? COPY.aVenue}
-                    </p>
-                    <p className={MUTED}>{COPY.use[item.use]}</p>
-                    <ul className="grid gap-0.5 text-body text-ink">
-                      <li>{COPY.answers(item.answers)}</li>
-                      <li>{COPY.expired(item.expired)}</li>
-                      <li>{COPY.basisMissing(item.basisMissing)}</li>
-                      <li>{COPY.rechecks(previewRechecks(item))}</li>
-                    </ul>
-                  </li>
-                ))}
-              </ul>
+              <Table stacked framed aria-label={RESULT.title}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{RESULT.venue}</TableHead>
+                    <TableHead>{RESULT.use}</TableHead>
+                    <TableHead numeric>{RESULT.answers}</TableHead>
+                    <TableHead numeric>{RESULT.expired}</TableHead>
+                    <TableHead numeric>{RESULT.basisMissing}</TableHead>
+                    <TableHead numeric>{RESULT.rechecks}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {preview.preview.items.map((item) => (
+                    <TableRow key={`${item.venueId}-${item.use}`}>
+                      <TableHead
+                        scope="row"
+                        className="text-label whitespace-normal text-ink"
+                      >
+                        {names.get(item.venueId) ?? COPY.aVenue}
+                      </TableHead>
+                      <TableCell
+                        label={RESULT.use}
+                        className="whitespace-normal text-ink-muted"
+                      >
+                        {COPY.use[item.use]}
+                      </TableCell>
+                      <TableCell label={RESULT.answers} numeric>
+                        {item.answers}
+                      </TableCell>
+                      <TableCell label={RESULT.expired} numeric>
+                        {item.expired}
+                      </TableCell>
+                      <TableCell label={RESULT.basisMissing} numeric>
+                        {item.basisMissing}
+                      </TableCell>
+                      <TableCell label={RESULT.rechecks} numeric>
+                        {previewRechecks(item)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </CoverageSection>
         ) : null}

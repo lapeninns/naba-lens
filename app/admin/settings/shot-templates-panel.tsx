@@ -5,6 +5,16 @@ import { Notice } from "@/components/nabalens/notice"
 import { buttonVariants } from "@/components/ui/button"
 import { Photo } from "@/components/ui/photo"
 import { categoryLabel, type ShotTemplate } from "@/lib/album/brief"
+import type { CoverageCategory } from "@/lib/album/model"
+
+/**
+ * A category's name in admin copy. Decision 7 of the second handoff calls
+ * Facilities "Amenities"; the shared label in lib/album/model.ts is left to
+ * the batch that renames it everywhere at once.
+ */
+export function adminCategoryLabel(category: CoverageCategory): string {
+  return category === "facilities" ? "Amenities" : categoryLabel(category)
+}
 
 export const SHOT_TEMPLATES_COPY = {
   title: "Shot templates",
@@ -34,7 +44,7 @@ export function ShotTemplatesPanel({
           data-slot="shot-templates"
         >
           {templates.map((t) => {
-            const label = categoryLabel(t.category)
+            const label = adminCategoryLabel(t.category)
             return (
               <li
                 key={t.category}
