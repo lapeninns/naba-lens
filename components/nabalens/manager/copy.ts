@@ -345,6 +345,7 @@ export const MANAGER_COPY = {
     loadingPage: "Loading your photos",
     addLabels: "Add labels",
     editLabels: "Edit labels",
+    labelledTitle: "Labelled",
   },
   team: {
     title: "Team targets",
@@ -401,5 +402,15 @@ export const MANAGER_COPY = {
     venue: "Venue",
     venueNote: "Only an admin can change your venue.",
     signOut: "Sign out",
+    photosLine: (needsLabels: number | null) =>
+      needsLabels
+        ? `Photos and videos you've added · ${needsLabels} need${needsLabels === 1 ? "s" : ""} labels`
+        : "Photos and videos you've added",
+    twoStep: "Two-step sign-in",
+    twoStepOn:
+      "On. You enter a code from your authenticator app each time you sign in.",
+    twoStepOff:
+      "Off. Turn it on to enter a code from an authenticator app each time you sign in.",
+    twoStepTurnOn: "Turn on two-step sign-in",
   },
 } as const

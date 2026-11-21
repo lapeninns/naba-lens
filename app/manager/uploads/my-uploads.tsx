@@ -9,12 +9,12 @@ import { LabelEditorHost } from "@/app/_labels/label-editor-host"
 import { PreviewUnavailable } from "@/components/nabalens/coverage/evidence-image"
 import {
   MY_CONTRIBUTIONS_COPY,
-  PhotoLines,
   titleOf,
 } from "@/components/nabalens/knowledge/my-contributions"
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { Notice } from "@/components/nabalens/notice"
+import { CHIP_STATES, StatusChip } from "@/components/nabalens/status-chip"
 import { Button, buttonVariants } from "@/components/ui/button"
 import type {
   ContributionsFeedPage,
@@ -44,10 +44,31 @@ const photosOf = (page: ContributionsFeedPage | null): FeedPhotoItem[] =>
 
 const rowId = (key: string) => `upload-${key.replace(/[^\w-]/g, "-")}`
 
+/** Labels still to add (or to fix) put a photo in the first group. */
+const needsLabels = (row: PhotoContributionRow) =>
+  row.labels === "needs_labels" || row.labels === "needs_attention"
+
+/**
+ * The row's one chip, in the album's words (second handoff, decision 8):
+ * Needs labels, Retake, In the album, else Waiting. Exported for tests.
+ */
+export function uploadChip(row: PhotoContributionRow): string {
+  if (needsLabels(row)) return "needs_labels"
+  if (
+    row.reviews.some((r) => r.state === "better_photo_requested" && !r.offMenu)
+  )
+    return "outcome_retake"
+  if (row.menuUseAccepted || row.reviews.some((r) => r.state === "accepted"))
+    return "outcome_public"
+  return "outcome_waiting"
+}
+
 /**
  * A manager account's own photo rows from the R5 feed, 20 feed rows a page
  * (task sends and findings are left out, so a page may show fewer), with My
  * contributions' lines and Add or Edit labels. Nothing here deletes.
+ * Second handoff: photos needing labels first, then the labelled ones; each
+ * row is the photo, its label, one chip and one button.
  */
 export function MyUploads({
   initial,
@@ -155,7 +176,7 @@ export function MyUploads({
   const copy = MANAGER_COPY.uploads
 
   return (
-    <section aria-label={copy.title} className="grid gap-3">
+    <section aria-label={copy.title} className="grid gap-6">
       {initial === null ? (
         <Notice
           tone="negative"
@@ -177,19 +198,49 @@ export function MyUploads({
           </p>
         )
       ) : (
-        <ul
-          aria-label={copy.title}
-          className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
-        >
-          {rows.map((row) => (
-            <UploadRow
-              key={row.key}
-              row={row}
-              venue={venue}
-              onLabel={() => setLabelFor(row.assetId)}
-            />
-          ))}
-        </ul>
+        [
+          {
+            id: "needs",
+            title: CHIP_STATES.needs_labels.word,
+            rows: rows.filter(needsLabels),
+          },
+          {
+            id: "labelled",
+            title: copy.labelledTitle,
+            rows: rows.filter((row) => !needsLabels(row)),
+          },
+        ].map((group) =>
+          group.rows.length === 0 ? null : (
+            <section
+              key={group.id}
+              aria-labelledby={`uploads-${group.id}`}
+              className="grid gap-3"
+            >
+              <h2
+                id={`uploads-${group.id}`}
+                className="flex flex-wrap items-baseline gap-x-3 px-1 type-section-title text-ink"
+              >
+                {group.title}
+                <span className="text-meta font-normal text-ink-muted tabular-nums">
+                  {group.rows.length}
+                </span>
+              </h2>
+              <ul
+                aria-label={group.title}
+                className="grid divide-y divide-line overflow-hidden rounded-card bg-surface edge"
+              >
+                {group.rows.map((row) => (
+                  <UploadRow
+                    key={row.key}
+                    row={row}
+                    venue={venue}
+                    onLabel={() => setLabelFor(row.assetId)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )
+        )
       )}
 
       {initial === null ? null : status === "failed" ? (
@@ -247,39 +298,57 @@ function UploadRow({
   const id = rowId(row.key)
   const elsewhere = row.venueId !== venue.id
   const labelled = row.labels === "labelled" || row.labels === "needs_attention"
+  const retake = row.reviews.find(
+    (r) => r.state === "better_photo_requested" && !r.offMenu && r.reason
+  )
   return (
-    <li className="flex min-w-0 gap-3 p-4">
+    <li className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
       <Thumb row={row} />
-      <div className="grid min-w-0 flex-1 content-start gap-1.5">
+      <div className="grid min-w-0 content-start gap-0.5">
         <h3
           id={id}
           tabIndex={-1}
-          className="min-w-0 rounded-control text-item-title [overflow-wrap:anywhere] text-ink focus-ring outline-none"
+          className="min-w-0 rounded-control text-label [overflow-wrap:anywhere] text-ink focus-ring outline-none"
         >
           {titleOf(row)}
         </h3>
-        {elsewhere && row.venueName ? (
-          <p className="text-meta font-semibold text-ink-muted">
-            {row.venueName}
+        <p className="text-meta text-ink-muted">
+          {[
+            MY_CONTRIBUTIONS_COPY.sent(row.sentAt),
+            row.setSize
+              ? MY_CONTRIBUTIONS_COPY.oneOfSet(row.setSize).toLowerCase()
+              : null,
+            elsewhere && row.venueName ? row.venueName : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+        {row.upload === "saved" ? null : (
+          <p className="text-meta text-ink-muted">
+            {MY_CONTRIBUTIONS_COPY.upload[row.upload]}
+          </p>
+        )}
+        {retake ? (
+          <p className="text-meta [overflow-wrap:anywhere] text-ink-muted">
+            “{retake.reason}”
           </p>
         ) : null}
-        <PhotoLines row={row} />
-        <p className="text-meta text-ink-muted">
-          {MY_CONTRIBUTIONS_COPY.sent(row.sentAt)}
-        </p>
-        {/* The editor opens saved files only. */}
-        {row.upload === "saved" ? (
-          <Button
-            type="button"
-            variant="secondary"
-            className="mt-1 justify-self-start max-sm:w-full"
-            aria-describedby={id}
-            onClick={onLabel}
-          >
-            {labelled ? copy.editLabels : copy.addLabels}
-          </Button>
-        ) : null}
       </div>
+      <div className="col-start-2 sm:col-start-auto">
+        <StatusChip state={uploadChip(row)} />
+      </div>
+      {/* The editor opens saved files only. */}
+      {row.upload === "saved" ? (
+        <Button
+          type="button"
+          variant={labelled ? "quiet" : "secondary"}
+          className="col-span-2 max-sm:w-full sm:col-span-1"
+          aria-describedby={id}
+          onClick={onLabel}
+        >
+          {labelled ? copy.editLabels : copy.addLabels}
+        </Button>
+      ) : null}
     </li>
   )
 }
@@ -291,12 +360,12 @@ function Thumb({ row }: { row: PhotoContributionRow }) {
   // read) says so, as evidence images do, rather than a bare icon.
   if (failed)
     return (
-      <PreviewUnavailable className="size-16 shrink-0 rounded-control px-1 text-center text-caption" />
+      <PreviewUnavailable className="size-14 shrink-0 rounded-control px-1 text-center text-caption" />
     )
   return (
     <span
       aria-hidden
-      className="relative grid size-16 shrink-0 place-items-center overflow-hidden rounded-control bg-plate text-ink-muted"
+      className="relative grid size-14 shrink-0 place-items-center overflow-hidden rounded-control bg-plate text-ink-muted"
     >
       {show ? (
         // Signed private URLs never go through next/image (see MediaTile).
